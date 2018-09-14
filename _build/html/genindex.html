@@ -229,11 +229,17 @@
 </li>
       <li><a href="devito.dse.backends.html#devito.dse.backends.speculative.AggressiveRewriter">AggressiveRewriter (class in devito.dse.backends.speculative)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.ir.support.html#devito.ir.support.basic.IterationInstance.aindices">aindices (devito.ir.support.basic.IterationInstance attribute)</a>
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.utils.align_accesses">align_accesses() (in module devito.ir.support.utils)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.all_coords">all_coords (devito.mpi.distributed.Distributor attribute)</a>
+</li>
+      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.all_numb">all_numb (devito.mpi.distributed.Distributor attribute)</a>
+</li>
+      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.all_ranges">all_ranges (devito.mpi.distributed.Distributor attribute)</a>
 </li>
       <li><a href="devito.html#devito.cgen_utils.Allocator">Allocator (class in devito.cgen_utils)</a>
 </li>
@@ -375,7 +381,7 @@
 </li>
       <li><a href="devito.html#devito.cgen_utils.CodePrinter">CodePrinter (class in devito.cgen_utils)</a>
 </li>
-      <li><a href="devito.html#devito.function.SparseFunction.coefficients">coefficients (devito.function.SparseFunction attribute)</a>
+      <li><a href="devito.html#devito.function.PrecomputedSparseFunction.coefficients">coefficients (devito.function.PrecomputedSparseFunction attribute)</a>
 </li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.parallelizer.Ompizer.COLLAPSE">COLLAPSE (devito.dle.backends.parallelizer.Ompizer attribute)</a>
 </li>
@@ -391,10 +397,10 @@
 </li>
       <li><a href="devito.html#devito.exceptions.CompilationError">CompilationError</a>
 </li>
-      <li><a href="devito.ir.iet.html#devito.ir.iet.utils.compose_nodes">compose_nodes() (in module devito.ir.iet.utils)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.utils.compose_nodes">compose_nodes() (in module devito.ir.iet.utils)</a>
+</li>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.FieldFromComposite.composite">composite (devito.symbolics.extended_sympy.FieldFromComposite attribute)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.CondEq">CondEq (class in devito.symbolics.extended_sympy)</a>
@@ -417,13 +423,9 @@
       </ul></li>
       <li><a href="devito.symbolics.html#devito.symbolics.manipulation.convert_to_SSA">convert_to_SSA() (in module devito.symbolics.manipulation)</a>
 </li>
-      <li><a href="devito.html#devito.function.SparseFunction.coordinate_bases">coordinate_bases (devito.function.SparseFunction attribute)</a>
-</li>
-      <li><a href="devito.html#devito.function.SparseFunction.coordinate_indices">coordinate_indices (devito.function.SparseFunction attribute)</a>
-</li>
-      <li><a href="devito.html#devito.function.SparseFunction.coordinate_symbols">coordinate_symbols (devito.function.SparseFunction attribute)</a>
-</li>
       <li><a href="devito.html#devito.function.SparseFunction.coordinates">coordinates (devito.function.SparseFunction attribute)</a>
+</li>
+      <li><a href="devito.html#devito.function.SparseFunction.coordinates_data">coordinates_data (devito.function.SparseFunction attribute)</a>
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil.copy">copy() (devito.ir.support.stencil.Stencil method)</a>
 
@@ -1207,11 +1209,13 @@
 </li>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_ranges">glb_ranges (devito.mpi.distributed.Distributor attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_shape">glb_shape (devito.mpi.distributed.Distributor attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_to_loc">glb_to_loc() (devito.mpi.distributed.Distributor method)</a>
+</li>
+      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_to_rank">glb_to_rank() (devito.mpi.distributed.Distributor method)</a>
 </li>
       <li><a href="devito.html#devito.compiler.GNUCompiler">GNUCompiler (class in devito.compiler)</a>
 </li>
@@ -1223,6 +1227,12 @@
 
       <ul>
         <li><a href="devito.html#devito.grid.Grid">(class in devito.grid)</a>
+</li>
+      </ul></li>
+      <li><a href="devito.html#devito.function.PrecomputedSparseFunction.gridpoints">gridpoints (devito.function.PrecomputedSparseFunction attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.function.SparseFunction.gridpoints">(devito.function.SparseFunction attribute)</a>
 </li>
       </ul></li>
       <li><a href="devito.ir.support.html#devito.ir.support.utils.group_expressions">group_expressions() (in module devito.ir.support.utils)</a>
@@ -1282,6 +1292,8 @@
       <li><a href="devito.ir.iet.html#devito.ir.iet.scheduler.iet_insert_C_decls">iet_insert_C_decls() (in module devito.ir.iet.scheduler)</a>
 </li>
       <li><a href="devito.html#devito.equation.Inc">Inc (class in devito.equation)</a>
+</li>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Increment">Increment (class in devito.ir.iet.nodes)</a>
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.basic.IterationInstance.index_mode">index_mode (devito.ir.support.basic.IterationInstance attribute)</a>
 </li>
@@ -1536,15 +1548,15 @@
       <ul>
         <li><a href="devito.html#devito.equation.Inc.is_Increment">(devito.equation.Inc attribute)</a>
 </li>
-      </ul></li>
-      <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Expression.is_increment">is_increment (devito.ir.iet.nodes.Expression attribute)</a>
-
-      <ul>
-        <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.ForeignExpression.is_increment">(devito.ir.iet.nodes.ForeignExpression attribute)</a>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.ForeignExpression.is_Increment">(devito.ir.iet.nodes.ForeignExpression attribute)</a>
 </li>
-        <li><a href="devito.ir.support.html#devito.ir.support.basic.Access.is_increment">(devito.ir.support.basic.Access attribute)</a>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Increment.is_Increment">(devito.ir.iet.nodes.Increment attribute)</a>
+</li>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Node.is_Increment">(devito.ir.iet.nodes.Node attribute)</a>
 </li>
       </ul></li>
+      <li><a href="devito.ir.support.html#devito.ir.support.basic.Access.is_increment">is_increment (devito.ir.support.basic.Access attribute)</a>
+</li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.is_index">is_index() (devito.ir.clusters.graph.FlowGraph method)</a>
 </li>
       <li><a href="devito.html#devito.base.CacheManager.is_infinite">is_infinite (devito.base.CacheManager attribute)</a>
@@ -1857,8 +1869,6 @@
 </li>
       <li><a href="examples.seismic.tti.html#examples.seismic.tti.operators.kernel_staggered_3d">kernel_staggered_3d() (in module examples.seismic.tti.operators)</a>
 </li>
-      <li><a href="devito.html#devito.operator.Operator.known_arguments">known_arguments (devito.operator.Operator attribute)</a>
-</li>
   </ul></td>
 </tr></table>
 
@@ -2093,6 +2103,8 @@
 </li>
       <li><a href="examples.seismic.html#examples.seismic.benchmark.option_simulation">option_simulation() (in module examples.seismic.benchmark)</a>
 </li>
+      <li><a href="devito.html#devito.grid.Grid.origin_domain">origin_domain (devito.grid.Grid attribute)</a>
+</li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.common.BlockingArg.original_dim">original_dim (devito.dle.backends.common.BlockingArg attribute)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Expression.output">output (devito.ir.iet.nodes.Expression attribute)</a>
@@ -2141,8 +2153,6 @@
 </li>
       <li><a href="examples.seismic.html#examples.seismic.plotting.plot_velocity">plot_velocity() (in module examples.seismic.plotting)</a>
 </li>
-      <li><a href="devito.html#devito.function.SparseFunction.point_symbols">point_symbols (devito.function.SparseFunction attribute)</a>
-</li>
       <li><a href="examples.seismic.html#examples.seismic.source.PointSource">PointSource (class in examples.seismic.source)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Pow">Pow (class in devito.symbolics.extended_sympy)</a>
@@ -2168,8 +2178,6 @@
 </li>
       </ul></li>
       <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil.prefix">prefix() (devito.ir.support.stencil.Stencil method)</a>
-</li>
-      <li><a href="devito.html#devito.operator.Operator.prepare_arguments">prepare_arguments() (devito.operator.Operator method)</a>
 </li>
       <li><a href="devito.html#devito.parameters.print_defaults">print_defaults() (in module devito.parameters)</a>
 </li>
@@ -2681,6 +2689,8 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Increment">visit_Increment() (devito.ir.iet.visitors.CGen method)</a>
+</li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.CGen.visit_Iteration">visit_Iteration() (devito.ir.iet.visitors.CGen method)</a>
 
       <ul>

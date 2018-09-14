@@ -310,6 +310,11 @@ appears in this list are treated as traversable fields.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.ir.iet.nodes.Node.is_Increment">
+<code class="descname">is_Increment</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.iet.nodes.Node.is_Increment" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.ir.iet.nodes.Node.is_Iteration">
 <code class="descname">is_Iteration</code><em class="property"> = False</em><a class="headerlink" href="#devito.ir.iet.nodes.Node.is_Iteration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -416,12 +421,6 @@ appears in this list are treated as traversable fields.</p>
 <dt id="devito.ir.iet.nodes.Expression.is_Expression">
 <code class="descname">is_Expression</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Expression.is_Expression" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.ir.iet.nodes.Expression.is_increment">
-<code class="descname">is_increment</code><a class="headerlink" href="#devito.ir.iet.nodes.Expression.is_increment" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return True if the write is actually an associative and commutative increment.</p>
-</dd></dl>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.Expression.is_scalar">
@@ -866,9 +865,12 @@ defines the data, as well as the dimension sizes.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.ir.iet.nodes.ForeignExpression.is_increment">
-<code class="descname">is_increment</code><a class="headerlink" href="#devito.ir.iet.nodes.ForeignExpression.is_increment" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return True if the write is actually an associative and commutative increment.</p>
+<dt id="devito.ir.iet.nodes.ForeignExpression.is_Increment">
+<code class="descname">is_Increment</code><a class="headerlink" href="#devito.ir.iet.nodes.ForeignExpression.is_Increment" title="Permalink to this definition">¶</a></dt>
+<dd><p>bool(x) -&gt; bool</p>
+<p>Returns True when the argument x is true, False otherwise.
+The builtins True and False are the only two instances of the class bool.
+The class bool is a subclass of the class int, and cannot be subclassed.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -975,6 +977,18 @@ computation unit).</p>
 <dl class="attribute">
 <dt id="devito.ir.iet.nodes.ExpressionBundle.is_ExpressionBundle">
 <code class="descname">is_ExpressionBundle</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.ExpressionBundle.is_ExpressionBundle" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.ir.iet.nodes.Increment">
+<em class="property">class </em><code class="descclassname">devito.ir.iet.nodes.</code><code class="descname">Increment</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Increment"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Increment" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.ir.iet.nodes.Expression" title="devito.ir.iet.nodes.Expression"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.iet.nodes.Expression</span></code></a></p>
+<p>A node representing a += increment.</p>
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Increment.is_Increment">
+<code class="descname">is_Increment</code><em class="property"> = True</em><a class="headerlink" href="#devito.ir.iet.nodes.Increment.is_Increment" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -1190,7 +1204,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x2b20a8daf510&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x2b20a8daf488&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function FindNodes.&lt;lambda&gt; at 0x2af081764950&gt;, 'type': &lt;function FindNodes.&lt;lambda&gt; at 0x2af0817648c8&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1272,7 +1286,7 @@ of appropriate type.</p>
 
 <dl class="attribute">
 <dt id="devito.ir.iet.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x2b20a8daf158&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x2b20a8daf0d0&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x2b20a8daf048&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'defines': &lt;function FindSymbols.&lt;lambda&gt; at 0x2af081764598&gt;, 'free-symbols': &lt;function FindSymbols.&lt;lambda&gt; at 0x2af081764510&gt;, 'symbolics': &lt;function FindSymbols.&lt;lambda&gt; at 0x2af081764488&gt;}</em><a class="headerlink" href="#devito.ir.iet.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1442,6 +1456,11 @@ to SymPy’s <code class="docutils literal notranslate"><span class="pre">subs</
 <dl class="method">
 <dt id="devito.ir.iet.visitors.CGen.visit_ForeignExpression">
 <code class="descname">visit_ForeignExpression</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_ForeignExpression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_ForeignExpression" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.ir.iet.visitors.CGen.visit_Increment">
+<code class="descname">visit_Increment</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/visitors.html#CGen.visit_Increment"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.visitors.CGen.visit_Increment" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">

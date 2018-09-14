@@ -748,7 +748,14 @@
                 <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">LEFT</span><span class="p">:</span>
                     <span class="n">end</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">+</span> <span class="n">extent</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">end</span> <span class="o">=</span> <span class="p">(</span><span class="n">offset</span> <span class="o">+</span> <span class="n">extent</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>  <span class="c1"># The end point won&#39;t be 0</span>
+                    <span class="k">if</span> <span class="n">extent</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="c1"># The region is empty</span>
+                        <span class="k">assert</span> <span class="n">offset</span> <span class="o">==</span> <span class="mi">0</span>
+                        <span class="n">end</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># The region is non-empty (e.g., offset=-1, extent=1), so</span>
+                        <span class="c1"># to reach the end point we must use None, not 0</span>
+                        <span class="n">end</span> <span class="o">=</span> <span class="p">(</span><span class="n">offset</span> <span class="o">+</span> <span class="n">extent</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>
                 <span class="n">index_array</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">end</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">index_array</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">))</span>

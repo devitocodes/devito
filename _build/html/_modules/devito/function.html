@@ -174,14 +174,15 @@
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_indexed</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="p">(</span><span class="n">AbstractCachedFunction</span><span class="p">,</span> <span class="n">AbstractCachedSymbol</span><span class="p">,</span>
                           <span class="n">OWNED</span><span class="p">,</span> <span class="n">HALO</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">powerset</span><span class="p">,</span> <span class="n">is_integer</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">Tag</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">as_mapper</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span>
+                          <span class="n">flatten</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">powerset</span><span class="p">)</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Constant&#39;</span><span class="p">,</span> <span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;SparseFunction&#39;</span><span class="p">,</span>
            <span class="s1">&#39;SparseTimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;PrecomputedSparseFunction&#39;</span><span class="p">,</span>
            <span class="s1">&#39;PrecomputedSparseTimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;Buffer&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Constant"><a class="viewcode-back" href="../../devito.html#devito.function.Constant">[docs]</a><span class="k">class</span> <span class="nc">Constant</span><span class="p">(</span><span class="n">AbstractCachedSymbol</span><span class="p">):</span>
+<div class="viewcode-block" id="Constant"><a class="viewcode-back" href="../../devito.html#devito.function.Constant">[docs]</a><span class="k">class</span> <span class="nc">Constant</span><span class="p">(</span><span class="n">AbstractCachedSymbol</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol representing constant values in symbolic equations.</span>
@@ -261,7 +262,7 @@
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">AbstractCachedSymbol</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="s1">&#39;_value&#39;</span><span class="p">]</span></div>
 
 
-<span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">AbstractCachedFunction</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">AbstractCachedFunction</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Utility class to encapsulate all symbolic types that represent</span>
@@ -307,7 +308,14 @@
                 <span class="c1"># Allocate memory and initialize it. Note that we do *not* hold</span>
                 <span class="c1"># a reference to the user-provided buffer</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span> <span class="o">=</span> <span class="kc">None</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">data_allocated</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">initializer</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">initializer</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data_allocated</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">initializer</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># This is a corner case -- we might get here, for example, when</span>
+                    <span class="c1"># running with MPI and some processes get 0-size arrays after</span>
+                    <span class="c1"># domain decomposition. We touch the data anyway to avoid the</span>
+                    <span class="c1"># case ``self._data is None``</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`initializer` must be callable or buffer, not </span><span class="si">%s</span><span class="s2">&quot;</span>
                                  <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">initializer</span><span class="p">))</span>
@@ -575,7 +583,8 @@
 
     <span class="k">def</span> <span class="nf">_halo_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Perform the halo exchange with the neighboring processes.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># Nothing to do</span>
             <span class="k">return</span>
         <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` cannot perfom a halo exchange as it has &quot;</span>
@@ -630,8 +639,8 @@
         <span class="n">args</span> <span class="o">=</span> <span class="n">ReducerMap</span><span class="p">({</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_buffer</span><span class="p">})</span>
 
         <span class="c1"># Collect default dimension arguments from all indices</span>
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">,</span> <span class="n">key</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
-            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="o">+</span><span class="n">o</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="n">k</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">):</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="o">+</span><span class="n">o</span><span class="p">))</span>
 
         <span class="c1"># Add MPI-related data structures</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1186,6 +1195,30 @@
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="s1">&#39;save&#39;</span><span class="p">]</span></div>
 
 
+<span class="k">class</span> <span class="nc">SubFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A :class:`Function` that is bound to another &quot;parent&quot; TensorFunction.</span>
+
+<span class="sd">    A SubFunction hands control of argument binding and halo exchange to its</span>
+<span class="sd">    parent TensorFunction.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">SubFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_halo_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span>
+
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` is a SubFunction, so it can&#39;t be assigned &quot;</span>
+                               <span class="s2">&quot;a value dynamically&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_parent</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
+
+
 <span class="k">class</span> <span class="nc">AbstractSparseFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An abstract class to define behaviours common to any kind of sparse</span>
@@ -1193,8 +1226,12 @@
 <span class="sd">    on the fly. This is an internal class only and should never be</span>
 <span class="sd">    instantiated.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># Symbols that are encapsulated within this symbol (e.g. coordinates)</span>
-    <span class="n">_child_functions</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">_sparse_position</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="sd">&quot;&quot;&quot;Position of sparse index among the function indices.&quot;&quot;&quot;</span>
+
+    <span class="n">_sub_functions</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="sd">&quot;&quot;&quot;:class:`SubFunction`s encapsulated within this AbstractSparseFunction.&quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
@@ -1203,8 +1240,8 @@
             <span class="n">npoint</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;npoint&#39;</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">npoint</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;SparseFunction needs `npoint` int argument&#39;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">npoint</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;`npoint` must be &gt; 0&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">npoint</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;`npoint` must be &gt;= 0&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">npoint</span> <span class="o">=</span> <span class="n">npoint</span>
 
             <span class="c1"># A Grid must have been provided</span>
@@ -1228,23 +1265,169 @@
     <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;npoint&#39;</span><span class="p">),))</span>
 
-    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a map of default argument values defined by this symbol.</span>
-
-<span class="sd">        :param alias: (Optional) name under which to store values.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">AbstractSparseFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">child_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_child_functions</span><span class="p">:</span>
-            <span class="n">child</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">child_name</span><span class="p">)</span>
-            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">child_name</span><span class="p">)))</span>
-        <span class="k">return</span> <span class="n">args</span>
+    <span class="k">def</span> <span class="nf">_is_owned</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">point</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if ``point`` is in self&#39;s local domain, False otherwise.&quot;&quot;&quot;</span>
+        <span class="n">point</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">point</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` is an </span><span class="si">%d</span><span class="s2">D point (expected </span><span class="si">%d</span><span class="s2">D)&quot;</span>
+                             <span class="o">%</span> <span class="p">(</span><span class="n">point</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">point</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">))</span>
+        <span class="n">distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                   <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">point</span><span class="p">))</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return a tuple of argument names introduced by this function.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_child_functions</span><span class="p">])</span>
+    <span class="k">def</span> <span class="nf">_dist_datamap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a mapper ``M : MPI rank -&gt; logically owned sparse data``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">targets</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_rank</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">as_mapper</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">),</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">targets</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_dist_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a mask, suitable to index into ``self.data``, usable to</span>
+<span class="sd">        reorder the sparse data values so that adjacent values logically</span>
+<span class="sd">        belong to the same MPI rank.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dmap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">dmap</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">dmap</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)]</span>
+        <span class="n">ret</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span> <span class="o">=</span> <span class="n">mask</span>
+        <span class="k">return</span> <span class="n">ret</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_dist_subfunc_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a mask, suitable to index into any of self&#39;s SubFunctions,</span>
+<span class="sd">        usable to reorder a SubFunction values so that adjacent values</span>
+<span class="sd">        logically belong to the same MPI rank.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_mask</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_dist_count</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a 2-tuple of comm-sized iterables, which tells how many sparse</span>
+<span class="sd">        points is this MPI rank expected to send/receive to/from each other</span>
+<span class="sd">        MPI rank.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dmap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
+        <span class="n">comm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
+
+        <span class="n">ssparse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">dmap</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[]))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">comm</span><span class="o">.</span><span class="n">size</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">rsparse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">comm</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">comm</span><span class="o">.</span><span class="n">Alltoall</span><span class="p">(</span><span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_dist_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the metadata necessary to perform an ``MPI_Alltoallv`` distributing</span>
+<span class="sd">        the sparse data values across the MPI ranks needing them.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_count</span>
+
+        <span class="c1"># Per-rank shape of send/recv data</span>
+        <span class="n">sshape</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">rshape</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span><span class="p">):</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="n">handle</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span>
+            <span class="n">sshape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+
+            <span class="n">handle</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="n">handle</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
+            <span class="n">rshape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
+
+        <span class="c1"># Per-rank count of send/recv data</span>
+        <span class="n">scount</span> <span class="o">=</span> <span class="p">[</span><span class="n">prod</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sshape</span><span class="p">]</span>
+        <span class="n">rcount</span> <span class="o">=</span> <span class="p">[</span><span class="n">prod</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rshape</span><span class="p">]</span>
+
+        <span class="c1"># Per-rank displacement of send/recv data (it&#39;s actually all contiguous,</span>
+        <span class="c1"># but the Alltoallv needs this information anyway)</span>
+        <span class="n">sdisp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">scount</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
+        <span class="n">rdisp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">rcount</span><span class="p">))[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
+
+        <span class="c1"># Total shape of send/recv data</span>
+        <span class="n">sshape</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">sshape</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">ssparse</span><span class="p">)</span>
+        <span class="n">rshape</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">rshape</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">rsparse</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_dist_subfunc_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the metadata necessary to perform an ``MPI_Alltoallv`` distributing</span>
+<span class="sd">        self&#39;s SubFunction values across the MPI ranks needing them.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="k">def</span> <span class="nf">_dist_scatter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a ``numpy.ndarray`` containing up-to-date data values belonging</span>
+<span class="sd">        to the calling MPI rank. A data value belongs to a given MPI rank R</span>
+<span class="sd">        if its coordinates fall within R&#39;s local domain.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="k">def</span> <span class="nf">_dist_gather</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a ``numpy.ndarray`` containing up-to-date data and coordinate values</span>
+<span class="sd">        suitable for insertion into ``self.data``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">gridpoints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The *reference* grid point corresponding to each sparse point.&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="p">:</span> <span class="n">key</span><span class="p">}</span>
+        <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sub_functions</span><span class="p">})</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">ReducerMap</span><span class="p">()</span>
+
+        <span class="c1"># Add in the sparse data (as well as any SubFunction data) belonging to</span>
+        <span class="c1"># self&#39;s local domain only</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_scatter</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">args</span><span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">k</span><span class="o">.</span><span class="n">staggered</span><span class="p">):</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="o">+</span><span class="n">o</span><span class="p">))</span>
+
+        <span class="c1"># Add MPI-related data structures</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">())</span>
+
+        <span class="k">return</span> <span class="n">args</span>
+
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Add value override for own data if it is provided, otherwise</span>
+        <span class="c1"># use defaults</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">AbstractSparseFunction</span><span class="p">):</span>
+                <span class="c1"># Set new values and re-derive defaults</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># We&#39;ve been provided a pure-data replacement (array)</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_scatter</span><span class="p">(</span><span class="n">new</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">values</span><span class="p">[</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">k</span><span class="o">.</span><span class="n">staggered</span><span class="p">):</span>
+                        <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">s</span><span class="o">+</span><span class="n">o</span><span class="o">-</span><span class="nb">sum</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">i</span><span class="p">])))</span>
+                <span class="c1"># Add MPI-related data structures</span>
+                <span class="n">values</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">values</span>
+
+    <span class="k">def</span> <span class="nf">_arg_apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dist_gather</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">TensorFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;npoint&#39;</span><span class="p">,</span> <span class="s1">&#39;space_order&#39;</span><span class="p">]</span>
@@ -1314,7 +1497,7 @@
 <span class="sd">    :param grid: :class:`Grid` object defining the computational domain.</span>
 <span class="sd">    :param coordinates: (Optional) coordinate data for the sparse points.</span>
 <span class="sd">    :param space_order: (Optional) discretisation order for space derivatives.</span>
-<span class="sd">    :param shape: (Optional) shape of the function. Defaults to ``(npoints,)``.</span>
+<span class="sd">    :param shape: (Optional) shape of the function. Defaults to ``(npoint,)``.</span>
 <span class="sd">    :param dimensions: (Optional) symbolic dimensions that define the</span>
 <span class="sd">                       data layout and function indices of this symbol.</span>
 <span class="sd">    :param dtype: (Optional) data type of the buffered data.</span>
@@ -1335,29 +1518,34 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_SparseFunction</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="n">_child_functions</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;coordinates&#39;</span><span class="p">]</span>
+
+    <span class="n">_sub_functions</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;coordinates&#39;</span><span class="p">,)</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
             <span class="nb">super</span><span class="p">(</span><span class="n">SparseFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-            <span class="c1"># Set up coordinates of sparse points</span>
-            <span class="n">coordinates</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;coordinates&#39;</span><span class="p">)</span>
+            <span class="c1"># Set up sparse point coordinates</span>
+            <span class="n">coordinates</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;coordinates&#39;</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;coordinates_data&#39;</span><span class="p">))</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">coordinates</span><span class="p">,</span> <span class="n">Function</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_coordinates</span> <span class="o">=</span> <span class="n">coordinates</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">dimensions</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">))</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_coordinates</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_coords&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
-                                             <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">dimensions</span><span class="p">,</span>
-                                             <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">),</span>
-                                             <span class="n">space_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">initializer</span><span class="o">=</span><span class="n">coordinates</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_coordinates</span> <span class="o">=</span> <span class="n">SubFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_coords&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+                                                <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">dimensions</span><span class="p">,</span>
+                                                <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">),</span>
+                                                <span class="n">space_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">initializer</span><span class="o">=</span><span class="n">coordinates</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">coordinates</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coordinates</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">coefficients</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">coordinates_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_coefficients</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbolic expression for the coefficients for sparse point</span>
 <span class="sd">        interpolation according to:</span>
 <span class="sd">        https://en.wikipedia.org/wiki/Bilinear_interpolation.</span>
@@ -1370,7 +1558,7 @@
         <span class="c1"># 1, x1, y1, z1, x1*y1, ...</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">powerset</span><span class="p">(</span><span class="n">indices1</span><span class="p">))</span>
         <span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
-        <span class="n">point_sym</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">powerset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">point_symbols</span><span class="p">))</span>
+        <span class="n">point_sym</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">powerset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_point_symbols</span><span class="p">))</span>
         <span class="n">point_sym</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
         <span class="c1"># 1, px. py, pz, px*py, ...</span>
         <span class="n">A</span> <span class="o">=</span> <span class="p">[]</span>
@@ -1395,7 +1583,7 @@
         <span class="k">return</span> <span class="n">A</span><span class="o">.</span><span class="n">inv</span><span class="p">()</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="n">p</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">point_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_point_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for coordinate value in each dimension of the point&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;p</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
@@ -1405,28 +1593,28 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">product</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">repeat</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">))</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">coordinate_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_coordinate_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol representing the coordinate values in each dimension&quot;&quot;&quot;</span>
         <span class="n">p_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">indexify</span><span class="p">((</span><span class="n">p_dim</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
                       <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">)])</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">coordinate_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_coordinate_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for each grid index according to the coordinates&quot;&quot;&quot;</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">INT</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="s1">&#39;floor&#39;</span><span class="p">)((</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span><span class="p">)</span> <span class="o">/</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">))</span>
-                      <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinate_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span>
+                      <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span>
                                          <span class="n">indices</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">])])</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">coordinate_bases</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_coordinate_bases</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for the base coordinates of the reference grid point&quot;&quot;&quot;</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">cast_mapper</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">](</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span> <span class="o">-</span> <span class="n">idx</span> <span class="o">*</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
-                      <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinate_symbols</span><span class="p">,</span>
+                      <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span>
                                               <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span>
-                                              <span class="bp">self</span><span class="o">.</span><span class="n">coordinate_indices</span><span class="p">,</span>
+                                              <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_indices</span><span class="p">,</span>
                                               <span class="n">indices</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">])])</span>
 
     <span class="k">def</span> <span class="nf">_interpolation_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
@@ -1435,7 +1623,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># List of indirection indices for all adjacent grid points</span>
         <span class="n">index_matrix</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="n">ii</span> <span class="o">+</span> <span class="n">offset</span> <span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="n">idx</span>
-                              <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">inc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinate_indices</span><span class="p">))</span>
+                              <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">inc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_indices</span><span class="p">))</span>
                         <span class="k">for</span> <span class="n">inc</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_point_increments</span><span class="p">]</span>
 
         <span class="c1"># Generate index substitutions for all grid variables except</span>
@@ -1448,7 +1636,17 @@
             <span class="n">idx_subs</span> <span class="o">+=</span> <span class="p">[</span><span class="n">OrderedDict</span><span class="p">(</span><span class="n">v_subs</span><span class="p">)]</span>
 
         <span class="c1"># Substitute coordinate base symbols into the coefficients</span>
-        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">point_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinate_bases</span><span class="p">)),</span> <span class="n">idx_subs</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_point_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_bases</span><span class="p">)),</span> <span class="n">idx_subs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">gridpoints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No coordinates attached to this SparseFunction&quot;</span><span class="p">)</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">coords</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">floor</span><span class="p">((</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span><span class="o">.</span><span class="n">data</span><span class="p">)</span><span class="o">/</span><span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="o">.</span><span class="n">data</span><span class="p">))</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span>
+                             <span class="nb">zip</span><span class="p">(</span><span class="n">coords</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">ret</span>
 
 <div class="viewcode-block" id="SparseFunction.interpolate"><a class="viewcode-back" href="../../devito.html#devito.function.SparseFunction.interpolate">[docs]</a>    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">cummulative</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">self_subs</span><span class="o">=</span><span class="p">{}):</span>
         <span class="sd">&quot;&quot;&quot;Creates a :class:`sympy.Eq` equation for the interpolation</span>
@@ -1457,10 +1655,6 @@
 <span class="sd">        :param expr: The expression to interpolate.</span>
 <span class="sd">        :param offset: Additional offset from the boundary for</span>
 <span class="sd">                       absorbing boundary conditions.</span>
-<span class="sd">        :param u_t: (Optional) time index to use for indexing into</span>
-<span class="sd">                    field data in `expr`.</span>
-<span class="sd">        :param p_t: (Optional) time index to use for indexing into</span>
-<span class="sd">                    the sparse point data.</span>
 <span class="sd">        :param cummulative: (Optional) If True, perform an increment rather</span>
 <span class="sd">                            than an assignment. Defaults to False.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1471,12 +1665,10 @@
         <span class="n">subs</span><span class="p">,</span> <span class="n">idx_subs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_indices</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>
         <span class="c1"># Substitute coordinate base symbols into the coefficients</span>
         <span class="n">rhs</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">)</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span>
-                   <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">vsub</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">,</span> <span class="n">idx_subs</span><span class="p">)])</span>
-
+                   <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">vsub</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coefficients</span><span class="p">,</span> <span class="n">idx_subs</span><span class="p">)])</span>
         <span class="n">lhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">self_subs</span><span class="p">)</span>
-        <span class="n">rhs</span> <span class="o">=</span> <span class="n">rhs</span> <span class="o">+</span> <span class="n">lhs</span> <span class="k">if</span> <span class="n">cummulative</span> <span class="k">else</span> <span class="n">rhs</span>
 
-        <span class="k">return</span> <span class="p">[</span><span class="n">Inc</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)]</span> <span class="k">if</span> <span class="n">cummulative</span> <span class="k">else</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)]</span></div>
+        <span class="k">return</span> <span class="p">[</span><span class="n">Inc</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span> <span class="k">if</span> <span class="n">cummulative</span> <span class="k">else</span> <span class="n">Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)]</span></div>
 
 <div class="viewcode-block" id="SparseFunction.inject"><a class="viewcode-back" href="../../devito.html#devito.function.SparseFunction.inject">[docs]</a>    <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for injection of an expression onto a grid</span>
@@ -1485,8 +1677,6 @@
 <span class="sd">        :param expr: The expression to inject.</span>
 <span class="sd">        :param offset: Additional offset from the boundary for</span>
 <span class="sd">                       absorbing boundary conditions.</span>
-<span class="sd">        :param u_t: (Optional) time index to use for indexing into `field`.</span>
-<span class="sd">        :param p_t: (Optional) time index to use for indexing into `expr`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">expr</span> <span class="o">=</span> <span class="n">indexify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
         <span class="n">field</span> <span class="o">=</span> <span class="n">indexify</span><span class="p">(</span><span class="n">field</span><span class="p">)</span>
@@ -1496,12 +1686,91 @@
         <span class="n">subs</span><span class="p">,</span> <span class="n">idx_subs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_indices</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>
 
         <span class="c1"># Substitute coordinate base symbols into the coefficients</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">Inc</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">),</span>
-                    <span class="n">field</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">)</span> <span class="o">+</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">)</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">))</span>
-                <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">vsub</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">,</span> <span class="n">idx_subs</span><span class="p">)]</span></div>
+        <span class="k">return</span> <span class="p">[</span><span class="n">Inc</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">),</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">vsub</span><span class="p">)</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">vsub</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coefficients</span><span class="p">,</span> <span class="n">idx_subs</span><span class="p">)]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_dist_subfunc_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_count</span>
+
+        <span class="c1"># Per-rank shape of send/recv `coordinates`</span>
+        <span class="n">sshape</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ssparse</span><span class="p">]</span>
+        <span class="n">rshape</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rsparse</span><span class="p">]</span>
+
+        <span class="c1"># Per-rank count of send/recv `coordinates`</span>
+        <span class="n">scount</span> <span class="o">=</span> <span class="p">[</span><span class="n">prod</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sshape</span><span class="p">]</span>
+        <span class="n">rcount</span> <span class="o">=</span> <span class="p">[</span><span class="n">prod</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rshape</span><span class="p">]</span>
+
+        <span class="c1"># Per-rank displacement of send/recv `coordinates` (it&#39;s actually all</span>
+        <span class="c1"># contiguous, but the Alltoallv needs this information anyway)</span>
+        <span class="n">sdisp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">scount</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
+        <span class="n">rdisp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">rcount</span><span class="p">))[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
+
+        <span class="c1"># Total shape of send/recv `coordinates`</span>
+        <span class="n">sshape</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">sshape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">ssparse</span><span class="p">)</span>
+        <span class="n">rshape</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">rshape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">rsparse</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span>
+
+    <span class="k">def</span> <span class="nf">_dist_scatter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span> <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+        <span class="n">comm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
+
+        <span class="c1"># If not using MPI, don&#39;t waste time</span>
+        <span class="k">if</span> <span class="n">comm</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">}</span>
+
+        <span class="n">mpitype</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_typedict</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">char</span><span class="p">]</span>
+
+        <span class="c1"># Pack (reordered) data values so that they can be sent out via an Alltoallv</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_mask</span><span class="p">]</span>
+        <span class="c1"># Send out the sparse point values</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_alltoall</span>
+        <span class="n">scattered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">rshape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">data</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
+                       <span class="p">[</span><span class="n">scattered</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">scattered</span>
+
+        <span class="c1"># Pack (reordered) coordinates so that they can be sent out via an Alltoallv</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_mask</span><span class="p">]</span>
+        <span class="c1"># Send out the sparse point coordinates</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_alltoall</span>
+        <span class="n">scattered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">rshape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">coords</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
+                       <span class="p">[</span><span class="n">scattered</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="n">scattered</span>
+
+        <span class="c1"># Translate global coordinates into local coordinates</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="n">coords</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin_domain</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="p">:</span> <span class="n">coords</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_dist_gather</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">comm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
+
+        <span class="c1"># If not using MPI, don&#39;t waste time</span>
+        <span class="k">if</span> <span class="n">comm</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Send back the sparse point values</span>
+        <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_alltoall</span>
+        <span class="n">gathered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">sshape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">mpitype</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_typedict</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">char</span><span class="p">]</span>
+        <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">data</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
+                       <span class="p">[</span><span class="n">gathered</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">gathered</span>
+
+        <span class="c1"># Insert back into `self.data` based on the original (expected) data layout</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_mask</span><span class="p">]</span>
+
+        <span class="c1"># Note: this method is almost the dual of `_dist_scatter`, except for the</span>
+        <span class="c1"># fact that `coordinates` are not sent back. This is because `coordinates`</span>
+        <span class="c1"># should never be written to</span>
 
     <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">AbstractSparseFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;coordinates&#39;</span><span class="p">]</span></div>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">AbstractSparseFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;coordinates_data&#39;</span><span class="p">]</span></div>
 
 
 <div class="viewcode-block" id="SparseTimeFunction"><a class="viewcode-back" href="../../devito.html#devito.function.SparseTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">,</span> <span class="n">SparseFunction</span><span class="p">):</span>
@@ -1517,7 +1786,7 @@
 <span class="sd">                        Default to 0.</span>
 <span class="sd">    :param time_order: (Optional) discretisation order for time derivatives.</span>
 <span class="sd">                       Default to 1.</span>
-<span class="sd">    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.</span>
+<span class="sd">    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.</span>
 <span class="sd">    :param dimensions: (Optional) symbolic dimensions that define the</span>
 <span class="sd">                       data layout and function indices of this symbol.</span>
 <span class="sd">    :param dtype: (Optional) Data type of the buffered data.</span>
@@ -1617,7 +1886,7 @@
 <span class="sd">                        Default to 0.</span>
 <span class="sd">    :param time_order: (Optional) discretisation order for time derivatives.</span>
 <span class="sd">                       Default to 1.</span>
-<span class="sd">    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.</span>
+<span class="sd">    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.</span>
 <span class="sd">    :param dimensions: (Optional) symbolic dimensions that define the</span>
 <span class="sd">                       data layout and function indices of this symbol.</span>
 <span class="sd">    :param dtype: (Optional) data type of the buffered data.</span>
@@ -1632,8 +1901,10 @@
 <span class="sd">        SymPy uses `*args` to (re-)create the dimension arguments of the</span>
 <span class="sd">        symbolic function.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">is_PrecomputedSparseFunction</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="n">_child_functions</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;gridpoints&#39;</span><span class="p">,</span> <span class="s1">&#39;coefficients&#39;</span><span class="p">]</span>
+
+    <span class="n">_sub_functions</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;gridpoints&#39;</span><span class="p">,</span> <span class="s1">&#39;coefficients&#39;</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
@@ -1647,24 +1918,25 @@
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;`r` must be &gt; 0&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">r</span> <span class="o">=</span> <span class="n">r</span>
 
-            <span class="n">gridpoints</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_gridpoints&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
-                                  <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)),</span>
-                                  <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">),</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">gridpoints</span> <span class="o">=</span> <span class="n">SubFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_gridpoints&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+                                     <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)),</span>
+                                     <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">),</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                                     <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
 
             <span class="n">gridpoints_data</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;gridpoints&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
             <span class="k">assert</span><span class="p">(</span><span class="n">gridpoints_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
             <span class="n">gridpoints</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">gridpoints_data</span><span class="p">[:]</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span> <span class="o">=</span> <span class="n">gridpoints</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_gridpoints</span> <span class="o">=</span> <span class="n">gridpoints</span>
 
-            <span class="n">coefficients</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_coefficients&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
-                                    <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">),</span>
-                                                <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;i&#39;</span><span class="p">)),</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">),</span>
-                                    <span class="n">space_order</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">coefficients</span> <span class="o">=</span> <span class="n">SubFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_coefficients&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                       <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">),</span>
+                                                   <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;i&#39;</span><span class="p">)),</span>
+                                       <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">),</span>
+                                       <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
             <span class="n">coefficients_data</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;coefficients&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
             <span class="k">assert</span><span class="p">(</span><span class="n">coefficients_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
             <span class="n">coefficients</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">coefficients_data</span><span class="p">[:]</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span> <span class="o">=</span> <span class="n">coefficients</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_coefficients</span> <span class="o">=</span> <span class="n">coefficients</span>
             <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Ensure that the provided coefficient and grid point values are &quot;</span> <span class="o">+</span>
                     <span class="s2">&quot;computed on the final grid that will be used for other &quot;</span> <span class="o">+</span>
                     <span class="s2">&quot;computations.&quot;</span><span class="p">)</span>
@@ -1691,15 +1963,13 @@
             <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span>
             <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">u_t</span><span class="p">)</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">u_t</span><span class="p">)</span>
 
-        <span class="n">coefficients</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="o">.</span><span class="n">indexed</span>
-        <span class="n">gridpoints</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="o">.</span><span class="n">indexed</span>
         <span class="n">p</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="o">.</span><span class="n">indices</span>
         <span class="n">dim_subs</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">):</span>
             <span class="n">rd</span> <span class="o">=</span> <span class="n">DefaultDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;r</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">)</span>
-            <span class="n">dim_subs</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">INT</span><span class="p">(</span><span class="n">rd</span> <span class="o">+</span> <span class="n">gridpoints</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">])))</span>
-            <span class="n">coeffs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coefficients</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">rd</span><span class="p">])</span>
+            <span class="n">dim_subs</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">INT</span><span class="p">(</span><span class="n">rd</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">])))</span>
+            <span class="n">coeffs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">rd</span><span class="p">])</span>
         <span class="c1"># Apply optional time symbol substitutions to lhs of assignment</span>
         <span class="n">lhs</span> <span class="o">=</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">p_t</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">p_t</span><span class="p">)</span>
         <span class="n">rhs</span> <span class="o">=</span> <span class="n">prod</span><span class="p">(</span><span class="n">coeffs</span><span class="p">)</span> <span class="o">*</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim_subs</span><span class="p">)</span>
@@ -1725,19 +1995,44 @@
         <span class="k">if</span> <span class="n">p_t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">p_t</span><span class="p">)</span>
 
-        <span class="n">gridpoints</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="o">.</span><span class="n">indexed</span>
-        <span class="n">coefficients</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="o">.</span><span class="n">indexed</span>
-
         <span class="n">p</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="o">.</span><span class="n">indices</span>
         <span class="n">dim_subs</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">):</span>
             <span class="n">rd</span> <span class="o">=</span> <span class="n">DefaultDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;r</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">)</span>
-            <span class="n">dim_subs</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">INT</span><span class="p">(</span><span class="n">rd</span> <span class="o">+</span> <span class="n">gridpoints</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">])))</span>
-            <span class="n">coeffs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coefficients</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">rd</span><span class="p">])</span>
+            <span class="n">dim_subs</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">INT</span><span class="p">(</span><span class="n">rd</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">])))</span>
+            <span class="n">coeffs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">rd</span><span class="p">])</span>
         <span class="n">rhs</span> <span class="o">=</span> <span class="n">prod</span><span class="p">(</span><span class="n">coeffs</span><span class="p">)</span> <span class="o">*</span> <span class="n">expr</span>
         <span class="n">field</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim_subs</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">field</span> <span class="o">+</span> <span class="n">rhs</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim_subs</span><span class="p">))]</span></div></div>
+        <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">field</span> <span class="o">+</span> <span class="n">rhs</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim_subs</span><span class="p">))]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">gridpoints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gridpoints</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">coefficients</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coefficients</span>
+
+    <span class="k">def</span> <span class="nf">_dist_scatter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span> <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+        <span class="n">comm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
+
+        <span class="c1"># If not using MPI, don&#39;t waste time</span>
+        <span class="k">if</span> <span class="n">comm</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">coefficients</span><span class="o">.</span><span class="n">data</span><span class="p">}</span>
+
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="k">def</span> <span class="nf">_dist_gather</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">comm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
+
+        <span class="c1"># If not using MPI, don&#39;t waste time</span>
+        <span class="k">if</span> <span class="n">comm</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 
 
 <div class="viewcode-block" id="PrecomputedSparseTimeFunction"><a class="viewcode-back" href="../../devito.html#devito.function.PrecomputedSparseTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">PrecomputedSparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">,</span>
@@ -1768,7 +2063,7 @@
 <span class="sd">                        Default to 0.</span>
 <span class="sd">    :param time_order: (Optional) discretisation order for time derivatives.</span>
 <span class="sd">                       Default to 1.</span>
-<span class="sd">    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoints,)``.</span>
+<span class="sd">    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.</span>
 <span class="sd">    :param dimensions: (Optional) symbolic dimensions that define the</span>
 <span class="sd">                       data layout and function indices of this symbol.</span>
 <span class="sd">    :param dtype: (Optional) data type of the buffered data.</span>
@@ -1783,6 +2078,7 @@
 <span class="sd">        SymPy uses `*args` to (re-)create the dimension arguments of the</span>
 <span class="sd">        symbolic function.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">is_PrecomputedSparseTimeFunction</span> <span class="o">=</span> <span class="kc">True</span></div>
 
 

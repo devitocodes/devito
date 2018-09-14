@@ -177,8 +177,8 @@
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Denormals&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Element&#39;</span><span class="p">,</span> <span class="s1">&#39;Callable&#39;</span><span class="p">,</span>
            <span class="s1">&#39;Call&#39;</span><span class="p">,</span> <span class="s1">&#39;Conditional&#39;</span><span class="p">,</span> <span class="s1">&#39;Iteration&#39;</span><span class="p">,</span> <span class="s1">&#39;List&#39;</span><span class="p">,</span> <span class="s1">&#39;LocalExpression&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;TimedList&#39;</span><span class="p">,</span> <span class="s1">&#39;MetaCall&#39;</span><span class="p">,</span> <span class="s1">&#39;ArrayCast&#39;</span><span class="p">,</span> <span class="s1">&#39;ForeignExpression&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;Section&#39;</span><span class="p">,</span> <span class="s1">&#39;HaloSpot&#39;</span><span class="p">,</span> <span class="s1">&#39;IterationTree&#39;</span><span class="p">,</span> <span class="s1">&#39;ExpressionBundle&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;TimedList&#39;</span><span class="p">,</span> <span class="s1">&#39;MetaCall&#39;</span><span class="p">,</span> <span class="s1">&#39;ArrayCast&#39;</span><span class="p">,</span> <span class="s1">&#39;ForeignExpression&#39;</span><span class="p">,</span> <span class="s1">&#39;Section&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;HaloSpot&#39;</span><span class="p">,</span> <span class="s1">&#39;IterationTree&#39;</span><span class="p">,</span> <span class="s1">&#39;ExpressionBundle&#39;</span><span class="p">,</span> <span class="s1">&#39;Increment&#39;</span><span class="p">]</span>
 
 <span class="c1"># First-class IET nodes</span>
 
@@ -192,6 +192,7 @@
     <span class="n">is_Iteration</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_IterationFold</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Expression</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_ForeignExpression</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Callable</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Call</span> <span class="o">=</span> <span class="kc">False</span>
@@ -449,16 +450,16 @@
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_scalar</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return True if the write is actually an associative and commutative increment.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">is_Increment</span>
-
-    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return all :class:`Symbol` objects used by this :class:`Expression`.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Increment"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Increment">[docs]</a><span class="k">class</span> <span class="nc">Increment</span><span class="p">(</span><span class="n">Expression</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A node representing a += increment.&quot;&quot;&quot;</span>
+
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span></div>
 
 
 <div class="viewcode-block" id="Iteration"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.nodes.Iteration">[docs]</a><span class="k">class</span> <span class="nc">Iteration</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
@@ -903,7 +904,7 @@
             <span class="k">return</span> <span class="kc">None</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">is_Increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_increment</span>
 
     <span class="nd">@property</span>

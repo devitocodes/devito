@@ -266,7 +266,7 @@
         <span class="c1"># Finish instantiation</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">Operator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="s1">&#39;int&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">())</span>
 
-<div class="viewcode-block" id="Operator.prepare_arguments"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.prepare_arguments">[docs]</a>    <span class="k">def</span> <span class="nf">prepare_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_prepare_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Process runtime arguments passed to ``.apply()` and derive</span>
 <span class="sd">        default values for any remaining arguments.</span>
@@ -325,20 +325,27 @@
 
         <span class="c1"># Check all user-provided keywords are known to the Operator</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">known_arguments</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_known_arguments</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unrecognized argument </span><span class="si">%s</span><span class="s2">=</span><span class="si">%s</span><span class="s2"> passed to `apply`&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
 
-        <span class="k">return</span> <span class="n">args</span></div>
+        <span class="k">return</span> <span class="n">args</span>
+
+    <span class="k">def</span> <span class="nf">_postprocess_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process runtime arguments upon returning from ``.apply()``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">finalized</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">_arg_apply</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">])</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">output</span><span class="p">}</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">finalized</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
 
     <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">known_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_known_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return an iterable of arguments that can be passed to ``apply``</span>
 <span class="sd">        when running the operator.&quot;&quot;&quot;</span>
         <span class="n">ret</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_names</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">])</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">ret</span><span class="p">))</span>
 
 <div class="viewcode-block" id="Operator.arguments"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.arguments">[docs]</a>    <span class="k">def</span> <span class="nf">arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prepare_arguments</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_arguments</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="c1"># Check all arguments are present</span>
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -548,6 +555,9 @@
         <span class="c1"># Invoke kernel function with args</span>
         <span class="n">arg_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">args</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="n">arg_values</span><span class="p">)</span>
+
+        <span class="c1"># Post-process runtime arguments</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_postprocess_arguments</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
         <span class="c1"># Output summary of performance achieved</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profile_output</span><span class="p">(</span><span class="n">args</span><span class="p">)</span></div>

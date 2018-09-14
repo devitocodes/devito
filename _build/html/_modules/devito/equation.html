@@ -187,7 +187,12 @@
 <span class="sd">    A :class:`Eq` performing a linear increment.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span></div>
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;Inc(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
 
 
 <span class="k">class</span> <span class="nc">Region</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>

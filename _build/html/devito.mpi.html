@@ -218,6 +218,25 @@
 </tbody>
 </table>
 <dl class="attribute">
+<dt id="devito.mpi.distributed.Distributor.all_coords">
+<code class="descname">all_coords</code><a class="headerlink" href="#devito.mpi.distributed.Distributor.all_coords" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an iterable containing the coordinates of each MPI rank in
+the decomposed domain. The iterable is order based on the MPI rank.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.mpi.distributed.Distributor.all_numb">
+<code class="descname">all_numb</code><a class="headerlink" href="#devito.mpi.distributed.Distributor.all_numb" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an iterable containing the global numbering of each MPI rank.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.mpi.distributed.Distributor.all_ranges">
+<code class="descname">all_ranges</code><a class="headerlink" href="#devito.mpi.distributed.Distributor.all_ranges" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an iterable containing the global ranges of each MPI rank.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.mpi.distributed.Distributor.comm">
 <code class="descname">comm</code><a class="headerlink" href="#devito.mpi.distributed.Distributor.comm" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -294,6 +313,21 @@ represent a valid range for <code class="docutils literal notranslate"><span cla
 </li>
 </ul>
 </td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.mpi.distributed.Distributor.glb_to_rank">
+<code class="descname">glb_to_rank</code><span class="sig-paren">(</span><em>index</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/mpi/distributed.html#Distributor.glb_to_rank"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.mpi.distributed.Distributor.glb_to_rank" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the rank owning a given global index.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>index</strong> – A single domain index, or a list of domain indices. In
+the latter case, a list of corresponding ranks is returned.</td>
 </tr>
 </tbody>
 </table>
