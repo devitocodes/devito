@@ -222,34 +222,23 @@ def clusterize(exprs):
     Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s.
     """
     clusters = ClusterGroup()
-    for g in group_expressions(exprs):
-        mapper = OrderedDict([(e, e.directions) for e in g])
-        flowmap = detect_flow_directions(g)
-        queue = list(g)
-        # Coerce iteration direction of each expression in each group
-        while queue:
-            k = queue.pop(0)
-            directions, _ = force_directions(flowmap, lambda i: mapper[k].get(i))
-            directions = {i: directions[i] for i in mapper[k]}
-            # Need update propagation ?
-            if directions != mapper[k]:
-                mapper[k] = directions
-                queue.extend([i for i in g if i not in queue])
-
-        # Now build the PartialCluster
+    for group in group_expressions(exprs):
+        flowmap = detect_flow_directions(group)
         prev = None
-        for k, v in mapper.items():
-            if k.is_Tensor:
-                scalars = [i for i in g[prev:g.index(k)] if i.is_Scalar]
-                # Iteration space, applying the enforced directions
-                ispace = IterationSpace.merge(k.ispace, *[i.ispace for i in scalars])
-                ispace = IterationSpace(ispace.intervals, ispace.sub_iterators, v)
+        for idx, e in enumerate(group):
+            if e.is_Tensor:
+                scalars = [i for i in group[prev:idx] if i.is_Scalar]
+                # Iteration space
+                ispace = IterationSpace.merge(e.ispace, *[i.ispace for i in scalars])
+                # Enforce iteration directions
+                fdirs, _ = force_directions(flowmap, lambda d: ispace.directions.get(d))
+                ispace = IterationSpace(ispace.intervals, ispace.sub_iterators, fdirs)
                 # Data space
-                dspace = DataSpace.merge(k.dspace, *[i.dspace for i in scalars])
+                dspace = DataSpace.merge(e.dspace, *[i.dspace for i in scalars])
                 # Prepare for next range
-                prev = g.index(k)
+                prev = idx
 
-                clusters.append(PartialCluster(scalars + [k], ispace, dspace))
+                clusters.append(PartialCluster(scalars + [e], ispace, dspace))
 
     # Group PartialClusters together where possible
     clusters = groupby(clusters)
