@@ -1373,7 +1373,7 @@ class SparseFunction(AbstractSparseFunction):
             super(SparseFunction, self).__init__(*args, **kwargs)
 
             # Set up sparse point coordinates
-            coordinates = kwargs.get('coordinates', kwargs.get('coordinate_data'))
+            coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
             if isinstance(coordinates, Function):
                 self._coordinates = coordinates
             else:
@@ -1388,7 +1388,7 @@ class SparseFunction(AbstractSparseFunction):
         return self._coordinates
 
     @property
-    def coordinate_data(self):
+    def coordinates_data(self):
         return self.coordinates.data
 
     @property
@@ -1617,7 +1617,7 @@ class SparseFunction(AbstractSparseFunction):
         # should never be written to
 
     # Pickling support
-    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinate_data']
+    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates_data']
 
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
