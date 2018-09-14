@@ -5,7 +5,7 @@ from operator import mul
 
 from frozendict import frozendict
 
-from devito.tools import as_tuple, filter_ordered
+from devito.tools import as_tuple, filter_ordered, toposort
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
            'Forward', 'Backward', 'Any']
@@ -226,7 +226,7 @@ class IntervalGroup(tuple):
         return len(self.dimensions) == len(set(self.dimensions))
 
     @classmethod
-    def generate(self, op, *interval_groups):
+    def generate(self, op, *interval_groups, ordered=False):
         """
         generate(op, *interval_groups)
 
@@ -236,6 +236,9 @@ class IntervalGroup(tuple):
         :param op: Any legal :class:`Interval` operation, such as ``intersection``
                    or ``union``. This should be provided as a string.
         :param interval_groups: An iterable of :class:`IntervalGroup`s.
+        :param ordered: (Optional) if True, topological sorting is used to reorder
+                        the merged intervals based on how their dimensions pop up
+                        in ``interval_groups``. Defaults to False.
 
         Example
         -------
@@ -246,11 +249,15 @@ class IntervalGroup(tuple):
         ret = IntervalGroup.generate('intersection', ig0, ig1, ig2)
         ret -> IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3), Interval(z, 1, -1)])
         """
-        mapper = OrderedDict()
+        mapper = {}
         for ig in interval_groups:
             for i in ig:
                 mapper.setdefault(i.dim, []).append(i)
-        return IntervalGroup(Interval._apply_op(v, op) for v in mapper.values())
+        intervals = [Interval._apply_op(v, op) for v in mapper.values()]
+        if ordered is True:
+            ordering = toposort([ig.dimensions for ig in interval_groups])
+            intervals.sort(key=lambda i: ordering.index(i.dim))
+        return IntervalGroup(intervals)
 
     def intersection(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
@@ -488,7 +495,8 @@ class IterationSpace(Space):
             return IterationSpace(IntervalGroup())
         elif len(others) == 1:
             return others[0]
-        intervals = IntervalGroup.generate('merge', *[i.intervals for i in others])
+        intervals = IntervalGroup.generate('merge', *[i.intervals for i in others],
+                                           ordered=True)
         directions = {}
         for i in others:
             for k, v in i.directions.items():
