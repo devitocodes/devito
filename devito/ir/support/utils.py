@@ -171,6 +171,11 @@ def detect_flow_directions(exprs):
     mapper.update({k.parent: set(v) for k, v in mapper.items()
                    if k.is_Derived and mapper.get(k.parent, {Any}) == {Any}})
 
+    # Add in "free" Dimensions, ie Dimensions used as symbols rather than as
+    # array indices
+    mapper.update({d: {Any} for d in flatten(i.free_symbols for i in exprs)
+                   if isinstance(d, Dimension) and d not in mapper})
+
     return mapper
 
 
