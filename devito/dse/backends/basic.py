@@ -50,9 +50,11 @@ class BasicRewriter(AbstractRewriter):
         for e in cluster.exprs:
             if e.is_Increment and e.lhs.function.is_Input:
                 handle = Scalar(name=template(), dtype=e.dtype).indexify()
-                extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
-                processed.extend([Eq(handle, extracted),
-                                  e.func(e.lhs, handle + e.lhs)])
+                if e.rhs.is_Symbol:
+                    extracted = e.rhs
+                else:
+                    extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
+                processed.extend([Eq(handle, extracted), e.func(e.lhs, handle)])
             else:
                 processed.append(e)
 

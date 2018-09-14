@@ -672,13 +672,17 @@ class Scope(object):
         for i, e in enumerate(exprs):
             # reads
             for j in retrieve_terminals(e.rhs):
-                v = self.reads.setdefault(j.base.function, [])
+                v = self.reads.setdefault(j.function, [])
                 mode = 'R' if not q_inc(e) else 'RI'
                 v.append(TimedAccess(j, mode, i, e.ispace.directions))
             # write
-            v = self.writes.setdefault(e.lhs.base.function, [])
+            v = self.writes.setdefault(e.lhs.function, [])
             mode = 'W' if not q_inc(e) else 'WI'
             v.append(TimedAccess(e.lhs, mode, i, e.ispace.directions))
+            # if an increment, we got one implicit read
+            if q_inc(e):
+                v = self.reads.setdefault(e.lhs.function, [])
+                v.append(TimedAccess(e.lhs, 'RI', i, e.ispace.directions))
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))

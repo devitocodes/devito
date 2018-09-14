@@ -18,7 +18,7 @@ class CheckpointOperator(Operator):
     def __init__(self, op, **kwargs):
         self.op = op
         self.args = kwargs
-        op_default_args = self.op.prepare_arguments(**kwargs)
+        op_default_args = self.op._prepare_arguments(**kwargs)
         self.start_offset = op_default_args[self.t_arg_names['t_start']]
 
     def _prepare_args(self, t_start, t_end):
