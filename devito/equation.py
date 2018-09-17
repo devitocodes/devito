@@ -2,6 +2,8 @@
 
 import sympy
 
+from devito.tools import Tag
+
 __all__ = ['Eq', 'Inc', 'DOMAIN', 'INTERIOR', 'solve']
 
 
@@ -42,21 +44,14 @@ class Inc(Eq):
     __repr__ = __str__
 
 
-class Region(object):
+class Region(Tag):
 
     """
     A region of the computational domain over which a :class:`Function` is
     discretized.
     """
 
-    def __init__(self, name):
-        self._name = name
-
-    def __repr__(self):
-        return self._name
-
-    def __eq__(self, other):
-        return isinstance(other, Region) and self._name == other._name
+    pass
 
 
 DOMAIN = Region('DOMAIN')

@@ -1,7 +1,5 @@
 from sympy import Eq
 
-from devito.dimension import SubDimension
-from devito.equation import DOMAIN, INTERIOR
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Any, Stencil, detect_accesses, detect_oobs, detect_io,
@@ -115,15 +113,6 @@ class LoweredEq(Eq, IREq):
 
         # Well-defined dimension ordering
         ordering = dimension_sort(expr)
-
-        # Introduce space sub-dimensions if need to
-        region = getattr(input_expr, '_region', DOMAIN)
-        if region == INTERIOR:
-            mapper = {i: SubDimension.middle("%si" % i, i, 1, 1)
-                      for i in ordering if i.is_Space}
-            expr = expr.xreplace(mapper)
-            for k, v in mapper.items():
-                ordering.insert(ordering.index(k) + 1, v)
 
         # Analyze the expression
         mapper = detect_accesses(expr)
