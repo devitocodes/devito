@@ -27,7 +27,7 @@ def groupby(clusters):
         fused = False
         for candidate in reversed(list(processed)):
             # Guarded clusters cannot be grouped together
-            if c.guards or candidate.guards:
+            if c.guards:
                 break
 
             # Collect all relevant data dependences
@@ -40,14 +40,17 @@ def groupby(clusters):
             # Collect flow-dependences breaking the search
             flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.increment)
 
-            if candidate.ispace.is_compatible(c.ispace) and\
-                    all(is_local(i, candidate, c, clusters) for i in funcs):
-                # /c/ will be fused into /candidate/. All fusion-induced anti
-                # dependences are eliminated through so called "index bumping and
-                # array contraction", which transforms array accesses into scalars
+            # Can we group `c` with `candidate`?
+            test0 = candidate.ispace.is_compatible(c.ispace)  # Compatible ispaces
+            test1 = all(c.ispace.inner == i for i in candidate.guards)  # No mid if-then
+            test2 = all(is_local(i, candidate, c, clusters) for i in funcs)  # no antideps
+            if test0 and test1 and test2:
+                # Yes, `c` can be grouped with `candidate`. All anti-dependences
+                # (if any) can be eliminated through "index bumping and array
+                # contraction", which turns Array temporaries into Scalar temporaries
 
                 # Optimization: we also bump-and-contract the Arrays inducing
-                # non-carried dependences, to avoid useless memory accesses
+                # non-carried dependences, to minimize the working set
                 funcs.update({i.function for i in scope.d_flow.independent()
                               if is_local(i.function, candidate, c, clusters)})
 
