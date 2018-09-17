@@ -204,6 +204,11 @@ class IntervalGroup(PartialOrderTuple):
         ordering = filter_ordered(toposort(relations) + [i.dim for i in items])
         return sorted(items, key=lambda i: ordering.index(i.dim))
 
+    def __eq__(self, o):
+        # No need to look at the relations -- if the partial ordering is the same,
+        # then then IntervalGroups are considered equal
+        return len(self) == len(o) and all(i == j for i, j in zip(self, o))
+
     def __repr__(self):
         return "IntervalGroup[%s]" % (', '.join([repr(i) for i in self]))
 
