@@ -301,7 +301,7 @@ class Expression(Node):
         """
         Return True if a scalar, non-increment expression
         """
-        return self.is_scalar and not self.is_increment
+        return self.is_scalar and not self.is_Increment
 
     @property
     def free_symbols(self):

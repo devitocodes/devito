@@ -1555,7 +1555,7 @@ class SparseFunction(AbstractSparseFunction):
 
         # Accumulate point-wise contributions into a temporary
         rhs = Scalar(name='sum', dtype=self.dtype)
-        summands = [Eq(rhs, 0.)] + [Inc(rhs, rhs + i) for i in args]
+        summands = [Eq(rhs, 0.)] + [Inc(rhs, i) for i in args]
 
         # Write/Incr `self`
         lhs = self.subs(self_subs)
