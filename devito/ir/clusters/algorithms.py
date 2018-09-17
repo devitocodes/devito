@@ -1,5 +1,3 @@
-from collections import OrderedDict
-
 from devito.ir.support import (Scope, DataSpace, IterationSpace, detect_flow_directions,
                                force_directions, group_expressions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup

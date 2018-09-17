@@ -1494,7 +1494,6 @@ class SparseFunction(AbstractSparseFunction):
 
         return index_matrix, points
 
-
     def _interpolation_indices(self, variables, offset=0):
         """Generate interpolation indices for the :class:`TensorFunction`s
         in ``variables``."""
