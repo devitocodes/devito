@@ -23,7 +23,8 @@ from devito.symbolics import indexify, retrieve_indexed
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_mapper,
-                          as_tuple, flatten, is_integer, prod, powerset, filter_ordered)
+                          as_tuple, flatten, is_integer, prod, powerset, filter_ordered,
+                          memoized_meth)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -1474,23 +1475,37 @@ class SparseFunction(AbstractSparseFunction):
                                               self._coordinate_indices,
                                               indices[:self.grid.dim])])
 
-    def _interpolation_indices(self, variables, offset=0):
-        """Generate interpolation indices for the :class:`TensorFunction`s
-        in ``variables``."""
+    @memoized_meth
+    def _index_matrix(self, offset):
+        # Note about the use of *memoization*
+        # Since this method is called by `_interpolation_indices`, using
+        # memoization avoids a proliferation of symbolically identical
+        # ConditionalDimensions for a given set of indirection indices
+
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
                               in zip(inc, self._coordinate_indices))
                         for inc in self._point_increments]
 
+        # A unique symbol for each indirection index
+        indices = filter_ordered(flatten(index_matrix))
+        points = OrderedDict([(p, Symbol(name='ii%d' % i))
+                              for i, p in enumerate(indices)])
+
+        return index_matrix, points
+
+
+    def _interpolation_indices(self, variables, offset=0):
+        """Generate interpolation indices for the :class:`TensorFunction`s
+        in ``variables``."""
+        index_matrix, points = self._index_matrix(offset)
+
         idx_subs = []
-        points = OrderedDict()
         for i, idx in enumerate(index_matrix):
+            # Introduce ConditionalDimension so that we don't go OOB
             mapper = {}
             for j, d in zip(idx, self.grid.dimensions):
-                # A Dimension for each unique indirect index
-                p = points.setdefault(j, Symbol(name='ii%d' % len(points)))
-
-                # Use ConditionalDimension so that we don't go OOB
+                p = points[j]
                 lb = sympy.And(p > d.symbolic_start - self._radius, evaluate=False)
                 ub = sympy.And(p < d.symbolic_end + self._radius, evaluate=False)
                 condition = sympy.And(lb, ub, evaluate=False)
