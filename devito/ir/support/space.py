@@ -570,3 +570,7 @@ class IterationSpace(Space):
     @property
     def nonderived_directions(self):
         return {k: v for k, v in self.directions.items() if not k.is_Derived}
+
+    @property
+    def inner(self):
+        return None if self.empty else self.intervals[-1].dim
