@@ -30,6 +30,7 @@ class Eq(sympy.Eq):
     def __str__(self):
         return "Eq(%s, %s)" % (self.lhs.__str__(), self.rhs.__str__())
 
+
 class Inc(Eq):
 
     """

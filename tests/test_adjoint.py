@@ -90,8 +90,8 @@ class TestAdjoint(object):
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
-    @pytest.mark.parametrize('space_order', [8])#, 8, 12])
-    @pytest.mark.parametrize('shape', [(60,)])#, (60, 70), (40, 50, 30)])
+    @pytest.mark.parametrize('space_order', [4, 8, 12])
+    @pytest.mark.parametrize('shape', [(60,), (60, 70), (40, 50, 30)])
     def test_adjoint_J(self, shape, space_order):
         """
         Adjoint test for the FWI Jacobian operator.
