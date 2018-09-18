@@ -33,15 +33,15 @@ def groupby(clusters):
 
             # Collect anti-dependences preventing grouping
             anti = scope.d_anti.carried() - scope.d_anti.increment
-            funcs = {i.function for i in anti}
+            funcs = set(anti.functions)
 
             # Collect flow-dependences breaking the search
             flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.increment)
 
             # Can we group `c` with `candidate`?
-            test0 = candidate.ispace.is_compatible(c.ispace)  # Compatible ispaces
-            test1 = all(c.ispace.inner == i for i in candidate.guards)  # No mid if-then
-            test2 = all(is_local(i, candidate, c, clusters) for i in funcs)  # no antideps
+            test0 = not candidate.guards  # No intervening guards
+            test1 = candidate.ispace.is_compatible(c.ispace)  # Compatible ispaces
+            test2 = all(is_local(i, candidate, c, clusters) for i in funcs)  # No antideps
             if test0 and test1 and test2:
                 # Yes, `c` can be grouped with `candidate`. All anti-dependences
                 # (if any) can be eliminated through "index bumping and array
@@ -57,13 +57,18 @@ def groupby(clusters):
                 fused = True
                 break
             elif anti:
-                # Data dependences prevent fusion with earlier clusters, so
+                # Data dependences prevent fusion with earlier Clusters, so
                 # must break up the search
                 c.atomics.update(anti.cause)
                 break
             elif flow.cause & candidate.atomics:
-                # We cannot even attempt fusing with earlier clusters, as
-                # otherwise the existing flow dependences wouldn't be honored
+                # We cannot even attempt fusing with earlier Clusters, as
+                # otherwise the carried flow dependences wouldn't be honored
+                break
+            elif set(candidate.guards) & set(c.dimensions):
+                # Like above, we can't attempt fusion with earlier Clusters.
+                # Time time because there are intervening conditionals along
+                # one or more of the shared iteration dimensions
                 break
         # Fallback
         if not fused:
