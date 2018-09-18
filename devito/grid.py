@@ -49,21 +49,20 @@ class Grid(ArgProvider):
 
        .. code-block:: python
 
-          x ^
-            |
-            |           origin + extent
+                      x
+            |----------------------->
+            |  origin
             |     x------------x
             |     |            |
             |     |            |
             |     |   DOMAIN   | extent[1]
-            |     |            |
+        y   |     |            |
             |     |            |
             |     |  extent[0] |
             |     x------------x
-            |  origin
+            |             origin + extent
             |
-            |----------------------->
-                       y
+            v
     """
 
     _default_dimensions = ('x', 'y', 'z')

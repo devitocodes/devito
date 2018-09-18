@@ -42,6 +42,7 @@ class Differentiable(sympy.Expr):
         # Associated Sympy expression
         self._expr = to_expr(expr)
 
+    # FD properties
     @property
     def space_order(self):
         return self._space_order
@@ -70,7 +71,30 @@ class Differentiable(sympy.Expr):
     def dtype(self):
         return self._dtype
 
+    def _merge_fd_properties(self, other):
+        """
+        Combine the FD property of the objects in the input expression
+        space_order and time_order default to 100 as "infinitely" differentiable
+        assuming no input for it means the expression does not depend on space or time
+        """
+        merged = {}
+        merged["space_order"] = np.min([getattr(self, 'space_order', 100) or 100,
+                                        getattr(other, 'space_order', 100)])
+        merged["time_order"] = np.min([getattr(self, 'time_order', 100) or 100,
+                                       getattr(other, 'time_order', 100)])
+        merged["indices"] = tuple(filter_ordered(self.indices +
+                                                 getattr(other, 'indices', ())))
+        merged["fd"] = dict(getattr(self, 'fd', {}), **getattr(other, 'fd', {}))
+        merged["staggered"] = self.staggered
+        merged["dtype"] = self.dtype
+        return merged
+
     def __getattr__(self, name):
+        """
+        _getattr has two case, defined property that uses the conventional
+        '__getattribute__' and FD properties stored as partial objects
+        `in self._fd`
+        """
         if name == 'fd' or name == '_fd':
             raise AttributeError()
         if name in self.fd:
@@ -84,25 +108,13 @@ class Differentiable(sympy.Expr):
         else:
             return self._expr.xreplace(rule)
 
-    def _merge_fd_properties(self, other):
-        merged = {}
-        merged["space_order"] = np.min([getattr(self, 'space_order', 100) or 100,
-                                        getattr(other, 'space_order', 100)])
-        merged["time_order"] = np.min([getattr(self, 'time_order', 100) or 100,
-                                       getattr(other, 'time_order', 100)])
-        merged["indices"] = tuple(filter_ordered(self.indices +
-                                                 getattr(other, 'indices', ())))
-        merged["fd"] = dict(getattr(self, 'fd', {}), **getattr(other, 'fd', {}))
-        merged["staggered"] = self.staggered
-        merged["dtype"] = self.dtype
-        return merged
-
     @property
     def args(self):
         if self.is_Function:
             return super(Differentiable, self).args
         return (self._expr,)
 
+    # Overload common sympy operations
     def __add__(self, other):
         return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
                                           getattr(other, '_expr', other)]),
@@ -215,6 +227,9 @@ class Differentiable(sympy.Expr):
         return other.__mod__(self)
 
     def subs(self, *subs):
+        """
+        Substitute the input rule in the object expression
+        """
         if self.is_Function:
             return super(Differentiable, self).subs(*subs)
         expr_sub = to_expr(self._expr).subs(*subs)
