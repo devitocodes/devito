@@ -18,8 +18,8 @@ from devito.symbolics import indexify, retrieve_functions
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
                           OWNED, HALO, LEFT, RIGHT)
-from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_mapper,
-                          as_tuple, flatten, is_integer, prod, powerset, filter_ordered,
+from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_tuple,
+                          flatten, is_integer, prod, powerset, filter_ordered,
                           memoized_meth)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
@@ -1003,6 +1003,9 @@ class AbstractSparseFunction(TensorFunction):
     _sparse_position = -1
     """Position of sparse index among the function indices."""
 
+    _radius = 0
+    """The radius of the stencil operators provided by the SparseFunction."""
+
     _sub_functions = ()
     """:class:`SubFunction`s encapsulated within this AbstractSparseFunction."""
 
@@ -1053,12 +1056,36 @@ class AbstractSparseFunction(TensorFunction):
                    for d, p in zip(self.grid.dimensions, point))
 
     @property
+    def gridpoints(self):
+        """
+        The *reference* grid point corresponding to each sparse point.
+        """
+        raise NotImplementedError
+
+    @property
+    def _support(self):
+        """
+        The grid points surrounding each sparse point within the radius of self's
+        injection/interpolation operators.
+        """
+        ret = []
+        for i in self.gridpoints:
+            support = [range(max(0, j - self._radius + 1), min(M, j + self._radius + 1))
+                       for j, M in zip(i, self.grid.shape)]
+            ret.append(tuple(product(*support)))
+        return ret
+
+    @property
     def _dist_datamap(self):
         """
         Return a mapper ``M : MPI rank -> logically owned sparse data``.
         """
-        targets = self.grid.distributor.glb_to_rank(self.gridpoints)
-        return as_mapper(range(self.npoint), lambda i: targets[i])
+        ret = {}
+        for i, s in enumerate(self._support):
+            # Sparse point `i` is "required" by the following ranks
+            for r in self.grid.distributor.glb_to_rank(s):
+                ret.setdefault(r, []).append(i)
+        return {k: filter_ordered(v) for k, v in ret.items()}
 
     @property
     def _dist_mask(self):
@@ -1156,11 +1183,6 @@ class AbstractSparseFunction(TensorFunction):
         Return a ``numpy.ndarray`` containing up-to-date data and coordinate values
         suitable for insertion into ``self.data``.
         """
-        raise NotImplementedError
-
-    @property
-    def gridpoints(self):
-        """The *reference* grid point corresponding to each sparse point."""
         raise NotImplementedError
 
     def _arg_defaults(self, alias=None):
