@@ -228,6 +228,12 @@ class Differentiable(sympy.Expr):
             return super(Differentiable, self)._hashable_content()
         return self._expr._hashable_content()
 
+    def evalf(self, N):
+        if self.is_Function:
+            return self
+        self._expr = self._expr.evalf(N)
+        return self
+
     @property
     def laplace(self):
         """
