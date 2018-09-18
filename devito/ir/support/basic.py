@@ -626,6 +626,11 @@ class DependenceGroup(list):
         return set().union(*[i.cause for i in self])
 
     @property
+    def functions(self):
+        """Return the :class:`TensorFunction`s inducing a dependence."""
+        return {i.function for i in self}
+
+    @property
     def none(self):
         return len(self) == 0
 
