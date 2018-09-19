@@ -756,7 +756,7 @@ class Function(TensorFunction, Differentiable):
                      dimensions.
         """
         tot = self.sum(p, dims)
-        return tot / len(tot._expr.args)
+        return tot / len(tot.args)
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\

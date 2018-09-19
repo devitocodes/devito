@@ -32,6 +32,7 @@ class Differentiable(sympy.Expr):
             differentiable; if not provided, it is assumed that the Differentiable
             object is independent of space or time.
         """
+
         if not differentiable or not isinstance(obj, Differentiable):
             return
         obj._space_order = np.min([getattr(i, 'space_order', 100) or 100
@@ -41,8 +42,10 @@ class Differentiable(sympy.Expr):
         obj._indices = tuple(filter_ordered(flatten(getattr(i, 'indices', ())
                                                     for i in differentiable)))
         # TODO: Assert the following sets are of length 1?
-        obj._staggered = {getattr(i, 'staggered', ()) for i in differentiable}.pop()
-        obj._dtype = {getattr(i, 'dtype', None) for i in differentiable}.pop()
+        obj._staggered = filter_ordered({getattr(i, 'staggered', ())
+                                         for i in differentiable}).pop()
+        obj._dtype = filter_ordered({getattr(i, 'dtype', np.float32)
+                                     for i in differentiable}).pop()
         # TODO: Adding grid, is this OK? shold we assert they are identical too?
         obj._grid = {getattr(i, 'grid', None) for i in differentiable}.pop()
 
@@ -107,16 +110,25 @@ class Differentiable(sympy.Expr):
     def __add__(self, other):
         return Add(self, other)
 
+    def __iadd__(self, other):
+        return Add(self, other)
+
     def __radd__(self, other):
         return Add(other, self)
 
     def __sub__(self, other):
         return Add(self, -other)
 
+    def __isub__(self, other):
+        return Add(self, -other)
+
     def __rsub__(self, other):
         return Add(other, -self)
 
     def __mul__(self, other):
+        return Mul(self, other)
+
+    def __imul__(self, other):
         return Mul(self, other)
 
     def __rmul__(self, other):
