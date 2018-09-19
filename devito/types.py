@@ -185,7 +185,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
 
 class AbstractCachedSymbol(AbstractSymbol, Cached):
     """
-    Base class for dimension-free symbols, cached by both Devito and Sympy.
+    Base class for dimension-free symbols, cached by both Devito and SymPy.
 
     For more information, refer to the documentation of :class:`AbstractSymbol`.
     """
@@ -203,6 +203,7 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
             newobj = sympy.Symbol.__new__(newcls, name, *args, **options)
 
             # Initialization
+            newobj._dtype = cls.__dtype_setup__(**kwargs)
             newobj.__init__(*args, **kwargs)
 
             # Store new instance in symbol cache
@@ -211,8 +212,22 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
 
     __hash__ = Cached.__hash__
 
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        """Extract the object data type from ``kwargs``."""
+        return None
+
+    @property
+    def base(self):
+        return self
+
+    @property
+    def dtype(self):
+        """Return the data type of the object."""
+        return self._dtype
+
     # Pickling support
-    _pickle_kwargs = ['name']
+    _pickle_kwargs = ['name', 'dtype']
     __reduce_ex__ = Pickable.__reduce_ex__
 
     @property
@@ -226,30 +241,23 @@ class Symbol(AbstractCachedSymbol):
 
     is_Symbol = True
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.dtype = kwargs.get('dtype', np.int32)
-
-    @property
-    def base(self):
-        return self
-
-    # Pickling support
-    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype']
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return kwargs.get('dtype', np.int32)
 
 
 class Scalar(Symbol):
     """Symbolic object representing a scalar.
 
-    :param name: Name of the symbol
-    :param dtype: Data type of the scalar
+    :param name: Name of the symbol.
+    :param dtype: (Optional) data type of the object. Defaults to float32.
     """
 
     is_Scalar = True
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.dtype = kwargs.get('dtype', np.float32)
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return kwargs.get('dtype', np.float32)
 
     @property
     def _mem_stack(self):
@@ -629,7 +637,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return self.indexed[index]
 
     # Pickling support
-    _pickle_kwargs = ['name', 'halo', 'padding']
+    _pickle_kwargs = ['name', 'dtype', 'halo', 'padding']
     __reduce_ex__ = Pickable.__reduce_ex__
 
     @property

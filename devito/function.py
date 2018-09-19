@@ -44,24 +44,19 @@ class Constant(AbstractCachedSymbol, ArgProvider):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self._value = kwargs.get('value')
-            self._dtype = kwargs.get("dtype", np.float32)
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return kwargs.get('dtype', np.float32)
 
     @property
     def data(self):
         """The value of the data object, as a scalar (int, float, ...)."""
         return self.dtype(self._value)
 
-    @property
-    def dtype(self):
-        return self._dtype
-
     @data.setter
     def data(self, val):
         self._value = val
-
-    @property
-    def base(self):
-        return self
 
     @property
     def _arg_names(self):
@@ -106,7 +101,7 @@ class Constant(AbstractCachedSymbol, ArgProvider):
         except AttributeError:
             pass
 
-    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype', '_value']
+    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['_value']
 
 
 class TensorFunction(AbstractCachedFunction, ArgProvider):
@@ -567,7 +562,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     # Pickling support
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
-        ['dtype', 'grid', 'staggered', 'initializer']
+        ['grid', 'staggered', 'initializer']
 
 
 class Function(TensorFunction, Differentiable):
