@@ -1,48 +1,32 @@
 import sympy
+from sympy.functions.elementary.integers import floor
 import numpy as np
 
 from devito.tools import filter_ordered
-from devito.finite_differences.utils import to_expr
 
 __all__ = ['Differentiable']
 
 
 class Differentiable(sympy.Expr):
     """
-    This class represents Devito differentiable objects such as
-    sum of functions, product of function or FD approximation and
-    provides FD shortcuts for such expressions
+    This class represents Devito differentiable objects such as functions,
+    sum of functions, product of function, or any FD approximation. Differentiable
+    objects provide FD shortcuts to easily compute FD approximations.
     """
-    # Set the operator priority higher than Sympy (10.0) to force the overloaded
+    # Set the operator priority higher than SymPy (10.0) to force the overridden
     # operators to be used
-    _op_priority = 100.0
+    _op_priority = sympy.Expr._op_priority + 1.
 
-    def __new__(cls, *args, **kwargs):
-        if cls == Differentiable:
-            assert len(args) == 1
-            expr = args[0]
-            if expr.is_Function:
-                return expr
-            new_obj = sympy.Expr.__new__(cls, expr)
-            # Initialization
-            new_obj.__init__(expr, **kwargs)
-            return new_obj
-        return sympy.Expr.__new__(cls, *args)
+    _state = ('space_order', 'time_order', 'staggered', 'dtype', 'indices', 'grid')
 
-    def __init__(self, expr, **kwargs):
-        # Set FD properties from input
-        self._dtype = kwargs.get('dtype')
-        self._space_order = kwargs.get('space_order')
-        self._time_order = kwargs.get('time_order')
-        self._indices = kwargs.get('indices', ())
-        self._staggered = kwargs.get('staggered')
-        self._grid = kwargs.get('grid')
-        # Generate FD shortcuts for expression or copy from input
-        self._fd = kwargs.get('fd', {})
-        # Associated Sympy expression
-        self._expr = to_expr(expr)
+    def __new_diff__(cls, obj, *args):
+        for k, v in merge_fd_properties(*args).items():
+            setattr(obj, "_%s" % k, v)
 
     # FD properties
+    # TODO: Since Function (rightfully) inherits from Differentiable, some
+    # of these properties below can be removed from Function... eg, space_order,
+    # time_order, staggered, ...
     @property
     def space_order(self):
         return self._space_order
@@ -71,183 +55,80 @@ class Differentiable(sympy.Expr):
     def dtype(self):
         return self._dtype
 
-    def _merge_fd_properties(self, other):
-        """
-        Combine the FD property of the objects in the input expression
-        space_order and time_order default to 100 as "infinitely" differentiable
-        assuming no input for it means the expression does not depend on space or time
-        """
-        merged = {}
-        merged["space_order"] = np.min([getattr(self, 'space_order', 100) or 100,
-                                        getattr(other, 'space_order', 100)])
-        merged["time_order"] = np.min([getattr(self, 'time_order', 100) or 100,
-                                       getattr(other, 'time_order', 100)])
-        merged["indices"] = tuple(filter_ordered(self.indices +
-                                                 getattr(other, 'indices', ())))
-        merged["fd"] = dict(getattr(self, 'fd', {}), **getattr(other, 'fd', {}))
-        merged["staggered"] = self.staggered
-        merged["dtype"] = self.dtype
-        return merged
+    def __hash__(self):
+        return super(Differentiable, self).__hash__()
 
     def __getattr__(self, name):
         """
-        _getattr has two case, defined property that uses the conventional
-        '__getattribute__' and FD properties stored as partial objects
-        `in self._fd`
+        __getattr__ has two cases: ::
+
+            * Fetch a "conventional" property using the standard '__getattribute__', or
+            * Call a dynamically created FD shortcut, stored as a partial object in
+              ``self._fd``..
         """
         if name == 'fd' or name == '_fd':
-            raise AttributeError()
-        if name in self.fd:
-            # self.fd[name] = (property, description), calls self.fd[name][0]
-            return self.fd[name][0](self)
-        return self.__getattribute__(name)
-
-    def xreplace(self, rule):
-        if self.is_Function:
-            return super(Differentiable, self).xreplace(rule)
+            raise AttributeError
+        elif self.__dict__.get('_fd'):
+            if name in self.fd:
+                # self.fd[name] = (property, description), calls self.fd[name][0]
+                return self.fd[name][0](self)
+            else:
+                return self.__getattribute__(name)
         else:
-            return self._expr.xreplace(rule)
+            return self.__getattribute__(name)
 
-    @property
-    def args(self):
-        if self.is_Function:
-            return super(Differentiable, self).args
-        return (self._expr,)
-
-    # Overload common sympy operations
+    # Override SymPy arithmetic operators
     def __add__(self, other):
-        return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
-                                          getattr(other, '_expr', other)]),
-                              **self._merge_fd_properties(other))
+        return Add(self, other)
 
-    def __iadd__(self, other):
-        self._expr = sympy.Add(*[getattr(self, '_expr', self),
-                                 getattr(other, '_expr', other)])
-
-        return self
-
-    __radd__ = __add__
+    def __radd__(self, other):
+        return Add(other, self)
 
     def __sub__(self, other):
-        return Differentiable(sympy.Add(*[getattr(self, '_expr', self),
-                                          -getattr(other, '_expr', other)]),
-                              **self._merge_fd_properties(other))
+        return Add(self, -other)
 
     def __rsub__(self, other):
-        return Differentiable(sympy.Add(*[-getattr(self, '_expr', self),
-                                          getattr(other, '_expr', other)]),
-                              **self._merge_fd_properties(other))
-
-    def __isub__(self, other):
-        self._expr = sympy.Add(*[getattr(self, '_expr', self),
-                                 -getattr(other, '_expr', other)])
-        return self
+        return Add(other, -self)
 
     def __mul__(self, other):
-        return Differentiable(sympy.Mul(*[getattr(self, '_expr', self),
-                                          getattr(other, '_expr', other)]),
-                              **self._merge_fd_properties(other))
+        return Mul(self, other)
 
-    def __imul__(self, other):
-        self._expr = sympy.Mul(*[getattr(self, '_expr', self),
-                                 getattr(other, '_expr', other)])
-        return self
-
-    __rmul__ = __mul__
-
-    def __truediv__(self, other):
-        return Differentiable(getattr(self, '_expr', self) *
-                              (getattr(other, '_expr', other) ** (-1)),
-                              **self._merge_fd_properties(other))
-
-    def __rtruediv__(self, other):
-        return Differentiable(getattr(other, '_expr', other) *
-                              (getattr(self, '_expr', self) ** (-1)),
-                              **self._merge_fd_properties(other))
-
-    __floordiv__ = __truediv__
-    __rdiv__ = __rtruediv__
-    __div__ = __truediv__
-    __rfloordiv__ = __rtruediv__
+    def __rmul__(self, other):
+        return Mul(other, self)
 
     def __pow__(self, other):
-        if other > 0:
-            return Differentiable(sympy.Mul(*[getattr(self, '_expr', self)]*other,
-                                            evaluate=False),
-                                  **self._merge_fd_properties(None))
-        elif other < 0:
-            return Differentiable(sympy.Pow(*[getattr(self, '_expr', self), other]),
-                                  **self._merge_fd_properties(None))
-        else:
-            return sympy.Number(1)
+        return Pow(self, other)
 
     def __rpow__(self, other):
-        return other.__pow__(self)
+        return Pow(other, self)
 
-    def __neg__(self):
-        if self.is_Function:
-            return super(Differentiable, self).__neg__()
-        self._expr = -getattr(self, '_expr', self)
-        return self
+    def __div__(self, other):
+        return Mul(self, Pow(other, sympy.S.NegativeOne))
 
-    def __str__(self):
-        if self.is_Function:
-            return super(Differentiable, self).__str__()
-        return self._expr.__str__()
+    def __rdiv__(self, other):
+        return Mul(other, Pow(self, sympy.S.NegativeOne))
 
-    __repr__ = __str__
+    __truediv__ = __div__
+    __rtruediv__ = __rdiv__
 
-    def __eq__(self, other):
-        expr = getattr(self, '_expr', self)
-        oth = getattr(other, '_expr', other)
-        if expr.is_Function:
-            return super(Differentiable, self).__eq__(oth)
-        return expr.__eq__(oth)
+    def __floordiv__(self, other):
+        return floor(self / other)
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __int__(self):
-        if self.is_Function:
-            return super(Differentiable, self).__int__()
-        return Differentiable(self._expr.__int__(), **self._merge_fd_properties(None))
-
-    def __float__(self):
-        if self.is_Function:
-            return super(Differentiable, self).__float__()
-        return Differentiable(self._expr.__float__(), **self._merge_fd_properties(None))
+    def __rfloordiv__(self, other):
+        return floor(other / self)
 
     def __mod__(self, other):
-        if self.is_Function:
-            return super(Differentiable, self).__fmode__(other)
-        return Differentiable(self._expr.__mod__(getattr(other, '_expr', other)),
-                              **self._merge_fd_properties(None))
+        return Mod(self, other)
 
     def __rmod__(self, other):
-        return other.__mod__(self)
+        return Mod(other, self)
 
-    def subs(self, *subs):
-        """
-        Substitute the input rule in the object expression
-        """
-        if self.is_Function:
-            return super(Differentiable, self).subs(*subs)
-        expr_sub = to_expr(self._expr).subs(*subs)
-        return Differentiable(expr_sub, **self._merge_fd_properties(None))
+    def __neg__(self):
+        return Mul(sympy.S.NegativeOne, self)
 
-    def __hash__(self):
-        return hash(self._expr)
-
-    def _hashable_content(self):
-        if self.is_Function:
-            return super(Differentiable, self)._hashable_content()
-        return self._expr._hashable_content()
-
-    def evalf(self, N):
-        if self.is_Function:
-            return self
-        self._expr = self._expr.evalf(N)
-        return self
+    def __eq__(self, other):
+        return super(Differentiable, self).__eq__(other) and\
+            all(getattr(self, i, None) == getattr(other, i, None) for i in self._state)
 
     @property
     def laplace(self):
@@ -267,3 +148,64 @@ class Differentiable(sympy.Expr):
         space_dims = [d for d in self.indices if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return sum([getattr(self.laplace * weight, d) for d in derivs])
+
+
+class Add(sympy.Add, Differentiable):
+
+    def __new__(cls, *args):
+        obj = sympy.Add.__new__(cls, *args)
+        Differentiable.__new_diff__(cls, obj, *args)
+        return obj
+
+
+class Mul(sympy.Mul, Differentiable):
+
+    def __new__(cls, *args):
+        obj = sympy.Mul.__new__(cls, *args)
+        Differentiable.__new_diff__(cls, obj, *args)
+        return obj
+
+
+class Pow(sympy.Pow, Differentiable):
+
+    def __new__(cls, *args):
+        obj = sympy.Pow.__new__(cls, *args)
+        Differentiable.__new_diff__(cls, obj, *args)
+        return obj
+
+
+class Mod(sympy.Mod, Differentiable):
+
+    def __new__(cls, *args):
+        obj = sympy.Mod.__new__(cls, *args)
+        Differentiable.__new_diff__(cls, obj, *args)
+        return obj
+
+
+def merge_fd_properties(f0, f1):
+    """
+    Combine the FD properties of two :class:`Differentiable` objects into a
+    single dictionary.
+
+    .. note::
+
+        ``space_order`` and ``time_order`` default to 100 as "infinitely"
+        differentiable; if not provided, it is assumed that the Differentiable
+        object is independent of space or time.
+    """
+    # TODO: Generalize to combine from an arbitrary number of expressions,
+    # ie allow to pass in ``*function`` rather than just ``f0`` and ``f1``
+    merged = {}
+    merged["space_order"] = np.min([getattr(f0, 'space_order', 100) or 100,
+                                    getattr(f1, 'space_order', 100)])
+    merged["time_order"] = np.min([getattr(f0, 'time_order', 100) or 100,
+                                   getattr(f1, 'time_order', 100)])
+    merged["indices"] = tuple(filter_ordered(getattr(f0, 'indices', ()) +
+                                             getattr(f1, 'indices', ())))
+    merged["fd"] = dict(getattr(f0, 'fd', {}), **getattr(f1, 'fd', {}))
+    # TODO: Assert staddered and dtype are identical here?
+    merged["staggered"] = getattr(f0, 'staggered', getattr(f1, 'staggered', ()))
+    merged["dtype"] = getattr(f0, 'dtype', getattr(f1, 'dtype', None))
+    # TODO: Adding grid, is this OK? shold we assert they are identical too?
+    merged["grid"] = getattr(f0, 'grid', getattr(f1, 'grid', None))
+    return merged
