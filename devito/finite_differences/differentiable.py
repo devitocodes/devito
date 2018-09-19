@@ -32,6 +32,8 @@ class Differentiable(sympy.Expr):
             differentiable; if not provided, it is assumed that the Differentiable
             object is independent of space or time.
         """
+        if not differentiable or not isinstance(obj, Differentiable):
+            return
         obj._space_order = np.min([getattr(i, 'space_order', 100) or 100
                                    for i in differentiable])
         obj._time_order = np.min([getattr(i, 'time_order', 100) or 100
@@ -176,31 +178,31 @@ class Differentiable(sympy.Expr):
 
 class Add(sympy.Add, Differentiable):
 
-    def __new__(cls, *args):
-        obj = sympy.Add.__new__(cls, *args)
+    def __new__(cls, *args, **kwargs):
+        obj = sympy.Add.__new__(cls, *args, **kwargs)
         Differentiable.__new_diff__(cls, obj, *args)
         return obj
 
 
 class Mul(sympy.Mul, Differentiable):
 
-    def __new__(cls, *args):
-        obj = sympy.Mul.__new__(cls, *args)
+    def __new__(cls, *args, **kwargs):
+        obj = sympy.Mul.__new__(cls, *args, **kwargs)
         Differentiable.__new_diff__(cls, obj, *args)
         return obj
 
 
 class Pow(sympy.Pow, Differentiable):
 
-    def __new__(cls, *args):
-        obj = sympy.Pow.__new__(cls, *args)
+    def __new__(cls, *args, **kwargs):
+        obj = sympy.Pow.__new__(cls, *args, **kwargs)
         Differentiable.__new_diff__(cls, obj, *args)
         return obj
 
 
 class Mod(sympy.Mod, Differentiable):
 
-    def __new__(cls, *args):
-        obj = sympy.Mod.__new__(cls, *args)
+    def __new__(cls, *args, **kwargs):
+        obj = sympy.Mod.__new__(cls, *args, **kwargs)
         Differentiable.__new_diff__(cls, obj, *args)
         return obj
