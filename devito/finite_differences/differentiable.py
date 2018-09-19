@@ -1,8 +1,10 @@
+from collections import ChainMap
+
 import sympy
 from sympy.functions.elementary.integers import floor
 import numpy as np
 
-from devito.tools import filter_ordered
+from devito.tools import filter_ordered, flatten
 
 __all__ = ['Differentiable']
 
@@ -19,9 +21,31 @@ class Differentiable(sympy.Expr):
 
     _state = ('space_order', 'time_order', 'staggered', 'dtype', 'indices', 'grid')
 
-    def __new_diff__(cls, obj, *args):
-        for k, v in merge_fd_properties(*args).items():
-            setattr(obj, "_%s" % k, v)
+    def __new_diff__(cls, obj, *differentiable):
+        """
+        Combine the FD properties of one or more :class:`Differentiable`s into a
+        single dictionary.
+
+        .. note::
+
+            ``space_order`` and ``time_order`` default to 100 as "infinitely"
+            differentiable; if not provided, it is assumed that the Differentiable
+            object is independent of space or time.
+        """
+        obj._space_order = np.min([getattr(i, 'space_order', 100) or 100
+                                   for i in differentiable])
+        obj._time_order = np.min([getattr(i, 'time_order', 100) or 100
+                                  for i in differentiable])
+        obj._indices = tuple(filter_ordered(flatten(getattr(i, 'indices', ())
+                                                    for i in differentiable)))
+        # TODO: Assert the following sets are of length 1?
+        obj._staggered = {getattr(i, 'staggered', ()) for i in differentiable}.pop()
+        obj._dtype = {getattr(i, 'dtype', None) for i in differentiable}.pop()
+        # TODO: Adding grid, is this OK? shold we assert they are identical too?
+        obj._grid = {getattr(i, 'grid', None) for i in differentiable}.pop()
+
+        # Unique finite difference shortcuts
+        obj._fd = dict(ChainMap(*[getattr(i, 'fd', {}) for i in differentiable]))
 
     # FD properties
     # TODO: Since Function (rightfully) inherits from Differentiable, some
@@ -180,32 +204,3 @@ class Mod(sympy.Mod, Differentiable):
         obj = sympy.Mod.__new__(cls, *args)
         Differentiable.__new_diff__(cls, obj, *args)
         return obj
-
-
-def merge_fd_properties(f0, f1):
-    """
-    Combine the FD properties of two :class:`Differentiable` objects into a
-    single dictionary.
-
-    .. note::
-
-        ``space_order`` and ``time_order`` default to 100 as "infinitely"
-        differentiable; if not provided, it is assumed that the Differentiable
-        object is independent of space or time.
-    """
-    # TODO: Generalize to combine from an arbitrary number of expressions,
-    # ie allow to pass in ``*function`` rather than just ``f0`` and ``f1``
-    merged = {}
-    merged["space_order"] = np.min([getattr(f0, 'space_order', 100) or 100,
-                                    getattr(f1, 'space_order', 100)])
-    merged["time_order"] = np.min([getattr(f0, 'time_order', 100) or 100,
-                                   getattr(f1, 'time_order', 100)])
-    merged["indices"] = tuple(filter_ordered(getattr(f0, 'indices', ()) +
-                                             getattr(f1, 'indices', ())))
-    merged["fd"] = dict(getattr(f0, 'fd', {}), **getattr(f1, 'fd', {}))
-    # TODO: Assert staddered and dtype are identical here?
-    merged["staggered"] = getattr(f0, 'staggered', getattr(f1, 'staggered', ()))
-    merged["dtype"] = getattr(f0, 'dtype', getattr(f1, 'dtype', None))
-    # TODO: Adding grid, is this OK? shold we assert they are identical too?
-    merged["grid"] = getattr(f0, 'grid', getattr(f1, 'grid', None))
-    return merged
