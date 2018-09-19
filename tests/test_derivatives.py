@@ -6,6 +6,7 @@ from sympy import Derivative, simplify, diff
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
                     clear_cache, ConditionalDimension, left, right, centered,
                     staggered_diff)
+from devito.finite_differences import Differentiable
 
 _PRECISION = 9
 
@@ -57,9 +58,9 @@ def test_stencil_derivative(grid, shape, SymbolType, dim):
     s_di = di.as_finite_difference([i - i.spacing, i])
     s_dii = dii.as_finite_difference([i - i.spacing, i, i + i.spacing])
     # Check stencil length of first and second derivatives
-    assert(len(s_di._expr.args) == 2 and len(s_dii._expr.args) == 3)
-    u_di = s_di._expr.args[0].args[1]
-    u_dii = s_di._expr.args[0].args[1]
+    assert(len(s_di.args) == 2 and len(s_dii.args) == 3)
+    u_di = s_di.args[0].args[1]
+    u_dii = s_di.args[0].args[1]
     # Ensure that devito meta-data survived symbolic transformation
     assert(u_di.grid.shape == shape and u_dii.grid.shape == shape)
     assert(u_di.shape == u.shape and u_dii.shape == u.shape)
@@ -76,7 +77,7 @@ def test_preformed_derivatives(grid, SymbolType, derivative, dim):
     """Test the stencil expressions provided by devito objects"""
     u = SymbolType(name='u', grid=grid, time_order=2, space_order=2)
     expr = getattr(u, derivative)
-    assert(len(expr._expr.args) == dim)
+    assert(len(expr.args) == dim)
 
 
 @skipif_yask
@@ -246,3 +247,21 @@ def test_subsampled_fd():
 
     assert np.allclose(u.data[-1], nt-1)
     assert np.allclose(u2.data[1], 0.5)
+
+
+@skipif_yask
+@pytest.mark.parametrize('expr,expected', [
+    ('f.dx', '-f(x)/h_x + f(x + h_x)/h_x'),
+    ('f.dx + g.dx', '-f(x)/h_x + f(x + h_x)/h_x - g(x)/h_x + g(x + h_x)/h_x'),
+    ('-f', '-f(x)'),
+    ('-(f + g)', '-f(x) - g(x)')
+])
+def test_shortcuts(expr, expected):
+    grid = Grid(shape=(1,))
+    f = Function(name='f', grid=grid)  # noqa
+    g = Function(name='g', grid=grid)  # noqa
+
+    expr = eval(expr)
+
+    assert isinstance(expr, Differentiable)
+    assert expected == str(expr)
