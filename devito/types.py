@@ -373,14 +373,9 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             self._is_halo_dirty = False
             self._in_flight = []
             self._halo = self.__halo_setup__(**kwargs)
-            self._staggered = self.__staggered_setup__(**kwargs)
             self._padding = self.__padding_setup__(**kwargs)
 
     __hash__ = Cached.__hash__
-
-    def __staggered_setup__(self, **kwargs):
-        """Extract the object indices from ``kwargs``."""
-        return ()
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

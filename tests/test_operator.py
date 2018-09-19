@@ -6,7 +6,8 @@ import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
-                    SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension)
+                    SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
+                    NODE, CELL)
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -323,9 +324,9 @@ class TestAllocation(object):
         assert(np.array_equal(m.data, m2.data))
 
     @pytest.mark.parametrize('stagg, ndim', [
-        ('node', 2), (y, 2), (x, 2), ('cell', 2),
-        ('node', 3), (x, 3), (y, 3), (z, 3),
-        ((x, y), 3), ((x, z), 3), ((y, z), 3), ('cell', 3),
+        (NODE, 2), (y, 2), (x, 2), (CELL, 2),
+        (NODE, 3), (x, 3), (y, 3), (z, 3),
+        ((x, y), 3), ((x, z), 3), ((y, z), 3), (CELL, 3),
     ])
     def test_staggered(self, stagg, ndim):
         """
@@ -345,8 +346,8 @@ class TestAllocation(object):
         assert f.data[index] == 2.
 
     @pytest.mark.parametrize('stagg, ndim', [
-        ('node', 2), (y, 2), (x, 2), ((x, y), 2),
-        ('node', 3), (x, 3), (y, 3), (z, 3),
+        (NODE, 2), (y, 2), (x, 2), ((x, y), 2),
+        (NODE, 3), (x, 3), (y, 3), (z, 3),
         ((x, y), 3), ((x, z), 3), ((y, z), 3), ((x, y, z), 3),
     ])
     def test_staggered_time(self, stagg, ndim):

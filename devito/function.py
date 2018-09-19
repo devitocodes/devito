@@ -22,7 +22,7 @@ from devito.tools import (Tag, ReducerMap, ArgProvider, as_mapper, as_tuple,
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
-           'PrecomputedSparseTimeFunction', 'Buffer']
+           'PrecomputedSparseTimeFunction', 'Buffer', 'NODE', 'CELL']
 
 
 class Constant(AbstractCachedSymbol, ArgProvider):
@@ -132,6 +132,9 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             # There may or may not be a `Grid` attached to the TensorFunction
             self._grid = kwargs.get('grid')
 
+            # Staggering metadata
+            self._staggered = self.__staggered_setup__(**kwargs)
+
             # Data-related properties and data initialization
             self._data = None
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
@@ -192,36 +195,32 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     def __staggered_setup__(self, **kwargs):
         """
-        For a given function and it's staggered property `staggered`
-        returns a tuple of 0 or 1 for each dimension:
-        0 if not staggered in the dimension
-        1 if staggered in the dimension
+        Setup staggering-related metadata. This method assigns: ::
+
+            * 0 to non-staggered dimensions;
+            * 1 to staggered dimensions.
         """
-        stagger = kwargs.get('staggered')
-        s = (lambda x: x if type(x) is tuple else (x,))(stagger)
-        if stagger is None:
+        staggered = kwargs.get('staggered')
+        if staggered is None:
             self.is_Staggered = False
             return tuple(0 for _ in self.indices)
-        self.is_Staggered = True
-        if stagger == 'node':
-            return tuple(0 for _ in self.indices)
-        if stagger == 'cell':
-            return tuple(1 for _ in self.indices)
-        staggered = []
-        s_neg = tuple([-ss for ss in s])
-        for d in self.indices:
-            if d in s:
-                staggered += [1]
-            elif d in s_neg:
-                staggered += [-1]
+        else:
+            self.is_Staggered = True
+            if staggered is NODE:
+                staggered = ()
+            elif staggered is CELL:
+                staggered = self.indices
             else:
-                staggered += [0]
-
-        return tuple(staggered)
-
-    @property
-    def staggered(self):
-        return self._staggered
+                staggered = as_tuple(staggered)
+            mask = []
+            for d in self.indices:
+                if d in staggered:
+                    mask.append(1)
+                elif -d in staggered:
+                    mask.append(-1)
+                else:
+                    mask.append(0)
+            return tuple(mask)
 
     @property
     def _data_buffer(self):
@@ -236,6 +235,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @property
     def grid(self):
         return self._grid
+
+    @property
+    def staggered(self):
+        return self._staggered
 
     @property
     def shape(self):
@@ -588,7 +591,14 @@ class Function(TensorFunction, Differentiable):
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) data type of the buffered data.
-    :param staggered: (Optional) tuple containing staggering offsets.
+    :param staggered: (Optional) a :class:`Dimension`, or a tuple of :class:`Dimension`s,
+                      or a :class:`Stagger`, defining how the function is staggered.
+                      For example:
+                      * ``staggered=x`` entails discretization on x edges,
+                      * ``staggered=y`` entails discretization on y edges,
+                      * ``staggered=(x, y)`` entails discretization on xy facets,
+                      * ``staggered=NODE`` entails discretization on node,
+                      * ``staggerd=CELL`` entails discretization on cell.
     :param padding: (Optional) allocate extra grid points at a space dimension
                     boundary. These may be used for data alignment. Defaults to 0.
                     In alternative to an integer, a tuple, indicating the padding
@@ -620,17 +630,6 @@ class Function(TensorFunction, Differentiable):
        :class:`Function` objects are assumed to be constant in time
        and therefore do not support time derivatives. Use
        :class:`TimeFunction` for time-varying grid data.
-
-    .. note::
-
-       The :class:Dimension or String :param staggered:
-       defines the dimension in which the
-       function is staggered or if on the node. For example,
-       ``staggered=x`` entails discretization on x edges,
-       ``staggered=y`` entails discretization on y edges,
-       ``staggered=(x, y)`` entails discretization on xy facets,
-       ``staggered='node'`` entails discretization on node,
-       ``staggerd='cell'`` entails discretization on cell.
     """
 
     is_Function = True
@@ -803,7 +802,14 @@ class TimeFunction(Function):
     :param time_dim: (Optional) the :class:`Dimension` object to use to represent
                      time in this symbol. Defaults to the time dimension provided
                      by the :class:`Grid`.
-    :param staggered: (Optional) tuple containing staggering offsets.
+    :param staggered: (Optional) a :class:`Dimension`, or a tuple of :class:`Dimension`s,
+                      or a :class:`Stagger`, defining how the function is staggered.
+                      For example:
+                      * ``staggered=x`` entails discretization on x edges,
+                      * ``staggered=y`` entails discretization on y edges,
+                      * ``staggered=(x, y)`` entails discretization on xy facets,
+                      * ``staggered=NODE`` entails discretization on node,
+                      * ``staggerd=CELL`` entails discretization on cell.
     :param padding: (Optional) allocate extra grid points at a space dimension
                     boundary. These may be used for data alignment. Defaults to 0.
                     In alternative to an integer, a tuple, indicating the padding
@@ -845,7 +851,6 @@ class TimeFunction(Function):
 
           In []: TimeFunction(name="a", shape=(20, 30))
           Out[]: a(t, x, y)
-
     """
 
     is_TimeFunction = True
@@ -1851,3 +1856,10 @@ class Buffer(Tag):
 
     def __init__(self, value):
         super(Buffer, self).__init__('Buffer', value)
+
+
+class Stagger(Tag):
+    """Stagger region."""
+    pass
+NODE = Stagger('node')  # noqa
+CELL = Stagger('cell')

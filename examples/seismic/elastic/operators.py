@@ -1,5 +1,4 @@
-
-from devito import Eq, Operator, TimeFunction
+from devito import Eq, Operator, TimeFunction, NODE, CELL
 from examples.seismic import PointSource, Receiver
 
 
@@ -9,7 +8,7 @@ def stress_fields(model, save, space_order):
     """
     if model.grid.dim == 2:
         x, z = model.space_dimensions
-        stagg_xx = stagg_zz = 'node'
+        stagg_xx = stagg_zz = NODE
         stagg_xz = (x, z)
         # Create symbols for forward wavefield, source and receivers
         txx = TimeFunction(name='txx', grid=model.grid, staggered=stagg_xx, save=save,
@@ -21,7 +20,7 @@ def stress_fields(model, save, space_order):
         tyy = txy = tyz = None
     elif model.grid.dim == 3:
         x, y, z = model.space_dimensions
-        stagg_xx = stagg_yy = stagg_zz = 'node'
+        stagg_xx = stagg_yy = stagg_zz = NODE
         stagg_xz = (x, z)
         stagg_yz = (y, z)
         stagg_xy = (x, y)
