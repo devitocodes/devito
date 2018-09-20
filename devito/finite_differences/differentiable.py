@@ -3,6 +3,7 @@ from collections import ChainMap
 import sympy
 from sympy.functions.elementary.integers import floor
 import numpy as np
+from cached_property import cached_property
 
 from devito.tools import filter_ordered, flatten
 
@@ -19,70 +20,62 @@ class Differentiable(sympy.Expr):
     # operators to be used
     _op_priority = sympy.Expr._op_priority + 1.
 
-    _state = ('space_order', 'time_order', 'staggered', 'dtype', 'indices', 'grid')
+    _state = ('space_order', 'time_order', 'dtype', 'indices', 'grid')
 
-    def __new_diff__(cls, obj, *differentiable):
-        """
-        Combine the FD properties of one or more :class:`Differentiable`s into a
-        single dictionary.
+    @cached_property
+    def _args_diff(self):
+        ret = [i for i in self.args if isinstance(i, Differentiable)]
+        ret.extend([i.function for i in self.args if i.is_Indexed])
+        return tuple(ret)
 
-        .. note::
-
-            ``space_order`` and ``time_order`` default to 100 as "infinitely"
-            differentiable; if not provided, it is assumed that the Differentiable
-            object is independent of space or time.
-        """
-
-        if not differentiable or not isinstance(obj, Differentiable):
-            return
-        obj._space_order = np.min([getattr(i, 'space_order', 100) or 100
-                                   for i in differentiable])
-        obj._time_order = np.min([getattr(i, 'time_order', 100) or 100
-                                  for i in differentiable])
-        obj._indices = tuple(filter_ordered(flatten(getattr(i, 'indices', ())
-                                                    for i in differentiable)))
-        # TODO: Assert the following sets are of length 1?
-        obj._staggered = filter_ordered({getattr(i, 'staggered', ())
-                                         for i in differentiable}).pop()
-        obj._dtype = filter_ordered({getattr(i, 'dtype', np.float32)
-                                     for i in differentiable}).pop()
-        # TODO: Adding grid, is this OK? shold we assert they are identical too?
-        obj._grid = {getattr(i, 'grid', None) for i in differentiable}.pop()
-
-        # Unique finite difference shortcuts
-        obj._fd = dict(ChainMap(*[getattr(i, 'fd', {}) for i in differentiable]))
-
-    # FD properties
-    # TODO: Since Function (rightfully) inherits from Differentiable, some
-    # of these properties below can be removed from Function... eg, space_order,
-    # time_order, staggered, ...
-    @property
+    @cached_property
     def space_order(self):
-        return self._space_order
+        # Default 100 is for "infinitely" differentiable
+        return min([getattr(i, 'space_order', 100) or 100 for i in self._args_diff],
+                    default=100)
 
-    @property
+    @cached_property
     def time_order(self):
-        return self._time_order
+        # Default 100 is for "infinitely" differentiable
+        return min([getattr(i, 'time_order', 100) or 100 for i in self._args_diff],
+                    default=100)
 
-    @property
-    def staggered(self):
-        return self._staggered
-
-    @property
+    @cached_property
     def indices(self):
-        return self._indices
+        return tuple(filter_ordered(flatten(getattr(i, 'indices', ())
+                                            for i in self._args_diff)))
 
-    @property
-    def fd(self):
-        return self._fd
-
-    @property
+    @cached_property
     def grid(self):
-        return self._grid
+        ret = {getattr(i, 'grid', None) for i in self._args_diff}
+        ret = {i for i in ret if i is not None}
+        if len(ret) == 1:
+            return ret.pop()
+        elif len(ret) > 1:
+            raise ValueError("Found multiple grids `%s` in `%s`" % (ret, self))
+        else:
+            return None
 
-    @property
+    @cached_property
     def dtype(self):
-        return self._dtype
+        dtypes = filter_ordered(getattr(i, 'dtype', None) for i in self._args_diff)
+        dtypes = {i for i in dtypes if i is not None}
+        fdtypes = [i for i in dtypes if np.issubdtype(i, np.floating)]
+        if len(dtypes) == 0:
+            return None
+        elif len(dtypes) == 1:
+            return dtypes.pop()
+        elif len(fdtypes) > 1:
+            raise ValueError("Illegal mixed floating point arithmetic in `%s`" % self)
+        elif len(fdtypes) == 1:
+            # Floating point arithmetic "wins" over integer arithmetic
+            return fdtypes.pop()
+        else:
+            raise ValueError("Illegal arithmetic in `%s` [mixed integer?]" % self)
+
+    @cached_property
+    def _fd(self):
+        return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()
@@ -95,12 +88,12 @@ class Differentiable(sympy.Expr):
             * Call a dynamically created FD shortcut, stored as a partial object in
               ``self._fd``..
         """
-        if name == 'fd' or name == '_fd':
+        if name == '_fd':
             raise AttributeError
         elif self.__dict__.get('_fd'):
-            if name in self.fd:
-                # self.fd[name] = (property, description), calls self.fd[name][0]
-                return self.fd[name][0](self)
+            if name in self._fd:
+                # self._fd[name] = (property, description), calls self._fd[name][0]
+                return self._fd[name][0](self)
             else:
                 return self.__getattribute__(name)
         else:
@@ -191,30 +184,22 @@ class Differentiable(sympy.Expr):
 class Add(sympy.Add, Differentiable):
 
     def __new__(cls, *args, **kwargs):
-        obj = sympy.Add.__new__(cls, *args, **kwargs)
-        Differentiable.__new_diff__(cls, obj, *args)
-        return obj
+        return sympy.Add.__new__(cls, *args, **kwargs)
 
 
 class Mul(sympy.Mul, Differentiable):
 
     def __new__(cls, *args, **kwargs):
-        obj = sympy.Mul.__new__(cls, *args, **kwargs)
-        Differentiable.__new_diff__(cls, obj, *args)
-        return obj
+        return sympy.Mul.__new__(cls, *args, **kwargs)
 
 
 class Pow(sympy.Pow, Differentiable):
 
     def __new__(cls, *args, **kwargs):
-        obj = sympy.Pow.__new__(cls, *args, **kwargs)
-        Differentiable.__new_diff__(cls, obj, *args)
-        return obj
+        return sympy.Pow.__new__(cls, *args, **kwargs)
 
 
 class Mod(sympy.Mod, Differentiable):
 
     def __new__(cls, *args, **kwargs):
-        obj = sympy.Mod.__new__(cls, *args, **kwargs)
-        Differentiable.__new_diff__(cls, obj, *args)
-        return obj
+        return sympy.Mod.__new__(cls, *args, **kwargs)
