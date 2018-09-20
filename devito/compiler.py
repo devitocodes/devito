@@ -210,6 +210,10 @@ class ClangCompiler(Compiler):
     CC = 'clang'
     CPP = 'clang++'
 
+    def __init__(self, *args, **kwargs):
+        super(ClangCompiler, self).__init__(*args, **kwargs)
+        self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable']
+
 
 class IntelCompiler(Compiler):
     """Set of standard compiler flags for the Intel toolchain."""
