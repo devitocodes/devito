@@ -720,6 +720,10 @@ class Function(TensorFunction, Differentiable):
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
 
+    @property
+    def space_order(self):
+        return self._space_order
+
     def sum(self, p=None, dims=None):
         """
         Generate a symbolic expression computing the sum of ``p`` points
@@ -916,6 +920,10 @@ class TimeFunction(Function):
             else:
                 raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))
         return tuple(shape)
+
+    @property
+    def time_order(self):
+        return self._time_order
 
     @property
     def forward(self):
