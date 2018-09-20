@@ -5,7 +5,6 @@ from functools import reduce
 from operator import mul
 
 import numpy as np
-from sympy import Eq
 import ctypes
 from ctypes.util import find_library
 import mmap
@@ -443,4 +442,4 @@ def first_touch(array):
     Uses an Operator to initialize the given array in the same pattern that
     would later be used to access it.
     """
-    devito.Operator(Eq(array, 0.))()
+    devito.Operator(devito.Eq(array, 0.))()
