@@ -14,7 +14,7 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_functions
-from devito.finite_differences import Differentiable, initialize_derivatives
+from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import (Tag, ReducerMap, ArgProvider, as_mapper, as_tuple,
@@ -648,7 +648,7 @@ class Function(TensorFunction, Differentiable):
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
 
             # Dynamically add derivative short-cuts
-            initialize_derivatives(self)
+            self._fd = generate_fd_shortcuts(self)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

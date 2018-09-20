@@ -7,9 +7,8 @@ from sympy import finite_diff_weights
 from devito.logger import error
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
-           'generic_derivative', 'second_cross_derivative', 'generate_fd_functions',
-           'left', 'right', 'centered', 'staggered_diff',
-           'initialize_derivatives', 'transpose']
+           'generic_derivative', 'second_cross_derivative', 'generate_fd_shortcuts',
+           'left', 'right', 'centered', 'staggered_diff', 'transpose']
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deeterministic
 # code generation
@@ -306,7 +305,7 @@ def staggered_cross_diff(expr, dims, deriv_order, fd_order, stagger):
                           fd_order=fd_order[1], dim=dims[1], stagger=stagger[1])
 
 
-def generate_fd_functions(function):
+def generate_fd_shortcuts(function):
     """
     Create all possible FD functions from the indices,
     space_order (and time_order if time dependant)
@@ -392,10 +391,3 @@ def generate_fd_functions(function):
             derivatives[name_fd] = (deriv, desciption)
 
     return derivatives
-
-
-def initialize_derivatives(function):
-    """
-    Dynamically create notational shortcuts for space and time derivatives.
-    """
-    function._fd = generate_fd_functions(function)
