@@ -1070,6 +1070,12 @@ class SubFunction(Function):
         else:
             return self._parent._arg_defaults(alias=self._parent).reduce_all()
 
+    @property
+    def parent(self):
+        return self._parent
+
+    _pickle_kwargs = Function._pickle_kwargs + ['parent']
+
 
 class AbstractSparseFunction(TensorFunction):
     """
