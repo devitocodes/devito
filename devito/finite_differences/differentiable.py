@@ -20,7 +20,7 @@ class Differentiable(sympy.Expr):
     # operators to be used
     _op_priority = sympy.Expr._op_priority + 1.
 
-    _state = ('space_order', 'time_order', 'dtype', 'indices', 'grid')
+    _state = ('space_order', 'time_order', 'indices')
 
     @cached_property
     def _args_diff(self):
@@ -46,34 +46,6 @@ class Differentiable(sympy.Expr):
                                             for i in self._args_diff)))
 
     @cached_property
-    def grid(self):
-        ret = {getattr(i, 'grid', None) for i in self._args_diff}
-        ret = {i for i in ret if i is not None}
-        if len(ret) == 1:
-            return ret.pop()
-        elif len(ret) > 1:
-            raise ValueError("Found multiple grids `%s` in `%s`" % (ret, self))
-        else:
-            return None
-
-    @cached_property
-    def dtype(self):
-        dtypes = filter_ordered(getattr(i, 'dtype', None) for i in self._args_diff)
-        dtypes = {i for i in dtypes if i is not None}
-        fdtypes = [i for i in dtypes if np.issubdtype(i, np.floating)]
-        if len(dtypes) == 0:
-            return None
-        elif len(dtypes) == 1:
-            return dtypes.pop()
-        elif len(fdtypes) > 1:
-            raise ValueError("Illegal mixed floating point arithmetic in `%s`" % self)
-        elif len(fdtypes) == 1:
-            # Floating point arithmetic "wins" over integer arithmetic
-            return fdtypes.pop()
-        else:
-            raise ValueError("Illegal arithmetic in `%s` [mixed integer?]" % self)
-
-    @cached_property
     def _fd(self):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
 
@@ -82,22 +54,15 @@ class Differentiable(sympy.Expr):
 
     def __getattr__(self, name):
         """
-        __getattr__ has two cases: ::
+        Try calling a dynamically created FD shortcut.
 
-            * Fetch a "conventional" property using the standard '__getattribute__', or
-            * Call a dynamically created FD shortcut, stored as a partial object in
-              ``self._fd``..
+        .. note::
+
+            This method acts as a fallback for __getattribute__
         """
-        if name == '_fd':
-            raise AttributeError
-        elif self.__dict__.get('_fd'):
-            if name in self._fd:
-                # self._fd[name] = (property, description), calls self._fd[name][0]
-                return self._fd[name][0](self)
-            else:
-                return self.__getattribute__(name)
-        else:
-            return self.__getattribute__(name)
+        if name in self._fd:
+            return self._fd[name][0](self)
+        raise AttributeError
 
     # Override SymPy arithmetic operators
     def __add__(self, other):
