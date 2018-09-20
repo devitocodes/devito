@@ -4,8 +4,9 @@ from mpi4py import MPI
 import pytest
 from conftest import skipif_yask
 
-from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
-                    Dimension, ConditionalDimension, SubDimension, Eq, Inc, Operator)
+from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
+                    SparseTimeFunction, Dimension, ConditionalDimension,
+                    SubDimension, Eq, Inc, Operator)
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import copy, sendrecv, update_halo
 from devito.parameters import configuration
@@ -599,6 +600,25 @@ class TestOperatorSimple(object):
             assert np.all(g.data_ro_domain[1, 1:] == 2.)
         else:
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
+
+    def test_haloupdate_not_requried(self):
+        grid = Grid(shape=(4, 4))
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2, save=None)
+        v = TimeFunction(name='v', grid=grid, space_order=0, time_order=0, save=5)
+        g = Function(name='g', grid=grid, space_order=0)
+        i = Function(name='i', grid=grid, space_order=0)
+
+        shift = Constant(name='shift', dtype=np.int32)
+
+        step = Eq(u.forward, u - u.backward + 1)
+        g_inc = Inc(g, u * v.subs(grid.time_dim, grid.time_dim - shift))
+        i_inc = Inc(i, (v*v).subs(grid.time_dim, grid.time_dim - shift))
+
+        op = Operator([step, g_inc, i_inc])
+
+        # No stencil in the expressions, so no halo update required!
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
 
 
 @skipif_yask
