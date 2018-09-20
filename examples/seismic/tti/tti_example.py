@@ -41,7 +41,6 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         warning('WARNING: TTI requires a space_order that is a multiple of 4!')
 
     rec, u, v, summary = solver.forward(autotune=autotune, kernel=kernel)
-
     return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 
 

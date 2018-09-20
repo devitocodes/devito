@@ -365,9 +365,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             self._is_halo_dirty = False
             self._in_flight = []
             self._halo = self.__halo_setup__(**kwargs)
+            self._staggered = self.__staggered_setup__(**kwargs)
             self._padding = self.__padding_setup__(**kwargs)
 
     __hash__ = Cached.__hash__
+
+    def __staggered_setup__(self, **kwargs):
+        """Extract the object indices from ``kwargs``."""
+        return ()
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -612,9 +617,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """Create a :class:`sympy.Indexed` object from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
-
-        subs = dict([(i.spacing, 1) for i in self.indices])
+        # Only replace spacing -> 1 if used as index
+        subs = dict([(i.spacing, 1) for i in self.indices if
+                     any(i in a.args for a in self.args)])
         indices = [a.subs(subs) for a in self.args]
+
         return Indexed(self.indexed, *indices)
 
     def __getitem__(self, index):
