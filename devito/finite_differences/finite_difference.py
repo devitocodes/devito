@@ -249,9 +249,10 @@ def generic_cross_derivative(expr, dims, fd_order, deriv_order):
     """
     Create a generic cross derivative for a given function.
 
-    :param function: The symbol representing a function.
-    :param dims: Dimensions for which to take the derivative.
-    :param order: Discretisation order of the stencil to create.
+    :param expr: A :class:`Function` object.
+    :param dims: The :class:`Dimension`s w.r.t. the derivative is computed.
+    :param order: Order of the discretization coefficient (note: this impacts
+                  the width of the resulting stencil expression).
     """
     first = generic_derivative(expr, deriv_order=deriv_order[0],
                                fd_order=fd_order[0], dim=dims[0])
@@ -261,15 +262,13 @@ def generic_cross_derivative(expr, dims, fd_order, deriv_order):
 
 def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
     """
-    Utility function to generate staggered derivatives
-    :param f: function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
-    :param dims: symbol defining the dimension wrt. which
-       to differentiate, eg. `x`, `y`, `z` or `t`.
-    :param order: Order of the coefficient discretization and thus
-                  the width of the resulting stencil expression.
-    :param stagger: Shift for the FD, `left`, `right` or `centered`
-    :param theta: Dip (or polar) angle for rotated FD
-    :param phi: Azimuth angle for rotated FD
+    Utility to generate staggered derivatives.
+
+    :param expr: A :class:`Function` object.
+    :param dims: The :class:`Dimension`s w.r.t. the derivative is computed.
+    :param order: Order of the discretization coefficient (note: this impacts
+                  the width of the resulting stencil expression).
+    :param stagger: (Optional) shift for the FD, `left`, `right` or `centered`.
     """
 
     if stagger == left:
@@ -307,8 +306,7 @@ def staggered_cross_diff(expr, dims, deriv_order, fd_order, stagger):
 
 def generate_fd_shortcuts(function):
     """
-    Create all possible FD functions from the indices,
-    space_order (and time_order if time dependant)
+    Create all legal finite-difference derivatives for the given :class:`Function`.
     """
     dimensions = function.indices
 
