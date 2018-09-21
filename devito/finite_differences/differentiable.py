@@ -147,24 +147,16 @@ class Differentiable(sympy.Expr):
 
 
 class Add(sympy.Add, Differentiable):
-
-    def __new__(cls, *args, **kwargs):
-        return sympy.Add.__new__(cls, *args, **kwargs)
+    pass
 
 
 class Mul(sympy.Mul, Differentiable):
-
-    def __new__(cls, *args, **kwargs):
-        return sympy.Mul.__new__(cls, *args, **kwargs)
+    pass
 
 
 class Pow(sympy.Pow, Differentiable):
-
-    def __new__(cls, *args, **kwargs):
-        return sympy.Pow.__new__(cls, *args, **kwargs)
+    pass
 
 
 class Mod(sympy.Mod, Differentiable):
-
-    def __new__(cls, *args, **kwargs):
-        return sympy.Mod.__new__(cls, *args, **kwargs)
+    pass
