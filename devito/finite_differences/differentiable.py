@@ -4,7 +4,6 @@ import sympy
 from sympy.functions.elementary.integers import floor
 from sympy.core.evalf import evalf_table
 
-import numpy as np
 from cached_property import cached_property
 
 from devito.tools import filter_ordered, flatten
@@ -34,13 +33,13 @@ class Differentiable(sympy.Expr):
     def space_order(self):
         # Default 100 is for "infinitely" differentiable
         return min([getattr(i, 'space_order', 100) or 100 for i in self._args_diff],
-                    default=100)
+                   default=100)
 
     @cached_property
     def time_order(self):
         # Default 100 is for "infinitely" differentiable
         return min([getattr(i, 'time_order', 100) or 100 for i in self._args_diff],
-                    default=100)
+                   default=100)
 
     @cached_property
     def indices(self):

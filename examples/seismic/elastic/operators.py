@@ -1,4 +1,4 @@
-from devito import Eq, Operator, TimeFunction, NODE, CELL
+from devito import Eq, Operator, TimeFunction, NODE
 from examples.seismic import PointSource, Receiver
 
 
