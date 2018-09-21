@@ -2,6 +2,8 @@ from collections import ChainMap
 
 import sympy
 from sympy.functions.elementary.integers import floor
+from sympy.core.evalf import evalf_table
+
 import numpy as np
 from cached_property import cached_property
 
@@ -160,3 +162,13 @@ class Pow(sympy.Pow, Differentiable):
 
 class Mod(sympy.Mod, Differentiable):
     pass
+
+
+# Make sure `sympy.evalf` knows how to evaluate the inherited classes
+# Without these, `evalf` would rely on a much slower, much more generic, and
+# thus much more time-inefficient fallback routine. This would hit us
+# pretty badly when taking derivatives (see `finite_difference.py`), where
+# `evalf` is used systematically
+evalf_table[Add] = evalf_table[sympy.Add]
+evalf_table[Mul] = evalf_table[sympy.Mul]
+evalf_table[Pow] = evalf_table[sympy.Pow]
