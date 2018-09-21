@@ -52,14 +52,14 @@ class Grid(ArgProvider):
                       x
             |----------------------->
             |  origin
-            |     x------------x
+            |     o------------o
             |     |            |
             |     |            |
             |     |   DOMAIN   | extent[1]
         y   |     |            |
             |     |            |
             |     |  extent[0] |
-            |     x------------x
+            |     o------------o
             |             origin + extent
             |
             v

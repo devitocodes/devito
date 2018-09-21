@@ -27,9 +27,6 @@ class Eq(sympy.Eq):
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
                          region=self._region)
 
-    def __str__(self):
-        return "Eq(%s, %s)" % (self.lhs.__str__(), self.rhs.__str__())
-
 
 class Inc(Eq):
 
@@ -92,7 +89,4 @@ def solve(eq, target, **kwargs):
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
-    if eq.is_Equality:
-        eq = eq.lhs - eq.rhs
-
     return sympy.solve(eq, target, **kwargs)[0]

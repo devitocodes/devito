@@ -363,31 +363,29 @@ def generate_fd_shortcuts(function):
                     desciption += 'w.r.t dimension (%s, %s) ' % (d, d2)
                     derivatives[name_fd2] = (deriv, desciption)
 
-    # add non-conventional, non-centered first-order FDs
-    if not function.is_Staggered:
-        for d in dimensions:
-            name = 't' if d.is_Time else d.root.name
-            # left
-            deriv = partial(first_derivative, order=space_fd_order,
-                            dim=d, side=left)
-            name_fd = 'd%sl' % name
-            desciption = 'left first order derivative w.r.t dimension %s' % d
-            derivatives[name_fd] = (deriv, desciption)
-            # right
-            deriv = partial(first_derivative, order=space_fd_order,
-                            dim=d, side=right)
-            name_fd = 'd%sr' % name
-            desciption = 'left first order derivative w.r.t dimension %s' % d
-            derivatives[name_fd] = (deriv, desciption)
-    else:
-        # Add centered first derivatives if staggered
-        for d in dimensions:
-            name = 't' if d.is_Time else d.root.name
+    # Add non-conventional, non-centered first-order FDs
+    for d in dimensions:
+        name = 't' if d.is_Time else d.root.name
+        if function.is_Staggered:
+            # Add centered first derivatives if staggered
             deriv = partial(deriv_function, deriv_order=1, dim=d,
                             fd_order=dim_order, stagger=centered)
             name_fd = 'd%sc' % name
             desciption = 'centered derivative staggered w.r.t dimension %s' % d
 
+            derivatives[name_fd] = (deriv, desciption)
+        else:
+            # Left
+            deriv = partial(first_derivative, order=space_fd_order,
+                            dim=d, side=left)
+            name_fd = 'd%sl' % name
+            desciption = 'left first order derivative w.r.t dimension %s' % d
+            derivatives[name_fd] = (deriv, desciption)
+            # Right
+            deriv = partial(first_derivative, order=space_fd_order,
+                            dim=d, side=right)
+            name_fd = 'd%sr' % name
+            desciption = 'right first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
 
     return derivatives
