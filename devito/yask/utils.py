@@ -49,7 +49,7 @@ def make_grid_accesses(node, yk_grid_objs):
             processed = ForeignExpression(handle, e.dtype, is_Increment=e.is_Increment)
         else:
             # Writing to a scalar temporary
-            processed = Expression(e.expr.func(lhs, rhs))
+            processed = e._rebuild(expr=e.expr.func(lhs, rhs))
 
         mapper.update({e: processed})
 

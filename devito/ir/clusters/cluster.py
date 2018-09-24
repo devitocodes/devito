@@ -6,6 +6,7 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.clusters.graph import FlowGraph
 from devito.ir.support import DataSpace, IterationSpace, detect_io
 from devito.symbolics import estimate_cost
+from devito.tools import as_tuple
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -29,7 +30,8 @@ class PartialCluster(object):
     """
 
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
-        self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace) for i in exprs)
+        self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
+                           for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = set(atomics or [])
@@ -42,6 +44,10 @@ class PartialCluster(object):
     @property
     def ispace(self):
         return self._ispace
+
+    @property
+    def dimensions(self):
+        return self._ispace.dimensions
 
     @property
     def itintervals(self):
@@ -178,13 +184,17 @@ class Cluster(PartialCluster):
     def trace(self):
         return FlowGraph(self.exprs)
 
-    @property
-    def is_dense(self):
-        return self.trace.space_indices and not self.trace.time_invariant()
+    @cached_property
+    def functions(self):
+        return set.union(*[set(i.dspace.parts) for i in self.exprs])
 
-    @property
+    @cached_property
     def is_sparse(self):
-        return not self.is_dense
+        return any(f.is_SparseFunction for f in self.functions)
+
+    @cached_property
+    def is_dense(self):
+        return not self.is_sparse
 
     def rebuild(self, exprs):
         """

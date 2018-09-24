@@ -5,20 +5,22 @@ import sympy
 import numpy as np
 from psutil import virtual_memory
 from mpi4py import MPI
+from cached_property import cached_property
 
 from devito.cgen_utils import INT, cast_mapper
 from devito.data import Data, default_allocator, first_touch
-from devito.dimension import Dimension, DefaultDimension
+from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_functions
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.types import (AbstractCachedFunction, AbstractCachedSymbol,
+from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
                           OWNED, HALO, LEFT, RIGHT)
-from devito.tools import (Tag, ReducerMap, ArgProvider, as_mapper, as_tuple,
-                          flatten, is_integer, prod, powerset)
+from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_mapper,
+                          as_tuple, flatten, is_integer, prod, powerset, filter_ordered,
+                          memoized_meth)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -426,8 +428,9 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             * the shifting induced by the ``staggered`` mask
         """
         symbolic_shape = super(TensorFunction, self).symbolic_shape
-        return tuple(sympy.Add(i, -j, evaluate=False)
-                     for i, j in zip(symbolic_shape, self.staggered))
+        ret = tuple(sympy.Add(i, -j, evaluate=False)
+                    for i, j in zip(symbolic_shape, self.staggered))
+        return EnrichedTuple(*ret, getters=self.dimensions)
 
     @property
     def _mask_interior(self):
@@ -1035,6 +1038,10 @@ class AbstractSparseFunction(TensorFunction):
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('npoint'),))
 
+    @property
+    def _sparse_dim(self):
+        return self.dimensions[self._sparse_position]
+
     def _is_owned(self, point):
         """Return True if ``point`` is in self's local domain, False otherwise."""
         point = as_tuple(point)
@@ -1264,7 +1271,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
     A :class:`SparseFunction` provides symbolic interpolation routines
     to convert between grid-aligned :class:`Function` objects and sparse
-    data points.
+    data points. These are based upon standard [bi,tri]linear interpolation.
 
     :param name: Name of the function.
     :param npoint: Number of points to sample.
@@ -1292,6 +1299,9 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     """
 
     is_SparseFunction = True
+
+    _radius = 1
+    """The radius of the stencil operators provided by the SparseFunction."""
 
     _sub_functions = ('coordinates',)
 
@@ -1356,34 +1366,35 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         A = A.subs(reference_cell)
         return A.inv().T * p
 
-    @property
+    @cached_property
     def _point_symbols(self):
-        """Symbol for coordinate value in each dimension of the point"""
-        return tuple(sympy.symbols('p%s' % d) for d in self.grid.dimensions)
+        """Symbol for coordinate value in each dimension of the point."""
+        return tuple(Scalar(name='p%s' % d, dtype=self.dtype)
+                     for d in self.grid.dimensions)
 
-    @property
+    @cached_property
     def _point_increments(self):
-        """Index increments in each dimension for each point symbol"""
+        """Index increments in each dimension for each point symbol."""
         return tuple(product(range(2), repeat=self.grid.dim))
 
-    @property
+    @cached_property
     def _coordinate_symbols(self):
-        """Symbol representing the coordinate values in each dimension"""
+        """Symbol representing the coordinate values in each dimension."""
         p_dim = self.indices[-1]
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
-    @property
+    @cached_property
     def _coordinate_indices(self):
-        """Symbol for each grid index according to the coordinates"""
+        """Symbol for each grid index according to the coordinates."""
         indices = self.grid.dimensions
         return tuple([INT(sympy.Function('floor')((c - o) / i.spacing))
                       for c, o, i in zip(self._coordinate_symbols, self.grid.origin,
                                          indices[:self.grid.dim])])
 
-    @property
+    @cached_property
     def _coordinate_bases(self):
-        """Symbol for the base coordinates of the reference grid point"""
+        """Symbol for the base coordinates of the reference grid point."""
         indices = self.grid.dimensions
         return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
                       for c, o, idx, i in zip(self._coordinate_symbols,
@@ -1391,26 +1402,53 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                                               self._coordinate_indices,
                                               indices[:self.grid.dim])])
 
-    def _interpolation_indices(self, variables, offset=0):
-        """
-        Get interpolation indices for the variables
-        """
+    @memoized_meth
+    def _index_matrix(self, offset):
+        # Note about the use of *memoization*
+        # Since this method is called by `_interpolation_indices`, using
+        # memoization avoids a proliferation of symbolically identical
+        # ConditionalDimensions for a given set of indirection indices
+
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
                               in zip(inc, self._coordinate_indices))
                         for inc in self._point_increments]
 
-        # Generate index substitutions for all grid variables except
-        # the `SparseFunction` types
+        # A unique symbol for each indirection index
+        indices = filter_ordered(flatten(index_matrix))
+        points = OrderedDict([(p, Symbol(name='ii%d' % i))
+                              for i, p in enumerate(indices)])
+
+        return index_matrix, points
+
+    def _interpolation_indices(self, variables, offset=0):
+        """Generate interpolation indices for the :class:`TensorFunction`s
+        in ``variables``."""
+        index_matrix, points = self._index_matrix(offset)
+
         idx_subs = []
         for i, idx in enumerate(index_matrix):
-            ind_subs = dict([(dim, ind) for dim, ind in zip(self.grid.dimensions, idx)])
-            v_subs = [(v, v.subs(ind_subs))
-                      for v in variables if not isinstance(v, SparseFunction)]
-            idx_subs += [OrderedDict(v_subs)]
+            # Introduce ConditionalDimension so that we don't go OOB
+            mapper = {}
+            for j, d in zip(idx, self.grid.dimensions):
+                p = points[j]
+                lb = sympy.And(p > d.symbolic_start - self._radius, evaluate=False)
+                ub = sympy.And(p < d.symbolic_end + self._radius, evaluate=False)
+                condition = sympy.And(lb, ub, evaluate=False)
+                mapper[d] = ConditionalDimension(p.name, self._sparse_dim,
+                                                 condition=condition, indirect=True)
 
-        # Substitute coordinate base symbols into the coefficients
-        return OrderedDict(zip(self._point_symbols, self._coordinate_bases)), idx_subs
+            # Track Indexed substitutions
+            idx_subs.append(OrderedDict([(v, v.subs(mapper)) for v in variables
+                                         if v.function is not self]))
+
+        # Equations for the indirection dimensions
+        eqns = [Eq(v, k) for k, v in points.items()]
+        # Equations (temporaries) for the coefficients
+        eqns.extend([Eq(p, c) for p, c in
+                     zip(self._point_symbols, self._coordinate_bases)])
+
+        return idx_subs, eqns
 
     @property
     def gridpoints(self):
@@ -1422,26 +1460,34 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                              zip(coords, self.grid.origin, self.grid.dimensions)))
         return ret
 
-    def interpolate(self, expr, offset=0, cummulative=False, self_subs={}):
+    def interpolate(self, expr, offset=0, increment=False, self_subs={}):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 
         :param expr: The expression to interpolate.
         :param offset: Additional offset from the boundary for
                        absorbing boundary conditions.
-        :param cummulative: (Optional) If True, perform an increment rather
-                            than an assignment. Defaults to False.
+        :param increment: (Optional) if True, perform an increment rather
+                          than an assignment. Defaults to False.
         """
-
         variables = list(retrieve_functions(expr))
-        # List of indirection indices for all adjacent grid points
-        subs, idx_subs = self._interpolation_indices(variables, offset)
-        # Substitute coordinate base symbols into the coefficients
-        rhs = sum([expr.subs(vsub) * b.subs(subs)
-                   for b, vsub in zip(self._coefficients, idx_subs)])
-        lhs = self.subs(self_subs)
 
-        return [Inc(lhs, rhs) if cummulative else Eq(lhs, rhs)]
+        # List of indirection indices for all adjacent grid points
+        idx_subs, eqns = self._interpolation_indices(variables, offset)
+
+        # Substitute coordinate base symbols into the coefficients
+        args = [expr.subs(v_sub) * b.subs(v_sub)
+                for b, v_sub in zip(self._coefficients, idx_subs)]
+
+        # Accumulate point-wise contributions into a temporary
+        rhs = Scalar(name='sum', dtype=self.dtype)
+        summands = [Eq(rhs, 0.)] + [Inc(rhs, i) for i in args]
+
+        # Write/Incr `self`
+        lhs = self.subs(self_subs)
+        last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
+
+        return eqns + summands + last
 
     def inject(self, field, expr, offset=0):
         """Symbol for injection of an expression onto a grid
@@ -1455,11 +1501,13 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         variables = list(retrieve_functions(expr)) + [field]
 
         # List of indirection indices for all adjacent grid points
-        subs, idx_subs = self._interpolation_indices(variables, offset)
+        idx_subs, eqns = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the coefficients
-        return [Inc(field.subs(vsub), expr.subs(subs).subs(vsub) * b.subs(subs))
-                for b, vsub in zip(self._coefficients, idx_subs)]
+        eqns.extend([Inc(field.subs(vsub), expr.subs(vsub) * b)
+                     for b, vsub in zip(self._coefficients, idx_subs)])
+
+        return eqns
 
     @property
     def _dist_subfunc_alltoall(self):
@@ -1580,7 +1628,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
 
     is_SparseTimeFunction = True
 
-    def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
+    def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 
@@ -1591,8 +1639,8 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
                     field data in `expr`.
         :param p_t: (Optional) time index to use for indexing into
                     the sparse point data.
-        :param cummulative: (Optional) If True, perform an increment rather
-                            than an assignment. Defaults to False.
+        :param increment: (Optional) if True, perform an increment rather
+                          than an assignment. Defaults to False.
         """
         # Apply optional time symbol substitutions to expr
         subs = {}
@@ -1605,7 +1653,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
             subs = {self.time_dim: p_t}
 
         return super(SparseTimeFunction, self).interpolate(expr, offset=offset,
-                                                           cummulative=cummulative,
+                                                           increment=increment,
                                                            self_subs=subs)
 
     def inject(self, field, expr, offset=0, u_t=None, p_t=None):
@@ -1713,7 +1761,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                     "computed on the final grid that will be used for other " +
                     "computations.")
 
-    def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
+    def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 
@@ -1724,8 +1772,8 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                     field data in `expr`.
         :param p_t: (Optional) time index to use for indexing into
                     the sparse point data.
-        :param cummulative: (Optional) If True, perform an increment rather
-                            than an assignment. Defaults to False.
+        :param increment: (Optional) if True, perform an increment rather
+                          than an assignment. Defaults to False.
         """
         expr = indexify(expr)
 

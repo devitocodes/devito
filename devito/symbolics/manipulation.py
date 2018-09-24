@@ -247,12 +247,15 @@ def convert_to_SSA(exprs):
     processed = []
     for i, e in enumerate(exprs):
         where = seen[e.lhs]
-        if len(where) > 1 and where[-1] != i:
-            # LHS needs SSA form
-            ssa_lhs = dSymbol(name='ssa_t%d' % c, dtype=e.lhs.base.function.dtype)
-            processed.append(e.func(ssa_lhs, e.rhs.xreplace(mapper)))
-            mapper[e.lhs] = ssa_lhs
-            c += 1
+        if len(where) > 1:
+            # Transform into SSA until the very last write, excluded
+            if where[-1] != i:
+                ssa_lhs = dSymbol(name='ssa_t%d' % c, dtype=e.lhs.base.function.dtype)
+                processed.append(e.func(ssa_lhs, e.rhs.xreplace(mapper)))
+                mapper[e.lhs] = ssa_lhs
+                c += 1
+            else:
+                processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
         else:
-            processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
+            processed.append(e)
     return processed

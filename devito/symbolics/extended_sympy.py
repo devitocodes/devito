@@ -102,10 +102,15 @@ class IntDiv(sympy.Expr):
 
     def __new__(cls, lhs, rhs, params=None):
         rhs = Integer(rhs)
-        obj = sympy.Expr.__new__(cls, lhs, rhs)
-        obj.lhs = lhs
-        obj.rhs = rhs
-        return obj
+        if rhs == 0:
+            raise ValueError("Cannot divide by 0")
+        elif rhs == 1:
+            return lhs
+        else:
+            obj = sympy.Expr.__new__(cls, lhs, rhs)
+            obj.lhs = lhs
+            obj.rhs = rhs
+            return obj
 
     def __str__(self):
         return "%s / %s" % (self.lhs, self.rhs)

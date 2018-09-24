@@ -2,43 +2,37 @@ from operator import attrgetter
 
 from devito.dimension import Dimension
 from devito.symbolics import retrieve_indexed, split_affine
-from devito.tools import filter_sorted, flatten, toposort
+from devito.tools import PartialOrderTuple, filter_sorted, flatten
 
 __all__ = ['dimension_sort']
 
 
-def dimension_sort(expr, key=None):
+def dimension_sort(expr):
     """
     Topologically sort the :class:`Dimension`s in ``expr``, based on the order
     in which they appear within :class:`Indexed`s.
-
-    :param expr: The :class:`devito.Eq` from which the :class:`Dimension`s are
-                 extracted.
-    :param key: A callable used as key to enforce a final ordering.
     """
 
     def handle_indexed(indexed):
-        constraint = []
+        relation = []
         for i in indexed.indices:
             try:
                 maybe_dim = split_affine(i).var
                 if isinstance(maybe_dim, Dimension):
-                    constraint.append(maybe_dim)
+                    relation.append(maybe_dim)
             except ValueError:
                 # Maybe there are some nested Indexeds (e.g., the situation is A[B[i]])
                 nested = flatten(handle_indexed(n) for n in retrieve_indexed(i))
                 if nested:
-                    constraint.extend(nested)
+                    relation.extend(nested)
                 else:
                     # Fallback: Just insert all the Dimensions we find, regardless of
                     # what the user is attempting to do
-                    constraint.extend([d for d in filter_sorted(i.free_symbols)
-                                       if isinstance(d, Dimension)])
-        return constraint
+                    relation.extend([d for d in filter_sorted(i.free_symbols)
+                                     if isinstance(d, Dimension)])
+        return tuple(relation)
 
-    constraints = [handle_indexed(i) for i in retrieve_indexed(expr, mode='all')]
-
-    ordering = toposort(constraints)
+    relations = {handle_indexed(i) for i in retrieve_indexed(expr, mode='all')}
 
     # Add in leftover free dimensions (not an Indexed' index)
     extra = set([i for i in expr.free_symbols if isinstance(i, Dimension)])
@@ -46,17 +40,24 @@ def dimension_sort(expr, key=None):
     # Add in pure data dimensions (e.g., those accessed only via explicit values,
     # such as A[3])
     indexeds = retrieve_indexed(expr, deep=True)
-    if indexeds:
-        extra.update(set.union(*[set(i.function.indices) for i in indexeds]))
+    extra.update(set().union(*[set(i.function.indices) for i in indexeds]))
 
     # Enforce determinism
     extra = filter_sorted(extra, key=attrgetter('name'))
 
-    ordering.extend([i for i in extra if i not in ordering])
+    # Add in implicit relations for parent dimensions
+    # -----------------------------------------------
+    # 1) Note that (d.parent, d) is what we want, while (d, d.parent) would be
+    # wrong; for example, in `((t, time), (t, x, y), (x, y))`, `x` could now
+    # preceed `time`, while `t`, and therefore `time`, *must* appear before `x`,
+    # as indicated by the second relation
+    implicit_relations = {(d.parent, d) for d in extra if d.is_Derived}
+    # 2) To handle cases such as `((time, xi), (x,))`, where `xi` a SubDimension
+    # of `x`, besides `(x, xi)`, we also have to add `(time, x)` so that we
+    # obtain the desired ordering `(time, x, xi)`. W/o `(time, x)`, the ordering
+    # `(x, time, xi)` might be returned instead, which would be non-sense
+    implicit_relations.update({tuple(d.root for d in i) for i in relations})
 
-    # Add in parent dimensions
-    for i in list(ordering):
-        if i.is_Derived and i.parent not in ordering:
-            ordering.insert(ordering.index(i), i.parent)
+    ordering = PartialOrderTuple(extra, relations=(relations | implicit_relations))
 
-    return sorted(ordering, key=key)
+    return ordering
