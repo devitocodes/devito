@@ -2,8 +2,9 @@ from __future__ import absolute_import
 
 from functools import partial
 
-from sympy import finite_diff_weights
+from sympy import S, finite_diff_weights
 
+from devito.finite_differences import Differentiable
 from devito.logger import error
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
@@ -64,6 +65,19 @@ right = Side(1)
 centered = Side(0)
 
 
+def check_input(func):
+    def wrapper(expr, *args, **kwargs):
+        if expr.is_Number:
+            return S.Zero
+        elif not isinstance(expr, Differentiable):
+            raise ValueError("`%s` must be of type Differentiable (found `%s`)"
+                             % (expr, type(expr)))
+        else:
+            return func(expr, *args, **kwargs)
+    return wrapper
+
+
+@check_input
 def second_derivative(expr, **kwargs):
     """Derives second derivative for a product of given functions.
 
@@ -98,6 +112,7 @@ def second_derivative(expr, **kwargs):
     return deriv.evalf(_PRECISION)
 
 
+@check_input
 def cross_derivative(expr, **kwargs):
     """Derives cross derivative for a product of given functions.
 
@@ -162,6 +177,7 @@ def cross_derivative(expr, **kwargs):
     return -deriv.evalf(_PRECISION)
 
 
+@check_input
 def first_derivative(expr, **kwargs):
     """Derives first derivative for a product of given functions.
 
@@ -197,8 +213,7 @@ def first_derivative(expr, **kwargs):
     # Finite difference weights from Taylor approximation with this positions
     c = finite_diff_weights(1, ind, dim)
     c = c[-1][-1]
-    all_dims = tuple(set((dim, ) +
-                     tuple([i for i in expr.indices if i.root == dim])))
+    all_dims = tuple(set((dim,) + tuple([i for i in expr.indices if i.root == dim])))
     # Loop through positions
     for i in range(0, len(ind)):
             subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
@@ -206,6 +221,7 @@ def first_derivative(expr, **kwargs):
     return (matvec._transpose*deriv).evalf(_PRECISION)
 
 
+@check_input
 def generic_derivative(expr, deriv_order, dim, fd_order, **kwargs):
     """
     Create generic arbitrary order derivative expression from a
@@ -233,6 +249,7 @@ def generic_derivative(expr, deriv_order, dim, fd_order, **kwargs):
     return deriv.evalf(_PRECISION)
 
 
+@check_input
 def second_cross_derivative(expr, dims, order):
     """
     Create a second order order cross derivative for a given function.
@@ -245,6 +262,7 @@ def second_cross_derivative(expr, dims, order):
     return first_derivative(first, dim=dims[1], order=order).evalf(_PRECISION)
 
 
+@check_input
 def generic_cross_derivative(expr, dims, fd_order, deriv_order):
     """
     Create a generic cross derivative for a given function.
@@ -260,6 +278,7 @@ def generic_cross_derivative(expr, dims, fd_order, deriv_order):
                               fd_order=fd_order[1], dim=dims[1])
 
 
+@check_input
 def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
     """
     Utility to generate staggered derivatives.
@@ -290,6 +309,7 @@ def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
     return deriv.evalf(_PRECISION)
 
 
+@check_input
 def staggered_cross_diff(expr, dims, deriv_order, fd_order, stagger):
     """
     Create a generic cross derivative for a given staggered function.
