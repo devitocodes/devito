@@ -1078,7 +1078,7 @@ class AbstractSparseFunction(TensorFunction):
     @property
     def _dist_datamap(self):
         """
-        Return a mapper ``M : MPI rank -> logically owned sparse data``.
+        Return a mapper ``M : MPI rank -> required sparse data``.
         """
         ret = {}
         for i, s in enumerate(self._support):
@@ -1088,11 +1088,14 @@ class AbstractSparseFunction(TensorFunction):
         return {k: filter_ordered(v) for k, v in ret.items()}
 
     @property
-    def _dist_mask(self):
+    def _dist_scatter_mask(self):
         """
-        Return a mask, suitable to index into ``self.data``, usable to
-        reorder the sparse data values so that adjacent values logically
-        belong to the same MPI rank.
+        Return a mask to index into ``self.data``, which creates a new
+        data array that logically contains N consecutive groups of sparse
+        data values, where N is the number of MPI ranks. The i-th group
+        contains the sparse data values accessible by the i-th MPI rank.
+        Thus, sparse data values along the boundary of two or more MPI
+        ranks are duplicated.
         """
         dmap = self._dist_datamap
         mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
@@ -1101,13 +1104,27 @@ class AbstractSparseFunction(TensorFunction):
         return ret
 
     @property
-    def _dist_subfunc_mask(self):
+    def _dist_subfunc_scatter_mask(self):
         """
-        Return a mask, suitable to index into any of self's SubFunctions,
-        usable to reorder a SubFunction values so that adjacent values
-        logically belong to the same MPI rank.
+        This method is analogous to :meth:`_dist_scatter_mask`, although
+        the mask is now suitable to index into self's SubFunctions, rather
+        than into ``self.data``.
         """
-        return self._dist_mask[self._sparse_position]
+        return self._dist_scatter_mask[self._sparse_position]
+
+    @property
+    def _dist_gather_mask(self):
+        """
+        Return a mask to index into the ``data`` received upon returning
+        from ``self._dist_alltoall``. This mask creates a new data array
+        in which duplicate sparse data values have been discarded. The
+        resulting data array can thus be used to populate ``self.data``.
+        """
+        ret = list(self._dist_scatter_mask)
+        mask = ret[self._sparse_position]
+        ret[self._sparse_position] = [mask.tolist().index(i)
+                                      for i in filter_ordered(mask)]
+        return ret
 
     @property
     def _dist_count(self):
@@ -1567,7 +1584,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         mpitype = MPI._typedict[np.dtype(self.dtype).char]
 
         # Pack (reordered) data values so that they can be sent out via an Alltoallv
-        data = data[self._dist_mask]
+        data = data[self._dist_scatter_mask]
         # Send out the sparse point values
         _, scount, sdisp, rshape, rcount, rdisp = self._dist_alltoall
         scattered = np.empty(shape=rshape, dtype=self.dtype)
@@ -1576,7 +1593,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         data = scattered
 
         # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
-        coords = self.coordinates.data[self._dist_subfunc_mask]
+        coords = self.coordinates.data[self._dist_subfunc_scatter_mask]
         # Send out the sparse point coordinates
         _, scount, sdisp, rshape, rcount, rdisp = self._dist_subfunc_alltoall
         scattered = np.empty(shape=rshape, dtype=self.coordinates.dtype)
@@ -1605,11 +1622,12 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         data = gathered
 
         # Insert back into `self.data` based on the original (expected) data layout
-        self.data[:] = data[self._dist_mask]
+        self.data[:] = data[self._dist_gather_mask]
 
-        # Note: this method is almost the dual of `_dist_scatter`, except for the
-        # fact that `coordinates` are not sent back. This is because `coordinates`
-        # should never be written to
+        # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
+        # in `_dist_scatter` is here received; a sparse point that is received in
+        # `_dist_scatter` is here sent. However, the `coordinates` SubFunction
+        # values are not distributed, as this is a read-only field.
 
     # Pickling support
     _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates_data']
