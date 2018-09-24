@@ -707,17 +707,20 @@ class TestOperatorAdvanced(object):
 
         # Global view (left) and local view (right, after domain decomposition)
         # O is a grid point
+        # x is a halo point
         # A, B, C, D are sparse points
-        #                               Rank0          Rank1
-        # O --- O --- O --- O           O --- O ---    --- O --- O
-        # |     |  B  |     |           |     |  B      B  |     |
-        # O --- O --- O --- O           O --- O ---    --- O --- O
-        # |     |  C  |  D  |     -->   |     |  C      C  |  D  |
-        # O --- O --- O --- O           Rank2          Rank3
-        # |  A  |     |     |           |     |  C      C  |  D  |
-        # O --- O --- O --- O           O --- O ---    --- O --- O
-        #                               |  A  |            |     |
-        #                               O --- O ---    --- O --- O
+        #                               Rank0           Rank1
+        # O --- O --- O --- O           O --- O --- x   x --- O --- O
+        # |  A  |     |     |           |  A  |     |   |     |     |
+        # O --- O --- O --- O           O --- O --- x   x --- O --- O
+        # |     |  C  |  B  |     -->   |     |  C  |   |  C  |  B  |
+        # O --- O --- O --- O           x --- x --- x   x --- x --- x
+        # |     |  D  |     |           Rank2           Rank3
+        # O --- O --- O --- O           x --- x --- x   x --- x --- x
+        #                               |     |  C  |   |  C  |  B  |
+        #                               O --- O --- x   x --- O --- O
+        #                               |     |  D  |   |  D  |     |
+        #                               O --- O --- x   x --- O --- O
         #
         # Expected `f.data` (global view)
         #
@@ -771,6 +774,67 @@ class TestOperatorAdvanced(object):
         op.apply()
 
         assert np.all(sf.data == 4.)
+
+    @pytest.mark.parallel(nprocs=[4])
+    def test_interpolation_dup(self):
+        """
+        Test interpolation operator when the sparse points are replicated over
+        multiple MPI ranks.
+        """
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+        x, y = grid.dimensions
+
+        # Init Function+data
+        f = Function(name='f', grid=grid)
+        glb_pos_map = grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            f.data[:] = [[1., 1.], [2., 2.]]
+        else:
+            f.data[:] = [[3., 3.], [4., 4.]]
+        if grid.distributor.myrank == 0:
+            coords = [(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)]
+        else:
+            coords = []
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
+        sf.data[:] = 0.
+
+        # Global view (left) and local view (right, after domain decomposition)
+        # O is a grid point
+        # x is a halo point
+        # A, B, C, D are sparse points
+        #                               Rank0           Rank1
+        # O --- O --- O --- O           O --- O --- x   x --- O --- O
+        # |  A  |     |     |           |  A  |     |   |     |     |
+        # O --- O --- O --- O           O --- O --- x   x --- O --- O
+        # |     |  C  |  B  |     -->   |     |  C  |   |  C  |  B  |
+        # O --- O --- O --- O           x --- x --- x   x --- x --- x
+        # |     |  D  |     |           Rank2           Rank3
+        # O --- O --- O --- O           x --- x --- x   x --- x --- x
+        #                               |     |  C  |   |  C  |  B  |
+        #                               O --- O --- x   x --- O --- O
+        #                               |     |  D  |   |  D  |     |
+        #                               O --- O --- x   x --- O --- O
+        #
+        # The initial `f.data` is (global view)
+        #
+        # 1. --- 1. --- 1. --- 1.
+        # |      |      |      |
+        # 2. --- 2. --- 2. --- 2.
+        # |      |      |      |
+        # 3. --- 3. --- 3. --- 3.
+        # |      |      |      |
+        # 4. --- 4. --- 4. --- 4.
+        #
+        # Expected `sf.data` (global view)
+        #
+        # 1.5 --- 2.5 --- 2.5 --- 3.5
+
+        op = Operator(sf.interpolate(expr=f))
+        op.apply()
+        if grid.distributor.myrank == 0:
+            assert np.all(sf.data == [1.5, 2.5, 2.5, 3.5])
+        else:
+            assert sf.data.size == 0
 
     @pytest.mark.parallel(nprocs=2)
     def test_subsampling(self):
@@ -974,4 +1038,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_injection_dup()
+    TestOperatorAdvanced().test_interpolation_dup()
