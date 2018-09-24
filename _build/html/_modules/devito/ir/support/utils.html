@@ -262,7 +262,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">indexed</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-        <span class="n">f</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">indexed</span><span class="o">.</span><span class="n">function</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
             <span class="k">continue</span>
         <span class="n">subs</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="n">j</span><span class="o">.</span><span class="n">left</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indexed</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">)}</span>
@@ -323,6 +323,11 @@
     <span class="c1"># Add in derived-dimensions parents, in case they haven&#39;t been detected yet</span>
     <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
                    <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Derived</span> <span class="ow">and</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="p">{</span><span class="n">Any</span><span class="p">})</span> <span class="o">==</span> <span class="p">{</span><span class="n">Any</span><span class="p">}})</span>
+
+    <span class="c1"># Add in &quot;free&quot; Dimensions, ie Dimensions used as symbols rather than as</span>
+    <span class="c1"># array indices</span>
+    <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">d</span><span class="p">:</span> <span class="p">{</span><span class="n">Any</span><span class="p">}</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">)</span>
+                   <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">d</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">})</span>
 
     <span class="k">return</span> <span class="n">mapper</span></div>
 

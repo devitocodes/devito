@@ -255,10 +255,15 @@
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">rhs</span> <span class="o">=</span> <span class="n">Integer</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">lhs</span> <span class="o">=</span> <span class="n">lhs</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">rhs</span> <span class="o">=</span> <span class="n">rhs</span>
-        <span class="k">return</span> <span class="n">obj</span>
+        <span class="k">if</span> <span class="n">rhs</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot divide by 0&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">rhs</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">lhs</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+            <span class="n">obj</span><span class="o">.</span><span class="n">lhs</span> <span class="o">=</span> <span class="n">lhs</span>
+            <span class="n">obj</span><span class="o">.</span><span class="n">rhs</span> <span class="o">=</span> <span class="n">rhs</span>
+            <span class="k">return</span> <span class="n">obj</span>
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> / </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>

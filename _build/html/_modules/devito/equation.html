@@ -155,6 +155,8 @@
 
 <span class="kn">import</span> <span class="nn">sympy</span>
 
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span>
+
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;DOMAIN&#39;</span><span class="p">,</span> <span class="s1">&#39;INTERIOR&#39;</span><span class="p">,</span> <span class="s1">&#39;solve&#39;</span><span class="p">]</span>
 
 
@@ -195,21 +197,14 @@
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
 
 
-<span class="k">class</span> <span class="nc">Region</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Region</span><span class="p">(</span><span class="n">Tag</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A region of the computational domain over which a :class:`Function` is</span>
 <span class="sd">    discretized.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
-
-    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
-
-    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Region</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">_name</span>
+    <span class="k">pass</span>
 
 
 <span class="n">DOMAIN</span> <span class="o">=</span> <span class="n">Region</span><span class="p">(</span><span class="s1">&#39;DOMAIN&#39;</span><span class="p">)</span>

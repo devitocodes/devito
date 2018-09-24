@@ -655,8 +655,9 @@ supplied, project the distance along these dimensions.</li>
 <dl class="class">
 <dt id="devito.ir.support.space.IntervalGroup">
 <em class="property">class </em><code class="descclassname">devito.ir.support.space.</code><code class="descname">IntervalGroup</code><a class="reference internal" href="_modules/devito/ir/support/space.html#IntervalGroup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.IntervalGroup" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
-<p>A sequence of :class:<a href="#id5"><span class="problematic" id="id6">`</span></a>Interval`s with set-like operations exposed.</p>
+<dd><p>Bases: <a class="reference internal" href="devito.tools.html#devito.tools.data_structures.PartialOrderTuple" title="devito.tools.data_structures.PartialOrderTuple"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.data_structures.PartialOrderTuple</span></code></a></p>
+<p>A partially-ordered sequence of :class:<a href="#id5"><span class="problematic" id="id6">`</span></a>Interval`s with set-like
+operations exposed.</p>
 <dl class="method">
 <dt id="devito.ir.support.space.IntervalGroup.add">
 <code class="descname">add</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#IntervalGroup.add"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.IntervalGroup.add" title="Permalink to this definition">¶</a></dt>
@@ -717,6 +718,11 @@ False otherwise.</p>
 <dl class="method">
 <dt id="devito.ir.support.space.IntervalGroup.negate">
 <code class="descname">negate</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#IntervalGroup.negate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.IntervalGroup.negate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="devito.ir.support.space.IntervalGroup.reorder">
+<em class="property">classmethod </em><code class="descname">reorder</code><span class="sig-paren">(</span><em>items</em>, <em>relations</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/space.html#IntervalGroup.reorder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.space.IntervalGroup.reorder" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">

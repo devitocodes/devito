@@ -159,6 +159,7 @@
 <span class="kn">from</span> <span class="nn">devito.ir.clusters.graph</span> <span class="k">import</span> <span class="n">FlowGraph</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">DataSpace</span><span class="p">,</span> <span class="n">IterationSpace</span><span class="p">,</span> <span class="n">detect_io</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">estimate_cost</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Cluster&quot;</span><span class="p">,</span> <span class="s2">&quot;ClusterGroup&quot;</span><span class="p">]</span>
 
@@ -182,7 +183,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="p">,</span> <span class="n">atomics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">guards</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ispace</span><span class="o">=</span><span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="o">=</span><span class="n">dspace</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exprs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ClusterizedEq</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ispace</span><span class="o">=</span><span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="o">=</span><span class="n">dspace</span><span class="p">)</span>
+                           <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">exprs</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span> <span class="o">=</span> <span class="n">ispace</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">dspace</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_atomics</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">atomics</span> <span class="ow">or</span> <span class="p">[])</span>
@@ -195,6 +197,10 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">ispace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ispace</span><span class="o">.</span><span class="n">dimensions</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">itintervals</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -331,13 +337,17 @@
     <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">FlowGraph</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">)</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_dense</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">space_indices</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">time_invariant</span><span class="p">()</span>
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dspace</span><span class="o">.</span><span class="n">parts</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">])</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">is_sparse</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_dense</span>
+        <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">is_SparseFunction</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">is_dense</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_sparse</span>
 
 <div class="viewcode-block" id="Cluster.rebuild"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.rebuild">[docs]</a>    <span class="k">def</span> <span class="nf">rebuild</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>

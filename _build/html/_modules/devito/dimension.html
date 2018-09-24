@@ -627,7 +627,7 @@
 <span class="sd">        * ``factor``: an integer indicating the size of the increment.</span>
 <span class="sd">        * ``condition``: an arbitrary SymPy expression depending on ``parent``.</span>
 <span class="sd">                         All iterations for which the expression evaluates to</span>
-<span class="sd">                         True are part of the ``SubDimension`` region.</span>
+<span class="sd">                         True are part of the ``ConditionalDimension`` region.</span>
 
 <span class="sd">    ConditionalDimension needs runtime arguments. The generated C code will require</span>
 <span class="sd">    the size of the dimension to initialize the arrays as e.g:</span>
@@ -639,15 +639,24 @@
 <span class="sd">           # The generated code will look like</span>
 <span class="sd">           float (*restrict u1)[x1_size + 1] =</span>
 
+<span class="sd">    .. note::</span>
+
+<span class="sd">        Sometimes the ConditionalDimension itself, rather than its parent, needs</span>
+<span class="sd">        to be used to index into an array. For example, this may happen when an</span>
+<span class="sd">        array is indirectly addressed and the ConditionalDimension&#39;s parent</span>
+<span class="sd">        doesn&#39;t define an affine iteration space. In such a case, one should</span>
+<span class="sd">        create the ConditionalDimension with the flag ``indirect=True``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">ConditionalDimension</span><span class="o">.</span><span class="n">__xnew_cached_</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">indirect</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ConditionalDimension</span><span class="o">.</span><span class="n">__xnew_cached_</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span>
+                                                   <span class="n">condition</span><span class="p">,</span> <span class="n">indirect</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">__new_stage2__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">condition</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__new_stage2__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">condition</span><span class="p">,</span> <span class="n">indirect</span><span class="p">):</span>
         <span class="n">newobj</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">__xnew__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">_factor</span> <span class="o">=</span> <span class="n">factor</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">_condition</span> <span class="o">=</span> <span class="n">condition</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">_indirect</span> <span class="o">=</span> <span class="n">indirect</span>
         <span class="k">return</span> <span class="n">newobj</span>
 
     <span class="n">__xnew_cached_</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">cacheit</span><span class="p">(</span><span class="n">__new_stage2__</span><span class="p">))</span>
@@ -658,18 +667,26 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">factor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_factor</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_factor</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_factor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">1</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">condition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">indirect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indirect</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">index</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">indirect</span> <span class="ow">is</span> <span class="kc">True</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_properties</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_factor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indirect</span><span class="p">)</span>
 
     <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;factor&#39;</span><span class="p">,</span> <span class="s1">&#39;condition&#39;</span><span class="p">]</span></div>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;factor&#39;</span><span class="p">,</span> <span class="s1">&#39;condition&#39;</span><span class="p">,</span> <span class="s1">&#39;indirect&#39;</span><span class="p">]</span></div>
 
 
 <div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>

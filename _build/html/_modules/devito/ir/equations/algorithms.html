@@ -155,43 +155,37 @@
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">split_affine</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">toposort</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">PartialOrderTuple</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;dimension_sort&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="dimension_sort"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.algorithms.dimension_sort">[docs]</a><span class="k">def</span> <span class="nf">dimension_sort</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="dimension_sort"><a class="viewcode-back" href="../../../../devito.ir.equations.html#devito.ir.equations.algorithms.dimension_sort">[docs]</a><span class="k">def</span> <span class="nf">dimension_sort</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Topologically sort the :class:`Dimension`s in ``expr``, based on the order</span>
 <span class="sd">    in which they appear within :class:`Indexed`s.</span>
-
-<span class="sd">    :param expr: The :class:`devito.Eq` from which the :class:`Dimension`s are</span>
-<span class="sd">                 extracted.</span>
-<span class="sd">    :param key: A callable used as key to enforce a final ordering.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">handle_indexed</span><span class="p">(</span><span class="n">indexed</span><span class="p">):</span>
-        <span class="n">constraint</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">relation</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indexed</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">maybe_dim</span> <span class="o">=</span> <span class="n">split_affine</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">var</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">maybe_dim</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
-                    <span class="n">constraint</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">maybe_dim</span><span class="p">)</span>
+                    <span class="n">relation</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">maybe_dim</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
                 <span class="c1"># Maybe there are some nested Indexeds (e.g., the situation is A[B[i]])</span>
                 <span class="n">nested</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">handle_indexed</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
                 <span class="k">if</span> <span class="n">nested</span><span class="p">:</span>
-                    <span class="n">constraint</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">nested</span><span class="p">)</span>
+                    <span class="n">relation</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">nested</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="c1"># Fallback: Just insert all the Dimensions we find, regardless of</span>
                     <span class="c1"># what the user is attempting to do</span>
-                    <span class="n">constraint</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
-                                       <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)])</span>
-        <span class="k">return</span> <span class="n">constraint</span>
+                    <span class="n">relation</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
+                                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)])</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">relation</span><span class="p">)</span>
 
-    <span class="n">constraints</span> <span class="o">=</span> <span class="p">[</span><span class="n">handle_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)]</span>
-
-    <span class="n">ordering</span> <span class="o">=</span> <span class="n">toposort</span><span class="p">(</span><span class="n">constraints</span><span class="p">)</span>
+    <span class="n">relations</span> <span class="o">=</span> <span class="p">{</span><span class="n">handle_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)}</span>
 
     <span class="c1"># Add in leftover free dimensions (not an Indexed&#39; index)</span>
     <span class="n">extra</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)])</span>
@@ -199,20 +193,27 @@
     <span class="c1"># Add in pure data dimensions (e.g., those accessed only via explicit values,</span>
     <span class="c1"># such as A[3])</span>
     <span class="n">indexeds</span> <span class="o">=</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">indexeds</span><span class="p">:</span>
-        <span class="n">extra</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indexeds</span><span class="p">]))</span>
+    <span class="n">extra</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">set</span><span class="p">()</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indexeds</span><span class="p">]))</span>
 
     <span class="c1"># Enforce determinism</span>
     <span class="n">extra</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">extra</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">attrgetter</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">))</span>
 
-    <span class="n">ordering</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">extra</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ordering</span><span class="p">])</span>
+    <span class="c1"># Add in implicit relations for parent dimensions</span>
+    <span class="c1"># -----------------------------------------------</span>
+    <span class="c1"># 1) Note that (d.parent, d) is what we want, while (d, d.parent) would be</span>
+    <span class="c1"># wrong; for example, in `((t, time), (t, x, y), (x, y))`, `x` could now</span>
+    <span class="c1"># preceed `time`, while `t`, and therefore `time`, *must* appear before `x`,</span>
+    <span class="c1"># as indicated by the second relation</span>
+    <span class="n">implicit_relations</span> <span class="o">=</span> <span class="p">{(</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">extra</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Derived</span><span class="p">}</span>
+    <span class="c1"># 2) To handle cases such as `((time, xi), (x,))`, where `xi` a SubDimension</span>
+    <span class="c1"># of `x`, besides `(x, xi)`, we also have to add `(time, x)` so that we</span>
+    <span class="c1"># obtain the desired ordering `(time, x, xi)`. W/o `(time, x)`, the ordering</span>
+    <span class="c1"># `(x, time, xi)` might be returned instead, which would be non-sense</span>
+    <span class="n">implicit_relations</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="nb">tuple</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">root</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">relations</span><span class="p">})</span>
 
-    <span class="c1"># Add in parent dimensions</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">ordering</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derived</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">parent</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ordering</span><span class="p">:</span>
-            <span class="n">ordering</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">ordering</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">i</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+    <span class="n">ordering</span> <span class="o">=</span> <span class="n">PartialOrderTuple</span><span class="p">(</span><span class="n">extra</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="p">(</span><span class="n">relations</span> <span class="o">|</span> <span class="n">implicit_relations</span><span class="p">))</span>
 
-    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">ordering</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">ordering</span></div>
 </pre></div>
 
            </div>

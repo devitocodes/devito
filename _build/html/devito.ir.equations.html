@@ -199,22 +199,9 @@
 <span id="devito-ir-equations-algorithms-module"></span><h2>devito.ir.equations.algorithms module<a class="headerlink" href="#module-devito.ir.equations.algorithms" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="devito.ir.equations.algorithms.dimension_sort">
-<code class="descclassname">devito.ir.equations.algorithms.</code><code class="descname">dimension_sort</code><span class="sig-paren">(</span><em>expr</em>, <em>key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/algorithms.html#dimension_sort"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.algorithms.dimension_sort" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.ir.equations.algorithms.</code><code class="descname">dimension_sort</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/algorithms.html#dimension_sort"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.algorithms.dimension_sort" title="Permalink to this definition">¶</a></dt>
 <dd><p>Topologically sort the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span> <span class="pre">in</span> <span class="pre">``expr`</span></code>, based on the order
 in which they appear within :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Indexed`s.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>expr</strong> – The <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.Eq</span></code> from which the :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Dimension`s are
-extracted.</li>
-<li><strong>key</strong> – A callable used as key to enforce a final ordering.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
 </dd></dl>
 
 </div>
@@ -224,8 +211,8 @@ extracted.</li>
 <dt id="devito.ir.equations.equation.LoweredEq">
 <em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">LoweredEq</code><span class="sig-paren">(</span><em>sympy.Eq</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#LoweredEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.LoweredEq" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code></p>
-<p>LoweredEq(devito.LoweredEq, <a href="#id5"><span class="problematic" id="id6">**</span></a>kwargs)
-LoweredEq(lhs, rhs, <a href="#id7"><span class="problematic" id="id8">**</span></a>kwargs)</p>
+<p>LoweredEq(devito.LoweredEq, <a href="#id3"><span class="problematic" id="id4">**</span></a>kwargs)
+LoweredEq(lhs, rhs, <a href="#id5"><span class="problematic" id="id6">**</span></a>kwargs)</p>
 <p>A SymPy equation with associated <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code> and
 <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code>.</p>
 <p>When created as <code class="docutils literal notranslate"><span class="pre">LoweredEq(sympy.Eq)</span></code>, the iteration and data spaces are
@@ -332,7 +319,7 @@ but xreplace does:</p>
 <dt id="devito.ir.equations.equation.ClusterizedEq">
 <em class="property">class </em><code class="descclassname">devito.ir.equations.equation.</code><code class="descname">ClusterizedEq</code><span class="sig-paren">(</span><em>devito.IREq</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/equations/equation.html#ClusterizedEq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.equations.equation.ClusterizedEq" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.ir.equations.equation.IREq</span></code>, <a class="reference internal" href="devito.symbolics.html#devito.symbolics.extended_sympy.FrozenExpr" title="devito.symbolics.extended_sympy.FrozenExpr"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.symbolics.extended_sympy.FrozenExpr</span></code></a>, <a class="reference internal" href="devito.tools.html#devito.tools.abc.Pickable" title="devito.tools.abc.Pickable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.Pickable</span></code></a></p>
-<p>ClusterizedEq(lhs, rhs, <a href="#id9"><span class="problematic" id="id10">**</span></a>kwargs)</p>
+<p>ClusterizedEq(lhs, rhs, <a href="#id7"><span class="problematic" id="id8">**</span></a>kwargs)</p>
 <p>A SymPy equation with associated <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code> and
 <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code>.</p>
 <p>There are two main differences between a <a class="reference internal" href="#devito.ir.equations.equation.LoweredEq" title="devito.ir.equations.equation.LoweredEq"><code class="xref py py-class docutils literal notranslate"><span class="pre">LoweredEq</span></code></a> and a

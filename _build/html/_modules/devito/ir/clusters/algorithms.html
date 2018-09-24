@@ -151,14 +151,12 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.ir.clusters.algorithms</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
-
-<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="p">(</span><span class="n">Scope</span><span class="p">,</span> <span class="n">IterationSpace</span><span class="p">,</span> <span class="n">detect_flow_directions</span><span class="p">,</span>
+<span></span><span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="p">(</span><span class="n">Scope</span><span class="p">,</span> <span class="n">DataSpace</span><span class="p">,</span> <span class="n">IterationSpace</span><span class="p">,</span> <span class="n">detect_flow_directions</span><span class="p">,</span>
                                <span class="n">force_directions</span><span class="p">,</span> <span class="n">group_expressions</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters.cluster</span> <span class="k">import</span> <span class="n">PartialCluster</span><span class="p">,</span> <span class="n">ClusterGroup</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">CondEq</span><span class="p">,</span> <span class="n">xreplace_indices</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;clusterize&#39;</span><span class="p">,</span> <span class="s1">&#39;groupby&#39;</span><span class="p">]</span>
 
@@ -177,45 +175,53 @@
 
     <span class="n">processed</span> <span class="o">=</span> <span class="n">ClusterGroup</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">guards</span><span class="p">:</span>
-            <span class="c1"># Guarded clusters cannot be grouped together</span>
-            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
-            <span class="k">continue</span>
         <span class="n">fused</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">processed</span><span class="p">)):</span>
+            <span class="c1"># Guarded clusters cannot be grouped together</span>
+            <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">guards</span><span class="p">:</span>
+                <span class="k">break</span>
+
             <span class="c1"># Collect all relevant data dependences</span>
             <span class="n">scope</span> <span class="o">=</span> <span class="n">Scope</span><span class="p">(</span><span class="n">exprs</span><span class="o">=</span><span class="n">candidate</span><span class="o">.</span><span class="n">exprs</span> <span class="o">+</span> <span class="n">c</span><span class="o">.</span><span class="n">exprs</span><span class="p">)</span>
 
             <span class="c1"># Collect anti-dependences preventing grouping</span>
             <span class="n">anti</span> <span class="o">=</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_anti</span><span class="o">.</span><span class="n">carried</span><span class="p">()</span> <span class="o">-</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_anti</span><span class="o">.</span><span class="n">increment</span>
-            <span class="n">funcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">anti</span><span class="p">]</span>
+            <span class="n">funcs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">anti</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
 
             <span class="c1"># Collect flow-dependences breaking the search</span>
             <span class="n">flow</span> <span class="o">=</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span> <span class="o">-</span> <span class="p">(</span><span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="o">.</span><span class="n">inplace</span><span class="p">()</span> <span class="o">+</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="o">.</span><span class="n">increment</span><span class="p">)</span>
 
-            <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">is_compatible</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span> <span class="ow">and</span>\
-                    <span class="nb">all</span><span class="p">(</span><span class="n">is_local</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">candidate</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">clusters</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">funcs</span><span class="p">):</span>
-                <span class="c1"># /c/ will be fused into /candidate/. All fusion-induced anti</span>
-                <span class="c1"># dependences are eliminated through so called &quot;index bumping and</span>
-                <span class="c1"># array contraction&quot;, which transforms array accesses into scalars</span>
+            <span class="c1"># Can we group `c` with `candidate`?</span>
+            <span class="n">test0</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">candidate</span><span class="o">.</span><span class="n">guards</span>  <span class="c1"># No intervening guards</span>
+            <span class="n">test1</span> <span class="o">=</span> <span class="n">candidate</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">is_compatible</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">)</span>  <span class="c1"># Compatible ispaces</span>
+            <span class="n">test2</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="n">is_local</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">candidate</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">clusters</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">funcs</span><span class="p">)</span>  <span class="c1"># No antideps</span>
+            <span class="k">if</span> <span class="n">test0</span> <span class="ow">and</span> <span class="n">test1</span> <span class="ow">and</span> <span class="n">test2</span><span class="p">:</span>
+                <span class="c1"># Yes, `c` can be grouped with `candidate`. All anti-dependences</span>
+                <span class="c1"># (if any) can be eliminated through &quot;index bumping and array</span>
+                <span class="c1"># contraction&quot;, which turns Array temporaries into Scalar temporaries</span>
 
                 <span class="c1"># Optimization: we also bump-and-contract the Arrays inducing</span>
-                <span class="c1"># non-carried dependences, to avoid useless memory accesses</span>
-                <span class="n">funcs</span> <span class="o">+=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="o">.</span><span class="n">independent</span><span class="p">()</span>
-                          <span class="k">if</span> <span class="n">is_local</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="n">candidate</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">clusters</span><span class="p">)]</span>
+                <span class="c1"># non-carried dependences, to minimize the working set</span>
+                <span class="n">funcs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_flow</span><span class="o">.</span><span class="n">independent</span><span class="p">()</span>
+                              <span class="k">if</span> <span class="n">is_local</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="n">candidate</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">clusters</span><span class="p">)})</span>
 
                 <span class="n">bump_and_contract</span><span class="p">(</span><span class="n">funcs</span><span class="p">,</span> <span class="n">candidate</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
                 <span class="n">candidate</span><span class="o">.</span><span class="n">squash</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
                 <span class="n">fused</span> <span class="o">=</span> <span class="kc">True</span>
                 <span class="k">break</span>
             <span class="k">elif</span> <span class="n">anti</span><span class="p">:</span>
-                <span class="c1"># Data dependences prevent fusion with earlier clusters, so</span>
+                <span class="c1"># Data dependences prevent fusion with earlier Clusters, so</span>
                 <span class="c1"># must break up the search</span>
                 <span class="n">c</span><span class="o">.</span><span class="n">atomics</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">anti</span><span class="o">.</span><span class="n">cause</span><span class="p">)</span>
                 <span class="k">break</span>
             <span class="k">elif</span> <span class="n">flow</span><span class="o">.</span><span class="n">cause</span> <span class="o">&amp;</span> <span class="n">candidate</span><span class="o">.</span><span class="n">atomics</span><span class="p">:</span>
-                <span class="c1"># We cannot even attempt fusing with earlier clusters, as</span>
-                <span class="c1"># otherwise the existing flow dependences wouldn&#39;t be honored</span>
+                <span class="c1"># We cannot even attempt fusing with earlier Clusters, as</span>
+                <span class="c1"># otherwise the carried flow dependences wouldn&#39;t be honored</span>
+                <span class="k">break</span>
+            <span class="k">elif</span> <span class="nb">set</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">guards</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dimensions</span><span class="p">):</span>
+                <span class="c1"># Like above, we can&#39;t attempt fusion with earlier Clusters.</span>
+                <span class="c1"># Time time because there are intervening conditionals along</span>
+                <span class="c1"># one or more of the shared iteration dimensions</span>
                 <span class="k">break</span>
         <span class="c1"># Fallback</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">fused</span><span class="p">:</span>
@@ -231,25 +237,21 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">processed</span> <span class="o">=</span> <span class="n">ClusterGroup</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
-        <span class="c1"># Separate the expressions that should be guarded from the free ones</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
         <span class="n">free</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">exprs</span><span class="p">:</span>
-            <span class="n">found</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Conditional</span><span class="p">]</span>
-            <span class="k">if</span> <span class="n">found</span><span class="p">:</span>
-                <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">filter_sorted</span><span class="p">(</span><span class="n">found</span><span class="p">)),</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">conditionals</span><span class="p">:</span>
+                <span class="c1"># Expressions that need no guarding are kept in a separate Cluster</span>
+                <span class="k">if</span> <span class="n">free</span><span class="p">:</span>
+                    <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PartialCluster</span><span class="p">(</span><span class="n">free</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">atomics</span><span class="p">))</span>
+                    <span class="n">free</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">guards</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">condition</span> <span class="ow">or</span> <span class="n">CondEq</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">factor</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                          <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">conditionals</span><span class="p">}</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PartialCluster</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">atomics</span><span class="p">,</span> <span class="n">guards</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">free</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
-
-        <span class="c1"># Some expressions may not require guards at all. We put them in their</span>
-        <span class="c1"># own cluster straigh away</span>
+        <span class="c1"># Leftover</span>
         <span class="k">if</span> <span class="n">free</span><span class="p">:</span>
             <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PartialCluster</span><span class="p">(</span><span class="n">free</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">atomics</span><span class="p">))</span>
-
-        <span class="c1"># Then we add in all guarded clusters</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="n">guards</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span> <span class="n">CondEq</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">factor</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">k</span><span class="p">}</span>
-            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PartialCluster</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">atomics</span><span class="p">,</span> <span class="n">guards</span><span class="p">))</span>
 
     <span class="k">return</span> <span class="n">ClusterGroup</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
 
@@ -375,33 +377,27 @@
 
 
 <div class="viewcode-block" id="clusterize"><a class="viewcode-back" href="../../../../devito.ir.clusters.html#devito.ir.clusters.algorithms.clusterize">[docs]</a><span class="k">def</span> <span class="nf">clusterize</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s.&quot;&quot;&quot;</span>
-    <span class="c1"># Group expressions based on data dependences</span>
-    <span class="n">groups</span> <span class="o">=</span> <span class="n">group_expressions</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
-
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">clusters</span> <span class="o">=</span> <span class="n">ClusterGroup</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">group_expressions</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
+        <span class="n">flowmap</span> <span class="o">=</span> <span class="n">detect_flow_directions</span><span class="p">(</span><span class="n">group</span><span class="p">)</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">group</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Tensor</span><span class="p">:</span>
+                <span class="n">scalars</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">[</span><span class="n">prev</span><span class="p">:</span><span class="n">idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Scalar</span><span class="p">]</span>
+                <span class="c1"># Iteration space</span>
+                <span class="n">ispace</span> <span class="o">=</span> <span class="n">IterationSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">ispace</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">scalars</span><span class="p">])</span>
+                <span class="c1"># Enforce iteration directions</span>
+                <span class="n">fdirs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">force_directions</span><span class="p">(</span><span class="n">flowmap</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">ispace</span><span class="o">.</span><span class="n">directions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">))</span>
+                <span class="n">ispace</span> <span class="o">=</span> <span class="n">IterationSpace</span><span class="p">(</span><span class="n">ispace</span><span class="o">.</span><span class="n">intervals</span><span class="p">,</span> <span class="n">ispace</span><span class="o">.</span><span class="n">sub_iterators</span><span class="p">,</span> <span class="n">fdirs</span><span class="p">)</span>
+                <span class="c1"># Data space</span>
+                <span class="n">dspace</span> <span class="o">=</span> <span class="n">DataSpace</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">dspace</span><span class="p">,</span> <span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">dspace</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">scalars</span><span class="p">])</span>
+                <span class="c1"># Prepare for next range</span>
+                <span class="n">prev</span> <span class="o">=</span> <span class="n">idx</span>
 
-    <span class="c1"># Coerce iteration direction of each expression in each group</span>
-    <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">:</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">e</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">directions</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">g</span><span class="p">])</span>
-        <span class="n">flowmap</span> <span class="o">=</span> <span class="n">detect_flow_directions</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
-        <span class="n">queue</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
-        <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
-            <span class="n">k</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-            <span class="n">directions</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">force_directions</span><span class="p">(</span><span class="n">flowmap</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
-            <span class="n">directions</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">directions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]}</span>
-            <span class="c1"># Need update propagation ?</span>
-            <span class="k">if</span> <span class="n">directions</span> <span class="o">!=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
-                <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">directions</span>
-                <span class="n">queue</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">g</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">queue</span><span class="p">])</span>
-
-        <span class="c1"># Wrap each tensor expression in a PartialCluster</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Tensor</span><span class="p">:</span>
-                <span class="n">scalars</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">g</span><span class="p">[:</span><span class="n">g</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">k</span><span class="p">)]</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Scalar</span><span class="p">]</span>
-                <span class="n">intervals</span><span class="p">,</span> <span class="n">sub_iterators</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">ispace</span><span class="o">.</span><span class="n">args</span>
-                <span class="n">ispace</span> <span class="o">=</span> <span class="n">IterationSpace</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span> <span class="n">sub_iterators</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
-                <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PartialCluster</span><span class="p">(</span><span class="n">scalars</span> <span class="o">+</span> <span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">k</span><span class="o">.</span><span class="n">dspace</span><span class="p">))</span>
+                <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PartialCluster</span><span class="p">(</span><span class="n">scalars</span> <span class="o">+</span> <span class="p">[</span><span class="n">e</span><span class="p">],</span> <span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="p">))</span>
 
     <span class="c1"># Group PartialClusters together where possible</span>
     <span class="n">clusters</span> <span class="o">=</span> <span class="n">groupby</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>

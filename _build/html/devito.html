@@ -1133,7 +1133,7 @@ symbolic function.</p>
 objects that are not aligned with the computational grid.</p>
 <p>A <a class="reference internal" href="#devito.base.SparseFunction" title="devito.base.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code></a> provides symbolic interpolation routines
 to convert between grid-aligned <a class="reference internal" href="#devito.base.Function" title="devito.base.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code></a> objects and sparse
-data points.</p>
+data points. These are based upon standard [bi,tri]linear interpolation.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -1909,6 +1909,16 @@ respectively.</li>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.dimension.ConditionalDimension.index">
+<code class="descname">index</code><a class="headerlink" href="#devito.dimension.ConditionalDimension.index" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.ConditionalDimension.indirect">
+<code class="descname">indirect</code><a class="headerlink" href="#devito.dimension.ConditionalDimension.indirect" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.dimension.ConditionalDimension.is_Conditional">
 <code class="descname">is_Conditional</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.ConditionalDimension.is_Conditional" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dimension symbol representing a sub-region of a given <code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension.
@@ -1918,13 +1928,21 @@ are expressible in two different ways:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* ``factor``: an integer indicating the size of the increment.
 * ``condition``: an arbitrary SymPy expression depending on ``parent``.
                  All iterations for which the expression evaluates to
-                 True are part of the ``SubDimension`` region.
+                 True are part of the ``ConditionalDimension`` region.
 </pre></div>
 </div>
 <p>ConditionalDimension needs runtime arguments. The generated C code will require
 the size of the dimension to initialize the arrays as e.g:</p>
 <blockquote>
 <div></div></blockquote>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Sometimes the ConditionalDimension itself, rather than its parent, needs
+to be used to index into an array. For example, this may happen when an
+array is indirectly addressed and the ConditionalDimension’s parent
+doesn’t define an affine iteration space. In such a case, one should
+create the ConditionalDimension with the flag <code class="docutils literal notranslate"><span class="pre">indirect=True</span></code>.</p>
+</div>
 </dd></dl>
 
 <dl class="attribute">
@@ -2615,7 +2633,7 @@ derived time dimensions symbol. For example:</p>
 objects that are not aligned with the computational grid.</p>
 <p>A <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code></a> provides symbolic interpolation routines
 to convert between grid-aligned <a class="reference internal" href="#devito.function.Function" title="devito.function.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code></a> objects and sparse
-data points.</p>
+data points. These are based upon standard [bi,tri]linear interpolation.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -2692,7 +2710,7 @@ absorbing boundary conditions.</li>
 
 <dl class="method">
 <dt id="devito.function.SparseFunction.interpolate">
-<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>cummulative=False</em>, <em>self_subs={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseFunction.interpolate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>increment=False</em>, <em>self_subs={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseFunction.interpolate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Creates a <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> equation for the interpolation
 of an expression onto this sparse point collection.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -2703,7 +2721,7 @@ of an expression onto this sparse point collection.</p>
 <li><strong>expr</strong> – The expression to interpolate.</li>
 <li><strong>offset</strong> – Additional offset from the boundary for
 absorbing boundary conditions.</li>
-<li><strong>cummulative</strong> – (Optional) If True, perform an increment rather
+<li><strong>increment</strong> – (Optional) if True, perform an increment rather
 than an assignment. Defaults to False.</li>
 </ul>
 </td>
@@ -2790,7 +2808,7 @@ absorbing boundary conditions.</li>
 
 <dl class="method">
 <dt id="devito.function.SparseTimeFunction.interpolate">
-<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em>, <em>cummulative=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseTimeFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseTimeFunction.interpolate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em>, <em>increment=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseTimeFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseTimeFunction.interpolate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Creates a <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> equation for the interpolation
 of an expression onto this sparse point collection.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -2805,7 +2823,7 @@ absorbing boundary conditions.</li>
 field data in <cite>expr</cite>.</li>
 <li><strong>p_t</strong> – (Optional) time index to use for indexing into
 the sparse point data.</li>
-<li><strong>cummulative</strong> – (Optional) If True, perform an increment rather
+<li><strong>increment</strong> – (Optional) if True, perform an increment rather
 than an assignment. Defaults to False.</li>
 </ul>
 </td>
@@ -2913,7 +2931,7 @@ absorbing boundary conditions.</li>
 
 <dl class="method">
 <dt id="devito.function.PrecomputedSparseFunction.interpolate">
-<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em>, <em>cummulative=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#PrecomputedSparseFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.PrecomputedSparseFunction.interpolate" title="Permalink to this definition">¶</a></dt>
+<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em>, <em>increment=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#PrecomputedSparseFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.PrecomputedSparseFunction.interpolate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Creates a <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Eq</span></code> equation for the interpolation
 of an expression onto this sparse point collection.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -2928,7 +2946,7 @@ absorbing boundary conditions.</li>
 field data in <cite>expr</cite>.</li>
 <li><strong>p_t</strong> – (Optional) time index to use for indexing into
 the sparse point data.</li>
-<li><strong>cummulative</strong> – (Optional) If True, perform an increment rather
+<li><strong>increment</strong> – (Optional) if True, perform an increment rather
 than an assignment. Defaults to False.</li>
 </ul>
 </td>

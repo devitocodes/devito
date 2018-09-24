@@ -265,7 +265,7 @@
     <span class="n">g</span> <span class="o">=</span> <span class="n">FlowGraph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
 
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-              <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_scalar</span> <span class="ow">and</span>
+              <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Scalar</span> <span class="ow">and</span>
               <span class="p">(</span><span class="n">q_leaf</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span> <span class="ow">or</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">is_Function</span><span class="p">)</span> <span class="ow">and</span>
               <span class="ow">not</span> <span class="n">v</span><span class="o">.</span><span class="n">readby</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">targets</span><span class="p">)}</span>
 

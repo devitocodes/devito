@@ -375,6 +375,44 @@ exists, and raises a <code class="docutils literal notranslate"><span class="pre
 
 </dd></dl>
 
+<dl class="class">
+<dt id="devito.tools.data_structures.PartialOrderTuple">
+<em class="property">class </em><code class="descclassname">devito.tools.data_structures.</code><code class="descname">PartialOrderTuple</code><a class="reference internal" href="_modules/devito/tools/data_structures.html#PartialOrderTuple"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.PartialOrderTuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
+<p>A tuple whose elements are ordered according to a set of relations.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>items</strong> – The elements of the tuple.</li>
+<li><strong>relations</strong> – (Optional) an iterable of binary relations between elements
+in <code class="docutils literal notranslate"><span class="pre">items</span></code>. If not provided, then <code class="docutils literal notranslate"><span class="pre">items</span></code> is interpreted
+as a totally ordered sequence. If provided, then a (partial)
+ordering is computed and all elements in <code class="docutils literal notranslate"><span class="pre">items</span></code> for which
+a relation is not provided are appended.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="devito.tools.data_structures.PartialOrderTuple.generate_ordering">
+<code class="descname">generate_ordering</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/data_structures.html#PartialOrderTuple.generate_ordering"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.PartialOrderTuple.generate_ordering" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.tools.data_structures.PartialOrderTuple.relations">
+<code class="descname">relations</code><a class="headerlink" href="#devito.tools.data_structures.PartialOrderTuple.relations" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="devito.tools.data_structures.PartialOrderTuple.reorder">
+<em class="property">classmethod </em><code class="descname">reorder</code><span class="sig-paren">(</span><em>items</em>, <em>relations</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/data_structures.html#PartialOrderTuple.reorder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.data_structures.PartialOrderTuple.reorder" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.tools.memoization">
 <span id="devito-tools-memoization-module"></span><h2>devito.tools.memoization module<a class="headerlink" href="#module-devito.tools.memoization" title="Permalink to this headline">¶</a></h2>

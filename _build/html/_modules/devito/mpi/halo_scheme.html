@@ -313,10 +313,12 @@
                 <span class="k">raise</span> <span class="n">HaloSchemeException</span><span class="p">(</span><span class="s2">&quot;Inconsistency found while building a halo &quot;</span>
                                           <span class="s2">&quot;scheme for `</span><span class="si">%s</span><span class="s2">` along Dimension `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">d</span><span class="p">))</span>
             <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">unique_hl</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-
-            <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="ow">is</span> <span class="n">UNSUPPORTED</span><span class="p">:</span>
-                <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Distributed local-reductions over `</span><span class="si">%s</span><span class="s2">` along &quot;</span>
-                        <span class="s2">&quot;Dimension `</span><span class="si">%s</span><span class="s2">` detected.&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">d</span><span class="p">))</span>
+    <span class="c1"># Emit a summary warning</span>
+    <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">unsupported</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">hl</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">hl</span> <span class="ow">is</span> <span class="n">UNSUPPORTED</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="n">unsupported</span><span class="p">:</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Distributed local-reductions over `</span><span class="si">%s</span><span class="s2">` along &quot;</span>
+                    <span class="s2">&quot;Dimensions `</span><span class="si">%s</span><span class="s2">` detected.&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">unsupported</span><span class="p">))</span>
 
     <span class="k">return</span> <span class="n">mapper</span>
 

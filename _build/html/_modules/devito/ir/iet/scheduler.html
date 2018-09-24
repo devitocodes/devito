@@ -252,7 +252,7 @@
     <span class="c1"># Lower ConditionalDimensions</span>
     <span class="n">cdims</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;free-symbols&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
              <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">)]</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">IntDiv</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">factor</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">cdims</span><span class="p">}</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">IntDiv</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">factor</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">cdims</span><span class="p">}</span>
     <span class="n">iet</span> <span class="o">=</span> <span class="n">XSubs</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">iet</span>
@@ -285,7 +285,7 @@
     <span class="c1"># Classify, and then schedule declarations to stack/heap</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">scopes</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Expression</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_scalar_assign</span><span class="p">:</span>
                 <span class="c1"># Inline declaration</span>
                 <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">LocalExpression</span><span class="p">(</span><span class="o">**</span><span class="n">k</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
                 <span class="k">continue</span>

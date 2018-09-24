@@ -599,7 +599,10 @@
         <span class="k">assert</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">timestamp</span><span class="p">)</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">TimedAccess</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="n">timestamp</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">directions</span> <span class="o">=</span> <span class="p">[</span><span class="n">directions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Any</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">findices</span><span class="p">]</span>
+        <span class="c1"># We use `.root` as if a DerivedDimension is in `directions`, then so is</span>
+        <span class="c1"># its parent, and the parent (root) direction cannot differ from that</span>
+        <span class="c1"># of its child</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">directions</span> <span class="o">=</span> <span class="p">[</span><span class="n">directions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">Any</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">findices</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">obj</span>
 
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
@@ -774,6 +777,11 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">cause</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">set</span><span class="p">()</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the :class:`TensorFunction`s inducing a dependence.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">}</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">none</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
