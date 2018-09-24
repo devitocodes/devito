@@ -443,4 +443,4 @@ def first_touch(array):
     Uses an Operator to initialize the given array in the same pattern that
     would later be used to access it.
     """
-    devito.Operator(devito.Eq(array, 0.))()
+    devito.Operator(Eq(array, 0.))()
