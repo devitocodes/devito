@@ -696,7 +696,7 @@ class TestOperatorAdvanced(object):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
         x, y = grid.dimensions
 
-        f = Function(name='f', grid=grid, space_order=0)
+        f = Function(name='f', grid=grid)
         f.data[:] = 0.
         if grid.distributor.myrank == 0:
             coords = [(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)]
