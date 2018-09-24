@@ -240,7 +240,7 @@ class TestArithmetic(object):
         """Test point-wise arithmetic with stencil offsets and open loop
         boundaries in indexed expression format"""
         i, j, l = dimify('i j l')
-        a = Function(name='a', dimensions=(i, j, l), shape=(3, 5, 6)).indexed
+        a = Function(name='a', dimensions=(i, j, l), shape=(3, 5, 6))
         fa = a.function
         fa.data[0, :, :] = 2.
 
@@ -264,8 +264,7 @@ class TestArithmetic(object):
         coordinates.data[0, 0] = 4
         coordinates.data[0, 1] = 3
 
-        poke_eq = Eq(u.indexed[coordinates.indexed[p_poke, 0],
-                               coordinates.indexed[p_poke, 1]], 1.0)
+        poke_eq = Eq(u[coordinates[p_poke, 0], coordinates[p_poke, 1]], 1.0)
         op = Operator(poke_eq)
         op.apply()
 
@@ -338,8 +337,8 @@ class TestAllocation(object):
         g = Function(name='g', grid=grid)
         # Test insertion into a central point
         index = tuple(5 for _ in staggered)
-        set_f = Eq(f.indexed[index], 2.)
-        set_g = Eq(g.indexed[index], 3.)
+        set_f = Eq(f[index], 2.)
+        set_g = Eq(g[index], 3.)
         Operator([set_f, set_g])()
         assert f.data[index] == 2.
 
@@ -360,8 +359,8 @@ class TestAllocation(object):
         g = TimeFunction(name='g', grid=grid)
         # Test insertion into a central point
         index = tuple([0] + [5 for _ in staggered[1:]])
-        set_f = Eq(f.indexed[index], 2.)
-        set_g = Eq(g.indexed[index], 3.)
+        set_f = Eq(f[index], 2.)
+        set_g = Eq(g[index], 3.)
         Operator([set_f, set_g])()
         assert f.data[index] == 2.
 
@@ -616,11 +615,11 @@ class TestArguments(object):
         i, j, k = dimify('i j k')
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
-        a = Function(name='a', grid=grid).indexed
+        a = Function(name='a', grid=grid)
         b = TimeFunction(name='b', grid=grid, save=nt)
         time = b.indices[0]
-        eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
-                 + b.indexed[time, i, j, k] + a[i, j, k])
+        eqn = Eq(b[time + 1, i, j, k], b[time - 1, i, j, k]
+                 + b[time, i, j, k] + a[i, j, k])
         op = Operator(eqn)
         op_arguments = op.arguments(time=nt-10)
         assert(op_arguments[time.min_name] == 1)
@@ -782,8 +781,7 @@ class TestArguments(object):
 
         # Try with an operator w/ stencil offsets
         a.data[:] = 1.
-        A = a.indexed
-        op = Operator(Eq(a, a + (A[x-1, y] + A[x+1, y]) / 2.))
+        op = Operator(Eq(a, a + (a[x-1, y] + a[x+1, y]) / 2.))
         op(x_m=3, x_M=7)
         assert (a.data[:3, :] == 1.).all()
         assert (a.data[3:7, :] >= 2.).all()
@@ -1083,8 +1081,8 @@ class TestLoopScheduler(object):
         as the "main" equations.
         """
         grid = Grid(shape=(3, 3, 3), dimensions=(x, y, z), time_dimension=time)
-        a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=6).indexed
+        a = Function(name='a', grid=grid)
+        b = TimeFunction(name='b', grid=grid, save=6)
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
@@ -1177,8 +1175,8 @@ class TestLoopScheduler(object):
         t = grid.stepping_dim
         u1 = TimeFunction(name='u1', grid=grid)
         u2 = TimeFunction(name='u2', grid=grid, save=2)
-        eqn_1 = Eq(u1.indexed[t+1, x, y, z], u1.indexed[t, x, y, z] + 1.)
-        eqn_2 = Eq(u2.indexed[time+1, x, y, z], u2.indexed[time, x, y, z] + 1.)
+        eqn_1 = Eq(u1[t+1, x, y, z], u1[t, x, y, z] + 1.)
+        eqn_2 = Eq(u2[time+1, x, y, z], u2[time, x, y, z] + 1.)
         op = Operator([eqn_1, eqn_2], dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1

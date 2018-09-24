@@ -430,8 +430,9 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         halo_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_halo]
         padding_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_padding]
         domain_sizes = [i.symbolic_size for i in self.indices]
-        return tuple(sympy.Add(i, j, k, evaluate=False)
-                     for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
+        ret = tuple(sympy.Add(i, j, k, evaluate=False)
+                    for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
+        return EnrichedTuple(*ret, getters=self.dimensions)
 
     @property
     def indexed(self):

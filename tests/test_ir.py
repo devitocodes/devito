@@ -241,12 +241,12 @@ class TestSpace(object):
         nully = NullInterval(y)
         iy = Interval(y, -2, 2)
 
-        # Mixed disjoint (note: IntervalGroup input order is irrelevant)
-        assert ix.union(ix4) == IntervalGroup([ix4, ix])
+        # Mixed disjoint (note: IntervalGroup input order is relevant)
+        assert ix.union(ix4) == IntervalGroup([ix, ix4])
         assert ix.union(ix5) == Interval(x, -3, 2)
-        assert ix6.union(ix) == IntervalGroup([ix, ix6])
+        assert ix6.union(ix) == IntervalGroup([ix6, ix])
         assert ix.union(nully) == IntervalGroup([ix, nully])
-        assert ix.union(iy) == IntervalGroup([iy, ix])
+        assert ix.union(iy) == IntervalGroup([ix, iy])
         assert iy.union(ix) == IntervalGroup([iy, ix])
 
     def test_intervals_merge(self):
@@ -655,4 +655,4 @@ class TestEquationAlgorithms(object):
 
         expr = eval(expr)
 
-        assert dimension_sort(expr, lambda i: not i.is_Time) == eval(expected)
+        assert list(dimension_sort(expr)) == eval(expected)

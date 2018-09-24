@@ -112,7 +112,7 @@ def compact_temporaries(temporaries, leaves):
     g = FlowGraph(exprs)
 
     mapper = {k: v.rhs for k, v in g.items()
-              if v.is_scalar and
+              if v.is_Scalar and
               (q_leaf(v.rhs) or v.rhs.is_Function) and
               not v.readby.issubset(targets)}
 
