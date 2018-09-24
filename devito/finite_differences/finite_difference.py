@@ -5,7 +5,7 @@ from functools import partial
 from sympy import S, finite_diff_weights
 
 from devito.finite_differences import Differentiable
-from devito.logger import error
+from devito.tools import Tag
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative', 'generate_fd_shortcuts',
@@ -16,53 +16,40 @@ __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
 _PRECISION = 9
 
 
-class Transpose(object):
-    """Class that defines if the derivative is itfunction or adjoint (transpose).
-    This only matter for odd order derivatives that requires
-    a minus sign for the transpose."""
-    def __init__(function, transpose):
-        function._transpose = transpose
-
-    def __eq__(function, other):
-        return function._transpose == other._transpose
-
-    def __repr__(function):
-        return {1: 'direct', -1: 'transpose'}[function._transpose]
+class Transpose(Tag):
+    """
+    Utility class to change the sign of a derivative. This is only needed
+    for odd order derivatives, which require a minus sign for the transpose.
+    """
+    pass
 
 
-direct = Transpose(1)
-transpose = Transpose(-1)
+direct = Transpose('direct', 1)
+transpose = Transpose('transpose', -1)
 
 
-class Side(object):
-    """Class encapsulating the side of the shift for derivatives."""
+class Side(Tag):
+    """
+    Class encapsulating the side of the shift for derivatives.
+    """
 
-    def __init__(function, side):
-        function._side = side
-
-    def __eq__(function, other):
-        return function._side == other._side
-
-    def __repr__(function):
-        return {-1: 'left', 0: 'centered', 1: 'right'}[function._side]
-
-    def adjoint(function, matvec):
+    def adjoint(self, matvec):
         if matvec == direct:
-            return function
+            return self
         else:
-            if function == centered:
+            if self == centered:
                 return centered
-            elif function == right:
+            elif self == right:
                 return left
-            elif function == left:
+            elif self == left:
                 return right
             else:
-                error("Unsupported side value")
+                raise ValueError("Unsupported side value")
 
 
-left = Side(-1)
-right = Side(1)
-centered = Side(0)
+left = Side('left', -1)
+right = Side('right', 1)
+centered = Side('centered', 0)
 
 
 def check_input(func):
@@ -218,7 +205,7 @@ def first_derivative(expr, **kwargs):
     for i in range(0, len(ind)):
             subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
             deriv += expr.subs(subs) * c[i]
-    return (matvec._transpose*deriv).evalf(_PRECISION)
+    return (matvec.val*deriv).evalf(_PRECISION)
 
 
 @check_input
@@ -329,15 +316,15 @@ def generate_fd_shortcuts(function):
     Create all legal finite-difference derivatives for the given :class:`Function`.
     """
     dimensions = function.indices
-
     space_fd_order = function.space_order
     time_fd_order = function.time_order if function.is_TimeFunction else 0
 
-    deriv_function = generic_derivative
-    c_deriv_function = generic_cross_derivative
     if function.is_Staggered:
         deriv_function = staggered_diff
         c_deriv_function = staggered_cross_diff
+    else:
+        deriv_function = generic_derivative
+        c_deriv_function = generic_cross_derivative
 
     side = dict()
     for (d, s) in zip(dimensions, function.staggered):
@@ -350,7 +337,6 @@ def generate_fd_shortcuts(function):
 
     derivatives = dict()
     done = []
-
     for d in dimensions:
         # Dimension is treated, remove from list
         done += [d]
@@ -394,14 +380,12 @@ def generate_fd_shortcuts(function):
             derivatives[name_fd] = (deriv, desciption)
         else:
             # Left
-            deriv = partial(first_derivative, order=space_fd_order,
-                            dim=d, side=left)
+            deriv = partial(first_derivative, order=space_fd_order, dim=d, side=left)
             name_fd = 'd%sl' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
             # Right
-            deriv = partial(first_derivative, order=space_fd_order,
-                            dim=d, side=right)
+            deriv = partial(first_derivative, order=space_fd_order, dim=d, side=right)
             name_fd = 'd%sr' % name
             desciption = 'right first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
