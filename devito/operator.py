@@ -183,10 +183,7 @@ class Operator(Callable):
         Process runtime arguments upon returning from ``.apply()``.
         """
         for p in self.output:
-            if p.name in kwargs:
-                kwargs[p.name]._arg_apply(args[p.name])
-            else:
-                p._arg_apply(args[p.name])
+            p._arg_apply(args[p.name], kwargs.get(p.name))
 
     @cached_property
     def _known_arguments(self):
