@@ -1580,10 +1580,6 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
 
     is_SparseTimeFunction = True
 
-    @property
-    def fd_indices(self):
-        return (self.grid.time_dim,) + self.grid.dimensions
-
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
