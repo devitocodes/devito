@@ -1242,8 +1242,13 @@ class AbstractSparseFunction(TensorFunction):
 
         return values
 
-    def _arg_apply(self, data):
-        self._dist_gather(data)
+    def _arg_apply(self, data, alias=None):
+        key = alias or self
+        if isinstance(key, AbstractSparseFunction):
+            key._dist_gather(data)
+        elif self.grid.distributor.nprocs > 1:
+            raise NotImplementedError("Don't know how to gather data from an "
+                                      "object of type `%s`" % type(key))
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs + ['npoint', 'space_order']
