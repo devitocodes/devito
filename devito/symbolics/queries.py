@@ -35,7 +35,8 @@ def q_indexed(expr):
 
 
 def q_function(expr):
-    return expr.is_Function
+    from devito.function import TensorFunction
+    return isinstance(expr, TensorFunction)
 
 
 def q_terminal(expr):

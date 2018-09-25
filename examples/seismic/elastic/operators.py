@@ -77,7 +77,6 @@ def elastic_2d(model, space_order, save, source, receiver):
     """
     vp, vs, rho, damp = model.vp, model.vs, model.rho, model.damp
     s = model.grid.stepping_dim.spacing
-    # x, z = model.grid.dimensions
     cp2 = vp*vp
     cs2 = vs*vs
     ro = 1/rho
@@ -109,7 +108,6 @@ def elastic_3d(model, space_order, save, source, receiver):
     """
     vp, vs, rho, damp = model.vp, model.vs, model.rho, model.damp
     s = model.grid.stepping_dim.spacing
-    # x, z = model.grid.dimensions
     cp2 = vp*vp
     cs2 = vs*vs
     ro = 1/rho

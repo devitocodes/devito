@@ -1440,7 +1440,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
             # Track Indexed substitutions
             idx_subs.append(OrderedDict([(v, v.subs(mapper)) for v in variables
-                                         if getattr(v, 'function', None) is not self]))
+                                         if v.function is not self]))
 
         # Equations for the indirection dimensions
         eqns = [Eq(v, k) for k, v in points.items()]
