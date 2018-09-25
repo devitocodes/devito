@@ -1243,7 +1243,7 @@ class AbstractSparseFunction(TensorFunction):
         return values
 
     def _arg_apply(self, data, alias=None):
-        key = alias or self
+        key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             key._dist_gather(data)
         elif self.grid.distributor.nprocs > 1:
