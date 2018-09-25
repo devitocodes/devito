@@ -11,7 +11,7 @@ from devito.compiler import jit_compile, load, save
 from devito.dimension import Dimension, SubDimension
 from devito.dle import transform
 from devito.dse import rewrite
-from devito.equation import DOMAIN, INTERIOR
+from devito.grid import DOMAIN, INTERIOR
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf
 from devito.ir.equations import LoweredEq
@@ -270,7 +270,7 @@ class Operator(Callable):
         interior_subs = subs.copy()
 
         processed = []
-        mapper = as_mapper(expressions, lambda i: i._region)
+        mapper = as_mapper(expressions, lambda i: i._subdomain)
         for k, v in mapper.items():
             for e in v:
                 if k is INTERIOR:
@@ -280,7 +280,7 @@ class Operator(Callable):
                     interior_subs.update({i: SubDimension.middle("%si" % i, i, 1, 1)
                                           for i in candidates if i not in interior_subs})
                     processed.append(e.xreplace(interior_subs))
-                elif k is DOMAIN:
+                elif k in [None, DOMAIN]:
                     processed.append(e.xreplace(domain_subs))
                 else:
                     raise ValueError("Unsupported Region `%s`" % k)

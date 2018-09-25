@@ -1,16 +1,15 @@
 from collections import namedtuple
 
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
-from devito.equation import DOMAIN, INTERIOR
 from devito.function import Constant
 from devito.mpi import Distributor
 from devito.parameters import configuration
-from devito.tools import ArgProvider, ReducerMap, as_tuple
+from devito.tools import ArgProvider, ReducerMap, as_tuple, Tag
 
 from sympy import prod
 import numpy as np
 
-__all__ = ['Grid']
+__all__ = ['SubDomain', 'INTERIOR', 'DOMAIN']
 
 
 class Grid(ArgProvider):
@@ -33,10 +32,9 @@ class Grid(ArgProvider):
     :param dtype: (Optional) default data type to be inherited by all
                   :class:`Function`s created from this Grid. Defaults
                   to ``numpy.float32``.
-    :param regions: (Optional) an iterable of :class:`Region`s, representing
-                    special sub-domains in the computational domain. If None
-                    (as by default), then the Grid only has two sub-domains,
-                    namely ``INTERIOR`` and ``DOMAIN``.
+    :param subdomains: (Optional) an iterable of :class:`SubDomain`s. If None
+                       (as by default), then the Grid only has two subdomains,
+                       namely ``INTERIOR`` and ``DOMAIN``.
     :param comm: (Optional) an MPI communicator defining the set of
                  processes among which the grid is distributed.
 
@@ -69,10 +67,11 @@ class Grid(ArgProvider):
     _default_dimensions = ('x', 'y', 'z')
 
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
-                 time_dimension=None, dtype=np.float32, regions=None, comm=None):
+                 time_dimension=None, dtype=np.float32, subdomains=None,
+                 comm=None):
         self._shape = as_tuple(shape)
         self._extent = as_tuple(extent or tuple(1. for _ in self.shape))
-        self._regions = (DOMAIN, INTERIOR) + as_tuple(regions)
+        self._subdomains = (DOMAIN, INTERIOR) + as_tuple(subdomains)
         self._dtype = dtype
 
         if dimensions is None:
@@ -147,9 +146,9 @@ class Grid(ArgProvider):
         return self._stepping_dim
 
     @property
-    def regions(self):
-        """The :class:`Region`s defined in this Grid."""
-        return self._regions
+    def subdomains(self):
+        """The :class:`SubDomain`s defined in this Grid."""
+        return self._subdomains
 
     @property
     def volume_cell(self):
@@ -248,3 +247,21 @@ class Grid(ArgProvider):
         for k, v in state.items():
             setattr(self, k, v)
         self._distributor = Distributor(self.shape, self.dimensions)
+
+
+class SubDomain(Tag):
+
+    """A :class:`Grid` subdomain."""
+
+    pass
+
+
+DOMAIN = SubDomain('DOMAIN')
+"""
+The entire computational domain (== boundary + interior).
+"""
+
+INTERIOR = SubDomain('INTERIOR')
+"""
+The interior of the computational domain (i.e., boundaries are excluded).
+"""
