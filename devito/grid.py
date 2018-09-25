@@ -85,8 +85,11 @@ class Grid(ArgProvider):
         else:
             self._dimensions = dimensions
 
-        self._subdomains = tuple(i(self._dimensions) for i in
-                                 (Domain, Interior) + as_tuple(subdomains))
+        # Initialize SubDomains
+        subdomains = tuple(i for i in (Domain(), Interior()) + as_tuple(subdomains))
+        for i in subdomains:
+            i.__subdomain_finalize__(self._dimensions)
+        self._subdomains = subdomains
 
         origin = as_tuple(origin or tuple(0. for _ in self.shape))
         self._origin = tuple(self._const(name='o_%s' % d.name, value=v, dtype=self.dtype)
@@ -263,10 +266,12 @@ class SubDomain(object):
 
     name = None
 
-    def __init__(self, dimensions):
+    def __init__(self):
         if self.name is None:
             raise ValueError("SubDomain requires a `name`")
+        self._dimensions = None
 
+    def __subdomain_finalize__(self, dimensions):
         sub_dimensions = []
         for k, v in self.define(dimensions).items():
             if isinstance(v, Dimension):
