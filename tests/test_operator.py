@@ -339,8 +339,8 @@ class TestAllocation(object):
         g = Function(name='g', grid=grid)
         # Test insertion into a central point
         index = tuple(5 for _ in f.staggered)
-        set_f = Eq(f.indexed[index], 2.)
-        set_g = Eq(g.indexed[index], 3.)
+        set_f = Eq(f[index], 2.)
+        set_g = Eq(g[index], 3.)
 
         Operator([set_f, set_g])()
         assert f.data[index] == 2.
@@ -362,8 +362,8 @@ class TestAllocation(object):
         g = TimeFunction(name='g', grid=grid)
         # Test insertion into a central point
         index = tuple([0] + [5 for _ in f.staggered[1:]])
-        set_f = Eq(f.indexed[index], 2.)
-        set_g = Eq(g.indexed[index], 3.)
+        set_f = Eq(f[index], 2.)
+        set_g = Eq(g[index], 3.)
 
         Operator([set_f, set_g])()
         assert f.data[index] == 2.

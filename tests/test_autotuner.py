@@ -98,7 +98,7 @@ def test_timesteps_per_at_run():
         infield.data[:] = np.arange(reduce(mul, infield.shape),
                                     dtype=np.int32).reshape(infield.shape)
         outfield = TimeFunction(name='outfield', grid=grid, time_order=to)
-        stencil = Eq(outfield.indexed[t + to, x, y, z],
+        stencil = Eq(outfield[t + to, x, y, z],
                      outfield.indexify() + infield.indexify()*3.0)
         op = Operator(stencil, dle=('blocking', {'blockalways': True}))
         op(infield=infield, outfield=outfield, t=2, autotune=True)
