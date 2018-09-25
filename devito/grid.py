@@ -1,11 +1,11 @@
 from collections import namedtuple
 
-from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
+from devito.equation import DOMAIN, INTERIOR
 from devito.function import Constant
 from devito.mpi import Distributor
 from devito.parameters import configuration
-from devito.tools import ArgProvider, ReducerMap
+from devito.tools import ArgProvider, ReducerMap, as_tuple
 
 from sympy import prod
 import numpy as np
@@ -16,34 +16,35 @@ __all__ = ['Grid']
 class Grid(ArgProvider):
 
     """
-    A cartesian grid that encapsulates a physical domain over which
+    A cartesian grid that encapsulates a computational domain over which
     to discretize :class:`Function`s.
 
-    :param shape: Shape of the domain region in grid points.
+    :param shape: Shape of the computational domain in grid points.
     :param extent: (Optional) physical extent of the domain in m; defaults
                    to a unit box of extent 1m in all dimensions.
     :param origin: (Optional) physical coordinate of the origin of the
                    domain; defaults to 0.0 in all dimensions.
-    :param dimensions: (Optional) list of :class:`SpaceDimension`
-                       symbols that defines the spatial directions of
-                       the physical domain encapsulated by this
-                       :class:`Grid`.
-    :param time_dimension: (Optional) :class:`TimeDimension` symbols
-                           to to define the time dimension for all
-                           :class:`TimeFunction` symbols created
-                           from this :class:`Grid`.
+    :param dimensions: (Optional) list of :class:`SpaceDimension`s
+                       defining the spatial dimensions of the computational
+                       domain encapsulated by this Grid.
+    :param time_dimension: (Optional) a :class:`TimeDimension`, used to
+                           define the time dimension for all
+                           :class:`TimeFunction`s created from this Grid.
     :param dtype: (Optional) default data type to be inherited by all
-                  :class:`Function`s created from this :class:`Grid`.
-                  Defaults to ``numpy.float32``.
+                  :class:`Function`s created from this Grid. Defaults
+                  to ``numpy.float32``.
+    :param regions: (Optional) an iterable of :class:`Region`s, representing
+                    special sub-domains in the computational domain. If None
+                    (as by default), then the Grid only has two sub-domains,
+                    namely ``INTERIOR`` and ``DOMAIN``.
     :param comm: (Optional) an MPI communicator defining the set of
                  processes among which the grid is distributed.
 
-    The :class:`Grid` encapsulates the topology and geometry
-    information of the computational domain that :class:`Function`
-    objects can be discretized on. As such it defines and provides the
-    physical coordinate information of the logically cartesian grid
-    underlying the discretized :class:`Function` objects. For example,
-    the conventions for defining the coordinate space in 2D are:
+    A Grid encapsulates the topology and geometry information of the
+    computational domain that :class:`Function`s can be discretized on.
+    As such, it defines and provides the physical coordinate information of
+    the logical cartesian grid underlying the discretized :class:`Function`s.
+    For example, the conventions for defining the coordinate space in 2D are:
 
     .. note::
 
@@ -68,11 +69,11 @@ class Grid(ArgProvider):
     _default_dimensions = ('x', 'y', 'z')
 
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
-                 time_dimension=None, dtype=np.float32, comm=None):
+                 time_dimension=None, dtype=np.float32, regions=None, comm=None):
         self._shape = as_tuple(shape)
-        self.extent = as_tuple(extent or tuple(1. for _ in self.shape))
-        self.dtype = dtype
-        origin = as_tuple(origin or tuple(0. for _ in self.shape))
+        self._extent = as_tuple(extent or tuple(1. for _ in self.shape))
+        self._regions = (DOMAIN, INTERIOR) + as_tuple(regions)
+        self._dtype = dtype
 
         if dimensions is None:
             # Create the spatial dimensions and constant spacing symbols
@@ -80,23 +81,26 @@ class Grid(ArgProvider):
             dim_names = self._default_dimensions[:self.dim]
             dim_spacing = tuple(self._const(name='h_%s' % n, value=v, dtype=self.dtype)
                                 for n, v in zip(dim_names, self.spacing))
-            self.dimensions = tuple(SpaceDimension(name=n, spacing=s)
-                                    for n, s in zip(dim_names, dim_spacing))
+            self._dimensions = tuple(SpaceDimension(name=n, spacing=s)
+                                     for n, s in zip(dim_names, dim_spacing))
         else:
-            self.dimensions = dimensions
+            self._dimensions = dimensions
 
-        self.origin = tuple(self._const(name='o_%s' % d.name, value=v, dtype=self.dtype)
-                            for d, v in zip(self.dimensions, origin))
-        # TODO: Raise proper exceptions and logging
+        origin = as_tuple(origin or tuple(0. for _ in self.shape))
+        self._origin = tuple(self._const(name='o_%s' % d.name, value=v, dtype=self.dtype)
+                             for d, v in zip(self.dimensions, origin))
+
+        # Sanity check
         assert (self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
+
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
             spacing = self._const(name='dt', dtype=self.dtype)
-            self.time_dim = TimeDimension(name='time', spacing=spacing)
-            self.stepping_dim = self._make_stepping_dim(self.time_dim, name='t')
+            self._time_dim = TimeDimension(name='time', spacing=spacing)
+            self._stepping_dim = self._make_stepping_dim(self.time_dim, name='t')
         elif isinstance(time_dimension, TimeDimension):
-            self.time_dim = time_dimension
-            self.stepping_dim = self._make_stepping_dim(self.time_dim)
+            self._time_dim = time_dimension
+            self._stepping_dim = self._make_stepping_dim(self.time_dim)
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
@@ -108,9 +112,44 @@ class Grid(ArgProvider):
         )
 
     @property
+    def extent(self):
+        """Physical extent of the domain in m."""
+        return self._extent
+
+    @property
+    def dtype(self):
+        """Data type inherited by all :class:`Function`s defined on this Grid."""
+        return self._dtype
+
+    @property
+    def origin(self):
+        """Physical coordinates of the domain origin."""
+        return self._origin
+
+    @property
+    def dimensions(self):
+        """Spatial dimensions of the computational domain."""
+        return self._dimensions
+
+    @property
     def dim(self):
         """Problem dimension, or number of spatial dimensions."""
         return len(self.shape)
+
+    @property
+    def time_dim(self):
+        """Time dimension associated with this Grid."""
+        return self._time_dim
+
+    @property
+    def stepping_dim(self):
+        """Stepping dimension associated with this Grid."""
+        return self._stepping_dim
+
+    @property
+    def regions(self):
+        """The :class:`Region`s defined in this Grid."""
+        return self._regions
 
     @property
     def volume_cell(self):
