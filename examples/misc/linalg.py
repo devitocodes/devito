@@ -109,7 +109,7 @@ def mat_vec(A, x, b, optimize):
 def transpose_mat_vec(A, x, b, optimize):
     """``A -> A^T, A^Tx = b``."""
     i, j = A.indices
-    op = Operator([Eq(b, A.indexed[j, i]*x)], dle=optimize)
+    op = Operator([Eq(b, A[j, i]*x)], dle=optimize)
     op.apply()
     info('Executed `A^Tx = b`')
 

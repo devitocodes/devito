@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 import numpy as np
 import sympy
 
-from devito import Grid, Eq, Operator, TimeFunction
+from devito import Grid, Eq, Operator, TimeFunction, solve
 from devito.logger import log
 
 try:
@@ -99,8 +99,8 @@ def execute_lambdify(ui, spacing=0.01, a=0.5, timesteps=500):
         dx2 = p(x, y, t).diff(x, x).as_finite_difference([x - h, x, x + h])
         dy2 = p(x, y, t).diff(y, y).as_finite_difference([y - h, y, y + h])
         dt = p(x, y, t).diff(t).as_finite_difference([t, t + s])
-        eqn = sympy.Eq(dt, a * (dx2 + dy2))
-        stencil = sympy.solve(eqn, p(x, y, t + s))[0]
+        eqn = Eq(dt, a * (dx2 + dy2))
+        stencil = solve(eqn, p(x, y, t + s))
         return stencil, (p(x, y, t), p(x + h, y, t), p(x - h, y, t),
                          p(x, y + h, t), p(x, y - h, t), s, h)
     stencil, subs = diffusion_stencil()
@@ -133,7 +133,7 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
 
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
-    stencil = sympy.solve(eqn, u.forward)[0]
+    stencil = solve(eqn, u.forward)
     op = Operator(Eq(u.forward, stencil))
 
     # Execute the generated Devito stencil operator

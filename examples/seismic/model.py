@@ -3,8 +3,8 @@ from functools import partial
 
 import numpy as np
 
-from devito import Grid, Function, Constant, warning
-
+from examples.seismic.utils import scipy_smooth
+from devito import Grid, SubDomain, Function, Constant, warning
 
 __all__ = ['Model', 'ModelElastic', 'demo_model']
 
@@ -159,12 +159,12 @@ def demo_model(preset, **kwargs):
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        epsilon = .3*(v - 1.5)
-        delta = .2*(v - 1.5)
-        theta = .5*(v - 1.5)
+        epsilon = scipy_smooth(.3*(v - 1.5))
+        delta = scipy_smooth(.2*(v - 1.5))
+        theta = scipy_smooth(.5*(v - 1.5))
         phi = None
         if len(shape) > 2:
-            phi = .1*(v - 1.5)
+            phi = scipy_smooth(.25*(v - 1.5), shape)
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
@@ -349,7 +349,7 @@ def demo_model(preset, **kwargs):
         raise ValueError("Unknown model preset name")
 
 
-def initialize_damp(damp, nbpml, physical_shape, spacing, mask=False):
+def initialize_damp(damp, nbpml, spacing, mask=False):
     """Initialise damping field with an absorbing PML layer.
 
     :param damp: The :class:`Function` for the damping field.
@@ -380,7 +380,8 @@ def initialize_damp(damp, nbpml, physical_shape, spacing, mask=False):
             vector[-rpad:] += make_pad(rpad, iaxis, mask, spacing, dampcoeff)[::-1]
         return vector
 
-    data = np.ones(physical_shape) if mask else np.zeros(physical_shape)
+    phy_shape = damp.grid.subdomains['phydomain'].shape
+    data = np.ones(phy_shape) if mask else np.zeros(phy_shape)
     initialize_function(damp, data, nbpml, partial(pad_damp, mask, spacing))
 
 
@@ -435,7 +436,19 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
     function.data_with_halo[:] = data
 
 
-class Pysical_Model(object):
+class PhysicalDomain(SubDomain):
+
+    name = 'phydomain'
+
+    def __init__(self, nbpml):
+        super(PhysicalDomain, self).__init__()
+        self.nbpml = nbpml
+
+    def define(self, dimensions):
+        return {d: ('middle', self.nbpml, self.nbpml) for d in dimensions}
+
+
+class GenericModel(object):
     """
     General model class with common properties
     """
@@ -445,11 +458,14 @@ class Pysical_Model(object):
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o - nbpml * s) for s, o in zip(spacing, origin)])
 
+        phydomain = PhysicalDomain(self.nbpml)
         shape_pml = np.array(shape) + 2 * self.nbpml
         self.shape = shape_pml
         # Physical extent is calculated per cell, so shape - 1
         extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = Grid(extent=extent, shape=shape_pml, origin=self.origin, dtype=dtype)
+
+        self.grid = Grid(extent=extent, shape=shape_pml, origin=self.origin, dtype=dtype,
+                         subdomains=phydomain)
 
     def physical_params(self, **kwargs):
         """
@@ -473,6 +489,13 @@ class Pysical_Model(object):
         return self.grid.spacing
 
     @property
+    def space_dimensions(self):
+        """
+        Spatial dimensions of the grid
+        """
+        return self.grid.dimensions
+
+    @property
     def spacing_map(self):
         """
         Map between spacing symbols and their values for each :class:`SpaceDimension`
@@ -494,7 +517,7 @@ class Pysical_Model(object):
         return tuple((d-1) * s for d, s in zip(self.physical_shape, self.spacing))
 
 
-class Model(Pysical_Model):
+class Model(GenericModel):
     """The physical model used in seismic inversion processes.
 
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
@@ -537,7 +560,8 @@ class Model(Pysical_Model):
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbpml, self.physical_shape, spacing=self.spacing)
+
+        initialize_damp(self.damp, self.nbpml, self.spacing)
 
         # Additional parameter fields for TTI operators
         self.scale = 1.
@@ -626,7 +650,7 @@ class Model(Pysical_Model):
             self.m.data = 1 / vp**2
 
 
-class ModelElastic(Pysical_Model):
+class ModelElastic(GenericModel):
     """The physical model used in seismic inversion processes.
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
@@ -647,7 +671,7 @@ class ModelElastic(Pysical_Model):
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbpml, spacing=self.spacing, mask=True)
+        initialize_damp(self.damp, self.nbpml, self.spacing, mask=True)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
@@ -680,4 +704,4 @@ class ModelElastic(Pysical_Model):
         #
         # The CFL condtion is then given by
         # dt < h / (sqrt(2) * max(vp)))
-        return self.dtype(.8*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))
+        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))

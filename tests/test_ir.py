@@ -524,7 +524,7 @@ else
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='advanced')
+        op = Operator(exprs, dle='openmp')
 
         iters = FindNodes(Iteration).visit(op)
         assert all(i.is_ParallelAtomic for i in iters if i.dim.name in atomic)
