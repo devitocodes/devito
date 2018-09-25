@@ -23,6 +23,10 @@ class Eq(sympy.Eq):
         obj._subdomain = subdomain
         return obj
 
+    @property
+    def subdomain(self):
+        return self._subdomain
+
     def xreplace(self, rules):
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
                          subdomain=self._subdomain)
