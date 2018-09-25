@@ -97,6 +97,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#module-examples.seismic.model">examples.seismic.model module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-examples.seismic.plotting">examples.seismic.plotting module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-examples.seismic.source">examples.seismic.source module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-examples.seismic.utils">examples.seismic.utils module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-examples.seismic">Module contents</a></li>
 </ul>
 </li>
@@ -738,6 +739,22 @@ num is None: num = ceil((stop - start + step)/step);</p>
 <code class="descname">time_values</code><a class="headerlink" href="#examples.seismic.source.TimeAxis.time_values" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+</dd></dl>
+
+</div>
+<div class="section" id="module-examples.seismic.utils">
+<span id="examples-seismic-utils-module"></span><h2>examples.seismic.utils module<a class="headerlink" href="#module-examples.seismic.utils" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="examples.seismic.utils.smooth">
+<code class="descclassname">examples.seismic.utils.</code><code class="descname">smooth</code><span class="sig-paren">(</span><em>dest</em>, <em>f</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/utils.html#smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.utils.smooth" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run an n-point moving average kernel over <code class="docutils literal notranslate"><span class="pre">f</span></code> and store the result
+into <code class="docutils literal notranslate"><span class="pre">dest</span></code>. The average is computed along the innermost <code class="docutils literal notranslate"><span class="pre">f</span></code> dimension.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.utils.scipy_smooth">
+<code class="descclassname">examples.seismic.utils.</code><code class="descname">scipy_smooth</code><span class="sig-paren">(</span><em>img</em>, <em>sigma=5</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/utils.html#scipy_smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.utils.scipy_smooth" title="Permalink to this definition">¶</a></dt>
+<dd><p>Smooth the input with scipy ndimage utility</p>
 </dd></dl>
 
 </div>

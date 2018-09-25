@@ -153,21 +153,10 @@
 <span class="kn">from</span> <span class="nn">argparse</span> <span class="k">import</span> <span class="n">ArgumentParser</span>
 
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span>
-<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Constant</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Operator</span>
+<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Constant</span><span class="p">,</span> <span class="n">Function</span>
 <span class="kn">from</span> <span class="nn">examples.seismic.acoustic</span> <span class="k">import</span> <span class="n">AcousticWaveSolver</span>
 <span class="kn">from</span> <span class="nn">examples.seismic</span> <span class="k">import</span> <span class="n">demo_model</span><span class="p">,</span> <span class="n">TimeAxis</span><span class="p">,</span> <span class="n">RickerSource</span><span class="p">,</span> <span class="n">Receiver</span>
-
-
-<div class="viewcode-block" id="smooth"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.acoustic_example.smooth">[docs]</a><span class="k">def</span> <span class="nf">smooth</span><span class="p">(</span><span class="n">dest</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Run an n-point moving average kernel over ``f`` and store the result</span>
-<span class="sd">    into ``dest``. The average is computed along the innermost ``f`` dimension.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Constant</span><span class="p">:</span>
-        <span class="c1"># Return a scaled version of the input if it&#39;s a Constant</span>
-        <span class="n">dest</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="o">.</span><span class="mi">9</span> <span class="o">*</span> <span class="n">f</span><span class="o">.</span><span class="n">data</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">dest</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">avg</span><span class="p">(</span><span class="n">dims</span><span class="o">=</span><span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])),</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;smoother&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span></div>
+<span class="kn">from</span> <span class="nn">examples.seismic.utils</span> <span class="k">import</span> <span class="n">smooth</span>
 
 
 <div class="viewcode-block" id="acoustic_setup"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.acoustic_example.acoustic_setup">[docs]</a><span class="k">def</span> <span class="nf">acoustic_setup</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">),</span> <span class="n">spacing</span><span class="o">=</span><span class="p">(</span><span class="mf">15.0</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">),</span>

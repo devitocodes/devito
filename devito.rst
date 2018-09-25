@@ -9,6 +9,7 @@ Subpackages
     devito.core
     devito.dle
     devito.dse
+    devito.finite_differences
     devito.ir
     devito.mpi
     devito.symbolics
@@ -77,14 +78,6 @@ devito.exceptions module
 ------------------------
 
 .. automodule:: devito.exceptions
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito.finite\_difference module
---------------------------------
-
-.. automodule:: devito.finite_difference
     :members:
     :undoc-members:
     :show-inheritance:

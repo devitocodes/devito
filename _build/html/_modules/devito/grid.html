@@ -155,8 +155,8 @@
 
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">SpaceDimension</span><span class="p">,</span> <span class="n">TimeDimension</span><span class="p">,</span> <span class="n">SteppingDimension</span>
-<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">Distributor</span>
 <span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Constant</span>
+<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">Distributor</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">ReducerMap</span>
 
@@ -202,21 +202,20 @@
 
 <span class="sd">       .. code-block:: python</span>
 
-<span class="sd">          x ^</span>
-<span class="sd">            |</span>
-<span class="sd">            |           origin + extent</span>
-<span class="sd">            |     x------------x</span>
+<span class="sd">                      x</span>
+<span class="sd">            |-----------------------&gt;</span>
+<span class="sd">            |  origin</span>
+<span class="sd">            |     o------------o</span>
 <span class="sd">            |     |            |</span>
 <span class="sd">            |     |            |</span>
 <span class="sd">            |     |   DOMAIN   | extent[1]</span>
-<span class="sd">            |     |            |</span>
+<span class="sd">        y   |     |            |</span>
 <span class="sd">            |     |            |</span>
 <span class="sd">            |     |  extent[0] |</span>
-<span class="sd">            |     x------------x</span>
-<span class="sd">            |  origin</span>
+<span class="sd">            |     o------------o</span>
+<span class="sd">            |             origin + extent</span>
 <span class="sd">            |</span>
-<span class="sd">            |-----------------------&gt;</span>
-<span class="sd">                       y</span>
+<span class="sd">            v</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">_default_dimensions</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">)</span>

@@ -154,7 +154,7 @@
 
 <span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Constant</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
-
+<span class="kn">from</span> <span class="nn">examples.seismic.utils</span> <span class="k">import</span> <span class="n">scipy_smooth</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Model&#39;</span><span class="p">,</span> <span class="s1">&#39;ModelElastic&#39;</span><span class="p">,</span> <span class="s1">&#39;demo_model&#39;</span><span class="p">]</span>
 
@@ -309,12 +309,12 @@
         <span class="n">v</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">vp_top</span>  <span class="c1"># Top velocity (background)</span>
         <span class="n">v</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">ratio</span><span class="p">):]</span> <span class="o">=</span> <span class="n">vp_bottom</span>  <span class="c1"># Bottom velocity</span>
 
-        <span class="n">epsilon</span> <span class="o">=</span> <span class="o">.</span><span class="mi">3</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">)</span>
-        <span class="n">delta</span> <span class="o">=</span> <span class="o">.</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">)</span>
-        <span class="n">theta</span> <span class="o">=</span> <span class="o">.</span><span class="mi">5</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">)</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">scipy_smooth</span><span class="p">(</span><span class="o">.</span><span class="mi">3</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">))</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">scipy_smooth</span><span class="p">(</span><span class="o">.</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">))</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">scipy_smooth</span><span class="p">(</span><span class="o">.</span><span class="mi">5</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">))</span>
         <span class="n">phi</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="n">phi</span> <span class="o">=</span> <span class="o">.</span><span class="mi">1</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">)</span>
+            <span class="n">phi</span> <span class="o">=</span> <span class="n">scipy_smooth</span><span class="p">(</span><span class="o">.</span><span class="mi">25</span><span class="o">*</span><span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mf">1.5</span><span class="p">),</span> <span class="n">shape</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">Model</span><span class="p">(</span><span class="n">space_order</span><span class="o">=</span><span class="n">space_order</span><span class="p">,</span> <span class="n">vp</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">origin</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
                      <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">nbpml</span><span class="o">=</span><span class="n">nbpml</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="n">epsilon</span><span class="p">,</span>
@@ -617,6 +617,13 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">spacing</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">space_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Spatial dimensions of the grid</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">spacing_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Map between spacing symbols and their values for each :class:`SpaceDimension`</span>
@@ -824,7 +831,7 @@
         <span class="c1">#</span>
         <span class="c1"># The CFL condtion is then given by</span>
         <span class="c1"># dt &lt; h / (sqrt(2) * max(vp)))</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="o">.</span><span class="mi">8</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vp</span><span class="o">.</span><span class="n">data</span><span class="p">)))</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="o">.</span><span class="mi">5</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vp</span><span class="o">.</span><span class="n">data</span><span class="p">)))</span></div>
 </pre></div>
 
            </div>

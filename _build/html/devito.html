@@ -92,6 +92,7 @@
 <li class="toctree-l3"><a class="reference internal" href="devito.core.html">devito.core package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.finite_differences.html">devito.finite_differences package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.mpi.html">devito.mpi package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
@@ -107,7 +108,6 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.dimension">devito.dimension module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.exceptions">devito.exceptions module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.finite_difference">devito.finite_difference module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.function">devito.function module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.grid">devito.grid module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.logger">devito.logger module</a></li>
@@ -233,6 +233,13 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.dse.html#module-devito.dse.manipulation">devito.dse.manipulation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.dse.html#module-devito.dse.transformer">devito.dse.transformer module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.dse.html#module-devito.dse">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="devito.finite_differences.html">devito.finite_differences package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="devito.finite_differences.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.finite_differences.html#module-devito.finite_differences.differentiable">devito.finite_differences.differentiable module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.finite_differences.html#module-devito.finite_differences.finite_difference">devito.finite_differences.finite_difference module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.finite_differences.html#module-devito.finite_differences">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="devito.ir.html">devito.ir package</a><ul>
@@ -583,7 +590,14 @@ and right (<code class="docutils literal notranslate"><span class="pre">rp</span
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
-<li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
+<li><strong>staggered</strong> – (Optional) a <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, or a tuple of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s,</span>
+<span class="pre">or</span> <span class="pre">a</span> <span class="pre">:class:`Stagger</span></code>, defining how the function is staggered.
+For example:
+* <code class="docutils literal notranslate"><span class="pre">staggered=x</span></code> entails discretization on x edges,
+* <code class="docutils literal notranslate"><span class="pre">staggered=y</span></code> entails discretization on y edges,
+* <code class="docutils literal notranslate"><span class="pre">staggered=(x,</span> <span class="pre">y)</span></code> entails discretization on xy facets,
+* <code class="docutils literal notranslate"><span class="pre">staggered=NODE</span></code> entails discretization on node,
+* <code class="docutils literal notranslate"><span class="pre">staggerd=CELL</span></code> entails discretization on cell.</li>
 <li><strong>padding</strong> – (Optional) allocate extra grid points at a space dimension
 boundary. These may be used for data alignment. Defaults to 0.
 In alternative to an integer, a tuple, indicating the padding
@@ -619,15 +633,6 @@ symbolic function.</p>
 <p class="last"><a class="reference internal" href="#devito.base.Function" title="devito.base.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code></a> objects are assumed to be constant in time
 and therefore do not support time derivatives. Use
 <a class="reference internal" href="#devito.base.TimeFunction" title="devito.base.TimeFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeFunction</span></code></a> for time-varying grid data.</p>
-</div>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">The tuple :param staggered: contains a <code class="docutils literal notranslate"><span class="pre">1</span></code> in each dimension
-entry that should be staggered, and <code class="docutils literal notranslate"><span class="pre">0</span></code> otherwise. For example,
-<code class="docutils literal notranslate"><span class="pre">staggered=(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></code> entails discretization on horizontal edges,
-<code class="docutils literal notranslate"><span class="pre">staggered=(0,</span> <span class="pre">0,</span> <span class="pre">1)</span></code> entails discretization on vertical edges,
-<code class="docutils literal notranslate"><span class="pre">staggered=(0,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization side facets and
-<code class="docutils literal notranslate"><span class="pre">staggered=(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization on cells.</p>
 </div>
 <dl class="attribute">
 <dt id="devito.base.Function.default_assumptions">
@@ -678,21 +683,20 @@ underlying the discretized <a class="reference internal" href="#devito.base.Func
 the conventions for defining the coordinate space in 2D are:</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<div class="last highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">x</span> <span class="o">^</span>
-  <span class="o">|</span>
-  <span class="o">|</span>           <span class="n">origin</span> <span class="o">+</span> <span class="n">extent</span>
-  <span class="o">|</span>     <span class="n">x</span><span class="o">------------</span><span class="n">x</span>
-  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
-  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
-  <span class="o">|</span>     <span class="o">|</span>   <span class="n">DOMAIN</span>   <span class="o">|</span> <span class="n">extent</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
-  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
-  <span class="o">|</span>     <span class="o">|</span>  <span class="n">extent</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">|</span>
-  <span class="o">|</span>     <span class="n">x</span><span class="o">------------</span><span class="n">x</span>
-  <span class="o">|</span>  <span class="n">origin</span>
-  <span class="o">|</span>
-  <span class="o">|-----------------------&gt;</span>
-             <span class="n">y</span>
+<div class="last highlight-python notranslate"><div class="highlight"><pre><span></span>              <span class="n">x</span>
+    <span class="o">|-----------------------&gt;</span>
+    <span class="o">|</span>  <span class="n">origin</span>
+    <span class="o">|</span>     <span class="n">o</span><span class="o">------------</span><span class="n">o</span>
+    <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+    <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+    <span class="o">|</span>     <span class="o">|</span>   <span class="n">DOMAIN</span>   <span class="o">|</span> <span class="n">extent</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">y</span>   <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+    <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+    <span class="o">|</span>     <span class="o">|</span>  <span class="n">extent</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">|</span>
+    <span class="o">|</span>     <span class="n">o</span><span class="o">------------</span><span class="n">o</span>
+    <span class="o">|</span>             <span class="n">origin</span> <span class="o">+</span> <span class="n">extent</span>
+    <span class="o">|</span>
+    <span class="n">v</span>
 </pre></div>
 </div>
 </div>
@@ -1111,8 +1115,8 @@ symbolic function.</p>
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> – Name of the symbol</li>
-<li><strong>dtype</strong> – Data type of the scalar</li>
+<li><strong>name</strong> – Name of the symbol.</li>
+<li><strong>dtype</strong> – (Optional) data type of the object. Defaults to float32.</li>
 </ul>
 </td>
 </tr>
@@ -1268,7 +1272,14 @@ usage of an alternating buffer), an explicit value for <code class="docutils lit
 <li><strong>time_dim</strong> – (Optional) the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> object to use to represent
 time in this symbol. Defaults to the time dimension provided
 by the <a class="reference internal" href="#devito.base.Grid" title="devito.base.Grid"><code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code></a>.</li>
-<li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
+<li><strong>staggered</strong> – (Optional) a <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, or a tuple of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s,</span>
+<span class="pre">or</span> <span class="pre">a</span> <span class="pre">:class:`Stagger</span></code>, defining how the function is staggered.
+For example:
+* <code class="docutils literal notranslate"><span class="pre">staggered=x</span></code> entails discretization on x edges,
+* <code class="docutils literal notranslate"><span class="pre">staggered=y</span></code> entails discretization on y edges,
+* <code class="docutils literal notranslate"><span class="pre">staggered=(x,</span> <span class="pre">y)</span></code> entails discretization on xy facets,
+* <code class="docutils literal notranslate"><span class="pre">staggered=NODE</span></code> entails discretization on node,
+* <code class="docutils literal notranslate"><span class="pre">staggerd=CELL</span></code> entails discretization on cell.</li>
 <li><strong>padding</strong> – (Optional) allocate extra grid points at a space dimension
 boundary. These may be used for data alignment. Defaults to 0.
 In alternative to an integer, a tuple, indicating the padding
@@ -1393,6 +1404,12 @@ derived time dimensions symbol. For example:</p>
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.cgen_utils.FLOAT.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.cgen_utils.FLOOR">
+<code class="descclassname">devito.cgen_utils.</code><code class="descname">FLOOR</code><a class="headerlink" href="#devito.cgen_utils.FLOOR" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">floor</span></code></p>
 </dd></dl>
 
 <dl class="class">
@@ -2141,172 +2158,6 @@ the equation. For more information. refer to
 </dd></dl>
 
 </div>
-<div class="section" id="module-devito.finite_difference">
-<span id="devito-finite-difference-module"></span><h2>devito.finite_difference module<a class="headerlink" href="#module-devito.finite_difference" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="devito.finite_difference.first_derivative">
-<code class="descclassname">devito.finite_difference.</code><code class="descname">first_derivative</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#first_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.first_derivative" title="Permalink to this definition">¶</a></dt>
-<dd><p>Derives first derivative for a product of given functions.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>*args</strong> – All positional arguments must be fully qualified
-function objects, eg. <cite>f(x, y)</cite> or <cite>g(t, x, y, z)</cite>.</li>
-<li><strong>dims</strong> – symbol defining the dimension wrt. which
-to differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t</cite>.</li>
-<li><strong>diff</strong> – Finite Difference symbol to insert, default <cite>h</cite>.</li>
-<li><strong>side</strong> – Side of the shift for the first derivatives.</li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The first derivative</p>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="docutils">
-<dt>Example: Deriving the first-derivative of f(x)*g(x) wrt. x via:</dt>
-<dd><code class="docutils literal notranslate"><span class="pre">cross_derivative(f(x),</span> <span class="pre">g(x),</span> <span class="pre">dim=x,</span> <span class="pre">side=1,</span> <span class="pre">order=1)</span></code>
-results in:
-<code class="docutils literal notranslate"><span class="pre">*(-f(x)*g(x)</span> <span class="pre">+</span> <span class="pre">f(x</span> <span class="pre">+</span> <span class="pre">h)*g(x</span> <span class="pre">+</span> <span class="pre">h)</span> <span class="pre">)</span> <span class="pre">/</span> <span class="pre">h</span></code></dd>
-</dl>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.finite_difference.second_derivative">
-<code class="descclassname">devito.finite_difference.</code><code class="descname">second_derivative</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#second_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.second_derivative" title="Permalink to this definition">¶</a></dt>
-<dd><p>Derives second derivative for a product of given functions.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>*args</strong> – All positional arguments must be fully qualified
-function objects, eg. <cite>f(x, y)</cite> or <cite>g(t, x, y, z)</cite>.</li>
-<li><strong>dim</strong> – Symbol defininf the dimension wrt. which to
-differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t</cite>.</li>
-<li><strong>diff</strong> – Finite Difference symbol to insert, default <cite>h</cite>.</li>
-<li><strong>order</strong> – Discretisation order of the stencil to create.</li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The second derivative</p>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="docutils">
-<dt>Example: Deriving the second derivative of f(x, y)*g(x, y) wrt. x via</dt>
-<dd><code class="docutils literal notranslate"><span class="pre">second_derivative(f(x,</span> <span class="pre">y),</span> <span class="pre">g(x,</span> <span class="pre">y),</span> <span class="pre">order=2,</span> <span class="pre">dim=x)</span></code>
-results in <code class="docutils literal notranslate"><span class="pre">(-2.0*f(x,</span> <span class="pre">y)*g(x,</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">1.0*f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">+</span>
-<span class="pre">1.0*f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y))</span> <span class="pre">/</span> <span class="pre">h**2</span></code>.</dd>
-</dl>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.finite_difference.cross_derivative">
-<code class="descclassname">devito.finite_difference.</code><code class="descname">cross_derivative</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#cross_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.cross_derivative" title="Permalink to this definition">¶</a></dt>
-<dd><p>Derives cross derivative for a product of given functions.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>*args</strong> – All positional arguments must be fully qualified
-function objects, eg. <cite>f(x, y)</cite> or <cite>g(t, x, y, z)</cite>.</li>
-<li><strong>dims</strong> – 2-tuple of symbols defining the dimension wrt. which
-to differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t</cite>.</li>
-<li><strong>diff</strong> – Finite Difference symbol to insert, default <cite>h</cite>.</li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The cross derivative</p>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="docutils">
-<dt>Example: Deriving the cross-derivative of f(x, y)*g(x, y) wrt. x and y via:</dt>
-<dd><code class="docutils literal notranslate"><span class="pre">cross_derivative(f(x,</span> <span class="pre">y),</span> <span class="pre">g(x,</span> <span class="pre">y),</span> <span class="pre">dims=(x,</span> <span class="pre">y))</span></code>
-results in:
-<code class="docutils literal notranslate"><span class="pre">0.5*(-2.0*f(x,</span> <span class="pre">y)*g(x,</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)*g(x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span></code>
-<code class="docutils literal notranslate"><span class="pre">f(x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)*g(x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">-</span></code>
-<code class="docutils literal notranslate"><span class="pre">f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">-</span></code>
-<code class="docutils literal notranslate"><span class="pre">f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y))</span> <span class="pre">/</span> <span class="pre">h**2</span></code></dd>
-</dl>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.finite_difference.generic_derivative">
-<code class="descclassname">devito.finite_difference.</code><code class="descname">generic_derivative</code><span class="sig-paren">(</span><em>function</em>, <em>deriv_order</em>, <em>dim</em>, <em>fd_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#generic_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.generic_derivative" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create generic arbitrary order derivative expression from a
-single <code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code> object. This methods is essentially a
-dedicated wrapper around SymPy’s <cite>as_finite_diff</cite> utility for
-<code class="xref py py-class docutils literal notranslate"><span class="pre">devito.Function</span></code> objects.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>function</strong> – The symbol representing a function.</li>
-<li><strong>deriv_order</strong> – Derivative order, eg. 2 for a second derivative.</li>
-<li><strong>dim</strong> – The dimension for which to take the derivative.</li>
-<li><strong>fd_order</strong> – Order of the coefficient discretization and thus
-the width of the resulting stencil expression.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.finite_difference.second_cross_derivative">
-<code class="descclassname">devito.finite_difference.</code><code class="descname">second_cross_derivative</code><span class="sig-paren">(</span><em>function</em>, <em>dims</em>, <em>order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#second_cross_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.second_cross_derivative" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create a second order order cross derivative for a given function.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>function</strong> – The symbol representing a function.</li>
-<li><strong>dims</strong> – Dimensions for which to take the derivative.</li>
-<li><strong>order</strong> – Discretisation order of the stencil to create.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.finite_difference.staggered_diff">
-<code class="descclassname">devito.finite_difference.</code><code class="descname">staggered_diff</code><span class="sig-paren">(</span><em>f</em>, <em>dim</em>, <em>order</em>, <em>stagger=centered</em>, <em>theta=0</em>, <em>phi=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#staggered_diff"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.staggered_diff" title="Permalink to this definition">¶</a></dt>
-<dd><p>Utility function to generate staggered derivatives
-:param f: function objects, eg. <cite>f(x, y)</cite> or <cite>g(t, x, y, z)</cite>.
-:param dims: symbol defining the dimension wrt. which</p>
-<blockquote>
-<div>to differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t</cite>.</div></blockquote>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>order</strong> – Order of the coefficient discretization and thus
-the width of the resulting stencil expression.</li>
-<li><strong>stagger</strong> – Shift for the FD, <cite>left</cite>, <cite>right</cite> or <cite>centered</cite></li>
-<li><strong>theta</strong> – Dip (or polar) angle for rotated FD</li>
-<li><strong>phi</strong> – Azimuth angle for rotated FD</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</div>
 <div class="section" id="module-devito.function">
 <span id="devito-function-module"></span><h2>devito.function module<a class="headerlink" href="#module-devito.function" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
@@ -2320,11 +2171,6 @@ the width of the resulting stencil expression.</li>
 SymPy uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the
 symbolic function.</p>
 </div>
-<dl class="attribute">
-<dt id="devito.function.Constant.base">
-<code class="descname">base</code><a class="headerlink" href="#devito.function.Constant.base" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="attribute">
 <dt id="devito.function.Constant.data">
 <code class="descname">data</code><a class="headerlink" href="#devito.function.Constant.data" title="Permalink to this definition">¶</a></dt>
@@ -2356,7 +2202,7 @@ symbolic function.</p>
 <dl class="class">
 <dt id="devito.function.Function">
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">Function</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Function" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.TensorFunction</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.TensorFunction</span></code>, <a class="reference internal" href="devito.finite_differences.html#devito.finite_differences.differentiable.Differentiable" title="devito.finite_differences.differentiable.Differentiable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.finite_differences.differentiable.Differentiable</span></code></a></p>
 <p>A <code class="xref py py-class docutils literal notranslate"><span class="pre">TensorFunction</span></code> providing operations to express
 finite-difference approximation. A <code class="docutils literal notranslate"><span class="pre">Function</span></code> encapsulates
 space-varying data; for time-varying data, use <a class="reference internal" href="#devito.function.TimeFunction" title="devito.function.TimeFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeFunction</span></code></a>.</p>
@@ -2383,7 +2229,14 @@ and right (<code class="docutils literal notranslate"><span class="pre">rp</span
 <li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
 data layout and function indices of this symbol.</li>
 <li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
-<li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
+<li><strong>staggered</strong> – (Optional) a <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, or a tuple of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s,</span>
+<span class="pre">or</span> <span class="pre">a</span> <span class="pre">:class:`Stagger</span></code>, defining how the function is staggered.
+For example:
+* <code class="docutils literal notranslate"><span class="pre">staggered=x</span></code> entails discretization on x edges,
+* <code class="docutils literal notranslate"><span class="pre">staggered=y</span></code> entails discretization on y edges,
+* <code class="docutils literal notranslate"><span class="pre">staggered=(x,</span> <span class="pre">y)</span></code> entails discretization on xy facets,
+* <code class="docutils literal notranslate"><span class="pre">staggered=NODE</span></code> entails discretization on node,
+* <code class="docutils literal notranslate"><span class="pre">staggerd=CELL</span></code> entails discretization on cell.</li>
 <li><strong>padding</strong> – (Optional) allocate extra grid points at a space dimension
 boundary. These may be used for data alignment. Defaults to 0.
 In alternative to an integer, a tuple, indicating the padding
@@ -2420,15 +2273,6 @@ symbolic function.</p>
 and therefore do not support time derivatives. Use
 <a class="reference internal" href="#devito.function.TimeFunction" title="devito.function.TimeFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimeFunction</span></code></a> for time-varying grid data.</p>
 </div>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">The tuple :param staggered: contains a <code class="docutils literal notranslate"><span class="pre">1</span></code> in each dimension
-entry that should be staggered, and <code class="docutils literal notranslate"><span class="pre">0</span></code> otherwise. For example,
-<code class="docutils literal notranslate"><span class="pre">staggered=(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></code> entails discretization on horizontal edges,
-<code class="docutils literal notranslate"><span class="pre">staggered=(0,</span> <span class="pre">0,</span> <span class="pre">1)</span></code> entails discretization on vertical edges,
-<code class="docutils literal notranslate"><span class="pre">staggered=(0,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization side facets and
-<code class="docutils literal notranslate"><span class="pre">staggered=(1,</span> <span class="pre">1,</span> <span class="pre">1)</span></code> entails discretization on cells.</p>
-</div>
 <dl class="method">
 <dt id="devito.function.Function.avg">
 <code class="descname">avg</code><span class="sig-paren">(</span><em>p=None</em>, <em>dims=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Function.avg"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Function.avg" title="Permalink to this definition">¶</a></dt>
@@ -2462,18 +2306,9 @@ dimensions.</li>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.function.Function.laplace">
-<code class="descname">laplace</code><a class="headerlink" href="#devito.function.Function.laplace" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generates a symbolic expression for the Laplacian, the second
-derivative wrt. all spatial dimensions.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.function.Function.laplace2">
-<code class="descname">laplace2</code><span class="sig-paren">(</span><em>weight=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Function.laplace2"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Function.laplace2" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generates a symbolic expression for the double Laplacian
-wrt. all spatial dimensions.</p>
-</dd></dl>
+<dt id="devito.function.Function.space_order">
+<code class="descname">space_order</code><a class="headerlink" href="#devito.function.Function.space_order" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="method">
 <dt id="devito.function.Function.sum">
@@ -2544,7 +2379,14 @@ usage of an alternating buffer), an explicit value for <code class="docutils lit
 <li><strong>time_dim</strong> – (Optional) the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code> object to use to represent
 time in this symbol. Defaults to the time dimension provided
 by the <code class="xref py py-class docutils literal notranslate"><span class="pre">Grid</span></code>.</li>
-<li><strong>staggered</strong> – (Optional) tuple containing staggering offsets.</li>
+<li><strong>staggered</strong> – (Optional) a <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension</span></code>, or a tuple of <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s,</span>
+<span class="pre">or</span> <span class="pre">a</span> <span class="pre">:class:`Stagger</span></code>, defining how the function is staggered.
+For example:
+* <code class="docutils literal notranslate"><span class="pre">staggered=x</span></code> entails discretization on x edges,
+* <code class="docutils literal notranslate"><span class="pre">staggered=y</span></code> entails discretization on y edges,
+* <code class="docutils literal notranslate"><span class="pre">staggered=(x,</span> <span class="pre">y)</span></code> entails discretization on xy facets,
+* <code class="docutils literal notranslate"><span class="pre">staggered=NODE</span></code> entails discretization on node,
+* <code class="docutils literal notranslate"><span class="pre">staggerd=CELL</span></code> entails discretization on cell.</li>
 <li><strong>padding</strong> – (Optional) allocate extra grid points at a space dimension
 boundary. These may be used for data alignment. Defaults to 0.
 In alternative to an integer, a tuple, indicating the padding
@@ -2601,18 +2443,6 @@ derived time dimensions symbol. For example:</p>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.function.TimeFunction.dt">
-<code class="descname">dt</code><a class="headerlink" href="#devito.function.TimeFunction.dt" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the first derivative wrt the time dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.function.TimeFunction.dt2">
-<code class="descname">dt2</code><a class="headerlink" href="#devito.function.TimeFunction.dt2" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the second derivative wrt the t dimension</p>
-</dd></dl>
-
-<dl class="attribute">
 <dt id="devito.function.TimeFunction.forward">
 <code class="descname">forward</code><a class="headerlink" href="#devito.function.TimeFunction.forward" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol for the time-forward state of the function</p>
@@ -2623,12 +2453,17 @@ derived time dimensions symbol. For example:</p>
 <code class="descname">is_TimeFunction</code><em class="property"> = True</em><a class="headerlink" href="#devito.function.TimeFunction.is_TimeFunction" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="attribute">
+<dt id="devito.function.TimeFunction.time_order">
+<code class="descname">time_order</code><a class="headerlink" href="#devito.function.TimeFunction.time_order" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </dd></dl>
 
 <dl class="class">
 <dt id="devito.function.SparseFunction">
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">SparseFunction</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#SparseFunction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.SparseFunction" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.AbstractSparseFunction</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.AbstractSparseFunction</span></code>, <a class="reference internal" href="devito.finite_differences.html#devito.finite_differences.differentiable.Differentiable" title="devito.finite_differences.differentiable.Differentiable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.finite_differences.differentiable.Differentiable</span></code></a></p>
 <p>A special <code class="xref py py-class docutils literal notranslate"><span class="pre">TensorFunction</span></code> representing a set of sparse point
 objects that are not aligned with the computational grid.</p>
 <p>A <a class="reference internal" href="#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">SparseFunction</span></code></a> provides symbolic interpolation routines
@@ -3077,21 +2912,20 @@ underlying the discretized <code class="xref py py-class docutils literal notran
 the conventions for defining the coordinate space in 2D are:</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<div class="last highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">x</span> <span class="o">^</span>
-  <span class="o">|</span>
-  <span class="o">|</span>           <span class="n">origin</span> <span class="o">+</span> <span class="n">extent</span>
-  <span class="o">|</span>     <span class="n">x</span><span class="o">------------</span><span class="n">x</span>
-  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
-  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
-  <span class="o">|</span>     <span class="o">|</span>   <span class="n">DOMAIN</span>   <span class="o">|</span> <span class="n">extent</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
-  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
-  <span class="o">|</span>     <span class="o">|</span>  <span class="n">extent</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">|</span>
-  <span class="o">|</span>     <span class="n">x</span><span class="o">------------</span><span class="n">x</span>
-  <span class="o">|</span>  <span class="n">origin</span>
-  <span class="o">|</span>
-  <span class="o">|-----------------------&gt;</span>
-             <span class="n">y</span>
+<div class="last highlight-python notranslate"><div class="highlight"><pre><span></span>              <span class="n">x</span>
+    <span class="o">|-----------------------&gt;</span>
+    <span class="o">|</span>  <span class="n">origin</span>
+    <span class="o">|</span>     <span class="n">o</span><span class="o">------------</span><span class="n">o</span>
+    <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+    <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+    <span class="o">|</span>     <span class="o">|</span>   <span class="n">DOMAIN</span>   <span class="o">|</span> <span class="n">extent</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">y</span>   <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+    <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+    <span class="o">|</span>     <span class="o">|</span>  <span class="n">extent</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">|</span>
+    <span class="o">|</span>     <span class="n">o</span><span class="o">------------</span><span class="n">o</span>
+    <span class="o">|</span>             <span class="n">origin</span> <span class="o">+</span> <span class="n">extent</span>
+    <span class="o">|</span>
+    <span class="n">v</span>
 </pre></div>
 </div>
 </div>
@@ -3444,11 +3278,6 @@ as well as all of the accepted values.</p>
 <em class="property">class </em><code class="descclassname">devito.types.</code><code class="descname">Symbol</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types.html#Symbol"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Symbol" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.AbstractCachedSymbol</span></code></p>
 <p>A <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Symbol</span></code> capable of mimicking an <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Indexed</span></code></p>
-<dl class="attribute">
-<dt id="devito.types.Symbol.base">
-<code class="descname">base</code><a class="headerlink" href="#devito.types.Symbol.base" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="attribute">
 <dt id="devito.types.Symbol.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.types.Symbol.default_assumptions" title="Permalink to this definition">¶</a></dt>

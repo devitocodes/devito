@@ -6,6 +6,7 @@
 ./_build/doctrees/devito.doctree
 ./_build/doctrees/devito.dse.backends.doctree
 ./_build/doctrees/devito.dse.doctree
+./_build/doctrees/devito.finite_differences.doctree
 ./_build/doctrees/devito.ir.clusters.doctree
 ./_build/doctrees/devito.ir.doctree
 ./_build/doctrees/devito.ir.equations.doctree
@@ -54,7 +55,8 @@
 ./_build/html/_modules/devito/dse/transformer.html
 ./_build/html/_modules/devito/equation.html
 ./_build/html/_modules/devito/exceptions.html
-./_build/html/_modules/devito/finite_difference.html
+./_build/html/_modules/devito/finite_differences/differentiable.html
+./_build/html/_modules/devito/finite_differences/finite_difference.html
 ./_build/html/_modules/devito/function.html
 ./_build/html/_modules/devito/grid.html
 ./_build/html/_modules/devito/ir/clusters/algorithms.html
@@ -112,6 +114,7 @@
 ./_build/html/_modules/examples/seismic/tti/operators.html
 ./_build/html/_modules/examples/seismic/tti/tti_example.html
 ./_build/html/_modules/examples/seismic/tti/wavesolver.html
+./_build/html/_modules/examples/seismic/utils.html
 ./_build/html/_modules/index.html
 ./_build/html/_modules/sympy/core/assumptions.html
 ./_build/html/_sources/developer.rst.txt
@@ -120,6 +123,7 @@
 ./_build/html/_sources/devito.dle.rst.txt
 ./_build/html/_sources/devito.dse.backends.rst.txt
 ./_build/html/_sources/devito.dse.rst.txt
+./_build/html/_sources/devito.finite_differences.rst.txt
 ./_build/html/_sources/devito.ir.clusters.rst.txt
 ./_build/html/_sources/devito.ir.equations.rst.txt
 ./_build/html/_sources/devito.ir.iet.rst.txt
@@ -201,6 +205,7 @@
 ./_build/html/devito.dle.html
 ./_build/html/devito.dse.backends.html
 ./_build/html/devito.dse.html
+./_build/html/devito.finite_differences.html
 ./_build/html/devito.html
 ./_build/html/devito.ir.clusters.html
 ./_build/html/devito.ir.equations.html
@@ -234,6 +239,7 @@
 ./devito.dle.rst
 ./devito.dse.backends.rst
 ./devito.dse.rst
+./devito.finite_differences.rst
 ./devito.ir.clusters.rst
 ./devito.ir.equations.rst
 ./devito.ir.iet.rst

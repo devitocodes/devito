@@ -294,11 +294,7 @@
       <li><a href="devito.html#devito.dimension.Dimension.base">base (devito.dimension.Dimension attribute)</a>
 
       <ul>
-        <li><a href="devito.html#devito.function.Constant.base">(devito.function.Constant attribute)</a>
-</li>
         <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.FunctionFromPointer.base">(devito.symbolics.extended_sympy.FunctionFromPointer attribute)</a>
-</li>
-        <li><a href="devito.html#devito.types.Symbol.base">(devito.types.Symbol attribute)</a>
 </li>
       </ul></li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.basic.BasicRewriter">BasicRewriter (class in devito.dle.backends.basic)</a>
@@ -311,10 +307,10 @@
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.bhaskara_cos">bhaskara_cos (class in devito.symbolics.extended_sympy)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.bhaskara_sin">bhaskara_sin (class in devito.symbolics.extended_sympy)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Block">Block (class in devito.ir.iet.nodes)</a>
 </li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.common.BlockingArg">BlockingArg (class in devito.dle.backends.common)</a>
@@ -449,7 +445,7 @@
       </ul></li>
       <li><a href="devito.dse.html#devito.dse.manipulation.cross_cluster_cse">cross_cluster_cse() (in module devito.dse.manipulation)</a>
 </li>
-      <li><a href="devito.html#devito.finite_difference.cross_derivative">cross_derivative() (in module devito.finite_difference)</a>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.finite_difference.cross_derivative">cross_derivative() (in module devito.finite_differences.finite_difference)</a>
 </li>
       <li><a href="devito.tools.html#devito.tools.utils.ctypes_pointer">ctypes_pointer() (in module devito.tools.utils)</a>
 </li>
@@ -531,6 +527,8 @@
         <li><a href="devito.html#devito.equation.Eq.default_assumptions">(devito.equation.Eq attribute)</a>
 </li>
         <li><a href="devito.html#devito.equation.Inc.default_assumptions">(devito.equation.Inc attribute)</a>
+</li>
+        <li><a href="devito.finite_differences.html#devito.finite_differences.differentiable.Differentiable.default_assumptions">(devito.finite_differences.differentiable.Differentiable attribute)</a>
 </li>
         <li><a href="devito.html#devito.function.Constant.default_assumptions">(devito.function.Constant attribute)</a>
 </li>
@@ -713,7 +711,11 @@
 </li>
       <li><a href="devito.html#module-devito.exceptions">devito.exceptions (module)</a>
 </li>
-      <li><a href="devito.html#module-devito.finite_difference">devito.finite_difference (module)</a>
+      <li><a href="devito.finite_differences.html#module-devito.finite_differences">devito.finite_differences (module)</a>
+</li>
+      <li><a href="devito.finite_differences.html#module-devito.finite_differences.differentiable">devito.finite_differences.differentiable (module)</a>
+</li>
+      <li><a href="devito.finite_differences.html#module-devito.finite_differences.finite_difference">devito.finite_differences.finite_difference (module)</a>
 </li>
       <li><a href="devito.html#module-devito.function">devito.function (module)</a>
 </li>
@@ -819,6 +821,8 @@
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil.diameter">diameter (devito.ir.support.stencil.Stencil attribute)</a>
 </li>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.differentiable.Differentiable">Differentiable (class in devito.finite_differences.differentiable)</a>
+</li>
       <li><a href="devito.html#devito.grid.Grid.dim">dim (devito.grid.Grid attribute)</a>
 
       <ul>
@@ -891,10 +895,6 @@
         <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.ClusterGroup.dspace">(devito.ir.clusters.cluster.ClusterGroup attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.function.TimeFunction.dt">dt (devito.function.TimeFunction attribute)</a>
-</li>
-      <li><a href="devito.html#devito.function.TimeFunction.dt2">dt2 (devito.function.TimeFunction attribute)</a>
-</li>
       <li><a href="devito.html#devito.dimension.Dimension.dtype">dtype (devito.dimension.Dimension attribute)</a>
 
       <ul>
@@ -915,6 +915,10 @@
 <h2 id="E">E</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="examples.seismic.elastic.html#examples.seismic.elastic.operators.elastic_2d">elastic_2d() (in module examples.seismic.elastic.operators)</a>
+</li>
+      <li><a href="examples.seismic.elastic.html#examples.seismic.elastic.operators.elastic_3d">elastic_3d() (in module examples.seismic.elastic.operators)</a>
+</li>
       <li><a href="examples.seismic.elastic.html#examples.seismic.elastic.elastic_example.elastic_setup">elastic_setup() (in module examples.seismic.elastic.elastic_example)</a>
 </li>
       <li><a href="examples.seismic.elastic.html#examples.seismic.elastic.wavesolver.ElasticWaveSolver">ElasticWaveSolver (class in examples.seismic.elastic.wavesolver)</a>
@@ -969,10 +973,10 @@
 </li>
       <li><a href="examples.seismic.html#module-examples.seismic">examples.seismic (module)</a>
 </li>
-      <li><a href="examples.seismic.acoustic.html#module-examples.seismic.acoustic">examples.seismic.acoustic (module)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="examples.seismic.acoustic.html#module-examples.seismic.acoustic">examples.seismic.acoustic (module)</a>
+</li>
       <li><a href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.acoustic_example">examples.seismic.acoustic.acoustic_example (module)</a>
 </li>
       <li><a href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.operators">examples.seismic.acoustic.operators (module)</a>
@@ -1002,6 +1006,8 @@
       <li><a href="examples.seismic.tti.html#module-examples.seismic.tti.tti_example">examples.seismic.tti.tti_example (module)</a>
 </li>
       <li><a href="examples.seismic.tti.html#module-examples.seismic.tti.wavesolver">examples.seismic.tti.wavesolver (module)</a>
+</li>
+      <li><a href="examples.seismic.html#module-examples.seismic.utils">examples.seismic.utils (module)</a>
 </li>
       <li><a href="examples.cfd.html#examples.cfd.example_diffusion.execute_devito">execute_devito() (in module examples.cfd.example_diffusion)</a>
 </li>
@@ -1067,13 +1073,15 @@
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.visitors.FindSymbols">FindSymbols (class in devito.ir.iet.visitors)</a>
 </li>
-      <li><a href="devito.html#devito.finite_difference.first_derivative">first_derivative() (in module devito.finite_difference)</a>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.finite_difference.first_derivative">first_derivative() (in module devito.finite_differences.finite_difference)</a>
 </li>
       <li><a href="devito.tools.html#devito.tools.utils.flatten">flatten() (in module devito.tools.utils)</a>
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.space.Interval.flip">flip() (devito.ir.support.space.Interval method)</a>
 </li>
       <li><a href="devito.html#devito.cgen_utils.FLOAT">FLOAT (class in devito.cgen_utils)</a>
+</li>
+      <li><a href="devito.html#devito.cgen_utils.FLOOR">FLOOR (in module devito.cgen_utils)</a>
 </li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph">FlowGraph (class in devito.ir.clusters.graph)</a>
 </li>
@@ -1093,6 +1101,8 @@
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.space.Forward">Forward (in module devito.ir.support.space)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.forward">forward() (examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 
       <ul>
@@ -1101,8 +1111,6 @@
         <li><a href="examples.seismic.tti.html#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.forward">(examples.seismic.tti.wavesolver.AnisotropicWaveSolver method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.operators.ForwardOperator">ForwardOperator() (in module examples.seismic.acoustic.operators)</a>
 
       <ul>
@@ -1179,11 +1187,13 @@
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.space.IntervalGroup.generate">generate() (devito.ir.support.space.IntervalGroup class method)</a>
 </li>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.finite_difference.generate_fd_shortcuts">generate_fd_shortcuts() (in module devito.finite_differences.finite_difference)</a>
+</li>
       <li><a href="devito.tools.html#devito.tools.data_structures.PartialOrderTuple.generate_ordering">generate_ordering() (devito.tools.data_structures.PartialOrderTuple method)</a>
 </li>
       <li><a href="devito.tools.html#devito.tools.utils.generator">generator() (in module devito.tools.utils)</a>
 </li>
-      <li><a href="devito.html#devito.finite_difference.generic_derivative">generic_derivative() (in module devito.finite_difference)</a>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.finite_difference.generic_derivative">generic_derivative() (in module devito.finite_differences.finite_difference)</a>
 </li>
       <li><a href="devito.tools.html#devito.tools.visitors.GenericVisitor">GenericVisitor (class in devito.tools.visitors)</a>
 </li>
@@ -1213,10 +1223,10 @@
 </li>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_ranges">glb_ranges (devito.mpi.distributed.Distributor attribute)</a>
 </li>
-      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_shape">glb_shape (devito.mpi.distributed.Distributor attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_shape">glb_shape (devito.mpi.distributed.Distributor attribute)</a>
+</li>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_to_loc">glb_to_loc() (devito.mpi.distributed.Distributor method)</a>
 </li>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_to_rank">glb_to_rank() (devito.mpi.distributed.Distributor method)</a>
@@ -1306,6 +1316,8 @@
       <li><a href="devito.html#devito.types.Indexed">Indexed (class in devito.types)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.manipulation.indexify">indexify() (in module devito.symbolics.manipulation)</a>
+</li>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.differentiable.Differentiable.indices">indices (devito.finite_differences.differentiable.Differentiable attribute)</a>
 </li>
       <li><a href="devito.html#devito.dimension.ConditionalDimension.indirect">indirect (devito.dimension.ConditionalDimension attribute)</a>
 </li>
@@ -1887,9 +1899,9 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.backends.html#devito.dle.backends.parallelizer.Ompizer.lang">lang (devito.dle.backends.parallelizer.Ompizer attribute)</a>
 </li>
-      <li><a href="devito.html#devito.function.Function.laplace">laplace (devito.function.Function attribute)</a>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.differentiable.Differentiable.laplace">laplace (devito.finite_differences.differentiable.Differentiable attribute)</a>
 </li>
-      <li><a href="devito.html#devito.function.Function.laplace2">laplace2() (devito.function.Function method)</a>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.differentiable.Differentiable.laplace2">laplace2() (devito.finite_differences.differentiable.Differentiable method)</a>
 </li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.operators.laplacian">laplacian() (in module examples.seismic.acoustic.operators)</a>
 </li>
@@ -2141,8 +2153,12 @@
 </li>
       <li><a href="devito.tools.html#devito.tools.data_structures.PartialOrderTuple">PartialOrderTuple (class in devito.tools.data_structures)</a>
 </li>
-      <li><a href="examples.seismic.tti.html#examples.seismic.tti.operators.particle_velocity_fields">particle_velocity_fields() (in module examples.seismic.tti.operators)</a>
+      <li><a href="examples.seismic.elastic.html#examples.seismic.elastic.operators.particle_velocity_fields">particle_velocity_fields() (in module examples.seismic.elastic.operators)</a>
+
+      <ul>
+        <li><a href="examples.seismic.tti.html#examples.seismic.tti.operators.particle_velocity_fields">(in module examples.seismic.tti.operators)</a>
 </li>
+      </ul></li>
       <li><a href="devito.ir.support.html#devito.ir.support.space.DataSpace.parts">parts (devito.ir.support.space.DataSpace attribute)</a>
 </li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.advanced.CustomRewriter.passes_mapper">passes_mapper (devito.dle.backends.advanced.CustomRewriter attribute)</a>
@@ -2167,10 +2183,10 @@
 </li>
       <li><a href="examples.seismic.html#examples.seismic.source.PointSource">PointSource (class in examples.seismic.source)</a>
 </li>
-      <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Pow">Pow (class in devito.symbolics.extended_sympy)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Pow">Pow (class in devito.symbolics.extended_sympy)</a>
+</li>
       <li><a href="devito.symbolics.html#devito.symbolics.manipulation.pow_to_mul">pow_to_mul() (in module devito.symbolics.manipulation)</a>
 </li>
       <li><a href="devito.tools.html#devito.tools.utils.powerset">powerset() (in module devito.tools.utils)</a>
@@ -2349,13 +2365,15 @@
 </li>
       <li><a href="devito.ir.stree.html#devito.ir.stree.tree.ScheduleTree">ScheduleTree (class in devito.ir.stree.tree)</a>
 </li>
+      <li><a href="examples.seismic.html#examples.seismic.utils.scipy_smooth">scipy_smooth() (in module examples.seismic.utils)</a>
+</li>
       <li><a href="devito.ir.support.html#devito.ir.support.basic.Scope">Scope (class in devito.ir.support.basic)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.search.search">search() (in module devito.symbolics.search)</a>
 </li>
-      <li><a href="devito.html#devito.finite_difference.second_cross_derivative">second_cross_derivative() (in module devito.finite_difference)</a>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.finite_difference.second_cross_derivative">second_cross_derivative() (in module devito.finite_differences.finite_difference)</a>
 </li>
-      <li><a href="devito.html#devito.finite_difference.second_derivative">second_derivative() (in module devito.finite_difference)</a>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.finite_difference.second_derivative">second_derivative() (in module devito.finite_differences.finite_difference)</a>
 </li>
       <li><a href="examples.seismic.tti.html#examples.seismic.tti.operators.second_order_stencil">second_order_stencil() (in module examples.seismic.tti.operators)</a>
 </li>
@@ -2399,10 +2417,16 @@
 </li>
       <li><a href="devito.html#devito.dimension.Dimension.size_name">size_name (devito.dimension.Dimension attribute)</a>
 </li>
-      <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.acoustic_example.smooth">smooth() (in module examples.seismic.acoustic.acoustic_example)</a>
+      <li><a href="examples.seismic.html#examples.seismic.utils.smooth">smooth() (in module examples.seismic.utils)</a>
 </li>
       <li><a href="devito.html#devito.equation.solve">solve() (in module devito.equation)</a>
 </li>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.differentiable.Differentiable.space_order">space_order (devito.finite_differences.differentiable.Differentiable attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.function.Function.space_order">(devito.function.Function attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.html#devito.dimension.SpaceDimension">SpaceDimension (class in devito.dimension)</a>
 </li>
       <li><a href="devito.html#devito.dimension.ConditionalDimension.spacing">spacing (devito.dimension.ConditionalDimension attribute)</a>
@@ -2443,9 +2467,11 @@
 </li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.cluster.Cluster.squash">squash() (devito.ir.clusters.cluster.Cluster method)</a>
 </li>
+      <li><a href="examples.seismic.elastic.html#examples.seismic.elastic.operators.src_rec">src_rec() (in module examples.seismic.elastic.operators)</a>
+</li>
       <li><a href="devito.ir.stree.html#devito.ir.stree.algorithms.st_build">st_build() (in module devito.ir.stree.algorithms)</a>
 </li>
-      <li><a href="devito.html#devito.finite_difference.staggered_diff">staggered_diff() (in module devito.finite_difference)</a>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.finite_difference.staggered_diff">staggered_diff() (in module devito.finite_differences.finite_difference)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.start">start() (devito.ir.iet.nodes.Iteration method)</a>
 </li>
@@ -2458,6 +2484,8 @@
       <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil">Stencil (class in devito.ir.support.stencil)</a>
 </li>
       <li><a href="devito.html#devito.dimension.SteppingDimension">SteppingDimension (class in devito.dimension)</a>
+</li>
+      <li><a href="examples.seismic.elastic.html#examples.seismic.elastic.operators.stress_fields">stress_fields() (in module examples.seismic.elastic.operators)</a>
 </li>
       <li><a href="devito.ir.stree.html#devito.ir.stree.tree.NodeIteration.sub_iterators">sub_iterators (devito.ir.stree.tree.NodeIteration attribute)</a>
 
@@ -2551,6 +2579,12 @@
 </li>
       <li><a href="devito.ir.clusters.html#devito.ir.clusters.graph.FlowGraph.time_invariant">time_invariant() (devito.ir.clusters.graph.FlowGraph method)</a>
 </li>
+      <li><a href="devito.finite_differences.html#devito.finite_differences.differentiable.Differentiable.time_order">time_order (devito.finite_differences.differentiable.Differentiable attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.function.TimeFunction.time_order">(devito.function.TimeFunction attribute)</a>
+</li>
+      </ul></li>
       <li><a href="examples.seismic.html#examples.seismic.source.PointSource.time_range">time_range (examples.seismic.source.PointSource attribute)</a>
 </li>
       <li><a href="examples.seismic.html#examples.seismic.source.PointSource.time_values">time_values (examples.seismic.source.PointSource attribute)</a>

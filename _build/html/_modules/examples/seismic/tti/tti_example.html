@@ -192,7 +192,6 @@
         <span class="n">warning</span><span class="p">(</span><span class="s1">&#39;WARNING: TTI requires a space_order that is a multiple of 4!&#39;</span><span class="p">)</span>
 
     <span class="n">rec</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">summary</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">autotune</span><span class="o">=</span><span class="n">autotune</span><span class="p">,</span> <span class="n">kernel</span><span class="o">=</span><span class="n">kernel</span><span class="p">)</span>
-
     <span class="k">return</span> <span class="n">summary</span><span class="o">.</span><span class="n">gflopss</span><span class="p">,</span> <span class="n">summary</span><span class="o">.</span><span class="n">oi</span><span class="p">,</span> <span class="n">summary</span><span class="o">.</span><span class="n">timings</span><span class="p">,</span> <span class="p">[</span><span class="n">rec</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span></div>
 
 

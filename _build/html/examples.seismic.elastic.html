@@ -97,6 +97,7 @@
 <li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#module-examples.seismic.model">examples.seismic.model module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#module-examples.seismic.plotting">examples.seismic.plotting module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#module-examples.seismic.source">examples.seismic.source module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#module-examples.seismic.utils">examples.seismic.utils module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="examples.seismic.html#module-examples.seismic">Module contents</a></li>
 </ul>
 </li>
@@ -214,6 +215,36 @@ indices (last three time steps)</li>
 </tr>
 </tbody>
 </table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.elastic.operators.elastic_2d">
+<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">elastic_2d</code><span class="sig-paren">(</span><em>model</em>, <em>space_order</em>, <em>save</em>, <em>source</em>, <em>receiver</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#elastic_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.elastic_2d" title="Permalink to this definition">¶</a></dt>
+<dd><p>2D elastic wave equation FD kernel</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.elastic.operators.elastic_3d">
+<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">elastic_3d</code><span class="sig-paren">(</span><em>model</em>, <em>space_order</em>, <em>save</em>, <em>source</em>, <em>receiver</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#elastic_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.elastic_3d" title="Permalink to this definition">¶</a></dt>
+<dd><p>3D elastic wave equation FD kernel</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.elastic.operators.particle_velocity_fields">
+<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">particle_velocity_fields</code><span class="sig-paren">(</span><em>model</em>, <em>save</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#particle_velocity_fields"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.particle_velocity_fields" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create the particle velocity fields</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.elastic.operators.src_rec">
+<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">src_rec</code><span class="sig-paren">(</span><em>vx</em>, <em>vy</em>, <em>vz</em>, <em>txx</em>, <em>tyy</em>, <em>tzz</em>, <em>model</em>, <em>source</em>, <em>receiver</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#src_rec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.src_rec" title="Permalink to this definition">¶</a></dt>
+<dd><p>Source injection and receiver interpolation</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.elastic.operators.stress_fields">
+<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">stress_fields</code><span class="sig-paren">(</span><em>model</em>, <em>save</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#stress_fields"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.stress_fields" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create the TimeFunction objects for the stress fields in the elastic formulation</p>
 </dd></dl>
 
 </div>

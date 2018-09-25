@@ -45,6 +45,14 @@ examples.seismic.source module
     :undoc-members:
     :show-inheritance:
 
+examples.seismic.utils module
+-----------------------------
+
+.. automodule:: examples.seismic.utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------
