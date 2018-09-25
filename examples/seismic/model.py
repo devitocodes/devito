@@ -4,7 +4,7 @@ from functools import partial
 import numpy as np
 
 from examples.seismic.utils import scipy_smooth
-from devito import Grid, Function, Constant, warning
+from devito import Grid, SubDomain, Function, Constant, warning
 
 __all__ = ['Model', 'ModelElastic', 'demo_model']
 
@@ -349,12 +349,11 @@ def demo_model(preset, **kwargs):
         raise ValueError("Unknown model preset name")
 
 
-def initialize_damp(damp, nbpml, physical_shape, spacing, mask=False):
+def initialize_damp(damp, nbpml, spacing, mask=False):
     """Initialise damping field with an absorbing PML layer.
 
     :param damp: The :class:`Function` for the damping field.
     :param nbpml: Number of points in the damping layer.
-    :param physical_shape: Shape of the physical domain.
     :param spacing: Grid spacing coefficient.
     :param mask: whether the dampening is a mask or layer.
         mask => 1 inside the domain and decreases in the layer
@@ -380,7 +379,8 @@ def initialize_damp(damp, nbpml, physical_shape, spacing, mask=False):
             vector[-rpad:] += make_pad(rpad, iaxis, mask, spacing, dampcoeff)[::-1]
         return vector
 
-    data = np.ones(physical_shape) if mask else np.zeros(physical_shape)
+    phy_shape = damp.grid.subdomains['phydomain'].shape
+    data = np.ones(phy_shape) if mask else np.zeros(phy_shape)
     initialize_function(damp, data, nbpml, partial(pad_damp, mask, spacing))
 
 
@@ -435,7 +435,19 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
     function.data_with_halo[:] = data
 
 
-class Pysical_Model(object):
+class PhysicalDomain(SubDomain):
+
+    name = 'phydomain'
+
+    def __init__(self, nbpml):
+        super(PhysicalDomain, self).__init__()
+        self.nbpml = nbpml
+
+    def define(self, dimensions):
+        return {d: ('middle', self.nbpml, self.nbpml) for d in dimensions}
+
+
+class GenericModel(object):
     """
     General model class with common properties
     """
@@ -445,10 +457,12 @@ class Pysical_Model(object):
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
 
+        phydomain = PhysicalDomain(self.nbpml)
         shape_pml = np.array(shape) + 2 * self.nbpml
         # Physical extent is calculated per cell, so shape - 1
         extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = Grid(extent=extent, shape=shape_pml, origin=origin, dtype=dtype)
+        self.grid = Grid(extent=extent, shape=shape_pml, origin=origin, dtype=dtype,
+                         subdomains=phydomain)
 
     def physical_params(self, **kwargs):
         """
@@ -500,7 +514,7 @@ class Pysical_Model(object):
         return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 
 
-class Model(Pysical_Model):
+class Model(GenericModel):
     """The physical model used in seismic inversion processes.
 
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
@@ -543,7 +557,7 @@ class Model(Pysical_Model):
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbpml, self.shape, spacing=self.spacing)
+        initialize_damp(self.damp, self.nbpml, self.spacing)
 
         # Additional parameter fields for TTI operators
         self.scale = 1.
@@ -632,7 +646,7 @@ class Model(Pysical_Model):
             self.m.data = 1 / vp**2
 
 
-class ModelElastic(Pysical_Model):
+class ModelElastic(GenericModel):
     """The physical model used in seismic inversion processes.
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
@@ -653,7 +667,7 @@ class ModelElastic(Pysical_Model):
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbpml, spacing=self.spacing, mask=True)
+        initialize_damp(self.damp, self.nbpml, self.spacing, mask=True)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
