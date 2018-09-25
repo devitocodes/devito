@@ -1,15 +1,16 @@
 from collections import namedtuple
 
-from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
+from devito.dimension import (Dimension, SpaceDimension, TimeDimension,
+                              SteppingDimension, SubDimension)
 from devito.function import Constant
 from devito.mpi import Distributor
 from devito.parameters import configuration
-from devito.tools import ArgProvider, ReducerMap, as_tuple, Tag
+from devito.tools import ArgProvider, ReducerMap, as_tuple
 
 from sympy import prod
 import numpy as np
 
-__all__ = ['SubDomain', 'INTERIOR', 'DOMAIN']
+__all__ = ['SubDomain']
 
 
 class Grid(ArgProvider):
@@ -32,9 +33,9 @@ class Grid(ArgProvider):
     :param dtype: (Optional) default data type to be inherited by all
                   :class:`Function`s created from this Grid. Defaults
                   to ``numpy.float32``.
-    :param subdomains: (Optional) an iterable of :class:`SubDomain`s. If None
-                       (as by default), then the Grid only has two subdomains,
-                       namely ``INTERIOR`` and ``DOMAIN``.
+    :param subdomains: (Optional) an iterable of :class:`SubDomain` *subtypes*.
+                       If None (as by default), then the Grid only has two
+                       subdomains, ``'interior'`` and ``'domain'``.
     :param comm: (Optional) an MPI communicator defining the set of
                  processes among which the grid is distributed.
 
@@ -71,7 +72,6 @@ class Grid(ArgProvider):
                  comm=None):
         self._shape = as_tuple(shape)
         self._extent = as_tuple(extent or tuple(1. for _ in self.shape))
-        self._subdomains = (DOMAIN, INTERIOR) + as_tuple(subdomains)
         self._dtype = dtype
 
         if dimensions is None:
@@ -84,6 +84,9 @@ class Grid(ArgProvider):
                                      for n, s in zip(dim_names, dim_spacing))
         else:
             self._dimensions = dimensions
+
+        self._subdomains = tuple(i(self._dimensions) for i in
+                                 (Domain, Interior) + as_tuple(subdomains))
 
         origin = as_tuple(origin or tuple(0. for _ in self.shape))
         self._origin = tuple(self._const(name='o_%s' % d.name, value=v, dtype=self.dtype)
@@ -148,7 +151,12 @@ class Grid(ArgProvider):
     @property
     def subdomains(self):
         """The :class:`SubDomain`s defined in this Grid."""
-        return self._subdomains
+        return {i.name: i for i in self._subdomains}
+
+    @property
+    def interior(self):
+        """The interior :class:`SubDomain` of the Grid."""
+        return self.subdomains['interior']
 
     @property
     def volume_cell(self):
@@ -249,19 +257,105 @@ class Grid(ArgProvider):
         self._distributor = Distributor(self.shape, self.dimensions)
 
 
-class SubDomain(Tag):
+class SubDomain(object):
 
     """A :class:`Grid` subdomain."""
 
-    pass
+    name = None
+
+    def __init__(self, dimensions):
+        if self.name is None:
+            raise ValueError("SubDomain requires a `name`")
+
+        sub_dimensions = []
+        for k, v in self.define(dimensions).items():
+            if isinstance(v, Dimension):
+                sub_dimensions.append(v)
+            else:
+                try:
+                    # Case ('middle', int, int)
+                    side, thickness_left, thickness_right = v
+                    if side != 'middle':
+                        raise ValueError("Expected side 'middle', not `%s`" % side)
+                    sub_dimensions.append(SubDimension.middle('%si' % k.name, k,
+                                                              thickness_left,
+                                                              thickness_right))
+                except ValueError:
+                    side, thickness = v
+                    if side == 'left':
+                        sub_dimensions.append(SubDimension.left('%sleft' % k.name, k,
+                                                                thickness))
+                    elif side == 'right':
+                        sub_dimensions.append(SubDimension.right('%sright' % k.name, k,
+                                                                 thickness))
+                    else:
+                        raise ValueError("Expected sides 'left|right', not `%s`" % side)
+        self._dimensions = tuple(sub_dimensions)
+
+    def __eq__(self, other):
+        if not isinstance(other, SubDomain):
+            return False
+        return self.name == other.name and self.dimensions == other.dimensions
+
+    def __hash__(self):
+        return hash((self.name, self.dimensions))
+
+    def __str__(self):
+        return "SubDomain[%s]" % self.name
+
+    __repr__ = __str__
+
+    @property
+    def finalized(self):
+        return self._dimensions is not None
+
+    @property
+    def dimensions(self):
+        return self._dimensions
+
+    @property
+    def dimension_map(self):
+        return {d.parent: d for d in self.dimensions}
+
+    def define(self, dimensions):
+        """
+        Return a dictionary ``M : D -> V``, where: ::
+
+            * D are the Grid dimensions
+            * M(d) = {d, ('left', int), ('middle', int, int), ('right', int, int)}.
+              If ``M(d) = d``, the SubDomain spans the entire domain along the
+              :class:`Dimension` ``d``. In all other cases, the SubDomain spans
+              a contiguous subregion of the domain. For example, if
+              ``M(d) = ('left', 4)``, The SubDomain has thickness 4 near ``d``'s
+              left extreme.
+
+        .. note::
+
+            This method should be overridden by each subclass of SubDomain that
+            wants to define a new type of subdomain.
+        """
+        raise NotImplementedError
 
 
-DOMAIN = SubDomain('DOMAIN')
-"""
-The entire computational domain (== boundary + interior).
-"""
+class Domain(SubDomain):
 
-INTERIOR = SubDomain('INTERIOR')
-"""
-The interior of the computational domain (i.e., boundaries are excluded).
-"""
+    """
+    The entire computational domain (== boundary + interior).
+    """
+
+    name = 'domain'
+
+    def define(self, dimensions):
+        return dict(zip(dimensions, dimensions))
+
+
+class Interior(SubDomain):
+
+    """
+    The interior of the computational domain (i.e., boundaries are excluded).
+    """
+
+    name = 'interior'
+
+    def define(self, dimensions):
+        return {d: ('middle', 1, 1) for d in dimensions}

@@ -7,7 +7,7 @@ import pytest
 from conftest import skipif_yask, configuration_override
 
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
-                    Eq, Operator, Constant, SubDimension, DOMAIN, INTERIOR)
+                    Eq, Operator, Constant, SubDimension)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
@@ -16,14 +16,16 @@ class TestSubDimension(object):
     def test_interior(self):
         """
         Tests application of an Operator consisting of a single equation
-        over the ``INTERIOR`` subdomain.
+        over the ``interior`` subdomain.
         """
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
 
+        interior = grid.interior
+
         u = TimeFunction(name='u', grid=grid)
 
-        eqn = [Eq(u.forward, u + 2, subdomain=INTERIOR)]
+        eqn = [Eq(u.forward, u + 2, subdomain=interior)]
 
         op = Operator(eqn, dle='noop')
         op.apply(time_M=2)
@@ -37,15 +39,17 @@ class TestSubDimension(object):
     def test_domain_vs_interior(self):
         """
         Tests application of an Operator consisting of two equations, one
-        over the whole domain (default), and one over the ``INTERIOR`` subdomain.
+        over the whole domain (default), and one over the ``interior`` subdomain.
         """
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
         t = grid.stepping_dim  # noqa
 
+        interior = grid.interior
+
         u = TimeFunction(name='u', grid=grid)  # noqa
         eqs = [Eq(u.forward, u + 1),
-               Eq(u.forward, u.forward + 2, subdomain=INTERIOR)]
+               Eq(u.forward, u.forward + 2, subdomain=interior)]
 
         op = Operator(eqs, dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
@@ -125,7 +129,7 @@ class TestSubDimension(object):
     def test_flow_detection_interior(self):
         """
         Test detection of flow directions when :class:`SubDimension`s are used
-        (in this test they are induced by the ``INTERIOR`` subdomain).
+        (in this test they are induced by the ``interior`` subdomain).
 
         Stencil uses values at new timestep as well as those at previous ones
         This forces an evaluation order onto x.
@@ -143,14 +147,17 @@ class TestSubDimension(object):
                         v  /    v    /   v   /
         t=1            44 -+--- 11 -+--- 2--+ -- 0
         """
-
         grid = Grid(shape=(10, 10))
         x, y = grid.dimensions
+
+        interior = grid.interior
+
         u = TimeFunction(name='u', grid=grid, save=10, time_order=1, space_order=0)
+
         step = Eq(u.forward, 2*u
                   + 3*u.subs(x, x+x.spacing)
                   + 4*u.forward.subs(x, x+x.spacing),
-                  subdomain=INTERIOR)
+                  subdomain=interior)
         op = Operator(step)
 
         u.data[0, 5, 5] = 1.0
@@ -161,7 +168,7 @@ class TestSubDimension(object):
         assert u.data[1, 2, 5] == 4*44
         assert u.data[1, 1, 5] == 4*4*44
 
-        # This point isn't updated because of the INTERIOR selection
+        # This point isn't updated because of the `interior` selection
         assert u.data[1, 0, 5] == 0
 
         assert np.all(u.data[1, 6:, :] == 0)
@@ -171,15 +178,15 @@ class TestSubDimension(object):
     @skipif_yask
     @pytest.mark.parametrize('exprs,expected,', [
         # Carried dependence in both /t/ and /x/
-        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=DOMAIN)'], 'y'),
-        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=INTERIOR)'], 'yi'),
+        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y])'], 'y'),
+        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=interior)'], 'yi'),
         # Carried dependence in both /t/ and /y/
-        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=DOMAIN)'], 'x'),
-        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=INTERIOR)'], 'xi'),
+        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y])'], 'x'),
+        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)'], 'xi'),
         # Carried dependence in /y/, leading to separate /y/ loops, one
         # going forward, the other backward
-        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=INTERIOR)',
-          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], subdomain=INTERIOR)'], 'xi'),
+        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)',
+          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], subdomain=interior)'], 'xi'),
     ])
     def test_iteration_property_parallel(self, exprs, expected):
         """Tests detection of sequental and parallel Iterations when applying
@@ -187,6 +194,9 @@ class TestSubDimension(object):
         grid = Grid(shape=(20, 20))
         x, y = grid.dimensions  # noqa
         t = grid.time_dim  # noqa
+
+        interior = grid.interior  # noqa
+
         u = TimeFunction(name='u', grid=grid, save=10, time_order=1)  # noqa
 
         # List comprehension would need explicit locals/globals mappings to eval
