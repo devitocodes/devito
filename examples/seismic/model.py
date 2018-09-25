@@ -441,14 +441,15 @@ class Pysical_Model(object):
     """
     def __init__(self, origin, spacing, shape, space_order, nbpml=20,
                  dtype=np.float32):
-        self.shape = shape
+        self.physical_shape = shape
         self.nbpml = int(nbpml)
-        self.origin = tuple([dtype(o) for o in origin])
+        self.origin = tuple([dtype(o - nbpml * s) for s, o in zip(spacing, origin)])
 
         shape_pml = np.array(shape) + 2 * self.nbpml
+        self.shape = shape_pml
         # Physical extent is calculated per cell, so shape - 1
         extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = Grid(extent=extent, shape=shape_pml, origin=origin, dtype=dtype)
+        self.grid = Grid(extent=extent, shape=shape_pml, origin=self.origin, dtype=dtype)
 
     def physical_params(self, **kwargs):
         """
@@ -490,7 +491,7 @@ class Pysical_Model(object):
         """
         Physical size of the domain as determined by shape and spacing
         """
-        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
+        return tuple((d-1) * s for d, s in zip(self.physical_shape, self.spacing))
 
 
 class Model(Pysical_Model):
@@ -536,7 +537,7 @@ class Model(Pysical_Model):
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbpml, self.shape, spacing=self.spacing)
+        initialize_damp(self.damp, self.nbpml, self.physical_shape, spacing=self.spacing)
 
         # Additional parameter fields for TTI operators
         self.scale = 1.

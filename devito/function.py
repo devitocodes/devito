@@ -1174,8 +1174,9 @@ class AbstractSparseFunction(TensorFunction):
         Thus, sparse data values along the boundary of two or more MPI
         ranks are duplicated.
         """
+        rank = self.grid.distributor.comm.rank
         dmap = self._dist_datamap
-        mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
+        mask = np.array(flatten(dmap[i] for i in sorted(dmap) if i == rank), dtype=int)
         ret = [slice(None) for i in range(self.ndim)]
         ret[self._sparse_position] = mask
         return ret
@@ -1197,10 +1198,11 @@ class AbstractSparseFunction(TensorFunction):
         in which duplicate sparse data values have been discarded. The
         resulting data array can thus be used to populate ``self.data``.
         """
-        ret = list(self._dist_scatter_mask)
-        mask = ret[self._sparse_position]
-        ret[self._sparse_position] = [mask.tolist().index(i)
-                                      for i in filter_ordered(mask)]
+        dmap = self._dist_datamap
+        rank = self.grid.distributor.comm.rank
+        ret = [slice(None) for i in range(self.ndim)]
+        mask = np.array(flatten(dmap[i] for i in dmap if i != rank), dtype=int)
+        ret[self._sparse_position] = mask
         return ret
 
     @property
@@ -1214,6 +1216,7 @@ class AbstractSparseFunction(TensorFunction):
         comm = self.grid.distributor.comm
 
         ssparse = np.array([len(dmap.get(i, [])) for i in range(comm.size)], dtype=int)
+        ssparse[comm.rank] = 0
         rsparse = np.empty(comm.size, dtype=int)
         comm.Alltoall(ssparse, rsparse)
 
@@ -1225,6 +1228,7 @@ class AbstractSparseFunction(TensorFunction):
         Return the metadata necessary to perform an ``MPI_Alltoallv`` distributing
         the sparse data values across the MPI ranks needing them.
         """
+        comm = self.grid.distributor.comm
         ssparse, rsparse = self._dist_count
 
         # Per-rank shape of send/recv data
@@ -1245,12 +1249,13 @@ class AbstractSparseFunction(TensorFunction):
 
         # Per-rank displacement of send/recv data (it's actually all contiguous,
         # but the Alltoallv needs this information anyway)
-        sdisp = np.concatenate([[0], np.cumsum(scount)[:-1]])
+        sdisp =  np.array([0 for _ in range(comm.size)], dtype=int)
+        sdisp[comm.rank] = sum(scount)
         rdisp = np.concatenate([[0], tuple(np.cumsum(rcount))[:-1]])
 
         # Total shape of send/recv data
         sshape = list(self.shape)
-        sshape[self._sparse_position] = sum(ssparse)
+        sshape[self._sparse_position] = len(self._dist_datamap.get(comm.rank, []))
         rshape = list(self.shape)
         rshape[self._sparse_position] = sum(rsparse)
 
@@ -1631,6 +1636,7 @@ class SparseFunction(AbstractSparseFunction):
     @property
     def _dist_subfunc_alltoall(self):
         ssparse, rsparse = self._dist_count
+        comm = self.grid.distributor.comm
 
         # Per-rank shape of send/recv `coordinates`
         sshape = [(i, self.grid.dim) for i in ssparse]
@@ -1642,12 +1648,13 @@ class SparseFunction(AbstractSparseFunction):
 
         # Per-rank displacement of send/recv `coordinates` (it's actually all
         # contiguous, but the Alltoallv needs this information anyway)
-        sdisp = np.concatenate([[0], np.cumsum(scount)[:-1]])
+        sdisp =  np.array([0 for _ in range(comm.size)], dtype=int)
+        sdisp[comm.rank] = sum(scount)
         rdisp = np.concatenate([[0], tuple(np.cumsum(rcount))[:-1]])
 
         # Total shape of send/recv `coordinates`
         sshape = list(self.coordinates.shape)
-        sshape[0] = sum(ssparse)
+        sshape[0] = len(self._dist_datamap.get(comm.rank, []))
         rshape = list(self.coordinates.shape)
         rshape[0] = sum(rsparse)
 
@@ -1670,7 +1677,6 @@ class SparseFunction(AbstractSparseFunction):
         scattered = np.empty(shape=rshape, dtype=self.dtype)
         comm.Alltoallv([data, scount, sdisp, mpitype],
                        [scattered, rcount, rdisp, mpitype])
-        data = scattered
 
         # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
         coords = self.coordinates.data[self._dist_subfunc_scatter_mask]
@@ -1679,12 +1685,11 @@ class SparseFunction(AbstractSparseFunction):
         scattered = np.empty(shape=rshape, dtype=self.coordinates.dtype)
         comm.Alltoallv([coords, scount, sdisp, mpitype],
                        [scattered, rcount, rdisp, mpitype])
-        coords = scattered
 
         # Translate global coordinates into local coordinates
         coords = coords - np.array(self.grid.origin_domain, dtype=self.dtype)
 
-        return {self: data, self.coordinates: coords}
+        return {self: np.ascontiguousarray(data), self.coordinates: coords}
 
     def _dist_gather(self, data):
         comm = self.grid.distributor.comm
@@ -1694,15 +1699,20 @@ class SparseFunction(AbstractSparseFunction):
             return
 
         # Send back the sparse point values
-        sshape, scount, sdisp, _, rcount, rdisp = self._dist_alltoall
-        gathered = np.empty(shape=sshape, dtype=self.dtype)
+        sshape, scount, sdisp, rshape, rcount, rdisp = self._dist_alltoall
+        gathered = np.empty(shape=rshape, dtype=self.dtype)
         mpitype = MPI._typedict[np.dtype(self.dtype).char]
-        comm.Alltoallv([data, rcount, rdisp, mpitype],
-                       [gathered, scount, sdisp, mpitype])
-        data = gathered
+        comm.Alltoallv([data, scount, sdisp, mpitype],
+                       [gathered, rcount, rdisp, mpitype])
+        # data = gathered
 
         # Insert back into `self.data` based on the original (expected) data layout
-        self.data[:] = data[self._dist_gather_mask]
+        if data.shape[1] > 0:
+            print(self._dist_scatter_mask, data.shape)
+            self.data[self._dist_scatter_mask] += data
+        # if gathered.shape[1] > 0:
+        #     self.data[self._dist_gather_mask] += gathered[1:len(self._dist_gather_mask)]
+
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
         # in `_dist_scatter` is here received; a sparse point that is received in

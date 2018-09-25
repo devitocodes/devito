@@ -77,11 +77,10 @@ def ForwardOperator(model, source, receiver, space_order=4,
     eqn = iso_stencil(u, m, s, damp, kernel)
 
     # Construct expression to inject source values
-    src_term = src.inject(field=u.forward, expr=src * s**2 / m,
-                          offset=model.nbpml)
+    src_term = src.inject(field=u.forward, expr=src * s**2 / m)
 
     # Create interpolation expression for receivers
-    rec_term = rec.interpolate(expr=u, offset=model.nbpml)
+    rec_term = rec.interpolate(expr=u)
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
@@ -112,11 +111,10 @@ def AdjointOperator(model, source, receiver, space_order=4,
     eqn = iso_stencil(v, m, s, damp, kernel, forward=False)
 
     # Construct expression to inject receiver values
-    receivers = rec.inject(field=v.backward, expr=rec * s**2 / m,
-                           offset=model.nbpml)
+    receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
 
     # Create interpolation expression for the adjoint-source
-    source_a = srca.interpolate(expr=v, offset=model.nbpml)
+    source_a = srca.interpolate(expr=v)
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + receivers + source_a, subs=model.spacing_map,
@@ -153,8 +151,7 @@ def GradientOperator(model, source, receiver, space_order=4, save=True,
     elif kernel == 'OT4':
         gradient_update = Inc(grad, - (u.dt2 + s**2 / 12.0 * u.laplace2(m**(-2))) * v)
     # Add expression for receiver injection
-    receivers = rec.inject(field=v.backward, expr=rec * s**2 / m,
-                           offset=model.nbpml)
+    receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
@@ -192,11 +189,10 @@ def BornOperator(model, source, receiver, space_order=4,
     eqn2 = iso_stencil(U, m, s, damp, kernel, q=-dm*u.dt2)
 
     # Add source term expression for u
-    source = src.inject(field=u.forward, expr=src * s**2 / m,
-                        offset=model.nbpml)
+    source = src.inject(field=u.forward, expr=src * s**2 / m)
 
     # Create receiver interpolation expression from U
-    receivers = rec.interpolate(expr=U, offset=model.nbpml)
+    receivers = rec.interpolate(expr=U)
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn1 + source + eqn2 + receivers, subs=model.spacing_map,
