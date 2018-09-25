@@ -88,7 +88,7 @@ class Grid(ArgProvider):
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior()) + as_tuple(subdomains))
         for i in subdomains:
-            i.__subdomain_finalize__(self._dimensions)
+            i.__subdomain_finalize__(self.dimensions, self.shape)
         self._subdomains = subdomains
 
         origin = as_tuple(origin or tuple(0. for _ in self.shape))
@@ -271,7 +271,8 @@ class SubDomain(object):
             raise ValueError("SubDomain requires a `name`")
         self._dimensions = None
 
-    def __subdomain_finalize__(self, dimensions):
+    def __subdomain_finalize__(self, dimensions, shape):
+        # Create the SubDomain's SubDimensions
         sub_dimensions = []
         for k, v in self.define(dimensions).items():
             if isinstance(v, Dimension):
@@ -297,6 +298,10 @@ class SubDomain(object):
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)
         self._dimensions = tuple(sub_dimensions)
 
+        # Compute the SubDomain shape
+        self._shape = tuple(s - (sum(d.thickness_map.values()) if d.is_Sub else 0)
+                            for d, s in zip(self._dimensions, shape))
+
     def __eq__(self, other):
         if not isinstance(other, SubDomain):
             return False
@@ -321,6 +326,10 @@ class SubDomain(object):
     @property
     def dimension_map(self):
         return {d.parent: d for d in self.dimensions}
+
+    @property
+    def shape(self):
+        return self._shape
 
     def define(self, dimensions):
         """
