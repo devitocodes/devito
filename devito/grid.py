@@ -2,8 +2,8 @@ from collections import namedtuple
 
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
-from devito.mpi import Distributor
 from devito.function import Constant
+from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap
 
@@ -49,21 +49,20 @@ class Grid(ArgProvider):
 
        .. code-block:: python
 
-          x ^
-            |
-            |           origin + extent
-            |     x------------x
+                      x
+            |----------------------->
+            |  origin
+            |     o------------o
             |     |            |
             |     |            |
             |     |   DOMAIN   | extent[1]
-            |     |            |
+        y   |     |            |
             |     |            |
             |     |  extent[0] |
-            |     x------------x
-            |  origin
+            |     o------------o
+            |             origin + extent
             |
-            |----------------------->
-                       y
+            v
     """
 
     _default_dimensions = ('x', 'y', 'z')

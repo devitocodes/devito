@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from functools import partial
 from itertools import product
 
 import sympy
@@ -13,13 +12,10 @@ from devito.data import Data, default_allocator, first_touch
 from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
-from devito.finite_difference import (centered, cross_derivative,
-                                      first_derivative, left, right,
-                                      second_derivative, generic_derivative,
-                                      second_cross_derivative)
 from devito.logger import debug, warning
 from devito.parameters import configuration
-from devito.symbolics import indexify, retrieve_indexed
+from devito.symbolics import indexify, retrieve_functions
+from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_mapper,
@@ -28,7 +24,7 @@ from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_mapper
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
-           'PrecomputedSparseTimeFunction', 'Buffer']
+           'PrecomputedSparseTimeFunction', 'Buffer', 'NODE', 'CELL']
 
 
 class Constant(AbstractCachedSymbol, ArgProvider):
@@ -49,21 +45,20 @@ class Constant(AbstractCachedSymbol, ArgProvider):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.dtype = kwargs.get('dtype', np.float32)
             self._value = kwargs.get('value')
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return kwargs.get('dtype', np.float32)
 
     @property
     def data(self):
         """The value of the data object, as a scalar (int, float, ...)."""
-        return self._value
+        return self.dtype(self._value)
 
     @data.setter
     def data(self, val):
         self._value = val
-
-    @property
-    def base(self):
-        return self
 
     @property
     def _arg_names(self):
@@ -108,7 +103,7 @@ class Constant(AbstractCachedSymbol, ArgProvider):
         except AttributeError:
             pass
 
-    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype', '_value']
+    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['_value']
 
 
 class TensorFunction(AbstractCachedFunction, ArgProvider):
@@ -139,11 +134,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             # There may or may not be a `Grid` attached to the TensorFunction
             self._grid = kwargs.get('grid')
 
-            # Staggered mask
-            self._staggered = kwargs.get('staggered', tuple(0 for _ in self.indices))
-            if len(self.staggered) != len(self.indices):
-                raise ValueError("`staggered` needs %s entries for indices %s"
-                                 % (len(self.indices), self.indices))
+            # Staggering metadata
+            self._staggered = self.__staggered_setup__(**kwargs)
 
             # Data-related properties and data initialization
             self._data = None
@@ -203,6 +195,35 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         else:
             return np.float32
 
+    def __staggered_setup__(self, **kwargs):
+        """
+        Setup staggering-related metadata. This method assigns: ::
+
+            * 0 to non-staggered dimensions;
+            * 1 to staggered dimensions.
+        """
+        staggered = kwargs.get('staggered')
+        if staggered is None:
+            self.is_Staggered = False
+            return tuple(0 for _ in self.indices)
+        else:
+            self.is_Staggered = True
+            if staggered is NODE:
+                staggered = ()
+            elif staggered is CELL:
+                staggered = self.indices
+            else:
+                staggered = as_tuple(staggered)
+            mask = []
+            for d in self.indices:
+                if d in staggered:
+                    mask.append(1)
+                elif -d in staggered:
+                    mask.append(-1)
+                else:
+                    mask.append(0)
+            return tuple(mask)
+
     @property
     def _data_buffer(self):
         """Reference to the data. Unlike ``data, data_with_halo, data_allocated``,
@@ -216,6 +237,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @property
     def grid(self):
         return self._grid
+
+    @property
+    def staggered(self):
+        return self._staggered
 
     @property
     def shape(self):
@@ -387,10 +412,6 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return tuple(d for d in self.indices if d.is_Space)
 
     @property
-    def staggered(self):
-        return self._staggered
-
-    @property
     def initializer(self):
         if self._data is not None:
             return self._data.view(np.ndarray)
@@ -547,10 +568,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     # Pickling support
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
-        ['dtype', 'grid', 'staggered', 'initializer']
+        ['grid', 'staggered', 'initializer']
 
 
-class Function(TensorFunction):
+class Function(TensorFunction, Differentiable):
     """A :class:`TensorFunction` providing operations to express
     finite-difference approximation. A ``Function`` encapsulates
     space-varying data; for time-varying data, use :class:`TimeFunction`.
@@ -573,7 +594,14 @@ class Function(TensorFunction):
     :param dimensions: (Optional) symbolic dimensions that define the
                        data layout and function indices of this symbol.
     :param dtype: (Optional) data type of the buffered data.
-    :param staggered: (Optional) tuple containing staggering offsets.
+    :param staggered: (Optional) a :class:`Dimension`, or a tuple of :class:`Dimension`s,
+                      or a :class:`Stagger`, defining how the function is staggered.
+                      For example:
+                      * ``staggered=x`` entails discretization on x edges,
+                      * ``staggered=y`` entails discretization on y edges,
+                      * ``staggered=(x, y)`` entails discretization on xy facets,
+                      * ``staggered=NODE`` entails discretization on node,
+                      * ``staggerd=CELL`` entails discretization on cell.
     :param padding: (Optional) allocate extra grid points at a space dimension
                     boundary. These may be used for data alignment. Defaults to 0.
                     In alternative to an integer, a tuple, indicating the padding
@@ -605,15 +633,6 @@ class Function(TensorFunction):
        :class:`Function` objects are assumed to be constant in time
        and therefore do not support time derivatives. Use
        :class:`TimeFunction` for time-varying grid data.
-
-    .. note::
-
-       The tuple :param staggered: contains a ``1`` in each dimension
-       entry that should be staggered, and ``0`` otherwise. For example,
-       ``staggered=(1, 0, 0)`` entails discretization on horizontal edges,
-       ``staggered=(0, 0, 1)`` entails discretization on vertical edges,
-       ``staggered=(0, 1, 1)`` entails discretization side facets and
-       ``staggered=(1, 1, 1)`` entails discretization on cells.
     """
 
     is_Function = True
@@ -625,80 +644,14 @@ class Function(TensorFunction):
             # Space order
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
-                self.space_order = space_order
+                self._space_order = space_order
             elif isinstance(space_order, tuple) and len(space_order) == 3:
-                self.space_order, _, _ = space_order
+                self._space_order, _, _ = space_order
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
 
             # Dynamically add derivative short-cuts
-            self._initialize_derivatives()
-
-    def _initialize_derivatives(self):
-        """
-        Dynamically create notational shortcuts for space derivatives.
-        """
-        for dim in self.space_dimensions:
-            name = dim.parent.name if dim.is_Derived else dim.name
-            # First derivative, centred
-            dx = partial(first_derivative, order=self.space_order,
-                         dim=dim, side=centered)
-            setattr(self.__class__, 'd%s' % name,
-                    property(dx, 'Return the symbolic expression for '
-                             'the centered first derivative wrt. '
-                             'the %s dimension' % name))
-
-            # First derivative, left
-            dxl = partial(first_derivative, order=self.space_order,
-                          dim=dim, side=left)
-            setattr(self.__class__, 'd%sl' % name,
-                    property(dxl, 'Return the symbolic expression for '
-                             'the left-sided first derivative wrt. '
-                             'the %s dimension' % name))
-
-            # First derivative, right
-            dxr = partial(first_derivative, order=self.space_order,
-                          dim=dim, side=right)
-            setattr(self.__class__, 'd%sr' % name,
-                    property(dxr, 'Return the symbolic expression for '
-                             'the right-sided first derivative wrt. '
-                             'the %s dimension' % name))
-
-            # Second derivative
-            dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
-                          fd_order=int(self.space_order / 2))
-            setattr(self.__class__, 'd%s2' % name,
-                    property(dx2, 'Return the symbolic expression for '
-                             'the second derivative wrt. the '
-                             '%s dimension' % name))
-
-            # Fourth derivative
-            dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
-                          fd_order=max(int(self.space_order / 2), 2))
-            setattr(self.__class__, 'd%s4' % name,
-                    property(dx4, 'Return the symbolic expression for '
-                             'the fourth derivative wrt. the '
-                             '%s dimension' % name))
-
-            for dim2 in self.space_dimensions:
-                name2 = dim2.parent.name if dim2.is_Derived else dim2.name
-                # First cross derivative
-                dxy = partial(cross_derivative, order=self.space_order,
-                              dims=(dim, dim2))
-                setattr(self.__class__, 'd%s%s' % (name, name2),
-                        property(dxy, 'Return the symbolic expression for '
-                                 'the first cross derivative wrt. the '
-                                 '%s and %s dimensions' %
-                                 (name, name2)))
-
-                # Second cross derivative
-                dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
-                                order=self.space_order)
-                setattr(self.__class__, 'd%s2%s2' % (dim.name, name2),
-                        property(dx2y2, 'Return the symbolic expression for '
-                                 'the second cross derivative wrt. the '
-                                 '%s and %s dimensions' %
-                                 (name, name2)))
+            self._fd = generate_fd_shortcuts(self)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -771,25 +724,8 @@ class Function(TensorFunction):
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
 
     @property
-    def laplace(self):
-        """
-        Generates a symbolic expression for the Laplacian, the second
-        derivative wrt. all spatial dimensions.
-        """
-        derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
-
-        return sum([getattr(self, d) for d in derivs[:self.ndim]])
-
-    def laplace2(self, weight=1):
-        """
-        Generates a symbolic expression for the double Laplacian
-        wrt. all spatial dimensions.
-        """
-        order = self.space_order/2
-        first = sum([second_derivative(self, dim=d, order=order)
-                     for d in self.space_dimensions])
-        return sum([second_derivative(first * weight, dim=d, order=order)
-                    for d in self.space_dimensions])
+    def space_order(self):
+        return self._space_order
 
     def sum(self, p=None, dims=None):
         """
@@ -831,7 +767,7 @@ class Function(TensorFunction):
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
-        ['space_order', 'shape', 'dimensions']
+        ['space_order', 'shape', 'dimensions', 'staggered']
 
 
 class TimeFunction(Function):
@@ -873,7 +809,14 @@ class TimeFunction(Function):
     :param time_dim: (Optional) the :class:`Dimension` object to use to represent
                      time in this symbol. Defaults to the time dimension provided
                      by the :class:`Grid`.
-    :param staggered: (Optional) tuple containing staggering offsets.
+    :param staggered: (Optional) a :class:`Dimension`, or a tuple of :class:`Dimension`s,
+                      or a :class:`Stagger`, defining how the function is staggered.
+                      For example:
+                      * ``staggered=x`` entails discretization on x edges,
+                      * ``staggered=y`` entails discretization on y edges,
+                      * ``staggered=(x, y)`` entails discretization on xy facets,
+                      * ``staggered=NODE`` entails discretization on node,
+                      * ``staggerd=CELL`` entails discretization on cell.
     :param padding: (Optional) allocate extra grid points at a space dimension
                     boundary. These may be used for data alignment. Defaults to 0.
                     In alternative to an integer, a tuple, indicating the padding
@@ -915,7 +858,6 @@ class TimeFunction(Function):
 
           In []: TimeFunction(name="a", shape=(20, 30))
           Out[]: a(t, x, y)
-
     """
 
     is_TimeFunction = True
@@ -925,6 +867,8 @@ class TimeFunction(Function):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
+            self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
+            self._time_order = kwargs.get('time_order', 1)
             super(TimeFunction, self).__init__(*args, **kwargs)
 
             # Check we won't allocate too much memory for the system
@@ -932,9 +876,6 @@ class TimeFunction(Function):
             if np.dtype(self.dtype).itemsize * self.size > available_mem:
                 warning("Trying to allocate more memory for symbol %s " % self.name +
                         "than available on physical device, this will start swapping")
-
-            self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
-            self.time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise TypeError("`time_order` must be int")
 
@@ -984,6 +925,10 @@ class TimeFunction(Function):
         return tuple(shape)
 
     @property
+    def time_order(self):
+        return self._time_order
+
+    @property
     def forward(self):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
@@ -998,28 +943,6 @@ class TimeFunction(Function):
         _t = self.indices[self._time_position]
 
         return self.subs(_t, _t - i * _t.spacing)
-
-    @property
-    def dt(self):
-        """Symbol for the first derivative wrt the time dimension"""
-        _t = self.indices[self._time_position]
-        if self.time_order == 1:
-            # This hack is needed for the first-order diffusion test
-            indices = [_t, _t + _t.spacing]
-        else:
-            width = int(self.time_order / 2)
-            indices = [(_t + i * _t.spacing) for i in range(-width, width + 1)]
-
-        return self.diff(_t).as_finite_difference(indices)
-
-    @property
-    def dt2(self):
-        """Symbol for the second derivative wrt the t dimension"""
-        _t = self.indices[0]
-        width_t = int(self.time_order / 2)
-        indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
-
-        return self.diff(_t, _t).as_finite_difference(indt)
 
     @property
     def _time_size(self):
@@ -1098,7 +1021,7 @@ class AbstractSparseFunction(TensorFunction):
             if self.grid is None:
                 raise TypeError('SparseFunction needs `grid` argument')
 
-            self.space_order = kwargs.get('space_order', 0)
+            self._space_order = kwargs.get('space_order', 0)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1310,9 +1233,13 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
             self.nt = nt
 
             self.time_dim = self.indices[self._time_position]
-            self.time_order = kwargs.get('time_order', 1)
+            self._time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise ValueError("`time_order` must be int")
+
+    @property
+    def time_order(self):
+        return self._time_order
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1337,7 +1264,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['nt', 'time_order']
 
 
-class SparseFunction(AbstractSparseFunction):
+class SparseFunction(AbstractSparseFunction, Differentiable):
     """
     A special :class:`TensorFunction` representing a set of sparse point
     objects that are not aligned with the computational grid.
@@ -1543,8 +1470,7 @@ class SparseFunction(AbstractSparseFunction):
         :param increment: (Optional) if True, perform an increment rather
                           than an assignment. Defaults to False.
         """
-        expr = indexify(expr)
-        variables = list(retrieve_indexed(expr))
+        variables = list(retrieve_functions(expr))
 
         # List of indirection indices for all adjacent grid points
         idx_subs, eqns = self._interpolation_indices(variables, offset)
@@ -1571,9 +1497,8 @@ class SparseFunction(AbstractSparseFunction):
         :param offset: Additional offset from the boundary for
                        absorbing boundary conditions.
         """
-        expr = indexify(expr)
-        field = indexify(field)
-        variables = list(retrieve_indexed(expr)) + [field]
+
+        variables = list(retrieve_functions(expr)) + [field]
 
         # List of indirection indices for all adjacent grid points
         idx_subs, eqns = self._interpolation_indices(variables, offset)
@@ -1983,3 +1908,10 @@ class Buffer(Tag):
 
     def __init__(self, value):
         super(Buffer, self).__init__('Buffer', value)
+
+
+class Stagger(Tag):
+    """Stagger region."""
+    pass
+NODE = Stagger('node')  # noqa
+CELL = Stagger('cell')

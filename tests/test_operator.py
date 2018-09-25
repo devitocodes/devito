@@ -1,12 +1,13 @@
 from __future__ import absolute_import
 
-from conftest import EVAL, dims, time, x, y, z, skipif_yask
+from conftest import EVAL, time, x, y, z, skipif_yask
 
 import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
-                    SparseFunction, SparseTimeFunction, Dimension, error)
+                    SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
+                    NODE, CELL)
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -16,7 +17,7 @@ from devito.tools import flatten
 
 def dimify(dimensions):
     assert isinstance(dimensions, str)
-    return tuple(dims()[i] for i in dimensions.split())
+    return tuple(SpaceDimension(name=i) for i in dimensions.split())
 
 
 def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
@@ -283,6 +284,7 @@ class TestArithmetic(object):
         a.data[:] = 2.
         eqn = Eq(a, a + 2.*const)
         op = Operator(eqn)
+
         op.apply(a=a, truc=const)
         assert(np.allclose(a.data, 6.))
 
@@ -320,47 +322,49 @@ class TestAllocation(object):
         assert(np.allclose(m2.data, 0))
         assert(np.array_equal(m.data, m2.data))
 
-    @pytest.mark.parametrize('staggered', [
-        (0, 0), (0, 1), (1, 0), (1, 1),
-        (0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1),
-        (1, 1, 0), (1, 0, 1), (0, 1, 1), (1, 1, 1),
+    @pytest.mark.parametrize('stagg, ndim', [
+        (NODE, 2), (y, 2), (x, 2), (CELL, 2),
+        (NODE, 3), (x, 3), (y, 3), (z, 3),
+        ((x, y), 3), ((x, z), 3), ((y, z), 3), (CELL, 3),
     ])
-    def test_staggered(self, staggered):
+    def test_staggered(self, stagg, ndim):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple(11 for _ in staggered))
-        f = Function(name='f', grid=grid, staggered=staggered)
-        assert f.data.shape == tuple(11-i for i in staggered)
+        grid = Grid(shape=tuple([11]*ndim))
+        f = Function(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape == tuple(11-i for i in f.staggered)
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
         g = Function(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple(5 for _ in staggered)
+        index = tuple(5 for _ in f.staggered)
         set_f = Eq(f[index], 2.)
         set_g = Eq(g[index], 3.)
+
         Operator([set_f, set_g])()
         assert f.data[index] == 2.
 
-    @pytest.mark.parametrize('staggered', [
-        (0, 0, 0), (0, 0, 1), (0, 1, 0), (0, 1, 1),
-        (0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1),
-        (0, 1, 1, 0), (0, 1, 0, 1), (0, 0, 1, 1), (0, 1, 1, 1),
+    @pytest.mark.parametrize('stagg, ndim', [
+        (NODE, 2), (y, 2), (x, 2), ((x, y), 2),
+        (NODE, 3), (x, 3), (y, 3), (z, 3),
+        ((x, y), 3), ((x, z), 3), ((y, z), 3), ((x, y, z), 3),
     ])
-    def test_staggered_time(self, staggered):
+    def test_staggered_time(self, stagg, ndim):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple(11 for _ in staggered[1:]))
-        f = TimeFunction(name='f', grid=grid, staggered=staggered)
-        assert f.data.shape[1:] == tuple(11-i for i in staggered[1:])
+        grid = Grid(shape=tuple([11]*ndim))
+        f = TimeFunction(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape[1:] == tuple(11-i for i in f.staggered[1:])
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
         g = TimeFunction(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple([0] + [5 for _ in staggered[1:]])
+        index = tuple([0] + [5 for _ in f.staggered[1:]])
         set_f = Eq(f[index], 2.)
         set_g = Eq(g[index], 3.)
+
         Operator([set_f, set_g])()
         assert f.data[index] == 2.
 
@@ -657,9 +661,9 @@ class TestArguments(object):
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension(name='p_src')
-        src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim], nt=10,
+        src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=(time, p_dim), nt=10,
                                   npoint=1, coordinates=original_coords, time_order=2)
-        src2 = SparseTimeFunction(name='src2', grid=grid, dimensions=[time, p_dim],
+        src2 = SparseTimeFunction(name='src2', grid=grid, dimensions=(time, p_dim),
                                   npoint=1, nt=10, coordinates=new_coords, time_order=2)
         op = Operator(src1.inject(u, src1))
 

@@ -3,7 +3,7 @@ import os
 
 from devito import Grid, Function, Constant
 from devito.logger import warning
-
+from examples.seismic.utils import scipy_smooth
 
 __all__ = ['Model', 'ModelElastic', 'demo_model']
 
@@ -158,12 +158,12 @@ def demo_model(preset, **kwargs):
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        epsilon = .3*(v - 1.5)
-        delta = .2*(v - 1.5)
-        theta = .5*(v - 1.5)
+        epsilon = scipy_smooth(.3*(v - 1.5))
+        delta = scipy_smooth(.2*(v - 1.5))
+        theta = scipy_smooth(.5*(v - 1.5))
         phi = None
         if len(shape) > 2:
-            phi = .1*(v - 1.5)
+            phi = scipy_smooth(.25*(v - 1.5), shape)
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
@@ -466,6 +466,13 @@ class Pysical_Model(object):
         return self.grid.spacing
 
     @property
+    def space_dimensions(self):
+        """
+        Spatial dimensions of the grid
+        """
+        return self.grid.dimensions
+
+    @property
     def spacing_map(self):
         """
         Map between spacing symbols and their values for each :class:`SpaceDimension`
@@ -673,4 +680,4 @@ class ModelElastic(Pysical_Model):
         #
         # The CFL condtion is then given by
         # dt < h / (sqrt(2) * max(vp)))
-        return self.dtype(.8*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))
+        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))

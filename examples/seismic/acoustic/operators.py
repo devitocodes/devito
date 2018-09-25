@@ -1,6 +1,6 @@
-from sympy import solve, Symbol
+from sympy import Symbol
 
-from devito import Eq, Operator, Function, TimeFunction, Inc
+from devito import Eq, Operator, Function, TimeFunction, Inc, solve
 from examples.seismic import PointSource, Receiver
 
 
@@ -44,7 +44,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     # Add dampening field according to the propagation direction
     eq += damp * field.dt if kwargs.get('forward', True) else -damp * field.dt
     # Solve the symbolic equation for the field to be updated
-    eq_time = solve(eq, next, rational=False, simplify=False)[0]
+    eq_time = solve(eq, next)
     # Get the spacial FD
     lap = laplacian(field, m, s, kernel)
     # return the Stencil with H replaced by its symbolic expression
