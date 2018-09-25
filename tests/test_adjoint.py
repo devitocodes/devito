@@ -86,9 +86,12 @@ class TestAdjoint(object):
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(srca.data.reshape(-1), solver.source.data)
         term2 = linalg.norm(rec.data) ** 2
-        info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %4.4e, ratio: %f'
-             % (term1, term2, (term1 - term2)/term1, term1 / term2))
-        assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
+        if term2 == 0:
+            assert term1 == 0
+        else:
+            info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %4.4e, ratio: %f'
+                 % (term2, term1, (term1 - term2)/term1, term1 / term2))
+            assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('space_order', [4, 8, 12])
     @pytest.mark.parametrize('shape', [(60,), (60, 70), (40, 50, 30)])
@@ -184,3 +187,7 @@ class TestAdjoint(object):
         term1 = np.dot(p2.data.reshape(-1), p.data.reshape(-1))
         term2 = np.dot(c.data.reshape(-1), a.data.reshape(-1))
         assert np.isclose((term1-term2) / term1, 0., atol=1.e-6)
+
+
+if __name__ == "__main__":
+    TestAdjoint().test_adjoint_F('layers', (151, 151), 'OT2', 4, 40)
