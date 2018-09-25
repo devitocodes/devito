@@ -2,32 +2,30 @@
 
 import sympy
 
-from devito.tools import Tag
-
-__all__ = ['Eq', 'Inc', 'DOMAIN', 'INTERIOR', 'solve']
+__all__ = ['Eq', 'Inc', 'solve']
 
 
 class Eq(sympy.Eq):
 
     """
-    A :class:`sympy.Eq` that accepts the additional keyword parameter ``region``.
+    A :class:`sympy.Eq` that accepts the additional keyword parameter ``subdomain``.
 
-    The ``region``, an object of type :class:`Region`, may be used to restrict
-    the execution of the equation to a sub-domain.
+    The ``subdomain``, an object of type :class:`SubDomain`, can be used to
+    restrict the execution of the equation to a particular subdomain.
     """
 
     is_Increment = False
 
     def __new__(cls, *args, **kwargs):
         kwargs['evaluate'] = False
-        region = kwargs.pop('region', DOMAIN)
+        subdomain = kwargs.pop('subdomain', None)
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
-        obj._region = region
+        obj._subdomain = subdomain
         return obj
 
     def xreplace(self, rules):
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
-                         region=self._region)
+                         subdomain=self._subdomain)
 
 
 class Inc(Eq):
@@ -42,28 +40,6 @@ class Inc(Eq):
         return "Inc(%s, %s)" % (self.lhs, self.rhs)
 
     __repr__ = __str__
-
-
-class Region(Tag):
-
-    """
-    A region of the computational domain over which a :class:`Function` is
-    discretized.
-    """
-
-    pass
-
-
-DOMAIN = Region('DOMAIN')
-"""
-Represent the physical domain of the PDE; that is, domain = boundary + interior
-"""
-
-INTERIOR = Region('INTERIOR')
-"""
-Represent the physical interior domain of the PDE; that is, PDE boundaries are
-not included.
-"""
 
 
 def solve(eq, target, **kwargs):
