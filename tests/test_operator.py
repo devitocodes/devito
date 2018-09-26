@@ -1,12 +1,17 @@
 from __future__ import absolute_import
 
+<<<<<<< HEAD
 from conftest import EVAL, dims, time, x, y, z, skipif_yask, skipif_ops
+=======
+from conftest import EVAL, time, x, y, z, skipif_yask
+>>>>>>> master
 
 import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
-                    SparseFunction, SparseTimeFunction, Dimension, error)
+                    SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
+                    NODE, CELL)
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -16,7 +21,7 @@ from devito.tools import flatten
 
 def dimify(dimensions):
     assert isinstance(dimensions, str)
-    return tuple(dims()[i] for i in dimensions.split())
+    return tuple(SpaceDimension(name=i) for i in dimensions.split())
 
 
 def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
@@ -240,7 +245,7 @@ class TestArithmetic(object):
         """Test point-wise arithmetic with stencil offsets and open loop
         boundaries in indexed expression format"""
         i, j, l = dimify('i j l')
-        a = Function(name='a', dimensions=(i, j, l), shape=(3, 5, 6)).indexed
+        a = Function(name='a', dimensions=(i, j, l), shape=(3, 5, 6))
         fa = a.function
         fa.data[0, :, :] = 2.
 
@@ -264,8 +269,7 @@ class TestArithmetic(object):
         coordinates.data[0, 0] = 4
         coordinates.data[0, 1] = 3
 
-        poke_eq = Eq(u.indexed[coordinates.indexed[p_poke, 0],
-                               coordinates.indexed[p_poke, 1]], 1.0)
+        poke_eq = Eq(u[coordinates[p_poke, 0], coordinates[p_poke, 1]], 1.0)
         op = Operator(poke_eq)
         op.apply()
 
@@ -284,6 +288,7 @@ class TestArithmetic(object):
         a.data[:] = 2.
         eqn = Eq(a, a + 2.*const)
         op = Operator(eqn)
+
         op.apply(a=a, truc=const)
         assert(np.allclose(a.data, 6.))
 
@@ -321,47 +326,49 @@ class TestAllocation(object):
         assert(np.allclose(m2.data, 0))
         assert(np.array_equal(m.data, m2.data))
 
-    @pytest.mark.parametrize('staggered', [
-        (0, 0), (0, 1), (1, 0), (1, 1),
-        (0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1),
-        (1, 1, 0), (1, 0, 1), (0, 1, 1), (1, 1, 1),
+    @pytest.mark.parametrize('stagg, ndim', [
+        (NODE, 2), (y, 2), (x, 2), (CELL, 2),
+        (NODE, 3), (x, 3), (y, 3), (z, 3),
+        ((x, y), 3), ((x, z), 3), ((y, z), 3), (CELL, 3),
     ])
-    def test_staggered(self, staggered):
+    def test_staggered(self, stagg, ndim):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple(11 for _ in staggered))
-        f = Function(name='f', grid=grid, staggered=staggered)
-        assert f.data.shape == tuple(11-i for i in staggered)
+        grid = Grid(shape=tuple([11]*ndim))
+        f = Function(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape == tuple(11-i for i in f.staggered)
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
         g = Function(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple(5 for _ in staggered)
-        set_f = Eq(f.indexed[index], 2.)
-        set_g = Eq(g.indexed[index], 3.)
+        index = tuple(5 for _ in f.staggered)
+        set_f = Eq(f[index], 2.)
+        set_g = Eq(g[index], 3.)
+
         Operator([set_f, set_g])()
         assert f.data[index] == 2.
 
-    @pytest.mark.parametrize('staggered', [
-        (0, 0, 0), (0, 0, 1), (0, 1, 0), (0, 1, 1),
-        (0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1),
-        (0, 1, 1, 0), (0, 1, 0, 1), (0, 0, 1, 1), (0, 1, 1, 1),
+    @pytest.mark.parametrize('stagg, ndim', [
+        (NODE, 2), (y, 2), (x, 2), ((x, y), 2),
+        (NODE, 3), (x, 3), (y, 3), (z, 3),
+        ((x, y), 3), ((x, z), 3), ((y, z), 3), ((x, y, z), 3),
     ])
-    def test_staggered_time(self, staggered):
+    def test_staggered_time(self, stagg, ndim):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple(11 for _ in staggered[1:]))
-        f = TimeFunction(name='f', grid=grid, staggered=staggered)
-        assert f.data.shape[1:] == tuple(11-i for i in staggered[1:])
+        grid = Grid(shape=tuple([11]*ndim))
+        f = TimeFunction(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape[1:] == tuple(11-i for i in f.staggered[1:])
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
         g = TimeFunction(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple([0] + [5 for _ in staggered[1:]])
-        set_f = Eq(f.indexed[index], 2.)
-        set_g = Eq(g.indexed[index], 3.)
+        index = tuple([0] + [5 for _ in f.staggered[1:]])
+        set_f = Eq(f[index], 2.)
+        set_g = Eq(g[index], 3.)
+
         Operator([set_f, set_g])()
         assert f.data[index] == 2.
 
@@ -616,11 +623,11 @@ class TestArguments(object):
         i, j, k = dimify('i j k')
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
-        a = Function(name='a', grid=grid).indexed
+        a = Function(name='a', grid=grid)
         b = TimeFunction(name='b', grid=grid, save=nt)
         time = b.indices[0]
-        eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
-                 + b.indexed[time, i, j, k] + a[i, j, k])
+        eqn = Eq(b[time + 1, i, j, k], b[time - 1, i, j, k]
+                 + b[time, i, j, k] + a[i, j, k])
         op = Operator(eqn)
         op_arguments = op.arguments(time=nt-10)
         assert(op_arguments[time.min_name] == 1)
@@ -658,9 +665,9 @@ class TestArguments(object):
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension(name='p_src')
-        src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim], nt=10,
+        src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=(time, p_dim), nt=10,
                                   npoint=1, coordinates=original_coords, time_order=2)
-        src2 = SparseTimeFunction(name='src2', grid=grid, dimensions=[time, p_dim],
+        src2 = SparseTimeFunction(name='src2', grid=grid, dimensions=(time, p_dim),
                                   npoint=1, nt=10, coordinates=new_coords, time_order=2)
         op = Operator(src1.inject(u, src1))
 
@@ -782,8 +789,7 @@ class TestArguments(object):
 
         # Try with an operator w/ stencil offsets
         a.data[:] = 1.
-        A = a.indexed
-        op = Operator(Eq(a, a + (A[x-1, y] + A[x+1, y]) / 2.))
+        op = Operator(Eq(a, a + (a[x-1, y] + a[x+1, y]) / 2.))
         op(x_m=3, x_M=7)
         assert (a.data[:3, :] == 1.).all()
         assert (a.data[3:7, :] >= 2.).all()
@@ -1083,8 +1089,8 @@ class TestLoopScheduler(object):
         as the "main" equations.
         """
         grid = Grid(shape=(3, 3, 3), dimensions=(x, y, z), time_dimension=time)
-        a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=6).indexed
+        a = Function(name='a', grid=grid)
+        b = TimeFunction(name='b', grid=grid, save=6)
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
@@ -1177,8 +1183,8 @@ class TestLoopScheduler(object):
         t = grid.stepping_dim
         u1 = TimeFunction(name='u1', grid=grid)
         u2 = TimeFunction(name='u2', grid=grid, save=2)
-        eqn_1 = Eq(u1.indexed[t+1, x, y, z], u1.indexed[t, x, y, z] + 1.)
-        eqn_2 = Eq(u2.indexed[time+1, x, y, z], u2.indexed[time, x, y, z] + 1.)
+        eqn_1 = Eq(u1[t+1, x, y, z], u1[t, x, y, z] + 1.)
+        eqn_2 = Eq(u2[time+1, x, y, z], u2[time, x, y, z] + 1.)
         op = Operator([eqn_1, eqn_2], dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1

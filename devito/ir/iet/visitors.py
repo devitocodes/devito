@@ -203,6 +203,10 @@ class CGen(Visitor):
         return c.Assign(ccode(o.expr.lhs, dtype=o.dtype),
                         ccode(o.expr.rhs, dtype=o.dtype))
 
+    def visit_Increment(self, o):
+        return c.Statement("%s += %s" % (ccode(o.expr.lhs, dtype=o.dtype),
+                                         ccode(o.expr.rhs, dtype=o.dtype)))
+
     def visit_LocalExpression(self, o):
         return c.Initializer(c.Value(c.dtype_to_ctype(o.dtype),
                              ccode(o.expr.lhs, dtype=o.dtype)),

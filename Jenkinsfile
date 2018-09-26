@@ -81,7 +81,7 @@ pipeline {
                          buildDocs()
                      }
                 }
-                stage('Build and test gcc-7 container') {
+                stage('Build and test gcc-7 ops container') {
                      agent { dockerfile { label 'azure-linux'
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=7" } }

@@ -3,7 +3,7 @@ from collections import Iterable, OrderedDict, namedtuple
 import sympy
 from sympy import Number, Indexed, Symbol, LM, LC
 
-from devito.symbolics.extended_sympy import Add, Mul, Eq, FrozenExpr
+from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
@@ -26,6 +26,9 @@ def freeze_expression(expr):
     elif expr.is_Mul:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
         return Mul(*rebuilt_args, evaluate=False)
+    elif expr.is_Pow:
+        rebuilt_args = [freeze_expression(e) for e in expr.args]
+        return Pow(*rebuilt_args, evaluate=False)
     elif expr.is_Equality:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
         if isinstance(expr, FrozenExpr):
@@ -160,11 +163,15 @@ def pow_to_mul(expr):
         return expr
     elif expr.is_Pow:
         base, exp = expr.as_base_exp()
-        if exp <= 0 or not exp.is_integer:
-            # Cannot handle powers containing non-integer non-positive exponents
+        if exp > 10 or exp < -10 or int(exp) != exp or exp == 0 or exp == -1:
+            # Large and non-integer powers remain untouched, as do reciprocals
             return expr
-        else:
+        elif exp > 0:
             return sympy.Mul(*[base]*exp, evaluate=False)
+        else:
+            # sympy represents 1/x as Pow(x,-1)
+            posexpr = sympy.Mul(*[base]*(-exp), evaluate=False)
+            return sympy.Pow(posexpr, -1, evaluate=False)
     else:
         return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
 
@@ -189,6 +196,9 @@ def as_symbol(expr):
         raise TypeError("Cannot extract symbol from type %s" % type(expr))
 
 
+AffineFunction = namedtuple("AffineFunction", "var, coeff, shift")
+
+
 def split_affine(expr):
     """
     split_affine(expr)
@@ -198,7 +208,6 @@ def split_affine(expr):
 
     :raises ValueError: If ``expr`` is non affine.
     """
-    AffineFunction = namedtuple("AffineFunction", "var, coeff, shift")
     if expr.is_Number:
         return AffineFunction(None, None, expr)
     poly = expr.as_poly()
@@ -240,12 +249,15 @@ def convert_to_SSA(exprs):
     processed = []
     for i, e in enumerate(exprs):
         where = seen[e.lhs]
-        if len(where) > 1 and where[-1] != i:
-            # LHS needs SSA form
-            ssa_lhs = dSymbol(name='ssa_t%d' % c, dtype=e.lhs.base.function.dtype)
-            processed.append(e.func(ssa_lhs, e.rhs.xreplace(mapper)))
-            mapper[e.lhs] = ssa_lhs
-            c += 1
+        if len(where) > 1:
+            # Transform into SSA until the very last write, excluded
+            if where[-1] != i:
+                ssa_lhs = dSymbol(name='ssa_t%d' % c, dtype=e.lhs.base.function.dtype)
+                processed.append(e.func(ssa_lhs, e.rhs.xreplace(mapper)))
+                mapper[e.lhs] = ssa_lhs
+                c += 1
+            else:
+                processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
         else:
-            processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
+            processed.append(e)
     return processed

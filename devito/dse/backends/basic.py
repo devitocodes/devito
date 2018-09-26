@@ -5,7 +5,8 @@ from sympy import cos, sin
 
 from devito.dse.backends import AbstractRewriter, dse_pass
 from devito.dse.manipulation import common_subexprs_elimination
-from devito.symbolics import Eq, bhaskara_cos, bhaskara_sin, retrieve_indexed, q_affine
+from devito.symbolics import (Eq, bhaskara_cos, bhaskara_sin, retrieve_indexed,
+                              q_affine, q_scalar)
 from devito.types import Scalar
 
 
@@ -29,8 +30,8 @@ class BasicRewriter(AbstractRewriter):
             # (a few lines below), rather retrieving unique indexeds only (a set),
             # is the key to deterministic code generation
             for indexed in retrieve_indexed(e, mode='all'):
-                for i, d in zip(indexed.indices, indexed.base.function.indices):
-                    if q_affine(i, d) or i.is_Number:
+                for i, d in zip(indexed.indices, indexed.function.indices):
+                    if q_affine(i, d) or q_scalar(i):
                         continue
                     elif i not in mapper:
                         mapper[i] = make()
@@ -50,9 +51,11 @@ class BasicRewriter(AbstractRewriter):
         for e in cluster.exprs:
             if e.is_Increment and e.lhs.function.is_Input:
                 handle = Scalar(name=template(), dtype=e.dtype).indexify()
-                extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
-                processed.extend([Eq(handle, extracted),
-                                  e.func(e.lhs, handle + e.lhs)])
+                if e.rhs.is_Symbol:
+                    extracted = e.rhs
+                else:
+                    extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
+                processed.extend([Eq(handle, extracted), e.func(e.lhs, handle)])
             else:
                 processed.append(e)
 

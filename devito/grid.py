@@ -2,8 +2,8 @@ from collections import namedtuple
 
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
-from devito.mpi import Distributor
 from devito.function import Constant
+from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap
 
@@ -49,21 +49,20 @@ class Grid(ArgProvider):
 
        .. code-block:: python
 
-          x ^
-            |
-            |           origin + extent
-            |     x------------x
+                      x
+            |----------------------->
+            |  origin
+            |     o------------o
             |     |            |
             |     |            |
             |     |   DOMAIN   | extent[1]
-            |     |            |
+        y   |     |            |
             |     |            |
             |     |  extent[0] |
-            |     x------------x
-            |  origin
+            |     o------------o
+            |             origin + extent
             |
-            |----------------------->
-                       y
+            v
     """
 
     _default_dimensions = ('x', 'y', 'z')
@@ -137,6 +136,15 @@ class Grid(ArgProvider):
         Map between spacing symbols and their values for each :class:`SpaceDimension`
         """
         return dict(zip(self.spacing_symbols, self.spacing))
+
+    @property
+    def origin_domain(self):
+        """
+        Origin of the local (per-process) physical domain.
+        """
+        grid_origin = [min(i) for i in self.distributor.glb_numb]
+        assert len(grid_origin) == len(self.spacing)
+        return tuple(i*h for i, h in zip(grid_origin, self.spacing))
 
     @property
     def shape(self):

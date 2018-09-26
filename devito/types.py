@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from cached_property import cached_property
 import weakref
 import abc
 import gc
@@ -185,7 +186,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
 
 class AbstractCachedSymbol(AbstractSymbol, Cached):
     """
-    Base class for dimension-free symbols, cached by both Devito and Sympy.
+    Base class for dimension-free symbols, cached by both Devito and SymPy.
 
     For more information, refer to the documentation of :class:`AbstractSymbol`.
     """
@@ -203,6 +204,7 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
             newobj = sympy.Symbol.__new__(newcls, name, *args, **options)
 
             # Initialization
+            newobj._dtype = cls.__dtype_setup__(**kwargs)
             newobj.__init__(*args, **kwargs)
 
             # Store new instance in symbol cache
@@ -211,8 +213,22 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
 
     __hash__ = Cached.__hash__
 
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        """Extract the object data type from ``kwargs``."""
+        return None
+
+    @property
+    def base(self):
+        return self
+
+    @property
+    def dtype(self):
+        """Return the data type of the object."""
+        return self._dtype
+
     # Pickling support
-    _pickle_kwargs = ['name']
+    _pickle_kwargs = ['name', 'dtype']
     __reduce_ex__ = Pickable.__reduce_ex__
 
     @property
@@ -226,30 +242,23 @@ class Symbol(AbstractCachedSymbol):
 
     is_Symbol = True
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.dtype = kwargs.get('dtype', np.int32)
-
-    @property
-    def base(self):
-        return self
-
-    # Pickling support
-    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['dtype']
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return kwargs.get('dtype', np.int32)
 
 
 class Scalar(Symbol):
     """Symbolic object representing a scalar.
 
-    :param name: Name of the symbol
-    :param dtype: Data type of the scalar
+    :param name: Name of the symbol.
+    :param dtype: (Optional) data type of the object. Defaults to float32.
     """
 
     is_Scalar = True
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.dtype = kwargs.get('dtype', np.float32)
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return kwargs.get('dtype', np.float32)
 
     @property
     def _mem_stack(self):
@@ -430,8 +439,9 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         halo_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_halo]
         padding_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_padding]
         domain_sizes = [i.symbolic_size for i in self.indices]
-        return tuple(sympy.Add(i, j, k, evaluate=False)
-                     for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
+        ret = tuple(sympy.Add(i, j, k, evaluate=False)
+                    for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
+        return EnrichedTuple(*ret, getters=self.dimensions)
 
     @property
     def indexed(self):
@@ -472,7 +482,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     def padding(self):
         return self._padding
 
-    @property
+    @cached_property
     def _offset_domain(self):
         """
         The number of grid points between the first (last) allocated element
@@ -487,7 +497,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
         return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
-    @property
+    @cached_property
     def _offset_halo(self):
         """
         The number of grid points between the first (last) allocated element
@@ -502,7 +512,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
         return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
-    @property
+    @cached_property
     def _extent_halo(self):
         """
         The number of grid points in the halo region.
@@ -515,7 +525,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
         return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
-    @property
+    @cached_property
     def _extent_padding(self):
         """
         The number of grid points in the padding region.
@@ -595,7 +605,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
                 if side is LEFT:
                     end = offset + extent
                 else:
-                    end = (offset + extent) or None  # The end point won't be 0
+                    if extent == 0:
+                        # The region is empty
+                        assert offset == 0
+                        end = 0
+                    else:
+                        # The region is non-empty (e.g., offset=-1, extent=1), so
+                        # to reach the end point we must use None, not 0
+                        end = (offset + extent) or None
                 index_array.append(slice(offset, end))
             else:
                 index_array.append(slice(None))
@@ -605,9 +622,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """Create a :class:`sympy.Indexed` object from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
-
-        subs = dict([(i.spacing, 1) for i in self.indices])
+        # Only replace spacing -> 1 if used as index
+        subs = dict([(i.spacing, 1) for i in self.indices if
+                     any(i in a.args for a in self.args)])
         indices = [a.subs(subs) for a in self.args]
+
         return Indexed(self.indexed, *indices)
 
     def __getitem__(self, index):
@@ -615,7 +634,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return self.indexed[index]
 
     # Pickling support
-    _pickle_kwargs = ['name', 'halo', 'padding']
+    _pickle_kwargs = ['name', 'dtype', 'halo', 'padding']
     __reduce_ex__ = Pickable.__reduce_ex__
 
     @property

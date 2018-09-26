@@ -290,7 +290,7 @@ def parallel(item):
 
     :parameter item: The test item to run.
     """
-    marker = item.get_marker("parallel")
+    marker = item.get_closest_marker("parallel")
     nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
     for i in nprocs:
         if i < 2:
@@ -322,7 +322,8 @@ def pytest_runtest_setup(item):
         # this test isn't run on only one process
         dummy_test = lambda *args, **kwargs: True
         if item.cls is not None:
-            setattr(item.cls, item.name, dummy_test)
+            attr = item.originalname or item.name
+            setattr(item.cls, attr, dummy_test)
         else:
             item.obj = dummy_test
 

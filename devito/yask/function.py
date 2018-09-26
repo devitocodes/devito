@@ -24,7 +24,11 @@ class Constant(function.Constant):
         value = kwargs.pop('value', 0.)
         super(Constant, self).__init__(*args, value=DataScalar(value), **kwargs)
 
-    @function.Constant.data.setter
+    @property
+    def data(self):
+        return self._value
+
+    @data.setter
     def data(self, val):
         self._value = DataScalar(val)
 
