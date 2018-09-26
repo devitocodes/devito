@@ -4,7 +4,8 @@ from sympy import Basic, S
 from devito.dimension import Dimension
 from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
-from devito.tools import Tag, as_tuple, is_integer, filter_sorted, flatten
+from devito.tools import (Tag, as_tuple, is_integer, filter_sorted,
+                          flatten, memoized_meth)
 
 __all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
 
@@ -80,6 +81,9 @@ class Vector(tuple):
     def __eq__(self, other):
         return super(Vector, self).__eq__(other)
 
+    def __hash__(self):
+        return super(Vector, self).__hash__()
+
     @_asvector(relax=True)
     def __ne__(self, other):
         return super(Vector, self).__ne__(other)
@@ -131,6 +135,7 @@ class Vector(tuple):
     def sum(self):
         return sum(self)
 
+    @memoized_meth
     def distance(self, other):
         """
         Compute the distance from ``self`` to ``other``.
@@ -198,6 +203,9 @@ class IterationInstance(Vector):
         if isinstance(other, IterationInstance) and self.findices != other.findices:
             raise TypeError("Cannot compare due to mismatching `findices`")
         return super(IterationInstance, self).__eq__(other)
+
+    def __hash__(self):
+        return super(IterationInstance, self).__hash__()
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -268,11 +276,11 @@ class IterationInstance(Vector):
                 aindices.append(dims.pop() if len(dims) == 1 else None)
         return tuple(aindices)
 
-    @property
+    @cached_property
     def findices_affine(self):
         return tuple(fi for fi, im in zip(self.findices, self.index_mode) if im == AFFINE)
 
-    @property
+    @cached_property
     def findices_irregular(self):
         return tuple(fi for fi, im in zip(self.findices, self.index_mode)
                      if im == IRREGULAR)
@@ -385,6 +393,9 @@ class Access(IterationInstance):
             isinstance(other, Access) and\
             self.function == other.function
 
+    def __hash__(self):
+        return super(Access, self).__hash__()
+
     @property
     def name(self):
         return self.function.name
@@ -471,6 +482,9 @@ class TimedAccess(Access):
         return super(TimedAccess, self).__eq__(other) and\
             isinstance(other, TimedAccess) and\
             self.directions == other.directions
+
+    def __hash__(self):
+        return super(TimedAccess, self).__hash__()
 
     def __lt__(self, other):
         if not isinstance(other, TimedAccess):
@@ -601,6 +615,7 @@ class Dependence(object):
         independent of ``dim``, False otherwise."""
         return self.is_reduce(dim) or self.is_indep(dim)
 
+    @memoized_meth
     def is_indep(self, dim=None):
         """Return True if definitely a dimension-independent dependence,
         False otherwise."""
@@ -628,7 +643,7 @@ class Dependence(object):
 
     def is_inplace(self, dim=None):
         """Stronger than ``is_indep()``, as it also compares the timestamps."""
-        return self.is_indep(dim) and self.source.lex_eq(self.sink)
+        return self.source.lex_eq(self.sink) and self.is_indep(dim)
 
     def __repr__(self):
         return "%s -> %s" % (self.source, self.sink)
