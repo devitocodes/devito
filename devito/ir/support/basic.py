@@ -269,11 +269,11 @@ class IterationInstance(Vector):
                 aindices.append(dims.pop() if len(dims) == 1 else None)
         return tuple(aindices)
 
-    @property
+    @cached_property
     def findices_affine(self):
         return tuple(fi for fi, im in zip(self.findices, self.index_mode) if im == AFFINE)
 
-    @property
+    @cached_property
     def findices_irregular(self):
         return tuple(fi for fi, im in zip(self.findices, self.index_mode)
                      if im == IRREGULAR)
