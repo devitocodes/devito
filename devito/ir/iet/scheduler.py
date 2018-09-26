@@ -2,10 +2,10 @@ from collections import OrderedDict
 
 from devito.cgen_utils import Allocator
 from devito.dimension import ConditionalDimension
-from devito.ir.iet import (Expression, LocalExpression, Element, Iteration, List,
-                           Conditional, Section, HaloSpot, ExpressionBundle, MetaCall,
-                           MapExpressions, Transformer, FindNodes, FindSymbols,
-                           XSubs, iet_analyze, filter_iterations)
+from devito.ir.iet import (Expression, Increment, LocalExpression, Element, Iteration,
+                           List, Conditional, Section, HaloSpot, ExpressionBundle,
+                           MetaCall, MapExpressions, Transformer, FindNodes,
+                           FindSymbols, XSubs, iet_analyze, filter_iterations)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper
 
@@ -42,7 +42,7 @@ def iet_make(stree):
             return List(body=queues.pop(i))
 
         elif i.is_Exprs:
-            exprs = [Expression(e) for e in i.exprs]
+            exprs = [Increment(e) if e.is_Increment else Expression(e) for e in i.exprs]
             body = [ExpressionBundle(i.shape, i.ops, i.traffic, body=exprs)]
 
         elif i.is_Conditional:
@@ -99,7 +99,7 @@ def iet_lower_dimensions(iet):
     # Lower ConditionalDimensions
     cdims = [d for d in FindSymbols('free-symbols').visit(iet)
              if isinstance(d, ConditionalDimension)]
-    mapper = {d: IntDiv(d.parent, d.factor) for d in cdims}
+    mapper = {d: IntDiv(d.index, d.factor) for d in cdims}
     iet = XSubs(mapper).visit(iet)
 
     return iet
@@ -132,7 +132,7 @@ def iet_insert_C_decls(iet, func_table=None):
     # Classify, and then schedule declarations to stack/heap
     for k, v in scopes:
         if k.is_Expression:
-            if k.is_scalar:
+            if k.is_scalar_assign:
                 # Inline declaration
                 mapper[k] = LocalExpression(**k.args)
                 continue

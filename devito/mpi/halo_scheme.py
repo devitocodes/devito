@@ -160,10 +160,12 @@ def hs_classify(scope):
                 raise HaloSchemeException("Inconsistency found while building a halo "
                                           "scheme for `%s` along Dimension `%s`" % (f, d))
             v[d] = unique_hl.pop()
-
-            if configuration['mpi'] and v[d] is UNSUPPORTED:
-                warning("Distributed local-reductions over `%s` along "
-                        "Dimension `%s` detected." % (f, d))
+    # Emit a summary warning
+    for f, v in mapper.items():
+        unsupported = [d for d, hl in v.items() if hl is UNSUPPORTED]
+        if configuration['mpi'] and unsupported:
+            warning("Distributed local-reductions over `%s` along "
+                    "Dimensions `%s` detected." % (f, unsupported))
 
     return mapper
 

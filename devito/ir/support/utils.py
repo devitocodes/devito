@@ -109,7 +109,7 @@ def align_accesses(expr, key=lambda i: False):
     """
     mapper = {}
     for indexed in retrieve_indexed(expr):
-        f = indexed.base.function
+        f = indexed.function
         if not key(f):
             continue
         subs = {i: i + j.left for i, j in zip(indexed.indices, f._offset_domain)}
@@ -170,6 +170,11 @@ def detect_flow_directions(exprs):
     # Add in derived-dimensions parents, in case they haven't been detected yet
     mapper.update({k.parent: set(v) for k, v in mapper.items()
                    if k.is_Derived and mapper.get(k.parent, {Any}) == {Any}})
+
+    # Add in "free" Dimensions, ie Dimensions used as symbols rather than as
+    # array indices
+    mapper.update({d: {Any} for d in flatten(i.free_symbols for i in exprs)
+                   if isinstance(d, Dimension) and d not in mapper})
 
     return mapper
 

@@ -25,7 +25,7 @@ class YaskOmpizer(Ompizer):
             # Turn increments into atomic increments
             subs = {}
             for e in FindNodes(Expression).visit(root):
-                if not e.is_increment:
+                if not e.is_Increment:
                     continue
                 # Try getting the increment components
                 try:

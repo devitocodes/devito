@@ -4,7 +4,11 @@ from functools import reduce
 import numpy as np
 from multidict import MultiDict
 
-__all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict']
+from devito.tools.utils import as_tuple, filter_ordered
+from devito.tools.algorithms import toposort
+
+__all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
+           'PartialOrderTuple']
 
 
 class Bunch(object):
@@ -32,7 +36,7 @@ class EnrichedTuple(tuple):
         return obj
 
     def __getitem__(self, key):
-        if isinstance(key, int):
+        if isinstance(key, (int, slice)):
             return super(EnrichedTuple, self).__getitem__(key)
         else:
             return self._getters[key]
@@ -136,3 +140,41 @@ class DefaultOrderedDict(OrderedDict):
 
     def __copy__(self):
         return type(self)(self.default_factory, self)
+
+
+class PartialOrderTuple(tuple):
+    """
+    A tuple whose elements are ordered according to a set of relations.
+
+    :param items: The elements of the tuple.
+    :param relations: (Optional) an iterable of binary relations between elements
+                      in ``items``. If not provided, then ``items`` is interpreted
+                      as a totally ordered sequence. If provided, then a (partial)
+                      ordering is computed and all elements in ``items`` for which
+                      a relation is not provided are appended.
+    """
+    def __new__(cls, items=None, relations=None):
+        items = as_tuple(items)
+        if relations:
+            items = cls.reorder(items, relations)
+        obj = super(PartialOrderTuple, cls).__new__(cls, items)
+        obj._relations = set(tuple(i) for i in as_tuple(relations))
+        return obj
+
+    @classmethod
+    def reorder(cls, items, relations):
+        return filter_ordered(toposort(relations) + list(items))
+
+    def __eq__(self, other):
+        return super(PartialOrderTuple, self).__eq__(other) and\
+            self.relations == other.relations
+
+    def __hash__(self):
+        return hash(*([i for i in self] + list(self.relations)))
+
+    @property
+    def relations(self):
+        return self._relations
+
+    def generate_ordering(self):
+        raise NotImplementedError

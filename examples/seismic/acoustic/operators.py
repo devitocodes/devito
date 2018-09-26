@@ -1,6 +1,6 @@
-from sympy import solve, Symbol
+from sympy import Symbol
 
-from devito import Eq, Operator, Function, TimeFunction, Inc
+from devito import Eq, Operator, Function, TimeFunction, Inc, solve
 from examples.seismic import PointSource, Receiver
 
 
@@ -44,7 +44,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     # Add dampening field according to the propagation direction
     eq += damp * field.dt if kwargs.get('forward', True) else -damp * field.dt
     # Solve the symbolic equation for the field to be updated
-    eq_time = solve(eq, next, rational=False, simplify=False)[0]
+    eq_time = solve(eq, next)
     # Get the spacial FD
     lap = laplacian(field, m, s, kernel)
     # return the Stencil with H replaced by its symbolic expression
@@ -149,10 +149,9 @@ def GradientOperator(model, source, receiver, space_order=4, save=True,
     eqn = iso_stencil(v, m, s, damp, kernel, forward=False)
 
     if kernel == 'OT2':
-        gradient_update = Inc(grad, grad - u.dt2 * v)
+        gradient_update = Inc(grad, - u.dt2 * v)
     elif kernel == 'OT4':
-        gradient_update = Inc(grad, grad - (u.dt2 +
-                                            s**2 / 12.0 * u.laplace2(m**(-2))) * v)
+        gradient_update = Inc(grad, - (u.dt2 + s**2 / 12.0 * u.laplace2(m**(-2))) * v)
     # Add expression for receiver injection
     receivers = rec.inject(field=v.backward, expr=rec * s**2 / m,
                            offset=model.nbpml)

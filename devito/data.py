@@ -5,11 +5,11 @@ from functools import reduce
 from operator import mul
 
 import numpy as np
-from sympy import Eq
 import ctypes
 from ctypes.util import find_library
 import mmap
 
+from devito.equation import Eq
 from devito.parameters import configuration
 from devito.tools import as_tuple, numpy_to_ctypes
 from devito.logger import logger

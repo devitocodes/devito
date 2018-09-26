@@ -173,11 +173,11 @@ class TestOperatorSimple(object):
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         v = TimeFunction(name='yv4D', grid=grid, space_order=0)
         v.data[:] = 0.
-        eqs = [Eq(u.indexed[0, x, y, z], 0),
-               Eq(u.indexed[1, x, y, z], 0),
+        eqs = [Eq(u[0, x, y, z], 0),
+               Eq(u[1, x, y, z], 0),
                Eq(u.forward, u + 1.),
-               Eq(v.indexed[t + 1, 0, 2, z], v.indexed[t + 1, 0, 2, z] + 2.),
-               Eq(v.indexed[t + 1, 0, 5, z], v.indexed[t + 1, 0, 5, z] + 2.)]
+               Eq(v[t + 1, 0, 2, z], v[t + 1, 0, 2, z] + 2.),
+               Eq(v[t + 1, 0, 5, z], v[t + 1, 0, 5, z] + 2.)]
         op = Operator(eqs)
         op(yu4D=u, yv4D=v, time=0)
         assert 'run_solution' in str(op)
@@ -218,10 +218,10 @@ class TestOperatorSimple(object):
             for j in range(4):
                 for k in range(4):
                     u.data[0, i, j, k] = k
-        ind = lambda i: p.indexed[0, i]
-        eqs = [Eq(p.indexed[0, 0], 3.), Eq(p.indexed[0, 1], 2.),
-               Eq(p.indexed[0, 2], 1.), Eq(p.indexed[0, 3], 0.),
-               Eq(u.indexed[t + 1, ind(x), ind(y), ind(z)], u.indexed[t, x, y, z])]
+        ind = lambda i: p[0, i]
+        eqs = [Eq(p[0, 0], 3.), Eq(p[0, 1], 2.),
+               Eq(p[0, 2], 1.), Eq(p[0, 3], 0.),
+               Eq(u[t + 1, ind(x), ind(y), ind(z)], u[t, x, y, z])]
         op = Operator(eqs, subs=grid.spacing_map)
         op(yu4D=u, time=0)
         assert 'run_solution' not in str(op)
@@ -278,7 +278,7 @@ class TestOperatorSimple(object):
         p = SparseTimeFunction(name='points', grid=grid, nt=1, npoint=1)
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data[:] = 0.
-        op = Operator([Eq(u.forward, u + c), Eq(p.indexed[0, 0], 1. + c)])
+        op = Operator([Eq(u.forward, u + c), Eq(p[0, 0], 1. + c)])
         assert 'run_solution' in str(op)
         op.apply(yu4D=u, c=c, time=9)
         # Check YASK did its job and could read constant grids w/o problems

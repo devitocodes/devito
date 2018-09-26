@@ -2,8 +2,7 @@ from sympy import cos, sin
 
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
-from devito.finite_difference import (centered, first_derivative, right, transpose, left,
-                                      staggered_diff)
+from devito.finite_differences import centered, first_derivative, right, transpose
 
 
 def second_order_stencil(model, u, v, H0, Hz):
@@ -208,6 +207,7 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
                                                 side=centered, order=order1) +
            costheta * first_derivative(field, dim=z,
                                        side=centered, order=order1))
+
     Gzz = (first_derivative(Gz * sintheta * cosphi,
                             dim=x, side=centered, order=order1,
                             matvec=transpose) +
@@ -324,7 +324,6 @@ def kernel_shifted_3d(model, u, v, space_order):
     sintheta = sin(model.theta)
     cosphi = cos(model.phi)
     sinphi = sin(model.phi)
-
     Gxx = Gxx_shifted(u, costheta, sintheta, cosphi, sinphi, space_order)
     Gyy = Gyy_shifted(u, cosphi, sinphi, space_order)
     Gzz = Gzz_shifted(v, costheta, sintheta, cosphi, sinphi, space_order)
@@ -387,8 +386,9 @@ def particle_velocity_fields(model, space_order):
     Initialize partcle vleocity fields for staggered tti
     """
     if model.grid.dim == 2:
-        stagg_x = (0, 1, 0)
-        stagg_z = (0, 0, 1)
+        x, z = model.space_dimensions
+        stagg_x = x
+        stagg_z = z
         x, z = model.grid.dimensions
         # Create symbols for forward wavefield, source and receivers
         vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
@@ -397,9 +397,10 @@ def particle_velocity_fields(model, space_order):
                           time_order=1, space_order=space_order)
         vy = None
     elif model.grid.dim == 3:
-        stagg_x = (0, 1, 0, 0)
-        stagg_y = (0, 0, 1, 0)
-        stagg_z = (0, 0, 0, 1)
+        x, y, z = model.space_dimensions
+        stagg_x = x
+        stagg_y = y
+        stagg_z = z
         x, y, z = model.grid.dimensions
         # Create symbols for forward wavefield, source and receivers
         vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
@@ -428,16 +429,14 @@ def kernel_staggered_2d(model, u, v, space_order):
     vx, vz, _ = particle_velocity_fields(model, space_order)
 
     # Stencils
-    phdx = staggered_diff(u, dim=x, order=space_order, stagger=left, theta=theta)
+    phdx = cos(theta) * u.dx - sin(theta) * u.dy
     u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
 
-    pvdz = staggered_diff(v, dim=z, order=space_order, stagger=left, theta=theta)
+    pvdz = sin(theta) * v.dx + cos(theta) * v.dy
     u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
 
-    dvx = staggered_diff(vx.forward, dim=x, order=space_order, stagger=right,
-                         theta=theta)
-    dvz = staggered_diff(vz.forward, dim=z, order=space_order, stagger=right,
-                         theta=theta)
+    dvx = cos(theta) * vx.forward.dx - sin(theta) * vx.forward.dy
+    dvz = sin(theta) * vz.forward.dx + cos(theta) * vz.forward.dy
 
     # u and v equations
     pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * dvx + dvz)))
@@ -463,27 +462,27 @@ def kernel_staggered_3d(model, u, v, space_order):
     x, y, z = model.grid.dimensions
     # Staggered setup
     vx, vz, vy = particle_velocity_fields(model, space_order)
-
     # Stencils
-    phdx = staggered_diff(u, dim=x, order=space_order, stagger=left,
-                          theta=theta, phi=phi)
+    phdx = (cos(theta) * cos(phi) * u.dx +
+            cos(theta) * sin(phi) * u.dyc -
+            sin(theta) * u.dzc)
     u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
 
-    phdy = staggered_diff(u, dim=y, order=space_order, stagger=left,
-                          theta=theta, phi=phi)
+    phdy = -sin(phi) * u.dxc + cos(phi) * u.dy
     u_vy = Eq(vy.forward, dampl * vy - dampl * s * phdy)
 
-    pvdz = staggered_diff(v, dim=z, order=space_order, stagger=left,
-                          theta=theta, phi=phi)
+    pvdz = (sin(theta) * cos(phi) * v.dxc +
+            sin(theta) * sin(phi) * v.dyc +
+            cos(theta) * v.dz)
     u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
 
-    dvx = staggered_diff(vx.forward, dim=x, order=space_order, stagger=right,
-                         theta=theta, phi=phi)
-    dvy = staggered_diff(vy.forward, dim=y, order=space_order, stagger=right,
-                         theta=theta, phi=phi)
-    dvz = staggered_diff(vz.forward, dim=z, order=space_order, stagger=right,
-                         theta=theta, phi=phi)
-
+    dvx = (cos(theta) * cos(phi) * vx.forward.dx +
+           cos(theta) * sin(phi) * vx.forward.dyc -
+           sin(theta) * vx.forward.dzc)
+    dvy = -sin(phi) * vy.forward.dxc + cos(phi) * vy.forward.dy
+    dvz = (sin(theta) * cos(phi) * vz.forward.dxc +
+           sin(theta) * sin(phi) * vz.forward.dyc +
+           cos(theta) * vz.forward.dz)
     # u and v equations
     pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * (dvx + dvy) + dvz)))
 
@@ -507,11 +506,18 @@ def ForwardOperator(model, source, receiver, space_order=4,
     dt = model.grid.time_dim.spacing
     m = model.m
     time_order = 1 if kernel == 'staggered' else 2
+    if kernel == 'staggered':
+        dims = model.space_dimensions
+        stagg_u = (-dims[-1])
+        stagg_v = (-dims[0], -dims[1]) if model.grid.dim == 3 else (-dims[0])
+    else:
+        stagg_u = stagg_v = None
+
     # Create symbols for forward wavefield, source and receivers
-    u = TimeFunction(name='u', grid=model.grid,
+    u = TimeFunction(name='u', grid=model.grid, staggered=stagg_u,
                      save=source.nt if save else None,
                      time_order=time_order, space_order=space_order)
-    v = TimeFunction(name='v', grid=model.grid,
+    v = TimeFunction(name='v', grid=model.grid, staggered=stagg_v,
                      save=source.nt if save else None,
                      time_order=time_order, space_order=space_order)
     src = PointSource(name='src', grid=model.grid, time_range=source.time_range,
