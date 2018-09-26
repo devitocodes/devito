@@ -25,7 +25,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     if len(shape) > 1:
-        src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
+        src.coordinates.data[0, -1] = 2 * spacing[-1]
     # Define receiver geometry (spread across x, just below surface)
     rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
@@ -58,7 +58,12 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     save = full_run and not checkpointing
     # Define receiver geometry (spread across x, just below surface)
     rec, u, summary = solver.forward(save=save, autotune=autotune)
-
+    import matplotlib.pyplot as plt
+    plt.imshow(rec.data, vmin=-1, vmax=1, cmap="seismic")
+    plt.figure()
+    plt.imshow(np.transpose(u.data[-1, :, :]), vmin=-1, vmax=1, cmap="seismic")
+    plt.show()
+    from IPython import embed; embed()
     if constant:
         # With  a new m as Constant
         m0 = Constant(name="m", value=.25, dtype=np.float32)
@@ -107,9 +112,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 3D preset parameters
-    shape = tuple(args.ndim * [51])
+    shape = tuple(args.ndim * [151])
     spacing = tuple(args.ndim * [15.0])
-    tn = 750. if args.ndim < 3 else 250.
+    tn = 1250. if args.ndim < 3 else 250.
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, constant=args.constant, kernel=args.kernel,

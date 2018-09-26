@@ -1024,14 +1024,14 @@ class TestIsotropicAcoustic(object):
     # TODO: Cannot mark the following test as `xfail` since this marker
     # doesn't cope well with the `parallel` mark. Leaving it commented out
     # for the time being...
-    # @pytest.mark.parametrize('shape, kernel, space_order, nbpml', [
-    #     # 1 tests with varying time and space orders
-    #     ((60, ), 'OT2', 4, 10),
-    # ])
-    # @pytest.mark.parallel(nprocs=2)
-    # def test_adjoint_F(self, shape, kernel, space_order, nbpml):
-    #     from test_adjoint import TestAdjoint
-    #     TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
+    @pytest.mark.parametrize('shape, kernel, space_order, nbpml', [
+        # 1 tests with varying time and space orders
+        ((60, 70), 'OT2', 4, 10),
+    ])
+    @pytest.mark.parallel(nprocs=2)
+    def test_adjoint_F(self, shape, kernel, space_order, nbpml):
+        from test_adjoint import TestAdjoint
+        TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
 
     pass
 
