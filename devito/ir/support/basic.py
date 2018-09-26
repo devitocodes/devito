@@ -4,7 +4,8 @@ from sympy import Basic, S
 from devito.dimension import Dimension
 from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
-from devito.tools import Tag, as_tuple, is_integer, filter_sorted, flatten
+from devito.tools import (Tag, as_tuple, is_integer, filter_sorted,
+                          flatten, memoized_meth)
 
 __all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
 
@@ -586,6 +587,7 @@ class Dependence(object):
         independent of ``dim``, False otherwise."""
         return self.is_reduce(dim) or self.is_indep(dim)
 
+    @memoized_meth
     def is_indep(self, dim=None):
         """Return True if definitely a dimension-independent dependence,
         False otherwise."""
