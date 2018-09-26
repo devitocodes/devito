@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from cached_property import cached_property
 import weakref
 import abc
 import gc
@@ -481,7 +482,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     def padding(self):
         return self._padding
 
-    @property
+    @cached_property
     def _offset_domain(self):
         """
         The number of grid points between the first (last) allocated element
@@ -496,7 +497,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
         return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
-    @property
+    @cached_property
     def _offset_halo(self):
         """
         The number of grid points between the first (last) allocated element
@@ -511,7 +512,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
         return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
-    @property
+    @cached_property
     def _extent_halo(self):
         """
         The number of grid points in the halo region.
@@ -524,7 +525,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
         return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
-    @property
+    @cached_property
     def _extent_padding(self):
         """
         The number of grid points in the padding region.
