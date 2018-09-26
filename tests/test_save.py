@@ -1,6 +1,5 @@
 import numpy as np
 
-from sympy import solve
 from conftest import skipif_yask, skipif_ops
 
 from devito import Buffer, Grid, Eq, Operator, TimeFunction, solve

@@ -19,10 +19,8 @@ from devito.tools import as_tuple
 
 skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
                                  reason="YASK testing is currently restricted")
-
-
 skipif_ops = pytest.mark.skipif(configuration['backend'] == 'ops',
-                                 reason="OPS testing is currently restricted")
+                                reason="OPS testing is currently restricted")
 
 # Testing dimensions for space and time
 grid = Grid(shape=(3, 3, 3))

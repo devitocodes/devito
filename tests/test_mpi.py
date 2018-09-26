@@ -355,9 +355,7 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 
 
 @skipif_yask
-<<<<<<< HEAD
 @skipif_ops
-=======
 class TestSparseFunction(object):
 
     @pytest.mark.parallel(nprocs=4)
@@ -429,7 +427,6 @@ class TestSparseFunction(object):
 
 
 @skipif_yask
->>>>>>> master
 class TestOperatorSimple(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])

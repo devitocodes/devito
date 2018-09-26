@@ -5,7 +5,6 @@ from operator import mul
 import numpy as np
 import pytest
 from conftest import skipif_yask, skipif_ops
-from sympy import solve
 
 from conftest import EVAL
 

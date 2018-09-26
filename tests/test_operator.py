@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from conftest import EVAL, dims, time, x, y, z, skipif_yask, skipif_ops
+from conftest import EVAL, time, x, y, z, skipif_yask, skipif_ops
 
 import numpy as np
 import pytest
@@ -30,6 +30,7 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
 
 
 @skipif_yask
+@skipif_ops
 class TestCodeGen(object):
 
     @classmethod

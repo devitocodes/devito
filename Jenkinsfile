@@ -128,7 +128,7 @@ def cleanWorkspace() {
 def condaInstallDevito () {
     sh 'conda env create -q -f environment.yml'
     sh 'source activate devito ; pip install -e . ; pip install pytest-xdist ; conda list'
-    sh 'source activate devito ; flake8 --exclude .conda,.git --builtins=ArgumentError .'
+    sh 'source activate devito ; flake8 --exclude .conda,.git,.eggs --builtins=ArgumentError .'
 }
 
 def pipInstallDevito () {

@@ -41,7 +41,7 @@ def t(grid):
     return grid.stepping_dim
 
 
-@skipif_yask 
+@skipif_yask
 @skipif_ops
 @pytest.mark.parametrize('SymbolType, dim', [
     (Function, x), (Function, y),
@@ -69,7 +69,7 @@ def test_stencil_derivative(grid, shape, SymbolType, dim):
     assert(np.allclose(u_dii.data, 66.6))
 
 
-@skipif_yask 
+@skipif_yask
 @skipif_ops
 @pytest.mark.parametrize('SymbolType, derivative, dim', [
     (Function, 'dx2', 3), (Function, 'dy2', 3),
@@ -82,7 +82,7 @@ def test_preformed_derivatives(grid, SymbolType, derivative, dim):
     assert(len(expr.args) == dim)
 
 
-@skipif_yask 
+@skipif_yask
 @skipif_ops
 @pytest.mark.parametrize('derivative, dim', [
     ('dx', x), ('dy', y), ('dz', z)
@@ -104,7 +104,7 @@ def test_derivatives_space(grid, derivative, dim, order):
     assert(expr == s_expr)  # Exact equailty
 
 
-@skipif_yask 
+@skipif_yask
 @skipif_ops
 @pytest.mark.parametrize('derivative, dim', [
     ('dx2', x), ('dy2', y), ('dz2', z)
@@ -123,7 +123,7 @@ def test_second_derivatives_space(grid, derivative, dim, order):
     assert(expr == s_expr)  # Exact equailty
 
 
-@skipif_yask 
+@skipif_yask
 @skipif_ops
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
 # Only test x and t as y and z are the same as x
@@ -169,7 +169,7 @@ def test_fd_space(derivative, space_order):
     assert np.isclose(np.mean(error), 0., atol=1e-3)
 
 
-@skipif_yask 
+@skipif_yask
 @skipif_ops
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
 @pytest.mark.parametrize('stagger', [centered, right, left])
@@ -225,7 +225,7 @@ def test_fd_space_staggered(space_order, stagger):
     assert np.isclose(np.mean(error), 0., atol=1e-3)
 
 
-@skipif_yask 
+@skipif_yask
 @skipif_ops
 def test_subsampled_fd():
     """
@@ -257,6 +257,7 @@ def test_subsampled_fd():
 
 
 @skipif_yask
+@skipif_ops
 @pytest.mark.parametrize('expr,expected', [
     ('f.dx', '-f(x)/h_x + f(x + h_x)/h_x'),
     ('f.dx + g.dx', '-f(x)/h_x + f(x + h_x)/h_x - g(x)/h_x + g(x + h_x)/h_x'),

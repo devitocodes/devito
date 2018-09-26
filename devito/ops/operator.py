@@ -1,4 +1,3 @@
-from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
 
 __all__ = ['Operator']
@@ -11,5 +10,3 @@ class Operator(OperatorRunnable):
 
     def _specialize_iet(self, iet, **kwargs):
         raise NotImplementedError
-
-
