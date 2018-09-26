@@ -1,10 +1,7 @@
 import numpy as np
-<<<<<<< HEAD
+
 from sympy import solve
 from conftest import skipif_yask, skipif_ops
-=======
-from conftest import skipif_yask
->>>>>>> master
 
 from devito import Buffer, Grid, Eq, Operator, TimeFunction, solve
 
