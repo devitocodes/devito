@@ -349,6 +349,9 @@
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot extract symbol from type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span></div>
 
 
+<span class="n">AffineFunction</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s2">&quot;AffineFunction&quot;</span><span class="p">,</span> <span class="s2">&quot;var, coeff, shift&quot;</span><span class="p">)</span>
+
+
 <div class="viewcode-block" id="split_affine"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.manipulation.split_affine">[docs]</a><span class="k">def</span> <span class="nf">split_affine</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    split_affine(expr)</span>
@@ -358,7 +361,6 @@
 
 <span class="sd">    :raises ValueError: If ``expr`` is non affine.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">AffineFunction</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s2">&quot;AffineFunction&quot;</span><span class="p">,</span> <span class="s2">&quot;var, coeff, shift&quot;</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">AffineFunction</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
     <span class="n">poly</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_poly</span><span class="p">()</span>
