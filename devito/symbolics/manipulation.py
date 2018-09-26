@@ -196,6 +196,9 @@ def as_symbol(expr):
         raise TypeError("Cannot extract symbol from type %s" % type(expr))
 
 
+AffineFunction = namedtuple("AffineFunction", "var, coeff, shift")
+
+
 def split_affine(expr):
     """
     split_affine(expr)
@@ -205,7 +208,6 @@ def split_affine(expr):
 
     :raises ValueError: If ``expr`` is non affine.
     """
-    AffineFunction = namedtuple("AffineFunction", "var, coeff, shift")
     if expr.is_Number:
         return AffineFunction(None, None, expr)
     poly = expr.as_poly()
