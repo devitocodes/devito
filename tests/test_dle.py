@@ -4,14 +4,10 @@ from functools import reduce
 from operator import mul
 import numpy as np
 import pytest
-<<<<<<< HEAD
 from conftest import skipif_yask, skipif_ops
 from sympy import solve
 
 from conftest import EVAL
-=======
-from conftest import skipif_yask, EVAL
->>>>>>> master
 
 from devito.dle import transform
 from devito import Grid, Function, TimeFunction, Eq, Operator, solve
