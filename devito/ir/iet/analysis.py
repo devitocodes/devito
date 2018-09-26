@@ -96,14 +96,22 @@ def mark_parallel(analysis):
             is_atomic_parallel = True
 
             for dep in analysis.scopes[i].d_all:
-                test0 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
                 test1 = all(dep.is_indep(d) for d in dims)
+                if test1:
+                    continue
+
+                test0 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
+                if test0:
+                    continue
+
                 test2 = all(dep.is_reduce_atmost(d) for d in prev) and dep.is_indep(i.dim)
-                if not (test0 or test1 or test2):
-                    is_parallel = False
-                    if not dep.is_increment:
-                        is_atomic_parallel = False
-                        break
+                if test2:
+                    continue
+
+                is_parallel = False
+                if not dep.is_increment:
+                    is_atomic_parallel = False
+                    break
 
             if is_parallel:
                 properties.setdefault(i, []).append(PARALLEL)
