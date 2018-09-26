@@ -615,7 +615,7 @@ class Dependence(object):
 
     def is_inplace(self, dim=None):
         """Stronger than ``is_indep()``, as it also compares the timestamps."""
-        return self.is_indep(dim) and self.source.lex_eq(self.sink)
+        return self.source.lex_eq(self.sink) and self.is_indep(dim)
 
     def __repr__(self):
         return "%s -> %s" % (self.source, self.sink)
