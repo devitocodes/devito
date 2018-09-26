@@ -81,6 +81,9 @@ class Vector(tuple):
     def __eq__(self, other):
         return super(Vector, self).__eq__(other)
 
+    def __hash__(self):
+        return super(Vector, self).__hash__()
+
     @_asvector(relax=True)
     def __ne__(self, other):
         return super(Vector, self).__ne__(other)
@@ -132,6 +135,7 @@ class Vector(tuple):
     def sum(self):
         return sum(self)
 
+    @memoized_meth
     def distance(self, other):
         """
         Compute the distance from ``self`` to ``other``.
@@ -199,6 +203,9 @@ class IterationInstance(Vector):
         if isinstance(other, IterationInstance) and self.findices != other.findices:
             raise TypeError("Cannot compare due to mismatching `findices`")
         return super(IterationInstance, self).__eq__(other)
+
+    def __hash__(self):
+        return super(IterationInstance, self).__hash__()
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -371,6 +378,9 @@ class Access(IterationInstance):
             isinstance(other, Access) and\
             self.function == other.function
 
+    def __hash__(self):
+        return super(Access, self).__hash__()
+
     @property
     def name(self):
         return self.function.name
@@ -457,6 +467,9 @@ class TimedAccess(Access):
         return super(TimedAccess, self).__eq__(other) and\
             isinstance(other, TimedAccess) and\
             self.directions == other.directions
+
+    def __hash__(self):
+        return super(TimedAccess, self).__hash__()
 
     def __lt__(self, other):
         if not isinstance(other, TimedAccess):
