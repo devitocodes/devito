@@ -156,6 +156,7 @@
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
+
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;q_leaf&#39;</span><span class="p">,</span> <span class="s1">&#39;q_indexed&#39;</span><span class="p">,</span> <span class="s1">&#39;q_terminal&#39;</span><span class="p">,</span> <span class="s1">&#39;q_trigonometry&#39;</span><span class="p">,</span> <span class="s1">&#39;q_op&#39;</span><span class="p">,</span>
            <span class="s1">&#39;q_terminalop&#39;</span><span class="p">,</span> <span class="s1">&#39;q_sum_of_product&#39;</span><span class="p">,</span> <span class="s1">&#39;q_indirect&#39;</span><span class="p">,</span> <span class="s1">&#39;q_timedimension&#39;</span><span class="p">,</span>
            <span class="s1">&#39;q_affine&#39;</span><span class="p">,</span> <span class="s1">&#39;q_linear&#39;</span><span class="p">,</span> <span class="s1">&#39;q_identity&#39;</span><span class="p">,</span> <span class="s1">&#39;q_inc&#39;</span><span class="p">,</span> <span class="s1">&#39;q_scalar&#39;</span><span class="p">,</span>
@@ -260,6 +261,18 @@
     <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="nb">vars</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">x</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">atoms</span><span class="p">():</span>
             <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># The vast majority of calls here are incredibly simple tests</span>
+        <span class="c1"># like q_affine(x+1, [x]).  Catch these quickly and</span>
+        <span class="c1"># explicitly, instead of calling the very slow function `diff`.</span>
+        <span class="k">if</span> <span class="n">expr</span> <span class="o">==</span> <span class="n">x</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">x</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">x</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
+                <span class="k">continue</span>
+
         <span class="k">try</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">diff</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="o">==</span> <span class="n">nan</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">Eq</span><span class="p">(</span><span class="n">diff</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="mi">0</span><span class="p">):</span>
                 <span class="k">return</span> <span class="kc">False</span>
