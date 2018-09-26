@@ -57,7 +57,7 @@ class Ompizer(object):
             # Introduce the `omp atomic` pragmas
             exprs = FindNodes(Expression).visit(root)
             subs = {i: List(header=self.lang['atomic'], body=i)
-                    for i in exprs if i.is_increment}
+                    for i in exprs if i.is_Increment}
             handle = Transformer(subs).visit(root)
             mapper[root] = handle._rebuild(pragmas=root.pragmas + (parallel,))
         else:

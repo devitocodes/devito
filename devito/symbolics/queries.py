@@ -3,29 +3,31 @@ from sympy import Eq, diff, cos, sin, nan
 from devito.dimension import Dimension
 from devito.tools import as_tuple
 
+
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_timedimension',
-           'q_affine', 'q_linear', 'q_identity', 'q_inc',
+           'q_affine', 'q_linear', 'q_identity', 'q_inc', 'q_scalar',
            'iq_timeinvariant', 'iq_timevarying']
 
 
 """
 The q_* functions are to be applied directly to expression objects.
-The iq_* functions return functions to be applied to expressions objects.
+The iq_* functions return functions to be applied to expressions objects
+('iq' stands for 'indirect query')
 
-Function names are usually self-explanatory of what the queries achieves,
-otherwise a docstring is provided.
+The following SymPy objects are considered as tree leaves: ::
+
+    * Number
+    * Symbol
+    * Indexed
 """
 
 
-def q_leaf(expr):
-    """
-    The DSE interprets the following SymPy objects as tree leaves: ::
+def q_scalar(expr):
+    return expr.is_Number or expr.is_Symbol
 
-        * Number
-        * Symbol
-        * Indexed
-    """
+
+def q_leaf(expr):
     return expr.is_Number or expr.is_Symbol or expr.is_Indexed
 
 
@@ -34,7 +36,8 @@ def q_indexed(expr):
 
 
 def q_function(expr):
-    return expr.is_Function
+    from devito.function import TensorFunction
+    return isinstance(expr, TensorFunction)
 
 
 def q_terminal(expr):
@@ -105,6 +108,18 @@ def q_affine(expr, vars):
     for x in as_tuple(vars):
         if x not in expr.atoms():
             return False
+
+        # The vast majority of calls here are incredibly simple tests
+        # like q_affine(x+1, [x]).  Catch these quickly and
+        # explicitly, instead of calling the very slow function `diff`.
+        if expr == x:
+            continue
+        if expr.is_Add and len(expr.args) == 2:
+            if expr.args[0] == x and expr.args[1].is_Number:
+                continue
+            if expr.args[1] == x and expr.args[0].is_Number:
+                continue
+
         try:
             if diff(expr, x) == nan or not Eq(diff(expr, x, x), 0):
                 return False

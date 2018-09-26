@@ -99,7 +99,7 @@ class PointSource(SparseTimeFunction):
 
         # Create the underlying SparseTimeFunction object
         obj = SparseTimeFunction.__new__(cls, name=name, grid=grid,
-                                         dimensions=[grid.time_dim, p_dim],
+                                         dimensions=(grid.time_dim, p_dim),
                                          npoint=npoint, nt=time_range.num,
                                          time_order=time_order,
                                          coordinates=coordinates, **kwargs)

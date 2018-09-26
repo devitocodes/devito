@@ -43,12 +43,15 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
     rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward(autotune=autotune)
+
     return rec1, rec2, vx, vz, txx, tzz, txz, summary
 
 
 if __name__ == "__main__":
     description = ("Example script for a set of elastic operators.")
     parser = ArgumentParser(description=description)
+    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
+                        help="Preset to determine the physical problem setup")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
                         help="Enable autotuning for block sizes")
     parser.add_argument("-so", "--space_order", default=4,
@@ -67,9 +70,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 2D preset parameters
-    shape = (150, 150)
-    spacing = (15.0, 15.0)
-    tn = 1500.0
+    if args.dim2:
+        shape = (150, 150)
+        spacing = (10.0, 10.0)
+        tn = 750.0
+    # 3D preset parameters
+    else:
+        shape = (150, 150, 150)
+        spacing = (10.0, 10.0, 10.0)
+        tn = 1250.0
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn, dle=args.dle,
         space_order=args.space_order, autotune=args.autotune, constant=args.constant,

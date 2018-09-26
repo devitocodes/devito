@@ -4,8 +4,8 @@ from mpi4py import MPI
 import pytest
 from conftest import skipif_yask
 
-from devito import (Grid, Function, TimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator)
+from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
+                    Dimension, ConditionalDimension, SubDimension, Eq, Inc, Operator)
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import copy, sendrecv, update_halo
 from devito.parameters import configuration
@@ -352,6 +352,77 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 
 
 @skipif_yask
+class TestSparseFunction(object):
+
+    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parametrize('coords,expected', [
+        ([(1., 1.), (1., 3.), (3., 1.), (3., 3.)], (0, 1, 2, 3)),
+    ])
+    def test_ownership(self, coords, expected):
+        """Given a sparse point ``p`` with known coordinates, this test checks
+        that the MPI rank owning ``p`` is retrieved correctly."""
+        grid = Grid(shape=(4, 4), extent=(4.0, 4.0))
+
+        sf = SparseFunction(name='sf', grid=grid, npoint=4, coordinates=coords)
+
+        assert len(sf.gridpoints) == len(expected)
+        assert all(sf._is_owned(i) == (j == grid.distributor.myrank)
+                   for i, j in zip(sf.gridpoints, expected))
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_scatter_gather(self):
+        """
+        Test scattering and gathering of sparse data from and to a single MPI rank.
+
+        The initial data distribution looks like:
+
+               rank0           rank1           rank2           rank3
+            [0, 1, 2, 3]        []              []               []
+
+        Logically (i.e., given point coordinates and domain decomposition), 0 belongs
+        to rank0, 1 belongs to rank1, etc. Thus, after scattering, the data distribution
+        is expected to be:
+
+               rank0           rank1           rank2           rank3
+                [0]             [1]             [2]             [3]
+
+        Then, locally on each rank, some trivial computation is performed, and we obtain:
+
+               rank0           rank1           rank2           rank3
+                [0]             [2]             [4]             [6]
+
+        Finally, we gather the data values and we get:
+
+               rank0           rank1           rank2           rank3
+            [0, 2, 4, 6]        []              []              []
+        """
+        grid = Grid(shape=(4, 4), extent=(4.0, 4.0))
+
+        # Initialization
+        if grid.distributor.myrank == 0:
+            coords = [(1., 1.), (1., 3.), (3., 1.), (3., 3.)]
+        else:
+            coords = []
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
+        sf.data[:] = list(range(len(coords)))
+
+        # Scatter
+        data = sf._dist_scatter()[sf]
+        assert len(data) == 1
+        assert data[0] == grid.distributor.myrank
+
+        # Do some local computation
+        data = data*2
+
+        # Gather
+        sf._dist_gather(data)
+        if grid.distributor.myrank == 0:
+            assert np.all(sf.data == [0, 2, 4, 6])
+        else:
+            assert not sf.data
+
+
+@skipif_yask
 class TestOperatorSimple(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
@@ -388,7 +459,7 @@ class TestOperatorSimple(object):
         op = Operator(Eq(f.forward, f[time, x-1] + f[time, x+1] + 1))
         op.apply()
 
-        time_M = op.prepare_arguments()['time_M']
+        time_M = op._prepare_arguments()['time_M']
 
         assert np.all(f.data_ro_domain[1] == 3.)
         glb_pos_map = f.grid.distributor.glb_pos_map
@@ -500,7 +571,7 @@ class TestOperatorSimple(object):
         g = Function(name='g', grid=grid)
 
         op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
-                       Inc(f[t+1, i], f[t+1, i] + 1.),  # no halo update as it's an Inc
+                       Inc(f[t+1, i], 1.),  # no halo update as it's an Inc
                        Eq(g, f[t, j] + 1)])  # access `f` at `t`, not `t+1`!
 
         calls = FindNodes(Call).visit(op)
@@ -532,6 +603,95 @@ class TestOperatorSimple(object):
 
 @skipif_yask
 class TestOperatorAdvanced(object):
+
+    @pytest.mark.parallel(nprocs=[4])
+    def test_injection_no_stencil(self):
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        f = Function(name='f', grid=grid, space_order=0)
+        f.data[:] = 0.
+        if grid.distributor.myrank == 0:
+            coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
+        else:
+            coords = []
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
+        sf.data[:] = 4.
+
+        # This is the situation at this point
+        # O is a grid point
+        # * is a sparse point
+        #
+        # O --- O --- O --- O
+        # |  *  |     |  *  |
+        # O --- O --- O --- O
+        # |     |     |     |
+        # O --- O --- O --- O
+        # |  *  |     |  *  |
+        # O --- O --- O --- O
+
+        op = Operator(sf.inject(field=f, expr=sf + 1))
+        op.apply()
+
+        assert np.all(f.data == 1.25)
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_injection_no_stencil_wtime(self):
+        """
+        Just like ``test_injection_no_stencil``, but using a SparseTimeFunction
+        instead of a SparseFunction. Hence, the data scattering/gathering now
+        has to correctly pack/unpack multidimensional arrays.
+        """
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        save = 3
+        f = TimeFunction(name='f', grid=grid, save=save, space_order=0)
+        f.data[:] = 0.
+        if grid.distributor.myrank == 0:
+            coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
+        else:
+            coords = []
+        sf = SparseTimeFunction(name='sf', grid=grid, nt=save,
+                                npoint=len(coords), coordinates=coords)
+        sf.data[0, :] = 4.
+        sf.data[1, :] = 8.
+        sf.data[2, :] = 12.
+
+        op = Operator(sf.inject(field=f, expr=sf + 1))
+        op.apply()
+
+        assert np.all(f.data[0] == 1.25)
+        assert np.all(f.data[1] == 2.25)
+        assert np.all(f.data[2] == 3.25)
+
+    @pytest.mark.parallel(nprocs=[4])
+    def test_interpolation_no_stencil(self):
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        f = Function(name='f', grid=grid, space_order=0)
+        f.data[:] = 4.
+        if grid.distributor.myrank == 0:
+            coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
+        else:
+            coords = []
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
+        sf.data[:] = 0.
+
+        # This is the situation at this point
+        # O is a grid point
+        # * is a sparse point
+        #
+        # O --- O --- O --- O
+        # |  *  |     |  *  |
+        # O --- O --- O --- O
+        # |     |     |     |
+        # O --- O --- O --- O
+        # |  *  |     |  *  |
+        # O --- O --- O --- O
+
+        op = Operator(sf.interpolate(expr=f))
+        op.apply()
+
+        assert np.all(sf.data == 4.)
 
     @pytest.mark.parallel(nprocs=2)
     def test_subsampling(self):
@@ -735,4 +895,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_nontrivial_operator()
+    TestSparseFunction().test_scatter_gather()

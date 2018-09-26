@@ -97,7 +97,7 @@ class TestGradient(object):
 
         m0 = Function(name='m0', grid=wave.model.grid, space_order=space_order)
         smooth(m0, wave.model.m)
-        dm = np.float32(wave.model.m.data - m0.data)
+        dm = np.float32(wave.model.m.data[:] - m0.data[:])
 
         # Compute receiver data for the true velocity
         rec, u, _ = wave.forward()
@@ -203,4 +203,5 @@ class TestGradient(object):
 
 
 if __name__ == "__main__":
-    TestGradient().test_gradientFWI(shape=(70, 80), kernel='OT2', space_order=4)
+    TestGradient().test_gradientFWI(shape=(70, 80), kernel='OT2', space_order=4,
+                                    checkpointing=False)

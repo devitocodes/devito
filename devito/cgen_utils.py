@@ -150,7 +150,11 @@ class CodePrinter(C99CodePrinter):
 
         if self.dtype == np.float32:
             rv = rv + 'F'
+
         return rv
+
+    def _print_Differentiable(self, expr):
+        return "(" + self._print(expr._expr) + ")"
 
     def _print_FrozenExpr(self, expr):
         return self._print(expr.args[0])
@@ -169,10 +173,16 @@ class CodePrinter(C99CodePrinter):
         return "{%s}" % ', '.join([self._print(i) for i in expr.params])
 
     def _print_IntDiv(self, expr):
-        return str(expr)
+        return expr.__str__()
 
     def _print_Byref(self, expr):
         return "&%s" % expr.name
+
+    def _print_TrigonometricFunction(self, expr):
+        func_name = str(expr.func)
+        if self.dtype == np.float32:
+            func_name += 'f'
+        return func_name + '(' + self._print(*expr.args) + ')'
 
 
 def ccode(expr, dtype=np.float32, **settings):
@@ -191,5 +201,6 @@ printvar = lambda i: c.Statement('printf("%s=%%s\\n", %s); fflush(stdout);' % (i
 INT = Function('INT')
 FLOAT = Function('FLOAT')
 DOUBLE = Function('DOUBLE')
+FLOOR = Function('floor')
 
 cast_mapper = {np.float32: FLOAT, float: DOUBLE, np.float64: DOUBLE}

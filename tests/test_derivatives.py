@@ -6,6 +6,7 @@ from sympy import Derivative, simplify, diff
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
                     clear_cache, ConditionalDimension, left, right, centered,
                     staggered_diff)
+from devito.finite_differences import Differentiable
 
 _PRECISION = 9
 
@@ -203,7 +204,8 @@ def test_fd_space_staggered(space_order, stagger):
     Dpolynome = diff(polynome)
     Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx2], np.float32)
     # FD derivative, symbolic
-    u_deriv = staggered_diff(u, order=space_order, dim=x, stagger=stagger)
+    u_deriv = staggered_diff(u, deriv_order=1, fd_order=space_order,
+                             dim=x, stagger=stagger)
     # Compute numerical FD
     stencil = Eq(du, u_deriv)
     op = Operator(stencil, subs={x.spacing: dx})
@@ -245,3 +247,21 @@ def test_subsampled_fd():
 
     assert np.allclose(u.data[-1], nt-1)
     assert np.allclose(u2.data[1], 0.5)
+
+
+@skipif_yask
+@pytest.mark.parametrize('expr,expected', [
+    ('f.dx', '-f(x)/h_x + f(x + h_x)/h_x'),
+    ('f.dx + g.dx', '-f(x)/h_x + f(x + h_x)/h_x - g(x)/h_x + g(x + h_x)/h_x'),
+    ('-f', '-f(x)'),
+    ('-(f + g)', '-f(x) - g(x)')
+])
+def test_shortcuts(expr, expected):
+    grid = Grid(shape=(1,))
+    f = Function(name='f', grid=grid)  # noqa
+    g = Function(name='g', grid=grid)  # noqa
+
+    expr = eval(expr)
+
+    assert isinstance(expr, Differentiable)
+    assert expected == str(expr)

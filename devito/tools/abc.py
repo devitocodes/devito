@@ -68,11 +68,18 @@ class ArgProvider(object):
                                   self.__class__)
 
     @abc.abstractmethod
+    def _arg_apply(self, *args, **kwargs):
+        """
+        Change self's state using information in ``args`` and ``kwargs``.
+        """
+        pass  # no-op
+
+    @abc.abstractmethod
     def _arg_check(self, *args, **kwargs):
         """
         Raises an exception if an argument value is illegal.
         """
-        raise NotImplementedError('%s does not support argument check' % self.__class__)
+        pass  # no-op
 
 
 class Signer(object):

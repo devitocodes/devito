@@ -8,9 +8,10 @@ import numpy as np
 import sympy
 
 from devito.compiler import jit_compile, load, save
-from devito.dimension import Dimension
+from devito.dimension import Dimension, SubDimension
 from devito.dle import transform
 from devito.dse import rewrite
+from devito.equation import DOMAIN, INTERIOR
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf
 from devito.ir.equations import LoweredEq
@@ -21,7 +22,7 @@ from devito.ir.stree import st_build
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
-from devito.tools import (Signer, ReducerMap, as_tuple, flatten,
+from devito.tools import (Signer, ReducerMap, as_mapper, as_tuple, flatten,
                           filter_sorted, numpy_to_ctypes, split)
 
 
@@ -72,7 +73,7 @@ class Operator(Callable):
 
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
-        expressions = [i.xreplace(subs) for i in expressions]
+        expressions = self._apply_substitutions(expressions, subs)
         expressions = self._specialize_exprs(expressions)
 
         # Expression analysis
@@ -113,7 +114,7 @@ class Operator(Callable):
         # Finish instantiation
         super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
 
-    def prepare_arguments(self, **kwargs):
+    def _prepare_arguments(self, **kwargs):
         """
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
@@ -172,20 +173,27 @@ class Operator(Callable):
 
         # Check all user-provided keywords are known to the Operator
         for k, v in kwargs.items():
-            if k not in self.known_arguments:
+            if k not in self._known_arguments:
                 raise ValueError("Unrecognized argument %s=%s passed to `apply`" % (k, v))
 
         return args
 
+    def _postprocess_arguments(self, args):
+        """
+        Process runtime arguments upon returning from ``.apply()``.
+        """
+        for p in self.output:
+            p._arg_apply(args[p.name])
+
     @cached_property
-    def known_arguments(self):
+    def _known_arguments(self):
         """Return an iterable of arguments that can be passed to ``apply``
         when running the operator."""
         ret = set.union(*[set(i._arg_names) for i in self.input + self.dimensions])
         return tuple(sorted(ret))
 
     def arguments(self, **kwargs):
-        args = self.prepare_arguments(**kwargs)
+        args = self._prepare_arguments(**kwargs)
         # Check all arguments are present
         for p in self.parameters:
             if args.get(p.name) is None:
@@ -249,6 +257,35 @@ class Operator(Callable):
         """Use auto-tuning on this Operator to determine empirically the
         best block sizes when loop blocking is in use."""
         return args
+
+    def _apply_substitutions(self, expressions, subs):
+        """
+        Transform ``expressions`` by: ::
+
+            * Applying any user-provided symbolic substitution;
+            * Replacing :class:`Dimension`s with :class:`SubDimension`s based
+              on the expression :class:`Region`.
+        """
+        domain_subs = subs
+        interior_subs = subs.copy()
+
+        processed = []
+        mapper = as_mapper(expressions, lambda i: i._region)
+        for k, v in mapper.items():
+            for e in v:
+                if k is INTERIOR:
+                    # Introduce SubDimensions to iterate over the INTERIOR region only
+                    candidates = [i for i in e.free_symbols
+                                  if isinstance(i, Dimension) and i.is_Space]
+                    interior_subs.update({i: SubDimension.middle("%si" % i, i, 1, 1)
+                                          for i in candidates if i not in interior_subs})
+                    processed.append(e.xreplace(interior_subs))
+                elif k is DOMAIN:
+                    processed.append(e.xreplace(domain_subs))
+                else:
+                    raise ValueError("Unsupported Region `%s`" % k)
+
+        return processed
 
     def _specialize_exprs(self, expressions):
         """Transform ``expressions`` into a backend-specific representation."""
@@ -395,6 +432,9 @@ class OperatorRunnable(Operator):
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
         self.cfunction(*arg_values)
+
+        # Post-process runtime arguments
+        self._postprocess_arguments(args)
 
         # Output summary of performance achieved
         return self._profile_output(args)

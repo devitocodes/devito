@@ -297,7 +297,7 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
     ('fa[x]**2 + fb[x]**3', 'fa[x]*fa[x] + fb[x]*fb[x]*fb[x]'),
     ('3*fa[x]**4', '3*(fa[x]*fa[x]*fa[x]*fa[x])'),
     ('fa[x]**2', 'fa[x]*fa[x]'),
-    ('1/(fa[x]**2)', 'fa[x]**(-2)'),
+    ('1/(fa[x]**2)', '1/(fa[x]*fa[x])'),
     ('1/(fa[x] + fb[x])', '1/(fa[x] + fb[x])'),
     ('3*sin(fa[x])**2', '3*(sin(fa[x])*sin(fa[x]))'),
 ])
