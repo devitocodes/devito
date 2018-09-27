@@ -4,8 +4,9 @@ from mpi4py import MPI
 import pytest
 from conftest import skipif_yask
 
-from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
-                    Dimension, ConditionalDimension, SubDimension, Eq, Inc, Operator)
+from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
+                    SparseTimeFunction, Dimension, ConditionalDimension,
+                    SubDimension, Eq, Inc, Operator)
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import copy, sendrecv, update_halo
 from devito.parameters import configuration
@@ -600,12 +601,35 @@ class TestOperatorSimple(object):
         else:
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
 
+    def test_haloupdate_not_requried(self):
+        grid = Grid(shape=(4, 4))
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2, save=None)
+        v = TimeFunction(name='v', grid=grid, space_order=0, time_order=0, save=5)
+        g = Function(name='g', grid=grid, space_order=0)
+        i = Function(name='i', grid=grid, space_order=0)
+
+        shift = Constant(name='shift', dtype=np.int32)
+
+        step = Eq(u.forward, u - u.backward + 1)
+        g_inc = Inc(g, u * v.subs(grid.time_dim, grid.time_dim - shift))
+        i_inc = Inc(i, (v*v).subs(grid.time_dim, grid.time_dim - shift))
+
+        op = Operator([step, g_inc, i_inc])
+
+        # No stencil in the expressions, so no halo update required!
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
+
 
 @skipif_yask
 class TestOperatorAdvanced(object):
 
     @pytest.mark.parallel(nprocs=[4])
-    def test_injection_no_stencil(self):
+    def test_injection_wodup(self):
+        """
+        Test injection operator when the sparse points don't need to be replicated
+        ("wodup" -> w/o duplication) over multiple MPI ranks.
+        """
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
         f = Function(name='f', grid=grid, space_order=0)
@@ -635,9 +659,9 @@ class TestOperatorAdvanced(object):
         assert np.all(f.data == 1.25)
 
     @pytest.mark.parallel(nprocs=4)
-    def test_injection_no_stencil_wtime(self):
+    def test_injection_wodup_wtime(self):
         """
-        Just like ``test_injection_no_stencil``, but using a SparseTimeFunction
+        Just like ``test_injection_wodup``, but using a SparseTimeFunction
         instead of a SparseFunction. Hence, the data scattering/gathering now
         has to correctly pack/unpack multidimensional arrays.
         """
@@ -664,7 +688,65 @@ class TestOperatorAdvanced(object):
         assert np.all(f.data[2] == 3.25)
 
     @pytest.mark.parallel(nprocs=[4])
-    def test_interpolation_no_stencil(self):
+    def test_injection_dup(self):
+        """
+        Test injection operator when the sparse points are replicated over
+        multiple MPI ranks.
+        """
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+        x, y = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+        f.data[:] = 0.
+        if grid.distributor.myrank == 0:
+            coords = [(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)]
+        else:
+            coords = []
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
+        sf.data[:] = 4.
+
+        # Global view (left) and local view (right, after domain decomposition)
+        # O is a grid point
+        # x is a halo point
+        # A, B, C, D are sparse points
+        #                               Rank0           Rank1
+        # O --- O --- O --- O           O --- O --- x   x --- O --- O
+        # |  A  |     |     |           |  A  |     |   |     |     |
+        # O --- O --- O --- O           O --- O --- x   x --- O --- O
+        # |     |  C  |  B  |     -->   |     |  C  |   |  C  |  B  |
+        # O --- O --- O --- O           x --- x --- x   x --- x --- x
+        # |     |  D  |     |           Rank2           Rank3
+        # O --- O --- O --- O           x --- x --- x   x --- x --- x
+        #                               |     |  C  |   |  C  |  B  |
+        #                               O --- O --- x   x --- O --- O
+        #                               |     |  D  |   |  D  |     |
+        #                               O --- O --- x   x --- O --- O
+        #
+        # Expected `f.data` (global view)
+        #
+        # 1.25 --- 1.25 --- 0.00 --- 0.00
+        #  |        |        |        |
+        # 1.25 --- 2.50 --- 2.50 --- 1.25
+        #  |        |        |        |
+        # 0.00 --- 2.50 --- 3.75 --- 1.25
+        #  |        |        |        |
+        # 0.00 --- 1.25 --- 1.25 --- 0.00
+
+        op = Operator(sf.inject(field=f, expr=sf + 1))
+        op.apply()
+
+        glb_pos_map = grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:  # rank0
+            assert np.all(f.data_ro_domain == [[1.25, 1.25], [1.25, 2.5]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:  # rank1
+            assert np.all(f.data_ro_domain == [[0., 0.], [2.5, 1.25]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(f.data_ro_domain == [[0., 2.5], [0., 1.25]])
+        elif RIGHT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(f.data_ro_domain == [[3.75, 1.25], [1.25, 0.]])
+
+    @pytest.mark.parallel(nprocs=[4])
+    def test_interpolation_wodup(self):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
         f = Function(name='f', grid=grid, space_order=0)
@@ -692,6 +774,67 @@ class TestOperatorAdvanced(object):
         op.apply()
 
         assert np.all(sf.data == 4.)
+
+    @pytest.mark.parallel(nprocs=[4])
+    def test_interpolation_dup(self):
+        """
+        Test interpolation operator when the sparse points are replicated over
+        multiple MPI ranks.
+        """
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+        x, y = grid.dimensions
+
+        # Init Function+data
+        f = Function(name='f', grid=grid)
+        glb_pos_map = grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            f.data[:] = [[1., 1.], [2., 2.]]
+        else:
+            f.data[:] = [[3., 3.], [4., 4.]]
+        if grid.distributor.myrank == 0:
+            coords = [(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)]
+        else:
+            coords = []
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
+        sf.data[:] = 0.
+
+        # Global view (left) and local view (right, after domain decomposition)
+        # O is a grid point
+        # x is a halo point
+        # A, B, C, D are sparse points
+        #                               Rank0           Rank1
+        # O --- O --- O --- O           O --- O --- x   x --- O --- O
+        # |  A  |     |     |           |  A  |     |   |     |     |
+        # O --- O --- O --- O           O --- O --- x   x --- O --- O
+        # |     |  C  |  B  |     -->   |     |  C  |   |  C  |  B  |
+        # O --- O --- O --- O           x --- x --- x   x --- x --- x
+        # |     |  D  |     |           Rank2           Rank3
+        # O --- O --- O --- O           x --- x --- x   x --- x --- x
+        #                               |     |  C  |   |  C  |  B  |
+        #                               O --- O --- x   x --- O --- O
+        #                               |     |  D  |   |  D  |     |
+        #                               O --- O --- x   x --- O --- O
+        #
+        # The initial `f.data` is (global view)
+        #
+        # 1. --- 1. --- 1. --- 1.
+        # |      |      |      |
+        # 2. --- 2. --- 2. --- 2.
+        # |      |      |      |
+        # 3. --- 3. --- 3. --- 3.
+        # |      |      |      |
+        # 4. --- 4. --- 4. --- 4.
+        #
+        # Expected `sf.data` (global view)
+        #
+        # 1.5 --- 2.5 --- 2.5 --- 3.5
+
+        op = Operator(sf.interpolate(expr=f))
+        op.apply()
+        if grid.distributor.myrank == 0:
+            assert np.all(sf.data == [1.5, 2.5, 2.5, 3.5])
+        else:
+            assert sf.data.size == 0
 
     @pytest.mark.parallel(nprocs=2)
     def test_subsampling(self):
@@ -895,4 +1038,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestSparseFunction().test_scatter_gather()
+    TestOperatorAdvanced().test_interpolation_dup()
