@@ -1,3 +1,5 @@
+import sympy
+
 from devito.ir.support import (Scope, DataSpace, IterationSpace, detect_flow_directions,
                                force_directions, group_expressions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
@@ -91,8 +93,12 @@ def guard(clusters):
                 if free:
                     processed.append(PartialCluster(free, c.ispace, c.dspace, c.atomics))
                     free = []
-                guards = {d.parent: d.condition or CondEq(d.parent % d.factor, 0)
-                          for d in e.conditionals}
+                # Create a guarded PartialCluster
+                guards = {}
+                for d in e.conditionals:
+                    condition = guards.setdefault(d.parent, [])
+                    condition.append(d.condition or CondEq(d.parent % d.factor, 0))
+                guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
                 processed.append(PartialCluster(e, c.ispace, c.dspace, c.atomics, guards))
             else:
                 free.append(e)
