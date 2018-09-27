@@ -177,6 +177,7 @@
 
 <span class="n">NONE</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;none&#39;</span><span class="p">)</span>
 <span class="n">UNSUPPORTED</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;unsupported&#39;</span><span class="p">)</span>
+<span class="n">IDENTITY</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;identity&#39;</span><span class="p">)</span>
 <span class="n">STENCIL</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;stencil&#39;</span><span class="p">)</span>
 <span class="n">FULL</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;full&#39;</span><span class="p">)</span>
 
@@ -294,7 +295,10 @@
             <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">findices</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">affine</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
                     <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">is_distributed</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
-                        <span class="n">v</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">STENCIL</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">touch_halo</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+                            <span class="n">v</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">STENCIL</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">v</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IDENTITY</span><span class="p">)</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">v</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">NONE</span><span class="p">)</span>
                 <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_increment</span><span class="p">:</span>
@@ -309,10 +313,18 @@
     <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">hl</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
             <span class="n">unique_hl</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">hl</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">unique_hl</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">unique_hl</span> <span class="o">==</span> <span class="p">{</span><span class="n">STENCIL</span><span class="p">,</span> <span class="n">IDENTITY</span><span class="p">}:</span>
+                <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">STENCIL</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">unique_hl</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">unique_hl</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="n">HaloSchemeException</span><span class="p">(</span><span class="s2">&quot;Inconsistency found while building a halo &quot;</span>
                                           <span class="s2">&quot;scheme for `</span><span class="si">%s</span><span class="s2">` along Dimension `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">d</span><span class="p">))</span>
-            <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">unique_hl</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+    <span class="c1"># Drop functions needing no halo exchange</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+              <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">STENCIL</span><span class="p">,</span> <span class="n">FULL</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">values</span><span class="p">())}</span>
+
     <span class="c1"># Emit a summary warning</span>
     <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">unsupported</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">hl</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">hl</span> <span class="ow">is</span> <span class="n">UNSUPPORTED</span><span class="p">]</span>
