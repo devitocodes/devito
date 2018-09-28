@@ -74,7 +74,7 @@ class Distributor(object):
                 self._comm = input_comm
         else:
             self._input_comm = None
-            self._comm = None
+            self._comm = MPI.COMM_NULL
             self._topology = tuple(1 for _ in range(len(shape)))
 
         # The domain decomposition
@@ -92,21 +92,21 @@ class Distributor(object):
 
     @property
     def myrank(self):
-        if self.comm is not None:
+        if self.comm is not MPI.COMM_NULL:
             return self.comm.rank
         else:
             return 0
 
     @property
     def mycoords(self):
-        if self.comm is not None:
+        if self.comm is not MPI.COMM_NULL:
             return tuple(self.comm.coords)
         else:
             return tuple(0 for _ in range(self.ndim))
 
     @property
     def nprocs(self):
-        if self.comm is not None:
+        if self.comm is not MPI.COMM_NULL:
             return self.comm.size
         else:
             return 1
