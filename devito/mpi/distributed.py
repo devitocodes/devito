@@ -1,6 +1,7 @@
 from collections import namedtuple
 from ctypes import Structure, c_int, c_void_p, sizeof
 from itertools import product
+from math import ceil
 import atexit
 
 from cached_property import cached_property
@@ -49,11 +50,14 @@ class Distributor(object):
 
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
 
-            # `Compute_dims` sets the dimension sizes to be as close to each other
+            # `MPI.Compute_dims` sets the dimension sizes to be as close to each other
             # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
             # * topology[0] >= topology[1] >= topology[2]
             # * topology[0] * topology[1] * topology[2] == self._input_comm.size
-            topology = MPI.Compute_dims(self._input_comm.size, len(shape))
+            # However, `MPI.Compute_dims` is distro-dependent, so we have to enforce
+            # some properties through our own wrapper (e.g., OpenMPI v3 does not
+            # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
+            topology = compute_dims(self._input_comm.size, len(shape))
             # At this point MPI's dimension 0 corresponds to the rightmost element
             # in `topology`. This is in reverse to `shape`'s ordering. Hence, we
             # now restore consistency
@@ -316,3 +320,19 @@ class Distributor(object):
 
     def __repr__(self):
         return "Distributor(nprocs=%d)" % self.nprocs
+
+
+def compute_dims(nprocs, ndim):
+    # We don't do anything clever here. In fact, we do something very basic --
+    # we just try to distribute `nprocs` evenly over the number of dimensions,
+    # and if we can't we fallback to whatever MPI.Compute_dims gives...
+    v = pow(nprocs, 1/ndim)
+    if not v.is_integer():
+        # Since pow(64, 1/3) == 3.999..4
+        v = int(ceil(v))
+        if not v**ndim == nprocs:
+            # Fallback
+            return MPI.Compute_dims(nprocs, ndim)
+    else:
+        v = int(v)
+    return tuple(v for _ in range(ndim))
