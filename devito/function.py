@@ -407,6 +407,31 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return view
 
     @property
+    def local_range(self):
+        """
+        A tuple of slices representing the global indices that logically
+        belong to the calling MPI rank.
+
+        .. note::
+
+            Given a Function ``f(x, y)`` with shape ``(nx, ny)``, when *not*
+            using MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``.
+            On the other hand, when MPI is used, the local ranges depend on the
+            domain decomposition, which is carried by ``self.grid``.
+
+        .. note::
+
+            Typically, this property is used to initialize the local data. For
+            example, given a memory-mapped (i.e., global) numpy array ``a`` and
+            a Function ``f(x, y)``, all MPI ranks can initialize their local
+            data straightforwardly as ``f.data[:] = a[f.local_range]``.
+        """
+        if self.grid is None:
+            return tuple(slice(0, i) for i in self.shape)
+        else:
+            return tuple(slice(i.start, i.stop) for i in self.grid.distributor.glb_ranges)
+
+    @property
     def space_dimensions(self):
         """Tuple of :class:`Dimension`s that define physical space."""
         return tuple(d for d in self.indices if d.is_Space)
