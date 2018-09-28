@@ -1,5 +1,4 @@
 import numpy as np
-from mpi4py import MPI
 
 import pytest
 from conftest import skipif_yask
@@ -8,17 +7,9 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
                     SubDimension, Eq, Inc, Operator)
 from devito.ir.iet import Call, Conditional, FindNodes
-from devito.mpi import copy, sendrecv, update_halo
+from devito.mpi import MPI, copy, sendrecv, update_halo
 from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
-
-
-def setup_module(module):
-    configuration['mpi'] = True
-
-
-def teardown_module(module):
-    configuration['mpi'] = False
 
 
 @skipif_yask
@@ -318,6 +309,7 @@ if (fromrank != MPI_PROC_NULL)
 dat_y_size,ostime,osx,osy);
 }"""
 
+    @pytest.mark.parallel(nprocs=1)
     def test_iet_update_halo(self):
         grid = Grid(shape=(4, 4))
         t = grid.stepping_dim
@@ -547,6 +539,7 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 0
 
+    @pytest.mark.parallel(nprocs=1)
     def test_stencil_nowrite_implies_haloupdate(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -560,6 +553,7 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
 
+    @pytest.mark.parallel(nprocs=1)
     def test_avoid_redundant_haloupdate(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
