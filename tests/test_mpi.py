@@ -256,6 +256,19 @@ class TestPythonMPI(object):
         _, _, obj = distributor._C_neighbours
         assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
 
+    @skipif_yask
+    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parametrize('shape,expected', [
+        ((15, 15), [((0, 8), (0, 8)), ((0, 8), (8, 15)),
+                    ((8, 15), (0, 8)), ((8, 15), (8, 15))]),
+    ])
+    def test_function_local_range(self, shape, expected):
+        grid = Grid(shape=shape)
+        f = Function(name='f', grid=grid)
+
+        assert all(i == slice(*j)
+                   for i, j in zip(f.local_range, expected[grid.distributor.myrank]))
+
 
 @skipif_yask
 class TestCodeGeneration(object):
@@ -1032,4 +1045,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_interpolation_dup()
+    TestPythonMPI().test_function_local_range((15, 15), None)
