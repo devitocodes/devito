@@ -399,7 +399,7 @@ class TestSubDimension(object):
         u.data[:] = 2.
 
         # Flows inward (i.e. forward) rather than outward
-        eq = [Eq(u.forward, u.dx + u.dy, region=INTERIOR)]
+        eq = [Eq(u.forward, u.dx + u.dy, subdomain=grid.interior)]
 
         op = Operator(eq)
 
