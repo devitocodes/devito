@@ -317,7 +317,10 @@ def generate_fd_shortcuts(function):
     """
     dimensions = function.indices
     space_fd_order = function.space_order
-    time_fd_order = function.time_order if function.is_TimeFunction else 0
+    try:
+        time_fd_order = function.time_order
+    except AttributeError:
+        time_fd_order = 0
 
     if function.is_Staggered:
         deriv_function = staggered_diff

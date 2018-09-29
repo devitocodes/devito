@@ -1026,6 +1026,9 @@ class AbstractSparseFunction(TensorFunction):
 
             self._space_order = kwargs.get('space_order', 0)
 
+            # Dynamically add derivative short-cuts
+            self._fd = generate_fd_shortcuts(self)
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         """
@@ -1267,8 +1270,6 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
-
             nt = kwargs.get('nt')
             if not isinstance(nt, int):
                 raise TypeError('Sparse TimeFunction needs `nt` int argument')
@@ -1280,6 +1281,9 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
             self._time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise ValueError("`time_order` must be int")
+
+            super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
+
 
     @property
     def time_order(self):
