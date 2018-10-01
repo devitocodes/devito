@@ -622,9 +622,18 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """Create a :class:`sympy.Indexed` object from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
-        # Only replace spacing -> 1 if used as index
-        subs = dict([(i.spacing, 1) for i in self.indices if
-                     any(i in a.args for a in self.args)])
+
+        # Get spacing symbols for replacement
+        spacings = [i.spacing for i in self.indices]
+
+        # Only keep the ones used as indices.
+        spacings = [s for i, s in enumerate(spacings)
+                    if s.free_symbols.intersection(self.args[i].free_symbols)]
+
+        # Substitution for each index
+        subs = dict([(s, 1) for s in spacings])
+
+        # Indices after substitutions
         indices = [a.subs(subs) for a in self.args]
 
         return Indexed(self.indexed, *indices)
