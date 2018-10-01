@@ -132,6 +132,7 @@ class TestCodeGen(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestArithmetic(object):
 
     @classmethod
@@ -305,6 +306,7 @@ class TestArithmetic(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestAllocation(object):
 
     @classmethod
@@ -371,6 +373,7 @@ class TestAllocation(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestArguments(object):
 
     @classmethod
@@ -794,6 +797,7 @@ class TestArguments(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestDeclarator(object):
 
     @classmethod
@@ -911,6 +915,7 @@ class TestDeclarator(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestLoopScheduler(object):
 
     def test_consistency_coupled_wo_ofs(self, tu, tv, ti0, t0, t1):

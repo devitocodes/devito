@@ -420,6 +420,7 @@ class TestSparseFunction(object):
 
 
 @skipif_yask
+@skipif_ops
 class TestOperatorSimple(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
@@ -1012,7 +1013,6 @@ class TestOperatorAdvanced(object):
         # Check center
         if not glb_pos_map[x] and not glb_pos_map[y]:
             assert np.all(u.data_ro_domain[1] == 3)
-
 
 class TestIsotropicAcoustic(object):
 

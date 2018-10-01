@@ -11,6 +11,7 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFu
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
+@skipif_ops
 class TestSubDimension(object):
 
     def test_interior(self):

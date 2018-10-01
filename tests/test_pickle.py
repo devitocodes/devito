@@ -10,6 +10,7 @@ from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 
 import cloudpickle as pickle
 
+from conftest import skipif_ops
 
 def test_full_model():
 
@@ -74,7 +75,6 @@ def test_full_model():
     assert np.isclose(np.linalg.norm(ricker.data), np.linalg.norm(new_ricker.data))
     # FIXME: fails randomly when using data.flatten() AND numpy is using MKL
 
-
 def test_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -132,6 +132,7 @@ def test_symbolics():
     assert li == new_li
 
 
+@skipif_ops
 def test_operator_parameters():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -143,6 +144,7 @@ def test_operator_parameters():
         pickle.loads(pkl_i)
 
 
+@skipif_ops
 def test_operator_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -157,6 +159,7 @@ def test_operator_function():
     assert np.all(f.data == 2)
 
 
+@skipif_ops
 def test_operator_timefunction():
     grid = Grid(shape=(3, 3, 3))
     f = TimeFunction(name='f', grid=grid, save=3)
