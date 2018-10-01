@@ -175,7 +175,7 @@
 
 <span class="k">def</span> <span class="nf">sniff_compiler_version</span><span class="p">(</span><span class="n">cc</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Try to detect the compiler version.</span>
+<span class="sd">    Detect the compiler version.</span>
 
 <span class="sd">    Adapted from: ::</span>
 
@@ -219,6 +219,21 @@
         <span class="k">pass</span>
 
     <span class="k">return</span> <span class="n">ver</span>
+
+
+<span class="k">def</span> <span class="nf">sniff_mpi_distro</span><span class="p">(</span><span class="n">mpiexec</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Detect the MPI version.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">ver</span> <span class="o">=</span> <span class="n">check_output</span><span class="p">([</span><span class="n">mpiexec</span><span class="p">,</span> <span class="s2">&quot;--version&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;open-mpi&quot;</span> <span class="ow">in</span> <span class="n">ver</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;OpenMPI&#39;</span>
+        <span class="k">elif</span> <span class="s2">&quot;HYDRA&quot;</span> <span class="ow">in</span> <span class="n">ver</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;MPICH&#39;</span>
+    <span class="k">except</span> <span class="p">(</span><span class="n">CalledProcessError</span><span class="p">,</span> <span class="ne">UnicodeDecodeError</span><span class="p">):</span>
+        <span class="k">pass</span>
+    <span class="k">return</span> <span class="s1">&#39;unknown&#39;</span>
 
 
 <span class="k">class</span> <span class="nc">Compiler</span><span class="p">(</span><span class="n">GCCToolchain</span><span class="p">):</span>
