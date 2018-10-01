@@ -13,7 +13,7 @@ from devito.types import LEFT, RIGHT
 
 
 @skipif_yask
-class TestPythonMPI(object):
+class TestDomainDecomposition(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
     def test_partitioning(self):
@@ -44,6 +44,27 @@ class TestPythonMPI(object):
             4: [(8,), (8,), (8,), (8,)]
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
+
+    @skipif_yask
+    @pytest.mark.parallel(nprocs=[2, 4])
+    def test_ctypes_neighbours(self):
+        grid = Grid(shape=(4, 4))
+        distributor = grid.distributor
+
+        PN = MPI.PROC_NULL
+        attrs = ['xleft', 'xright', 'yleft', 'yright']
+        expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
+            2: [(PN, PN, PN, 1), (PN, PN, 0, PN)],
+            4: [(PN, 2, PN, 1), (PN, 3, 0, PN), (0, PN, PN, 3), (1, PN, 2, PN)]
+        }
+
+        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
+        _, _, obj = distributor._C_neighbours
+        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
+
+
+@skipif_yask
+class TestFunction(object):
 
     @pytest.mark.parallel(nprocs=9)
     def test_neighborhood_2d(self):
@@ -240,29 +261,12 @@ class TestPythonMPI(object):
             assert f.data_ro_with_halo[0, 0] == 1.
 
     @skipif_yask
-    @pytest.mark.parallel(nprocs=[2, 4])
-    def test_ctypes_neighbours(self):
-        grid = Grid(shape=(4, 4))
-        distributor = grid.distributor
-
-        PN = MPI.PROC_NULL
-        attrs = ['xleft', 'xright', 'yleft', 'yright']
-        expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
-            2: [(PN, PN, PN, 1), (PN, PN, 0, PN)],
-            4: [(PN, 2, PN, 1), (PN, 3, 0, PN), (0, PN, PN, 3), (1, PN, 2, PN)]
-        }
-
-        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
-        _, _, obj = distributor._C_neighbours
-        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
-
-    @skipif_yask
     @pytest.mark.parallel(nprocs=4)
     @pytest.mark.parametrize('shape,expected', [
         ((15, 15), [((0, 8), (0, 8)), ((0, 8), (8, 15)),
                     ((8, 15), (0, 8)), ((8, 15), (8, 15))]),
     ])
-    def test_function_local_range(self, shape, expected):
+    def test_local_range(self, shape, expected):
         grid = Grid(shape=shape)
         f = Function(name='f', grid=grid)
 
