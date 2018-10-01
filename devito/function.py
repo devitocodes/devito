@@ -407,7 +407,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return view
 
     @property
-    def local_range(self):
+    def local_indices(self):
         """
         A tuple of slices representing the global indices that logically
         belong to the calling MPI rank.
@@ -424,7 +424,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             Typically, this property is used to initialize the local data. For
             example, given a memory-mapped (i.e., global) numpy array ``a`` and
             a Function ``f(x, y)``, all MPI ranks can initialize their local
-            data straightforwardly as ``f.data[:] = a[f.local_range]``.
+            data straightforwardly as ``f.data[:] = a[f.local_indices]``.
         """
         if self.grid is None:
             return tuple(slice(0, i) for i in self.shape)
@@ -1037,18 +1037,7 @@ class AbstractSparseFunction(TensorFunction):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(AbstractSparseFunction, self).__init__(*args, **kwargs)
-
-            npoint = kwargs.get('npoint')
-            if not isinstance(npoint, int):
-                raise TypeError('SparseFunction needs `npoint` int argument')
-            if npoint < 0:
-                raise ValueError('`npoint` must be >= 0')
-            self.npoint = npoint
-
-            # A Grid must have been provided
-            if self.grid is None:
-                raise TypeError('SparseFunction needs `grid` argument')
-
+            self._npoint = kwargs.get('npoint')
             self._space_order = kwargs.get('space_order', 0)
 
     @classmethod
@@ -1064,7 +1053,54 @@ class AbstractSparseFunction(TensorFunction):
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
-        return kwargs.get('shape', (kwargs.get('npoint'),))
+        grid = kwargs.get('grid')
+        # A Grid must have been provided
+        if grid is None:
+            raise TypeError('Need `grid` argument')
+        shape = kwargs.get('shape')
+        npoint = kwargs.get('npoint')
+        if shape is None:
+            glb_npoint = cls._dist_points(grid, npoint)
+            shape = (glb_npoint[grid.distributor.myrank],)
+        return shape
+
+    @classmethod
+    def _dist_points(cls, grid, npoint):
+        """
+        Distribute `npoint` sparse points over the MPI ranks.
+        """
+        nprocs = grid.distributor.nprocs
+        if isinstance(npoint, int):
+            # `npoint` is a global count. The `npoint` are evenly distributed
+            # across the various MPI ranks. Note that there is nothing smart
+            # in the following -- it's entirely possible that the MPI rank 0,
+            # which lives at the top-left of a 2D grid, gets some sparse points
+            # even though there physically are no sparse points in the top-left
+            # region
+            if npoint < 0:
+                raise ValueError('`npoint` must be >= 0')
+            glb_npoint = [npoint // nprocs]*(nprocs - 1)
+            glb_npoint.append(npoint // nprocs + npoint % nprocs)
+        elif isinstance(npoint, (tuple, list)):
+            # The i-th entry in `npoint` tells how many sparse points the
+            # i-th MPI rank has
+            if len(npoint) != nprocs:
+                raise ValueError('The `npoint` tuple must have as many entries as '
+                                 'MPI ranks (got `%d`, need `%d`)' % (npoint, nprocs))
+            elif any(i < 0 for i in npoint):
+                raise ValueError('All entries in `npoint` must be >= 0')
+            glb_npoint = npoint
+        else:
+            raise TypeError('Need `npoint` int or tuple argument')
+        return tuple(glb_npoint)
+
+    @property
+    def npoint(self):
+        return self.shape[self._sparse_position]
+
+    @property
+    def space_order(self):
+        return self._space_order
 
     @property
     def _sparse_dim(self):
@@ -1086,6 +1122,14 @@ class AbstractSparseFunction(TensorFunction):
         The *reference* grid point corresponding to each sparse point.
         """
         raise NotImplementedError
+
+    @cached_property
+    def local_indices(self):
+        r = self.grid.distributor.myrank
+        glb_npoint = AbstractSparseFunction._dist_points(self.grid, self._npoint)
+        offs = np.concatenate([[0], np.cumsum(glb_npoint)])
+        return tuple(slice(offs[r], offs[r+1]) if d is self._sparse_dim else slice(None)
+                     for d in self.dimensions)
 
     @property
     def _support(self):
@@ -1293,22 +1337,10 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
-
-            nt = kwargs.get('nt')
-            if not isinstance(nt, int):
-                raise TypeError('Sparse TimeFunction needs `nt` int argument')
-            if nt <= 0:
-                raise ValueError('`nt` must be > 0')
-            self.nt = nt
-
             self.time_dim = self.indices[self._time_position]
             self._time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise ValueError("`time_order` must be int")
-
-    @property
-    def time_order(self):
-        return self._time_order
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1323,7 +1355,26 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
-        return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+        shape = kwargs.get('shape')
+        if shape is None:
+            nt = kwargs.get('nt')
+            if not isinstance(nt, int):
+                raise TypeError('Need `nt` int argument')
+            if nt <= 0:
+                raise ValueError('`nt` must be > 0')
+
+            shape = list(AbstractSparseFunction.__shape_setup__(**kwargs))
+            shape.insert(cls._time_position, nt)
+
+        return tuple(shape)
+
+    @property
+    def nt(self):
+        return self.shape[self._time_position]
+
+    @property
+    def time_order(self):
+        return self._time_order
 
     @property
     def _time_size(self):
@@ -1384,6 +1435,10 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                 self._coordinates = coordinates
             else:
                 dimensions = (self.indices[-1], Dimension(name='d'))
+                # Only retain the local data region
+                if coordinates is not None:
+                    coordinates = np.array(coordinates)
+                    coordinates = coordinates[self.local_indices[self._sparse_position]]
                 self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
                                                 dtype=self.dtype, dimensions=dimensions,
                                                 shape=(self.npoint, self.grid.dim),
@@ -1812,7 +1867,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             # Grid points per sparse point (2 in the case of bilinear and trilinear)
             r = kwargs.get('r')
             if not isinstance(r, int):
-                raise TypeError('Interpolation needs `r` int argument')
+                raise TypeError('Need `r` int argument')
             if r <= 0:
                 raise ValueError('`r` must be > 0')
             self.r = r
