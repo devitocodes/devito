@@ -409,14 +409,10 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
 
     assert data.shape == glb_shape
 
-    # TODO: If running with MPI, all ranks have at this point built the entire
-    # global data; below, the local grid is extracted. However, this is not
-    # how things should work in practice -- the global function should have been
-    # memory-mapped at the very beginning, so that we avoid most of the following
-    # costly (in a real-life setting, prohibitively expensive) operations, but
-    # this still needs to be implemented
+    # TODO: When running with MPI, all ranks have at this point built the entire
+    # global data. Below, each rank extracts its own domain region (the "local grid").
+    # However, in practice, the local data should have been memory-mapped for efficiency
     pad_widths = []
-    data_slices = []
     for d, o in zip(function.dimensions, function._offset_domain):
         try:
             glb_range = glb_ranges[d]
@@ -427,13 +423,11 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
             lpad = o.left - glb_range.start if lslice == 0 else 0
             rpad = o.right - (rslice - glb_range.stop) if rslice == glb_shape[d] else 0
 
-            data_slices.append((lslice, rslice))
             pad_widths.append((lpad, rpad))
         except KeyError:
             # Not a distributed dimension, so we make sure to get the entire array
-            data_slices.append((None, None))
             pad_widths.append((0, 0))
-    data = data[[slice(*i) for i in data_slices]]
+    data = data[function.local_indices]
     data = np.pad(data, pad_widths, pad_mode)
 
     function.data_with_halo[:] = data
