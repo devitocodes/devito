@@ -379,6 +379,29 @@ class TestSubDimension(object):
         assert np.all(u.data[0, thickness:] == 0)
         assert np.all(u.data[0, :, thickness+12:] == 0)
 
+    def test_subdim_fd(self):
+        """
+        Test that the FD shortcuts are handled correctly with SubDimensions
+        """
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions
+
+        u = TimeFunction(name='u', save=None, grid=grid, space_order=1, time_order=1)
+        u.data[:] = 2.
+
+        # Flows inward (i.e. forward) rather than outward
+        eq = [Eq(u.forward, u.dx + u.dy, region=INTERIOR)]
+
+        op = Operator(eq)
+
+        op.apply(time_M=0)
+
+        assert np.all(u.data[1, -1, :] == 2.)
+        assert np.all(u.data[1, :, 0] == 2.)
+        assert np.all(u.data[1, :, -1] == 2.)
+        assert np.all(u.data[1, 0, :] == 2.)
+        assert np.all(u.data[1, 1:18, 1:18] == 0.)
+
 
 @skipif_yask
 class TestConditionalDimension(object):
@@ -436,6 +459,33 @@ class TestConditionalDimension(object):
         op.apply(time_M=nt-2)
         # Verify that u2[x,y]= u[2*x, 2*y]
         assert np.allclose(u.data[:-1, 0:-1:2, 0:-1:2], u2.data[:-1, :, :])
+
+    def test_subsampled_fd(self):
+        """
+        Test that the FD shortcuts are handled correctly with ConditionalDimensions
+        """
+        grid = Grid(shape=(21, 21))
+        time = grid.time_dim
+        # Creates subsampled spatial dimensions and accordine grid
+        dims = tuple([ConditionalDimension(d.name+'sub', parent=d, factor=2)
+                      for d in grid.dimensions])
+        grid2 = Grid((6, 6), dimensions=dims, time_dimension=time)
+        u2 = TimeFunction(name='u2', grid=grid2, space_order=2, time_order=1)
+        u2.data.fill(2.)
+        eqns = [Eq(u2.forward, u2.dx + u2.dy)]
+        op = Operator(eqns)
+        op.apply(time_M=0, x_M=11, y_M=11)
+        # Verify that u2 contains subsampled fd values
+        assert np.all(u2.data[0, :, :] == 2.)
+        assert np.all(u2.data[1, 0, 0] == 20.)
+        assert np.all(u2.data[1, -1, -1] == -20.)
+        assert np.all(u2.data[1, 0, -1] == 0.)
+        assert np.all(u2.data[1, -1, 0] == -0.)
+        assert np.all(u2.data[1, 1:-1, 0] == 10.)
+        assert np.all(u2.data[1, 0, 1:-1] == 10.)
+        assert np.all(u2.data[1, 1:-1, -1] == -10.)
+        assert np.all(u2.data[1, -1, 1:-1] == -10.)
+        assert np.all(u2.data[1, 1:4, 1:4] == 0.)
 
     # This test generates an openmp loop form which makes older gccs upset
     @configuration_override("openmp", False)
