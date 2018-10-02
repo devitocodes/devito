@@ -378,7 +378,8 @@ class TestSparseFunction(object):
         # The domain decomposition is so that the i-th MPI rank gets exactly one
         # sparse point `p` and, incidentally, `p` is logically owned by `i`
         assert len(sf.gridpoints) == 1
-        assert all(sf._is_owned(i) for i in sf.gridpoints)
+        assert all(grid.distributor.glb_to_rank(i) == grid.distributor.myrank
+                   for i in sf.gridpoints)
 
     @pytest.mark.parallel(nprocs=4)
     def test_scatter_gather(self):

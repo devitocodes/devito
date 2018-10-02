@@ -1106,16 +1106,6 @@ class AbstractSparseFunction(TensorFunction):
     def _sparse_dim(self):
         return self.dimensions[self._sparse_position]
 
-    def _is_owned(self, point):
-        """Return True if ``point`` is in self's local domain, False otherwise."""
-        point = as_tuple(point)
-        if len(point) != self.grid.dim:
-            raise ValueError("`%s` is an %dD point (expected %dD)"
-                             % (point, len(point), self.grid.dim))
-        distributor = self.grid.distributor
-        return all(distributor.glb_to_loc(d, p) is not None
-                   for d, p in zip(self.grid.dimensions, point))
-
     @property
     def gridpoints(self):
         """
