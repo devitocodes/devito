@@ -81,23 +81,23 @@ pipeline {
                          buildDocs()
                      }
                 }
-                stage('Build and test gcc-7 ops container') {
-                     agent { dockerfile { label 'azure-linux'
-                                          filename 'Dockerfile.jenkins'
-                                          additionalBuildArgs "--build-arg gccvers=7" } }
-                     environment {
-                         HOME="${WORKSPACE}"
-                         DEVITO_BACKEND="ops"
-                         DEVITO_OPENMP="0"
-                     }
-                     steps {
-                         cleanWorkspace()
-                         condaInstallDevito()
-                         runCondaTests()
-                         runCodecov()
-                         buildDocs()
-                     }
-                }
+                // stage('Build and test gcc-7 ops container') {
+                //      agent { dockerfile { label 'azure-linux'
+                //                           filename 'Dockerfile.jenkins'
+                //                           additionalBuildArgs "--build-arg gccvers=7" } }
+                //      environment {
+                //          HOME="${WORKSPACE}"
+                //          DEVITO_BACKEND="ops"
+                //          DEVITO_OPENMP="0"
+                //      }
+                //      steps {
+                //          cleanWorkspace()
+                //          condaInstallDevito()
+                //          runCondaTests()
+                //          runCodecov()
+                //          buildDocs()
+                //      }
+                // }
                 stage('Build and test gcc-8 container') {
                      agent { dockerfile { label 'azure-linux-8core'
                                           filename 'Dockerfile.jenkins'
@@ -128,7 +128,7 @@ def cleanWorkspace() {
 def condaInstallDevito () {
     sh 'conda env create -q -f environment.yml'
     sh 'source activate devito ; pip install -e . ; pip install pytest-xdist ; conda list'
-    sh 'source activate devito ; flake8 --exclude .conda,.git,.eggs --builtins=ArgumentError .'
+    sh 'source activate devito ; flake8 --exclude .conda,.git --builtins=ArgumentError .'
 }
 
 def pipInstallDevito () {

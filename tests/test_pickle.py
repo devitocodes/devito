@@ -12,6 +12,7 @@ import cloudpickle as pickle
 
 from conftest import skipif_ops
 
+
 def test_full_model():
 
     shape = (50, 50, 50)
@@ -74,6 +75,7 @@ def test_full_model():
     new_ricker = pickle.loads(pkl_ricker)
     assert np.isclose(np.linalg.norm(ricker.data), np.linalg.norm(new_ricker.data))
     # FIXME: fails randomly when using data.flatten() AND numpy is using MKL
+
 
 def test_function():
     grid = Grid(shape=(3, 3, 3))

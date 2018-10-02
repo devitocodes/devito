@@ -1014,6 +1014,9 @@ class TestOperatorAdvanced(object):
         if not glb_pos_map[x] and not glb_pos_map[y]:
             assert np.all(u.data_ro_domain[1] == 3)
 
+
+@skipif_yask
+@skipif_ops
 class TestIsotropicAcoustic(object):
 
     """
