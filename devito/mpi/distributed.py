@@ -21,7 +21,7 @@ import mpi4py
 mpi4py.rc(initialize=False, finalize=False)
 from mpi4py import MPI  # noqa
 
-__all__ = ['Distributor', 'MPI']
+__all__ = ['Distributor', 'SparseDistributor', 'MPI']
 
 
 class Distributor(object):
@@ -274,6 +274,102 @@ class Distributor(object):
 
     def __repr__(self):
         return "Distributor(nprocs=%d)" % self.nprocs
+
+
+class SparseDistributor(object):
+
+    """
+    Decompose a set of data values arbitrarily spread over a cartesian grid.
+    The data values are not necessarily aligned with the grid points.
+
+    :param npoint: The number of sparse data values.
+    :param distributor: The :class:`Distributor` the EmbeddedDistributor
+                        depens on.
+    """
+
+    def __init__(self, npoint, distributor):
+        self._npoint = npoint
+        self._distributor = distributor
+
+        decomposition = SparseDistributor.decompose(npoint, distributor)
+        offs = np.concatenate([[0], np.cumsum(decomposition)])
+        self._decomposition = tuple(tuple(range(offs[i], offs[i+1]))
+                                    for i in range(self.nprocs))
+
+    @classmethod
+    def decompose(cls, npoint, distributor):
+        """Distribute `npoint` points over `nprocs` MPI ranks."""
+        nprocs = distributor.nprocs
+        if isinstance(npoint, int):
+            # `npoint` is a global count. The `npoint` are evenly distributed
+            # across the various MPI ranks. Note that there is nothing smart
+            # in the following -- it's entirely possible that the MPI rank 0,
+            # which lives at the top-left of a 2D grid, gets some points even
+            # though there physically are no points in the top-left region
+            if npoint < 0:
+                raise ValueError('`npoint` must be >= 0')
+            glb_npoint = [npoint // nprocs]*(nprocs - 1)
+            glb_npoint.append(npoint // nprocs + npoint % nprocs)
+        elif isinstance(npoint, (tuple, list)):
+            # The i-th entry in `npoint` tells how many sparse points the
+            # i-th MPI rank has
+            if len(npoint) != nprocs:
+                raise ValueError('The `npoint` tuple must have as many entries as '
+                                 'MPI ranks (got `%d`, need `%d`)' % (npoint, nprocs))
+            elif any(i < 0 for i in npoint):
+                raise ValueError('All entries in `npoint` must be >= 0')
+            glb_npoint = npoint
+        else:
+            raise TypeError('Need `npoint` int or tuple argument')
+        return tuple(glb_npoint)
+
+    @property
+    def npoint(self):
+        return self._npoint
+
+    @property
+    def distributor(self):
+        return self._distributor
+
+    @property
+    def myrank(self):
+        return self.distributor.myrank
+
+    @property
+    def mycoords(self):
+        return self.distributor.mycoords
+
+    @property
+    def nprocs(self):
+        return self.distributor.nprocs
+
+    @property
+    def glb_numb(self):
+        """Return the global indices that belong to the calling MPI rank."""
+        return self._decomposition[self.myrank]
+
+    @property
+    def glb_range(self):
+        """Return the global indices that belong to the calling MPI rank as a range."""
+        return range(min(self.glb_numb), max(self.glb_numb) + 1)
+
+    @property
+    def glb_slice(self):
+        """Return the global indices that belong to the calling MPI rank as a slice."""
+        return slice(min(self.glb_numb), max(self.glb_numb) + 1)
+
+    def glb_to_loc(self, *args):
+        """
+        glb_to_loc(index)
+        glb_to_loc(offset, side)
+        glb_to_loc((min, max))
+
+        Translate global indices into local indices.
+
+        :param args: There are three possible cases, ``index``, ``offset, side``,
+                     ``(min, max)``. More information in :func:`translate_index`.__doc__.
+        """
+        return translate_index(self._decomposition, self.glb_numb, *args)
 
 
 def compute_dims(nprocs, ndim):
