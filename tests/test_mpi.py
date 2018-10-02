@@ -381,6 +381,27 @@ class TestSparseFunction(object):
         assert all(grid.distributor.glb_to_rank(i) == grid.distributor.myrank
                    for i in sf.gridpoints)
 
+    @skipif_yask
+    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parametrize('coords,expected', [
+        ([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]]),
+    ])
+    def test_local_indices(self, coords, expected):
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        data = np.array([0., 1., 2., 3.])
+        coords = np.array(coords)
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords))
+
+        # Each of the 4 MPI ranks get one (randomly chosen) sparse point
+        assert sf.npoint == 1
+
+        sf.coordinates.data[:] = coords[sf.local_indices]
+        sf.data[:] = data[sf.local_indices]
+
+        expected = np.array(expected[grid.distributor.myrank])
+        assert np.all(sf.data == expected)
+
     @pytest.mark.parallel(nprocs=4)
     def test_scatter_gather(self):
         """
@@ -428,27 +449,6 @@ class TestSparseFunction(object):
         sf._dist_gather(loc_data)
         assert len(sf.data) == 1
         assert np.all(sf.data == data[sf.local_indices]*2)
-
-    @skipif_yask
-    @pytest.mark.parallel(nprocs=4)
-    @pytest.mark.parametrize('coords,expected', [
-        ([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]]),
-    ])
-    def test_local_indices(self, coords, expected):
-        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
-
-        data = np.array([0., 1., 2., 3.])
-        coords = np.array(coords)
-        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords))
-
-        # Each of the 4 MPI ranks get one (randomly chosen) sparse point
-        assert sf.npoint == 1
-
-        sf.coordinates.data[:] = coords[sf.local_indices]
-        sf.data[:] = data[sf.local_indices]
-
-        expected = np.array(expected[grid.distributor.myrank])
-        assert np.all(sf.data == expected)
 
 
 @skipif_yask
@@ -1051,4 +1051,4 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_interpolation_dup()
+    TestOperatorAdvanced().test_nontrivial_operator()
