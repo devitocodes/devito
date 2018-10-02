@@ -433,7 +433,7 @@ class Data(np.ndarray):
 
     def reset(self):
         """
-        Set all grid entries to 0.
+        Set all Data entries to 0.
         """
         self[:] = 0.0
 
