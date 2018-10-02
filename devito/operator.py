@@ -110,6 +110,12 @@ class Operator(Callable):
 
         # Derive parameters as symbols not defined in the kernel itself
         parameters = self._build_parameters(iet)
+        
+        # By default operator argument list is not cached
+        self.cache_args = False
+        
+        # By default performance will be profiled
+        self.profiling = True
 
         # Finish instantiation
         super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
@@ -437,7 +443,8 @@ class OperatorRunnable(Operator):
         self._postprocess_arguments(args, **kwargs)
 
         # Output summary of performance achieved
-        return self._profile_output(args)
+        if self.profiling:
+            return self._profile_output(args)
 
     def _profile_output(self, args):
         """Return a performance summary of the profiled sections."""
