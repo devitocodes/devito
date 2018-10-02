@@ -116,6 +116,9 @@ class Operator(Callable):
         
         # By default performance will be profiled
         self.profiling = True
+        
+        # Cached args
+        self.cached_args = None
 
         # Finish instantiation
         super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
@@ -183,6 +186,71 @@ class Operator(Callable):
                 raise ValueError("Unrecognized argument %s=%s passed to `apply`" % (k, v))
 
         return args
+    
+    def _prepare_updated_arguments(self, **kwargs):
+        """
+        Process runtime arguments passed to ``.apply()` and derive
+        default values for any remaining arguments.
+        """
+        # Process data-carriers (first overrides, then fill up with whatever is needed)
+        #args = ReducerMap()
+        args = self.cached_args
+        args.update([p._arg_values(**kwargs) for p in self.input if p.name in kwargs])
+        #args.update([p._arg_values() for p in self.input if p.name not in args])
+        #args = args.reduce_all()
+
+        ## All TensorFunctions should be defined on the same Grid
+        #functions = [kwargs.get(p, p) for p in self.input if p.is_TensorFunction]
+        #mapper = ReducerMap([('grid', i.grid) for i in functions if i.grid])
+        #try:
+            #grid = mapper.unique('grid')
+        #except (KeyError, ValueError):
+            #if mapper and configuration['mpi']:
+                #raise RuntimeError("Multiple `Grid`s found before `apply`")
+            #grid = None
+
+        ## Process dimensions (derived go after as they might need/affect their parents)
+        #derived, main = split(self.dimensions, lambda i: i.is_Derived)
+        #for p in main:
+            #args.update(p._arg_values(args, self._dspace[p], grid, **kwargs))
+        #for p in derived:
+            #args.update(p._arg_values(args, self._dspace[p], grid, **kwargs))
+
+        ## Sanity check
+        #for p in self.input:
+            #p._arg_check(args, self._dspace[p])
+
+        ## Derive additional values for DLE arguments
+        ## TODO: This is not pretty, but it works for now. Ideally, the
+        ## DLE arguments would be massaged into the IET so as to comply
+        ## with the rest of the argument derivation procedure.
+        #for arg in self._dle_args:
+            #dim = arg.argument
+            #osize = (1 + arg.original_dim.symbolic_end
+                     #- arg.original_dim.symbolic_start).subs(args)
+            #if arg.value is None:
+                #args[dim.symbolic_size.name] = osize
+            #elif isinstance(arg.value, int):
+                #args[dim.symbolic_size.name] = arg.value
+            #else:
+                #args[dim.symbolic_size.name] = arg.value(osize)
+
+        ## Add in the profiler argument
+        #args[self.profiler.name] = self.profiler.timer.reset()
+
+        ## Add in any backend-specific argument
+        #args.update(kwargs.pop('backend', {}))
+
+        ## Execute autotuning and adjust arguments accordingly
+        #if kwargs.pop('autotune', configuration['autotuning'].level):
+            #args = self._autotune(args)
+
+        ## Check all user-provided keywords are known to the Operator
+        #for k, v in kwargs.items():
+            #if k not in self._known_arguments:
+                #raise ValueError("Unrecognized argument %s=%s passed to `apply`" % (k, v))
+
+        return args
 
     def _postprocess_arguments(self, args, **kwargs):
         """
@@ -200,6 +268,14 @@ class Operator(Callable):
 
     def arguments(self, **kwargs):
         args = self._prepare_arguments(**kwargs)
+        # Check all arguments are present
+        for p in self.parameters:
+            if args.get(p.name) is None:
+                raise ValueError("No value found for parameter %s" % p.name)
+        return args
+    
+    def update_arguments(self, **kwargs):
+        args = self._prepare_updated_arguments(**kwargs)
         # Check all arguments are present
         for p in self.parameters:
             if args.get(p.name) is None:
@@ -432,8 +508,20 @@ class OperatorRunnable(Operator):
             >>> op = Operator(Eq(u3.forward, u3 + 1))
             >>> op.apply(time_M=10)
         """
+        
+        #print(self.cached_args)
+        
         # Build the arguments list to invoke the kernel function
-        args = self.arguments(**kwargs)
+        if self.cache_args:
+            if self.cached_args == None:
+                args = self.arguments(**kwargs)
+            else:
+                print('here')
+                args = self.update_arguments(**kwargs)
+            self.cached_args = args
+            
+        else:
+            args = self.arguments(**kwargs)
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
