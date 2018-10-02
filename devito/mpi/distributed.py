@@ -11,7 +11,7 @@ import numpy as np
 
 from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
-from devito.tools import EnrichedTuple, as_tuple
+from devito.tools import EnrichedTuple, is_integer
 
 
 # Do not prematurely initialize MPI
@@ -182,8 +182,16 @@ class Distributor(object):
         :param index: A single domain index, or a list of domain indices. In
                       the latter case, a list of corresponding ranks is returned.
         """
+        if isinstance(index, (tuple, list)):
+            if len(index) == 0:
+                return None
+            elif is_integer(index[0]):
+                # `index` is a single point
+                indices = [index]
+            else:
+                indices = index
         ret = []
-        for i in as_tuple(index):
+        for i in indices:
             assert len(i) == self.ndim
             found = False
             for r, j in enumerate(self.all_ranges):
@@ -192,7 +200,7 @@ class Distributor(object):
                     found = True
                     break
             assert found
-        return tuple(ret)
+        return tuple(ret) if len(indices) > 1 else ret[0]
 
     def glb_to_loc(self, dim, *args):
         """
