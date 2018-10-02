@@ -27,7 +27,7 @@ __all__ = ['Distributor', 'MPI']
 class Distributor(object):
 
     """
-    A class to perform domain decomposition for a set of MPI processes.
+    Decompose a cartesian grid -- the "domain" -- over a set of MPI processes.
 
     :param shape: The shape of the domain to be decomposed.
     :param dimensions: The :class:`Dimension`s defining the domain.
@@ -78,9 +78,9 @@ class Distributor(object):
             self._topology = tuple(1 for _ in range(len(shape)))
 
         # The domain decomposition
-        glb_numbs = [np.array_split(range(i), j)
-                     for i, j in zip(shape, self._topology)]
-        self._glb_numbs = EnrichedTuple(*glb_numbs, getters=self.dimensions)
+        decomposition = [np.array_split(range(i), j)
+                         for i, j in zip(shape, self._topology)]
+        self._decomposition = EnrichedTuple(*decomposition, getters=self.dimensions)
 
     def __del__(self):
         if self._input_comm is not None:
@@ -128,10 +128,10 @@ class Distributor(object):
 
     @property
     def all_numb(self):
-        """Return an iterable containing the global numbering of each MPI rank."""
+        """Return an iterable containing the global numbering of all MPI ranks."""
         ret = []
         for c in self.all_coords:
-            glb_numb = [i[j] for i, j in zip(self._glb_numbs, c)]
+            glb_numb = [i[j] for i, j in zip(self._decomposition, c)]
             ret.append(EnrichedTuple(*glb_numb, getters=self.dimensions))
         return tuple(ret)
 
@@ -150,14 +150,14 @@ class Distributor(object):
 
     @property
     def glb_numb(self):
-        """Return the global numbering of this process' domain section."""
-        assert len(self.mycoords) == len(self._glb_numbs)
-        glb_numb = [i[j] for i, j in zip(self._glb_numbs, self.mycoords)]
+        """Return the global indices that belong to the calling MPI rank."""
+        assert len(self.mycoords) == len(self._decomposition)
+        glb_numb = [i[j] for i, j in zip(self._decomposition, self.mycoords)]
         return EnrichedTuple(*glb_numb, getters=self.dimensions)
 
     @property
     def glb_ranges(self):
-        """Return the global ranges of this process' domain section."""
+        """Return the global indices that belong to the calling MPI rank as a range."""
         return EnrichedTuple(*[range(min(i), max(i) + 1) for i in self.glb_numb],
                              getters=self.dimensions)
 
@@ -211,65 +211,11 @@ class Distributor(object):
         Translate global indices into local indices.
 
         :param dim: The :class:`Dimension` of the provided global indices.
-        :param args: There are three possible cases:
-                       * ``args`` is a single integer I representing a global index.
-                         Then, the corresponding local index is returned if I is
-                         owned by ``self``, otherwise None.
-                       * ``args`` consists of two items, O and S -- O is the offset
-                         the side S along ``dim``. O is therefore an integer, while S
-                         is an object of type :class:`DataSide`. Return the offset in
-                         the local domain, possibly 0 if the local range does not
-                         intersect with the region defined by the global offset.
-                       * ``args`` is a tuple (min, max); return a 2-tuple (min',
-                         max'), where ``min'`` and ``max'`` can be either None or
-                         an integer:
-                           - ``min'=None`` means that ``min`` is not owned by
-                             ``self``, but it precedes ``self``'s minimum. Likewise,
-                             ``max'=None`` means that ``max`` is not owned by
-                             ``self``, but it comes after ``self``'s maximum.
-                           - If ``min/max=int``, then the integer can represent
-                             either the local index corresponding to the
-                             ``min/max``, or it could be any random number such that
-                             ``max=min-1``, meaning that the input argument does not
-                             represent a valid range for ``self``.
+        :param args: There are three possible cases, ``index``, ``offset, side``,
+                     ``(min, max)``. More information in :func:`translate_index`.__doc__.
         """
         assert dim in self.dimensions
-        glb_numb = self.glb_numb[dim]
-        if len(args) == 1:
-            base = min(glb_numb)
-            if isinstance(args[0], int):
-                # glb_to_loc(dim, index)
-                glb_index = args[0]
-                return (glb_index - base) if glb_index in glb_numb else None
-            else:
-                # glb_to_loc(dim, (min, max))
-                glb_min, glb_max = args[0]
-                if glb_min is None or glb_min <= base:
-                    loc_min = None
-                elif glb_min > max(glb_numb):
-                    return (-2, -1)
-                else:
-                    loc_min = glb_min - base
-                if glb_max is None or glb_max >= max(glb_numb):
-                    loc_max = None
-                elif glb_max < base:
-                    return (-2, -1)
-                else:
-                    loc_max = glb_max - base
-                return (loc_min, loc_max)
-        else:
-            # glb_to_loc(dim, offset, side)
-            rel_ofs, side = args
-            if side is LEFT:
-                abs_ofs = min(min(i) for i in self._glb_numbs[dim]) + rel_ofs
-                base = min(glb_numb)
-                extent = max(glb_numb) - base
-                return min(abs_ofs - base, extent) if abs_ofs > base else 0
-            else:
-                abs_ofs = max(max(i) for i in self._glb_numbs[dim]) - rel_ofs
-                base = max(glb_numb)
-                extent = base - min(glb_numb)
-                return min(base - abs_ofs, extent) if abs_ofs < base else 0
+        return translate_index(self._decomposition[dim], self.glb_numb[dim], *args)
 
     @property
     def shape(self):
@@ -344,3 +290,75 @@ def compute_dims(nprocs, ndim):
     else:
         v = int(v)
     return tuple(v for _ in range(ndim))
+
+
+def translate_index(decomposition, glb_numb, *args):
+    """
+    Translate a global index into a local index.
+
+    :param decomposition: The dimension decomposition, as a nested iterable of int
+                          lists. The nesting structure encodes the MPI communicator
+                          topology; the int list tells which global indices are owned
+                          by a certain MPI rank. For example,
+                          ``(([0, 1, 2], [3, 4]), ([5], [6, 7]))`` encodes that
+                          it's a 2x2 grid (4 MPI ranks in total), and rank0 owns
+                          ``0, 1, 2``, rank1 owns ``3, 4``, rank2 owns ``5``,
+                          and rank3 owns ``6, 7``.
+    :param glb_numb: The calling MPI rank's global numbering.
+    :param args: There are three possible cases:
+                   * ``args`` is a single integer I representing a global index.
+                     Then, the corresponding local index is returned if I is
+                     owned by the calling MPI rank, otherwise None.
+                   * ``args`` consists of two items, O and S -- O is the offset
+                     the side S along ``dim``. O is therefore an integer, while S
+                     is an object of type :class:`DataSide`. Return the offset in
+                     the local domain, possibly 0 if the local range does not
+                     intersect with the region defined by the global offset.
+                   * ``args`` is a tuple (min, max); return a 2-tuple (min',
+                     max'), where ``min'`` and ``max'`` can be either None or
+                     an integer:
+                       - ``min'=None`` means that ``min`` is not owned by the
+                         calling MPI rank, but it precedes its minimum. Likewise,
+                         ``max'=None`` means that ``max`` is not owned by the
+                         calling MPI rank, but it comes after its maximum.
+                       - If ``min/max=int``, then the integer can represent
+                         either the local index corresponding to the
+                         ``min/max``, or it could be any random number such that
+                         ``max=min-1``, meaning that the input argument does not
+                         represent a valid range for the calling MPI rank.
+    """
+    if len(args) == 1:
+        base = min(glb_numb)
+        if isinstance(args[0], int):
+            # translate_index(..., index)
+            glb_index = args[0]
+            return (glb_index - base) if glb_index in glb_numb else None
+        else:
+            # translate_index(..., (min, max))
+            glb_min, glb_max = args[0]
+            if glb_min is None or glb_min <= base:
+                loc_min = None
+            elif glb_min > max(glb_numb):
+                return (-2, -1)
+            else:
+                loc_min = glb_min - base
+            if glb_max is None or glb_max >= max(glb_numb):
+                loc_max = None
+            elif glb_max < base:
+                return (-2, -1)
+            else:
+                loc_max = glb_max - base
+            return (loc_min, loc_max)
+    else:
+        # translate_index(..., offset, side)
+        rel_ofs, side = args
+        if side is LEFT:
+            abs_ofs = min(min(i) for i in decomposition) + rel_ofs
+            base = min(glb_numb)
+            extent = max(glb_numb) - base
+            return min(abs_ofs - base, extent) if abs_ofs > base else 0
+        else:
+            abs_ofs = max(max(i) for i in decomposition) - rel_ofs
+            base = max(glb_numb)
+            extent = base - min(glb_numb)
+            return min(base - abs_ofs, extent) if abs_ofs < base else 0
