@@ -12,7 +12,7 @@ from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
-from devito.mpi import MPI
+from devito.mpi import MPI, SparseDistributor
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_functions
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
@@ -406,7 +406,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         view.setflags(write=False)
         return view
 
-    @property
+    @cached_property
     def local_indices(self):
         """
         A tuple of slices representing the global indices that logically
@@ -1060,39 +1060,9 @@ class AbstractSparseFunction(TensorFunction):
         shape = kwargs.get('shape')
         npoint = kwargs.get('npoint')
         if shape is None:
-            glb_npoint = cls._dist_points(grid, npoint)
+            glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
             shape = (glb_npoint[grid.distributor.myrank],)
         return shape
-
-    @classmethod
-    def _dist_points(cls, grid, npoint):
-        """
-        Distribute `npoint` sparse points over the MPI ranks.
-        """
-        nprocs = grid.distributor.nprocs
-        if isinstance(npoint, int):
-            # `npoint` is a global count. The `npoint` are evenly distributed
-            # across the various MPI ranks. Note that there is nothing smart
-            # in the following -- it's entirely possible that the MPI rank 0,
-            # which lives at the top-left of a 2D grid, gets some sparse points
-            # even though there physically are no sparse points in the top-left
-            # region
-            if npoint < 0:
-                raise ValueError('`npoint` must be >= 0')
-            glb_npoint = [npoint // nprocs]*(nprocs - 1)
-            glb_npoint.append(npoint // nprocs + npoint % nprocs)
-        elif isinstance(npoint, (tuple, list)):
-            # The i-th entry in `npoint` tells how many sparse points the
-            # i-th MPI rank has
-            if len(npoint) != nprocs:
-                raise ValueError('The `npoint` tuple must have as many entries as '
-                                 'MPI ranks (got `%d`, need `%d`)' % (npoint, nprocs))
-            elif any(i < 0 for i in npoint):
-                raise ValueError('All entries in `npoint` must be >= 0')
-            glb_npoint = npoint
-        else:
-            raise TypeError('Need `npoint` int or tuple argument')
-        return tuple(glb_npoint)
 
     @property
     def npoint(self):
@@ -1110,15 +1080,17 @@ class AbstractSparseFunction(TensorFunction):
     def gridpoints(self):
         """
         The *reference* grid point corresponding to each sparse point.
+
+        .. note::
+
+            When using MPI, this property refers to the *physically* owned
+            sparse points.
         """
         raise NotImplementedError
 
     @cached_property
     def local_indices(self):
-        r = self.grid.distributor.myrank
-        glb_npoint = AbstractSparseFunction._dist_points(self.grid, self._npoint)
-        offs = np.concatenate([[0], np.cumsum(glb_npoint)])
-        return tuple(slice(offs[r], offs[r+1]) if d is self._sparse_dim else slice(None)
+        return tuple(self._distributor.glb_slice if d is self._sparse_dim else slice(None)
                      for d in self.dimensions)
 
     @property
@@ -1406,6 +1378,22 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         The parameters must always be given as keyword arguments, since
         SymPy uses `*args` to (re-)create the dimension arguments of the
         symbolic function.
+
+    .. note::
+
+        About SparseFunction and MPI. There is a clear difference between: ::
+
+            * Where the sparse points *physically* live, i.e., on which MPI rank. This
+              depends on the user code, particularly on how the data is set up.
+            * and which MPI rank *logically* owns a given sparse point. The logical
+              ownership depends on where the sparse point is located within `self.grid`.
+
+        Right before running an Operator (i.e., upon a call to `op.apply()`), a
+        SparseFunction `scatter`s its physically owned sparse points so that each
+        MPI rank gets temporary access to all of its logically owned sparse points.
+        A `gather` operation, executed before returning control to user-land,
+        updates the physically owned sparse points in `self.data` by collecting
+        the values computed during `op.apply()` from different MPI ranks.
     """
 
     is_SparseFunction = True
@@ -1418,6 +1406,10 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(SparseFunction, self).__init__(*args, **kwargs)
+
+            # A `SparseDistributor` handles the SparseFunction decomposition based on
+            # physical ownership, and allows to convert between global and local indices
+            self._distributor = SparseDistributor(self._npoint, self.grid.distributor)
 
             # Set up sparse point coordinates
             coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
