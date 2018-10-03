@@ -97,6 +97,8 @@ class PointSource(SparseTimeFunction):
         # Either `npoint` or `coordinates` must be provided
         npoint = kwargs.pop('npoint', None)
         if npoint is None:
+            if coordinates is None:
+                raise TypeError("Need either `npoint` or `coordinates`")
             npoint = coordinates.shape[0]
 
         # Create the underlying SparseTimeFunction object
