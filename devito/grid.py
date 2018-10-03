@@ -33,7 +33,7 @@ class Grid(ArgProvider):
     :param dtype: (Optional) default data type to be inherited by all
                   :class:`Function`s created from this Grid. Defaults
                   to ``numpy.float32``.
-    :param subdomains: (Optional) an iterable of :class:`SubDomain` *subtypes*.
+    :param subdomains: (Optional) an iterable of :class:`SubDomain`s.
                        If None (as by default), then the Grid only has two
                        subdomains, ``'interior'`` and ``'domain'``.
     :param comm: (Optional) an MPI communicator defining the set of
@@ -86,7 +86,7 @@ class Grid(ArgProvider):
             self._dimensions = dimensions
 
         # Initialize SubDomains
-        subdomains = tuple(i for i in (Domain(), Interior()) + as_tuple(subdomains))
+        subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
         for i in subdomains:
             i.__subdomain_finalize__(self.dimensions, self.shape)
         self._subdomains = subdomains
@@ -311,7 +311,7 @@ class SubDomain(object):
         return hash((self.name, self.dimensions))
 
     def __str__(self):
-        return "SubDomain[%s]" % self.name
+        return "SubDomain %s[%s]" % (self.name, self.dimensions)
 
     __repr__ = __str__
 
