@@ -121,22 +121,23 @@ class TestFunction(object):
             0 0 0 0 0 0     0 0 0 0 0 0
         """
         grid = Grid(shape=(12, 12))
-        f = Function(name='f', grid=grid)
+        x, y = grid.dimensions
 
-        distributor = grid.distributor
-        f.data[:] = distributor.myrank + 1
+        f = Function(name='f', grid=grid)
+        f.data[:] = grid.distributor.myrank + 1
 
         # Now trigger a halo exchange...
         f.data_with_halo   # noqa
 
-        if distributor.myrank == 0:
-            assert np.all(f.data_ro_with_halo[1:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo[:, 0] == 0.)
+        glb_pos_map = grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[y]:
+            assert np.all(f.data_ro_with_halo._local[1:-1, -1] == 2.)
+            assert np.all(f.data_ro_with_halo._local[:, 0] == 0.)
         else:
-            assert np.all(f.data_ro_with_halo[1:-1, 0] == 1.)
-            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-        assert np.all(f.data_ro_with_halo[0] == 0.)
-        assert np.all(f.data_ro_with_halo[-1] == 0.)
+            assert np.all(f.data_ro_with_halo._local[1:-1, 0] == 1.)
+            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
+        assert np.all(f.data_ro_with_halo._local[0] == 0.)
+        assert np.all(f.data_ro_with_halo._local[-1] == 0.)
 
     @pytest.mark.parallel(nprocs=2)
     def test_halo_exchange_bilateral_asymmetric(self):
@@ -168,22 +169,23 @@ class TestFunction(object):
             0 0 0 0 0 0 0     0 0 0 0 0 0 0
         """
         grid = Grid(shape=(12, 12))
-        f = Function(name='f', grid=grid, space_order=(1, 2, 1))
+        x, y = grid.dimensions
 
-        distributor = grid.distributor
-        f.data[:] = distributor.myrank + 1
+        f = Function(name='f', grid=grid, space_order=(1, 2, 1))
+        f.data[:] = grid.distributor.myrank + 1
 
         # Now trigger a halo exchange...
         f.data_with_halo   # noqa
 
-        if distributor.myrank == 0:
-            assert np.all(f.data_ro_with_halo[2:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo[:, 0:2] == 0.)
+        glb_pos_map = grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[y]:
+            assert np.all(f.data_ro_with_halo._local[2:-1, -1] == 2.)
+            assert np.all(f.data_ro_with_halo._local[:, 0:2] == 0.)
         else:
-            assert np.all(f.data_ro_with_halo[2:-1, 0:2] == 1.)
-            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-        assert np.all(f.data_ro_with_halo[0:2] == 0.)
-        assert np.all(f.data_ro_with_halo[-1] == 0.)
+            assert np.all(f.data_ro_with_halo._local[2:-1, 0:2] == 1.)
+            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
+        assert np.all(f.data_ro_with_halo._local[0:2] == 0.)
+        assert np.all(f.data_ro_with_halo._local[-1] == 0.)
 
     @pytest.mark.parallel(nprocs=4)
     def test_halo_exchange_quadrilateral(self):
@@ -227,38 +229,39 @@ class TestFunction(object):
             0 0 0 0 0 0     0 0 0 0 0 0
         """
         grid = Grid(shape=(12, 12))
-        f = Function(name='f', grid=grid)
+        x, y = grid.dimensions
 
-        distributor = grid.distributor
-        f.data[:] = distributor.myrank + 1
+        f = Function(name='f', grid=grid)
+        f.data[:] = grid.distributor.myrank + 1
 
         # Now trigger a halo exchange...
         f.data_with_halo   # noqa
 
-        if distributor.myrank == 0:
-            assert np.all(f.data_ro_with_halo[0] == 0.)
-            assert np.all(f.data_ro_with_halo[:, 0] == 0.)
-            assert np.all(f.data_ro_with_halo[1:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo[-1, 1:-1] == 3.)
-            assert f.data_ro_with_halo[-1, -1] == 4.
-        elif distributor.myrank == 1:
-            assert np.all(f.data_ro_with_halo[0] == 0.)
-            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-            assert np.all(f.data_ro_with_halo[1:-1, 0] == 1.)
-            assert np.all(f.data_ro_with_halo[-1, 1:-1] == 4.)
-            assert f.data_ro_with_halo[-1, 0] == 3.
-        elif distributor.myrank == 2:
-            assert np.all(f.data_ro_with_halo[-1] == 0.)
-            assert np.all(f.data_ro_with_halo[:, 0] == 0.)
-            assert np.all(f.data_ro_with_halo[1:-1, -1] == 4.)
-            assert np.all(f.data_ro_with_halo[0, 1:-1] == 1.)
-            assert f.data_ro_with_halo[0, -1] == 2.
+        glb_pos_map = grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(f.data_ro_with_halo._local[0] == 0.)
+            assert np.all(f.data_ro_with_halo._local[:, 0] == 0.)
+            assert np.all(f.data_ro_with_halo._local[1:-1, -1] == 2.)
+            assert np.all(f.data_ro_with_halo._local[-1, 1:-1] == 3.)
+            assert f.data_ro_with_halo._local[-1, -1] == 4.
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(f.data_ro_with_halo._local[0] == 0.)
+            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
+            assert np.all(f.data_ro_with_halo._local[1:-1, 0] == 1.)
+            assert np.all(f.data_ro_with_halo._local[-1, 1:-1] == 4.)
+            assert f.data_ro_with_halo._local[-1, 0] == 3.
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(f.data_ro_with_halo._local[-1] == 0.)
+            assert np.all(f.data_ro_with_halo._local[:, 0] == 0.)
+            assert np.all(f.data_ro_with_halo._local[1:-1, -1] == 4.)
+            assert np.all(f.data_ro_with_halo._local[0, 1:-1] == 1.)
+            assert f.data_ro_with_halo._local[0, -1] == 2.
         else:
-            assert np.all(f.data_ro_with_halo[-1] == 0.)
-            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-            assert np.all(f.data_ro_with_halo[1:-1, 0] == 3.)
-            assert np.all(f.data_ro_with_halo[0, 1:-1] == 2.)
-            assert f.data_ro_with_halo[0, 0] == 1.
+            assert np.all(f.data_ro_with_halo._local[-1] == 0.)
+            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
+            assert np.all(f.data_ro_with_halo._local[1:-1, 0] == 3.)
+            assert np.all(f.data_ro_with_halo._local[0, 1:-1] == 2.)
+            assert f.data_ro_with_halo._local[0, 0] == 1.
 
     @skipif_yask
     @pytest.mark.parallel(nprocs=4)
@@ -514,8 +517,7 @@ class TestOperatorSimple(object):
         corner, side, interior = 10., 13., 16.
 
         glb_pos_map = f.grid.distributor.glb_pos_map
-
-        assert np.all(f.data_ro_interior[0] == interior)
+        assert np.all(f.data_ro_domain[0, 1:-1, 1:-1] == interior)
         if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert f.data_ro_domain[0, 0, 0] == corner
             assert np.all(f.data_ro_domain[0, 1:, :1] == side)
@@ -1051,4 +1053,8 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
+    # TestOperatorSimple().test_trivial_eq_2d()
+    # TestFunction().test_halo_exchange_bilateral()
+    # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
+    # TestSparseFunction().test_scatter_gather()
     TestOperatorAdvanced().test_nontrivial_operator()

@@ -334,10 +334,14 @@ class Data(np.ndarray):
 
         https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
 
-    :param shape: Shape of the domain region in grid points.
-    :param dimensions: A tuple of :class:`Dimension`s, representing the dimensions
-                       of the ``Data``.
+    :param shape: Shape of the array in grid points.
+    :param dimensions: The array :class:`Dimension`s.
     :param dtype: A ``numpy.dtype`` for the raw data.
+    :param glb_to_loc: (Optional) a mapper from :class:`Dimension`s in ``dimensions`
+                       to functions translating (user-provided) global array
+                       indices into local indices. This is only relevant when
+                       MPI is used and the array is globally distributed over a
+                       set of processes.
     :param allocator: (Optional) a :class:`MemoryAllocator` to specialize memory
                       allocation. Defaults to ``ALLOC_FLAT``.
 
@@ -354,13 +358,23 @@ class Data(np.ndarray):
         performing logical indexing is lost.
     """
 
-    def __new__(cls, shape, dimensions, dtype, allocator=ALLOC_FLAT):
+    def __new__(cls, shape, dimensions, dtype, glb_to_loc=None, allocator=ALLOC_FLAT):
         assert len(shape) == len(dimensions)
         ndarray, memfree_args = allocator.alloc(shape, dtype)
         obj = np.asarray(ndarray).view(cls)
         obj._allocator = allocator
         obj._memfree_args = memfree_args
+        obj._glb_to_loc = tuple((glb_to_loc or {}).get(i) for i in dimensions)
         obj._modulo = tuple(True if i.is_Stepping else False for i in dimensions)
+
+        # By default, the indices used to access array values are interpreted as
+        # local indices
+        obj.__glb_indexing = False
+
+        # Sanity check -- A Dimension can't be at the same time modulo-iterated
+        # and MPI-distributed
+        assert all(i is None for i, j in zip(obj._glb_to_loc, obj._modulo) if j is True)
+
         return obj
 
     def __del__(self):
@@ -377,12 +391,41 @@ class Data(np.ndarray):
             return
         if type(obj) != Data or self.ndim != obj.ndim:
             self._modulo = tuple(False for i in range(self.ndim))
+            self._glb_to_loc = (None,)*self.ndim
+            self.__glb_indexing = False
         else:
             self._modulo = obj._modulo
+            self._glb_to_loc = obj._glb_to_loc
+            self.__glb_indexing = obj.__glb_indexing
         # Views or references created via operations on `obj` do not get an
         # explicit reference to the underlying data (`_memfree_args`). This makes sure
         # that only one object (the "root" Data) will free the C-allocated memory
         self._memfree_args = None
+
+    @property
+    def _glb_indexing(self):
+        return self.__glb_indexing
+
+    @_glb_indexing.setter
+    def _glb_indexing(self, value=False):
+        self.__glb_indexing = value
+
+    @property
+    def _local(self):
+        """Return a view of ``self`` with disabled global indexing."""
+        ret = self.view()
+        ret._glb_indexing = False
+        return ret
+
+    @property
+    def _global(self):
+        """Return a view of ``self`` with enabled global indexing."""
+        ret = self.view()
+        ret._glb_indexing = True
+        return ret
+
+    def __repr__(self):
+        return super(Data, self._local).__repr__()
 
     def __getitem__(self, index):
         index = self._convert_index(index)
@@ -407,28 +450,38 @@ class Data(np.ndarray):
 
         # Index conversion
         wrapped = []
-        for i, mod, use_modulo in zip(index, self.shape, self._modulo):
-            if use_modulo is False:
-                # Nothing special to do (no logical indexing)
-                wrapped.append(i)
-            elif isinstance(i, slice):
-                if i.start is None:
-                    start = i.start
-                elif i.start >= 0:
-                    start = i.start % mod
+        for i, s, ismod, gtl in zip(index, self.shape, self._modulo, self._glb_to_loc):
+            if ismod is True:
+                # Need to wrap index based on modulo
+                if isinstance(i, slice):
+                    if i.start is None:
+                        start = i.start
+                    elif i.start >= 0:
+                        start = i.start % s
+                    else:
+                        start = -(i.start % s)
+                    if i.stop is None:
+                        stop = i.stop
+                    elif i.stop >= 0:
+                        stop = i.stop % (s + 1)
+                    else:
+                        stop = -(i.stop % (s + 1))
+                    wrapped.append(slice(start, stop, i.step))
+                elif isinstance(i, (tuple, list)):
+                    wrapped.append([k % s for k in i])
                 else:
-                    start = -(i.start % mod)
-                if i.stop is None:
-                    stop = i.stop
-                elif i.stop >= 0:
-                    stop = i.stop % (mod + 1)
+                    wrapped.append(i % s)
+            elif self._glb_indexing is True and gtl is not None:
+                # Need to convert the user-provided global indices into local
+                # indices. This has no effect if MPI is not used.
+                if isinstance(i, slice):
+                    wrapped.append(slice(*gtl((i.start, i.stop)), i.step))
+                elif isinstance(i, (tuple, list)):
+                    wrapped.append([gtl(k) for k in i])
                 else:
-                    stop = -(i.stop % (mod + 1))
-                wrapped.append(slice(start, stop, i.step))
-            elif isinstance(i, (tuple, list)):
-                wrapped.append([k % mod for k in i])
+                    wrapped.append(gtl(i))
             else:
-                wrapped.append(i % mod)
+                wrapped.append(i)
         return wrapped[0] if len(index) == 1 else tuple(wrapped)
 
     def reset(self):

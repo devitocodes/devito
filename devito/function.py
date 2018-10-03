@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from itertools import product
+from functools import partial
 
 import sympy
 import numpy as np
@@ -167,7 +168,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
                 self._data = Data(self.shape_allocated, self.indices, self.dtype,
-                                  allocator=self._allocator)
+                                  glb_to_loc=self._glb_to_loc, allocator=self._allocator)
                 if self._first_touch:
                     first_touch(self)
                 if callable(self._initializer):
@@ -315,7 +316,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             Alias to ``self.data``.
         """
         self._is_halo_dirty = True
-        return self._data[self._mask_domain]
+        return self._data[self._mask_domain]._global
 
     @property
     @_allocate_memory
@@ -333,7 +334,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return self._data[self._mask_with_halo]
+        return self._data[self._mask_with_halo]._global
 
     @property
     @_allocate_memory
@@ -359,7 +360,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         A read-only view of the domain data values.
         """
-        view = self._data[self._mask_domain]
+        view = self._data[self._mask_domain]._global
         view.setflags(write=False)
         return view
 
@@ -367,7 +368,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @_allocate_memory
     def data_ro_with_halo(self):
         """A read-only view of the domain+halo data values."""
-        view = self._data[self._mask_with_halo]
+        view = self._data[self._mask_with_halo]._global
         view.setflags(write=False)
         return view
 
@@ -429,6 +430,17 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         ret = tuple(sympy.Add(i, -j, evaluate=False)
                     for i, j in zip(symbolic_shape, self.staggered))
         return EnrichedTuple(*ret, getters=self.dimensions)
+
+    @cached_property
+    def _glb_to_loc(self):
+        """
+        A mapper from distributed :class:`Dimension`s in ``self`` to callables
+        converting a global index into a local index.
+        """
+        if self.grid is None:
+            return {}
+        return {d: partial(self.grid.distributor.glb_to_loc, d)
+                for d in self.dimensions if self.grid.is_distributed(d)}
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
@@ -1574,6 +1586,10 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
         return eqns
 
+    @cached_property
+    def _glb_to_loc(self):
+        return {self._sparse_dim: partial(self._distributor.glb_to_loc)}
+
     @property
     def _dist_subfunc_alltoall(self):
         ssparse, rsparse = self._dist_count
@@ -1600,7 +1616,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return sshape, scount, sdisp, rshape, rcount, rdisp
 
     def _dist_scatter(self, data=None):
-        data = data if data is not None else self.data
+        data = data if data is not None else self.data._local
         distributor = self.grid.distributor
 
         # If not using MPI, don't waste time
@@ -1651,7 +1667,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         data = gathered
 
         # Insert back into `self.data` based on the original (expected) data layout
-        self.data[:] = data[self._dist_gather_mask]
+        self._data[:] = data[self._dist_gather_mask]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
         # in `_dist_scatter` is here received; a sparse point that is received in

@@ -212,10 +212,10 @@ class Distributor(object):
 
         :param dim: The :class:`Dimension` of the provided global indices.
         :param args: There are three possible cases, ``index``, ``offset, side``,
-                     ``(min, max)``. More information in :func:`translate_index`.__doc__.
+                     ``(min, max)``. More information in :func:`convert_index`.__doc__.
         """
         assert dim in self.dimensions
-        return translate_index(self._decomposition[dim], self.glb_numb[dim], *args)
+        return convert_index(self._decomposition[dim], self.glb_numb[dim], *args)
 
     @property
     def shape(self):
@@ -367,9 +367,9 @@ class SparseDistributor(object):
         Translate global indices into local indices.
 
         :param args: There are three possible cases, ``index``, ``offset, side``,
-                     ``(min, max)``. More information in :func:`translate_index`.__doc__.
+                     ``(min, max)``. More information in :func:`convert_index`.__doc__.
         """
-        return translate_index(self._decomposition, self.glb_numb, *args)
+        return convert_index(self._decomposition, self.glb_numb, *args)
 
 
 def compute_dims(nprocs, ndim):
@@ -388,7 +388,7 @@ def compute_dims(nprocs, ndim):
     return tuple(v for _ in range(ndim))
 
 
-def translate_index(decomposition, glb_numb, *args):
+def convert_index(decomposition, glb_numb, *args):
     """
     Translate a global index into a local index.
 
@@ -405,7 +405,7 @@ def translate_index(decomposition, glb_numb, *args):
                    * ``args`` is a single integer I representing a global index.
                      Then, the corresponding local index is returned if I is
                      owned by the calling MPI rank, otherwise None.
-                   * ``args`` consists of two items, O and S -- O is the offset
+                   * ``args`` consists of two items, O and S -- O is the offset of
                      the side S along ``dim``. O is therefore an integer, while S
                      is an object of type :class:`DataSide`. Return the offset in
                      the local domain, possibly 0 if the local range does not
@@ -423,38 +423,56 @@ def translate_index(decomposition, glb_numb, *args):
                          ``max=min-1``, meaning that the input argument does not
                          represent a valid range for the calling MPI rank.
     """
+    glb_min = min(min(i) for i in decomposition)
+    glb_max = max(max(i) for i in decomposition)
     if len(args) == 1:
         base = min(glb_numb)
-        if isinstance(args[0], int):
-            # translate_index(..., index)
+        if is_integer(args[0]):
+            # convert_index(..., index)
             glb_index = args[0]
-            return (glb_index - base) if glb_index in glb_numb else None
+            # -> Handle negative index
+            if glb_index < 0:
+                glb_index = glb_max + glb_index + 1
+            # -> Do the actual conversion
+            if glb_index in glb_numb:
+                return glb_index - base
+            elif glb_min <= glb_index <= glb_max:
+                return None
+            else:
+                # This should raise an exception when used to access a numpy.array
+                return glb_index
         else:
-            # translate_index(..., (min, max))
-            glb_min, glb_max = args[0]
-            if glb_min is None or glb_min <= base:
+            # convert_index(..., (min, max))
+            glb_index_min, glb_index_max = args[0]
+            # -> Handle negative min/max
+            if glb_index_min is not None and glb_index_min < 0:
+                glb_index_min = glb_max + glb_index_min + 1
+            if glb_index_max is not None and glb_index_max < 0:
+                glb_index_max = glb_max + glb_index_max + 1
+            # -> Do the actual conversion
+            if glb_index_min is None or glb_index_min < base:
                 loc_min = None
-            elif glb_min > max(glb_numb):
-                return (-2, -1)
+            elif glb_index_min > max(glb_numb):
+                return (-1, -2)
             else:
-                loc_min = glb_min - base
-            if glb_max is None or glb_max >= max(glb_numb):
+                loc_min = glb_index_min - base
+            if glb_index_max is None or glb_index_max > max(glb_numb):
                 loc_max = None
-            elif glb_max < base:
-                return (-2, -1)
+            elif glb_index_max < base:
+                return (-1, -2)
             else:
-                loc_max = glb_max - base
+                loc_max = glb_index_max - base
             return (loc_min, loc_max)
     else:
-        # translate_index(..., offset, side)
+        # convert_index(..., offset, side)
         rel_ofs, side = args
         if side is LEFT:
-            abs_ofs = min(min(i) for i in decomposition) + rel_ofs
+            abs_ofs = glb_min + rel_ofs
             base = min(glb_numb)
             extent = max(glb_numb) - base
             return min(abs_ofs - base, extent) if abs_ofs > base else 0
         else:
-            abs_ofs = max(max(i) for i in decomposition) - rel_ofs
+            abs_ofs = glb_max - rel_ofs
             base = max(glb_numb)
             extent = base - min(glb_numb)
             return min(base - abs_ofs, extent) if abs_ofs < base else 0
