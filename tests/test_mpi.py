@@ -1,7 +1,7 @@
 import numpy as np
 
 import pytest
-from conftest import skipif_yask, skipif_ops
+from conftest import skipif_backend
 
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
@@ -12,8 +12,7 @@ from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestPythonMPI(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
@@ -240,8 +239,7 @@ class TestPythonMPI(object):
             assert np.all(f.data_ro_with_halo[0, 1:-1] == 2.)
             assert f.data_ro_with_halo[0, 0] == 1.
 
-    @skipif_yask
-    @skipif_ops
+    @skipif_backend(['yask','ops'])
     @pytest.mark.parallel(nprocs=[2, 4])
     def test_ctypes_neighbours(self):
         grid = Grid(shape=(4, 4))
@@ -259,8 +257,7 @@ class TestPythonMPI(object):
         assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestCodeGeneration(object):
 
     def test_iet_copy(self):
@@ -347,8 +344,7 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 }"""
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestSparseFunction(object):
 
     @pytest.mark.parallel(nprocs=4)
@@ -419,8 +415,7 @@ class TestSparseFunction(object):
             assert not sf.data
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestOperatorSimple(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
@@ -620,8 +615,7 @@ class TestOperatorSimple(object):
         assert len(calls) == 0
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestOperatorAdvanced(object):
 
     @pytest.mark.parallel(nprocs=[4])
@@ -1015,8 +1009,7 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[1] == 3)
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestIsotropicAcoustic(object):
 
     """

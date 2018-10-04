@@ -2,15 +2,14 @@ import weakref
 
 import numpy as np
 import pytest
-from conftest import skipif_yask, skipif_ops
+from conftest import skipif_backend
 
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
                     Constant, Operator, Eq, Dimension, clear_cache)
 from devito.types import _SymbolCache, Scalar
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_new(FunctionType):
     """Test that new u[x, y] instances don't cache"""
@@ -23,8 +22,7 @@ def test_cache_function_new(FunctionType):
     assert np.allclose(u1.data, 2.)
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_same_indices(FunctionType):
     """Test caching of derived u[x, y] instance from derivative"""

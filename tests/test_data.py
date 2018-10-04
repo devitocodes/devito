@@ -1,4 +1,4 @@
-from conftest import skipif_yask, skipif_ops
+from conftest import skipif_backend
 import pytest
 import numpy as np
 
@@ -120,8 +120,7 @@ def test_data_arithmetic():
     assert np.all(arr - u.data == 1.)
 
 
-@skipif_yask  # YASK not throwing excpetions yet
-@skipif_ops
+@skipif_backend(['yask','ops'])
 def test_illegal_indexing():
     """
     Tests that indexing into illegal entries throws an exception.

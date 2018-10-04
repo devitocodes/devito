@@ -9,7 +9,7 @@ except ImportError:
     from io import StringIO
 
 import pytest
-from conftest import skipif_yask, skipif_ops
+from conftest import skipif_backend
 
 import numpy as np
 
@@ -18,8 +18,7 @@ from devito.logger import logger, logging
 
 
 @silencio(log_level='DEBUG')
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 @pytest.mark.parametrize("shape,expected", [
     ((30, 30), 17),
     ((30, 30, 30), 21)
@@ -62,8 +61,7 @@ def test_at_is_actually_working(shape, expected):
 
 
 @silencio(log_level='DEBUG')
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 def test_timesteps_per_at_run():
     """
     Check that each autotuning run (ie with a given block shape) takes

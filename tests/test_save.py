@@ -1,6 +1,6 @@
 import numpy as np
 
-from conftest import skipif_yask, skipif_ops
+from conftest import skipif_backend
 
 from devito import Buffer, Grid, Eq, Operator, TimeFunction, solve
 
@@ -36,8 +36,7 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
     return u.data[timesteps - 1]
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 def test_save():
     assert(np.array_equal(run_simulation(True), run_simulation()))
 

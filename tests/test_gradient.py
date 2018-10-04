@@ -1,15 +1,14 @@
 import numpy as np
 import pytest
 from numpy import linalg
-from conftest import skipif_yask, skipif_ops
+from conftest import skipif_backend
 
 from devito import Function, info, clear_cache
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
 from examples.seismic import Receiver
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestGradient(object):
 
     def setup_method(self, method):
@@ -65,8 +64,7 @@ class TestGradient(object):
         gradient2, _ = wave.gradient(residual, u0, m=m0, checkpointing=False)
         assert np.allclose(gradient.data, gradient2.data)
 
-    @skipif_yask
-    @skipif_ops
+    @skipif_backend(['yask','ops'])
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(70, 80)])

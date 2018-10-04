@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from conftest import EVAL, time, x, y, z, skipif_yask, skipif_ops
+from conftest import EVAL, time, x, y, z, skipif_backend
 
 import numpy as np
 import pytest
@@ -29,8 +29,7 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
     return s.indexify() if mode == 'indexed' else s
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestCodeGen(object):
 
     @classmethod
@@ -131,8 +130,7 @@ class TestCodeGen(object):
                for i in flatten(retrieve_indexed(i) for i in exprs))
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestArithmetic(object):
 
     @classmethod
@@ -305,8 +303,7 @@ class TestArithmetic(object):
         assert np.all(u.data[:] == 3)
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestAllocation(object):
 
     @classmethod
@@ -372,8 +369,7 @@ class TestAllocation(object):
         assert f.data[index] == 2.
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestArguments(object):
 
     @classmethod
@@ -796,8 +792,7 @@ class TestArguments(object):
         assert (a.data[8:, :] == 1.).all()
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestDeclarator(object):
 
     @classmethod
@@ -914,8 +909,7 @@ class TestDeclarator(object):
   return 0;""" in str(operator.ccode)
 
 
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestLoopScheduler(object):
 
     def test_consistency_coupled_wo_ofs(self, tu, tv, ti0, t0, t1):

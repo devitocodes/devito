@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from numpy import linalg
-from conftest import skipif_yask, skipif_ops, unit_box, points
+from conftest import skipif_backend, unit_box, points
 
 from devito import clear_cache, Operator
 from devito.logger import info
@@ -14,9 +14,7 @@ presets = {
     'layers': {'preset': 'layers-isotropic', 'ratio': 3},
 }
 
-
-@skipif_yask
-@skipif_ops
+@skipif_backend(['yask','ops'])
 class TestAdjoint(object):
 
     def setup_method(self, method):
