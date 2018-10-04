@@ -6,7 +6,7 @@ from sympy.abc import a, b, c, d, e
 from devito.tools import toposort
 
 
-@skipif_backend(['yask','ops'])
+@skipif_backend(['yask', 'ops'])
 @pytest.mark.parametrize('elements, expected', [
     ([[a, b, c], [c, d, e]], [a, b, c, d, e]),
     ([[e, d, c], [c, b, a]], [e, d, c, b, a]),

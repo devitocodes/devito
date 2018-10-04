@@ -23,7 +23,8 @@ pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
 def setup_module(module):
     """Get rid of any YASK modules generated and JIT-compiled in previous runs.
     This is not strictly necessary for the tests, but it helps in keeping the
-    lib directory clean, which may be helpful for offline analysis."""
+    lib directory clean, which may be helpful for offline analysis.
+    """
     from devito.yask.wrappers import contexts  # noqa
     contexts.dump()
 
@@ -32,13 +33,13 @@ def setup_module(module):
 @pytest.fixture(autouse=True)
 def reset_isa():
     """Force back to NO-SIMD after each test, as some tests may optionally
-    switch on SIMD."""
+    switch on SIMD.
+    """
     configuration['develop-mode'] = True
 
 
 @skipif_backend(['ops'])
 class TestOperatorSimple(object):
-
     """
     Test execution of "toy" Operators through YASK.
     """
@@ -352,7 +353,6 @@ class TestOperatorSimple(object):
 
 
 class TestOperatorAdvanced(object):
-
     """
     Test execution of non-trivial Operators through YASK.
     """
@@ -437,7 +437,6 @@ class TestOperatorAdvanced(object):
 
 @skipif_backend(['ops'])
 class TestIsotropicAcoustic(object):
-
     """
     Test the acoustic wave model through YASK.
 
