@@ -2,8 +2,8 @@ from __future__ import absolute_import
 
 import pytest
 
+import os
 from subprocess import check_call
-from mpi4py import MPI
 
 import numpy as np
 
@@ -12,6 +12,7 @@ from sympy import cos, Symbol  # noqa
 from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # noqa
                     Constant, Function, TimeFunction, Eq, configuration, SparseFunction, # noqa
                     SparseTimeFunction)  # noqa
+from devito.compiler import sniff_mpi_distro
 from devito.types import Scalar, Array
 from devito.ir.iet import Iteration
 from devito.tools import as_tuple
@@ -282,6 +283,10 @@ def configuration_override(key, value):
 # This is partly extracted from:
 # `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
 
+mpi_exec = 'mpiexec'
+mpi_distro = sniff_mpi_distro(mpi_exec)
+
+
 def parallel(item):
     """Run a test in parallel.
 
@@ -290,20 +295,28 @@ def parallel(item):
     marker = item.get_closest_marker("parallel")
     nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
     for i in nprocs:
-        if i < 2:
-            raise RuntimeError("Need at least two processes to run parallel test")
-
         # Only spew tracebacks on rank 0.
         # Run xfailing tests to ensure that errors are reported to calling process
         if item.cls is not None:
             testname = "%s::%s::%s" % (item.fspath, item.cls.__name__, item.name)
         else:
             testname = "%s::%s" % (item.fspath, item.name)
-        call = ["mpiexec", "-n", "1", "python", "-m", "pytest", "--runxfail", "-s",
+        args = ["-n", "1", "python", "-m", "pytest", "--runxfail", "-s",
                 "-q", testname]
-        call.extend([":", "-n", "%d" % (i - 1), "python", "-m", "pytest",
-                     "--runxfail", "--tb=no", "-q", testname])
+        if i > 1:
+            args.extend([":", "-n", "%d" % (i - 1), "python", "-m", "pytest",
+                         "--runxfail", "--tb=no", "-q", testname])
+        # OpenMPI requires an explicit flag for oversubscription. We need it as some
+        # of the MPI tests will spawn lots of processes
+        if mpi_distro == 'OpenMPI':
+            call = [mpi_exec, '--oversubscribe'] + args
+        else:
+            call = [mpi_exec] + args
+
+        # Tell the MPI ranks that they are running a parallel test
+        os.environ['DEVITO_MPI'] = '1'
         check_call(call)
+        os.environ['DEVITO_MPI'] = '0'
 
 
 def pytest_configure(config):
@@ -314,7 +327,8 @@ def pytest_configure(config):
 
 
 def pytest_runtest_setup(item):
-    if item.get_marker("parallel") and MPI.COMM_WORLD.size == 1:
+    partest = int(os.environ.get('DEVITO_MPI', 0))
+    if item.get_marker("parallel") and not partest:
         # Blow away function arg in "master" process, to ensure
         # this test isn't run on only one process
         dummy_test = lambda *args, **kwargs: True
@@ -326,6 +340,7 @@ def pytest_runtest_setup(item):
 
 
 def pytest_runtest_call(item):
-    if item.get_marker("parallel") and MPI.COMM_WORLD.size == 1:
+    partest = int(os.environ.get('DEVITO_MPI', 0))
+    if item.get_marker("parallel") and not partest:
         # Spawn parallel processes to run test
         parallel(item)

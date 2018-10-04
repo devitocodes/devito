@@ -178,12 +178,12 @@ class Operator(Callable):
 
         return args
 
-    def _postprocess_arguments(self, args):
+    def _postprocess_arguments(self, args, **kwargs):
         """
         Process runtime arguments upon returning from ``.apply()``.
         """
         for p in self.output:
-            p._arg_apply(args[p.name])
+            p._arg_apply(args[p.name], kwargs.get(p.name))
 
     @cached_property
     def _known_arguments(self):
@@ -434,7 +434,7 @@ class OperatorRunnable(Operator):
         self.cfunction(*arg_values)
 
         # Post-process runtime arguments
-        self._postprocess_arguments(args)
+        self._postprocess_arguments(args, **kwargs)
 
         # Output summary of performance achieved
         return self._profile_output(args)

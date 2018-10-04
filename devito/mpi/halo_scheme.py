@@ -24,6 +24,7 @@ class HaloLabel(Tag):
 
 NONE = HaloLabel('none')
 UNSUPPORTED = HaloLabel('unsupported')
+IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
 FULL = HaloLabel('full')
 
@@ -141,7 +142,10 @@ def hs_classify(scope):
             for d in i.findices:
                 if i.affine(d):
                     if f.grid.is_distributed(d):
-                        v.setdefault(d, []).append(STENCIL)
+                        if i.touch_halo(d):
+                            v.setdefault(d, []).append(STENCIL)
+                        else:
+                            v.setdefault(d, []).append(IDENTITY)
                     else:
                         v.setdefault(d, []).append(NONE)
                 elif i.is_increment:
@@ -156,10 +160,18 @@ def hs_classify(scope):
     for f, v in mapper.items():
         for d, hl in list(v.items()):
             unique_hl = set(hl)
-            if len(unique_hl) != 1:
+            if unique_hl == {STENCIL, IDENTITY}:
+                v[d] = STENCIL
+            elif len(unique_hl) == 1:
+                v[d] = unique_hl.pop()
+            else:
                 raise HaloSchemeException("Inconsistency found while building a halo "
                                           "scheme for `%s` along Dimension `%s`" % (f, d))
-            v[d] = unique_hl.pop()
+
+    # Drop functions needing no halo exchange
+    mapper = {f: v for f, v in mapper.items()
+              if any(i in [STENCIL, FULL] for i in v.values())}
+
     # Emit a summary warning
     for f, v in mapper.items():
         unsupported = [d for d, hl in v.items() if hl is UNSUPPORTED]
