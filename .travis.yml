@@ -50,6 +50,16 @@ matrix:
             - gcc-7
             - g++-7
       env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-7
+            - g++-7
+      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=ops INSTALL_TYPE=conda RUN_EXAMPLES=False
   allow_failures:
     - os: linux
       python: "2.7"
@@ -119,6 +129,7 @@ script:
   # Test tutorial notebooks for the website using nbval
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/cfd; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/seismic/tutorials/0[1-3]*; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/compiler; fi
   # Code coverage and documentation generation
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       codecov;

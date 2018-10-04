@@ -154,6 +154,7 @@ def runExamples () {
     sh 'source activate devito ; python examples/seismic/elastic/elastic_example.py'
     sh 'source activate devito ; py.test --nbval examples/cfd'
     sh 'source activate devito ; py.test --nbval examples/seismic/tutorials/0[1-3]*'
+    sh 'source activate devito ; py.test --nbval examples/examples/compiler'
 }
 
 def runCodecov() {
