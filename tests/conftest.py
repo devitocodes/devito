@@ -25,11 +25,9 @@ class skipif_backend(object):
     def __call__(self, f):
         def wrapped():
             if 'yask' in self.backends:
-                pytest.mark.skipif(configuration['backend'] == 'yask',
-                                reason="YASK testing is currently restricted")
+                pytest.mark.skipif(configuration['backend'] == 'yask', reason="YASK testing is currently restricted")
             if 'ops' in self.backends:
-                pytest.mark.skipif(configuration['backend'] == 'ops',
-                                reason="OPS testing is currently restricted")
+                pytest.mark.skipif(configuration['backend'] == 'ops', reason="OPS testing is currently restricted")
         return wrapped
 
 # skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
