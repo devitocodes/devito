@@ -225,6 +225,7 @@ def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
     assert len(found) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
 
+
 @skipif_backend(['yask', 'ops'])
 @pytest.mark.parametrize('exprs,expected', [
     # simple
