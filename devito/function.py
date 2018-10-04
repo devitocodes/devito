@@ -1284,7 +1284,6 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
             super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
 
-
     @property
     def time_order(self):
         return self._time_order

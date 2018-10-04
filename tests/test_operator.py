@@ -398,8 +398,6 @@ class TestArithmetic(object):
         # to be sure...
         op.apply(time_m=1, time_M=3, dt=1)
 
-        from IPython import embed; embed()
-
         # Exactly in the middle of 4 points, only 1 nonzero is 4
         assert np.all(u.data[1:4, 4:6, 4:6] == pytest.approx(0.75))
         assert np.sum(u.data[:]) == pytest.approx(12*0.75)
