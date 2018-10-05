@@ -1588,7 +1588,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
     @cached_property
     def _glb_to_loc(self):
-        return {self._sparse_dim: partial(self._distributor.glb_to_loc)}
+        return {self._sparse_dim: partial(self._distributor.glb_to_loc, self._sparse_dim)}
 
     @property
     def _dist_subfunc_alltoall(self):
