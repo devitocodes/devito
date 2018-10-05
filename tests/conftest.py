@@ -19,11 +19,11 @@ from devito.tools import as_tuple
 
 
 def skipif_backend(backends):
-    conditions=[]
+    conditions = []
     for b in backends:
         conditions.append(b == configuration['backend'])
     return pytest.mark.skipif(any(conditions),
-                                reason="{} testing is currently restricted".format(b))
+                              reason="{} testing is currently restricted".format(b))
 
 
 # skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',

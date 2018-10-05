@@ -3,8 +3,6 @@ import numpy as np
 
 import pytest  # noqa
 
-from conftest import skipif_backend
-
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
 from devito import (Eq, Grid, Dimension, ConditionalDimension, Operator, Constant,
