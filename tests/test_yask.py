@@ -19,7 +19,6 @@ pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
                                 reason="'yask' wasn't selected as backend on startup")
 
 
-@skipif_backend(['ops'])
 def setup_module(module):
     """Get rid of any YASK modules generated and JIT-compiled in previous runs.
     This is not strictly necessary for the tests, but it helps in keeping the
@@ -29,7 +28,6 @@ def setup_module(module):
     contexts.dump()
 
 
-@skipif_backend(['ops'])
 @pytest.fixture(autouse=True)
 def reset_isa():
     """Force back to NO-SIMD after each test, as some tests may optionally
@@ -38,7 +36,6 @@ def reset_isa():
     configuration['develop-mode'] = True
 
 
-@skipif_backend(['ops'])
 class TestOperatorSimple(object):
     """
     Test execution of "toy" Operators through YASK.
@@ -435,7 +432,6 @@ class TestOperatorAdvanced(object):
         assert all('run_solution' in str(i) for i in solns)
 
 
-@skipif_backend(['ops'])
 class TestIsotropicAcoustic(object):
     """
     Test the acoustic wave model through YASK.
