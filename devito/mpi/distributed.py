@@ -401,7 +401,11 @@ def convert_index(decomposition, glb_numb, *args):
                           ``0, 1, 2``, rank1 owns ``3, 4``, rank2 owns ``5``,
                           and rank3 owns ``6, 7``.
     :param glb_numb: The calling MPI rank's global numbering.
-    :param args: There are three possible cases:
+    :param args: There are four possible cases:
+                   * ``args`` is empty. The ``(min, max)`` indices owned by
+                     the calling MPI rank are returned, as a slice object. IOW,
+                     this represents the range of global indices that would be
+                     successfully converted by the calling MPI rank.
                    * ``args`` is a single integer I representing a global index.
                      Then, the corresponding local index is returned if I is
                      owned by the calling MPI rank, otherwise None.
@@ -425,7 +429,10 @@ def convert_index(decomposition, glb_numb, *args):
     """
     glb_min = min(min(i) for i in decomposition)
     glb_max = max(max(i) for i in decomposition)
-    if len(args) == 1:
+    if len(args) == 0:
+        # convert_index(...)  - no *args
+        return slice(min(glb_numb), max(glb_numb) + 1)
+    elif len(args) == 1:
         base = min(glb_numb)
         if is_integer(args[0]):
             # convert_index(..., index)
