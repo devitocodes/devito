@@ -2,8 +2,8 @@ from conftest import skipif_yask
 import pytest
 import numpy as np
 
-from devito import (Grid, Function, TimeFunction,
-                    ALLOC_GUARD, Operator, Eq, ALLOC_FLAT)
+from devito import Grid, Function, TimeFunction, Eq, Operator, ALLOC_GUARD, ALLOC_FLAT
+from devito.types import LEFT, RIGHT
 
 
 def test_basic_indexing():
@@ -196,6 +196,116 @@ def test_domain_vs_halo():
     assert v._extent_padding.left == v._extent_padding.right == (1, 3, 4)
 
 
+@skipif_yask  # YASK backend does not support MPI yet
+class TestMPIData(object):
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_trivial_insertion(self):
+        grid = Grid(shape=(4, 4))
+        u = Function(name='u', grid=grid, space_order=0)
+
+        u.data[:] = 1.
+        assert np.all(u.data == 1.)
+        assert np.all(u.data._local == 1.)
+        assert np.all(u.data._global == 1.)
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_local_indexing_basic(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        myrank = grid.distributor.myrank
+        u = Function(name='u', grid=grid, space_order=0)
+
+        u.data[:] = myrank
+
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert u.data[0, 0] == myrank
+            assert u.data[2, 2] is None
+            assert u.data[2].size == 0
+            assert u.data[:, 2].size == 0
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert u.data[0, 0] is None
+            assert u.data[2, 2] is None
+            assert u.data[2].size == 0
+            assert np.all(u.data[:, 2] == [myrank, myrank])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert u.data[0, 0] is None
+            assert u.data[2, 2] is None
+            assert np.all(u.data[2] == [myrank, myrank])
+            assert u.data[:, 2].size == 0
+        else:
+            assert u.data[0, 0] is None
+            assert u.data[2, 2] == myrank
+            assert np.all(u.data[2] == [myrank, myrank])
+            assert np.all(u.data[:, 2] == [myrank, myrank])
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_local_indexing_slicing(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        myrank = grid.distributor.myrank
+        u = Function(name='u', grid=grid, space_order=0)
+
+        u.data[:] = myrank
+
+        # `u.data` is a view of the global data array restricted, on each rank,
+        # to the local rank domain, so it must be == myrank
+        assert np.all(u.data == myrank)
+        assert np.all(u.data._local == myrank)
+        assert np.all(u.data._global == myrank)
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data[:2, :2] == myrank)
+            assert u.data[:2, 2:].size == u.data[2:, :2].size == u.data[2:, 2:].size == 0
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data[:2, 2:] == myrank)
+            assert u.data[:2, :2].size == u.data[2:, :2].size == u.data[2:, 2:].size == 0
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data[2:, :2] == myrank)
+            assert u.data[:2, 2:].size == u.data[:2, :2].size == u.data[2:, 2:].size == 0
+        else:
+            assert np.all(u.data[2:, 2:] == myrank)
+            assert u.data[:2, 2:].size == u.data[2:, :2].size == u.data[:2, :2].size == 0
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_from_replicated_to_distributed(self):
+        shape = (4, 4)
+        grid = Grid(shape=shape)
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        u = Function(name='u', grid=grid, space_order=0)  # distributed
+        a = np.arange(16).reshape(shape)  # replicated
+
+        # Full array
+        u.data[:] = a
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data == [[0, 1], [4, 5]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data == [[2, 3], [6, 7]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data == [[8, 9], [12, 13]])
+        else:
+            assert np.all(u.data == [[10, 11], [14, 15]])
+
+        # Subsection
+        # TODO: won't work until we support glb_to_loc conversion for sliced Data
+        # u.data[:] = 0
+        # u.data[1:3, 1:3] = a[1:3, 1:3]
+
+        # Same as before but with negative indices
+        # TODO: same as before
+        # u.data[1:-1, 1:-1] = a[1:3, 1:3]
+
+        # The assigned data must have same shape as the one of the distributed array,
+        # otherwise an exception is expected
+        # TODO: same as before
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_from_distributed_to_distributed(self):
+        pass
+
+
 def test_scalar_arg_substitution(t0, t1):
     """
     Tests the relaxed (compared to other devito sympy subclasses)
@@ -229,3 +339,9 @@ def test_oob_guard():
     grid = Grid(shape=(4, 4))
     u = Function(name='u', grid=grid, space_order=0, allocator=ALLOC_GUARD)
     Operator(Eq(u[2000, 0], 1.0)).apply()
+
+
+if __name__ == "__main__":
+    from devito import configuration
+    configuration['mpi'] = True
+    TestMPIData().test_local_indexing_basic()
