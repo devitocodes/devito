@@ -18,19 +18,13 @@ from devito.ir.iet import Iteration
 from devito.tools import as_tuple
 
 
-class skipif_backend(object):
-    def __init__(self, backends):
-        self.backends = backends
+def skipif_backend(backends):
+    conditions=[]
+    for b in backends:
+        conditions.append(b == configuration['backend'])
+    return pytest.mark.skipif(any(conditions),
+                                reason="{} testing is currently restricted".format(b))
 
-    def __call__(self, f):
-        def wrapped():
-            if 'yask' in self.backends:
-                pytest.mark.skipif(configuration['backend'] == 'yask',
-                                   reason="YASK testing is currently restricted")
-            if 'ops' in self.backends:
-                pytest.mark.skipif(configuration['backend'] == 'ops',
-                                   reason="OPS testing is currently restricted")
-        return wrapped
 
 # skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
 #                                  reason="YASK testing is currently restricted")
