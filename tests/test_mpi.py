@@ -399,8 +399,8 @@ class TestSparseFunction(object):
         # Each of the 4 MPI ranks get one (randomly chosen) sparse point
         assert sf.npoint == 1
 
-        sf.coordinates.data[:] = coords[sf.local_indices]
-        sf.data[:] = data[sf.local_indices]
+        sf.coordinates.data[:] = coords
+        sf.data[:] = data
 
         expected = np.array(expected[grid.distributor.myrank])
         assert np.all(sf.data == expected)
@@ -438,7 +438,7 @@ class TestSparseFunction(object):
         data = np.array([3, 2, 1, 0])
         coords = np.array([(3., 3.), (3., 1.), (1., 3.), (1., 1.)])
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
-        sf.data[:] = data[sf.local_indices]
+        sf.data[:] = data
 
         # Scatter
         loc_data = sf._dist_scatter()[sf]
@@ -666,7 +666,7 @@ class TestOperatorAdvanced(object):
 
         f = Function(name='f', grid=grid, space_order=0)
         f.data[:] = 0.
-        coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
+        coords = np.array([(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)])
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
         sf.data[:] = 4.
 
@@ -699,7 +699,7 @@ class TestOperatorAdvanced(object):
         save = 3
         f = TimeFunction(name='f', grid=grid, save=save, space_order=0)
         f.data[:] = 0.
-        coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
+        coords = np.array([(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)])
         sf = SparseTimeFunction(name='sf', grid=grid, nt=save,
                                 npoint=len(coords), coordinates=coords)
         sf.data[0, :] = 4.
@@ -806,12 +806,8 @@ class TestOperatorAdvanced(object):
 
         # Init Function+data
         f = Function(name='f', grid=grid)
-        glb_pos_map = grid.distributor.glb_pos_map
-        if LEFT in glb_pos_map[x]:
-            f.data[:] = [[1., 1.], [2., 2.]]
-        else:
-            f.data[:] = [[3., 3.], [4., 4.]]
-        coords = [(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)]
+        f.data[:] = np.array([[1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 3, 3], [4, 4, 4, 4]])
+        coords = np.array([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)])
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
         sf.data[:] = 0.
 
@@ -1056,5 +1052,7 @@ if __name__ == "__main__":
     # TestOperatorSimple().test_trivial_eq_2d()
     # TestFunction().test_halo_exchange_bilateral()
     # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
+    # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
     # TestSparseFunction().test_scatter_gather()
-    TestOperatorAdvanced().test_nontrivial_operator()
+    # TestOperatorAdvanced().test_nontrivial_operator()
+    TestOperatorAdvanced().test_interpolation_dup()
