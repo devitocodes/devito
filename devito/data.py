@@ -3,15 +3,15 @@ from __future__ import absolute_import
 import abc
 from functools import reduce
 from operator import mul
+import mmap
 
 import numpy as np
 import ctypes
 from ctypes.util import find_library
-import mmap
 
 from devito.equation import Eq
 from devito.parameters import configuration
-from devito.tools import as_tuple, numpy_to_ctypes
+from devito.tools import Tag, as_tuple, is_integer, numpy_to_ctypes
 from devito.logger import logger
 import devito
 
@@ -369,7 +369,12 @@ class Data(np.ndarray):
 
         # By default, the indices used to access array values are interpreted as
         # local indices
-        obj.__glb_indexing = False
+        obj._glb_indexing = False
+
+        # This cannot be a property, as Data objects constructed from this
+        # object might not have any `glb_to_loc`, but they would still be
+        # distributed. So in `__array_finalize__` we must copy this value
+        obj._is_distributed = any(i is not None for i in obj._glb_to_loc)
 
         # Sanity check -- A Dimension can't be at the same time modulo-iterated
         # and MPI-distributed
@@ -389,26 +394,25 @@ class Data(np.ndarray):
         if obj is None:
             # `self` was created through __new__()
             return
-        if type(obj) != Data or self.ndim != obj.ndim:
+        if type(obj) != Data:
             self._modulo = tuple(False for i in range(self.ndim))
             self._glb_to_loc = (None,)*self.ndim
-            self.__glb_indexing = False
+            self._glb_indexing = False
+            self._is_distributed = False
+        elif self.ndim != obj.ndim:
+            self._modulo = tuple(False for i in range(self.ndim))
+            self._glb_to_loc = (None,)*self.ndim
+            self._glb_indexing = False
+            self._is_distributed = obj._is_distributed
         else:
             self._modulo = obj._modulo
             self._glb_to_loc = obj._glb_to_loc
-            self.__glb_indexing = obj.__glb_indexing
+            self._glb_indexing = obj._glb_indexing
+            self._is_distributed = obj._is_distributed
         # Views or references created via operations on `obj` do not get an
         # explicit reference to the underlying data (`_memfree_args`). This makes sure
         # that only one object (the "root" Data) will free the C-allocated memory
         self._memfree_args = None
-
-    @property
-    def _glb_indexing(self):
-        return self.__glb_indexing
-
-    @_glb_indexing.setter
-    def _glb_indexing(self, value=False):
-        self.__glb_indexing = value
 
     @property
     def _local(self):
@@ -427,68 +431,184 @@ class Data(np.ndarray):
     def __repr__(self):
         return super(Data, self._local).__repr__()
 
-    def __getitem__(self, index):
-        index = self._convert_index(index)
-        return super(Data, self).__getitem__(index)
+    def __getitem__(self, glb_index):
+        loc_index = self._convert_index(glb_index)
+        if loc_index is NONLOCAL:
+            return None
+        else:
+            return super(Data, self).__getitem__(loc_index)
 
-    def __setitem__(self, index, val):
-        index = self._convert_index(index)
-        super(Data, self).__setitem__(index, val)
+    def __setitem__(self, glb_index, val):
+        loc_index = self._convert_index(glb_index)
+        if loc_index is NONLOCAL:
+            # no-op
+            return
+        elif np.isscalar(val):
+            pass
+        elif isinstance(val, Data) and val._is_distributed:
+            if self._is_distributed:
+                # `val` is distributed, `self` is distributed -> local set
+                # TODO: shapes and distributions must match
+                pass
+            else:
+                # `val` is distributed, `self` is replicated -> gatherall-like
+                raise NotImplementedError
+        elif isinstance(val, np.ndarray):
+            if self._is_distributed:
+                # `val` is replicated, `self` is distributed -> `val` gets distributed
+                if self._glb_indexing:
+                    glb_index = index_normalize(glb_index)
+                    glb_index = glb_index + (slice(None),)*(self.ndim - len(glb_index))
+                    val_index = [index_apply_offset(gtl(), i) if gtl is not None else i
+                                 for gtl, i in zip(self._glb_to_loc, glb_index)]
+                    val = val[val_index]
+            else:
+                # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
+                pass
+        elif isinstance(val, (tuple, list)):
+            if self._is_distributed and configuration['mpi']:
+                raise NotImplementedError("Cannot set `Data` values with tuples or lists "
+                                          "when the object is distributed over processes")
+        else:
+            raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
+
+        # Finally, perform the actual __setitem__
+        super(Data, self).__setitem__(loc_index, val)
 
     def _convert_index(self, index):
-        if isinstance(index, np.ndarray):
-            # Advanced indexing, nothing special to do
-            return index
+        index = index_normalize(index)
 
-        index = as_tuple(index)
         if len(index) > self.ndim:
             # Maybe user code is trying to add a new axis (see np.newaxis),
-            # so the resulting array will have shape larger than `self`'s,
-            # hence I can just let numpy deal with it, as by specification
-            # we're gonna drop modulo indexing anyway
-            return index
+            # so the resulting array will be higher dimensional than `self`,
+            if self._is_distributed:
+                raise ValueError("Cannot increase the dimensionality of distributed Data")
+            else:
+                # As by specification, we are forced to ignore modulo indexing
+                return index
 
-        # Index conversion
-        wrapped = []
-        for i, s, ismod, gtl in zip(index, self.shape, self._modulo, self._glb_to_loc):
-            if ismod is True:
+        ret = []
+        for i, s, mod, gtl in zip(index, self.shape, self._modulo, self._glb_to_loc):
+            if mod is True:
                 # Need to wrap index based on modulo
-                if isinstance(i, slice):
-                    if i.start is None:
-                        start = i.start
-                    elif i.start >= 0:
-                        start = i.start % s
-                    else:
-                        start = -(i.start % s)
-                    if i.stop is None:
-                        stop = i.stop
-                    elif i.stop >= 0:
-                        stop = i.stop % (s + 1)
-                    else:
-                        stop = -(i.stop % (s + 1))
-                    wrapped.append(slice(start, stop, i.step))
-                elif isinstance(i, (tuple, list)):
-                    wrapped.append([k % s for k in i])
-                else:
-                    wrapped.append(i % s)
+                v = index_apply_modulo(i, s)
             elif self._glb_indexing is True and gtl is not None:
+                # TODO: apply offset conversion first
                 # Need to convert the user-provided global indices into local
                 # indices. This has no effect if MPI is not used.
-                if isinstance(i, slice):
-                    wrapped.append(slice(*gtl((i.start, i.stop)), i.step))
-                elif isinstance(i, (tuple, list)):
-                    wrapped.append([gtl(k) for k in i])
-                else:
-                    wrapped.append(gtl(i))
+                v = index_glb_to_loc(i, gtl)
             else:
-                wrapped.append(i)
-        return wrapped[0] if len(index) == 1 else tuple(wrapped)
+                v = i
+
+            # Handle non-local, yet globally legal, indices
+            v = index_handle_oob(v)
+
+            ret.append(v)
+
+        # Deal with NONLOCAL accesses
+        if NONLOCAL in ret:
+            if len(ret) == self.ndim and index_is_basic(ret):
+                # Caller expecting a scalar -- it will eventually get None
+                ret = [NONLOCAL]
+            else:
+                # Caller expecting an array -- it will eventually get a 0-length array
+                ret = [slice(-1, -2) if i is NONLOCAL else i for i in ret]
+
+        return ret[0] if len(ret) == 1 else tuple(ret)
 
     def reset(self):
         """
         Set all Data entries to 0.
         """
         self[:] = 0.0
+
+
+class Index(Tag):
+    pass
+NONLOCAL = Index('nonlocal')  # noqa
+
+
+def index_normalize(index):
+    if isinstance(index, np.ndarray):
+        # Advanced indexing mode
+        index = (index,)
+    return as_tuple(index)
+
+
+def index_is_basic(index):
+    return all(is_integer(i) or (i is NONLOCAL) for i in index)
+
+
+def index_apply_offset(index, ofs):
+    if isinstance(ofs, slice):
+        ofs = ofs.start
+    if ofs is None:
+        ofs = 0
+    if not is_integer(ofs):
+        raise ValueError("Cannot apply offset of type `%s`" % type(ofs))
+
+    if is_integer(index):
+        return index - ofs
+    elif isinstance(index, slice):
+        return slice(index.start - ofs, index.stop - ofs, index.step)
+    elif isinstance(index, (tuple, list)):
+        return [i - ofs for i in index]
+    elif isinstance(index, np.ndarray):
+        return index - ofs
+    else:
+        raise ValueError("Cannot apply offset to index of type `%s`" % type(index))
+
+
+def index_apply_modulo(index, modulo):
+    if is_integer(index):
+        return index % modulo
+    elif isinstance(index, slice):
+        if index.start is None:
+            start = index.start
+        elif index.start >= 0:
+            start = index.start % modulo
+        else:
+            start = -(index.start % modulo)
+        if index.stop is None:
+            stop = index.stop
+        elif index.stop >= 0:
+            stop = index.stop % (modulo + 1)
+        else:
+            stop = -(index.stop % (modulo + 1))
+        return slice(start, stop, index.step)
+    elif isinstance(index, (tuple, list)):
+        return [i % modulo for i in index]
+    elif isinstance(index, np.ndarray):
+        return index
+    else:
+        raise ValueError("Cannot apply modulo to index of type `%s`" % type(index))
+
+
+def index_glb_to_loc(index, glb_to_loc):
+    if is_integer(index):
+        return glb_to_loc(index)
+    elif isinstance(index, slice):
+        return slice(*glb_to_loc((index.start, index.stop)), index.step)
+    elif isinstance(index, (tuple, list)):
+        return [glb_to_loc(i) for i in index]
+    elif isinstance(index, np.ndarray):
+        return np.vectorize(lambda i: glb_to_loc(i))(index)
+    else:
+        raise ValueError("Cannot convert global index of type `%s` into a local index"
+                         % type(index))
+
+
+def index_handle_oob(index):
+    # distributed.convert_index returns None when the index is globally
+    # legal, but out-of-bounds for the calling MPI rank
+    if index is None:
+        return NONLOCAL
+    elif isinstance(index, (tuple, list)):
+        return [i for i in index if i is not None]
+    elif isinstance(index, np.ndarray):
+        return np.delete(index, np.where(index == None))  # noqa
+    else:
+        return index
 
 
 def first_touch(array):
