@@ -1532,7 +1532,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         if self.coordinates._data is None:
             raise ValueError("No coordinates attached to this SparseFunction")
         ret = []
-        for coords in self.coordinates.data:
+        for coords in self.coordinates.data._local:
             ret.append(tuple(int(sympy.floor((c - o.data)/i.spacing.data)) for c, o, i in
                              zip(coords, self.grid.origin, self.grid.dimensions)))
         return ret
@@ -1636,7 +1636,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         data = scattered
 
         # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
-        coords = self.coordinates.data[self._dist_subfunc_scatter_mask]
+        coords = self.coordinates.data._local[self._dist_subfunc_scatter_mask]
         # Send out the sparse point coordinates
         _, scount, sdisp, rshape, rcount, rdisp = self._dist_subfunc_alltoall
         scattered = np.empty(shape=rshape, dtype=self.coordinates.dtype)
