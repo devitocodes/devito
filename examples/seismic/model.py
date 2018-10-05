@@ -399,37 +399,8 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
     :param pad_mode: A string or a suitable padding function as explained in
                      :func:`numpy.pad`.
     """
-    pad_widths = [(nbpml, nbpml) for i in range(function.ndim)]
+    pad_widths = [(nbpml + i.left, nbpml + i.right) for i in function._offset_domain]
     data = np.pad(data, pad_widths, pad_mode)
-
-    distributor = function.grid.distributor
-
-    glb_ranges = distributor.glb_ranges
-    glb_shape = distributor.glb_shape
-
-    assert data.shape == glb_shape
-
-    # TODO: When running with MPI, all ranks have at this point built the entire
-    # global data. Below, each rank extracts its own domain region (the "local grid").
-    # However, in practice, the local data should have been memory-mapped for efficiency
-    pad_widths = []
-    for d, o in zip(function.dimensions, function._offset_domain):
-        try:
-            glb_range = glb_ranges[d]
-
-            lslice = min(glb_range.start, max(glb_range.start - o.left, 0))
-            rslice = max(glb_range.stop, min(glb_range.stop + o.right, glb_shape[d]))
-
-            lpad = o.left - glb_range.start if lslice == 0 else 0
-            rpad = o.right - (rslice - glb_range.stop) if rslice == glb_shape[d] else 0
-
-            pad_widths.append((lpad, rpad))
-        except KeyError:
-            # Not a distributed dimension, so we make sure to get the entire array
-            pad_widths.append((0, 0))
-    data = data[function.local_indices]
-    data = np.pad(data, pad_widths, pad_mode)
-
     function.data_with_halo[:] = data
 
 
