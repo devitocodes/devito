@@ -135,6 +135,14 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             # There may or may not be a `Grid` attached to the TensorFunction
             self._grid = kwargs.get('grid')
 
+            # A `Distributor` to handle domain decomposition (only relevant for MPI)
+            if self._grid is None:
+                # There may or may not be a `Distributor`. In the latter case, the
+                # TensorFunction is to be considered "local" to each MPI rank
+                self._distributor = kwargs.get('distributor')
+            else:
+                self._distributor = self._grid.distributor
+
             # Staggering metadata
             self._staggered = self.__staggered_setup__(**kwargs)
 
@@ -400,10 +408,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             a Function ``f(x, y)``, all MPI ranks can initialize their local
             data straightforwardly as ``f.data[:] = a[f.local_indices]``.
         """
-        if self.grid is None:
+        if self._distributor is None:
             return tuple(slice(0, i) for i in self.shape)
         else:
-            return tuple(slice(i.start, i.stop) for i in self.grid.distributor.glb_ranges)
+            return tuple(slice(i.start, i.stop) for i in self._distributor.glb_ranges)
 
     @property
     def space_dimensions(self):
@@ -437,17 +445,17 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         A mapper from distributed :class:`Dimension`s in ``self`` to callables
         converting a global index into a local index.
         """
-        if self.grid is None:
+        if self._distributor is None:
             return {}
-        return {d: partial(self.grid.distributor.glb_to_loc, d)
-                for d in self.dimensions if self.grid.is_distributed(d)}
+        return {d: partial(self._distributor.glb_to_loc, d)
+                for d in self.dimensions if d in self._distributor.dimensions}
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
         if not MPI.Is_initialized() or MPI.COMM_WORLD.size == 1:
             # Nothing to do
             return
-        if MPI.COMM_WORLD.size > 1 and self.grid is None:
+        if MPI.COMM_WORLD.size > 1 and self._distributor is None:
             raise RuntimeError("`%s` cannot perfom a halo exchange as it has "
                                "no Grid attached" % self.name)
         if self._in_flight:
@@ -461,9 +469,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     def __halo_begin_exchange(self, dim):
         """Begin a halo exchange along a given :class:`Dimension`."""
-        distributor = self.grid.distributor
-        neighbours = distributor.neighbours
-        comm = distributor.comm
+        neighbours = self._distributor.neighbours
+        comm = self._distributor.comm
         for i in [LEFT, RIGHT]:
             neighbour = neighbours[dim][i]
             owned_region = self._get_view(OWNED, dim, i)
@@ -1053,11 +1060,6 @@ class AbstractSparseFunction(TensorFunction):
         """
         raise NotImplementedError
 
-    @cached_property
-    def local_indices(self):
-        return tuple(self._distributor.glb_slice if d is self._sparse_dim else slice(None)
-                     for d in self.dimensions)
-
     @property
     def _support(self):
         """
@@ -1374,7 +1376,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
             # A `SparseDistributor` handles the SparseFunction decomposition based on
             # physical ownership, and allows to convert between global and local indices
-            self._distributor = SparseDistributor(self._npoint, self.grid.distributor)
+            self._distributor = SparseDistributor(self._npoint, self._sparse_dim,
+                                                  self.grid.distributor)
 
             # Set up sparse point coordinates
             coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
@@ -1389,11 +1392,12 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                 self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
                                                 dtype=self.dtype, dimensions=dimensions,
                                                 shape=(self.npoint, self.grid.dim),
-                                                space_order=0, initializer=coordinates)
+                                                space_order=0, initializer=coordinates,
+                                                distributor=self._distributor)
                 if self.npoint == 0:
                     # This is a corner case -- we might get here, for example, when
                     # running with MPI and some processes get 0-size arrays after
-                    # domain decomposition. We touch the data anyway to avoid the
+                    # domain decomposition. We "touch" the data anyway to avoid the
                     # case ``self._data is None``
                     self.coordinates.data
 
@@ -1536,6 +1540,11 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
             ret.append(tuple(int(sympy.floor((c - o.data)/i.spacing.data)) for c, o, i in
                              zip(coords, self.grid.origin, self.grid.dimensions)))
         return ret
+
+    @cached_property
+    def local_indices(self):
+        return tuple(self._distributor.glb_slice if d is self._sparse_dim else slice(None)
+                     for d in self.dimensions)
 
     def interpolate(self, expr, offset=0, increment=False, self_subs={}):
         """Creates a :class:`sympy.Eq` equation for the interpolation
