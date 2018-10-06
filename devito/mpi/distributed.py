@@ -49,14 +49,28 @@ class AbstractDistributor(ABC):
         return
 
     @abstractmethod
-    def glb_numb(self):
-        """The global indices owned by the calling MPI rank."""
+    def myrank(self):
+        """The rank of the calling MPI process."""
         return
 
     @abstractmethod
-    def glb_ranges(self):
-        """The global indices owned by the calling MPI rank, as a range."""
+    def mycoords(self):
+        """The coordinates of the calling MPI rank in the Distributor topology."""
         return
+
+    @cached_property
+    def glb_numb(self):
+        """The global indices owned by the calling MPI rank."""
+        assert len(self.mycoords) == len(self.decomposition)
+        glb_numb = [i[j] for i, j in zip(self.decomposition, self.mycoords)]
+        return EnrichedTuple(*glb_numb, getters=self.dimensions)
+
+    @cached_property
+    def glb_slices(self):
+        """The global indices owned by the calling MPI rank, as a mapper from
+        :class:`Dimension`s to slices."""
+        return {d: slice(min(i), max(i) + 1)
+                for d, i in zip(self.dimensions, self.glb_numb)}
 
     @property
     def glb_shape(self):
@@ -216,17 +230,6 @@ class Distributor(AbstractDistributor):
         return tuple(ret)
 
     @cached_property
-    def glb_numb(self):
-        assert len(self.mycoords) == len(self.decomposition)
-        glb_numb = [i[j] for i, j in zip(self.decomposition, self.mycoords)]
-        return EnrichedTuple(*glb_numb, getters=self.dimensions)
-
-    @cached_property
-    def glb_ranges(self):
-        return EnrichedTuple(*[range(min(i), max(i) + 1) for i in self.glb_numb],
-                             getters=self.dimensions)
-
-    @cached_property
     def glb_pos_map(self):
         """Return the mapper ``dimension -> side`` telling the position
         of the calling rank in the global grid."""
@@ -376,24 +379,11 @@ class SparseDistributor(AbstractDistributor):
 
     @property
     def mycoords(self):
-        return self.distributor.mycoords
+        return (self.myrank,)
 
     @property
     def nprocs(self):
         return self.distributor.nprocs
-
-    @property
-    def glb_numb(self):
-        return self._decomposition[0][self.myrank]
-
-    @property
-    def glb_ranges(self):
-        return range(min(self.glb_numb), max(self.glb_numb) + 1)
-
-    @property
-    def glb_slice(self):
-        """Return the global indices that belong to the calling MPI rank as a slice."""
-        return slice(min(self.glb_numb), max(self.glb_numb) + 1)
 
 
 class Decomposition(tuple):

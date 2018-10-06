@@ -408,9 +408,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             data straightforwardly as ``f.data[:] = a[f.local_indices]``.
         """
         if self._distributor is None:
-            return tuple(slice(0, i) for i in self.shape)
+            return tuple(slice(0, s) for s in self.shape)
         else:
-            return tuple(slice(i.start, i.stop) for i in self._distributor.glb_ranges)
+            return tuple(self._distributor.glb_slices.get(d, slice(0, s))
+                         for s, d in zip(self.shape, self.dimensions))
 
     @property
     def space_dimensions(self):
@@ -1539,11 +1540,6 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
             ret.append(tuple(int(sympy.floor((c - o.data)/i.spacing.data)) for c, o, i in
                              zip(coords, self.grid.origin, self.grid.dimensions)))
         return ret
-
-    @cached_property
-    def local_indices(self):
-        return tuple(self._distributor.glb_slice if d is self._sparse_dim else slice(None)
-                     for d in self.dimensions)
 
     def interpolate(self, expr, offset=0, increment=False, self_subs={}):
         """Creates a :class:`sympy.Eq` equation for the interpolation
