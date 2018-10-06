@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import Iterable, namedtuple
 from ctypes import Structure, c_int, c_void_p, sizeof
 from itertools import product
 from math import ceil
@@ -141,8 +141,8 @@ class Distributor(AbstractDistributor):
             self._topology = tuple(1 for _ in range(len(shape)))
 
         # The domain decomposition
-        decomposition = [np.array_split(range(i), j)
-                         for i, j in zip(shape, self._topology)]
+        decomposition = [Decomposition(np.array_split(range(i), j), c)
+                         for i, j, c in zip(shape, self.topology, self.mycoords)]
         self._decomposition = EnrichedTuple(*decomposition, getters=self.dimensions)
 
     def __del__(self):
@@ -398,6 +398,29 @@ class SparseDistributor(AbstractDistributor):
     def glb_to_loc(self, dim, *args):
         assert dim in self.dimensions
         return convert_index(self._decomposition, self.glb_numb, *args)
+
+
+class Decomposition(tuple):
+
+    """
+    A decomposition of a discrete "global" domain into multiple, non-overlapping
+    "local" subdomains.
+
+    :param items: The decomposition, as an iterable of int lists. There are as
+                  many int lists as subdomains. The values in a list are indices.
+                  For example, in ``([0, 1, 2], [3, 4], [5, 6, 7])`` there are 8
+                  indices, split over three subdomains.
+    :param local: The owned local subdomain, as an index ``0 <= local < len(items)``.
+    """
+
+    def __new__(cls, items, local):
+        if not all(isinstance(i, Iterable) for i in items):
+            raise TypeError("Illegal Decomposition element type")
+        if not is_integer(local) and (0 <= local < len(items)):
+            raise ValueError("`local` must be an index in ``items``.")
+        obj = super(Decomposition, cls).__new__(cls, items)
+        obj._local = local
+        return obj
 
 
 def compute_dims(nprocs, ndim):
