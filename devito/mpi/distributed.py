@@ -446,6 +446,10 @@ class Decomposition(tuple):
     def loc_abs_max(self):
         return max(self.loc_abs_numb)
 
+    def __call__(self, *args):
+        """Alias for ``self.convert_index``."""
+        return self.convert_index(*args)
+
     def convert_index(self, *args):
         """
         Translate an absolute index, that is an index in the global domain, into a

@@ -337,11 +337,14 @@ class Data(np.ndarray):
     :param shape: Shape of the array in grid points.
     :param dimensions: The array :class:`Dimension`s.
     :param dtype: A ``numpy.dtype`` for the raw data.
-    :param glb_to_loc: (Optional) a mapper from :class:`Dimension`s in ``dimensions`
-                       to functions translating (user-provided) global array
-                       indices into local indices. This is only relevant when
-                       MPI is used and the array is globally distributed over a
-                       set of processes.
+    :param decomposition: (Optional) a mapper from :class:`Dimension`s in
+                          ``dimensions`` to :class:`Decomposition`s, which
+                          describe how the Data is distributed over a set
+                          of processes. The Decompositions will be used to
+                          translate global array indices into local indices.
+                          The local indices are relative to the calling process.
+                          This is only relevant in the case of distributed
+                          memory execution (via MPI).
     :param allocator: (Optional) a :class:`MemoryAllocator` to specialize memory
                       allocation. Defaults to ``ALLOC_FLAT``.
 
@@ -358,13 +361,13 @@ class Data(np.ndarray):
         performing logical indexing is lost.
     """
 
-    def __new__(cls, shape, dimensions, dtype, glb_to_loc=None, allocator=ALLOC_FLAT):
+    def __new__(cls, shape, dimensions, dtype, decomposition=None, allocator=ALLOC_FLAT):
         assert len(shape) == len(dimensions)
         ndarray, memfree_args = allocator.alloc(shape, dtype)
         obj = np.asarray(ndarray).view(cls)
         obj._allocator = allocator
         obj._memfree_args = memfree_args
-        obj._glb_to_loc = tuple((glb_to_loc or {}).get(i) for i in dimensions)
+        obj._decomposition = tuple((decomposition or {}).get(i) for i in dimensions)
         obj._modulo = tuple(True if i.is_Stepping else False for i in dimensions)
 
         # By default, the indices used to access array values are interpreted as
@@ -372,13 +375,14 @@ class Data(np.ndarray):
         obj._glb_indexing = False
 
         # This cannot be a property, as Data objects constructed from this
-        # object might not have any `glb_to_loc`, but they would still be
-        # distributed. So in `__array_finalize__` we must copy this value
-        obj._is_distributed = any(i is not None for i in obj._glb_to_loc)
+        # object might not have any `decomposition`, but they would still be
+        # distributed. Hence, in `__array_finalize__` we must copy this value
+        obj._is_distributed = any(i is not None for i in obj._decomposition)
 
         # Sanity check -- A Dimension can't be at the same time modulo-iterated
         # and MPI-distributed
-        assert all(i is None for i, j in zip(obj._glb_to_loc, obj._modulo) if j is True)
+        assert all(i is None for i, j in zip(obj._decomposition, obj._modulo)
+                   if j is True)
 
         return obj
 
@@ -396,17 +400,17 @@ class Data(np.ndarray):
             return
         if type(obj) != Data:
             self._modulo = tuple(False for i in range(self.ndim))
-            self._glb_to_loc = (None,)*self.ndim
+            self._decomposition = (None,)*self.ndim
             self._glb_indexing = False
             self._is_distributed = False
         elif self.ndim != obj.ndim:
             self._modulo = tuple(False for i in range(self.ndim))
-            self._glb_to_loc = (None,)*self.ndim
+            self._decomposition = (None,)*self.ndim
             self._glb_indexing = False
             self._is_distributed = obj._is_distributed
         else:
             self._modulo = obj._modulo
-            self._glb_to_loc = obj._glb_to_loc
+            self._decomposition = obj._decomposition
             self._glb_indexing = obj._glb_indexing
             self._is_distributed = obj._is_distributed
         # Views or references created via operations on `obj` do not get an
@@ -459,8 +463,8 @@ class Data(np.ndarray):
                 if self._glb_indexing:
                     glb_index = index_normalize(glb_index)
                     glb_index = glb_index + (slice(None),)*(self.ndim - len(glb_index))
-                    val_index = [index_apply_offset(gtl(), i) if gtl is not None else i
-                                 for gtl, i in zip(self._glb_to_loc, glb_index)]
+                    val_index = [index_apply_offset(dec(), i) if dec is not None else i
+                                 for dec, i in zip(self._decomposition, glb_index)]
                     val = val[val_index]
             else:
                 # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
@@ -488,15 +492,15 @@ class Data(np.ndarray):
                 return index
 
         ret = []
-        for i, s, mod, gtl in zip(index, self.shape, self._modulo, self._glb_to_loc):
+        for i, s, mod, dec in zip(index, self.shape, self._modulo, self._decomposition):
             if mod is True:
                 # Need to wrap index based on modulo
                 v = index_apply_modulo(i, s)
-            elif self._glb_indexing is True and gtl is not None:
+            elif self._glb_indexing is True and dec is not None:
                 # TODO: apply offset conversion first
                 # Need to convert the user-provided global indices into local
                 # indices. This has no effect if MPI is not used.
-                v = index_glb_to_loc(i, gtl)
+                v = index_glb_to_loc(i, dec)
             else:
                 v = i
 
@@ -584,15 +588,15 @@ def index_apply_modulo(index, modulo):
         raise ValueError("Cannot apply modulo to index of type `%s`" % type(index))
 
 
-def index_glb_to_loc(index, glb_to_loc):
+def index_glb_to_loc(index, decomposition):
     if is_integer(index):
-        return glb_to_loc(index)
+        return decomposition(index)
     elif isinstance(index, slice):
-        return slice(*glb_to_loc((index.start, index.stop)), index.step)
+        return slice(*decomposition((index.start, index.stop)), index.step)
     elif isinstance(index, (tuple, list)):
-        return [glb_to_loc(i) for i in index]
+        return [decomposition(i) for i in index]
     elif isinstance(index, np.ndarray):
-        return np.vectorize(lambda i: glb_to_loc(i))(index)
+        return np.vectorize(lambda i: decomposition(i))(index)
     else:
         raise ValueError("Cannot convert global index of type `%s` into a local index"
                          % type(index))

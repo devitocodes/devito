@@ -1,6 +1,5 @@
 from collections import OrderedDict
 from itertools import product
-from functools import partial
 
 import sympy
 import numpy as np
@@ -176,7 +175,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
                 self._data = Data(self.shape_allocated, self.indices, self.dtype,
-                                  glb_to_loc=self._glb_to_loc, allocator=self._allocator)
+                                  self._decomposition, self._allocator)
                 if self._first_touch:
                     first_touch(self)
                 if callable(self._initializer):
@@ -440,14 +439,14 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return EnrichedTuple(*ret, getters=self.dimensions)
 
     @cached_property
-    def _glb_to_loc(self):
+    def _decomposition(self):
         """
-        A mapper from distributed :class:`Dimension`s in ``self`` to callables
-        converting a global index into a local index.
+        A mapper from self's distributed :class:`Dimension`s to their
+        :class:`Decomposition`s.
         """
         if self._distributor is None:
             return {}
-        return {d: partial(self._distributor.glb_to_loc, d)
+        return {d: self._distributor.decomposition[d]
                 for d in self.dimensions if d in self._distributor.dimensions}
 
     def _halo_exchange(self):
@@ -1596,8 +1595,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return eqns
 
     @cached_property
-    def _glb_to_loc(self):
-        return {self._sparse_dim: partial(self._distributor.glb_to_loc, self._sparse_dim)}
+    def _decomposition(self):
+        return {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
 
     @property
     def _dist_subfunc_alltoall(self):
