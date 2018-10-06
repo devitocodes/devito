@@ -43,26 +43,6 @@ class AbstractDistributor(ABC):
     def __repr__(self):
         return "%s(nprocs=%d)" % (self.__class__.__name__, self.nprocs)
 
-    @property
-    def glb_shape(self):
-        """Shape of the decomposed domain."""
-        return EnrichedTuple(*self._glb_shape, getters=self.dimensions)
-
-    @property
-    def shape(self):
-        """The calling MPI rank's local shape."""
-        return tuple(len(i) for i in self.glb_numb)
-
-    @property
-    def dimensions(self):
-        """The decomposed :class:`Dimension`s."""
-        return self._dimensions
-
-    @property
-    def ndim(self):
-        """Number of decomposed :class:`Dimension`s"""
-        return len(self._glb_shape)
-
     @abstractmethod
     def comm(self):
         """The MPI communicator."""
@@ -78,22 +58,47 @@ class AbstractDistributor(ABC):
         """The global indices owned by the calling MPI rank, as a range."""
         return
 
-    @abstractmethod
-    def glb_to_loc(self, *args):
+    @property
+    def glb_shape(self):
+        """Shape of the decomposed domain."""
+        return EnrichedTuple(*self._glb_shape, getters=self.dimensions)
+
+    @property
+    def shape(self):
+        """The calling MPI rank's local shape."""
+        return tuple(len(i) for i in self.glb_numb)
+
+    @property
+    def dimensions(self):
+        """The decomposed :class:`Dimension`s."""
+        return self._dimensions
+
+    @cached_property
+    def decomposition(self):
+        """The :class:`Decomposition`s, one for each decomposed :class:`Dimension`."""
+        return EnrichedTuple(*self._decomposition, getters=self.dimensions)
+
+    @property
+    def ndim(self):
+        """Number of decomposed :class:`Dimension`s"""
+        return len(self._glb_shape)
+
+    def glb_to_loc(self, dim, *args):
         """
-        glb_to_loc()
-        glb_to_loc(index)
-        glb_to_loc(offset, side)
-        glb_to_loc((min, max))
+        glb_to_loc(dim)
+        glb_to_loc(dim, index)
+        glb_to_loc(dim, offset, side)
+        glb_to_loc(dim, (min, max))
 
         Translate global indices into local indices.
 
-        :param dim: The global indices :class:`Dimension`. This must be one of
-                    the :class:`Dimension`s in ``self.dimensions``.
-        :param args: There are four possible cases. These are described in
-                     :func:`convert_index`.__doc__.
+        :param dim: The :class:`Dimension` of the global indices. This must appear
+                    in ``self.dimensions``.
+        :param args: There are four possible cases, documented in
+                     :meth:`Decomposition.convert_index`.
         """
-        return
+        assert dim in self.dimensions
+        return self.decomposition[dim].convert_index(*args)
 
 
 class Distributor(AbstractDistributor):
@@ -149,9 +154,8 @@ class Distributor(AbstractDistributor):
             self._topology = tuple(1 for _ in range(len(shape)))
 
         # The domain decomposition
-        decomposition = [Decomposition(np.array_split(range(i), j), c)
-                         for i, j, c in zip(shape, self.topology, self.mycoords)]
-        self._decomposition = EnrichedTuple(*decomposition, getters=self.dimensions)
+        self._decomposition = [Decomposition(np.array_split(range(i), j), c)
+                               for i, j, c in zip(shape, self.topology, self.mycoords)]
 
     def __del__(self):
         if self._input_comm is not None:
@@ -186,23 +190,23 @@ class Distributor(AbstractDistributor):
     def topology(self):
         return self._topology
 
-    @property
+    @cached_property
     def all_coords(self):
         """Return an iterable containing the coordinates of each MPI rank in
         the decomposed domain. The iterable is order based on the MPI rank."""
         ret = product(*[range(i) for i in self.topology])
         return tuple(sorted(ret, key=lambda i: self.comm.Get_cart_rank(i)))
 
-    @property
+    @cached_property
     def all_numb(self):
         """Return an iterable containing the global numbering of all MPI ranks."""
         ret = []
         for c in self.all_coords:
-            glb_numb = [i[j] for i, j in zip(self._decomposition, c)]
+            glb_numb = [i[j] for i, j in zip(self.decomposition, c)]
             ret.append(EnrichedTuple(*glb_numb, getters=self.dimensions))
         return tuple(ret)
 
-    @property
+    @cached_property
     def all_ranges(self):
         """Return an iterable containing the global ranges of each MPI rank."""
         ret = []
@@ -211,18 +215,18 @@ class Distributor(AbstractDistributor):
                                      getters=self.dimensions))
         return tuple(ret)
 
-    @property
+    @cached_property
     def glb_numb(self):
-        assert len(self.mycoords) == len(self._decomposition)
-        glb_numb = [i[j] for i, j in zip(self._decomposition, self.mycoords)]
+        assert len(self.mycoords) == len(self.decomposition)
+        glb_numb = [i[j] for i, j in zip(self.decomposition, self.mycoords)]
         return EnrichedTuple(*glb_numb, getters=self.dimensions)
 
-    @property
+    @cached_property
     def glb_ranges(self):
         return EnrichedTuple(*[range(min(i), max(i) + 1) for i in self.glb_numb],
                              getters=self.dimensions)
 
-    @property
+    @cached_property
     def glb_pos_map(self):
         """Return the mapper ``dimension -> side`` telling the position
         of the calling rank in the global grid."""
@@ -262,10 +266,6 @@ class Distributor(AbstractDistributor):
                     break
             assert found
         return tuple(ret) if len(indices) > 1 else ret[0]
-
-    def glb_to_loc(self, dim, *args):
-        assert dim in self.dimensions
-        return self._decomposition[dim].convert_index(*args)
 
     @property
     def neighbours(self):
@@ -322,18 +322,18 @@ class SparseDistributor(AbstractDistributor):
 
     :param npoint: The number of sparse data values.
     :param dimension: The decomposed :class:`Dimension`.
-    :param distributor: The :class:`Distributor` the EmbeddedDistributor
-                        depens on.
+    :param distributor: The :class:`Distributor` the SparseDistributor depends on.
     """
 
     def __init__(self, npoint, dimension, distributor):
         super(SparseDistributor, self).__init__(npoint, dimension)
         self._distributor = distributor
 
+        # The dimension decomposition
         decomposition = SparseDistributor.decompose(npoint, distributor)
         offs = np.concatenate([[0], np.cumsum(decomposition)])
-        self._decomposition = Decomposition([tuple(range(offs[i], offs[i+1]))
-                                             for i in range(self.nprocs)], self.myrank)
+        self._decomposition = [Decomposition([tuple(range(offs[i], offs[i+1]))
+                                              for i in range(self.nprocs)], self.myrank)]
 
     @classmethod
     def decompose(cls, npoint, distributor):
@@ -384,7 +384,7 @@ class SparseDistributor(AbstractDistributor):
 
     @property
     def glb_numb(self):
-        return self._decomposition[self.myrank]
+        return self._decomposition[0][self.myrank]
 
     @property
     def glb_ranges(self):
@@ -394,10 +394,6 @@ class SparseDistributor(AbstractDistributor):
     def glb_slice(self):
         """Return the global indices that belong to the calling MPI rank as a slice."""
         return slice(min(self.glb_numb), max(self.glb_numb) + 1)
-
-    def glb_to_loc(self, dim, *args):
-        assert dim in self.dimensions
-        return self._decomposition.convert_index(*args)
 
 
 class Decomposition(tuple):
