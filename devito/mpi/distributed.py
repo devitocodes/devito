@@ -40,10 +40,18 @@ class AbstractDistributor(ABC):
         self._glb_shape = as_tuple(shape)
         self._dimensions = as_tuple(dimensions)
 
+    def __repr__(self):
+        return "%s(nprocs=%d)" % (self.__class__.__name__, self.nprocs)
+
     @property
     def glb_shape(self):
         """Shape of the decomposed domain."""
         return EnrichedTuple(*self._glb_shape, getters=self.dimensions)
+
+    @property
+    def shape(self):
+        """The calling MPI rank's local shape."""
+        return tuple(len(i) for i in self.glb_numb)
 
     @property
     def dimensions(self):
@@ -62,12 +70,12 @@ class AbstractDistributor(ABC):
 
     @abstractmethod
     def glb_numb(self):
-        """The global indices that belong to the calling MPI rank."""
+        """The global indices owned by the calling MPI rank."""
         return
 
     @abstractmethod
     def glb_ranges(self):
-        """The global indices that belong to the calling MPI rank, as a range."""
+        """The global indices owned by the calling MPI rank, as a range."""
         return
 
     @abstractmethod
@@ -257,12 +265,7 @@ class Distributor(AbstractDistributor):
 
     def glb_to_loc(self, dim, *args):
         assert dim in self.dimensions
-        return convert_index(self._decomposition[dim], self.glb_numb[dim], *args)
-
-    @property
-    def shape(self):
-        """The calling MPI rank's local shape."""
-        return tuple(len(i) for i in self.glb_numb)
+        return self._decomposition[dim].convert_index(*args)
 
     @property
     def neighbours(self):
@@ -310,9 +313,6 @@ class Distributor(AbstractDistributor):
         CNeighbours = namedtuple('CNeighbours', 'ctype cdef obj')
         return CNeighbours(obj.dtype, cdef, obj)
 
-    def __repr__(self):
-        return "Distributor(nprocs=%d)" % self.nprocs
-
 
 class SparseDistributor(AbstractDistributor):
 
@@ -332,8 +332,8 @@ class SparseDistributor(AbstractDistributor):
 
         decomposition = SparseDistributor.decompose(npoint, distributor)
         offs = np.concatenate([[0], np.cumsum(decomposition)])
-        self._decomposition = tuple(tuple(range(offs[i], offs[i+1]))
-                                    for i in range(self.nprocs))
+        self._decomposition = Decomposition([tuple(range(offs[i], offs[i+1]))
+                                             for i in range(self.nprocs)], self.myrank)
 
     @classmethod
     def decompose(cls, npoint, distributor):
@@ -397,7 +397,7 @@ class SparseDistributor(AbstractDistributor):
 
     def glb_to_loc(self, dim, *args):
         assert dim in self.dimensions
-        return convert_index(self._decomposition, self.glb_numb, *args)
+        return self._decomposition.convert_index(*args)
 
 
 class Decomposition(tuple):
@@ -422,6 +422,143 @@ class Decomposition(tuple):
         obj._local = local
         return obj
 
+    @property
+    def local(self):
+        return self._local
+
+    @cached_property
+    def glb_min(self):
+        return min(min(i) for i in self)
+
+    @cached_property
+    def glb_max(self):
+        return max(max(i) for i in self)
+
+    @cached_property
+    def loc_abs_numb(self):
+        return self[self.local]
+
+    @cached_property
+    def loc_abs_min(self):
+        return min(self.loc_abs_numb)
+
+    @cached_property
+    def loc_abs_max(self):
+        return max(self.loc_abs_numb)
+
+    def convert_index(self, *args):
+        """
+        Translate an absolute index, that is an index in the global domain, into a
+        relative index for the ``self.local`` subdomain.
+
+        For example, in the following global domain there are 12 indices, split over
+        4 subdomains, namely A, B, C, D: ::
+
+            | 0 1 2 | 3 4 | 5 6 7 | 8 9 10 11 |
+
+        In this example, the indices 5, 6, and 7 are absolute global indices; the
+        corresponding local indices for subdomain C are 0, 1, 2. Thus, calling
+        ``convert_index(...)`` on a :class:`Decomposition` with ``local=C`` provides: ::
+
+            * convert_index(5) --> 0
+            * convert_index(7) --> 2
+            * convert_index(3) --> None
+
+        In fact, there are many ways in which ``convert_index`` may be called,
+        described below.
+
+        :param args: There are four possible cases: ::
+
+                         * ``args`` is empty. The global ``(min, max)`` indices in
+                           the local subdomain are returned, as a slice object.
+                         * ``args`` is a single integer I representing a global index.
+                           If I belongs to the local subdomain, then the corresponding
+                           relative "local" index is returned, otherwise None.
+                         * ``args`` consists of two items, O and S -- O is the offset of
+                           the side S along ``dim``. O is therefore an integer, while S
+                           is an object of type :class:`DataSide`. Return the offset in
+                           the local domain, possibly 0 if the local range does not
+                           intersect with the region defined by the global offset.
+                         * ``args`` is a tuple ``(min, max)``; return a 2-tuple ``(min',
+                           max')``, where ``min'`` and ``max'`` can be either None or
+                           an integer:
+                             - ``min'=None`` means that ``min`` does not belong to the
+                               local subdomain, but it precedes its minimum. Likewise,
+                               ``max'=None`` means that ``max`` does not belong to the
+                               local subdomain, but it comes after its maximum.
+                             - If ``min/max=int``, then the integer can represent
+                               either the local index corresponding to the
+                               ``min/max``, or it could be any random number such that
+                               ``max=min-1``, meaning that the input argument does not
+                               represent a valid range for the local subdomain.
+        """
+
+        # For clarity, consider the following decomposition with `local=C`, C=[5,6,7]
+        #
+        #     | 0 1 2 | 3 4 | 5 6 7 | 8 9 10 11 |
+        #
+        # Then we have that:
+        # * self.glb_min -> 0
+        # * self.glb_max -> 11
+        # * self.loc_abs_numb -> [5, 6, 7]
+        # * self.loc_abs_min -> 5
+        # * self.loc_abs_max -> 7
+
+        if len(args) == 0:
+            # convert_index()
+            return slice(self.loc_abs_min, self.loc_abs_max + 1)
+        elif len(args) == 1:
+            base = self.loc_abs_min
+            if is_integer(args[0]):
+                # convert_index(index)
+                glb_index = args[0]
+                # -> Handle negative index
+                if glb_index < 0:
+                    glb_index = self.glb_max + glb_index + 1
+                # -> Do the actual conversion
+                if glb_index in self.loc_abs_numb:
+                    return glb_index - base
+                elif self.glb_min <= glb_index <= self.glb_max:
+                    return None
+                else:
+                    # This should raise an exception when used to access a numpy.array
+                    return glb_index
+            else:
+                # convert_index((min, max))
+                glb_index_min, glb_index_max = args[0]
+                # -> Handle negative min/max
+                if glb_index_min is not None and glb_index_min < 0:
+                    glb_index_min = self.glb_max + glb_index_min + 1
+                if glb_index_max is not None and glb_index_max < 0:
+                    glb_index_max = self.glb_max + glb_index_max + 1
+                # -> Do the actual conversion
+                if glb_index_min is None or glb_index_min < base:
+                    loc_min = None
+                elif glb_index_min > self.loc_abs_max:
+                    return (-1, -2)
+                else:
+                    loc_min = glb_index_min - base
+                if glb_index_max is None or glb_index_max > self.loc_abs_max:
+                    loc_max = None
+                elif glb_index_max < base:
+                    return (-1, -2)
+                else:
+                    loc_max = glb_index_max - base
+                return (loc_min, loc_max)
+        else:
+            # convert_index(offset, side)
+            rel_ofs, side = args
+            if side is LEFT:
+                abs_ofs = self.glb_min + rel_ofs
+                base = self.loc_abs_min
+                extent = self.loc_abs_max - base
+                return min(abs_ofs - base, extent) if abs_ofs > base else 0
+            else:
+                abs_ofs = self.glb_max - rel_ofs
+                base = self.loc_abs_max
+                extent = base - self.loc_abs_min
+                return min(base - abs_ofs, extent) if abs_ofs < base else 0
+
 
 def compute_dims(nprocs, ndim):
     # We don't do anything clever here. In fact, we do something very basic --
@@ -437,100 +574,3 @@ def compute_dims(nprocs, ndim):
     else:
         v = int(v)
     return tuple(v for _ in range(ndim))
-
-
-def convert_index(decomposition, glb_numb, *args):
-    """
-    Translate a global index into a local index.
-
-    :param decomposition: The dimension decomposition, as a nested iterable of int
-                          lists. The nesting structure encodes the MPI communicator
-                          topology; the int list tells which global indices are owned
-                          by a certain MPI rank. For example,
-                          ``(([0, 1, 2], [3, 4]), ([5], [6, 7]))`` encodes that
-                          it's a 2x2 grid (4 MPI ranks in total), and rank0 owns
-                          ``0, 1, 2``, rank1 owns ``3, 4``, rank2 owns ``5``,
-                          and rank3 owns ``6, 7``.
-    :param glb_numb: The calling MPI rank's global numbering.
-    :param args: There are four possible cases:
-                   * ``args`` is empty. The ``(min, max)`` indices owned by
-                     the calling MPI rank are returned, as a slice object. IOW,
-                     this represents the range of global indices that would be
-                     successfully converted by the calling MPI rank.
-                   * ``args`` is a single integer I representing a global index.
-                     Then, the corresponding local index is returned if I is
-                     owned by the calling MPI rank, otherwise None.
-                   * ``args`` consists of two items, O and S -- O is the offset of
-                     the side S along ``dim``. O is therefore an integer, while S
-                     is an object of type :class:`DataSide`. Return the offset in
-                     the local domain, possibly 0 if the local range does not
-                     intersect with the region defined by the global offset.
-                   * ``args`` is a tuple (min, max); return a 2-tuple (min',
-                     max'), where ``min'`` and ``max'`` can be either None or
-                     an integer:
-                       - ``min'=None`` means that ``min`` is not owned by the
-                         calling MPI rank, but it precedes its minimum. Likewise,
-                         ``max'=None`` means that ``max`` is not owned by the
-                         calling MPI rank, but it comes after its maximum.
-                       - If ``min/max=int``, then the integer can represent
-                         either the local index corresponding to the
-                         ``min/max``, or it could be any random number such that
-                         ``max=min-1``, meaning that the input argument does not
-                         represent a valid range for the calling MPI rank.
-    """
-    glb_min = min(min(i) for i in decomposition)
-    glb_max = max(max(i) for i in decomposition)
-    if len(args) == 0:
-        # convert_index(...)  - no *args
-        return slice(min(glb_numb), max(glb_numb) + 1)
-    elif len(args) == 1:
-        base = min(glb_numb)
-        if is_integer(args[0]):
-            # convert_index(..., index)
-            glb_index = args[0]
-            # -> Handle negative index
-            if glb_index < 0:
-                glb_index = glb_max + glb_index + 1
-            # -> Do the actual conversion
-            if glb_index in glb_numb:
-                return glb_index - base
-            elif glb_min <= glb_index <= glb_max:
-                return None
-            else:
-                # This should raise an exception when used to access a numpy.array
-                return glb_index
-        else:
-            # convert_index(..., (min, max))
-            glb_index_min, glb_index_max = args[0]
-            # -> Handle negative min/max
-            if glb_index_min is not None and glb_index_min < 0:
-                glb_index_min = glb_max + glb_index_min + 1
-            if glb_index_max is not None and glb_index_max < 0:
-                glb_index_max = glb_max + glb_index_max + 1
-            # -> Do the actual conversion
-            if glb_index_min is None or glb_index_min < base:
-                loc_min = None
-            elif glb_index_min > max(glb_numb):
-                return (-1, -2)
-            else:
-                loc_min = glb_index_min - base
-            if glb_index_max is None or glb_index_max > max(glb_numb):
-                loc_max = None
-            elif glb_index_max < base:
-                return (-1, -2)
-            else:
-                loc_max = glb_index_max - base
-            return (loc_min, loc_max)
-    else:
-        # convert_index(..., offset, side)
-        rel_ofs, side = args
-        if side is LEFT:
-            abs_ofs = glb_min + rel_ofs
-            base = min(glb_numb)
-            extent = max(glb_numb) - base
-            return min(abs_ofs - base, extent) if abs_ofs > base else 0
-        else:
-            abs_ofs = glb_max - rel_ofs
-            base = max(glb_numb)
-            extent = base - min(glb_numb)
-            return min(base - abs_ofs, extent) if abs_ofs < base else 0
