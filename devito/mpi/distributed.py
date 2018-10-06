@@ -36,13 +36,24 @@ class AbstractDistributor(ABC):
         all subclasses are expected to implement.
     """
 
-    def __init__(self, dimensions):
+    def __init__(self, shape, dimensions):
+        self._glb_shape = as_tuple(shape)
         self._dimensions = as_tuple(dimensions)
+
+    @property
+    def glb_shape(self):
+        """Shape of the decomposed domain."""
+        return EnrichedTuple(*self._glb_shape, getters=self.dimensions)
 
     @property
     def dimensions(self):
         """The decomposed :class:`Dimension`s."""
         return self._dimensions
+
+    @property
+    def ndim(self):
+        """Number of decomposed :class:`Dimension`s"""
+        return len(self._glb_shape)
 
     @abstractmethod
     def comm(self):
@@ -88,8 +99,7 @@ class Distributor(AbstractDistributor):
     """
 
     def __init__(self, shape, dimensions, input_comm=None):
-        super(Distributor, self).__init__(dimensions)
-        self._glb_shape = shape
+        super(Distributor, self).__init__(shape, dimensions)
 
         if configuration['mpi']:
             # First time we enter here, we make sure MPI is initialized
@@ -165,10 +175,6 @@ class Distributor(AbstractDistributor):
             return 1
 
     @property
-    def ndim(self):
-        return len(self._glb_shape)
-
-    @property
     def topology(self):
         return self._topology
 
@@ -196,10 +202,6 @@ class Distributor(AbstractDistributor):
             ret.append(EnrichedTuple(*[range(min(j), max(j) + 1) for j in i],
                                      getters=self.dimensions))
         return tuple(ret)
-
-    @property
-    def glb_shape(self):
-        return EnrichedTuple(*self._glb_shape, getters=self.dimensions)
 
     @property
     def glb_numb(self):
@@ -325,8 +327,7 @@ class SparseDistributor(AbstractDistributor):
     """
 
     def __init__(self, npoint, dimension, distributor):
-        super(SparseDistributor, self).__init__(dimension)
-        self._npoint = npoint
+        super(SparseDistributor, self).__init__(npoint, dimension)
         self._distributor = distributor
 
         decomposition = SparseDistributor.decompose(npoint, distributor)
@@ -360,10 +361,6 @@ class SparseDistributor(AbstractDistributor):
         else:
             raise TypeError('Need `npoint` int or tuple argument')
         return tuple(glb_npoint)
-
-    @property
-    def npoint(self):
-        return self._npoint
 
     @property
     def distributor(self):
