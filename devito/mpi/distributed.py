@@ -335,7 +335,7 @@ class SparseDistributor(AbstractDistributor):
         # The dimension decomposition
         decomposition = SparseDistributor.decompose(npoint, distributor)
         offs = np.concatenate([[0], np.cumsum(decomposition)])
-        self._decomposition = [Decomposition([tuple(range(offs[i], offs[i+1]))
+        self._decomposition = [Decomposition([np.arange(offs[i], offs[i+1])
                                               for i in range(self.nprocs)], self.myrank)]
 
     @classmethod
@@ -400,6 +400,8 @@ class Decomposition(tuple):
     """
 
     def __new__(cls, items, local):
+        if len(items) == 0:
+            raise ValueError("The decomposition must contain at least one subdomain")
         if not all(isinstance(i, Iterable) for i in items):
             raise TypeError("Illegal Decomposition element type")
         if not is_integer(local) and (0 <= local < len(items)):
@@ -435,6 +437,9 @@ class Decomposition(tuple):
     def __call__(self, *args):
         """Alias for ``self.convert_index``."""
         return self.convert_index(*args)
+
+    def __repr__(self):
+        return "Decomposition%s" % super(Decomposition, self).__repr__()
 
     def convert_index(self, *args):
         """
@@ -548,6 +553,49 @@ class Decomposition(tuple):
                 base = self.loc_abs_max
                 extent = base - self.loc_abs_min
                 return min(base - abs_ofs, extent) if abs_ofs < base else 0
+
+    def reshape(self, nleft, nright):
+        """
+        Create a new :class:`Decomposition` with extended or reduced boundaries.
+        This creates a new index enumeration.
+        """
+        items = list(self)
+
+        # Handle left extension/reduction
+        if nleft > 0:
+            extended_subdomain = np.concatenate([np.arange(-nleft, 0), items[0]])
+            items = [extended_subdomain] + items[1:]
+        elif nleft < 0:
+            n = 0
+            for i, subdomain in enumerate(list(items)):
+                if n + subdomain.size > -nleft:
+                    items = [subdomain[(-nleft - n):]] + items[i+1:]
+                    break
+                elif n + subdomain.size == -nleft:
+                    items = items[i+1:]
+                    break
+                n += subdomain.size
+
+        # Handle right extension/reduction
+        if nright > 0:
+            extension = np.arange(self.glb_max + 1, self.glb_max + 1 + nright)
+            extended_subdomain = np.concatenate([items[-1], extension])
+            items = items[:-1] + [extended_subdomain]
+        elif nright < 0:
+            n = 0
+            for i, subdomain in enumerate(reversed(list(items))):
+                if n + subdomain.size > -nright:
+                    items = items[:-i-1] + [subdomain[:(-nright - n)]]
+                    break
+                elif n + subdomain.size == -nright:
+                    items = items[:-i-1]
+                    break
+                n += subdomain.size
+
+        # Renumbering
+        items = [i + nleft for i in items]
+
+        return Decomposition(items, self.local)
 
 
 def compute_dims(nprocs, ndim):

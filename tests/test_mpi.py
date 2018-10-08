@@ -13,7 +13,7 @@ from devito.types import LEFT, RIGHT
 
 
 @skipif_yask
-class TestDomainDecomposition(object):
+class TestDistributor(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
     def test_partitioning(self):
@@ -61,6 +61,78 @@ class TestDomainDecomposition(object):
         mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
         _, _, obj = distributor._C_neighbours
         assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
+
+
+@skipif_yask
+class TestDecomposition(object):
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_reshape_identity(self):
+        grid = Grid(shape=(4, 4))
+        d = grid.distributor.decomposition[0]
+
+        # Identity decomposition
+        assert len(d.reshape(0, 0)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(0, 0), [[0, 1], [2, 3]]))
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_reshape_right_only(self):
+        grid = Grid(shape=(4, 4))
+        d = grid.distributor.decomposition[0]
+
+        # Extension at right only
+        assert len(d.reshape(0, 2)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(0, 2), [[0, 1], [2, 3, 4, 5]]))
+        # Reduction at right affecting one sub-domain only, but not the whole subdomain
+        assert len(d.reshape(0, -1)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(0, -1), [[0, 1], [2]]))
+        # Reduction at right over one whole sub-domain
+        assert len(d.reshape(0, -2)) == 1
+        assert all(list(i) == j for i, j in zip(d.reshape(0, -2), [[0, 1]]))
+        # Reduction at right over multiple sub-domains
+        assert len(d.reshape(0, -3)) == 1
+        assert all(list(i) == j for i, j in zip(d.reshape(0, -3), [[0]]))
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_reshape_left_only(self):
+        grid = Grid(shape=(4, 4))
+        d = grid.distributor.decomposition[0]
+
+        # Extension at left only
+        assert len(d.reshape(2, 0)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(2, 0), [[0, 1, 2, 3], [4, 5]]))
+        # Reduction at left affecting one sub-domain only, but not the whole subdomain
+        assert len(d.reshape(-1, 0)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(-1, 0), [[0], [1, 2]]))
+        # Reduction at left over one whole sub-domain
+        assert len(d.reshape(-2, 0)) == 1
+        assert all(list(i) == j for i, j in zip(d.reshape(-2, 0), [[0, 1]]))
+        # Reduction at right over multiple sub-domains
+        assert len(d.reshape(-3, 0)) == 1
+        assert all(list(i) == j for i, j in zip(d.reshape(-3, 0), [[0]]))
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_reshape_left_right(self):
+        grid = Grid(shape=(4, 4))
+        d = grid.distributor.decomposition[0]
+
+        # Extension at both left and right
+        assert len(d.reshape(1, 1)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(1, 1), [[0, 1, 2], [3, 4, 5]]))
+        # Reduction at both left and right
+        assert len(d.reshape(-1, -1)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(-1, -1), [[0], [1]]))
+        # Reduction at both left and right, with the right one obliterating one subdomain
+        assert len(d.reshape(-1, -2)) == 1
+        assert all(list(i) == j for i, j in zip(d.reshape(-1, -2), [[0]]))
+        # Reduction at both left and right, causing empty decomposition and thus
+        # triggering an exception
+        try:
+            d.reshape(-1, -3)
+        except ValueError:
+            assert True
+        except:
+            assert False
 
 
 @skipif_yask
