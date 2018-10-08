@@ -434,6 +434,10 @@ class Decomposition(tuple):
     def loc_abs_max(self):
         return max(self.loc_abs_numb)
 
+    @cached_property
+    def size(self):
+        return sum(i.size for i in self)
+
     def __call__(self, *args):
         """Alias for ``self.convert_index``."""
         return self.convert_index(*args)
@@ -561,36 +565,32 @@ class Decomposition(tuple):
         """
         items = list(self)
 
+        # Handle corner cases first
+        if -nleft >= self.size or -nright >= self.size:
+            return Decomposition([np.array([])]*len(self), self.local)
+
         # Handle left extension/reduction
         if nleft > 0:
-            extended_subdomain = np.concatenate([np.arange(-nleft, 0), items[0]])
-            items = [extended_subdomain] + items[1:]
+            items = [np.concatenate([np.arange(-nleft, 0), items[0]])] + items[1:]
         elif nleft < 0:
             n = 0
-            for i, subdomain in enumerate(list(items)):
-                if n + subdomain.size > -nleft:
-                    items = [subdomain[(-nleft - n):]] + items[i+1:]
+            for i, sd in enumerate(list(items)):
+                if n + sd.size >= -nleft:
+                    items = [np.array([])]*i + [sd[(-nleft - n):]] + items[i+1:]
                     break
-                elif n + subdomain.size == -nleft:
-                    items = items[i+1:]
-                    break
-                n += subdomain.size
+                n += sd.size
 
         # Handle right extension/reduction
         if nright > 0:
             extension = np.arange(self.glb_max + 1, self.glb_max + 1 + nright)
-            extended_subdomain = np.concatenate([items[-1], extension])
-            items = items[:-1] + [extended_subdomain]
+            items = items[:-1] + [np.concatenate([items[-1], extension])]
         elif nright < 0:
             n = 0
-            for i, subdomain in enumerate(reversed(list(items))):
-                if n + subdomain.size > -nright:
-                    items = items[:-i-1] + [subdomain[:(-nright - n)]]
+            for i, sd in enumerate(reversed(list(items))):
+                if n + sd.size >= -nright:
+                    items = items[:-i-1] + [sd[:(nright + n)]] + [np.array([])]*i
                     break
-                elif n + subdomain.size == -nright:
-                    items = items[:-i-1]
-                    break
-                n += subdomain.size
+                n += sd.size
 
         # Renumbering
         items = [i + nleft for i in items]

@@ -87,11 +87,11 @@ class TestDecomposition(object):
         assert len(d.reshape(0, -1)) == 2
         assert all(list(i) == j for i, j in zip(d.reshape(0, -1), [[0, 1], [2]]))
         # Reduction at right over one whole sub-domain
-        assert len(d.reshape(0, -2)) == 1
-        assert all(list(i) == j for i, j in zip(d.reshape(0, -2), [[0, 1]]))
+        assert len(d.reshape(0, -2)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(0, -2), [[0, 1], []]))
         # Reduction at right over multiple sub-domains
-        assert len(d.reshape(0, -3)) == 1
-        assert all(list(i) == j for i, j in zip(d.reshape(0, -3), [[0]]))
+        assert len(d.reshape(0, -3)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(0, -3), [[0], []]))
 
     @pytest.mark.parallel(nprocs=4)
     def test_reshape_left_only(self):
@@ -105,11 +105,11 @@ class TestDecomposition(object):
         assert len(d.reshape(-1, 0)) == 2
         assert all(list(i) == j for i, j in zip(d.reshape(-1, 0), [[0], [1, 2]]))
         # Reduction at left over one whole sub-domain
-        assert len(d.reshape(-2, 0)) == 1
-        assert all(list(i) == j for i, j in zip(d.reshape(-2, 0), [[0, 1]]))
+        assert len(d.reshape(-2, 0)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(-2, 0), [[], [0, 1]]))
         # Reduction at right over multiple sub-domains
-        assert len(d.reshape(-3, 0)) == 1
-        assert all(list(i) == j for i, j in zip(d.reshape(-3, 0), [[0]]))
+        assert len(d.reshape(-3, 0)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(-3, 0), [[], [0]]))
 
     @pytest.mark.parallel(nprocs=4)
     def test_reshape_left_right(self):
@@ -123,16 +123,14 @@ class TestDecomposition(object):
         assert len(d.reshape(-1, -1)) == 2
         assert all(list(i) == j for i, j in zip(d.reshape(-1, -1), [[0], [1]]))
         # Reduction at both left and right, with the right one obliterating one subdomain
-        assert len(d.reshape(-1, -2)) == 1
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, -2), [[0]]))
-        # Reduction at both left and right, causing empty decomposition and thus
+        assert len(d.reshape(-1, -2)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(-1, -2), [[0], []]))
+        # Reduction at both left and right obliterating all subdomains
         # triggering an exception
-        try:
-            d.reshape(-1, -3)
-        except ValueError:
-            assert True
-        except:
-            assert False
+        assert len(d.reshape(-1, -3)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(-1, -3), [[], []]))
+        assert len(d.reshape(-2, -2)) == 2
+        assert all(list(i) == j for i, j in zip(d.reshape(-1, -3), [[], []]))
 
 
 @skipif_yask
@@ -1121,10 +1119,11 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
+    TestDecomposition().test_reshape_left_right()
     # TestOperatorSimple().test_trivial_eq_2d()
     # TestFunction().test_halo_exchange_bilateral()
     # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
     # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
     # TestSparseFunction().test_scatter_gather()
     # TestOperatorAdvanced().test_nontrivial_operator()
-    TestOperatorAdvanced().test_interpolation_dup()
+    # TestOperatorAdvanced().test_interpolation_dup()
