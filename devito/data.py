@@ -8,10 +8,11 @@ import mmap
 import numpy as np
 import ctypes
 from ctypes.util import find_library
+from cached_property import cached_property
 
 from devito.equation import Eq
 from devito.parameters import configuration
-from devito.tools import Tag, as_tuple, is_integer, numpy_to_ctypes
+from devito.tools import Tag, as_tuple, is_integer, numpy_to_ctypes, numpy_view_offsets
 from devito.logger import logger
 import devito
 
@@ -410,9 +411,14 @@ class Data(np.ndarray):
             self._is_distributed = obj._is_distributed
         else:
             self._modulo = obj._modulo
-            self._decomposition = obj._decomposition
             self._glb_indexing = obj._glb_indexing
             self._is_distributed = obj._is_distributed
+            # Note: the decomposition needs to be updated based on the extent
+            # of the view
+            offsets = numpy_view_offsets(self, obj._datatop)
+            assert len(obj._decomposition) == len(offsets)
+            self._decomposition = tuple(i.reshape(-lofs, -rofs) for i, (lofs, rofs)
+                                        in zip(obj._datatop._decomposition, offsets))
         # Views or references created via operations on `obj` do not get an
         # explicit reference to the underlying data (`_memfree_args`). This makes sure
         # that only one object (the "root" Data) will free the C-allocated memory
@@ -431,6 +437,14 @@ class Data(np.ndarray):
         ret = self.view()
         ret._glb_indexing = True
         return ret
+
+    @cached_property
+    def _datatop(self):
+        if isinstance(self.base, Data):
+            return self.base._datatop
+        else:
+            assert isinstance(self.base, np.ndarray)
+            return self
 
     def __repr__(self):
         return super(Data, self._local).__repr__()
@@ -497,7 +511,6 @@ class Data(np.ndarray):
                 # Need to wrap index based on modulo
                 v = index_apply_modulo(i, s)
             elif self._glb_indexing is True and dec is not None:
-                # TODO: apply offset conversion first
                 # Need to convert the user-provided global indices into local
                 # indices. This has no effect if MPI is not used.
                 v = index_glb_to_loc(i, dec)

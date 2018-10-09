@@ -444,11 +444,18 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         A mapper from self's distributed :class:`Dimension`s to their
         :class:`Decomposition`s.
+
+        .. note::
+
+            The partitioning encoded in the returned :class:`Decomposition`s
+            includes the indices falling in the halo+padding regions.
         """
         if self._distributor is None:
             return {}
-        return {d: self._distributor.decomposition[d]
-                for d in self.dimensions if d in self._distributor.dimensions}
+        mapper = {d: self._distributor.decomposition[d] for d in self.dimensions
+                  if d in self._distributor.dimensions}
+        # Extend the `Decomposition`s to include the non-domain indices
+        return {d: v.reshape(*self._offset_domain[d]) for d, v in mapper.items()}
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
