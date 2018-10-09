@@ -359,7 +359,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return self._data
+        return self._data._global
 
     @property
     @_allocate_memory
@@ -383,7 +383,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @_allocate_memory
     def data_ro_allocated(self):
         """A read-only view of the domain+halo+padding data values."""
-        view = self._data.view()
+        view = self._data._global
         view.setflags(write=False)
         return view
 
