@@ -447,8 +447,10 @@ class OperatorRunnable(Operator):
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
                 name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
-            else:
+            elif len(itershapes) > 0:
                 name = "%s<%s>" % (k, itershapes[0])
+            else:
+                name = None
             gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
             perf("* %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
                  (name, v.oi, v.time, v.gflopss, gpointss))

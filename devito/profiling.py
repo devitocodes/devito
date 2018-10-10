@@ -79,6 +79,41 @@ class Profiler(object):
 
     def summary(self, arguments, dtype):
         """
+        Return a :class:`PerformanceSummary` of the profiled sections. See
+        summary under the class AdvancedProfiler below for further details.
+        """
+        summary = PerformanceSummary()
+        for section, data in self._sections.items():
+            # Time to run the section
+            time = max(getattr(arguments[self.name]._obj, section.name), 10e-7)
+
+            # In basic mode only return runtime. Other arguments are filled with
+            # dummy values.
+            summary.add(section.name, time, float(), float(), float(), int(), [])
+
+        return summary
+
+    @cached_property
+    def timer(self):
+        return Timer(self.name, [i.name for i in self._sections])
+
+    @cached_property
+    def cdef(self):
+        """
+        Return a :class:`cgen.Struct` representing the profiler data structure in C
+        (a ``struct``).
+        """
+        return Struct('profiler', [Value('double', i.name) for i in self._sections])
+    
+class AdvancedProfiler(Profiler):
+
+    def __init__(self, name):
+
+        super(AdvancedProfiler, self).__init__(name)
+        
+    # Override basic summary to not return empty arguments
+    def summary(self, arguments, dtype):
+        """
         Return a :class:`PerformanceSummary` of the profiled sections.
 
         :param arguments: A mapper from argument names to run-time values from which
@@ -121,20 +156,8 @@ class Profiler(object):
 
         return summary
 
-    @cached_property
-    def timer(self):
-        return Timer(self.name, [i.name for i in self._sections])
 
-    @cached_property
-    def cdef(self):
-        """
-        Return a :class:`cgen.Struct` representing the profiler data structure in C
-        (a ``struct``).
-        """
-        return Struct('profiler', [Value('double', i.name) for i in self._sections])
-
-
-class AdvisorProfiler(Profiler):
+class AdvisorProfiler(AdvancedProfiler):
 
     """Rely on Intel Advisor ``v >= 2018`` for performance profiling."""
 
@@ -228,9 +251,9 @@ def create_profile(name):
     if profiler.initialized:
         return profiler
     else:
-        warning("Couldn't set up `%s` profiler; reverting to `basic`" % level)
+        warning("Couldn't set up `%s` profiler; reverting to `advanced`" % level)
         profiler = profiler_registry['basic'](name)
-        # We expect the `basic` profiler to always initialize successfully
+        # We expect the `advanced` profiler to always initialize successfully
         assert profiler.initialized
         return profiler
 
@@ -238,6 +261,7 @@ def create_profile(name):
 # Set up profiling levels
 profiler_registry = {
     'basic': Profiler,
+    'advanced': AdvancedProfiler,
     'advisor': AdvisorProfiler
 }
 configuration.add('profiling', 'basic', list(profiler_registry))
