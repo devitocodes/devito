@@ -111,7 +111,7 @@ class AdvancedProfiler(Profiler):
 
         super(AdvancedProfiler, self).__init__(name)
         
-    # Override basic summary to not return empty arguments
+    # Override basic summary so that arguments other than runtime are computed.
     def summary(self, arguments, dtype):
         """
         Return a :class:`PerformanceSummary` of the profiled sections.
