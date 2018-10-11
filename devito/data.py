@@ -413,12 +413,13 @@ class Data(np.ndarray):
             self._modulo = obj._modulo
             self._glb_indexing = obj._glb_indexing
             self._is_distributed = obj._is_distributed
-            # Note: the decomposition needs to be updated based on the extent
-            # of the view
+            # Note: the decomposition needs to be updated based on the view extent
             offsets = numpy_view_offsets(self, obj._datatop)
-            assert len(obj._decomposition) == len(offsets)
-            self._decomposition = tuple(i.reshape(-lofs, -rofs) for i, (lofs, rofs)
-                                        in zip(obj._datatop._decomposition, offsets))
+            assert len(obj._datatop._decomposition) == len(offsets)
+            decomposition = []
+            for i, (lofs, rofs) in zip(obj._datatop._decomposition, offsets):
+                decomposition.append(i if i is None else i.reshape(-lofs, -rofs))
+            self._decomposition = tuple(decomposition)
         # Views or references created via operations on `obj` do not get an
         # explicit reference to the underlying data (`_memfree_args`). This makes sure
         # that only one object (the "root" Data) will free the C-allocated memory
@@ -443,7 +444,8 @@ class Data(np.ndarray):
         if isinstance(self.base, Data):
             return self.base._datatop
         else:
-            assert isinstance(self.base, np.ndarray)
+            if self.base is not None:
+                assert isinstance(self.base, np.ndarray)
             return self
 
     def __repr__(self):
@@ -452,6 +454,7 @@ class Data(np.ndarray):
     def __getitem__(self, glb_index):
         loc_index = self._convert_index(glb_index)
         if loc_index is NONLOCAL:
+            # Caller expects a scalar, which it doesn't own though, so it gets None
             return None
         else:
             return super(Data, self).__getitem__(loc_index)
@@ -491,7 +494,12 @@ class Data(np.ndarray):
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
 
         # Finally, perform the actual __setitem__
-        super(Data, self).__setitem__(loc_index, val)
+        try:
+            super(Data, self).__setitem__(loc_index, val)
+        except:
+            from mpi4py import MPI
+            print("rank:", MPI.COMM_WORLD.rank, val_index, glb_index, self.shape, loc_index)
+            super(Data, self).__setitem__(loc_index, val)
 
     def _convert_index(self, index):
         index = index_normalize(index)

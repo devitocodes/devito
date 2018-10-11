@@ -200,6 +200,26 @@ def test_domain_vs_halo():
 class TestMPIData(object):
 
     @pytest.mark.parallel(nprocs=4)
+    def test_data_localviews(self):
+        grid = Grid(shape=(4, 4))
+        u = Function(name='u', grid=grid)
+
+        u.data[:] = grid.distributor.myrank
+
+        assert u.data_ro_domain._local[0, 0] == grid.distributor.myrank
+        assert u.data_ro_domain._local[1, 1] == grid.distributor.myrank
+        assert u.data_ro_domain._local[-1, -1] == grid.distributor.myrank
+
+        assert u.data_ro_with_halo._local[0, 0] == 0.
+        assert u.data_ro_with_halo._local[1, 1] == grid.distributor.myrank
+        assert u.data_ro_with_halo._local[2, 2] == grid.distributor.myrank
+        assert np.all(u.data_ro_with_halo._local[1:3, 1:3] == grid.distributor.myrank)
+        assert np.all(u.data_ro_with_halo._local[0] == 0.)
+        assert np.all(u.data_ro_with_halo._local[3] == 0.)
+        assert np.all(u.data_ro_with_halo._local[:, 0] == 0.)
+        assert np.all(u.data_ro_with_halo._local[:, 3] == 0.)
+
+    @pytest.mark.parallel(nprocs=4)
     def test_trivial_insertion(self):
         grid = Grid(shape=(4, 4))
         u = Function(name='u', grid=grid, space_order=0)
@@ -210,7 +230,7 @@ class TestMPIData(object):
         assert np.all(u.data._global == 1.)
 
     @pytest.mark.parallel(nprocs=4)
-    def test_local_indexing_basic(self):
+    def test_global_indexing_basic(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -241,7 +261,7 @@ class TestMPIData(object):
             assert np.all(u.data[:, 2] == [myrank, myrank])
 
     @pytest.mark.parallel(nprocs=4)
-    def test_local_indexing_slicing(self):
+    def test_global_indexing_slicing(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -269,12 +289,59 @@ class TestMPIData(object):
             assert u.data[:2, 2:].size == u.data[2:, :2].size == u.data[:2, :2].size == 0
 
     @pytest.mark.parallel(nprocs=4)
+    def test_global_indexing_after_slicing(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        myrank = grid.distributor.myrank
+        u = Function(name='u', grid=grid, space_order=0)
+
+        u.data[:] = myrank
+
+        # Note that the `1`s are global indices
+        view = u.data[1:, 1:]
+        assert np.all(view[:] == myrank)
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert view.shape == (1, 1)
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert view.shape == (1, 2)
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert view.shape == (2, 1)
+        else:
+            assert view.shape == (2, 2)
+
+        # Now we further slice into the view
+        view2 = view[1:, 1:]
+        assert np.all(view2[:] == myrank)
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert view2.shape == (0, 0)
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert view2.shape == (0, 2)
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert view2.shape == (2, 0)
+        else:
+            assert view2.shape == (2, 2)
+
+        # Now a change in `view2` by the only rank "sees" it should affect
+        # both `view` and `u.data`
+        view2[:] += 1
+        if RIGHT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data[:] == myrank + 1)
+            assert np.all(view[:] == myrank + 1)
+            assert np.all(view2[:] == myrank + 1)
+        else:
+            assert np.all(view[:] == myrank)
+            assert np.all(view2[:] == myrank)
+            assert view2.size == 0
+
+    @pytest.mark.parallel(nprocs=4)
     def test_from_replicated_to_distributed(self):
         shape = (4, 4)
         grid = Grid(shape=shape)
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
         u = Function(name='u', grid=grid, space_order=0)  # distributed
+        v = Function(name='v', grid=grid, space_order=0)  # distributed
         a = np.arange(16).reshape(shape)  # replicated
 
         # Full array
@@ -289,21 +356,29 @@ class TestMPIData(object):
             assert np.all(u.data == [[10, 11], [14, 15]])
 
         # Subsection
-        # TODO: won't work until we support glb_to_loc conversion for sliced Data
-        # u.data[:] = 0
-        # u.data[1:3, 1:3] = a[1:3, 1:3]
-
-        # Same as before but with negative indices
-        # TODO: same as before
-        # u.data[1:-1, 1:-1] = a[1:3, 1:3]
+        u.data[:] = 0
+        u.data[1:3, 1:3] = a[1:3, 1:3]
+        # Same as above but with negative indices
+        v.data[:] = 0
+        v.data[1:3, 1:3] = a[1:-1, 1:-1]
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data == [[0, 0], [0, 5]])
+            assert np.all(v.data == [[0, 0], [0, 5]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data == [[0, 0], [6, 0]])
+            assert np.all(v.data == [[0, 0], [6, 0]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data == [[0, 9], [0, 0]])
+            assert np.all(v.data == [[0, 9], [0, 0]])
+        else:
+            assert np.all(u.data == [[10, 0], [0, 0]])
+            assert np.all(v.data == [[10, 0], [0, 0]])
 
         # The assigned data must have same shape as the one of the distributed array,
         # otherwise an exception is expected
-        # TODO: same as before
-
-    @pytest.mark.parallel(nprocs=4)
-    def test_from_distributed_to_distributed(self):
-        pass
+        #try:
+        u.data[1:3, 1:3] = a[1:2, 1:2]
+        #excpe
 
 
 def test_scalar_arg_substitution(t0, t1):
@@ -344,4 +419,5 @@ def test_oob_guard():
 if __name__ == "__main__":
     from devito import configuration
     configuration['mpi'] = True
-    TestMPIData().test_local_indexing_basic()
+    test_basic_indexing()
+    TestMPIData().test_domain_view()
