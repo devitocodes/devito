@@ -1395,7 +1395,6 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                 # Only retain the local data region
                 if coordinates is not None:
                     coordinates = np.array(coordinates)
-                    coordinates = coordinates[self.local_indices[self._sparse_position]]
                 self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
                                                 dtype=self.dtype, dimensions=dimensions,
                                                 shape=(self.npoint, self.grid.dim),
