@@ -1,6 +1,6 @@
 from collections import Counter
 
-from sympy import cos, sin
+from sympy import cos, sin, sqrt
 
 from devito.symbolics.search import retrieve_ops, search
 from devito.logger import warning
@@ -27,7 +27,7 @@ def estimate_cost(handle, estimate_functions=False):
     :param estimate_functions: approximate the operation count of known
                                functions (eg, sin, cos).
     """
-    external_functions = {sin: 50, cos: 50}
+    external_functions = {sin: 50, cos: 50, sqrt: 50}
     try:
         # Is it a plain SymPy object ?
         iter(handle)
