@@ -73,11 +73,11 @@ expressions. Examples of how to define operators are provided:
   `examples/seismic/tutorials`.
 * Example implementations of acoustic forward, adjoint, gradient and born
   operators for use in full-waveform inversion (FWI) methods can be found in
-  `examples/acoustic`.
+  `examples/seismic/acoustic`.
 * An advanced example of a Tilted Transverse Isotropy forward operator
-  for use in FWI can be found in `examples/tti`.
+  for use in FWI can be found in `examples/seismic/tti`.
 * A benchmark script for the acoustic and TTI forward operators can be
-  found in `examples/benchmark.py`
+  found in `examples/seismic/benchmark.py`
 
 
 ## Compilation
