@@ -92,7 +92,7 @@ pipeline {
                      steps {
                          cleanWorkspace()
                          condaInstallDevito()
-                        //  installOPS()
+                         installOPS()
                          runCondaTests()
                          runCodecov()
                          buildDocs()
@@ -156,9 +156,9 @@ def installOPS() {
     dir ("${WORKSPACE}/scratch") { sh 'git clone https://github.com/opesci/OPS.git' }
     dir ("${WORKSPACE}/scratch/OPS/ops/c") {
         sh '''source activate devito
-              make
+              NV_ARCH=Kepler make
            '''
-    }
+    } 
 }
 
 def runPipTests() {
