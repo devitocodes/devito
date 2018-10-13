@@ -1,11 +1,11 @@
 import pytest
 
-from conftest import EVAL, time, x, y, z, skipif_backend  # noqa
+from conftest import EVAL, time, x, y, z  # noqa
 
 import numpy as np
 
-from devito import (Eq, Grid, Function, TimeFunction,
-                    Operator, Dimension, configuration)  # noqa
+from devito import (Eq, Inc, Grid, Function, TimeFunction,  # noqa
+                    Operator, Dimension, configuration)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet.nodes import Conditional, Expression, Iteration

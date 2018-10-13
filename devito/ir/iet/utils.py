@@ -140,6 +140,7 @@ def derive_parameters(nodes, drop_locals=False):
 
     return parameters
 
+
 def find_offloadable_trees(iet):
     """
     Return the trees within ``iet`` that can be computed by YASK/OPS.
