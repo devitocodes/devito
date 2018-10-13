@@ -107,6 +107,11 @@ before_script:
       git clone https://github.com/opesci/yask.git;
       cd yask; make compiler-api; pip install -e .; cd ../devito;
     fi
+  - if [[ $DEVITO_BACKEND == 'ops']]; then
+      cd ../;
+      git clone https://github.com/opesci/OPS.git;
+      cd OPS/OPS/ops/c; NV_ARCH=kepler make;
+      cd ../devito;
 
 script:
   - flake8 --builtins=ArgumentError .
