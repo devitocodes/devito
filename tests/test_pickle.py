@@ -1,16 +1,18 @@
 import numpy as np
+import pytest
 from sympy import Symbol
 
 from examples.seismic import demo_model
 from examples.seismic.source import TimeAxis, RickerSource
 
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
-                    TimeDimension, SteppingDimension, Operator)
+                    TimeDimension, SteppingDimension, Operator, configuration)
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 
 import cloudpickle as pickle
 
-from conftest import skipif_backend
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
 
 def test_full_model():
@@ -134,7 +136,6 @@ def test_symbolics():
     assert li == new_li
 
 
-@skipif_backend(['ops'])
 def test_operator_parameters():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -146,7 +147,6 @@ def test_operator_parameters():
         pickle.loads(pkl_i)
 
 
-@skipif_backend(['ops'])
 def test_operator_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -161,7 +161,6 @@ def test_operator_function():
     assert np.all(f.data == 2)
 
 
-@skipif_backend(['ops'])
 def test_operator_timefunction():
     grid = Grid(shape=(3, 3, 3))
     f = TimeFunction(name='f', grid=grid, save=3)

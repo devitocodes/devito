@@ -4,7 +4,8 @@ from conftest import EVAL, time, x, y, z, skipif_backend  # noqa
 
 import numpy as np
 
-from devito import Eq, Inc, Grid, Function, TimeFunction, Operator, Dimension  # noqa
+from devito import (Eq, Grid, Function, TimeFunction,
+                    Operator, Dimension, configuration)  # noqa
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet.nodes import Conditional, Expression, Iteration
@@ -15,8 +16,11 @@ from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
 from devito.ir.support.utils import detect_flow_directions
 from devito.symbolics import indexify
 
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
+                                configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
-@skipif_backend(['yask', 'ops'])
+
 class TestVectorDistanceArithmetic(object):
 
     @pytest.fixture
@@ -178,7 +182,6 @@ class TestVectorDistanceArithmetic(object):
             assert False
 
 
-@skipif_backend(['yask', 'ops'])
 class TestSpace(object):
 
     def test_intervals_intersection(self):
@@ -304,7 +307,6 @@ class TestSpace(object):
         assert ix3.subtract(ix) == ix2
 
 
-@skipif_backend(['yask', 'ops'])
 class TestDependenceAnalysis(object):
 
     @pytest.mark.parametrize('expr,expected', [
@@ -462,7 +464,6 @@ class TestDependenceAnalysis(object):
         assert all(mapper.get(i) == {Any} for i in grid.dimensions)
 
 
-@skipif_backend(['yask', 'ops'])
 class TestIET(object):
 
     def test_nodes_conditional(self, fc):
@@ -630,7 +631,6 @@ else
         assert all(not i.is_Wrappable for i in iters if i is not time_iter)
 
 
-@skipif_backend(['yask', 'ops'])
 class TestEquationAlgorithms(object):
 
     @pytest.mark.parametrize('expr,expected', [
