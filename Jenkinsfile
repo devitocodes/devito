@@ -152,6 +152,8 @@ def installYask () {
 }
 
 def installOPS() {
+    sh "mkdir -p $HOME/.ssh/"
+    sh """echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> $HOME/.ssh/config"""
     sh "mkdir ${WORKSPACE}/scratch"
     dir ("${WORKSPACE}/scratch") { sh 'git clone https://github.com/opesci/OPS.git' }
     dir ("${WORKSPACE}/scratch/OPS/ops/c") {
