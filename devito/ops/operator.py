@@ -1,4 +1,5 @@
 from devito.operator import OperatorRunnable
+from devito.ir.support import find_offloadable_trees
 
 __all__ = ['Operator']
 
@@ -9,4 +10,5 @@ class Operator(OperatorRunnable):
     """
 
     def _specialize_iet(self, iet, **kwargs):
-        raise NotImplementedError
+        for n, (section, trees) in enumerate(find_offloadable_trees(iet).items()):
+            print(n)
