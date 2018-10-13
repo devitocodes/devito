@@ -50,6 +50,16 @@ matrix:
             - gcc-7
             - g++-7
       env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False
+    - os: linux
+      python: "3.6"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-7
+            - g++-7
+      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=ops YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False
   allow_failures:
     - os: linux
       python: "2.7"
@@ -97,6 +107,11 @@ before_script:
       git clone https://github.com/opesci/yask.git;
       cd yask; make compiler-api; pip install -e .; cd ../devito;
     fi
+  - if [[ $DEVITO_BACKEND == 'ops']]; then
+      cd ../;
+      git clone https://github.com/opesci/OPS.git;
+      cd OPS/OPS/ops/c; NV_ARCH=kepler make;
+      cd ../devito;
 
 script:
   - flake8 --builtins=ArgumentError .

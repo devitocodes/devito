@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from numpy import linalg
-from conftest import skipif_yask, unit_box, points
+from conftest import skipif_backend, unit_box, points
 
 from devito import clear_cache, Operator
 from devito.logger import info
@@ -15,7 +15,7 @@ presets = {
 }
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 class TestAdjoint(object):
 
     def setup_method(self, method):

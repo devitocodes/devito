@@ -1,12 +1,12 @@
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_backend
 
 from sympy.abc import a, b, c, d, e
 
 from devito.tools import toposort
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 @pytest.mark.parametrize('elements, expected', [
     ([[a, b, c], [c, d, e]], [a, b, c, d, e]),
     ([[e, d, c], [c, b, a]], [e, d, c, b, a]),

@@ -1,6 +1,6 @@
 import pytest
 
-from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
+from conftest import EVAL, time, x, y, z, skipif_backend  # noqa
 
 import numpy as np
 
@@ -16,7 +16,7 @@ from devito.ir.support.utils import detect_flow_directions
 from devito.symbolics import indexify
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 class TestVectorDistanceArithmetic(object):
 
     @pytest.fixture
@@ -178,7 +178,7 @@ class TestVectorDistanceArithmetic(object):
             assert False
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 class TestSpace(object):
 
     def test_intervals_intersection(self):
@@ -304,7 +304,7 @@ class TestSpace(object):
         assert ix3.subtract(ix) == ix2
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 class TestDependenceAnalysis(object):
 
     @pytest.mark.parametrize('expr,expected', [
@@ -462,7 +462,7 @@ class TestDependenceAnalysis(object):
         assert all(mapper.get(i) == {Any} for i in grid.dimensions)
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 class TestIET(object):
 
     def test_nodes_conditional(self, fc):
@@ -630,7 +630,7 @@ else
         assert all(not i.is_Wrappable for i in iters if i is not time_iter)
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 class TestEquationAlgorithms(object):
 
     @pytest.mark.parametrize('expr,expected', [

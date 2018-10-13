@@ -62,7 +62,7 @@ pipeline {
                          buildDocs()
                      }
                 }
-                stage('Build and test gcc-7 container') {
+                stage('Build and test gcc-7 YASK container') {
                      agent { dockerfile { label 'azure-linux'
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=7" } }
@@ -76,6 +76,23 @@ pipeline {
                          cleanWorkspace()
                          condaInstallDevito()
                          installYask()
+                         runCondaTests()
+                         runCodecov()
+                         buildDocs()
+                     }
+                }
+                stage('Build and test gcc-7 OPS container') {
+                     agent { dockerfile { label 'azure-linux'
+                                          filename 'Dockerfile.jenkins'
+                                          additionalBuildArgs "--build-arg gccvers=7" } }
+                     environment {
+                         HOME="${WORKSPACE}"
+                         DEVITO_BACKEND="ops"
+                     }
+                     steps {
+                         cleanWorkspace()
+                         condaInstallDevito()
+                         installOPS()
                          runCondaTests()
                          runCodecov()
                          buildDocs()
@@ -132,6 +149,18 @@ def installYask () {
               pip install -e .
            '''
     }
+}
+
+def installOPS() {
+    sh "mkdir -p $HOME/.ssh/"
+    sh """echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> $HOME/.ssh/config"""
+    sh "mkdir ${WORKSPACE}/scratch"
+    dir ("${WORKSPACE}/scratch") { sh 'git clone https://github.com/opesci/OPS.git' }
+    dir ("${WORKSPACE}/scratch/OPS/ops/c") {
+        sh '''source activate devito
+              NV_ARCH=Kepler make
+           '''
+    } 
 }
 
 def runPipTests() {

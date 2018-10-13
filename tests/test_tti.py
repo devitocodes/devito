@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_backend
 from numpy import linalg
 
 from devito import TimeFunction, configuration
@@ -10,7 +10,7 @@ from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 @pytest.mark.parametrize('shape', [(120, 140), (120, 140, 150)])
 @pytest.mark.parametrize('space_order', [4, 8])
 @pytest.mark.parametrize('kernel', ['centered', 'shifted'])
@@ -88,7 +88,7 @@ def test_tti(shape, space_order, kernel):
     assert np.isclose(res, 0.0, atol=1e-4)
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 @pytest.mark.parametrize('shape', [(50, 60), (50, 60, 70)])
 def test_tti_staggered(shape):
     spacing = [10. for _ in shape]
