@@ -10,14 +10,5 @@ class Operator(OperatorRunnable):
     """
 
     def _specialize_iet(self, iet, **kwargs):
-        print('\n\tTHIS IS OUR IET SO FAR:\n>>>>>')
-        print(iet)
-        print('<<<<< :)\n')
         for n, (section, trees) in enumerate(find_offloadable_trees(iet).items()):
-            print('Number of offloadable trees within the above IET: {}\n'.format(n))
             print(trees[0].root)
-
-        iet manipuation
-
-
-        return new_iet

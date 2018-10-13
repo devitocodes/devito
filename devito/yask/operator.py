@@ -99,6 +99,7 @@ class Operator(OperatorRunnable):
                      yc_soln.get_num_equations()))
             except NotImplementedError as e:
                 log("Unable to offload a candidate tree. Reason: [%s]" % str(e))
+
         iet = Transformer(mapper).visit(iet)
 
         if not self.yk_solns:
@@ -109,6 +110,7 @@ class Operator(OperatorRunnable):
         # in storage layout employed by Devito and YASK
         yk_grid_objs = {i.name: YaskGridObject(i.name) for i in self.input if i.from_YASK}
         yk_grid_objs.update({i: YaskGridObject(i) for i in self._local_grids})
+
         iet = make_grid_accesses(iet, yk_grid_objs)
 
         # Finally optimize all non-yaskized loops
