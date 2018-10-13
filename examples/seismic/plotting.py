@@ -3,7 +3,6 @@ try:
     import matplotlib as mpl
     import matplotlib.pyplot as plt
     from matplotlib import cm
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
 
     mpl.rc('font', size=16)
     mpl.rc('figure', figsize=(8, 6))
@@ -35,10 +34,7 @@ def plot_perturbation(model, model1, colorbar=True):
 
     # Create aligned colorbar on the right
     if colorbar:
-        ax = plt.gca()
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        cbar = plt.colorbar(plot, cax=cax)
+        cbar = plt.colorbar(plot)
         cbar.set_label('Velocity perturbation (km/s)')
     plt.show()
 
@@ -77,10 +73,7 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
 
     # Create aligned colorbar on the right
     if colorbar:
-        ax = plt.gca()
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        cbar = plt.colorbar(plot, cax=cax)
+        cbar = plt.colorbar(plot)
         cbar.set_label('Velocity (km/s)')
     plt.show()
 
@@ -104,10 +97,7 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
 
     # Create aligned colorbar on the right
     if colorbar:
-        ax = plt.gca()
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(plot, cax=cax)
+        plt.colorbar(plot)
     plt.show()
 
 
@@ -126,8 +116,5 @@ def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
 
     # Create aligned colorbar on the right
     if colorbar:
-        ax = plt.gca()
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(plot, cax=cax)
+        plt.colorbar(plot)
     plt.show()
