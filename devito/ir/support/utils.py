@@ -5,9 +5,8 @@ from devito.dimension import Dimension, ModuloDimension
 from devito.ir.support.basic import Access, Scope
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
-from devito.ir.iet import Expression, Iteration, FindNodes, Section, retrieve_iteration_tree
 from devito.symbolics import retrieve_indexed, retrieve_terminals
-from devito.tools import ReducerMap, as_tuple, flatten, filter_sorted
+from devito.tools import as_tuple, flatten, filter_sorted
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
            'detect_flow_directions', 'force_directions', 'group_expressions',
@@ -297,31 +296,3 @@ def detect_io(exprs, relax=False):
             writes.append(f)
 
     return filter_sorted(reads), filter_sorted(writes)
-
-
-def find_offloadable_trees(iet):
-    """
-    Return the trees within ``iet`` that can be computed by alternative
-    backends such as YASK or OPS.
-
-    A tree is "offloadable to YASK/OPS" if it is embedded in a time stepping loop
-    *and* all of the grids accessed by the enclosed equations are homogeneous
-    (i.e., same dimensions and data type).
-    """
-    offloadable = OrderedDict()
-    roots = [i for i in FindNodes(Iteration).visit(iet) if i.dim.is_Time]
-    for root in roots:
-        sections = FindNodes(Section).visit(root)
-        for section in sections:
-            for tree in retrieve_iteration_tree(section):
-                if not all(i.is_Affine for i in tree):
-                    # Non-affine array accesses unsupported by YASK/OPS
-                    break
-                exprs = [i.expr for i in FindNodes(Expression).visit(tree.root)]
-                grid = ReducerMap([('', i.grid) for i in exprs if i.grid]).unique('')
-                writeto_dimensions = tuple(i.dim.root for i in tree)
-                if grid.dimensions == writeto_dimensions:
-                    offloadable.setdefault(section, []).append(tree)
-                else:
-                    break
-    return offloadable

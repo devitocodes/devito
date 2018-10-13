@@ -7,7 +7,8 @@ import numpy as np
 from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import ForeignExpression, MetaCall, Transformer
-from devito.ir.support import align_accesses, find_offloadable_trees
+from devito.ir.iet.utils import find_offloadable_trees
+from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
 from devito.tools import Signer, filter_ordered, flatten
 
