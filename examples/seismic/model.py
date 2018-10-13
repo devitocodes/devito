@@ -5,7 +5,7 @@ from devito import Grid, Function, Constant
 from devito.logger import warning
 from examples.seismic.utils import scipy_smooth
 
-__all__ = ['Model', 'ModelElastic', 'demo_model']
+__all__ = ['Model', 'ModelElastic', 'ModelPoroelastic', 'demo_model']
 
 
 def demo_model(preset, **kwargs):
@@ -54,6 +54,30 @@ def demo_model(preset, **kwargs):
         return ModelElastic(space_order=space_order, vp=vp, vs=vs, rho=rho, origin=origin,
                             shape=shape, dtype=dtype, spacing=spacing, nbpml=nbpml,
                             **kwargs)
+
+    if preset.lower() in ['constant-poroelastic']:
+        # A constant single-layer model in a 2D or 3D domain
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        dtype = kwargs.pop('dtype', np.float32)
+        vp = kwargs.pop('vp', 1.5)
+        vs = kwargs.pop('vs', 0.5 * vp)
+        rho_s = kwargs.pop('rho_s', 2.3)
+        rho_f = kwargs.pop('rho_f', 1.0)        
+        phi = kwargs.pop('phi', 0.1)
+        k = kwargs.pop('k', 1.0)
+        mu_f = kwargs.pop('mu_f', 0.02)        
+        K_dr = kwargs.pop('K_dr', 1.0)       
+        K_s = kwargs.pop('K_s', 1.0)
+        K_f = kwargs.pop('K_f', 1.0)
+        T = kwargs.pop('T', 1.0)    
+                
+        return ModelPoroelastic(space_order=space_order, vp=vp, vs=vs, rho_s=rho_s,
+                 rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s, K_f=K_f,
+                 T=T, origin=origin, shape=shape, dtype=dtype, spacing=spacing,
+                 nbpml=nbpml, **kwargs)
 
     if preset.lower() in ['constant-isotropic']:
         # A constant single-layer model in a 2D or 3D domain
@@ -681,3 +705,133 @@ class ModelElastic(Pysical_Model):
         # The CFL condtion is then given by
         # dt < h / (sqrt(2) * max(vp)))
         return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))
+        
+class ModelPoroelastic(Pysical_Model):
+    """The physical model used in seismic inversion processes.
+    :param origin: Origin of the model in m as a tuple in (x,y,z) order
+    :param spacing: Grid size in m as a Tuple in (x,y,z) order
+    :param shape: Number of grid points size in (x,y,z) order
+    :param space_order: Order of the spatial stencil discretisation
+    :param vp: P-wave velocity in km/s
+    :param vs: S-wave velocity in km/s
+    :param nbpml: The number of PML layers for boundary damping
+    :param rho_s: Solid Density in kg/cm^3 (rho=2.3 for sandstone)
+    :param rho_f: Fluid Density in kg/cm^3 (rho=1 for water)
+    :param phi: Formation porosity (0.1 default)
+    :param k: Formation permeability (isotropic)
+    :param mu_f: Fluid Viscosity  
+    :param K_dr: Drained Bulk Modulus
+    :param K_s: Solid Bulk Modulus
+    :param K_f: Fluid Modulus  
+    :param T: Formation Tortuosity
+    The :class:`ModelPoroelastic` provides a symbolic data objects for the
+    creation of seismic wave propagation operators:
+    :param damp: The damping field for absorbing boundary condition
+    """
+    def __init__(self, origin, spacing, shape, space_order, vp, vs, rho_s, rho_f,
+                 phi, k, mu_f, K_dr, K_s, K_f, T, nbpml=20,
+                 dtype=np.float32):
+        super(ModelPoroelastic, self).__init__(origin, spacing, shape, space_order,
+                                           nbpml=nbpml, dtype=dtype)
+
+        # Create dampening field as symbol `damp`
+        self.damp = Function(name="damp", grid=self.grid)
+        damp_boundary(self.damp, self.nbpml, spacing=self.spacing, mask=True)
+
+        # Create P Wave velocity, `vp`
+        if isinstance(vp, np.ndarray):
+            self.vp = Function(name="vp", grid=self.grid, space_order=space_order)
+            initialize_function(self.vp, vp, self.nbpml)
+        else:
+            self.vp = Constant(name="vp", value=vp)
+        self._physical_parameters = ('vp',)
+
+        # Create S Wave velocity, `vs`
+        if isinstance(vs, np.ndarray):
+            self.vs = Function(name="vs", grid=self.grid, space_order=space_order)
+            initialize_function(self.vs, vs, self.nbpml)
+        else:
+            self.vs = Constant(name="vs", value=vs)
+        self._physical_parameters += ('vs',)
+
+        # Create solid density of the matrix symbol `rho_s`
+        if isinstance(rho_s, np.ndarray):
+            self.rho_s = Function(name="rho_s", grid=self.grid, space_order=space_order)
+            initialize_function(self.rho_s, rho_s, self.nbpml)
+        else:
+            self.rho_s = Constant(name="rho_s", value=rho_s)
+        self._physical_parameters += ('rho_s',)
+
+        # Create density of the pore fluid symbol `rho_f`
+        if isinstance(rho_s, np.ndarray):
+            self.rho_f = Function(name="rho_f", grid=self.grid, space_order=space_order)
+            initialize_function(self.rho_f, rho_f, self.nbpml)
+        else:
+            self.rho_f = Constant(name="rho_f", value=rho_f)
+        self._physical_parameters += ('rho_f',)
+
+        # Create porosity of the formation symbol `phi`
+        if isinstance(phi, np.ndarray):
+            self.phi = Function(name="phi", grid=self.grid, space_order=space_order)
+            initialize_function(self.phi, phi, self.nbpml)
+        else:
+            self.phi = Constant(name="phi", value=phi)
+        self._physical_parameters += ('phi',)
+
+        # Create isotropic permeability of the formation symbol `k`
+        if isinstance(k, np.ndarray):
+            self.k = Function(name="k", grid=self.grid, space_order=space_order)
+            initialize_function(self.k, k, self.nbpml)
+        else:
+            self.k = Constant(name="k", value=k)
+        self._physical_parameters += ('k',)
+
+        # Create fluid viscosity symbol, `mu_f`
+        if isinstance(mu_f, np.ndarray):
+            self.mu_f = Function(name="mu_f", grid=self.grid, space_order=space_order)
+            initialize_function(self.mu_f, mu_f, self.nbpml)
+        else:
+            self.mu_f = Constant(name="mu_f", value=mu_f)
+        self._physical_parameters += ('mu_f',)
+
+        # Create drained bulk modulus, `K_dr`
+        if isinstance(K_dr, np.ndarray):
+            self.K_dr = Function(name="K_dr", grid=self.grid, space_order=space_order)
+            initialize_function(self.K_dr, K_dr, self.nbpml)
+        else:
+            self.K_dr = Constant(name="K_dr", value=K_dr)
+        self._physical_parameters += ('K_dr',)
+
+        # Create solid grain modulus, `K_s`
+        if isinstance(K_s, np.ndarray):
+            self.K_s = Function(name="K_s", grid=self.grid, space_order=space_order)
+            initialize_function(self.K_s, K_s, self.nbpml)
+        else:
+            self.K_s = Constant(name="K_s", value=K_s)
+        self._physical_parameters += ('K_s',)
+
+        # Create fluid modulus, `K_f`
+        if isinstance(K_f, np.ndarray):
+            self.K_f = Function(name="K_f", grid=self.grid, space_order=space_order)
+            initialize_function(self.K_f, K_f, self.nbpml)
+        else:
+            self.K_f = Constant(name="K_f", value=K_f)
+        self._physical_parameters += ('K_f',)
+
+        # Create formation tortuosity, `T`
+        if isinstance(T, np.ndarray):
+            self.T = Function(name="T", grid=self.grid, space_order=space_order)
+            initialize_function(self.T, T, self.nbpml)
+        else:
+            self.T = Constant(name="T", value=T)
+        self._physical_parameters += ('T',)
+
+
+    @property
+    def critical_dt(self):
+        """Critical computational time step value from the CFL condition."""
+        # For a fixed time order this number goes down as the space order increases.
+        #
+        # The CFL condtion is then given by
+        # dt < h / (sqrt(2) * max(vp)))
+        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))        

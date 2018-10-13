@@ -2,15 +2,15 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import info
-from examples.seismic.elastic import ElasticWaveSolver
+from examples.seismic.poroelastic import PoroelasticWaveSolver
 from examples.seismic import RickerSource, Receiver, TimeAxis, demo_model
 
 
-def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, nbpml=10,
+def poroelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, nbpml=10,
                   constant=False, **kwargs):
 
     nrec = 2*shape[0]
-    preset = 'constant-elastic' if constant else 'layers-elastic'
+    preset = 'constant-poroelastic' # Add layered later #if constant else 'layers-poroelastic'
     model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
 
@@ -30,7 +30,7 @@ def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, 
     if len(shape) > 1:
         rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
     # Create solver object to provide relevant operators
-    solver = ElasticWaveSolver(model, source=src, receiver=rec,
+    solver = PoroelasticWaveSolver(model, source=src, receiver=rec,
                                space_order=space_order, **kwargs)
     return solver
 
@@ -38,7 +38,7 @@ def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, 
 def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
         space_order=4, nbpml=40, autotune=False, constant=False, **kwargs):
 
-    solver = elastic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
+    solver = poroelastic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
                            space_order=space_order, constant=constant, **kwargs)
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
@@ -48,7 +48,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 
 
 if __name__ == "__main__":
-    description = ("Example script for a set of elastic operators.")
+    description = ("Example script for a set of poroelastic operators.")
     parser = ArgumentParser(description=description)
     parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
                         help="Preset to determine the physical problem setup")
