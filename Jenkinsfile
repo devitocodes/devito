@@ -92,6 +92,7 @@ pipeline {
                      steps {
                          cleanWorkspace()
                          condaInstallDevito()
+                        //  installOPS()
                          runCondaTests()
                          runCodecov()
                          buildDocs()
@@ -146,6 +147,16 @@ def installYask () {
         sh '''source activate devito
               make compiler-api
               pip install -e .
+           '''
+    }
+}
+
+def installOPS() {
+    sh "mkdir ${WORKSPACE}/scratch"
+    dir ("${WORKSPACE}/scratch") { sh 'git clone https://github.com/opesci/OPS.git' }
+    dir ("${WORKSPACE}/scratch/OPS/ops/c") {
+        sh '''source activate devito
+              make
            '''
     }
 }
