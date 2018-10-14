@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import rand
 
 
-def numpy_dot():
+def test_numpy_dot():
     # Checking for bug in numpy.dot
     # https://github.com/ContinuumIO/anaconda-issues/issues/7457
 
