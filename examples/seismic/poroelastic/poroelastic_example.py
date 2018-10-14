@@ -4,13 +4,13 @@ from argparse import ArgumentParser
 from devito.logger import info
 from examples.seismic.poroelastic import PoroelasticWaveSolver
 from examples.seismic import RickerSource, Receiver, TimeAxis, demo_model
-
+# ==============================================================================
 
 def poroelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, nbpml=10,
-                  constant=False, **kwargs):
+                  constant=True, **kwargs):
 
     nrec = 2*shape[0]
-    preset = 'constant-poroelastic' # Add layered later #if constant else 'layers-poroelastic'
+    preset = 'constant-poroelastic' if constant else 'layers-poroelastic'
     model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
 
@@ -24,28 +24,31 @@ def poroelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     if len(shape) > 1:
         src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
+    
     # Define receiver geometry (spread across x, just below surface)
     rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    
     if len(shape) > 1:
         rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    
     # Create solver object to provide relevant operators
-    solver = PoroelasticWaveSolver(model, source=src, receiver=rec,
-                               space_order=space_order, **kwargs)
+    solver = PoroelasticWaveSolver(model, source=src, receiver=rec, space_order=space_order, **kwargs)
+    
     return solver
-
+# ------------------------------------------------------------------------------
 
 def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
-        space_order=4, nbpml=40, autotune=False, constant=False, **kwargs):
+        space_order=4, nbpml=40, autotune=False, constant=True, **kwargs):
 
     solver = poroelastic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
                            space_order=space_order, constant=constant, **kwargs)
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
-    rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward(autotune=autotune)
+    rec1, rec2, vx, vz, wx, wz, txx, tzz, txz, p, summary = solver.forward(autotune=autotune)
     from IPython import embed;embed()
-    return rec1, rec2, vx, vz, txx, tzz, txz, summary
-
+    return rec1, rec2, vx, vz, wx, wz, txx, tzz, txz, p, summary
+# ------------------------------------------------------------------------------
 
 if __name__ == "__main__":
     description = ("Example script for a set of poroelastic operators.")
@@ -65,7 +68,7 @@ if __name__ == "__main__":
     parser.add_argument("-dle", default="advanced",
                         choices=["noop", "advanced", "speculative"],
                         help="Devito loop engine (DLEE) mode")
-    parser.add_argument("--constant", default=False, action='store_true',
+    parser.add_argument("--constant", default=True, action='store_true',
                         help="Constant velocity model, default is a two layer model")
     args = parser.parse_args()
 

@@ -43,7 +43,7 @@ def stress_fields(model, save, space_order):
 
 def pressure_fields(model, save, space_order):
     """
-    Create the TimeFunction objects for the stress fields in the poroelastic formulation
+    Create the TimeFunction objects for the pressure fields in the poroelastic formulation
     """
     if model.grid.dim == 2:
         x, z = model.space_dimensions
@@ -56,7 +56,7 @@ def pressure_fields(model, save, space_order):
         stagg_p = NODE
         # Create symbols for forward wavefield, source and receivers
         p = TimeFunction(name='p', grid=model.grid, staggered=stagg_p, save=save,
-                           time_order=1, space_order=space_order
+                           time_order=1, space_order=space_order)
     return p
 
 
@@ -124,10 +124,8 @@ def poroelastic_2d(model, space_order, save, source, receiver):
     """
     2D poroelastic wave equation FD kernel
     """
-    vp, vs, rho_s, rho_f, phi, k, mu_f, K_dr, K_s, K_f, T, damp = model.vp, model.vs,
-                                               model.rho_s, model.rho_f, model.phi,
-                                               model.k, model.mu_f, model.K_dr,
-                                               model.K_s, model.K_f, model.T, model.damp
+    vp, vs, rho_s, rho_f, phi, k, mu_f, K_dr, K_s, K_f, T, damp = model.vp, model.vs, model.rho_s, model.rho_f, model.phi, model.k, model.mu_f, model.K_dr, model.K_s, model.K_f, model.T, model.damp
+    
     # Delta T (sic)                                               
     dt = model.grid.stepping_dim.spacing
     
@@ -164,11 +162,11 @@ def poroelastic_2d(model, space_order, save, source, receiver):
     F = (-1 * rho_b) / (_m * rho_b - rho_f**2)
     
     # Stencils
-    u_vx = Eq(vx.forward, damp*(vx + dt*( A*(txx.dx + txz.dy) + C*P.dx + B*wx ) ) )
-    u_vz = Eq(vz.forward, damp*(vz + dt*( A*(txz.dx + tzz.dy) + C*P.dy + B*wz ) ) )
+    u_vx  = Eq(vx.forward, damp*(vx + dt*( A*(txx.dx + txz.dy) + C*p.dx + B*wx ) ) )
+    u_vz  = Eq(vz.forward, damp*(vz + dt*( A*(txz.dx + tzz.dy) + C*p.dy + B*wz ) ) )
     
-    u_wx = Eq(wx.forward, damp*(wx + dt*( D*(txx.dx + txz.dy) + F*P.dx + E*wx ) ) )
-    u_wz = Eq(wz.forward, damp*(wz + dt*( D*(txz.dx + tzz.dy) + F*P.dy + E*wz ) ) )
+    u_wx  = Eq(wx.forward, damp*(wx + dt*( D*(txx.dx + txz.dy) + F*p.dx + E*wx ) ) )
+    u_wz  = Eq(wz.forward, damp*(wz + dt*( D*(txz.dx + tzz.dy) + F*p.dy + E*wz ) ) )
     
     u_txx = Eq(txx.forward, damp*(txx + dt*((l_c + 2*G)*vx.forward.dx + l_c*vz.forward.dy
                                       + alpha*M*(wx.forward.dx + wz.forward.dy) ) ) )
@@ -176,8 +174,8 @@ def poroelastic_2d(model, space_order, save, source, receiver):
                                       + alpha*M*(wx.forward.dx + wz.forward.dy) ) ) )
     u_txz = Eq(txz.forward, damp*(txz + dt*(G*(vz.forward.dx + vx.forward.dy) ) ) )
     
-    u_p = Eq(p.forward, damp*(p - dt*(alpha*M*(vx.forward.dx + vz.forward.dz) 
-                              + M*(wx.forward.dx + wz.forward.dz) ) ) )
+    u_p   = Eq(p.forward, damp*(p - dt*(alpha*M*(vx.forward.dx + vz.forward.dy) 
+                              + M*(wx.forward.dx + wz.forward.dy) ) ) )
 
     src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver)
     return [u_vx, u_vz, u_wx, u_wz, u_txx, u_tzz, u_txz, u_p] + src_rec_expr
@@ -187,10 +185,8 @@ def poroelastic_3d(model, space_order, save, source, receiver):
     """
     3D elastic wave equation FD kernel
     """
-    vp, vs, rho_s, rho_f, phi, k, mu_f, K_dr, K_s, K_f, damp = model.vp, model.vs,
-                                               model.rho_s, model.rho_f, model.phi,
-                                               model.k, model.mu_f, model.K_dr,
-                                               model.K_s, model.K_f, model.damp
+    vp, vs, rho_s, rho_f, phi, k, mu_f, K_dr, K_s, K_f, damp = model.vp, model.vs, model.rho_s, model.rho_f, model.phi, model.k, model.mu_f, model.K_dr, model.K_s, model.K_f, model.damp
+    
     dt = model.grid.stepping_dim.spacing
     
     # Biot Coefficient
@@ -285,4 +281,4 @@ def ForwardOperator(model, source, receiver, space_order=4,
                     name='Forward', **kwargs)
 
 
-kernels = {3: elastic_3d, 2: elastic_2d}
+kernels = {3: poroelastic_3d, 2: poroelastic_2d}

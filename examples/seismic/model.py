@@ -75,9 +75,8 @@ def demo_model(preset, **kwargs):
         T = kwargs.pop('T', 1.0)    
                 
         return ModelPoroelastic(space_order=space_order, vp=vp, vs=vs, rho_s=rho_s,
-                 rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s, K_f=K_f,
-                 T=T, origin=origin, shape=shape, dtype=dtype, spacing=spacing,
-                 nbpml=nbpml, **kwargs)
+        rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s, K_f=K_f,
+        T=T, origin=origin, shape=shape, dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
 
     if preset.lower() in ['constant-isotropic']:
         # A constant single-layer model in a 2D or 3D domain
@@ -452,7 +451,7 @@ def initialize_function(function, data, nbpml):
     function.data_with_halo[:] = data
 
 
-class Pysical_Model(object):
+class Physical_Model(object):
     """
     General model class with common properties
     """
@@ -518,7 +517,7 @@ class Pysical_Model(object):
         return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 
 
-class Model(Pysical_Model):
+class Model(Physical_Model):
     """The physical model used in seismic inversion processes.
 
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
@@ -650,7 +649,7 @@ class Model(Pysical_Model):
             self.m.data = 1 / vp**2
 
 
-class ModelElastic(Pysical_Model):
+class ModelElastic(Physical_Model):
     """The physical model used in seismic inversion processes.
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
@@ -706,7 +705,7 @@ class ModelElastic(Pysical_Model):
         # dt < h / (sqrt(2) * max(vp)))
         return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))
         
-class ModelPoroelastic(Pysical_Model):
+class ModelPoroelastic(Physical_Model):
     """The physical model used in seismic inversion processes.
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
@@ -729,10 +728,10 @@ class ModelPoroelastic(Pysical_Model):
     :param damp: The damping field for absorbing boundary condition
     """
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho_s, rho_f,
-                 phi, k, mu_f, K_dr, K_s, K_f, T, nbpml=20,
-                 dtype=np.float32):
+                 phi, k, mu_f, K_dr, K_s, K_f, T, nbpml=20, dtype=np.float32):
+    
         super(ModelPoroelastic, self).__init__(origin, spacing, shape, space_order,
-                                           nbpml=nbpml, dtype=dtype)
+        nbpml=nbpml, dtype=dtype)
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
