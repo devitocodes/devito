@@ -13,7 +13,7 @@ from devito.symbolics import indexify, retrieve_functions
 from devito.finite_differences import Differentiable
 from devito.functions.dense import Function, TensorFunction, SubFunction
 from devito.functions.dimension import Dimension, ConditionalDimension, DefaultDimension
-from devito.functions.types import Symbol, Scalar
+from devito.functions.basic import Symbol, Scalar
 from devito.tools import (ReducerMap, as_tuple, flatten, prod,
                           powerset, filter_ordered, memoized_meth)
 

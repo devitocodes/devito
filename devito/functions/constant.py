@@ -2,7 +2,7 @@ import numpy as np
 
 from devito.exceptions import InvalidArgument
 from devito.logger import warning
-from devito.functions.types import AbstractCachedSymbol
+from devito.functions.basic import AbstractCachedSymbol
 from devito.tools import ArgProvider
 
 __all__ = ['Constant']

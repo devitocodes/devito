@@ -6,7 +6,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.exceptions import InvalidArgument
-from devito.functions.types import LEFT, RIGHT, AbstractSymbol, Scalar
+from devito.functions.basic import LEFT, RIGHT, AbstractSymbol, Scalar
 from devito.logger import debug
 from devito.tools import ArgProvider, Pickable
 

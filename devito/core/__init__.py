@@ -23,4 +23,4 @@ init_dle(modes)
 from devito.functions import *  # noqa
 from devito.grid import Grid  # noqa
 from devito.core.operator import Operator  # noqa
-from devito.functions.types import CacheManager  # noqa
+from devito.functions.basic import CacheManager  # noqa

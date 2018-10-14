@@ -10,7 +10,7 @@ from cgen import Struct, Value
 import numpy as np
 
 from devito.parameters import configuration
-from devito.functions.types import LEFT, RIGHT
+from devito.functions.basic import LEFT, RIGHT
 from devito.tools import EnrichedTuple, as_tuple
 
 
@@ -296,7 +296,7 @@ class Distributor(object):
 
             https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py
         """
-        from devito.functions.types import Object
+        from devito.functions.basic import Object
         if MPI._sizeof(self._comm) == sizeof(c_int):
             ctype = type('MPI_Comm', (c_int,), {})
         else:
@@ -308,7 +308,7 @@ class Distributor(object):
     @cached_property
     def _C_neighbours(self):
         """A ctypes Struct to access the neighborhood of a given rank."""
-        from devito.functions.types import CompositeObject
+        from devito.functions.basic import CompositeObject
         entries = list(product(self.dimensions, [LEFT, RIGHT]))
         fields = [('%s%s' % (d, i), c_int) for d, i in entries]
         obj = CompositeObject('nb', 'neighbours', Structure, fields)

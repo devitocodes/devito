@@ -8,7 +8,7 @@ from frozendict import frozendict
 from devito.ir.support import Scope
 from devito.logger import warning
 from devito.parameters import configuration
-from devito.functions.types import LEFT, RIGHT
+from devito.functions.basic import LEFT, RIGHT
 from devito.tools import Tag, as_mapper
 
 __all__ = ['HaloScheme', 'HaloSchemeException']

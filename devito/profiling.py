@@ -17,7 +17,7 @@ from devito.logger import warning
 from devito.parameters import configuration
 from devito.symbolics import estimate_cost
 from devito.tools import flatten
-from devito.functions.types import CompositeObject
+from devito.functions.basic import CompositeObject
 
 __all__ = ['Timer', 'create_profile']
 

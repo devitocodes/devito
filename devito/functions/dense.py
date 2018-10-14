@@ -10,7 +10,7 @@ from devito.parameters import configuration
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.functions.dimension import Dimension
 from devito.functions.utils import Buffer, NODE, CELL
-from devito.functions.types import AbstractCachedFunction, OWNED, HALO, LEFT, RIGHT
+from devito.functions.basic import AbstractCachedFunction, OWNED, HALO, LEFT, RIGHT
 from devito.tools import (EnrichedTuple, ReducerMap, ArgProvider, as_tuple,
                           is_integer)
 

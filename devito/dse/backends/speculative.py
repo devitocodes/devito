@@ -1,7 +1,7 @@
 from devito.dse.backends import AdvancedRewriter, dse_pass
 from devito.symbolics import (estimate_cost, xreplace_constrained,
                               iq_timevarying, q_leaf, q_sum_of_product, q_terminalop)
-from devito.functions.types import Scalar
+from devito.functions.basic import Scalar
 
 
 class SpeculativeRewriter(AdvancedRewriter):
