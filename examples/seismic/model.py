@@ -63,20 +63,50 @@ def demo_model(preset, **kwargs):
         nbpml = kwargs.pop('nbpml', 10)
         dtype = kwargs.pop('dtype', np.float32)
         vp = kwargs.pop('vp', 1.5)
-        vs = kwargs.pop('vs', 0.5 * vp)
-        rho_s = kwargs.pop('rho_s', 2.3)
-        rho_f = kwargs.pop('rho_f', 1.0)        
-        phi = kwargs.pop('phi', 0.1)
-        k = kwargs.pop('k', 1.0)
-        mu_f = kwargs.pop('mu_f', 0.02)        
-        K_dr = kwargs.pop('K_dr', 1.0)       
-        K_s = kwargs.pop('K_s', 1.0)
-        K_f = kwargs.pop('K_f', 1.0)
+        vs = kwargs.pop('vs', 1.5 * vp)
+        rho_s = kwargs.pop('rho_s', 2300)  # kg/m**3
+        rho_f = kwargs.pop('rho_f', 1000)  # kg/m**3      
+        phi = kwargs.pop('phi', 0.1)       # %
+        k = kwargs.pop('k', 1e-12)         # m**2
+        mu_f = kwargs.pop('mu_f', 0.002)   # Pa*s
+        K_dr = kwargs.pop('K_dr', 1.37)    # GPa
+        K_s = kwargs.pop('K_s', 4.0)       # GPa
+        K_f = kwargs.pop('K_f', 2.15)      # GPa
+        G = kwargs.pop('G', 0.82)          # GPa
         T = kwargs.pop('T', 1.0)    
+        
                 
         return ModelPoroelastic(space_order=space_order, vp=vp, vs=vs, rho_s=rho_s,
-        rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s, K_f=K_f,
+        rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s, K_f=K_f, G=G,
         T=T, origin=origin, shape=shape, dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
+
+    elif preset.lower() in ['layers-poroelastic', 'twolayer-poroelastic',
+                            '2layer-poroelastic']:
+        # A two-layer model in a 2D or 3D domain with two different
+        # velocities split across the height dimension:
+        # By default, the top part of the domain has 1.5 km/s,
+        # and the bottom part of the domain has 2.5 km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        dtype = kwargs.pop('dtype', np.float32)
+        nbpml = kwargs.pop('nbpml', 10)
+        ratio = kwargs.pop('ratio', 2)
+        vp_top = kwargs.pop('vp_top', 1.5)
+        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+
+        # Define a velocity profile in km/s
+        v = np.empty(shape, dtype=dtype)
+        v[:] = vp_top  # Top velocity (background)
+        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+
+        vs = 0.5 * v[:]
+        rho = v[:]/vp_top
+
+        return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
+                            origin=origin, shape=shape,
+                            dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
+
 
     if preset.lower() in ['constant-isotropic']:
         # A constant single-layer model in a 2D or 3D domain
@@ -711,25 +741,23 @@ class ModelPoroelastic(Physical_Model):
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
     :param shape: Number of grid points size in (x,y,z) order
     :param space_order: Order of the spatial stencil discretisation
-    :param vp: P-wave velocity in km/s
-    :param vs: S-wave velocity in km/s
     :param nbpml: The number of PML layers for boundary damping
-    :param rho_s: Solid Density in kg/cm^3 (rho=2.3 for sandstone)
-    :param rho_f: Fluid Density in kg/cm^3 (rho=1 for water)
+    :param rho_s: Solid Density in kg/m^3 (rho=2300 for sandstone)
+    :param rho_f: Fluid Density in kg/m^3 (rho=1000 for water)
     :param phi: Formation porosity (0.1 default)
-    :param k: Formation permeability (isotropic)
-    :param mu_f: Fluid Viscosity  
-    :param K_dr: Drained Bulk Modulus
-    :param K_s: Solid Bulk Modulus
-    :param K_f: Fluid Modulus  
+    :param k: Formation permeability, m**2 (isotropic)
+    :param mu_f: Fluid Viscosity, pa*s  
+    :param K_dr: Drained Bulk Modulus, GPa 
+    :param K_s: Solid Bulk Modulus, GPa
+    :param K_f: Fluid Modulus, GPa 
+    :param G: Frame Shear Modulus, GPa
     :param T: Formation Tortuosity
     The :class:`ModelPoroelastic` provides a symbolic data objects for the
     creation of seismic wave propagation operators:
     :param damp: The damping field for absorbing boundary condition
     """
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho_s, rho_f,
-                 phi, k, mu_f, K_dr, K_s, K_f, T, nbpml=20, dtype=np.float32):
-    
+                 phi, k, mu_f, K_dr, K_s, K_f, G, T, nbpml=20, dtype=np.float32):
         super(ModelPoroelastic, self).__init__(origin, spacing, shape, space_order,
         nbpml=nbpml, dtype=dtype)
 
@@ -737,7 +765,7 @@ class ModelPoroelastic(Physical_Model):
         self.damp = Function(name="damp", grid=self.grid)
         damp_boundary(self.damp, self.nbpml, spacing=self.spacing, mask=True)
 
-        # Create P Wave velocity, `vp`
+        # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
             self.vp = Function(name="vp", grid=self.grid, space_order=space_order)
             initialize_function(self.vp, vp, self.nbpml)
@@ -745,7 +773,7 @@ class ModelPoroelastic(Physical_Model):
             self.vp = Constant(name="vp", value=vp)
         self._physical_parameters = ('vp',)
 
-        # Create S Wave velocity, `vs`
+        # Create square slowness of the wave as symbol `m`
         if isinstance(vs, np.ndarray):
             self.vs = Function(name="vs", grid=self.grid, space_order=space_order)
             initialize_function(self.vs, vs, self.nbpml)
@@ -816,6 +844,14 @@ class ModelPoroelastic(Physical_Model):
         else:
             self.K_f = Constant(name="K_f", value=K_f)
         self._physical_parameters += ('K_f',)
+
+        # Create Frame shear modulus, `G`
+        if isinstance(G, np.ndarray):
+            self.G = Function(name="G", grid=self.grid, space_order=space_order)
+            initialize_function(self.G, G, self.nbpml)
+        else:
+            self.G = Constant(name="G", value=K_f)
+        self._physical_parameters += ('G',)
 
         # Create formation tortuosity, `T`
         if isinstance(T, np.ndarray):

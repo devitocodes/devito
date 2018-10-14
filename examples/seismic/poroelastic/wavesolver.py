@@ -37,9 +37,9 @@ class PoroelasticWaveSolver(object):
                                receiver=self.receiver,
                                space_order=self.space_order, **self._kwargs)
 
-    def forward(self, src=None, rec1=None, rec2=None, vp=None, vs=None, rho_s=None,
+    def forward(self, src=None, rec1=None, rec2=None, rho_s=None,
                       rho_f=None, phi=None, k=None, mu_f=None, K_dr=None, K_s=None,
-                      K_f=None, T=None, vx=None, vz=None, wx=None, wz=None,
+                      K_f=None, G=None, T=None, vx=None, vz=None, wx=None, wz=None,
                       txx=None, tzz=None, txz=None, p=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
@@ -96,8 +96,8 @@ class PoroelasticWaveSolver(object):
             kwargs['tyz'] = tyz
 
         # Pick m from model unless explicitly provided
-        vp    = vp    or self.model.vp
-        vs    = vs    or self.model.vs
+        # vp    = vp    or self.model.vp
+        # vs    = vs    or self.model.vs
         rho_s = rho_s or self.model.rho_s
         rho_f = rho_f or self.model.rho_f
         phi   = phi   or self.model.phi
@@ -106,11 +106,12 @@ class PoroelasticWaveSolver(object):
         K_dr  = K_dr  or self.model.K_dr
         K_s   = K_s   or self.model.K_s
         K_f   = K_f   or self.model.K_f
+        G     = G     or self.model.G
         T     = T     or self.model.T
         
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, rec2=rec2, vp=vp, vs=vs,
+        summary = self.op_fwd(save).apply(src=src, rec1=rec1, rec2=rec2,
         rho_s=rho_s, rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s,
-        K_f=K_f, T=T, dt=kwargs.pop('dt', self.dt), **kwargs)
+        K_f=K_f, G=G, T=T, dt=kwargs.pop('dt', self.dt), **kwargs)
         
         return rec1, rec2, vx, vz, wx, wz, txx, tzz, txz, p, summary

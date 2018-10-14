@@ -70,9 +70,9 @@ def particle_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order)
+                          time_order=1, space_order=space_order, save=save)
         vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order)
+                          time_order=1, space_order=space_order, save=save)
         vy = None
     elif model.grid.dim == 3:
         x, y, z = model.space_dimensions
@@ -81,11 +81,11 @@ def particle_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order)
+                          time_order=1, space_order=space_order, save=save)
         vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
-                          time_order=1, space_order=space_order)
+                          time_order=1, space_order=space_order, save=save)
         vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order)
+                          time_order=1, space_order=space_order, save=save)
 
     return vx, vy, vz
 # ------------------------------------------------------------------------------
@@ -100,9 +100,9 @@ def relative_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         wx = TimeFunction(name='wx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order)
+                          time_order=1, space_order=space_order, save=save)
         wz = TimeFunction(name='wz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order)
+                          time_order=1, space_order=space_order, save=save)
         wy = None
     elif model.grid.dim == 3:
         x, y, z = model.space_dimensions
@@ -111,11 +111,11 @@ def relative_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         wx = TimeFunction(name='wx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order)
+                          time_order=1, space_order=space_order, save=save)
         wy = TimeFunction(name='wy', grid=model.grid, staggered=stagg_y,
-                          time_order=1, space_order=space_order)
+                          time_order=1, space_order=space_order, save=save)
         wz = TimeFunction(name='wz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order)
+                          time_order=1, space_order=space_order, save=save)
 
     return wx, wy, wz
 # ------------------------------------------------------------------------------
@@ -124,7 +124,7 @@ def poroelastic_2d(model, space_order, save, source, receiver):
     """
     2D poroelastic wave equation FD kernel
     """
-    vp, vs, rho_s, rho_f, phi, k, mu_f, K_dr, K_s, K_f, T, damp = model.vp, model.vs, model.rho_s, model.rho_f, model.phi, model.k, model.mu_f, model.K_dr, model.K_s, model.K_f, model.T, model.damp
+    rho_s, rho_f, phi, k, mu_f, K_dr, K_s, K_f, G, T, damp = model.G, model.rho_s, model.rho_f, model.phi, model.k, model.mu_f, model.K_dr, model.K_s, model.K_f, model.T, model.damp
     
     # Delta T (sic)                                               
     dt = model.grid.stepping_dim.spacing
@@ -133,16 +133,16 @@ def poroelastic_2d(model, space_order, save, source, receiver):
     alpha = 1.0 - K_dr/K_s
     
     # Biot Modulus
-    M = phi/K_f + (alpha - phi)/K_s
+    M = 1.0 / (phi/K_f + (alpha - phi)/K_s)
     
     # Bulk Density
     rho_b = phi*rho_f + (1.0 - phi)*rho_s
-
-    # Shear Modulus of Saturated Rock
-    G = (vs**2)*rho_b
     
-    # Lame Parameter of Saturated Rock
-    l_c = rho_b*(vp**2 - 2*(vs**2))
+    # Saturated / Gassmann Bulk Modulus
+    K_G = K_dr + alpha**2 * M
+
+    # Lame Parameter of Saturated Medium
+    l_c = K_G - 2/3 * G
     
     # Create symbols for forward wavefield, source and receivers
     vx, vy, vz = particle_velocity_fields(model, save, space_order)
@@ -151,8 +151,8 @@ def poroelastic_2d(model, space_order, save, source, receiver):
     p = pressure_fields(model, save, space_order) # Different order needed?
     
     # Convenience terms for nightmarish poroelastodynamic FD stencils
-    _m = T * (rho_f/phi)  # Effective fluid density
-    _b = mu_f / k         # Fluid Mobility
+    _m = T * (rho_f/phi)  # Effective fluid density / mass coupling coefficient
+    _b = mu_f / k         # Fluid Mobility / resistiving damping
     
     A = _m / (_m * rho_b - rho_f**2)
     B = (rho_b * _b) / (rho_b - rho_f**2)
@@ -198,8 +198,8 @@ def poroelastic_3d(model, space_order, save, source, receiver):
     # Bulk Density
     rho_b = phi*rho_f + (1.0 - phi)*rho_s
 
-    # Shear Modulus of Saturated Rock
-    mu = (vs*vs)*rho_b
+    # Shear Modulus of Sa                mturated Rock
+    mu = (vs**2)*rho_b
     
     # Lame Parameter of Saturated Rock
     l = rho_b*(vp**2 - 2*(vs**2))
