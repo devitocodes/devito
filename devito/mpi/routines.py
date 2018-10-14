@@ -8,7 +8,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls)
 from devito.symbolics import CondNe, FieldFromPointer, Macro
-from devito.types import Array, Symbol, LocalObject, OWNED, HALO, LEFT, RIGHT
+from devito.functions.types import Array, Symbol, LocalObject, OWNED, HALO, LEFT, RIGHT
 from devito.tools import numpy_to_mpitypes
 
 __all__ = ['copy', 'sendrecv', 'update_halo']

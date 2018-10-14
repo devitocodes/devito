@@ -12,7 +12,7 @@ from devito.ir.iet import (Denormals, Call, Callable, List, ArrayCast,
                            filter_iterations, derive_parameters)
 from devito.symbolics import as_symbol
 from devito.tools import flatten
-from devito.types import Scalar
+from devito.functions.types import Scalar
 
 
 class BasicRewriter(AbstractRewriter):

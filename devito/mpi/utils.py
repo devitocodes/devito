@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from itertools import product
 
-from devito.types import OWNED, HALO, LEFT, RIGHT
+from devito.functions.types import OWNED, HALO, LEFT, RIGHT
 
 __all__ = ['get_views']
 

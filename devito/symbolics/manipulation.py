@@ -7,7 +7,7 @@ from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
-from devito.types import Symbol as dSymbol
+from devito.functions.types import Symbol as dSymbol
 
 __all__ = ['freeze_expression', 'xreplace_constrained', 'xreplace_indices',
            'pow_to_mul', 'as_symbol', 'indexify', 'convert_to_SSA', 'split_affine']

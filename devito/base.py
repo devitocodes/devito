@@ -6,7 +6,7 @@ from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
 from devito.grid import Grid
-import devito.types as types
+import devito.functions.types as types
 import devito.function as function
 import devito.operator as operator
 
