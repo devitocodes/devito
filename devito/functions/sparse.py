@@ -6,13 +6,13 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.cgen_utils import INT, cast_mapper
-from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.logger import warning
 from devito.mpi import MPI
 from devito.symbolics import indexify, retrieve_functions
 from devito.finite_differences import Differentiable
 from devito.functions.dense import Function, TensorFunction, SubFunction
+from devito.functions.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.functions.types import Symbol, Scalar
 from devito.tools import (ReducerMap, as_tuple, flatten, prod,
                           powerset, filter_ordered, memoized_meth)

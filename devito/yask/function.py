@@ -3,11 +3,12 @@ import ctypes
 import sympy
 import numpy as np
 
-import devito.function as function
+import devito.functions.dense as dense
+import devito.functions.constants as constant
 from devito.exceptions import InvalidArgument
 from devito.logger import yask as log
 from devito.tools import Signer, numpy_to_ctypes
-from devito.types import _SymbolCache
+from devito.functions.types import _SymbolCache
 
 from devito.yask.data import Data, DataScalar
 from devito.yask.utils import namespace
@@ -16,7 +17,7 @@ from devito.yask.wrappers import contexts
 __all__ = ['Constant', 'Function', 'TimeFunction']
 
 
-class Constant(function.Constant):
+class Constant(constant.Constant):
 
     from_YASK = True
 
@@ -49,7 +50,7 @@ class Constant(function.Constant):
         return values
 
 
-class Function(function.Function, Signer):
+class Function(dense.Function, Signer):
 
     from_YASK = True
 
@@ -169,7 +170,7 @@ class Function(function.Function, Signer):
         return (self.name,) + tuple(i.name for i in self.indices)
 
 
-class TimeFunction(function.TimeFunction, Function):
+class TimeFunction(dense.TimeFunction, Function):
 
     from_YASK = True
 

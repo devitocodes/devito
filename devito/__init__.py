@@ -9,7 +9,7 @@ import cpuinfo
 
 from devito.base import *  # noqa
 from devito.data import *  # noqa
-from devito.dimension import *  # noqa
+from devito.functions.dimension import *  # noqa
 from devito.equation import *  # noqa
 from devito.finite_differences import *  # noqa
 from devito.functions.utils import Buffer, NODE, CELL  # noqa

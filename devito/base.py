@@ -7,7 +7,9 @@ from sympy.core.compatibility import with_metaclass
 from devito.backends import _BackendSelector
 from devito.grid import Grid
 import devito.functions.types as types
-import devito.function as function
+import devito.functions.dense as function
+import devito.functions.sparse as sparse
+import devito.functions.constants as constant
 import devito.operator as operator
 
 
@@ -19,7 +21,7 @@ class Array(with_metaclass(_BackendSelector, types.Array)):
     pass
 
 
-class Constant(with_metaclass(_BackendSelector, function.Constant)):
+class Constant(with_metaclass(_BackendSelector, constant.Constant)):
     pass
 
 
@@ -31,19 +33,19 @@ class TimeFunction(with_metaclass(_BackendSelector, function.TimeFunction)):
     pass
 
 
-class SparseFunction(with_metaclass(_BackendSelector, function.SparseFunction)):
+class SparseFunction(with_metaclass(_BackendSelector, sparse.SparseFunction)):
     pass
 
 
-class SparseTimeFunction(with_metaclass(_BackendSelector, function.SparseTimeFunction)):
+class SparseTimeFunction(with_metaclass(_BackendSelector, sparse.SparseTimeFunction)):
     pass
 
 
-class PrecomputedSparseFunction(with_metaclass(_BackendSelector, function.PrecomputedSparseFunction)):  # noqa
+class PrecomputedSparseFunction(with_metaclass(_BackendSelector, sparse.PrecomputedSparseFunction)):  # noqa
     pass
 
 
-class PrecomputedSparseTimeFunction(with_metaclass(_BackendSelector, function.PrecomputedSparseTimeFunction)):  # noqa
+class PrecomputedSparseTimeFunction(with_metaclass(_BackendSelector, sparse.PrecomputedSparseTimeFunction)):  # noqa
     pass
 
 

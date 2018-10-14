@@ -1,6 +1,6 @@
 import cgen as c
 
-from devito.dimension import IncrDimension
+from devito.functions.dimension import IncrDimension
 from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacent,
                            FindNodes, IsPerfectIteration, Transformer,
                            compose_nodes, retrieve_iteration_tree)

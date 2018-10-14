@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 from devito.cgen_utils import Allocator
-from devito.dimension import ConditionalDimension
+from devito.functions.dimension import ConditionalDimension
 from devito.ir.iet import (Expression, Increment, LocalExpression, Element, Iteration,
                            List, Conditional, Section, HaloSpot, ExpressionBundle,
                            MetaCall, MapExpressions, Transformer, FindNodes,

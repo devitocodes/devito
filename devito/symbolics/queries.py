@@ -1,6 +1,6 @@
 from sympy import Eq, diff, cos, sin, nan
 
-from devito.dimension import Dimension
+from devito.functions.dimension import Dimension
 from devito.tools import as_tuple
 
 
@@ -36,7 +36,7 @@ def q_indexed(expr):
 
 
 def q_function(expr):
-    from devito.function import TensorFunction
+    from devito.functions.dense import TensorFunction
     return isinstance(expr, TensorFunction)
 
 

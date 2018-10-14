@@ -9,7 +9,7 @@ import cgen
 import numpy as np
 
 from devito.cgen_utils import ccode
-from devito.dimension import Dimension
+from devito.functions.dimension import Dimension
 from devito.dle import fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
                                  simdinfo, get_simd_flag, get_simd_items)

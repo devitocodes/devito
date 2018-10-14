@@ -5,7 +5,7 @@ from sympy import Number, Indexed, Symbol, LM, LC
 
 from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
-from devito.dimension import Dimension
+from devito.functions.dimension import Dimension
 from devito.tools import as_tuple, flatten
 from devito.functions.types import Symbol as dSymbol
 

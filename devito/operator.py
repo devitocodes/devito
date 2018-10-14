@@ -8,7 +8,7 @@ import numpy as np
 import sympy
 
 from devito.compiler import jit_compile, load, save
-from devito.dimension import Dimension, SubDimension
+from devito.functions.dimension import Dimension, SubDimension
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.equation import DOMAIN, INTERIOR

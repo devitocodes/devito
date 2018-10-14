@@ -3,7 +3,7 @@ from itertools import islice
 
 from cached_property import cached_property
 
-from devito.dimension import Dimension
+from devito.functions.dimension import Dimension
 from devito.ir.equations import ClusterizedEq
 from devito.symbolics import (as_symbol, retrieve_indexed, retrieve_terminals,
                               convert_to_SSA, q_indirect, q_timedimension)

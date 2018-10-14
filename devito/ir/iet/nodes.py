@@ -16,7 +16,7 @@ from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
                            REDUNDANT)
 from devito.ir.support import Forward, detect_io
-from devito.dimension import Dimension
+from devito.functions.dimension import Dimension
 from devito.symbolics import FunctionFromPointer, as_symbol
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type)

@@ -2,7 +2,7 @@ from functools import reduce
 from operator import mul
 from ctypes import c_void_p
 
-from devito.dimension import Dimension
+from devito.functions.dimension import Dimension
 from devito.mpi.utils import get_views
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,

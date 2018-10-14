@@ -1,7 +1,7 @@
 from collections import OrderedDict, defaultdict
 from itertools import groupby
 
-from devito.dimension import Dimension, ModuloDimension
+from devito.functions.dimension import Dimension, ModuloDimension
 from devito.ir.support.basic import Access, Scope
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
