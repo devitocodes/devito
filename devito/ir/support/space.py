@@ -2,7 +2,6 @@ import abc
 from collections import OrderedDict
 from functools import reduce
 from operator import mul
-
 from cached_property import cached_property
 
 from frozendict import frozendict
