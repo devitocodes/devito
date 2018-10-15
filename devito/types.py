@@ -830,6 +830,10 @@ class LocalObject(AbstractObject):
 
     is_LocalObject = True
 
+    def __init__(self, name, dtype, value=None):
+        super(LocalObject, self).__init__(name, dtype)
+        self.value = value
+
 
 # Extended SymPy hierarchy follows, for essentially two reasons:
 # - To keep track of `function`
