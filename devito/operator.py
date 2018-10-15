@@ -110,7 +110,16 @@ class Operator(Callable):
 
         # Derive parameters as symbols not defined in the kernel itself
         parameters = self._build_parameters(iet)
-
+        
+        # By default operator argument list is not cached
+        self.cache_args = False
+        
+        # Cached args
+        self.cached_args = None
+        
+        # By default performance will be profiled
+        self.profiling = True
+        
         # Finish instantiation
         super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
 
@@ -177,6 +186,15 @@ class Operator(Callable):
                 raise ValueError("Unrecognized argument %s=%s passed to `apply`" % (k, v))
 
         return args
+    
+    def _prepare_updated_arguments(self, **kwargs):
+
+        args = self.cached_args
+        
+        for key, value in kwargs.items():
+            args[key] = value
+
+        return args
 
     def _postprocess_arguments(self, args, **kwargs):
         """
@@ -194,6 +212,14 @@ class Operator(Callable):
 
     def arguments(self, **kwargs):
         args = self._prepare_arguments(**kwargs)
+        # Check all arguments are present
+        for p in self.parameters:
+            if args.get(p.name) is None:
+                raise ValueError("No value found for parameter %s" % p.name)
+        return args
+    
+    def update_arguments(self, **kwargs):
+        args = self._prepare_updated_arguments(**kwargs)
         # Check all arguments are present
         for p in self.parameters:
             if args.get(p.name) is None:
@@ -426,8 +452,19 @@ class OperatorRunnable(Operator):
             >>> op = Operator(Eq(u3.forward, u3 + 1))
             >>> op.apply(time_M=10)
         """
+        
+        #print(self.cached_args)
+        
         # Build the arguments list to invoke the kernel function
-        args = self.arguments(**kwargs)
+        if self.cache_args:
+            if self.cached_args == None:
+                args = self.arguments(**kwargs)
+            else:
+                args = self.update_arguments(**kwargs)
+            self.cached_args = args
+            
+        else:
+            args = self.arguments(**kwargs)
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
@@ -437,7 +474,8 @@ class OperatorRunnable(Operator):
         self._postprocess_arguments(args, **kwargs)
 
         # Output summary of performance achieved
-        return self._profile_output(args)
+        if self.profiling:
+            return self._profile_output(args)
 
     def _profile_output(self, args):
         """Return a performance summary of the profiled sections."""
