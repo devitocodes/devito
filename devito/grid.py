@@ -7,6 +7,8 @@ from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap, as_tuple
 
+from cached_property import cached_property
+
 from sympy import prod
 import numpy as np
 
@@ -227,7 +229,7 @@ class Grid(ArgProvider):
     def is_distributed(self, dim):
         """Return True if ``dim`` is a distributed :class:`Dimension`,
         False otherwise."""
-        return dim in self.distributor.dimensions
+        return any(dim is d for d in self.distributor.dimensions)
 
     def _make_stepping_dim(self, time_dim, name=None):
         """Create a stepping dimension for this Grid."""
