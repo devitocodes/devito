@@ -447,7 +447,7 @@ class OperatorRunnable(Operator):
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
                 name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
-            elif len(itershapes) > 0:
+            elif len(itershapes) == 1:
                 name = "%s<%s>" % (k, itershapes[0])
             else:
                 name = None
