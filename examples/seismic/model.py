@@ -1,5 +1,4 @@
 import os
-from functools import partial
 
 import numpy as np
 
@@ -360,28 +359,33 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         not mask => 0 inside the domain and increase in the layer
     """
 
-    def make_pad(width, iaxis, mask, spacing, coeff):
-        profile = np.zeros((width,))
-        for j in range(width):
-            pos = np.abs((width - j + 1) / float(width))
-            val = coeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-            if mask:
-                val = 1-val
-            profile[j] = val/spacing[iaxis]
-        return profile
-
-    def pad_damp(mask, spacing, vector, pad_width, iaxis, kwargs):
-        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
-        lpad, rpad = pad_width
-        if lpad > 0:
-            vector[:lpad] += make_pad(lpad, iaxis, mask, spacing, dampcoeff)
-        if rpad > 0:
-            vector[-rpad:] += make_pad(rpad, iaxis, mask, spacing, dampcoeff)[::-1]
-        return vector
-
     phy_shape = damp.grid.subdomains['phydomain'].shape
     data = np.ones(phy_shape) if mask else np.zeros(phy_shape)
-    initialize_function(damp, data, nbpml, partial(pad_damp, mask, spacing))
+
+    pad_widths = [(nbpml, nbpml) for i in range(damp.ndim)]
+    data = np.pad(data, pad_widths, 'edge')
+
+    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
+
+    assert all(damp._offset_domain[0] == i for i in damp._offset_domain)
+
+    for i in range(damp.ndim):
+        for j in range(nbpml):
+            # Dampening coefficient
+            pos = np.abs((nbpml - j + 1) / float(nbpml))
+            val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
+            if mask:
+                val = -val
+            # : slices
+            all_ind = [slice(0, d) for d in data.shape]
+            # Left slice for dampening for dimension i
+            all_ind[i] = slice(j, j+1)
+            data[all_ind] += val/spacing[i]
+            # right slice for dampening for dimension i
+            all_ind[i] = slice(data.shape[i]-j, data.shape[i]-j+1)
+            data[all_ind] += val/spacing[i]
+
+    initialize_function(damp, data, 0)
 
 
 def initialize_function(function, data, nbpml, pad_mode='edge'):
