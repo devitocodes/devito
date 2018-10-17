@@ -25,6 +25,8 @@ class Allocator(object):
         handle = self.stack.setdefault(scope, OrderedDict())
         if obj.is_LocalObject:
             handle[obj] = c.Value(obj.ctype, obj.name)
+            if obj.value is not None:
+                handle[obj] = c.Initializer(handle[obj], obj.value)
         else:
             shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
             alignment = "__attribute__((aligned(64)))"
