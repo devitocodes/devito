@@ -7,8 +7,6 @@ from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap, as_tuple
 
-from cached_property import cached_property
-
 from sympy import prod
 import numpy as np
 
