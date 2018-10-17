@@ -66,8 +66,6 @@ class Operator(OperatorRunnable):
             ops_negBound_Object = ListInitializer(list(map(str, halo_mapper[fun]['left'])))
             ops_posBound_Object = ListInitializer(list(map(str, halo_mapper[fun]['right'])))
 
-            # from IPython import embed; embed()
-
             ops_dat_Object = OPSDeclObject(dtype = namespace['type-ops_dat'],
                                             name = namespace['name-ops_dat'](''), 
                                             value = Function(namespace['call-ops_dat'])
@@ -120,10 +118,9 @@ class Operator(OperatorRunnable):
             ops_data.append(ops_exit_Object)
 
         # Temporary. 
-        for od in ops_data:
-            print(od)
+        # for od in ops_data:
+        #     print(od)
 
-        # return new_iet
-        # raise NotImplementedError
+        raise NotImplementedError
 
 
