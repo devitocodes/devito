@@ -104,13 +104,14 @@ class Profiler(object):
         (a ``struct``).
         """
         return Struct('profiler', [Value('double', i.name) for i in self._sections])
-    
+
+
 class AdvancedProfiler(Profiler):
 
     def __init__(self, name):
 
         super(AdvancedProfiler, self).__init__(name)
-        
+
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, arguments, dtype):
         """
