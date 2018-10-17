@@ -161,10 +161,9 @@
 <span class="kn">import</span> <span class="nn">sympy</span>
 
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">jit_compile</span><span class="p">,</span> <span class="n">load</span><span class="p">,</span> <span class="n">save</span>
-<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">SubDimension</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">transform</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">rewrite</span>
-<span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">DOMAIN</span><span class="p">,</span> <span class="n">INTERIOR</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidOperator</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">LoweredEq</span>
@@ -175,8 +174,8 @@
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">indexify</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">Signer</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_mapper</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span>
-                          <span class="n">filter_sorted</span><span class="p">,</span> <span class="n">numpy_to_ctypes</span><span class="p">,</span> <span class="n">split</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">Signer</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_sorted</span><span class="p">,</span>
+                          <span class="n">numpy_to_ctypes</span><span class="p">,</span> <span class="n">split</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="n">Callable</span><span class="p">):</span>
@@ -417,27 +416,14 @@
 
 <span class="sd">            * Applying any user-provided symbolic substitution;</span>
 <span class="sd">            * Replacing :class:`Dimension`s with :class:`SubDimension`s based</span>
-<span class="sd">              on the expression :class:`Region`.</span>
+<span class="sd">              on the expression :class:`SubDomain`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">domain_subs</span> <span class="o">=</span> <span class="n">subs</span>
-        <span class="n">interior_subs</span> <span class="o">=</span> <span class="n">subs</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-
         <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">as_mapper</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">_region</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="n">INTERIOR</span><span class="p">:</span>
-                    <span class="c1"># Introduce SubDimensions to iterate over the INTERIOR region only</span>
-                    <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">free_symbols</span>
-                                  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Space</span><span class="p">]</span>
-                    <span class="n">interior_subs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="n">SubDimension</span><span class="o">.</span><span class="n">middle</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">i&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-                                          <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">candidates</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">interior_subs</span><span class="p">})</span>
-                    <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">interior_subs</span><span class="p">))</span>
-                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="n">DOMAIN</span><span class="p">:</span>
-                    <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">domain_subs</span><span class="p">))</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unsupported Region `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="n">k</span><span class="p">)</span>
-
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">:</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="n">subs</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">subdomain</span><span class="p">:</span>
+                <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">subdomain</span><span class="o">.</span><span class="n">dimension_map</span><span class="p">)</span>
+            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">processed</span>
 
     <span class="k">def</span> <span class="nf">_specialize_exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expressions</span><span class="p">):</span>
@@ -663,7 +649,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2016, Opesci.
+        &copy; Copyright 2016, Opesci
 
     </p>
   </div>
@@ -682,21 +668,14 @@
 
   
 
-    <script type="text/javascript">
-        var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'../../',
-            VERSION:'1',
-            LANGUAGE:'en',
-            COLLAPSE_INDEX:false,
-            FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true,
-            SOURCELINK_SUFFIX: '.txt'
-        };
-    </script>
-      <script type="text/javascript" src="../../_static/jquery.js"></script>
-      <script type="text/javascript" src="../../_static/underscore.js"></script>
-      <script type="text/javascript" src="../../_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
 
   
 

@@ -155,32 +155,34 @@
 
 <span class="kn">import</span> <span class="nn">sympy</span>
 
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span>
-
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;DOMAIN&#39;</span><span class="p">,</span> <span class="s1">&#39;INTERIOR&#39;</span><span class="p">,</span> <span class="s1">&#39;solve&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;solve&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../devito.html#devito.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A :class:`sympy.Eq` that accepts the additional keyword parameter ``region``.</span>
+<span class="sd">    A :class:`sympy.Eq` that accepts the additional keyword parameter ``subdomain``.</span>
 
-<span class="sd">    The ``region``, an object of type :class:`Region`, may be used to restrict</span>
-<span class="sd">    the execution of the equation to a sub-domain.</span>
+<span class="sd">    The ``subdomain``, an object of type :class:`SubDomain`, can be used to</span>
+<span class="sd">    restrict the execution of the equation to a particular subdomain.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;evaluate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">region</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;region&#39;</span><span class="p">,</span> <span class="n">DOMAIN</span><span class="p">)</span>
+        <span class="n">subdomain</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;subdomain&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">_region</span> <span class="o">=</span> <span class="n">region</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_subdomain</span> <span class="o">=</span> <span class="n">subdomain</span>
         <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">subdomain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subdomain</span>
 
 <div class="viewcode-block" id="Eq.xreplace"><a class="viewcode-back" href="../../devito.html#devito.equation.Eq.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span>
-                         <span class="n">region</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_region</span><span class="p">)</span></div></div>
+                         <span class="n">subdomain</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_subdomain</span><span class="p">)</span></div></div>
 
 
 <div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../devito.html#devito.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
@@ -195,28 +197,6 @@
         <span class="k">return</span> <span class="s2">&quot;Inc(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
 
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
-
-
-<span class="k">class</span> <span class="nc">Region</span><span class="p">(</span><span class="n">Tag</span><span class="p">):</span>
-
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A region of the computational domain over which a :class:`Function` is</span>
-<span class="sd">    discretized.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">pass</span>
-
-
-<span class="n">DOMAIN</span> <span class="o">=</span> <span class="n">Region</span><span class="p">(</span><span class="s1">&#39;DOMAIN&#39;</span><span class="p">)</span>
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Represent the physical domain of the PDE; that is, domain = boundary + interior</span>
-<span class="sd">&quot;&quot;&quot;</span>
-
-<span class="n">INTERIOR</span> <span class="o">=</span> <span class="n">Region</span><span class="p">(</span><span class="s1">&#39;INTERIOR&#39;</span><span class="p">)</span>
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Represent the physical interior domain of the PDE; that is, PDE boundaries are</span>
-<span class="sd">not included.</span>
-<span class="sd">&quot;&quot;&quot;</span>
 
 
 <div class="viewcode-block" id="solve"><a class="viewcode-back" href="../../devito.html#devito.equation.solve">[docs]</a><span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -250,7 +230,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2016, Opesci.
+        &copy; Copyright 2016, Opesci
 
     </p>
   </div>
@@ -269,21 +249,14 @@
 
   
 
-    <script type="text/javascript">
-        var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'../../',
-            VERSION:'1',
-            LANGUAGE:'en',
-            COLLAPSE_INDEX:false,
-            FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true,
-            SOURCELINK_SUFFIX: '.txt'
-        };
-    </script>
-      <script type="text/javascript" src="../../_static/jquery.js"></script>
-      <script type="text/javascript" src="../../_static/underscore.js"></script>
-      <script type="text/javascript" src="../../_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
 
   
 

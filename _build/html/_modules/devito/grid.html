@@ -153,50 +153,50 @@
   <h1>Source code for devito.grid</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
-<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">SpaceDimension</span><span class="p">,</span> <span class="n">TimeDimension</span><span class="p">,</span> <span class="n">SteppingDimension</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">SpaceDimension</span><span class="p">,</span> <span class="n">TimeDimension</span><span class="p">,</span>
+                              <span class="n">SteppingDimension</span><span class="p">,</span> <span class="n">SubDimension</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Constant</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">Distributor</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">ReducerMap</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span>
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">prod</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Grid&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SubDomain&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Grid"><a class="viewcode-back" href="../../devito.html#devito.grid.Grid">[docs]</a><span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="n">ArgProvider</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="n">ArgProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A cartesian grid that encapsulates a physical domain over which</span>
+<span class="sd">    A cartesian grid that encapsulates a computational domain over which</span>
 <span class="sd">    to discretize :class:`Function`s.</span>
 
-<span class="sd">    :param shape: Shape of the domain region in grid points.</span>
+<span class="sd">    :param shape: Shape of the computational domain in grid points.</span>
 <span class="sd">    :param extent: (Optional) physical extent of the domain in m; defaults</span>
 <span class="sd">                   to a unit box of extent 1m in all dimensions.</span>
 <span class="sd">    :param origin: (Optional) physical coordinate of the origin of the</span>
 <span class="sd">                   domain; defaults to 0.0 in all dimensions.</span>
-<span class="sd">    :param dimensions: (Optional) list of :class:`SpaceDimension`</span>
-<span class="sd">                       symbols that defines the spatial directions of</span>
-<span class="sd">                       the physical domain encapsulated by this</span>
-<span class="sd">                       :class:`Grid`.</span>
-<span class="sd">    :param time_dimension: (Optional) :class:`TimeDimension` symbols</span>
-<span class="sd">                           to to define the time dimension for all</span>
-<span class="sd">                           :class:`TimeFunction` symbols created</span>
-<span class="sd">                           from this :class:`Grid`.</span>
+<span class="sd">    :param dimensions: (Optional) list of :class:`SpaceDimension`s</span>
+<span class="sd">                       defining the spatial dimensions of the computational</span>
+<span class="sd">                       domain encapsulated by this Grid.</span>
+<span class="sd">    :param time_dimension: (Optional) a :class:`TimeDimension`, used to</span>
+<span class="sd">                           define the time dimension for all</span>
+<span class="sd">                           :class:`TimeFunction`s created from this Grid.</span>
 <span class="sd">    :param dtype: (Optional) default data type to be inherited by all</span>
-<span class="sd">                  :class:`Function`s created from this :class:`Grid`.</span>
-<span class="sd">                  Defaults to ``numpy.float32``.</span>
+<span class="sd">                  :class:`Function`s created from this Grid. Defaults</span>
+<span class="sd">                  to ``numpy.float32``.</span>
+<span class="sd">    :param subdomains: (Optional) an iterable of :class:`SubDomain`s.</span>
+<span class="sd">                       If None (as by default), then the Grid only has two</span>
+<span class="sd">                       subdomains, ``&#39;interior&#39;`` and ``&#39;domain&#39;``.</span>
 <span class="sd">    :param comm: (Optional) an MPI communicator defining the set of</span>
 <span class="sd">                 processes among which the grid is distributed.</span>
 
-<span class="sd">    The :class:`Grid` encapsulates the topology and geometry</span>
-<span class="sd">    information of the computational domain that :class:`Function`</span>
-<span class="sd">    objects can be discretized on. As such it defines and provides the</span>
-<span class="sd">    physical coordinate information of the logically cartesian grid</span>
-<span class="sd">    underlying the discretized :class:`Function` objects. For example,</span>
-<span class="sd">    the conventions for defining the coordinate space in 2D are:</span>
+<span class="sd">    A Grid encapsulates the topology and geometry information of the</span>
+<span class="sd">    computational domain that :class:`Function`s can be discretized on.</span>
+<span class="sd">    As such, it defines and provides the physical coordinate information of</span>
+<span class="sd">    the logical cartesian grid underlying the discretized :class:`Function`s.</span>
+<span class="sd">    For example, the conventions for defining the coordinate space in 2D are:</span>
 
 <span class="sd">    .. note::</span>
 
@@ -221,11 +221,11 @@
     <span class="n">_default_dimensions</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                 <span class="n">time_dimension</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">comm</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                 <span class="n">time_dimension</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">subdomains</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">comm</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">extent</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">extent</span> <span class="ow">or</span> <span class="nb">tuple</span><span class="p">(</span><span class="mf">1.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
-        <span class="n">origin</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">origin</span> <span class="ow">or</span> <span class="nb">tuple</span><span class="p">(</span><span class="mf">0.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_extent</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">extent</span> <span class="ow">or</span> <span class="nb">tuple</span><span class="p">(</span><span class="mf">1.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span> <span class="o">=</span> <span class="n">dtype</span>
 
         <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># Create the spatial dimensions and constant spacing symbols</span>
@@ -233,23 +233,32 @@
             <span class="n">dim_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_dimensions</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="p">]</span>
             <span class="n">dim_spacing</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_const</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;h_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">n</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
                                 <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dim_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">SpaceDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">n</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">s</span><span class="p">)</span>
-                                    <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dim_names</span><span class="p">,</span> <span class="n">dim_spacing</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">SpaceDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">n</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">s</span><span class="p">)</span>
+                                     <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dim_names</span><span class="p">,</span> <span class="n">dim_spacing</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">dimensions</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span> <span class="o">=</span> <span class="n">dimensions</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">origin</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_const</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;o_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
-                            <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">origin</span><span class="p">))</span>
-        <span class="c1"># TODO: Raise proper exceptions and logging</span>
+        <span class="c1"># Initialize SubDomains</span>
+        <span class="n">subdomains</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">Domain</span><span class="p">(),</span> <span class="n">Interior</span><span class="p">(),</span> <span class="o">*</span><span class="n">as_tuple</span><span class="p">(</span><span class="n">subdomains</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">subdomains</span><span class="p">:</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">__subdomain_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_subdomains</span> <span class="o">=</span> <span class="n">subdomains</span>
+
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">origin</span> <span class="ow">or</span> <span class="nb">tuple</span><span class="p">(</span><span class="mf">0.</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_origin</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_const</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;o_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">v</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                             <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">origin</span><span class="p">))</span>
+
+        <span class="c1"># Sanity check</span>
         <span class="k">assert</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">origin</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">extent</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">))</span>
+
         <span class="c1"># Store or create default symbols for time and stepping dimensions</span>
         <span class="k">if</span> <span class="n">time_dimension</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">spacing</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_const</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;dt&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span> <span class="o">=</span> <span class="n">TimeDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">stepping_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_stepping_dim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;t&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_time_dim</span> <span class="o">=</span> <span class="n">TimeDimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_stepping_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_stepping_dim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;t&#39;</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">time_dimension</span><span class="p">,</span> <span class="n">TimeDimension</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span> <span class="o">=</span> <span class="n">time_dimension</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">stepping_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_stepping_dim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_time_dim</span> <span class="o">=</span> <span class="n">time_dimension</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_stepping_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_stepping_dim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`time_dimension` must be None or of type TimeDimension&quot;</span><span class="p">)</span>
 
@@ -261,9 +270,49 @@
         <span class="p">)</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">extent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Physical extent of the domain in m.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Data type inherited by all :class:`Function`s defined on this Grid.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">origin</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Physical coordinates of the domain origin.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_origin</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Spatial dimensions of the computational domain.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Problem dimension, or number of spatial dimensions.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">time_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Time dimension associated with this Grid.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_dim</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">stepping_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Stepping dimension associated with this Grid.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stepping_dim</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">subdomains</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The :class:`SubDomain`s defined in this Grid.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subdomains</span><span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">interior</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The interior :class:`SubDomain` of the Grid.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subdomains</span><span class="p">[</span><span class="s1">&#39;interior&#39;</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">volume_cell</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -328,10 +377,10 @@
         <span class="sd">&quot;&quot;&quot;Return the type to create constant symbols.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">Constant</span>
 
-<div class="viewcode-block" id="Grid.is_distributed"><a class="viewcode-back" href="../../devito.html#devito.grid.Grid.is_distributed">[docs]</a>    <span class="k">def</span> <span class="nf">is_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">is_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return True if ``dim`` is a distributed :class:`Dimension`,</span>
 <span class="sd">        False otherwise.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">dim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">dimensions</span></div>
+        <span class="k">return</span> <span class="n">dim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">dimensions</span>
 
     <span class="k">def</span> <span class="nf">_make_stepping_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time_dim</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Create a stepping dimension for this Grid.&quot;&quot;&quot;</span>
@@ -361,7 +410,122 @@
     <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="o">=</span> <span class="n">Distributor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="o">=</span> <span class="n">Distributor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="SubDomain"><a class="viewcode-back" href="../../devito.html#devito.grid.SubDomain">[docs]</a><span class="k">class</span> <span class="nc">SubDomain</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A :class:`Grid` subdomain.&quot;&quot;&quot;</span>
+
+    <span class="n">name</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;SubDomain requires a `name`&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__subdomain_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+        <span class="c1"># Create the SubDomain&#39;s SubDimensions</span>
+        <span class="n">sub_dimensions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">define</span><span class="p">(</span><span class="n">dimensions</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
+                <span class="n">sub_dimensions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># Case (&#39;middle&#39;, int, int)</span>
+                    <span class="n">side</span><span class="p">,</span> <span class="n">thickness_left</span><span class="p">,</span> <span class="n">thickness_right</span> <span class="o">=</span> <span class="n">v</span>
+                    <span class="k">if</span> <span class="n">side</span> <span class="o">!=</span> <span class="s1">&#39;middle&#39;</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Expected side &#39;middle&#39;, not `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="n">side</span><span class="p">)</span>
+                    <span class="n">sub_dimensions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SubDimension</span><span class="o">.</span><span class="n">middle</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">i&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span>
+                                                              <span class="n">thickness_left</span><span class="p">,</span>
+                                                              <span class="n">thickness_right</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="n">side</span><span class="p">,</span> <span class="n">thickness</span> <span class="o">=</span> <span class="n">v</span>
+                    <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="s1">&#39;left&#39;</span><span class="p">:</span>
+                        <span class="n">sub_dimensions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SubDimension</span><span class="o">.</span><span class="n">left</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">left&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span>
+                                                                <span class="n">thickness</span><span class="p">))</span>
+                    <span class="k">elif</span> <span class="n">side</span> <span class="o">==</span> <span class="s1">&#39;right&#39;</span><span class="p">:</span>
+                        <span class="n">sub_dimensions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SubDimension</span><span class="o">.</span><span class="n">right</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">right&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span>
+                                                                 <span class="n">thickness</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Expected sides &#39;left|right&#39;, not `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="n">side</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sub_dimensions</span><span class="p">)</span>
+
+        <span class="c1"># Compute the SubDomain shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">s</span> <span class="o">-</span> <span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">thickness_map</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Sub</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+                            <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span><span class="p">,</span> <span class="n">shape</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">SubDomain</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">dimensions</span>
+
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;SubDomain </span><span class="si">%s</span><span class="s2">[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">finalized</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dimension_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span> <span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span>
+
+<div class="viewcode-block" id="SubDomain.define"><a class="viewcode-back" href="../../devito.html#devito.grid.SubDomain.define">[docs]</a>    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a dictionary ``M : D -&gt; V``, where: ::</span>
+
+<span class="sd">            * D are the Grid dimensions</span>
+<span class="sd">            * M(d) = {d, (&#39;left&#39;, int), (&#39;middle&#39;, int, int), (&#39;right&#39;, int, int)}.</span>
+<span class="sd">              If ``M(d) = d``, the SubDomain spans the entire domain along the</span>
+<span class="sd">              :class:`Dimension` ``d``. In all other cases, the SubDomain spans</span>
+<span class="sd">              a contiguous subregion of the domain. For example, if</span>
+<span class="sd">              ``M(d) = (&#39;left&#39;, 4)``, The SubDomain has thickness 4 near ``d``&#39;s</span>
+<span class="sd">              left extreme.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            This method should be overridden by each subclass of SubDomain that</span>
+<span class="sd">            wants to define a new type of subdomain.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">Domain</span><span class="p">(</span><span class="n">SubDomain</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The entire computational domain (== boundary + interior).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;domain&#39;</span>
+
+    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">Interior</span><span class="p">(</span><span class="n">SubDomain</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The interior of the computational domain (i.e., boundaries are excluded).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;interior&#39;</span>
+
+    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;middle&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">}</span>
 </pre></div>
 
            </div>
@@ -374,7 +538,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2016, Opesci.
+        &copy; Copyright 2016, Opesci
 
     </p>
   </div>
@@ -393,21 +557,14 @@
 
   
 
-    <script type="text/javascript">
-        var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'../../',
-            VERSION:'1',
-            LANGUAGE:'en',
-            COLLAPSE_INDEX:false,
-            FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true,
-            SOURCELINK_SUFFIX: '.txt'
-        };
-    </script>
-      <script type="text/javascript" src="../../_static/jquery.js"></script>
-      <script type="text/javascript" src="../../_static/underscore.js"></script>
-      <script type="text/javascript" src="../../_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
 
   
 
