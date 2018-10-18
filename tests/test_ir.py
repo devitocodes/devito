@@ -4,7 +4,7 @@ from conftest import EVAL, time, x, y, z, skipif_backend  # noqa
 
 import numpy as np
 
-from devito import (Eq, Grid, Function, TimeFunction,
+from devito import (Eq, Inc, Grid, Function, TimeFunction,
                     Operator, Dimension, configuration)  # noqa
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
