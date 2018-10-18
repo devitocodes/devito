@@ -1,9 +1,9 @@
-import numpy as np
 import os
 
-from devito import Grid, Function, Constant
-from devito.logger import warning
+import numpy as np
+
 from examples.seismic.utils import scipy_smooth
+from devito import Grid, SubDomain, Function, Constant, warning
 
 __all__ = ['Model', 'ModelElastic', 'demo_model']
 
@@ -348,7 +348,7 @@ def demo_model(preset, **kwargs):
         raise ValueError("Unknown model preset name")
 
 
-def damp_boundary(damp, nbpml, spacing, mask=False):
+def initialize_damp(damp, nbpml, spacing, mask=False):
     """Initialise damping field with an absorbing PML layer.
 
     :param damp: The :class:`Function` for the damping field.
@@ -358,10 +358,17 @@ def damp_boundary(damp, nbpml, spacing, mask=False):
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
-    if mask:
-        damp.data[:] = 1.0
+
+    phy_shape = damp.grid.subdomains['phydomain'].shape
+    data = np.ones(phy_shape) if mask else np.zeros(phy_shape)
+
+    pad_widths = [(nbpml, nbpml) for i in range(damp.ndim)]
+    data = np.pad(data, pad_widths, 'edge')
+
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
+
     assert all(damp._offset_domain[0] == i for i in damp._offset_domain)
+
     for i in range(damp.ndim):
         for j in range(nbpml):
             # Dampening coefficient
@@ -370,26 +377,30 @@ def damp_boundary(damp, nbpml, spacing, mask=False):
             if mask:
                 val = -val
             # : slices
-            all_ind = [slice(0, d) for d in damp.data.shape]
+            all_ind = [slice(0, d) for d in data.shape]
             # Left slice for dampening for dimension i
             all_ind[i] = slice(j, j+1)
-            damp.data[all_ind] += val/spacing[i]
+            data[all_ind] += val/spacing[i]
             # right slice for dampening for dimension i
-            all_ind[i] = slice(damp.data.shape[i]-j, damp.data.shape[i]-j+1)
-            damp.data[all_ind] += val/spacing[i]
+            all_ind[i] = slice(data.shape[i]-j, data.shape[i]-j+1)
+            data[all_ind] += val/spacing[i]
+
+    initialize_function(damp, data, 0)
 
 
-def initialize_function(function, data, nbpml):
+def initialize_function(function, data, nbpml, pad_mode='edge'):
     """Initialize a :class:`Function` with the given ``data``. ``data``
     does *not* include the PML layers for the absorbing boundary conditions;
-    these are added via padding by this method.
+    these are added via padding by this function.
 
     :param function: The :class:`Function` to be initialised with some data.
     :param data: The data array used for initialisation.
     :param nbpml: Number of PML layers for boundary damping.
+    :param pad_mode: A string or a suitable padding function as explained in
+                     :func:`numpy.pad`.
     """
     pad_widths = [(nbpml, nbpml) for i in range(function.ndim)]
-    data = np.pad(data, pad_widths, 'edge')
+    data = np.pad(data, pad_widths, pad_mode)
 
     distributor = function.grid.distributor
 
@@ -423,12 +434,24 @@ def initialize_function(function, data, nbpml):
             data_slices.append((None, None))
             pad_widths.append((0, 0))
     data = data[[slice(*i) for i in data_slices]]
-    data = np.pad(data, pad_widths, 'edge')
+    data = np.pad(data, pad_widths, pad_mode)
 
     function.data_with_halo[:] = data
 
 
-class Pysical_Model(object):
+class PhysicalDomain(SubDomain):
+
+    name = 'phydomain'
+
+    def __init__(self, nbpml):
+        super(PhysicalDomain, self).__init__()
+        self.nbpml = nbpml
+
+    def define(self, dimensions):
+        return {d: ('middle', self.nbpml, self.nbpml) for d in dimensions}
+
+
+class GenericModel(object):
     """
     General model class with common properties
     """
@@ -438,11 +461,12 @@ class Pysical_Model(object):
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
 
+        phydomain = PhysicalDomain(self.nbpml)
         shape_pml = np.array(shape) + 2 * self.nbpml
         # Physical extent is calculated per cell, so shape - 1
         extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = Grid(extent=extent, shape=shape_pml,
-                         origin=origin, dtype=dtype)
+        self.grid = Grid(extent=extent, shape=shape_pml, origin=origin, dtype=dtype,
+                         subdomains=phydomain)
 
     def physical_params(self, **kwargs):
         """
@@ -494,7 +518,7 @@ class Pysical_Model(object):
         return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 
 
-class Model(Pysical_Model):
+class Model(GenericModel):
     """The physical model used in seismic inversion processes.
 
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
@@ -537,7 +561,7 @@ class Model(Pysical_Model):
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
-        damp_boundary(self.damp, self.nbpml, spacing=self.spacing)
+        initialize_damp(self.damp, self.nbpml, self.spacing)
 
         # Additional parameter fields for TTI operators
         self.scale = 1.
@@ -626,7 +650,7 @@ class Model(Pysical_Model):
             self.m.data = 1 / vp**2
 
 
-class ModelElastic(Pysical_Model):
+class ModelElastic(GenericModel):
     """The physical model used in seismic inversion processes.
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
@@ -647,7 +671,7 @@ class ModelElastic(Pysical_Model):
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
-        damp_boundary(self.damp, self.nbpml, spacing=self.spacing, mask=True)
+        initialize_damp(self.damp, self.nbpml, self.spacing, mask=True)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
