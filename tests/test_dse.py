@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from conftest import x, y, z, skipif_yask  # noqa
 
-from devito import Eq, Constant, Function, TimeFunction, SparseFunction, Grid, Operator, profencio  # noqa
+from devito import Eq, Constant, Function, TimeFunction, SparseFunction, Grid, Operator, ruido  # noqa
 from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
@@ -49,6 +49,7 @@ def run_acoustic_forward(dse=None):
     rec, u, _ = solver.forward(save=False)
 
     return u, rec
+
 
 @skipif_yask
 def test_acoustic_rewrite_basic():
@@ -135,7 +136,7 @@ def test_tti_rewrite_aggressive(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
 
-@profencio(profiling='advanced')
+@ruido(profiling='advanced')
 @skipif_yask
 @pytest.mark.parametrize('kernel,space_order,expected', [
     ('shifted', 8, 355), ('shifted', 16, 622),

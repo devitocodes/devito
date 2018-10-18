@@ -19,7 +19,7 @@ from devito.symbolics import estimate_cost
 from devito.tools import flatten
 from devito.types import CompositeObject
 
-__all__ = ['Timer', 'create_profile', 'profencio']
+__all__ = ['Timer', 'create_profile', 'ruido']
 
 
 class Profiler(object):
@@ -280,11 +280,12 @@ def locate_intel_advisor():
     except KeyError:
         warning("Requested `advisor` profiler, but ADVISOR_HOME isn't set")
         return None
-    
-class profencio(object):
+
+
+class ruido(object):
 
     """
-    Decorator to temporarily change profiling levels.
+    Decorator to temporarily change (increase) profiling levels.
     """
 
     def __init__(self, profiling='advanced'):
