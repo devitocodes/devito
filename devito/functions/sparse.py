@@ -393,6 +393,12 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                                                 dtype=self.dtype, dimensions=dimensions,
                                                 shape=(self.npoint, self.grid.dim),
                                                 space_order=0, initializer=coordinates)
+                if self.npoint == 0:
+                    # This is a corner case -- we might get here, for example, when
+                    # running with MPI and some processes get 0-size arrays after
+                    # domain decomposition. We touch the data anyway to avoid the
+                    # case ``self._data is None``
+                    self.coordinates.data
 
     @property
     def coordinates(self):
