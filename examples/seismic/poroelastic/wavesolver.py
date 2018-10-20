@@ -53,9 +53,9 @@ class PoroelasticWaveSolver(object):
         :param txx: (Optional) Symbol to store the computed horizontal stress
         :param tzz: (Optional) Symbol to store the computed vertical stress
         :param txz: (Optional) Symbol to store the computed diagonal stresss
-        :param vp: (Optional) Symbol for the time-constant P-wave velocity (km/s)
-        :param vs: (Optional) Symbol for the time-constant S-wave velocity (km/s)
-        :param vs: (Optional) Symbol for the time-constant density (rho=1 for water)
+        :param vp: (Optional) Symbol for the time-constant P-wave velocity (m/s)
+        :param vs: (Optional) Symbol for the time-constant S-wave velocity (m/s)
+        :param vs: (Optional) Symbol for the time-constant density (rho=1000 kg/m**3 for water)
         :param save: Option to store the entire (unrolled) wavefield
 
         :returns: Rec1 (txx), Rec2 (tzz), particle velocities vx and vz, stress txx,

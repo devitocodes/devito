@@ -77,10 +77,10 @@ if __name__ == "__main__":
 
     # 2D preset parameters
     if args.dim2:
-        shape = (1500, 1500)
-        spacing = (3.0, 3.0)
-        tn = 250.0
-    # 3D preset parameters
+        shape = (150, 150)
+        spacing = (2.0, 2.0)
+        tn = 5.0 
+        # 3D preset parameters
     else:
         shape = (150, 150, 150)
         spacing = (10.0, 10.0, 10.0)

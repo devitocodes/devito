@@ -62,19 +62,24 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         nbpml = kwargs.pop('nbpml', 10)
         dtype = kwargs.pop('dtype', np.float32)
-        vp = kwargs.pop('vp', 1.5)
-        vs = kwargs.pop('vs', 1.5 * vp)
-        rho_s = kwargs.pop('rho_s', 2300)  # kg/m**3
-        rho_f = kwargs.pop('rho_f', 1000)  # kg/m**3      
-        phi = kwargs.pop('phi', 0.1)       # %
-        k = kwargs.pop('k', 1e-12)         # m**2
-        mu_f = kwargs.pop('mu_f', 0.002)   # Pa*s
-        K_dr = kwargs.pop('K_dr', 1.37)    # GPa
-        K_s = kwargs.pop('K_s', 4.0)       # GPa
-        K_f = kwargs.pop('K_f', 2.15)      # GPa
-        G = kwargs.pop('G', 0.82)          # GPa
-        T = kwargs.pop('T', 1.0)    
+        vp = kwargs.pop('vp', 1500)        # m/s
+        vs = kwargs.pop('vs', 1.7 * vp)    # m/s
+
+        # Matrix Properties
+        G = kwargs.pop('G', 0.82e9)        # Shear Modulus, Pa = kg / (m * s**2)
+        phi = kwargs.pop('phi', 0.1)       # Porosity, %
+        k = kwargs.pop('k', 1e-12)         # Permeability, m**2
+        K_dr = kwargs.pop('K_dr', 1.37e9)  # Drained bulk modulus, Pa = kg / (m * s**2)
+        T = kwargs.pop('T', 1.0)           # Tortuosity, -
         
+        # Solid Properties                
+        rho_s = kwargs.pop('rho_s', 2650)  # Solid grain density, kg/m**3
+        K_s = kwargs.pop('K_s', 4.0e9)     # Solid grain bulk modulus, Pa = kg / (m * s**2)
+        
+        # Fluid Properties
+        rho_f = kwargs.pop('rho_f', 1000)  # Fluid density, kg/m**3
+        mu_f = kwargs.pop('mu_f', 0.002)   # Fluid viscosity, Pa*s = (kg / (m * s**2)) * s
+        K_f = kwargs.pop('K_f', 2.15e9)    # Fluid bulk modulus, Pa = kg / (m * s**2)
                 
         return ModelPoroelastic(space_order=space_order, vp=vp, vs=vs, rho_s=rho_s,
         rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s, K_f=K_f, G=G,
@@ -92,20 +97,40 @@ def demo_model(preset, **kwargs):
         dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
-        vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+        vp = kwargs.pop('vp', 1500)        # m/s
+        vs = kwargs.pop('vs', 1500 * vp)   # m/s
+        
+        # Matrix Properties
+        G = kwargs.pop('G', 0.82)          # GPa
+        phi = kwargs.pop('phi', 0.1)       # %
+        
+        # Permeability, m**2
+        k = kwargs.pop('k', 1e-12)         # m**2
+        kp_top = kwargs.pop('vp_top', 1e-12)
+        kp_bottom = kwargs.pop('vp_bottom', 1e-15)
+        
+        K_dr = kwargs.pop('K_dr', 1.37e9)  # Pa
+        T = kwargs.pop('T', 1.0)
+        
+        # Solid Properties                
+        rho_s = kwargs.pop('rho_s', 2650)  # kg/m**3
+        K_s = kwargs.pop('K_s', 4.0e9)       # Pa
+        
+        # Fluid Properties
+        rho_f = kwargs.pop('rho_f', 1000)  # kg/m**3      
+        mu_f = kwargs.pop('mu_f', 0.002)   # Pa*s
+        K_f = kwargs.pop('K_f', 2.15e9)    # Pa
 
-        # Define a velocity profile in km/s
-        v = np.empty(shape, dtype=dtype)
-        v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+            
+        
+        # Define a permeability profile in m**2
+        k = np.empty(shape, dtype=dtype)
+        k[:] = k_top  # Top velocity (background)
+        k[..., int(shape[-1] / ratio):] = k_bottom  # Bottom velocity
 
-        vs = 0.5 * v[:]
-        rho = v[:]/vp_top
-
-        return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
-                            origin=origin, shape=shape,
-                            dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
+        return ModelPoroelastic(space_order=space_order, vp=vp, vs=vs, rho_s=rho_s,
+        rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s, K_f=K_f, G=G,
+        T=T, origin=origin, shape=shape, dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
 
 
     if preset.lower() in ['constant-isotropic']:
@@ -746,11 +771,11 @@ class ModelPoroelastic(Physical_Model):
     :param rho_f: Fluid Density in kg/m^3 (rho=1000 for water)
     :param phi: Formation porosity (0.1 default)
     :param k: Formation permeability, m**2 (isotropic)
-    :param mu_f: Fluid Viscosity, pa*s  
-    :param K_dr: Drained Bulk Modulus, GPa 
-    :param K_s: Solid Bulk Modulus, GPa
-    :param K_f: Fluid Modulus, GPa 
-    :param G: Frame Shear Modulus, GPa
+    :param mu_f: Fluid Viscosity, Pa*s  
+    :param K_dr: Drained Bulk Modulus, Pa 
+    :param K_s: Solid Bulk Modulus, Pa
+    :param K_f: Fluid Modulus, Pa 
+    :param G: Frame Shear Modulus, Pa
     :param T: Formation Tortuosity
     The :class:`ModelPoroelastic` provides a symbolic data objects for the
     creation of seismic wave propagation operators:
