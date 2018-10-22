@@ -1,7 +1,7 @@
 from collections import namedtuple
 
 from devito.functions import (Constant, SpaceDimension, TimeDimension, SteppingDimension,
-                              Dimension)
+                              Dimension, SubDimension)
 
 from devito.mpi import Distributor
 from devito.parameters import configuration

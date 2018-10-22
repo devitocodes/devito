@@ -6,7 +6,7 @@ from conftest import skipif_yask
 
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
                     Constant, Operator, Eq, Dimension, clear_cache)
-from devito.types import _SymbolCache, Scalar
+from devito.functions.basic import _SymbolCache, Scalar
 
 
 @skipif_yask

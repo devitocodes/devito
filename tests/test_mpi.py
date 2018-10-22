@@ -9,7 +9,7 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
 from devito.parameters import configuration
-from devito.types import LEFT, RIGHT
+from devito.functions.basic import LEFT, RIGHT
 
 
 @skipif_yask

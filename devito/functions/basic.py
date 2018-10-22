@@ -14,7 +14,7 @@ import sympy
 from devito.parameters import configuration
 from devito.tools import ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_C
 
-__all__ = ['Symbol', 'Indexed']
+__all__ = ['Symbol', 'Indexed', 'Scalar', 'Array']
 
 configuration.add('first_touch', 0, [0, 1], lambda i: bool(i))
 
