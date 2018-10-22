@@ -392,11 +392,41 @@ class Decomposition(tuple):
     A decomposition of a discrete "global" domain into multiple, non-overlapping
     "local" subdomains.
 
-    :param items: The decomposition, as an iterable of int lists. There are as
-                  many int lists as subdomains. The values in a list are indices.
-                  For example, in ``([0, 1, 2], [3, 4], [5, 6, 7])`` there are 8
-                  indices, split over three subdomains.
-    :param local: The owned local subdomain, as an index ``0 <= local < len(items)``.
+    Parameters
+    ----------
+    items : iterable of int iterables
+        The domain decomposition.
+    local : int
+        The local ("owned") subdomain (0 <= local < len(items)).
+
+    Notes
+    -----
+    For indices, we adopt the following name conventions:
+
+        * global/glb. Refers to the global domain.
+        * local/loc. Refers to the local subdomain.
+
+    Further, a local index can be
+
+        * absolute/abs. Use the global domain numbering.
+        * relative/rel. Use the local domain numbering.
+
+    Examples
+    --------
+    In the following example, the domain consists of 8 indices, split over three
+    subdomains. The instantiator owns the subdomain [3, 4].
+
+    >>> d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7]], 1)
+    >>> d
+    Decomposition([0, 1, 2], <<[3, 4]>>, [5, 6, 7])
+    >>> d.loc_abs_min
+    3
+    >>> d.loc_abs_max
+    4
+    >>> d.loc_rel_min
+    0
+    >>> d.loc_rel_max
+    1
     """
 
     def __new__(cls, items, local):
@@ -435,6 +465,14 @@ class Decomposition(tuple):
         return max(self.loc_abs_numb)
 
     @cached_property
+    def loc_rel_min(self):
+        return 0
+
+    @cached_property
+    def loc_rel_max(self):
+        return self.loc_abs_max - self.loc_abs_min
+
+    @cached_property
     def size(self):
         return sum(i.size for i in self)
 
@@ -443,65 +481,75 @@ class Decomposition(tuple):
         return self.convert_index(*args)
 
     def __repr__(self):
-        return "Decomposition%s" % super(Decomposition, self).__repr__()
+        items = ', '.join('<<%s>>' % str(v) if self.local == i else str(v)
+                          for i, v in enumerate(self))
+        return "Decomposition(%s)" % items
 
     def convert_index(self, *args):
         """
-        Translate an absolute index, that is an index in the global domain, into a
-        relative index for the ``self.local`` subdomain.
+        Translate a global index into a local index.
 
-        For example, in the following global domain there are 12 indices, split over
-        4 subdomains, namely A, B, C, D: ::
+        Parameters
+        ----------
+        *args
+            There are four possible scenarios:
+            * []. Return ``slice(self.loc_abs_min, self.loc_abs_max + 1)``.
+            * int. Given ``I``, a global index, return the corresponding
+              relative local index if ``I`` belongs to the local subdomain,
+              None otherwise.
+            * int, DataSide. Given ``O`` and ``S``, respectively a global
+              offset and a side, return the relative local offset. This
+              can be 0 if the local subdomain doesn't intersect with the
+              region defined by the given global offset.
+            * (int, int).  Given global ``(min, max)``, return a 2-tuple
+              ``(min', max')``, where ``min'`` and ``max'`` can be either
+              None or int:
+                - ``min'=None`` means that ``min`` does not belong to the
+                  local subdomain, but it precedes its minimum. Likewise,
+                  ``max'=None`` means that ``max`` does not belong to the
+                  local subdomain, but it comes after its maximum.
+                - If ``min/max=int``, then the integer can represent
+                  either the relative local index corresponding to the
+                  provided global ``min/max``, or any random number such that
+                  ``max=min-1``, meaning that the input argument does not
+                  represent a valid range for the local subdomain.
 
-            | 0 1 2 | 3 4 | 5 6 7 | 8 9 10 11 |
+        Examples
+        --------
+        In the following example, the domain consists of 12 indices, split over
+        four subdomains [0, 3]. We pick 2 as local subdomain.
 
-        In this example, the indices 5, 6, and 7 are absolute global indices; the
-        corresponding local indices for subdomain C are 0, 1, 2. Thus, calling
-        ``convert_index(...)`` on a :class:`Decomposition` with ``local=C`` provides: ::
+        >>> d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+        >>> d
+        Decomposition([0, 1, 2], [3, 4], <<[5, 6, 7]>>, [8, 9, 10, 11])
 
-            * convert_index(5) --> 0
-            * convert_index(7) --> 2
-            * convert_index(3) --> None
+        No arguments:
 
-        In fact, there are many ways in which ``convert_index`` may be called,
-        described below.
+        >>> d.convert_index()
+        slice(5, 8, None)
 
-        :param args: There are four possible cases: ::
+        A global index as single argument:
 
-                         * ``args`` is empty. The global ``(min, max)`` indices in
-                           the local subdomain are returned, as a slice object.
-                         * ``args`` is a single integer I representing a global index.
-                           If I belongs to the local subdomain, then the corresponding
-                           relative "local" index is returned, otherwise None.
-                         * ``args`` consists of two items, O and S -- O is the offset of
-                           the side S along ``dim``. O is therefore an integer, while S
-                           is an object of type :class:`DataSide`. Return the offset in
-                           the local domain, possibly 0 if the local range does not
-                           intersect with the region defined by the global offset.
-                         * ``args`` is a tuple ``(min, max)``; return a 2-tuple ``(min',
-                           max')``, where ``min'`` and ``max'`` can be either None or
-                           an integer:
-                             - ``min'=None`` means that ``min`` does not belong to the
-                               local subdomain, but it precedes its minimum. Likewise,
-                               ``max'=None`` means that ``max`` does not belong to the
-                               local subdomain, but it comes after its maximum.
-                             - If ``min/max=int``, then the integer can represent
-                               either the local index corresponding to the
-                               ``min/max``, or it could be any random number such that
-                               ``max=min-1``, meaning that the input argument does not
-                               represent a valid range for the local subdomain.
+        >>> d.convert_index(5)
+        0
+        >>> d.convert_index(6)
+        1
+        >>> d.convert_index(7)
+        2
+        >>> d.convert_index(3)
+        None
+
+        Retrieve local min/man given global min/max
+
+        >>> d.convert_index((5, 7))
+        (0, 2)
+        >>> d.convert_index((5, 9))
+        (0, None)
+        >>> d.convert_index((1, 3))
+        (-1, -2)
+        >>> d.convert_index((1, 6))
+        (None, 1)
         """
-
-        # For clarity, consider the following decomposition with `local=C`, C=[5,6,7]
-        #
-        #     | 0 1 2 | 3 4 | 5 6 7 | 8 9 10 11 |
-        #
-        # Then we have that:
-        # * self.glb_min -> 0
-        # * self.glb_max -> 11
-        # * self.loc_abs_numb -> [5, 6, 7]
-        # * self.loc_abs_min -> 5
-        # * self.loc_abs_max -> 7
 
         if len(args) == 0:
             # convert_index()
@@ -561,7 +609,7 @@ class Decomposition(tuple):
     def reshape(self, nleft, nright):
         """
         Create a new :class:`Decomposition` with extended or reduced boundaries.
-        This creates a new index enumeration.
+        This causes a new index enumeration.
         """
         items = list(self)
 
