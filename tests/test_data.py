@@ -223,11 +223,20 @@ class TestMPIData(object):
     def test_trivial_insertion(self):
         grid = Grid(shape=(4, 4))
         u = Function(name='u', grid=grid, space_order=0)
+        v = Function(name='v', grid=grid, space_order=1)
 
         u.data[:] = 1.
         assert np.all(u.data == 1.)
         assert np.all(u.data._local == 1.)
         assert np.all(u.data._global == 1.)
+
+        v.data_with_halo[:] = 1.
+        from IPython import embed; embed()
+        assert v.data_with_halo[:].shape == v.data_with_halo.shape == (4, 4)
+        assert np.all(v.data_with_halo == 1.)
+        assert np.all(v.data_with_halo[:] == 1.)
+        assert np.all(v.data_with_halo._local == 1.)
+        assert np.all(v.data_with_halo._global == 1.)
 
     @pytest.mark.parallel(nprocs=4)
     def test_global_indexing_basic(self):
@@ -422,4 +431,4 @@ def test_oob_guard():
 if __name__ == "__main__":
     from devito import configuration
     configuration['mpi'] = True
-    TestMPIData().test_from_replicated_to_distributed()
+    TestMPIData().test_trivial_insertion()

@@ -479,8 +479,7 @@ class Data(np.ndarray):
             if self._is_distributed:
                 # `val` is replicated, `self` is distributed -> `val` gets distributed
                 if self._glb_indexing:
-                    val_idx = index_normalize(glb_idx)
-                    val_idx = val_idx + (slice(None),)*(self.ndim - len(val_idx))
+                    val_idx = self._normalize_index(glb_idx)
                     val_idx = [index_dist_to_repl(i, dec) for i, dec in
                                zip(val_idx, self._decomposition)]
                     if NONLOCAL in val_idx:
@@ -503,8 +502,16 @@ class Data(np.ndarray):
         # `__getitem__`, which in turn expects a global index
         super(Data, self).__setitem__(glb_idx, val)
 
+    def _normalize_index(self, idx):
+        if isinstance(idx, np.ndarray):
+            # Advanced indexing mode
+            idx = (idx,)
+        idx = as_tuple(idx)
+        idx = idx + (slice(None),)*(self.ndim - len(idx))
+        return idx
+
     def _convert_index(self, glb_idx):
-        glb_idx = index_normalize(glb_idx)
+        glb_idx = self._normalize_index(glb_idx)
 
         if len(glb_idx) > self.ndim:
             # Maybe user code is trying to add a new axis (see np.newaxis),
@@ -554,13 +561,6 @@ class Index(Tag):
     pass
 NONLOCAL = Index('nonlocal')  # noqa
 PROJECTED = Index('projected')
-
-
-def index_normalize(idx):
-    if isinstance(idx, np.ndarray):
-        # Advanced indexing mode
-        idx = (idx,)
-    return as_tuple(idx)
 
 
 def index_is_basic(idx):

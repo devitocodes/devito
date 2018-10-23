@@ -1081,7 +1081,6 @@ class TestOperatorAdvanced(object):
         bc_bottom = Eq(u[t+1, xi, yr], u[t+1, xi, yr-1] + 1.)
 
         op = Operator([c_init, eqn, bc_left, bc_right, bc_top, bc_bottom])
-        from IPython import embed; embed()
         op.apply(time=0)
 
         # Expected (global view):
@@ -1095,7 +1094,6 @@ class TestOperatorAdvanced(object):
         # 0 0 5 5 5 5 5 0 0
 
         assert np.all(u.data_ro_domain[0] == 0)  # The write occures at t=1
-        from IPython import embed; embed()
 
         glb_pos_map = u.grid.distributor.glb_pos_map
         # Check cornes
