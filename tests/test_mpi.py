@@ -89,19 +89,15 @@ class TestDecomposition(object):
         assert d.convert_index((1, 6), rel=False) == (5, 6)
         assert d.convert_index((None, None), rel=False) == (5, 7)
 
-    @pytest.mark.parallel(nprocs=4)
     def test_reshape_identity(self):
-        grid = Grid(shape=(4, 4))
-        d = grid.distributor.decomposition[0]
+        d = Decomposition([[0, 1], [2, 3]], 2)
 
         # Identity decomposition
         assert len(d.reshape(0, 0)) == 2
         assert all(list(i) == j for i, j in zip(d.reshape(0, 0), [[0, 1], [2, 3]]))
 
-    @pytest.mark.parallel(nprocs=4)
     def test_reshape_right_only(self):
-        grid = Grid(shape=(4, 4))
-        d = grid.distributor.decomposition[0]
+        d = Decomposition([[0, 1], [2, 3]], 2)
 
         # Extension at right only
         assert len(d.reshape(0, 2)) == 2
@@ -116,10 +112,8 @@ class TestDecomposition(object):
         assert len(d.reshape(0, -3)) == 2
         assert all(list(i) == j for i, j in zip(d.reshape(0, -3), [[0], []]))
 
-    @pytest.mark.parallel(nprocs=4)
     def test_reshape_left_only(self):
-        grid = Grid(shape=(4, 4))
-        d = grid.distributor.decomposition[0]
+        d = Decomposition([[0, 1], [2, 3]], 2)
 
         # Extension at left only
         assert len(d.reshape(2, 0)) == 2
@@ -134,10 +128,8 @@ class TestDecomposition(object):
         assert len(d.reshape(-3, 0)) == 2
         assert all(list(i) == j for i, j in zip(d.reshape(-3, 0), [[], [0]]))
 
-    @pytest.mark.parallel(nprocs=4)
     def test_reshape_left_right(self):
-        grid = Grid(shape=(4, 4))
-        d = grid.distributor.decomposition[0]
+        d = Decomposition([[0, 1], [2, 3]], 2)
 
         # Extension at both left and right
         assert len(d.reshape(1, 1)) == 2
@@ -154,6 +146,31 @@ class TestDecomposition(object):
         assert all(list(i) == j for i, j in zip(d.reshape(-1, -3), [[], []]))
         assert len(d.reshape(-2, -2)) == 2
         assert all(list(i) == j for i, j in zip(d.reshape(-1, -3), [[], []]))
+
+    def test_reshape_slice(self):
+        d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+
+        assert d.reshape(slice(None)) == d
+        assert d.reshape(slice(2, 9)) == Decomposition([[0], [1, 2], [3, 4, 5], [6]], 2)
+        assert d.reshape(slice(3, 5)) == Decomposition([[], [0, 1], [], []], 2)
+        assert d.reshape(slice(3, 3)) == Decomposition([[], [], [], []], 2)
+        assert d.reshape(slice(13, 13)) == Decomposition([[], [], [], []], 2)
+        assert d.reshape(slice(2, None)) == Decomposition([[0], [1, 2], [3, 4, 5],
+                                                           [6, 7, 8, 9]], 2)
+        assert d.reshape(slice(4)) == Decomposition([[0, 1, 2], [3], [], []], 2)
+        assert d.reshape(slice(-2, 2)) == Decomposition([[0, 1, 2, 3], [], [], []], 2)
+        assert d.reshape(slice(-2)) == Decomposition([[0, 1, 2], [3, 4], [5, 6, 7],
+                                                      [8, 9]], 2)
+        assert d.reshape(slice(3, -1)) == Decomposition([[], [0, 1], [2, 3, 4],
+                                                         [5, 6, 7]], 2)
+
+    def test_reshape_iterable(self):
+        d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+
+        assert d.reshape(()) == Decomposition([[], [], [], []], 2)
+        assert d.reshape((1, 3, 5)) == Decomposition([[0], [1], [2], []], 2)
+        assert d.reshape((1, 3, 10, 11)) == Decomposition([[0], [1], [], [2, 3]], 2)
+        assert d.reshape((1, 3, 10, 11, 14)) == Decomposition([[0], [1], [], [2, 3]], 2)
 
 
 @skipif_yask
@@ -193,7 +210,7 @@ class TestFunction(object):
         """
         Test halo exchange between two processes organised in a 1x2 cartesian grid.
 
-        The initial ``data_with_halo`` looks like:
+        The initial ``data_with_inhalo`` looks like:
 
                rank0           rank1
             0 0 0 0 0 0     0 0 0 0 0 0
@@ -224,13 +241,13 @@ class TestFunction(object):
 
         glb_pos_map = grid.distributor.glb_pos_map
         if LEFT in glb_pos_map[y]:
-            assert np.all(f.data_ro_with_halo._local[1:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo._local[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo._local[:, 0] == 0.)
         else:
-            assert np.all(f.data_ro_with_halo._local[1:-1, 0] == 1.)
-            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
-        assert np.all(f.data_ro_with_halo._local[0] == 0.)
-        assert np.all(f.data_ro_with_halo._local[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, 0] == 1.)
+            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
+        assert np.all(f._data_ro_with_inhalo._local[0] == 0.)
+        assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
 
     @pytest.mark.parallel(nprocs=2)
     def test_halo_exchange_bilateral_asymmetric(self):
@@ -239,7 +256,7 @@ class TestFunction(object):
 
         In this test, the size of left and right halo regions are different.
 
-        The initial ``data_with_halo`` looks like:
+        The initial ``data_with_inhalo`` looks like:
 
                rank0           rank1
             0 0 0 0 0 0 0     0 0 0 0 0 0 0
@@ -272,20 +289,20 @@ class TestFunction(object):
 
         glb_pos_map = grid.distributor.glb_pos_map
         if LEFT in glb_pos_map[y]:
-            assert np.all(f.data_ro_with_halo._local[2:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo._local[:, 0:2] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[2:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo._local[:, 0:2] == 0.)
         else:
-            assert np.all(f.data_ro_with_halo._local[2:-1, 0:2] == 1.)
-            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
-        assert np.all(f.data_ro_with_halo._local[0:2] == 0.)
-        assert np.all(f.data_ro_with_halo._local[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[2:-1, 0:2] == 1.)
+            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
+        assert np.all(f._data_ro_with_inhalo._local[0:2] == 0.)
+        assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
 
     @pytest.mark.parallel(nprocs=4)
     def test_halo_exchange_quadrilateral(self):
         """
         Test halo exchange between four processes organised in a 2x2 cartesian grid.
 
-        The initial ``data_with_halo`` looks like:
+        The initial ``data_with_inhalo`` looks like:
 
                rank0           rank1
             0 0 0 0 0 0     0 0 0 0 0 0
@@ -332,29 +349,29 @@ class TestFunction(object):
 
         glb_pos_map = grid.distributor.glb_pos_map
         if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(f.data_ro_with_halo._local[0] == 0.)
-            assert np.all(f.data_ro_with_halo._local[:, 0] == 0.)
-            assert np.all(f.data_ro_with_halo._local[1:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo._local[-1, 1:-1] == 3.)
-            assert f.data_ro_with_halo._local[-1, -1] == 4.
+            assert np.all(f._data_ro_with_inhalo._local[0] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo._local[-1, 1:-1] == 3.)
+            assert f._data_ro_with_inhalo._local[-1, -1] == 4.
         elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(f.data_ro_with_halo._local[0] == 0.)
-            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
-            assert np.all(f.data_ro_with_halo._local[1:-1, 0] == 1.)
-            assert np.all(f.data_ro_with_halo._local[-1, 1:-1] == 4.)
-            assert f.data_ro_with_halo._local[-1, 0] == 3.
+            assert np.all(f._data_ro_with_inhalo._local[0] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, 0] == 1.)
+            assert np.all(f._data_ro_with_inhalo._local[-1, 1:-1] == 4.)
+            assert f._data_ro_with_inhalo._local[-1, 0] == 3.
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(f.data_ro_with_halo._local[-1] == 0.)
-            assert np.all(f.data_ro_with_halo._local[:, 0] == 0.)
-            assert np.all(f.data_ro_with_halo._local[1:-1, -1] == 4.)
-            assert np.all(f.data_ro_with_halo._local[0, 1:-1] == 1.)
-            assert f.data_ro_with_halo._local[0, -1] == 2.
+            assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, -1] == 4.)
+            assert np.all(f._data_ro_with_inhalo._local[0, 1:-1] == 1.)
+            assert f._data_ro_with_inhalo._local[0, -1] == 2.
         else:
-            assert np.all(f.data_ro_with_halo._local[-1] == 0.)
-            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
-            assert np.all(f.data_ro_with_halo._local[1:-1, 0] == 3.)
-            assert np.all(f.data_ro_with_halo._local[0, 1:-1] == 2.)
-            assert f.data_ro_with_halo._local[0, 0] == 1.
+            assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, 0] == 3.)
+            assert np.all(f._data_ro_with_inhalo._local[0, 1:-1] == 2.)
+            assert f._data_ro_with_inhalo._local[0, 0] == 1.
 
     @skipif_yask
     @pytest.mark.parallel(nprocs=4)

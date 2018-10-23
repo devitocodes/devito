@@ -202,6 +202,9 @@ class TestMPIData(object):
     @pytest.mark.parallel(nprocs=4)
     def test_data_localviews(self):
         grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        myrank = grid.distributor.myrank
         u = Function(name='u', grid=grid)
 
         u.data[:] = grid.distributor.myrank
@@ -210,14 +213,19 @@ class TestMPIData(object):
         assert u.data_ro_domain._local[1, 1] == grid.distributor.myrank
         assert u.data_ro_domain._local[-1, -1] == grid.distributor.myrank
 
-        assert u.data_ro_with_halo._local[0, 0] == 0.
         assert u.data_ro_with_halo._local[1, 1] == grid.distributor.myrank
-        assert u.data_ro_with_halo._local[2, 2] == grid.distributor.myrank
-        assert np.all(u.data_ro_with_halo._local[1:3, 1:3] == grid.distributor.myrank)
-        assert np.all(u.data_ro_with_halo._local[0] == 0.)
-        assert np.all(u.data_ro_with_halo._local[3] == 0.)
-        assert np.all(u.data_ro_with_halo._local[:, 0] == 0.)
-        assert np.all(u.data_ro_with_halo._local[:, 3] == 0.)
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data_ro_with_halo._local[1:, 1:] == myrank)
+            assert np.all(u.data_ro_with_halo._local[0] == 0.)
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data_ro_with_halo._local[1:3, :2] == myrank)
+            assert np.all(u.data_ro_with_halo._local[0] == 0.)
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data_ro_with_halo._local[:2, 1:3] == myrank)
+            assert np.all(u.data_ro_with_halo._local[2] == 0.)
+        else:
+            assert np.all(u.data_ro_with_halo._local[:2, :2] == myrank)
+            assert np.all(u.data_ro_with_halo._local[2] == 0.)
 
     @pytest.mark.parallel(nprocs=4)
     def test_trivial_insertion(self):
@@ -231,15 +239,14 @@ class TestMPIData(object):
         assert np.all(u.data._global == 1.)
 
         v.data_with_halo[:] = 1.
-        from IPython import embed; embed()
-        assert v.data_with_halo[:].shape == v.data_with_halo.shape == (4, 4)
+        assert v.data_with_halo[:].shape == (3, 3)
         assert np.all(v.data_with_halo == 1.)
         assert np.all(v.data_with_halo[:] == 1.)
         assert np.all(v.data_with_halo._local == 1.)
         assert np.all(v.data_with_halo._global == 1.)
 
     @pytest.mark.parallel(nprocs=4)
-    def test_global_indexing_basic(self):
+    def test_indexing(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -270,7 +277,7 @@ class TestMPIData(object):
             assert np.all(u.data[:, 2] == [myrank, myrank])
 
     @pytest.mark.parallel(nprocs=4)
-    def test_global_indexing_slicing(self):
+    def test_slicing(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -298,7 +305,7 @@ class TestMPIData(object):
             assert u.data[:2, 2:].size == u.data[2:, :2].size == u.data[:2, :2].size == 0
 
     @pytest.mark.parallel(nprocs=4)
-    def test_global_indexing_after_slicing(self):
+    def test_indexing_in_views(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -312,14 +319,32 @@ class TestMPIData(object):
         assert np.all(view[:] == myrank)
         if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert view.shape == (1, 1)
+            assert np.all(view == 0.)
+            assert view[0, 0] == 0.
+            assert view[1, 1] is None
+            assert view[1].shape == (0, 1)
         elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
             assert view.shape == (1, 2)
+            assert np.all(view == 1.)
+            assert view[0, 0] is None
+            assert view[1, 1] is None
+            assert view[1].shape == (0, 2)
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert view.shape == (2, 1)
+            assert np.all(view == 2.)
+            assert view[0, 0] is None
+            assert view[1, 1] is None
+            assert view[1].shape == (1,)
+            assert np.all(view[1] == 2.)
         else:
             assert view.shape == (2, 2)
+            assert np.all(view == 3.)
+            assert view[0, 0] is None
+            assert view[1, 1] == 3.
+            assert view[1].shape == (2,)
+            assert np.all(view[1] == 3.)
 
-        # Now we further slice into the view
+        # Now we further slice into `view`
         view2 = view[1:, 1:]
         assert np.all(view2[:] == myrank)
         if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
@@ -331,7 +356,7 @@ class TestMPIData(object):
         else:
             assert view2.shape == (2, 2)
 
-        # Now a change in `view2` by the only rank "sees" it should affect
+        # Now a change in `view2` by the only rank that "sees" it should affect
         # both `view` and `u.data`
         view2[:] += 1
         if RIGHT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
@@ -431,4 +456,4 @@ def test_oob_guard():
 if __name__ == "__main__":
     from devito import configuration
     configuration['mpi'] = True
-    TestMPIData().test_trivial_insertion()
+    TestMPIData().test_indexing_in_views()
