@@ -97,21 +97,26 @@ class AbstractDistributor(ABC):
         """Number of decomposed :class:`Dimension`s"""
         return len(self._glb_shape)
 
-    def glb_to_loc(self, dim, *args):
+    def glb_to_loc(self, dim, *args, strict=True):
         """
-        glb_to_loc(dim, index)
-        glb_to_loc(dim, offset, side)
-        glb_to_loc(dim, (min, max))
-        glb_to_loc(dim, slice(start, stop))
+        Convert a global index into a relative (default) or absolute local index.
 
-        Translate global indices into local indices.
-
-        :param dim: The :class:`Dimension` of the global indices. This must appear
-                    in ``self.dimensions``.
-        :param args: There are four possible cases, documented in
-                     :meth:`Decomposition.convert_index`.
+        Parameters
+        ----------
+        dim : :class:`Dimension`
+            The global index Dimension.
+        *args
+            There are several possibilities, documented in
+            :meth:`Decomposition.convert_index`.
+        strict : bool, optional
+            If False, return args without raising an error if `dim` does not appear
+            among the Distributor Dimensions.
         """
-        assert dim in self.dimensions
+        if dim not in self.dimensions:
+            if strict is True:
+                raise ValueError("`%s` must be one of the Distributor dimensions" % dim)
+            else:
+                return args[0]
         return self.decomposition[dim].convert_index(*args)
 
 
