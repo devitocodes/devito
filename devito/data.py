@@ -399,6 +399,12 @@ class Data(np.ndarray):
         if obj is None:
             # `self` was created through __new__()
             return
+
+        # Views or references created via operations on `obj` do not get an
+        # explicit reference to the underlying data (`_memfree_args`). This makes sure
+        # that only one object (the "root" Data) will free the C-allocated memory
+        self._memfree_args = None
+
         if type(obj) != Data:
             self._modulo = tuple(False for i in range(self.ndim))
             self._decomposition = (None,)*self.ndim
@@ -420,10 +426,6 @@ class Data(np.ndarray):
             for i, (lofs, rofs) in zip(obj._datatop._decomposition, offsets):
                 decomposition.append(i if i is None else i.reshape(-lofs, -rofs))
             self._decomposition = tuple(decomposition)
-        # Views or references created via operations on `obj` do not get an
-        # explicit reference to the underlying data (`_memfree_args`). This makes sure
-        # that only one object (the "root" Data) will free the C-allocated memory
-        self._memfree_args = None
 
     @property
     def _local(self):
@@ -522,7 +524,7 @@ class Data(np.ndarray):
                 # As by specification, we are forced to ignore modulo indexing
                 return glb_idx
 
-        ret = []
+        loc_idx = []
         for i, s, mod, dec in zip(glb_idx, self.shape, self._modulo, self._decomposition):
             if mod is True:
                 # Need to wrap index based on modulo
@@ -537,18 +539,18 @@ class Data(np.ndarray):
             # Handle non-local, yet globally legal, indices
             v = index_handle_oob(v)
 
-            ret.append(v)
+            loc_idx.append(v)
 
         # Deal with NONLOCAL accesses
-        if NONLOCAL in ret:
-            if len(ret) == self.ndim and index_is_basic(ret):
+        if NONLOCAL in loc_idx:
+            if len(loc_idx) == self.ndim and index_is_basic(loc_idx):
                 # Caller expecting a scalar -- it will eventually get None
-                ret = [NONLOCAL]
+                loc_idx = [NONLOCAL]
             else:
                 # Caller expecting an array -- it will eventually get a 0-length array
-                ret = [slice(-1, -2) if i is NONLOCAL else i for i in ret]
+                loc_idx = [slice(-1, -2) if i is NONLOCAL else i for i in loc_idx]
 
-        return ret[0] if len(ret) == 1 else tuple(ret)
+        return loc_idx[0] if len(loc_idx) == 1 else tuple(loc_idx)
 
     def reset(self):
         """
@@ -596,6 +598,9 @@ def index_dist_to_repl(idx, decomposition):
     """
     Convert a distributed array index a replicated array index.
     """
+    if is_integer(idx):
+        return PROJECTED
+
     if decomposition is None:
         return idx
 
@@ -611,8 +616,6 @@ def index_dist_to_repl(idx, decomposition):
 
     if idx is None:
         return NONLOCAL
-    elif is_integer(idx):
-        return PROJECTED
     elif isinstance(idx, (tuple, list)):
         return [i - value for i in idx]
     elif isinstance(idx, np.ndarray):
