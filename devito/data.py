@@ -8,7 +8,6 @@ import mmap
 import numpy as np
 import ctypes
 from ctypes.util import find_library
-from cached_property import cached_property
 
 from devito.equation import Eq
 from devito.parameters import configuration
