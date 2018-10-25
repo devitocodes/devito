@@ -21,19 +21,3 @@ def test_toposort(elements, expected):
         assert ordering == expected
     except ValueError:
         assert expected is None
-
-
-@skipif_yask
-@pytest.mark.parametrize('arr,index,expected', [
-    (np.zeros(shape=(8, 10)), [slice(2, 6), slice(5, 7)], ((2, 2), (5, 3))),
-    (np.zeros(shape=(8, 10)), [slice(2), slice(2)], ((0, 6), (0, 8))),
-    (np.zeros(shape=(8, 10)), [slice(2), slice(None)], ((0, 6), (0, 0))),
-    (np.zeros(shape=(8, 10)), [slice(None), slice(2)], ((0, 0), (0, 8))),
-    (np.zeros(shape=(8, 10)), [slice(2, 4), 3], ((2, 4), (3, 6))),
-    (np.zeros(shape=(8, 10, 2)), [slice(2, 5), slice(2, 5), slice(1, 2)],
-     ((2, 3), (2, 5), (1, 0)))
-])
-def test_numpy_view_offsets(arr, index, expected):
-    view = arr[index]
-    view[:] = 3.  # Ignore this -- it's here only for interactive debugging
-    assert numpy_view_offsets(view) == expected

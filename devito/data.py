@@ -12,7 +12,7 @@ from cached_property import cached_property
 
 from devito.equation import Eq
 from devito.parameters import configuration
-from devito.tools import Tag, as_tuple, is_integer, numpy_to_ctypes, numpy_view_offsets
+from devito.tools import Tag, as_tuple, is_integer, numpy_to_ctypes
 from devito.logger import logger
 import devito
 
