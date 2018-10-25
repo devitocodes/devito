@@ -380,6 +380,10 @@ class Data(np.ndarray):
         # distributed. Hence, in `__array_finalize__` we must copy this value
         obj._is_distributed = any(i is not None for i in obj._decomposition)
 
+        # Saves the last index used in `__getitem__`. This allows `__array_finalize__`
+        # to reconstruct information about the computed view (e.g., `decomposition`)
+        obj._index_stash = None
+
         # Sanity check -- A Dimension can't be at the same time modulo-iterated
         # and MPI-distributed
         assert all(i is None for i, j in zip(obj._decomposition, obj._modulo)
@@ -400,32 +404,45 @@ class Data(np.ndarray):
             # `self` was created through __new__()
             return
 
+        self._index_stash = None
+
         # Views or references created via operations on `obj` do not get an
         # explicit reference to the underlying data (`_memfree_args`). This makes sure
         # that only one object (the "root" Data) will free the C-allocated memory
         self._memfree_args = None
 
         if type(obj) != Data:
-            self._modulo = tuple(False for i in range(self.ndim))
-            self._decomposition = (None,)*self.ndim
+            # Definitely from view casting
             self._glb_indexing = False
             self._is_distributed = False
-        elif self.ndim != obj.ndim:
             self._modulo = tuple(False for i in range(self.ndim))
             self._decomposition = (None,)*self.ndim
-            self._glb_indexing = False
-            self._is_distributed = obj._is_distributed
-        else:
-            self._modulo = obj._modulo
+        elif obj._index_stash is not None:
+            # From `__getitem__`
             self._glb_indexing = obj._glb_indexing
             self._is_distributed = obj._is_distributed
-            # Note: the decomposition needs to be updated based on the view extent
-            offsets = numpy_view_offsets(self, obj._datatop)
-            assert len(obj._datatop._decomposition) == len(offsets)
+            idx = obj._normalize_index(obj._index_stash)
+            self._modulo = tuple(m for i, m in zip(idx, obj._modulo) if not is_integer(i))
             decomposition = []
-            for i, (lofs, rofs) in zip(obj._datatop._decomposition, offsets):
-                decomposition.append(i if i is None else i.reshape(-lofs, -rofs))
+            for i, dec in zip(idx, obj._decomposition):
+                if is_integer(i):
+                    continue
+                elif dec is None:
+                    decomposition.append(None)
+                else:
+                    decomposition.append(dec.reshape(i))
             self._decomposition = tuple(decomposition)
+        else:
+            self._glb_indexing = obj._glb_indexing
+            self._is_distributed = obj._is_distributed
+            if self.ndim == obj.ndim:
+                # E.g., from a ufunc, such as `np.add`
+                self._modulo = obj._modulo
+                self._decomposition = obj._decomposition
+            else:
+                # E.g., from a reduction operation such as `np.mean` or `np.all`
+                self._modulo = tuple(False for i in range(self.ndim))
+                self._decomposition = (None,)*self.ndim
 
     @property
     def _local(self):
@@ -441,15 +458,6 @@ class Data(np.ndarray):
         ret._glb_indexing = True
         return ret
 
-    @cached_property
-    def _datatop(self):
-        if isinstance(self.base, Data):
-            return self.base._datatop
-        else:
-            if self.base is not None:
-                assert isinstance(self.base, np.ndarray)
-            return self
-
     def __repr__(self):
         return super(Data, self._local).__repr__()
 
@@ -460,7 +468,10 @@ class Data(np.ndarray):
             # self's data partition, so None is returned
             return None
         else:
-            return super(Data, self).__getitem__(loc_idx)
+            self._index_stash = glb_idx  # Will be popped in `__array_finalize__`
+            retval = super(Data, self).__getitem__(loc_idx)
+            self._index_stash = None
+            return retval
 
     def __setitem__(self, glb_idx, val):
         loc_idx = self._convert_index(glb_idx)
