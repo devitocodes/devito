@@ -423,7 +423,7 @@ class Decomposition(tuple):
 
     >>> d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7]], 1)
     >>> d
-    Decomposition([0, 1, 2], <<[3, 4]>>, [5, 6, 7])
+    Decomposition([0 1 2], <<[3 4]>>, [5 6 7])
     >>> d.loc_abs_min
     3
     >>> d.loc_abs_max
@@ -441,7 +441,7 @@ class Decomposition(tuple):
             raise TypeError("Illegal Decomposition element type")
         if not is_integer(local) and (0 <= local < len(items)):
             raise ValueError("`local` must be an index in ``items``.")
-        obj = super(Decomposition, cls).__new__(cls, items)
+        obj = super(Decomposition, cls).__new__(cls, [np.array(i) for i in items])
         obj._local = local
         return obj
 
@@ -451,23 +451,29 @@ class Decomposition(tuple):
 
     @cached_property
     def glb_min(self):
-        return min(min(i) for i in self)
+        ret = min(min(i, default=np.inf) for i in self)
+        return None if ret == np.inf else ret
 
     @cached_property
     def glb_max(self):
-        return max(max(i) for i in self)
+        ret = max(max(i, default=-np.inf) for i in self)
+        return None if ret == -np.inf else ret
 
     @cached_property
     def loc_abs_numb(self):
         return self[self.local]
 
+    @property
+    def loc_empty(self):
+        return self.loc_abs_numb.size == 0
+
     @cached_property
     def loc_abs_min(self):
-        return min(self.loc_abs_numb)
+        return min(self.loc_abs_numb, default=None)
 
     @cached_property
     def loc_abs_max(self):
-        return max(self.loc_abs_numb)
+        return max(self.loc_abs_numb, default=None)
 
     @cached_property
     def loc_rel_min(self):
@@ -480,6 +486,12 @@ class Decomposition(tuple):
     @cached_property
     def size(self):
         return sum(i.size for i in self)
+
+    def __eq__(self, o):
+        if not isinstance(o, Decomposition):
+            return False
+        return self.local == o.local and len(self) == len(o) and\
+            all(np.all(i == j) for i, j in zip(self, o))
 
     def __repr__(self):
         items = ', '.join('<<%s>>' % str(v) if self.local == i else str(v)
@@ -510,7 +522,7 @@ class Decomposition(tuple):
               input doesn't intersect with the local subdomain, then ``min'``
               and ``max'`` are two unspecified ints such that ``max'=min'-n``,
               with ``n > 1``.
-            * slice(a, b, s). Like above, with ``min=a`` and ``max=b-1``.
+            * slice(a, b). Like above, with ``min=a`` and ``max=b-1``.
               Return ``slice(min', max'+1)``.
         rel : bool, optional
             If False, convert into an absolute, instead of a relative, local index.
@@ -527,7 +539,7 @@ class Decomposition(tuple):
 
         >>> d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
         >>> d
-        Decomposition([0, 1, 2], [3, 4], <<[5, 6, 7]>>, [8, 9, 10, 11])
+        Decomposition([0 1 2], [3 4], <<[5 6 7]>>, [ 8 9 10 11])
 
         A global index as single argument:
 
@@ -564,12 +576,13 @@ class Decomposition(tuple):
         base = self.loc_abs_min if rel is True else 0
         top = self.loc_abs_max
 
-        if len(args) not in [1, 2]:
-            raise TypeError("Expected 1 or 2 arguments, found %d" % len(args))
-        elif len(args) == 1:
+        if len(args) == 1:
             glb_idx = args[0]
             if is_integer(glb_idx):
                 # convert_index(index)
+                # -> Base case, empty local subdomain
+                if self.loc_empty:
+                    return None
                 # -> Handle negative index
                 if glb_idx < 0:
                     glb_idx = self.glb_max + glb_idx + 1
@@ -587,12 +600,15 @@ class Decomposition(tuple):
                 if isinstance(glb_idx, tuple):
                     if len(glb_idx) != 2:
                         raise TypeError("Cannot convert index from `%s`" % type(glb_idx))
+                    if self.loc_empty:
+                        return (-1, -3)
                     glb_idx_min, glb_idx_max = glb_idx
                     retfunc = lambda a, b: (a, b)
                 elif isinstance(glb_idx, slice):
+                    if self.loc_empty:
+                        return slice(-1, -3)
                     glb_idx_min = self.glb_min if glb_idx.start is None else glb_idx.start
-                    glb_idx_max = (self.glb_max if glb_idx.stop is None else
-                                   (glb_idx.stop-1))
+                    glb_idx_max = self.glb_max if glb_idx.stop is None else glb_idx.stop-1
                     retfunc = lambda a, b: slice(a, b + 1, glb_idx.step)
                 else:
                     raise TypeError("Cannot convert index from `%s`" % type(glb_idx))
@@ -615,8 +631,10 @@ class Decomposition(tuple):
                 else:
                     loc_max = glb_idx_max - base
                 return retfunc(loc_min, loc_max)
-        else:
+        elif len(args) == 2:
             # convert_index(offset, side)
+            if self.loc_empty:
+                return 0
             rel_ofs, side = args
             if side is LEFT:
                 abs_ofs = self.glb_min + rel_ofs
