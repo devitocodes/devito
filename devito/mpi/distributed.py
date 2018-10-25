@@ -644,19 +644,80 @@ class Decomposition(tuple):
                 abs_ofs = self.glb_max - rel_ofs
                 extent = top - self.loc_abs_min + 1
                 return min(top - abs_ofs, extent) if abs_ofs < top else 0
+        else:
+            raise TypeError("Expected 1 or 2 arguments, found %d" % len(args))
 
-    def reshape(self, nleft, nright):
+    def reshape(self, *args):
         """
-        Create a new :class:`Decomposition` with extended or reduced boundaries.
-        This causes a new index enumeration.
+        Create a new :class:`Decomposition` with extended or reduced boundary
+        subdomains. This causes a new index enumeration.
 
         Parameters
         ----------
-        nleft : int
-            Number of points to remove/add on the left side
-        nright : int
-            Number of points to remove/add on the right side
+        *args
+            There are three possible cases:
+            * int, int. The two integers represent the number of points to remove
+              (negative value) or add (positive value) on the left and right sides,
+              respectively.
+            * slice(a, b). The number of points to remove/add on the left and
+              right sides is given by ``self.glb_min - a`` and ``self.glb_max - b``,
+              respectively.
+            * array_like. Explicitly states what indices in ``self`` should be
+              retained.
+
+        Raises
+        ------
+        TypeError
+            If the input doesn't adhere to any of the supported format.
+
+        Examples
+        --------
+        >>> d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+        >>> d
+        Decomposition([0 1 2], [3 4], <<[5 6 7]>>, [ 8 9 10 11])
+
+        Providing explicit values
+
+        >>> d.reshape(1, 1)
+        Decomposition([0 1 2 3], [4 5], <<[6 7 8]>>, [ 9 10 11 12 13])
+
+        >>> d.reshape(-2, 2)
+        Decomposition([0], [1 2], <<[3 4 5]>>, [ 6  7  8  9 10 11])
+
+        Providing a slice
+
+        >>> d.reshape(slice(2, 9))
+        Decomposition([0], [1 2], <<[3 4 5]>>, [6])
+
+        >>> d.reshape(slice(2, -2))
+        Decomposition([0], [1 2], <<[3 4 5]>>, [6 7])
+
+        >>> d.reshape(slice(4))
+        Decomposition([0 1 2], [3], <<[]>>, [])
         """
+
+        if len(args) == 1:
+            if isinstance(args[0], slice):
+                if args[0].start is None:
+                    nleft = 0
+                else:
+                    nleft = self.glb_min - args[0].start
+                if args[0].stop is None:
+                    nright = 0
+                elif args[0].stop < 0:
+                    nright = args[0].stop
+                else:
+                    nright = args[0].stop - self.glb_max - 1
+            elif isinstance(args[0], Iterable):
+                items = [np.array([j for j in i if j in args[0]]) for i in self]
+                for i, arr in enumerate(list(items)):
+                    items[i] = np.arange(arr.size) + sum(j.size for j in items[:i])
+                return Decomposition(items, self.local)
+        elif len(args) == 2:
+            nleft, nright = args
+        else:
+            raise TypeError("Expected 1 or 2 arguments, found %d" % len(args))
+
         items = list(self)
 
         # Handle corner cases first
