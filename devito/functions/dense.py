@@ -17,7 +17,7 @@ from devito.tools import (EnrichedTuple, ReducerMap, ArgProvider, as_tuple,
 __all__ = ['Function', 'TimeFunction']
 
 
-class TensorFunction(AbstractCachedFunction, ArgProvider):
+class GridedFunction(AbstractCachedFunction, ArgProvider):
 
     """
     Utility class to encapsulate all symbolic types that represent
@@ -30,19 +30,19 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     """
 
     # Required by SymPy, otherwise the presence of __getitem__ will make SymPy
-    # think that a TensorFunction is actually iterable, thus breaking many of
+    # think that a GridedFunction is actually iterable, thus breaking many of
     # its key routines (e.g., solve)
     _iterable = False
 
     is_Input = True
-    is_TensorFunction = True
+    is_GridedFunction = True
     is_Tensor = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(TensorFunction, self).__init__(*args, **kwargs)
+            super(GridedFunction, self).__init__(*args, **kwargs)
 
-            # There may or may not be a `Grid` attached to the TensorFunction
+            # There may or may not be a `Grid` attached to the GridedFunction
             self._grid = kwargs.get('grid')
 
             # Staggering metadata
@@ -156,7 +156,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @property
     def shape(self):
         """
-        Shape of the domain associated with this :class:`TensorFunction`.
+        Shape of the domain associated with this :class:`GridedFunction`.
         The domain constitutes the area of the data written to in a
         stencil update.
         """
@@ -165,7 +165,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @property
     def shape_domain(self):
         """
-        Shape of the domain associated with this :class:`TensorFunction`.
+        Shape of the domain associated with this :class:`GridedFunction`.
         The domain constitutes the area of the data written to in a
         stencil update.
 
@@ -338,7 +338,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
               known quantities (integers), the domain size is represented by a symbol.
             * the shifting induced by the ``staggered`` mask
         """
-        symbolic_shape = super(TensorFunction, self).symbolic_shape
+        symbolic_shape = super(GridedFunction, self).symbolic_shape
         ret = tuple(sympy.Add(i, -j, evaluate=False)
                     for i, j in zip(symbolic_shape, self.staggered))
         return EnrichedTuple(*ret, getters=self.dimensions)
@@ -441,7 +441,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         # use defaults
         if self.name in kwargs:
             new = kwargs.pop(self.name)
-            if isinstance(new, TensorFunction):
+            if isinstance(new, GridedFunction):
                 # Set new values and re-derive defaults
                 values = new._arg_defaults(alias=self).reduce_all()
             else:
@@ -482,8 +482,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         ['grid', 'staggered', 'initializer']
 
 
-class Function(TensorFunction, Differentiable):
-    """A :class:`TensorFunction` providing operations to express
+class Function(GridedFunction, Differentiable):
+    """A :class:`GridedFunction` providing operations to express
     finite-difference approximation. A ``Function`` encapsulates
     space-varying data; for time-varying data, use :class:`TimeFunction`.
 
@@ -677,7 +677,7 @@ class Function(TensorFunction, Differentiable):
         return tot / len(tot.args)
 
     # Pickling support
-    _pickle_kwargs = TensorFunction._pickle_kwargs +\
+    _pickle_kwargs = GridedFunction._pickle_kwargs +\
         ['space_order', 'shape', 'dimensions', 'staggered']
 
 
@@ -881,10 +881,10 @@ class TimeFunction(Function):
 
 class SubFunction(Function):
     """
-    A :class:`Function` that is bound to another "parent" TensorFunction.
+    A :class:`Function` that is bound to another "parent" GridedFunction.
 
     A SubFunction hands control of argument binding and halo exchange to its
-    parent TensorFunction.
+    parent GridedFunction.
     """
 
     def __init__(self, *args, **kwargs):

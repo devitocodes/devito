@@ -11,7 +11,7 @@ from devito.logger import warning
 from devito.mpi import MPI
 from devito.symbolics import indexify, retrieve_functions
 from devito.finite_differences import Differentiable
-from devito.functions.dense import Function, TensorFunction, SubFunction
+from devito.functions.dense import Function, GridedFunction, SubFunction
 from devito.functions.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.functions.basic import Symbol, Scalar
 from devito.tools import (ReducerMap, as_tuple, flatten, prod,
@@ -22,7 +22,7 @@ __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction']
 
 
-class AbstractSparseFunction(TensorFunction):
+class AbstractSparseFunction(GridedFunction):
     """
     An abstract class to define behaviours common to any kind of sparse
     functions, whether using precomputed coefficients or computing them
@@ -281,7 +281,7 @@ class AbstractSparseFunction(TensorFunction):
                                       "object of type `%s`" % type(key))
 
     # Pickling support
-    _pickle_kwargs = TensorFunction._pickle_kwargs + ['npoint', 'space_order']
+    _pickle_kwargs = GridedFunction._pickle_kwargs + ['npoint', 'space_order']
 
 
 class AbstractSparseTimeFunction(AbstractSparseFunction):
@@ -340,7 +340,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
 class SparseFunction(AbstractSparseFunction, Differentiable):
     """
-    A special :class:`TensorFunction` representing a set of sparse point
+    A special :class:`GridedFunction` representing a set of sparse point
     objects that are not aligned with the computational grid.
 
     A :class:`SparseFunction` provides symbolic interpolation routines
@@ -502,7 +502,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return index_matrix, points
 
     def _interpolation_indices(self, variables, offset=0):
-        """Generate interpolation indices for the :class:`TensorFunction`s
+        """Generate interpolation indices for the :class:`GridedFunction`s
         in ``variables``."""
         index_matrix, points = self._index_matrix(offset)
 
