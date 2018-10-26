@@ -127,7 +127,8 @@ class Dimension(AbstractSymbol, ArgProvider):
         :param alias: (Optional) name under which to store values.
         """
         dim = alias or self
-        return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
+        return {dim.min_name: start or 0, dim.size_name: size,
+                dim.max_name: size if size is None else size-1}
 
     def _arg_values(self, args, interval, grid, **kwargs):
         """
@@ -145,39 +146,47 @@ class Dimension(AbstractSymbol, ArgProvider):
                      indices.
         :param kwargs: Dictionary of user-provided argument overrides.
         """
-        # Fetch user input, and convert it into local values if necessary
-        minv = kwargs.pop(self.min_name, None)
-        maxv = kwargs.pop(self.max_name, kwargs.pop(self.name, None))
+        # Fetch user input
+        glb_minv = kwargs.pop(self.min_name, None)
+        glb_maxv = kwargs.pop(self.max_name, kwargs.pop(self.name, None))
+
+        # Convert into rank-local values
         if grid is not None and grid.is_distributed(self):
-            minv, maxv = grid.distributor.glb_to_loc(self, (minv, maxv))
+            loc_minv, loc_maxv = grid.distributor.glb_to_loc(self, (glb_minv, glb_maxv))
+        else:
+            defaults = self._arg_defaults()
+            if glb_minv is not None:
+                loc_minv = glb_minv
+            else:
+                # Fallback: get a default value instead
+                loc_minv = args.get(self.min_name, defaults[self.min_name])
+            if glb_maxv is not None:
+                loc_maxv = glb_maxv
+            else:
+                # Fallback: get a default value
+                loc_maxv = args.get(self.max_name, defaults[self.max_name])
 
-        # If not user-provided, use min/max default value, but adjust it
-        # so as to avoid OOB accesses
-        defaults = self._arg_defaults()
-        values = {}
-        if minv is None:
-            values[self.min_name] = args.get(self.min_name, defaults[self.min_name])
+        # Automatically-derived min/max values must be adjusted to avoid OOB accesses
+        if glb_minv is None:
             try:
-                values[self.min_name] -= min(interval.lower, 0)
+                loc_minv -= min(interval.lower, 0)
             except (AttributeError, TypeError):
                 pass
-        else:
-            values[self.min_name] = minv
-        if maxv is None:
-            values[self.max_name] = args.get(self.max_name, defaults[self.max_name])
+        if glb_maxv is None:
             try:
-                values[self.max_name] -= (1 + max(interval.upper, 0))
+                loc_maxv -= max(interval.upper, 0)
             except (AttributeError, TypeError):
                 pass
-        else:
-            values[self.max_name] = maxv
 
-        return values
+        return {self.min_name: loc_minv, self.max_name: loc_maxv}
 
     def _arg_check(self, args, size, interval):
         """
-        :raises InvalidArgument: If any of the ``self``-related runtime arguments
-                                 in ``args`` will cause an out-of-bounds access.
+        Raises
+        ------
+        InvalidArgument
+            If any of the ``self``-related runtime arguments in ``args``
+            will cause an out-of-bounds access.
         """
         if self.min_name not in args:
             raise InvalidArgument("No runtime value for %s" % self.min_name)
@@ -260,7 +269,8 @@ class DefaultDimension(Dimension):
     def _arg_defaults(self, start=None, size=None, alias=None):
         dim = alias or self
         size = size or dim._default_value
-        return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
+        return {dim.min_name: start or 0, dim.size_name: size,
+                dim.max_name: size if size is None else size-1}
 
 
 class DerivedDimension(Dimension):
