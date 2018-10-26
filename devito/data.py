@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import abc
 from functools import reduce
 from operator import mul
+from collections import Iterable
 import mmap
 
 import numpy as np
@@ -377,7 +378,7 @@ class Data(np.ndarray):
         # This cannot be a property, as Data objects constructed from this
         # object might not have any `decomposition`, but they would still be
         # distributed. Hence, in `__array_finalize__` we must copy this value
-        obj._is_distributed = any(i is not None for i in obj._decomposition)
+        obj._is_decomposed = any(i is not None for i in obj._decomposition)
 
         # Saves the last index used in `__getitem__`. This allows `__array_finalize__`
         # to reconstruct information about the computed view (e.g., `decomposition`)
@@ -413,13 +414,13 @@ class Data(np.ndarray):
         if type(obj) != Data:
             # Definitely from view casting
             self._glb_indexing = False
-            self._is_distributed = False
+            self._is_decomposed = False
             self._modulo = tuple(False for i in range(self.ndim))
             self._decomposition = (None,)*self.ndim
         elif obj._index_stash is not None:
             # From `__getitem__`
             self._glb_indexing = obj._glb_indexing
-            self._is_distributed = obj._is_distributed
+            self._is_decomposed = obj._is_decomposed
             idx = obj._normalize_index(obj._index_stash)
             self._modulo = tuple(m for i, m in zip(idx, obj._modulo) if not is_integer(i))
             decomposition = []
@@ -433,7 +434,7 @@ class Data(np.ndarray):
             self._decomposition = tuple(decomposition)
         else:
             self._glb_indexing = obj._glb_indexing
-            self._is_distributed = obj._is_distributed
+            self._is_decomposed = obj._is_decomposed
             if self.ndim == obj.ndim:
                 # E.g., from a ufunc, such as `np.add`
                 self._modulo = obj._modulo
@@ -457,6 +458,10 @@ class Data(np.ndarray):
         ret._glb_indexing = True
         return ret
 
+    @property
+    def _is_mpi_distributed(self):
+        return self._is_decomposed and configuration['mpi']
+
     def __repr__(self):
         return super(Data, self._local).__repr__()
 
@@ -479,17 +484,16 @@ class Data(np.ndarray):
             return
         elif np.isscalar(val):
             pass
-        elif isinstance(val, Data) and val._is_distributed:
-            if self._is_distributed:
-                # `val` is distributed, `self` is distributed -> local set
-                # TODO: shapes and distributions must match
+        elif isinstance(val, Data) and val._is_decomposed:
+            if self._is_decomposed:
+                # `val` is decomposed, `self` is decomposed -> local set
                 pass
             else:
-                # `val` is distributed, `self` is replicated -> gatherall-like
+                # `val` is decomposed, `self` is replicated -> gatherall-like
                 raise NotImplementedError
-        elif isinstance(val, np.ndarray):
-            if self._is_distributed:
-                # `val` is replicated, `self` is distributed -> `val` gets distributed
+        elif isinstance(val, Iterable):
+            if self._is_decomposed:
+                # `val` is replicated, `self` is decomposed -> `val` gets decomposed
                 if self._glb_indexing:
                     val_idx = self._normalize_index(glb_idx)
                     val_idx = [index_dist_to_repl(i, dec) for i, dec in
@@ -498,29 +502,38 @@ class Data(np.ndarray):
                         # no-op
                         return
                     val_idx = [i for i in val_idx if i is not PROJECTED]
+                    # NumPy broadcasting note:
+                    # When operating on two arrays, NumPy compares their shapes
+                    # element-wise. It starts with the trailing dimensions, and works
+                    # its way forward. Two dimensions are compatible when
+                    # * they are equal, or
+                    # * one of them is 1
+                    # Conceptually, below we apply the same rule
+                    val_idx = val_idx[len(val_idx)-val.ndim:]
                     val = val[val_idx]
             else:
                 # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
                 pass
-        elif isinstance(val, (tuple, list)):
-            if self._is_distributed and configuration['mpi']:
-                raise NotImplementedError("Cannot set `Data` values with tuples or lists "
-                                          "when the object is distributed over processes")
         else:
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
 
-        # Finally, perform the actual __setitem__
-        # Note: we pass `glb_idx`, rather than `loc_idx`, as __setitem__ calls
+        # Finally, perform the `__setitem__`
+        # Note: we pass `glb_idx`, rather than `loc_idx`, as `__setitem__` calls
         # `__getitem__`, which in turn expects a global index
         super(Data, self).__setitem__(glb_idx, val)
 
     def _normalize_index(self, idx):
         if isinstance(idx, np.ndarray):
             # Advanced indexing mode
-            idx = (idx,)
-        idx = as_tuple(idx)
-        idx = idx + (slice(None),)*(self.ndim - len(idx))
-        return idx
+            return (idx,)
+        else:
+            idx = as_tuple(idx)
+            if any(i is Ellipsis for i in idx):
+                # Explicitly replace the Ellipsis
+                items = (slice(None),)*(self.ndim - len(idx) + 1)
+                return idx[:idx.index(Ellipsis)] + items + idx[idx.index(Ellipsis)+1:]
+            else:
+                return idx + (slice(None),)*(self.ndim - len(idx))
 
     def _convert_index(self, glb_idx):
         glb_idx = self._normalize_index(glb_idx)
@@ -528,8 +541,8 @@ class Data(np.ndarray):
         if len(glb_idx) > self.ndim:
             # Maybe user code is trying to add a new axis (see np.newaxis),
             # so the resulting array will be higher dimensional than `self`,
-            if self._is_distributed:
-                raise ValueError("Cannot increase the dimensionality of distributed Data")
+            if self._is_mpi_distributed:
+                raise ValueError("Cannot increase dimensionality of MPI-distributed Data")
             else:
                 # As by specification, we are forced to ignore modulo indexing
                 return glb_idx
@@ -540,9 +553,15 @@ class Data(np.ndarray):
                 # Need to wrap index based on modulo
                 v = index_apply_modulo(i, s)
             elif self._glb_indexing is True and dec is not None:
-                # Need to convert the user-provided global indices into local
-                # indices. This has no effect if MPI is not used.
-                v = index_glb_to_loc(i, dec)
+                # Need to convert the user-provided global indices into local indices.
+                # Obviously this will have no effect if MPI is not used
+                try:
+                    v = index_glb_to_loc(i, dec)
+                except TypeError:
+                    if self._is_mpi_distributed:
+                        raise NotImplementedError("Unsupported advanced indexing with "
+                                                  "MPI-distributed Data")
+                    v = i
             else:
                 v = i
 
@@ -659,7 +678,14 @@ def index_handle_oob(idx):
     elif isinstance(idx, (tuple, list)):
         return [i for i in idx if i is not None]
     elif isinstance(idx, np.ndarray):
-        return np.delete(idx, np.where(idx == None))  # noqa
+        if idx.dtype == np.bool_:
+            # A boolean mask, nothing to do
+            return idx
+        elif idx.ndim == 1:
+            return np.delete(idx, np.where(idx == None))  # noqa
+        else:
+            raise ValueError("Cannot identify OOB accesses when using "
+                             "multidimensional index arrays")
     else:
         return idx
 
