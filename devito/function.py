@@ -135,12 +135,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             self._grid = kwargs.get('grid')
 
             # A `Distributor` to handle domain decomposition (only relevant for MPI)
-            if self._grid is None:
-                # There may or may not be a `Distributor`. In the latter case, the
-                # TensorFunction is to be considered "local" to each MPI rank
-                self._distributor = kwargs.get('distributor')
-            else:
-                self._distributor = self._grid.distributor
+            self._distributor = self.__distributor_setup__(**kwargs)
 
             # Staggering metadata
             self._staggered = self.__staggered_setup__(**kwargs)
@@ -231,6 +226,12 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                 else:
                     mask.append(0)
             return tuple(mask)
+
+    def __distributor_setup__(self, **kwargs):
+        grid = kwargs.get('grid')
+        # There may or may not be a `Distributor`. In the latter case, the
+        # TensorFunction is to be considered "local" to each MPI rank
+        return kwargs.get('distributor') if grid is None else grid.distributor
 
     @property
     def _data_buffer(self):
@@ -1090,7 +1091,7 @@ class AbstractSparseFunction(TensorFunction):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(AbstractSparseFunction, self).__init__(*args, **kwargs)
-            self._npoint = kwargs.get('npoint')
+            self._npoint = kwargs['npoint']
             self._space_order = kwargs.get('space_order', 0)
 
     @classmethod
@@ -1111,7 +1112,7 @@ class AbstractSparseFunction(TensorFunction):
         if grid is None:
             raise TypeError('Need `grid` argument')
         shape = kwargs.get('shape')
-        npoint = kwargs.get('npoint')
+        npoint = kwargs['npoint']
         if shape is None:
             glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
             shape = (glb_npoint[grid.distributor.myrank],)
@@ -1455,11 +1456,6 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         if not self._cached():
             super(SparseFunction, self).__init__(*args, **kwargs)
 
-            # A `SparseDistributor` handles the SparseFunction decomposition based on
-            # physical ownership, and allows to convert between global and local indices
-            self._distributor = SparseDistributor(self._npoint, self._sparse_dim,
-                                                  self.grid.distributor)
-
             # Set up sparse point coordinates
             coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
             if isinstance(coordinates, Function):
@@ -1480,6 +1476,12 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                     # domain decomposition. We "touch" the data anyway to avoid the
                     # case ``self._data is None``
                     self.coordinates.data
+
+    def __distributor_setup__(self, **kwargs):
+        """A `SparseDistributor` handles the SparseFunction decomposition based on
+        physical ownership, and allows to convert between global and local indices."""
+        return SparseDistributor(kwargs['npoint'], self._sparse_dim,
+                                 kwargs['grid'].distributor)
 
     @property
     def coordinates(self):
