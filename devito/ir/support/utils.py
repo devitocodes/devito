@@ -52,7 +52,7 @@ def detect_oobs(mapper):
     """
     found = set()
     for f, stencil in mapper.items():
-        if f is None or not f.is_TensorFunction:
+        if f is None or not f.is_GridedFunction:
             continue
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d

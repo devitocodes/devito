@@ -168,7 +168,7 @@ class CGen(Visitor):
                     ret.append("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name))
                 elif i.is_Symbol:
                     ret.append(i.name)
-                elif i.is_TensorFunction:
+                elif i.is_GridedFunction:
                     ret.append('%s_vec' % i.name)
             except AttributeError:
                 ret.append(ccode(i))

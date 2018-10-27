@@ -17,7 +17,7 @@ class OperatorCore(OperatorRunnable):
 
     def _specialize_exprs(self, expressions):
         # Align data accesses to the computational domain
-        key = lambda i: i.is_TensorFunction
+        key = lambda i: i.is_GridedFunction
         expressions = [align_accesses(e, key=key) for e in expressions]
         return super(OperatorCore, self)._specialize_exprs(expressions)
 

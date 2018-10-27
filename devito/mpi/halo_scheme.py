@@ -132,7 +132,7 @@ def hs_classify(scope):
     """
     mapper = {}
     for f, r in scope.reads.items():
-        if not f.is_TensorFunction:
+        if not f.is_GridedFunction:
             continue
         elif f.grid is None:
             # TODO: improve me
