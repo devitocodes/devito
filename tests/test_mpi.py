@@ -7,7 +7,7 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
                     SubDimension, Eq, Inc, Operator)
 from devito.ir.iet import Call, Conditional, FindNodes
-from devito.mpi import Decomposition, MPI, copy, sendrecv, update_halo
+from devito.mpi import MPI, copy, sendrecv, update_halo
 from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
 
@@ -61,116 +61,6 @@ class TestDistributor(object):
         mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
         _, _, obj = distributor._C_neighbours
         assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
-
-
-@skipif_yask
-class TestDecomposition(object):
-
-    def test_convert_index(self):
-        d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
-
-        # A global index as single argument
-        assert d.convert_index(5) == 0
-        assert d.convert_index(6) == 1
-        assert d.convert_index(7) == 2
-        assert d.convert_index(3) is None
-
-        # Retrieve relative local min/man given global min/max
-        assert d.convert_index((5, 7)) == (0, 2)
-        assert d.convert_index((5, 9)) == (0, 2)
-        assert d.convert_index((1, 3)) == (-1, -3)
-        assert d.convert_index((1, 6)) == (0, 1)
-        assert d.convert_index((None, None)) == (0, 2)
-
-        # Retrieve absolute local min/man given global min/max
-        assert d.convert_index((5, 7), rel=False) == (5, 7)
-        assert d.convert_index((5, 9), rel=False) == (5, 7)
-        assert d.convert_index((1, 3), rel=False) == (-1, -3)
-        assert d.convert_index((1, 6), rel=False) == (5, 6)
-        assert d.convert_index((None, None), rel=False) == (5, 7)
-
-    def test_reshape_identity(self):
-        d = Decomposition([[0, 1], [2, 3]], 2)
-
-        # Identity decomposition
-        assert len(d.reshape(0, 0)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(0, 0), [[0, 1], [2, 3]]))
-
-    def test_reshape_right_only(self):
-        d = Decomposition([[0, 1], [2, 3]], 2)
-
-        # Extension at right only
-        assert len(d.reshape(0, 2)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(0, 2), [[0, 1], [2, 3, 4, 5]]))
-        # Reduction at right affecting one sub-domain only, but not the whole subdomain
-        assert len(d.reshape(0, -1)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(0, -1), [[0, 1], [2]]))
-        # Reduction at right over one whole sub-domain
-        assert len(d.reshape(0, -2)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(0, -2), [[0, 1], []]))
-        # Reduction at right over multiple sub-domains
-        assert len(d.reshape(0, -3)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(0, -3), [[0], []]))
-
-    def test_reshape_left_only(self):
-        d = Decomposition([[0, 1], [2, 3]], 2)
-
-        # Extension at left only
-        assert len(d.reshape(2, 0)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(2, 0), [[0, 1, 2, 3], [4, 5]]))
-        # Reduction at left affecting one sub-domain only, but not the whole subdomain
-        assert len(d.reshape(-1, 0)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, 0), [[0], [1, 2]]))
-        # Reduction at left over one whole sub-domain
-        assert len(d.reshape(-2, 0)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-2, 0), [[], [0, 1]]))
-        # Reduction at right over multiple sub-domains
-        assert len(d.reshape(-3, 0)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-3, 0), [[], [0]]))
-
-    def test_reshape_left_right(self):
-        d = Decomposition([[0, 1], [2, 3]], 2)
-
-        # Extension at both left and right
-        assert len(d.reshape(1, 1)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(1, 1), [[0, 1, 2], [3, 4, 5]]))
-        # Reduction at both left and right
-        assert len(d.reshape(-1, -1)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, -1), [[0], [1]]))
-        # Reduction at both left and right, with the right one obliterating one subdomain
-        assert len(d.reshape(-1, -2)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, -2), [[0], []]))
-        # Reduction at both left and right obliterating all subdomains
-        # triggering an exception
-        assert len(d.reshape(-1, -3)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, -3), [[], []]))
-        assert len(d.reshape(-2, -2)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, -3), [[], []]))
-
-    def test_reshape_slice(self):
-        d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
-
-        assert d.reshape(slice(None)) == d
-        assert d.reshape(slice(2, 9)) == Decomposition([[0], [1, 2], [3, 4, 5], [6]], 2)
-        assert d.reshape(slice(3, 5)) == Decomposition([[], [0, 1], [], []], 2)
-        assert d.reshape(slice(3, 3)) == Decomposition([[], [], [], []], 2)
-        assert d.reshape(slice(13, 13)) == Decomposition([[], [], [], []], 2)
-        assert d.reshape(slice(2, None)) == Decomposition([[0], [1, 2], [3, 4, 5],
-                                                           [6, 7, 8, 9]], 2)
-        assert d.reshape(slice(4)) == Decomposition([[0, 1, 2], [3], [], []], 2)
-        assert d.reshape(slice(-2, 2)) == Decomposition([[0, 1, 2, 3], [], [], []], 2)
-        assert d.reshape(slice(-2)) == Decomposition([[0, 1, 2], [3, 4], [5, 6, 7],
-                                                      [8, 9]], 2)
-        assert d.reshape(slice(3, -1)) == Decomposition([[], [0, 1], [2, 3, 4],
-                                                         [5, 6, 7]], 2)
-
-    def test_reshape_iterable(self):
-        d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
-
-        assert d.reshape(()) == Decomposition([[], [], [], []], 2)
-        assert d.reshape((1, 3, 5)) == Decomposition([[0], [1], [2], []], 2)
-        assert d.reshape((1, 3, 10, 11)) == Decomposition([[0], [1], [], [2, 3]], 2)
-        assert d.reshape((1, 3, 10, 11, 14)) == Decomposition([[0], [1], [], [2, 3]], 2)
 
 
 @skipif_yask

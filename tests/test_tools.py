@@ -2,9 +2,8 @@ import pytest
 from conftest import skipif_yask
 
 from sympy.abc import a, b, c, d, e
-import numpy as np
 
-from devito.tools import toposort, numpy_view_offsets
+from devito.tools import toposort
 
 
 @skipif_yask
