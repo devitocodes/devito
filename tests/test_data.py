@@ -355,12 +355,12 @@ class TestMPIData(object):
         else:
             assert np.all(u.data == [[10, 11], [14, 15]])
 
-        # Subsection
+        # Subsection (all ranks touched)
         u.data[:] = 0
         u.data[1:3, 1:3] = a[1:3, 1:3]
         # Same as above but with negative indices
         v.data[:] = 0
-        v.data[1:3, 1:3] = a[1:-1, 1:-1]
+        v.data[1:-1, 1:-1] = a[1:-1, 1:-1]
         if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(u.data == [[0, 0], [0, 5]])
             assert np.all(v.data == [[0, 0], [0, 5]])
@@ -376,9 +376,12 @@ class TestMPIData(object):
 
         # The assigned data must have same shape as the one of the distributed array,
         # otherwise an exception is expected
-        #try:
-        u.data[1:3, 1:3] = a[1:2, 1:2]
-        #excpe
+        try:
+            u.data[1:3, 1:3] = a[1:2, 1:2]
+        except ValueError:
+            assert True
+        except:
+            assert False
 
 
 def test_scalar_arg_substitution(t0, t1):
@@ -419,5 +422,4 @@ def test_oob_guard():
 if __name__ == "__main__":
     from devito import configuration
     configuration['mpi'] = True
-    test_basic_indexing()
-    TestMPIData().test_domain_view()
+    TestMPIData().test_from_replicated_to_distributed()

@@ -7,7 +7,7 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
                     SubDimension, Eq, Inc, Operator)
 from devito.ir.iet import Call, Conditional, FindNodes
-from devito.mpi import MPI, copy, sendrecv, update_halo
+from devito.mpi import Decomposition, MPI, copy, sendrecv, update_halo
 from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
 
@@ -65,6 +65,29 @@ class TestDistributor(object):
 
 @skipif_yask
 class TestDecomposition(object):
+
+    def test_convert_index(self):
+        d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+
+        # A global index as single argument
+        assert d.convert_index(5) == 0
+        assert d.convert_index(6) == 1
+        assert d.convert_index(7) == 2
+        assert d.convert_index(3) is None
+
+        # Retrieve relative local min/man given global min/max
+        assert d.convert_index((5, 7)) == (0, 2)
+        assert d.convert_index((5, 9)) == (0, 2)
+        assert d.convert_index((1, 3)) == (-1, -3)
+        assert d.convert_index((1, 6)) == (0, 1)
+        assert d.convert_index((None, None)) == (0, 2)
+
+        # Retrieve absolute local min/man given global min/max
+        assert d.convert_index((5, 7), rel=False) == (5, 7)
+        assert d.convert_index((5, 9), rel=False) == (5, 7)
+        assert d.convert_index((1, 3), rel=False) == (-1, -3)
+        assert d.convert_index((1, 6), rel=False) == (5, 6)
+        assert d.convert_index((None, None), rel=False) == (5, 7)
 
     @pytest.mark.parallel(nprocs=4)
     def test_reshape_identity(self):
@@ -1058,6 +1081,7 @@ class TestOperatorAdvanced(object):
         bc_bottom = Eq(u[t+1, xi, yr], u[t+1, xi, yr-1] + 1.)
 
         op = Operator([c_init, eqn, bc_left, bc_right, bc_top, bc_bottom])
+        from IPython import embed; embed()
         op.apply(time=0)
 
         # Expected (global view):
@@ -1071,6 +1095,7 @@ class TestOperatorAdvanced(object):
         # 0 0 5 5 5 5 5 0 0
 
         assert np.all(u.data_ro_domain[0] == 0)  # The write occures at t=1
+        from IPython import embed; embed()
 
         glb_pos_map = u.grid.distributor.glb_pos_map
         # Check cornes
@@ -1119,11 +1144,11 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestDecomposition().test_reshape_left_right()
+    # TestDecomposition().test_reshape_left_right()
     # TestOperatorSimple().test_trivial_eq_2d()
     # TestFunction().test_halo_exchange_bilateral()
     # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
     # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
     # TestSparseFunction().test_scatter_gather()
-    # TestOperatorAdvanced().test_nontrivial_operator()
+    TestOperatorAdvanced().test_nontrivial_operator()
     # TestOperatorAdvanced().test_interpolation_dup()

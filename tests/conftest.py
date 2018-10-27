@@ -305,7 +305,7 @@ def parallel(item):
                 "-q", testname]
         if i > 1:
             args.extend([":", "-n", "%d" % (i - 1), "python", "-m", "pytest",
-                         "--runxfail", "-q", testname])
+                         "--runxfail", "--tb=no", "-q", testname])
         # OpenMPI requires an explicit flag for oversubscription. We need it as some
         # of the MPI tests will spawn lots of processes
         if mpi_distro == 'OpenMPI':
