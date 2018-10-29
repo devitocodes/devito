@@ -846,7 +846,7 @@ class Function(TensorFunction, Differentiable):
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
-        ['space_order', 'shape', 'dimensions', 'staggered']
+        ['space_order', 'shape', 'dimensions']
 
 
 class TimeFunction(Function):
