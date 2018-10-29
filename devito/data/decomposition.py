@@ -315,19 +315,20 @@ class Decomposition(tuple):
         """
 
         if len(args) == 1:
-            if isinstance(args[0], slice):
-                if args[0].start is None:
+            arg = args[0]
+            if isinstance(arg, slice):
+                if arg.start is None or self.glb_min is None:
                     nleft = 0
                 else:
-                    nleft = self.glb_min - args[0].start
-                if args[0].stop is None:
+                    nleft = self.glb_min - arg.start
+                if arg.stop is None or self.glb_max is None:
                     nright = 0
-                elif args[0].stop < 0:
-                    nright = args[0].stop
+                elif arg.stop < 0:
+                    nright = arg.stop
                 else:
-                    nright = args[0].stop - self.glb_max - 1
-            elif isinstance(args[0], Iterable):
-                items = [np.array([j for j in i if j in args[0]]) for i in self]
+                    nright = arg.stop - self.glb_max - 1
+            elif isinstance(arg, Iterable):
+                items = [np.array([j for j in i if j in arg]) for i in self]
                 for i, arr in enumerate(list(items)):
                     items[i] = np.arange(arr.size) + sum(j.size for j in items[:i])
                 return Decomposition(items, self.local)
