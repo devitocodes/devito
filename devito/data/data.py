@@ -314,11 +314,8 @@ def index_dist_to_repl(idx, decomposition):
     """
     Convert a distributed array index a replicated array index.
     """
-    if is_integer(idx):
-        return PROJECTED
-
     if decomposition is None:
-        return idx
+        return PROJECTED if is_integer(idx) else idx
 
     # Derive shift value
     value = idx.start if isinstance(idx, slice) else idx
@@ -330,7 +327,9 @@ def index_dist_to_repl(idx, decomposition):
     # Convert into absolute local index
     idx = decomposition.convert_index(idx, rel=False)
 
-    if idx is None:
+    if is_integer(idx):
+        return PROJECTED
+    elif idx is None:
         return NONLOCAL
     elif isinstance(idx, (tuple, list)):
         return [i - value for i in idx]
