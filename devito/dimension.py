@@ -146,33 +146,24 @@ class Dimension(AbstractSymbol, ArgProvider):
                      indices.
         :param kwargs: Dictionary of user-provided argument overrides.
         """
-        # Fetch user input
+        # Fetch user input and convert into rank-local values
         glb_minv = kwargs.pop(self.min_name, None)
         glb_maxv = kwargs.pop(self.max_name, kwargs.pop(self.name, None))
-
-        # Convert into rank-local values
         if grid is not None and grid.is_distributed(self):
             loc_minv, loc_maxv = grid.distributor.glb_to_loc(self, (glb_minv, glb_maxv))
         else:
-            defaults = self._arg_defaults()
-            if glb_minv is not None:
-                loc_minv = glb_minv
-            else:
-                # Fallback: get a default value instead
-                loc_minv = args.get(self.min_name, defaults[self.min_name])
-            if glb_maxv is not None:
-                loc_maxv = glb_maxv
-            else:
-                # Fallback: get a default value
-                loc_maxv = args.get(self.max_name, defaults[self.max_name])
+            loc_minv, loc_maxv = glb_minv, glb_maxv
 
-        # Automatically-derived min/max values must be adjusted to avoid OOB accesses
+        # If no user-override provided, use a suitable default value
+        defaults = self._arg_defaults()
         if glb_minv is None:
+            loc_minv = args.get(self.min_name, defaults[self.min_name])
             try:
                 loc_minv -= min(interval.lower, 0)
             except (AttributeError, TypeError):
                 pass
         if glb_maxv is None:
+            loc_maxv = args.get(self.max_name, defaults[self.max_name])
             try:
                 loc_maxv -= max(interval.upper, 0)
             except (AttributeError, TypeError):
