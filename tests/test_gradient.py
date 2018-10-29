@@ -3,8 +3,8 @@ import pytest
 from numpy import linalg
 from conftest import skipif_yask
 
-from devito import Function, info, clear_cache
-from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
+from devito import Function, info, clear_cache, smooth
+from examples.seismic.acoustic.acoustic_example import acoustic_setup as setup
 from examples.seismic import Receiver
 
 

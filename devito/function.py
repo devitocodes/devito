@@ -6,8 +6,9 @@ import numpy as np
 from psutil import virtual_memory
 from cached_property import cached_property
 
+from devito.builtins import assign
 from devito.cgen_utils import INT, cast_mapper
-from devito.data import Data, default_allocator, first_touch
+from devito.data import Data, default_allocator
 from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
@@ -173,7 +174,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                 self._data = Data(self.shape_allocated, self.indices, self.dtype,
                                   self._decomposition, self._allocator)
                 if self._first_touch:
-                    first_touch(self)
+                    assign(self, 0)
                 if callable(self._initializer):
                     if self._first_touch:
                         warning("`first touch` together with `initializer` causing "

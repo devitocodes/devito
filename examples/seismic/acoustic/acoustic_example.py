@@ -2,10 +2,9 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import info
-from devito import Constant, Function
+from devito import Constant, Function, smooth
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
-from examples.seismic.utils import smooth
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
