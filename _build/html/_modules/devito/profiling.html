@@ -155,7 +155,7 @@
 
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
 <span class="kn">from</span> <span class="nn">ctypes</span> <span class="k">import</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">c_double</span>
-<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">wraps</span><span class="p">,</span> <span class="n">reduce</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
 <span class="kn">from</span> <span class="nn">pathlib</span> <span class="k">import</span> <span class="n">Path</span>
 <span class="kn">import</span> <span class="nn">os</span>
@@ -172,7 +172,7 @@
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">CompositeObject</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Timer&#39;</span><span class="p">,</span> <span class="s1">&#39;create_profile&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Timer&#39;</span><span class="p">,</span> <span class="s1">&#39;create_profile&#39;</span><span class="p">,</span> <span class="s1">&#39;ruido&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">Profiler</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -232,6 +232,42 @@
 
     <span class="k">def</span> <span class="nf">summary</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a :class:`PerformanceSummary` of the profiled sections. See</span>
+<span class="sd">        summary under the class AdvancedProfiler below for further details.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">summary</span> <span class="o">=</span> <span class="n">PerformanceSummary</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">section</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># Time to run the section</span>
+            <span class="n">time</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">arguments</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">section</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="mf">10e-7</span><span class="p">)</span>
+
+            <span class="c1"># In basic mode only return runtime. Other arguments are filled with</span>
+            <span class="c1"># dummy values.</span>
+            <span class="n">summary</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="nb">float</span><span class="p">(),</span> <span class="nb">float</span><span class="p">(),</span> <span class="nb">float</span><span class="p">(),</span> <span class="nb">int</span><span class="p">(),</span> <span class="p">[])</span>
+
+        <span class="k">return</span> <span class="n">summary</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">timer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Timer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="p">])</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">cdef</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a :class:`cgen.Struct` representing the profiler data structure in C</span>
+<span class="sd">        (a ``struct``).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Struct</span><span class="p">(</span><span class="s1">&#39;profiler&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;double&#39;</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="p">])</span>
+
+
+<span class="k">class</span> <span class="nc">AdvancedProfiler</span><span class="p">(</span><span class="n">Profiler</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">AdvancedProfiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="c1"># Override basic summary so that arguments other than runtime are computed.</span>
+    <span class="k">def</span> <span class="nf">summary</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return a :class:`PerformanceSummary` of the profiled sections.</span>
 
 <span class="sd">        :param arguments: A mapper from argument names to run-time values from which</span>
@@ -274,20 +310,8 @@
 
         <span class="k">return</span> <span class="n">summary</span>
 
-    <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">timer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Timer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="p">])</span>
 
-    <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">cdef</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a :class:`cgen.Struct` representing the profiler data structure in C</span>
-<span class="sd">        (a ``struct``).</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Struct</span><span class="p">(</span><span class="s1">&#39;profiler&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;double&#39;</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="p">])</span>
-
-
-<span class="k">class</span> <span class="nc">AdvisorProfiler</span><span class="p">(</span><span class="n">Profiler</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">AdvisorProfiler</span><span class="p">(</span><span class="n">AdvancedProfiler</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;Rely on Intel Advisor ``v &gt;= 2018`` for performance profiling.&quot;&quot;&quot;</span>
 
@@ -381,9 +405,9 @@
     <span class="k">if</span> <span class="n">profiler</span><span class="o">.</span><span class="n">initialized</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">profiler</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t set up `</span><span class="si">%s</span><span class="s2">` profiler; reverting to `basic`&quot;</span> <span class="o">%</span> <span class="n">level</span><span class="p">)</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t set up `</span><span class="si">%s</span><span class="s2">` profiler; reverting to `advanced`&quot;</span> <span class="o">%</span> <span class="n">level</span><span class="p">)</span>
         <span class="n">profiler</span> <span class="o">=</span> <span class="n">profiler_registry</span><span class="p">[</span><span class="s1">&#39;basic&#39;</span><span class="p">](</span><span class="n">name</span><span class="p">)</span>
-        <span class="c1"># We expect the `basic` profiler to always initialize successfully</span>
+        <span class="c1"># We expect the `advanced` profiler to always initialize successfully</span>
         <span class="k">assert</span> <span class="n">profiler</span><span class="o">.</span><span class="n">initialized</span>
         <span class="k">return</span> <span class="n">profiler</span></div>
 
@@ -391,6 +415,7 @@
 <span class="c1"># Set up profiling levels</span>
 <span class="n">profiler_registry</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;basic&#39;</span><span class="p">:</span> <span class="n">Profiler</span><span class="p">,</span>
+    <span class="s1">&#39;advanced&#39;</span><span class="p">:</span> <span class="n">AdvancedProfiler</span><span class="p">,</span>
     <span class="s1">&#39;advisor&#39;</span><span class="p">:</span> <span class="n">AdvisorProfiler</span>
 <span class="p">}</span>
 <span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;profiling&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">profiler_registry</span><span class="p">))</span>
@@ -408,6 +433,26 @@
     <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
         <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Requested `advisor` profiler, but ADVISOR_HOME isn&#39;t set&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="ruido"><a class="viewcode-back" href="../../devito.html#devito.profiling.ruido">[docs]</a><span class="k">class</span> <span class="nc">ruido</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decorator to temporarily change (increase) profiling levels.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">profiling</span><span class="o">=</span><span class="s1">&#39;advanced&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profiling</span> <span class="o">=</span> <span class="n">profiling</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">previous</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;profiling&#39;</span><span class="p">]</span>
+            <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;profiling&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiling</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;profiling&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">previous</span>
+            <span class="k">return</span> <span class="n">result</span>
+        <span class="k">return</span> <span class="n">wrapper</span></div>
 </pre></div>
 
            </div>
