@@ -171,8 +171,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         def wrapper(self):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
-                self._data = Data(self.shape_allocated, self.indices, self.dtype,
-                                  self._decomposition, self._allocator)
+                self._data = Data(self.shape_allocated, self.dtype,
+                                  modulo=self._mask_modulo, allocator=self._allocator)
                 if self._first_touch:
                     assign(self, 0)
                 if callable(self._initializer):
@@ -180,12 +180,12 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                         warning("`first touch` together with `initializer` causing "
                                 "redundant data initialization")
                     try:
-                        self._initializer(self._data)
+                        self._initializer(self.data_with_halo)
                     except ValueError:
                         # Perhaps user only wants to initialise the physical domain
-                        self._initializer(self._data[self._mask_domain])
+                        self._initializer(self.data)
                 else:
-                    self._data.fill(0)
+                    self.data_with_halo.fill(0)
             return func(self)
         return wrapper
 
@@ -339,6 +339,13 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
     @cached_property
+    def _mask_modulo(self):
+        """
+        A boolean mask telling which :class:`Dimension`s support modulo-indexing.
+        """
+        return tuple(True if i.is_Stepping else False for i in self.dimensions)
+
+    @cached_property
     def _mask_domain(self):
         """
         A mask to access the domain region of the allocated data.
@@ -362,6 +369,31 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return tuple(slice(i.start - j.left, i.stop and i.stop + j.right or None)
                      for i, j in zip(self._mask_domain, self._extent_outhalo))
 
+    @cached_property
+    def _decomposition(self):
+        """
+        A tuple of :class:`Decomposition`s, representing the domain
+        decomposition.  None is used as a placeholder for non-decomposed
+        Dimensions.
+        """
+        if self._distributor is None:
+            return (None,)*self.ndim
+        mapper = {d: self._distributor.decomposition[d] for d in self.dimensions
+                  if d in self._distributor.dimensions}
+        return tuple(mapper.get(d) for d in self.dimensions)
+
+    @cached_property
+    def _decomposition_outhalo(self):
+        """
+        A tuple of :class:`Decomposition`s, representing the domain+outhalo
+        decomposition.  None is used as a placeholder for non-decomposed
+        Dimensions.
+        """
+        if self._distributor is None:
+            return (None,)*self.ndim
+        return tuple(v.reshape(*self._extent_inhalo[d]) if v is not None else v
+                     for d, v in zip(self.dimensions, self._decomposition))
+
     @property
     def data(self):
         """
@@ -369,11 +401,11 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
         Elements are stored in row-major format.
 
-        .. note::
-
-            With this accessor you are claiming that you will modify
-            the values you get back. If you only need to look at the
-            values, use :meth:`data_ro` instead.
+        Notes
+        -----
+        With this accessor you are claiming that you will modify the values you
+        get back. If you only need to look at the values, use :meth:`data_ro`
+        instead.
         """
         return self.data_domain
 
@@ -385,18 +417,16 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
         Elements are stored in row-major format.
 
-        .. note::
+        Notes
+        -----
+        Alias to ``self.data``.
 
-            With this accessor you are claiming that you will modify
-            the values you get back. If you only need to look at the
-            values, use :meth:`data_ro_domain` instead.
-
-        .. note::
-
-            Alias to ``self.data``.
+        With this accessor you are claiming that you will modify the values you
+        get back. If you only need to look at the values, use
+        :meth:`data_ro_domain` instead.
         """
         self._is_halo_dirty = True
-        return self._data[self._mask_domain]._global
+        return self._data._global(self._mask_domain, self._decomposition)
 
     @property
     @_allocate_memory
@@ -406,15 +436,16 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
         Elements are stored in row-major format.
 
-        .. note::
+        Notes
+        -----
 
-            With this accessor you are claiming that you will modify
-            the values you get back. If you only need to look at the
-            values, use :meth:`data_ro_with_halo` instead.
+        With this accessor you are claiming that you will modify the values you
+        get back. If you only need to look at the values, use
+        :meth:`data_ro_with_halo` instead.
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return self._data[self._mask_outhalo]._global
+        return self._data._global(self._mask_outhalo, self._decomposition_outhalo)
 
     _data_with_outhalo = data_with_halo
 
@@ -470,7 +501,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         A read-only view of the domain data values.
         """
-        view = self._data[self._mask_domain]._global
+        view = self._data._global(self._mask_domain, self._decomposition)
         view.setflags(write=False)
         return view
 
@@ -480,7 +511,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         A read-only view of the domain+outhalo data values.
         """
-        view = self._data[self._mask_outhalo]._global
+        view = self._data._global(self._mask_outhalo, self._decomposition_outhalo)
         view.setflags(write=False)
         return view
 
@@ -520,12 +551,12 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         A tuple of slices representing the global indices that logically
         belong to the calling MPI rank.
 
-        .. note::
-
-            Given a Function ``f(x, y)`` with shape ``(nx, ny)``, when *not*
-            using MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``.
-            On the other hand, when MPI is used, the local ranges depend on the
-            domain decomposition, which is carried by ``self.grid``.
+        Notes
+        -----
+        Given a Function ``f(x, y)`` with shape ``(nx, ny)``, when *not* using
+        MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``.  On
+        the other hand, when MPI is used, the local ranges depend on the domain
+        decomposition, which is carried by ``self.grid``.
         """
         if self._distributor is None:
             return tuple(slice(0, s) for s in self.shape)
@@ -558,24 +589,6 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         ret = tuple(sympy.Add(i, -j, evaluate=False)
                     for i, j in zip(symbolic_shape, self.staggered))
         return EnrichedTuple(*ret, getters=self.dimensions)
-
-    @cached_property
-    def _decomposition(self):
-        """
-        A mapper from self's distributed :class:`Dimension`s to their
-        :class:`Decomposition`s.
-
-        Notes
-        -----
-        The partitioning encoded in the returned :class:`Decomposition`s
-        includes the indices falling in the outhalo+padding regions.
-        """
-        if self._distributor is None:
-            return {}
-        mapper = {d: self._distributor.decomposition[d] for d in self.dimensions
-                  if d in self._distributor.dimensions}
-        # Extend the `Decomposition`s to include the non-domain indices
-        return {d: v.reshape(*self._offset_domain[d]) for d, v in mapper.items()}
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
@@ -1727,7 +1740,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
     @cached_property
     def _decomposition(self):
-        return {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
+        mapper = {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
+        return tuple(mapper.get(d) for d in self.dimensions)
 
     @property
     def _dist_subfunc_alltoall(self):

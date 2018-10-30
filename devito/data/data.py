@@ -12,47 +12,40 @@ __all__ = ['Data']
 class Data(np.ndarray):
 
     """
-    A special :class:`numpy.ndarray` allowing logical indexing.
+    A :class:`numpy.ndarray` supporting distributed dimensions.
 
-    The type :class:`numpy.ndarray` is subclassed as indicated at: ::
+    Parameters
+    ----------
+    shape : tuple of ints
+        Shape of created array.
+    dtype : numpy.dtype
+        The data type of the raw data.
+    decomposition : tuple of :class:`Decomposition`, optional
+        The data decomposition, for each dimension.
+    modulo : tuple of bool, optional
+        If the i-th entry is True, then the i-th array dimension uses modulo indexing.
+    allocator : :class:`MemoryAllocator`, optional
+        Used to allocate memory. Defaults to ``ALLOC_FLAT``.
+
+    Notes
+    -----
+    NumPy array subclassing is described at: ::
 
         https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
 
-    :param shape: Shape of the array in grid points.
-    :param dimensions: The array :class:`Dimension`s.
-    :param dtype: A ``numpy.dtype`` for the raw data.
-    :param decomposition: (Optional) a mapper from :class:`Dimension`s in
-                          ``dimensions`` to :class:`Decomposition`s, which
-                          describe how the Data is distributed over a set
-                          of processes. The Decompositions will be used to
-                          translate global array indices into local indices.
-                          The local indices are relative to the calling process.
-                          This is only relevant in the case of distributed
-                          memory execution (via MPI).
-    :param allocator: (Optional) a :class:`MemoryAllocator` to specialize memory
-                      allocation. Defaults to ``ALLOC_FLAT``.
-
-    .. note::
-
-        This type supports logical indexing over modulo buffered dimensions.
-
-    .. note::
-
-        Any view or copy ``A`` created starting from ``self``, for instance via
-        a slice operation or a universal function ("ufunc" in NumPy jargon), will
-        still be of type :class:`Data`. However, if ``A``'s rank is different than
-        ``self``'s rank, namely if ``A.ndim != self.ndim``, then the capability of
-        performing logical indexing is lost.
+    Any view or copy created from ``self``, for instance via a slice operation
+    or a universal function ("ufunc" in NumPy jargon), will still be of type
+    :class:`Data`.
     """
 
-    def __new__(cls, shape, dimensions, dtype, decomposition=None, allocator=ALLOC_FLAT):
-        assert len(shape) == len(dimensions)
+    def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=ALLOC_FLAT):
+        assert len(shape) == len(modulo)
         ndarray, memfree_args = allocator.alloc(shape, dtype)
         obj = np.asarray(ndarray).view(cls)
         obj._allocator = allocator
         obj._memfree_args = memfree_args
-        obj._decomposition = tuple((decomposition or {}).get(i) for i in dimensions)
-        obj._modulo = tuple(True if i.is_Stepping else False for i in dimensions)
+        obj._decomposition = decomposition or (None,)*len(shape)
+        obj._modulo = modulo or (False,)*len(shape)
 
         # By default, the indices used to access array values are interpreted as
         # local indices
@@ -104,10 +97,11 @@ class Data(np.ndarray):
             # From `__getitem__`
             self._glb_indexing = obj._glb_indexing
             self._is_decomposed = obj._is_decomposed
-            idx = obj._normalize_index(obj._index_stash)
-            self._modulo = tuple(m for i, m in zip(idx, obj._modulo) if not is_integer(i))
+            glb_idx = obj._normalize_index(obj._index_stash)
+            self._modulo = tuple(m for i, m in zip(glb_idx, obj._modulo)
+                                 if not is_integer(i))
             decomposition = []
-            for i, dec in zip(idx, obj._decomposition):
+            for i, dec in zip(glb_idx, obj._decomposition):
                 if is_integer(i):
                     continue
                 elif dec is None:
@@ -129,15 +123,20 @@ class Data(np.ndarray):
 
     @property
     def _local(self):
-        """Return a view of ``self`` with disabled global indexing."""
+        """A view of ``self`` with global indexing disabled."""
         ret = self.view()
         ret._glb_indexing = False
         return ret
 
-    @property
-    def _global(self):
-        """Return a view of ``self`` with enabled global indexing."""
-        ret = self.view()
+    def _global(self, glb_idx, decomposition):
+        """A "global" view of ``self`` over a given :class:`Decomposition`."""
+        if self._is_decomposed:
+            raise ValueError("Cannot derive a decomposed view from a decomposed Data")
+        if len(decomposition) != self.ndim:
+            raise ValueError("`decomposition` should have ndim=%d entries" % self.ndim)
+        ret = self[glb_idx]
+        ret._decomposition = decomposition
+        ret._is_decomposed = any(i is not None for i in decomposition)
         ret._glb_indexing = True
         return ret
 
@@ -155,7 +154,7 @@ class Data(np.ndarray):
             # self's data partition, so None is returned
             return None
         else:
-            self._index_stash = glb_idx  # Will be popped in `__array_finalize__`
+            self._index_stash = glb_idx
             retval = super(Data, self).__getitem__(loc_idx)
             self._index_stash = None
             return retval
