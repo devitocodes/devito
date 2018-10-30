@@ -155,7 +155,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                 # a reference to the user-provided buffer
                 self._initializer = None
                 if len(initializer) > 0:
-                    self.data_allocated[:] = initializer
+                    self.data_with_halo[:] = initializer
                 else:
                     # This is a corner case -- we might get here, for example, when
                     # running with MPI and some processes get 0-size arrays after
@@ -237,9 +237,9 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     @property
     def _data_buffer(self):
-        """Reference to the data. Unlike ``data, data_with_halo, data_allocated``,
+        """Reference to the data. Unlike :attr:`data` and :attr:`data_with_halo`,
         this *never* returns a view of the data. This method is for internal use only."""
-        return self.data_allocated
+        return self._data_allocated
 
     @property
     def _mem_external(self):
@@ -265,32 +265,57 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @cached_property
     def shape_domain(self):
         """
-        Shape of the domain associated with this :class:`TensorFunction`.
-        The domain constitutes the area of the data written to in a
-        stencil update.
+        Shape of the domain region. The domain constitutes the area of the
+        data written to by an :class:`Operator`.
 
-        .. note::
-
-            Alias to ``self.shape``.
+        Notes
+        -----
+        Alias to ``self.shape``.
         """
         return tuple(i - j for i, j in zip(self._shape, self.staggered))
 
     @cached_property
     def shape_with_halo(self):
         """
-        Shape of the domain plus the read-only stencil boundary associated
-        with this :class:`Function`.
+        Shape of the domain+outhalo region. The outhalo is the region
+        surrounding the domain that may be read by an :class:`Operator`.
+
+        Notes
+        -----
+        If ``self`` is MPI-distributed, then the outhalo of inner ranks may be
+        empty, while the outhalo of boundary ranks will contain a number of
+        elements depending on the rank position in the decomposed grid (corner,
+        side, ...).
+        """
+        return tuple(j + i + k for i, (j, k) in zip(self.shape_domain,
+                                                    self._extent_outhalo))
+
+    _shape_with_outhalo = shape_with_halo
+
+    @cached_property
+    def _shape_with_inhalo(self):
+        """
+        Shape of the domain+inhalo region. The inhalo region comprises the
+        outhalo as well as any additional "ghost" layers for MPI halo
+        exchanges. In other words, data in the inhalo region are exchanged
+        during an :class:`Operator` application to maintain consistent values
+        as in sequential runs.
+
+        Notes
+        -----
+        Typically, this property won't be used in user code to set or read data
+        values. Instead, it may come in handy for testing or debugging
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
 
     @cached_property
     def shape_allocated(self):
         """
-        Shape of the allocated data associated with this :class:`Function`.
-        It includes the domain and halo regions, as well as any additional
-        padding outside of the halo.
+        Shape of the allocated data. It includes the domain and inhalo regions,
+        as well as any additional padding surrounding the halo.
         """
-        return tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))
+        return tuple(j + i + k for i, (j, k) in zip(self._shape_with_inhalo,
+                                                    self._padding))
 
     _offset_inhalo = AbstractCachedFunction._offset_halo
     _extent_inhalo = AbstractCachedFunction._extent_halo
@@ -401,39 +426,43 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
         Elements are stored in row-major format.
 
-        .. note::
+        Notes
+        -----
+        This accessor does *not* support global indexing.
 
-            With this accessor you are claiming that you will modify
-            the values you get back. If you only need to look at the
-            values, use :meth:`data_ro_with_inhalo` instead.
+        With this accessor you are claiming that you will modify the values you
+        get back. If you only need to look at the values, use
+        :meth:`data_ro_with_inhalo` instead.
 
-        .. note::
-
-            Typically, this property won't be used in user code to set
-            or read data values. Instead, it may come in handy for
-            testing or debugging
+        Typically, this accessor won't be used in user code to set or read data
+        values. Instead, it may come in handy for testing or debugging
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return self._data[self._mask_inhalo]._global
+        return np.asarray(self._data[self._mask_inhalo])
 
     @property
     @_allocate_memory
-    def data_allocated(self):
+    def _data_allocated(self):
         """
-        The allocated data values, that is domain+halo+padding.
+        The allocated data values, that is domain+inhalo+padding.
 
         Elements are stored in row-major format.
 
-        .. note::
+        Notes
+        -----
+        This accessor does *not* support global indexing.
 
-            With this accessor you are claiming that you will modify
-            the values you get back. If you only need to look at the
-            values, use :meth:`data_ro_allocated` instead.
+        With this accessor you are claiming that you will modify the values you
+        get back. If you only need to look at the values, use
+        :meth:`data_ro_allocated` instead.
+
+        Typically, this accessor won't be used in user code to set or read data
+        values. Instead, it may come in handy for testing or debugging
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return self._data._global
+        return np.asarray(self._data)
 
     @property
     @_allocate_memory
@@ -448,7 +477,9 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @property
     @_allocate_memory
     def data_ro_with_halo(self):
-        """A read-only view of the domain+outhalo data values."""
+        """
+        A read-only view of the domain+outhalo data values.
+        """
         view = self._data[self._mask_outhalo]._global
         view.setflags(write=False)
         return view
@@ -458,18 +489,30 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @property
     @_allocate_memory
     def _data_ro_with_inhalo(self):
-        """A read-only view of the domain+inhalo data values."""
-        view = self._data[self._mask_inhalo]._global
+        """
+        A read-only view of the domain+inhalo data values.
+
+        Notes
+        -----
+        This accessor does *not* support global indexing.
+        """
+        view = self._data[self._mask_inhalo]
         view.setflags(write=False)
-        return view
+        return np.asarray(view)
 
     @property
     @_allocate_memory
-    def data_ro_allocated(self):
-        """A read-only view of the domain+halo+padding data values."""
-        view = self._data._global
+    def _data_ro_allocated(self):
+        """
+        A read-only view of the domain+inhalo+padding data values.
+
+        Notes
+        -----
+        This accessor does *not* support global indexing.
+        """
+        view = self._data
         view.setflags(write=False)
-        return view
+        return np.asarray(view)
 
     @cached_property
     def local_indices(self):
@@ -522,10 +565,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         A mapper from self's distributed :class:`Dimension`s to their
         :class:`Decomposition`s.
 
-        .. note::
-
-            The partitioning encoded in the returned :class:`Decomposition`s
-            includes the indices falling in the halo+padding regions.
+        Notes
+        -----
+        The partitioning encoded in the returned :class:`Decomposition`s
+        includes the indices falling in the outhalo+padding regions.
         """
         if self._distributor is None:
             return {}
