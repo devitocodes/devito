@@ -355,14 +355,12 @@ class TestDataDistributed(object):
         u.data[:] = 1.
         assert np.all(u.data == 1.)
         assert np.all(u.data._local == 1.)
-        assert np.all(u.data._global == 1.)
 
         v.data_with_halo[:] = 1.
         assert v.data_with_halo[:].shape == (3, 3)
         assert np.all(v.data_with_halo == 1.)
         assert np.all(v.data_with_halo[:] == 1.)
         assert np.all(v.data_with_halo._local == 1.)
-        assert np.all(v.data_with_halo._global == 1.)
 
     @pytest.mark.parallel(nprocs=4)
     def test_indexing(self):
@@ -409,7 +407,6 @@ class TestDataDistributed(object):
         # to the local rank domain, so it must be == myrank
         assert np.all(u.data == myrank)
         assert np.all(u.data._local == myrank)
-        assert np.all(u.data._global == myrank)
         if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(u.data[:2, :2] == myrank)
             assert u.data[:2, 2:].size == u.data[2:, :2].size == u.data[2:, 2:].size == 0
