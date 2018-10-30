@@ -95,20 +95,20 @@ def test_segmented_averaging():
     # We add the average to the point itself, so the grid "interior"
     # (domain) is updated only.
     f_ref = TimeFunction(name='f', grid=grid)
-    f_ref.data_allocated[:] = 1.
+    f_ref.data_with_halo[:] = 1.
     op(f=f_ref, time=1)
     assert (f_ref.data[1, :] == 2.).all()
-    assert (f_ref.data_allocated[1, 0] == 1.).all()
-    assert (f_ref.data_allocated[1, -1] == 1.).all()
+    assert (f_ref.data_with_halo[1, 0] == 1.).all()
+    assert (f_ref.data_with_halo[1, -1] == 1.).all()
 
     # Now we sweep the x direction in 4 segmented steps of 5 iterations each
     nsteps = 5
-    f.data_allocated[:] = 1.
+    f.data_with_halo[:] = 1.
     for i in range(4):
         op(f=f, time=1, x_m=i*nsteps, x_M=(i+1)*nsteps-1)
     assert (f_ref.data[1, :] == 2.).all()
-    assert (f_ref.data_allocated[1, 0] == 1.).all()
-    assert (f_ref.data_allocated[1, -1] == 1.).all()
+    assert (f_ref.data_with_halo[1, 0] == 1.).all()
+    assert (f_ref.data_with_halo[1, -1] == 1.).all()
 
 
 @silencio(log_level='WARNING')

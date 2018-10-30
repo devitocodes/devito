@@ -76,7 +76,8 @@ class TestDataBasic(object):
         u = Function(name='yu3D', grid=grid, space_order=2)
 
         assert u.shape == u.data.shape == domain_shape
-        assert u.shape_with_halo == u.data_with_halo.shape == (20, 20, 20)
+        assert u._shape_with_inhalo == u.data_with_halo.shape == (20, 20, 20)
+        assert u.shape_with_halo == u._shape_with_inhalo  # W/o MPI, these two coincide
 
         # Test simple insertion and extraction
         u.data_with_halo[0, 0, 0] = 1.
@@ -167,7 +168,8 @@ class TestDataBasic(object):
         u0 = Function(name='u0', grid=grid, space_order=0)
         u2 = Function(name='u2', grid=grid, space_order=2)
 
-        assert u0.shape == u0.shape_with_halo == u0.shape_allocated
+        assert u0.shape == u0._shape_with_inhalo == u0.shape_allocated
+        assert u0.shape_with_halo == u0._shape_with_inhalo  # W/o MPI, these two coincide
         assert len(u2.shape) == len(u2._extent_halo.left)
         assert tuple(i + j*2 for i, j in zip(u2.shape, u2._extent_halo.left)) ==\
             u2.shape_with_halo
