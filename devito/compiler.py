@@ -49,11 +49,13 @@ def sniff_compiler_version(cc):
         try:
             # gcc-7 series only spits out patch level on dumpfullversion.
             ver = check_output([cc, "-dumpfullversion"], stderr=DEVNULL).decode("utf-8")
-            ver = version.StrictVersion(ver.strip())
+            ver = '.'.join(ver.strip().split('.')[:3])
+            ver = version.StrictVersion(ver)
         except CalledProcessError:
             try:
                 ver = check_output([cc, "-dumpversion"], stderr=DEVNULL).decode("utf-8")
-                ver = version.StrictVersion(ver.strip())
+                ver = '.'.join(ver.strip().split('.')[:3])
+                ver = version.StrictVersion(ver)
             except (CalledProcessError, UnicodeDecodeError):
                 pass
         except UnicodeDecodeError:

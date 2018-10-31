@@ -461,11 +461,14 @@ class GenericModel(object):
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
 
+        # Origin of the computational domain with PML to inject/interpolate
+        # at the correct index
+        origin_pml = tuple([dtype(o - s*nbpml) for o, s in zip(origin, spacing)])
         phydomain = PhysicalDomain(self.nbpml)
         shape_pml = np.array(shape) + 2 * self.nbpml
         # Physical extent is calculated per cell, so shape - 1
         extent = tuple(np.array(spacing) * (shape_pml - 1))
-        self.grid = Grid(extent=extent, shape=shape_pml, origin=origin, dtype=dtype,
+        self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml, dtype=dtype,
                          subdomains=phydomain)
 
     def physical_params(self, **kwargs):
