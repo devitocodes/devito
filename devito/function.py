@@ -1223,7 +1223,7 @@ class AbstractSparseFunction(TensorFunction):
     @property
     def _dist_datamap(self):
         """
-        Return a mapper ``M : MPI rank -> required sparse data``.
+        Mapper ``M : MPI rank -> required sparse data``.
         """
         ret = {}
         for i, s in enumerate(self._support):
@@ -1235,12 +1235,11 @@ class AbstractSparseFunction(TensorFunction):
     @property
     def _dist_scatter_mask(self):
         """
-        Return a mask to index into ``self.data``, which creates a new
-        data array that logically contains N consecutive groups of sparse
-        data values, where N is the number of MPI ranks. The i-th group
-        contains the sparse data values accessible by the i-th MPI rank.
-        Thus, sparse data values along the boundary of two or more MPI
-        ranks are duplicated.
+        A mask to index into ``self.data``, which creates a new data array that
+        logically contains N consecutive groups of sparse data values, where N
+        is the number of MPI ranks. The i-th group contains the sparse data
+        values accessible by the i-th MPI rank.  Thus, sparse data values along
+        the boundary of two or more MPI ranks are duplicated.
         """
         dmap = self._dist_datamap
         mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
@@ -1260,10 +1259,10 @@ class AbstractSparseFunction(TensorFunction):
     @property
     def _dist_gather_mask(self):
         """
-        Return a mask to index into the ``data`` received upon returning
-        from ``self._dist_alltoall``. This mask creates a new data array
-        in which duplicate sparse data values have been discarded. The
-        resulting data array can thus be used to populate ``self.data``.
+        A mask to index into the ``data`` received upon returning from
+        ``self._dist_alltoall``. This mask creates a new data array in which
+        duplicate sparse data values have been discarded. The resulting data
+        array can thus be used to populate ``self.data``.
         """
         ret = list(self._dist_scatter_mask)
         mask = ret[self._sparse_position]
@@ -1274,9 +1273,8 @@ class AbstractSparseFunction(TensorFunction):
     @property
     def _dist_count(self):
         """
-        Return a 2-tuple of comm-sized iterables, which tells how many sparse
-        points is this MPI rank expected to send/receive to/from each other
-        MPI rank.
+        A 2-tuple of comm-sized iterables, which tells how many sparse points
+        is this MPI rank expected to send/receive to/from each other MPI rank.
         """
         dmap = self._dist_datamap
         comm = self.grid.distributor.comm
@@ -1287,11 +1285,20 @@ class AbstractSparseFunction(TensorFunction):
 
         return ssparse, rsparse
 
+    @cached_property
+    def _dist_reorder_mask(self):
+        """
+        An ordering mask that puts ``self._sparse_position`` at the front.
+        """
+        ret = (self._sparse_position,)
+        ret += tuple(i for i, d in enumerate(self.indices) if d is not self._sparse_dim)
+        return ret
+
     @property
     def _dist_alltoall(self):
         """
-        Return the metadata necessary to perform an ``MPI_Alltoallv`` distributing
-        the sparse data values across the MPI ranks needing them.
+        The metadata necessary to perform an ``MPI_Alltoallv`` distributing the
+        sparse data values across the MPI ranks needing them.
         """
         ssparse, rsparse = self._dist_count
 
@@ -1322,12 +1329,17 @@ class AbstractSparseFunction(TensorFunction):
         rshape = list(self.shape)
         rshape[self._sparse_position] = sum(rsparse)
 
+        # May have to swap axes, as `MPI_Alltoallv` expects contiguous data, and
+        # the sparse dimension may not be the outermost
+        sshape = [sshape[i] for i in self._dist_reorder_mask]
+        rshape = [rshape[i] for i in self._dist_reorder_mask]
+
         return sshape, scount, sdisp, rshape, rcount, rdisp
 
     @property
     def _dist_subfunc_alltoall(self):
         """
-        Return the metadata necessary to perform an ``MPI_Alltoallv`` distributing
+        The metadata necessary to perform an ``MPI_Alltoallv`` distributing
         self's SubFunction values across the MPI ranks needing them.
         """
         raise NotImplementedError
@@ -1779,14 +1791,17 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         comm = distributor.comm
         mpitype = MPI._typedict[np.dtype(self.dtype).char]
 
-        # Pack (reordered) data values so that they can be sent out via an Alltoallv
+        # Pack sparse data values so that they can be sent out via an Alltoallv
         data = data[self._dist_scatter_mask]
+        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
         # Send out the sparse point values
         _, scount, sdisp, rshape, rcount, rdisp = self._dist_alltoall
         scattered = np.empty(shape=rshape, dtype=self.dtype)
         comm.Alltoallv([data, scount, sdisp, mpitype],
                        [scattered, rcount, rdisp, mpitype])
         data = scattered
+        # Unpack data values so that they follow the expected storage layout
+        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
 
         # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
         coords = self.coordinates.data._local[self._dist_subfunc_scatter_mask]
@@ -1811,6 +1826,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
         comm = distributor.comm
 
+        # Pack sparse data values so that they can be sent out via an Alltoallv
+        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
         # Send back the sparse point values
         sshape, scount, sdisp, _, rcount, rdisp = self._dist_alltoall
         gathered = np.empty(shape=sshape, dtype=self.dtype)
@@ -1818,8 +1835,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         comm.Alltoallv([data, rcount, rdisp, mpitype],
                        [gathered, scount, sdisp, mpitype])
         data = gathered
-
-        # Insert back into `self.data` based on the original (expected) data layout
+        # Unpack data values so that they follow the expected storage layout
+        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
         self._data[:] = data[self._dist_gather_mask]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
