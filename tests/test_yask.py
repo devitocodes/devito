@@ -537,7 +537,7 @@ class TestIsotropicAcoustic(object):
         dt = model.critical_dt
         u.data[:] = 0.0
         eqns = eqn
-        eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
+        eqns += src.inject(field=u.forward, expr=src * dt**2 / m)
         op = Operator(eqns, subs=model.spacing_map)
         assert 'run_solution' in str(op)
 
@@ -555,8 +555,8 @@ class TestIsotropicAcoustic(object):
         dt = model.critical_dt
         u.data[:] = 0.0
         eqns = eqn
-        eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
-        eqns += rec.interpolate(expr=u, offset=model.nbpml)
+        eqns += src.inject(field=u.forward, expr=src * dt**2 / m)
+        eqns += rec.interpolate(expr=u)
         op = Operator(eqns, subs=model.spacing_map)
         assert 'run_solution' in str(op)
 
