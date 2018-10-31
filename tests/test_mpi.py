@@ -5,11 +5,14 @@ from conftest import skipif_yask
 
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator)
+                    SubDimension, Eq, Inc, Operator, norm)
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
 from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
+
+from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
+from examples.seismic.acoustic import AcousticWaveSolver
 
 
 @skipif_yask
@@ -1026,25 +1029,56 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[1] == 3)
 
 
+@skipif_yask
 class TestIsotropicAcoustic(object):
 
     """
-    Test the acoustic wave model with MPI.
+    Test the isotropic acoustic wave equation with MPI.
     """
 
-    # TODO: Cannot mark the following test as `xfail` since this marker
-    # doesn't cope well with the `parallel` mark. Leaving it commented out
-    # for the time being...
-    # @pytest.mark.parametrize('shape, kernel, space_order, nbpml', [
-    #     # 1 tests with varying time and space orders
-    #     ((60, ), 'OT2', 4, 10),
-    # ])
-    # @pytest.mark.parallel(nprocs=2)
-    # def test_adjoint_F(self, shape, kernel, space_order, nbpml):
-    #     from test_adjoint import TestAdjoint
-    #     TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
+    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,exp_u,exp_rec', [
+        # Expected u/rec values derived "manually" from `test_adjoint.py`
+        ((60, ), 'OT2', 4, 10, False, 976.825, 9372.604),
+        ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420),
+        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902)
+    ])
+    @pytest.mark.parallel(nprocs=[4, 16])
+    def test_forward(self, shape, kernel, space_order, nbpml, save, exp_u, exp_rec):
+        t0 = 0.0  # Start time
+        tn = 500.  # Final time
+        nrec = 130  # Number of receivers
+        spacing = 15.  # Grid spacing
 
-    pass
+        # Create model from preset
+        model = demo_model(spacing=[spacing for _ in shape], dtype=np.float64,
+                           space_order=space_order, shape=shape, nbpml=nbpml,
+                           preset='layers-isotropic', ratio=3)
+
+        # Derive timestepping from model spacing
+        dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
+        time_range = TimeAxis(start=t0, stop=tn, step=dt)
+
+        # Define source geometry (center of domain, just below surface)
+        src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
+        src.coordinates.data[0, :] = np.array(model.domain_size) * .5
+        src.coordinates.data[0, -1] = 30.
+
+        # Define receiver geometry (same as source, but spread across x)
+        rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
+        rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+        if len(shape) > 1:
+            rec.coordinates.data[:, 1] = np.array(model.domain_size)[1] * .5
+            rec.coordinates.data[:, -1] = 30.
+
+        # Create solver object to provide relevant operators
+        solver = AcousticWaveSolver(model, source=src, receiver=rec,
+                                    kernel=kernel, space_order=space_order)
+
+        # Run forward and adjoint operators
+        rec, u, _ = solver.forward(save=save, rec=rec)
+
+        assert np.isclose(norm(u), exp_u, rtol=exp_u*1.e-8)
+        assert np.isclose(norm(rec), exp_rec, rtol=exp_rec*1.e-8)
 
 
 if __name__ == "__main__":
@@ -1055,5 +1089,6 @@ if __name__ == "__main__":
     # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
     # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
     # TestSparseFunction().test_scatter_gather()
-    TestOperatorAdvanced().test_nontrivial_operator()
+    # TestOperatorAdvanced().test_nontrivial_operator()
     # TestOperatorAdvanced().test_interpolation_dup()
+    TestIsotropicAcoustic().test_forward((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902)  # noqa
