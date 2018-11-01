@@ -2,7 +2,8 @@
 Built-in :class:`Operator`s provided by Devito.
 """
 
-from sympy import Abs, sqrt
+from sympy import Abs, Pow
+import numpy as np
 
 import devito as dv
 
@@ -61,11 +62,56 @@ def norm(f, order=2):
     order : int, optional
         The order of the norm. Defaults to 2.
     """
-    n = dv.Constant(name='n', dtype=f.dtype)
-    if order == 1:
-        dv.Operator(dv.Inc(n, Abs(f)), name='norm1')()
-    elif order == 2:
-        dv.Operator([dv.Eq(n, f*f), dv.Eq(n, sqrt(n))], name='norm2')()
+    d = dv.Dimension(name='d',)
+    n = dv.Function(name='n', shape=(1,), dimensions=(d,), grid=f.grid, dtype=f.dtype)
+    n.data[0] = 0
+
+    kwargs = {}
+    if f.is_TimeFunction and f._time_buffering:
+        kwargs[f.time_dim.max_name] = f._time_size - 1
+
+    op = dv.Operator(dv.Inc(n[0], Abs(Pow(f, order))), name='norm%d' % order)
+    op.apply(**kwargs)
+
+    # May need a global reduction over MPI
+    if f.grid is None:
+        assert n.data.size == 1
+        v = n.data[0]
     else:
-        raise NotImplementedError
-    return n.data
+        comm = f.grid.distributor.comm
+        v = comm.allreduce(np.asarray(n.data))[0]
+
+    v = Pow(v, 1/order)
+
+    return v
+
+
+def sumall(f):
+    """
+    Compute the sum of the values in a :class:`Function`.
+
+    Parameters
+    ----------
+    f : Function
+        The Function for which the sum is computed.
+    """
+    d = dv.Dimension(name='d',)
+    n = dv.Function(name='n', shape=(1,), dimensions=(d,), grid=f.grid, dtype=f.dtype)
+    n.data[0] = 0
+
+    kwargs = {}
+    if f.is_TimeFunction and f._time_buffering:
+        kwargs[f.time_dim.max_name] = f._time_size - 1
+
+    op = dv.Operator(dv.Inc(n[0], f), name='sum')
+    op.apply(**kwargs)
+
+    # May need a global reduction over MPI
+    if f.grid is None:
+        assert n.data.size == 1
+        v = n.data[0]
+    else:
+        comm = f.grid.distributor.comm
+        v = comm.allreduce(np.asarray(n.data))[0]
+
+    return v
