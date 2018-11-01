@@ -378,8 +378,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         if self._distributor is None:
             return (None,)*self.ndim
-        mapper = {d: self._distributor.decomposition[d] for d in self.dimensions
-                  if d in self._distributor.dimensions}
+        mapper = {d: self._distributor.decomposition[d] for d in self._dist_dimensions}
         return tuple(mapper.get(d) for d in self.dimensions)
 
     @cached_property
@@ -564,10 +563,17 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             return tuple(self._distributor.glb_slices.get(d, slice(0, s))
                          for s, d in zip(self.shape, self.dimensions))
 
-    @property
+    @cached_property
     def space_dimensions(self):
         """Tuple of :class:`Dimension`s that define physical space."""
         return tuple(d for d in self.indices if d.is_Space)
+
+    @cached_property
+    def _dist_dimensions(self):
+        """Tuple of MPI-distributed :class:`Dimension`s."""
+        if self._distributor is None:
+            return ()
+        return tuple(d for d in self.indices if d in self._distributor.dimensions)
 
     @property
     def initializer(self):
@@ -596,7 +602,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             # Nothing to do
             return
         if MPI.COMM_WORLD.size > 1 and self._distributor is None:
-            raise RuntimeError("`%s` cannot perfom a halo exchange as it has "
+            raise RuntimeError("`%s` cannot perform a halo exchange as it has "
                                "no Grid attached" % self.name)
         if self._in_flight:
             raise RuntimeError("`%s` cannot initiate a halo exchange as previous "
