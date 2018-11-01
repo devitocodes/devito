@@ -152,20 +152,20 @@ def src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver):
                     npoint=receiver.npoint)
 
     # The source injection term
-    src_xx = src.inject(field=txx.forward, expr=src * s, offset=model.nbpml)
-    src_zz = src.inject(field=tzz.forward, expr=src * s, offset=model.nbpml)
+    src_xx = src.inject(field=txx.forward, expr=src * s)
+    src_zz = src.inject(field=tzz.forward, expr=src * s)
     src_expr = src_xx + src_zz
     if model.grid.dim == 3:
-        src_yy = src.inject(field=tyy.forward, expr=src * s, offset=model.nbpml)
+        src_yy = src.inject(field=tyy.forward, expr=src * s)
         src_expr += src_yy
 
     # Create interpolation expression for receivers
-    rec_term1 = rec1.interpolate(expr=tzz, offset=model.nbpml)
+    rec_term1 = rec1.interpolate(expr=tzz)
     if model.grid.dim == 2:
         rec_expr = vx.dx + vz.dy
     else:
         rec_expr = vx.dx + vy.dy + vz.dz
-    rec_term2 = rec2.interpolate(expr=rec_expr, offset=model.nbpml)
+    rec_term2 = rec2.interpolate(expr=rec_expr)
 
     return src_expr + rec_term1 + rec_term2
 

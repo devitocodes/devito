@@ -393,7 +393,9 @@ def test_position(shape):
                                               num=nrec)
     rec2.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
+    ox_g, oy_g, oz_g = tuple(o.data for o in model.grid.origin)
+
     rec1, u1, _ = solver.forward(save=False, src=src, rec=rec2,
-                                 o_x=100., o_y=100., o_z=100.)
+                                 o_x=ox_g+100., o_y=oy_g+100., o_z=oz_g+100.)
 
     assert(np.allclose(rec.data, rec1.data, atol=1e-5))

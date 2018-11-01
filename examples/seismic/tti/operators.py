@@ -530,11 +530,9 @@ def ForwardOperator(model, source, receiver, space_order=4,
     stencils = FD_kernel(model, u, v, space_order)
 
     # Source and receivers
-    stencils += src.inject(field=u.forward, expr=src * dt**2 / m,
-                           offset=model.nbpml)
-    stencils += src.inject(field=v.forward, expr=src * dt**2 / m,
-                           offset=model.nbpml)
-    stencils += rec.interpolate(expr=u + v, offset=model.nbpml)
+    stencils += src.inject(field=u.forward, expr=src * dt**2 / m)
+    stencils += src.inject(field=v.forward, expr=src * dt**2 / m)
+    stencils += rec.interpolate(expr=u + v)
 
     # Substitute spacing terms to reduce flops
     return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
