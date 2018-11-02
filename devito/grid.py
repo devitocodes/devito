@@ -241,6 +241,9 @@ class Grid(ArgProvider):
         """
         args = ReducerMap()
 
+        for k, v in self.dimension_map.items():
+            args.update(k._arg_defaults(start=0, size=v.loc))
+
         if configuration['mpi']:
             distributor = self.distributor
             args[distributor._C_comm.name] = distributor._C_comm.value
