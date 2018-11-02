@@ -58,19 +58,23 @@ def norm(f, order=2):
     Parameters
     ----------
     f : Function
-        The Function for which the norm is computed.
+        Input Function.
     order : int, optional
         The order of the norm. Defaults to 2.
     """
-    d = dv.Dimension(name='d',)
-    n = dv.Function(name='n', shape=(1,), dimensions=(d,), grid=f.grid, dtype=f.dtype)
+    i = dv.Dimension(name='i',)
+    n = dv.Function(name='n', shape=(1,), dimensions=(i,), grid=f.grid, dtype=f.dtype)
     n.data[0] = 0
 
     kwargs = {}
     if f.is_TimeFunction and f._time_buffering:
         kwargs[f.time_dim.max_name] = f._time_size - 1
 
-    op = dv.Operator(dv.Inc(n[0], Abs(Pow(f, order))), name='norm%d' % order)
+    # Protect SparseFunctions from accessing duplicated (out-of-domain) data,
+    # otherwise we would eventually be summing more than expected
+    p, eqns = f.guard() if f.is_SparseFunction else (f, [])
+
+    op = dv.Operator(eqns + [dv.Inc(n[0], Abs(Pow(p, order)))], name='norm%d' % order)
     op.apply(**kwargs)
 
     # May need a global reduction over MPI
@@ -83,7 +87,7 @@ def norm(f, order=2):
 
     v = Pow(v, 1/order)
 
-    return v
+    return np.float(v)
 
 
 def sumall(f):
@@ -93,17 +97,21 @@ def sumall(f):
     Parameters
     ----------
     f : Function
-        The Function for which the sum is computed.
+        Input Function.
     """
-    d = dv.Dimension(name='d',)
-    n = dv.Function(name='n', shape=(1,), dimensions=(d,), grid=f.grid, dtype=f.dtype)
+    i = dv.Dimension(name='i',)
+    n = dv.Function(name='n', shape=(1,), dimensions=(i,), grid=f.grid, dtype=f.dtype)
     n.data[0] = 0
 
     kwargs = {}
     if f.is_TimeFunction and f._time_buffering:
         kwargs[f.time_dim.max_name] = f._time_size - 1
 
-    op = dv.Operator(dv.Inc(n[0], f), name='sum')
+    # Protect SparseFunctions from accessing duplicated (out-of-domain) data,
+    # otherwise we would eventually be summing more than expected
+    p, eqns = f.guard() if f.is_SparseFunction else (f, [])
+
+    op = dv.Operator(eqns + [dv.Inc(n[0], p)], name='sum')
     op.apply(**kwargs)
 
     # May need a global reduction over MPI
@@ -114,4 +122,4 @@ def sumall(f):
         comm = f.grid.distributor.comm
         v = comm.allreduce(np.asarray(n.data))[0]
 
-    return v
+    return np.float(v)
