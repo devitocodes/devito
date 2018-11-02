@@ -1762,6 +1762,45 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
         return eqns
 
+    def guard(self, expr=None, offset=0):
+        """
+        Generate a guarded expression, that is expressions that are
+        evaluated by an Operator only if certain conditions are met.
+        The introduced condition, here, is that all grid points in the
+        support of a sparse value must fall within the grid domain (i.e.,
+        *not* on the halo).
+
+        Parameters
+        ----------
+        expr : sympy.Expr, optional
+            Input expression, from which the guarded expression is derived.
+            If not specified, defaults to ``self``.
+        offset : int, optional
+            Relax the guard condition by introducing a tolerance offset.
+        """
+        _, points = self._index_matrix(offset)
+
+        # Guard through ConditionalDimension
+        conditions = []
+        for d, idx in zip(self.grid.dimensions, self._coordinate_indices):
+            p = points[idx]
+            lb = sympy.And(p >= d.symbolic_start - offset, evaluate=False)
+            ub = sympy.And(p <= d.symbolic_end + offset, evaluate=False)
+            conditions.append(sympy.And(lb, ub, evaluate=False))
+        condition = sympy.And(*conditions, evaluate=False)
+        cd = ConditionalDimension("%s_g" % self._sparse_dim, self._sparse_dim,
+                                  condition=condition)
+
+        if expr is None:
+            out = self.indexify().xreplace({self._sparse_dim: cd})
+        else:
+            out = expr.xreplace({self._sparse_dim: cd})
+
+        # Equations for the indirection dimensions
+        eqns = [Eq(v, k) for k, v in points.items()]
+
+        return out, eqns
+
     @cached_property
     def _decomposition(self):
         mapper = {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
