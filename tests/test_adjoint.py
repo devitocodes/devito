@@ -85,7 +85,7 @@ class TestAdjoint(object):
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(srca.data.reshape(-1), solver.source.data)
-        term2 = linalg.norm(rec.data) ** 2
+        term2 = linalg.norm(rec.data.reshape(-1)) ** 2
         info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
@@ -148,7 +148,7 @@ class TestAdjoint(object):
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
-        term2 = linalg.norm(du.data)**2
+        term2 = linalg.norm(du.data.reshape(-1))**2
         info('<Jx,y>: %f, <x, J^Ty>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)

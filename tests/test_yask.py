@@ -537,7 +537,7 @@ class TestIsotropicAcoustic(object):
         dt = model.critical_dt
         u.data[:] = 0.0
         eqns = eqn
-        eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
+        eqns += src.inject(field=u.forward, expr=src * dt**2 / m)
         op = Operator(eqns, subs=model.spacing_map)
         assert 'run_solution' in str(op)
 
@@ -555,8 +555,8 @@ class TestIsotropicAcoustic(object):
         dt = model.critical_dt
         u.data[:] = 0.0
         eqns = eqn
-        eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
-        eqns += rec.interpolate(expr=u, offset=model.nbpml)
+        eqns += src.inject(field=u.forward, expr=src * dt**2 / m)
+        eqns += rec.interpolate(expr=u)
         op = Operator(eqns, subs=model.spacing_map)
         assert 'run_solution' in str(op)
 
@@ -568,7 +568,8 @@ class TestIsotropicAcoustic(object):
         exp_rec = 212.15
 
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
-        assert np.isclose(np.linalg.norm(rec.data), exp_rec, atol=exp_rec*1.e-2)
+        assert np.isclose(np.linalg.norm(rec.data.reshape(-1)), exp_rec,
+                          atol=exp_rec*1.e-2)
 
     def test_acoustic_adjoint(self, shape, kernel, space_order, nbpml):
         """
