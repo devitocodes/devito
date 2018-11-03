@@ -578,7 +578,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @property
     def initializer(self):
         if self._data is not None:
-            return self._data.view(np.ndarray)
+            return self.data_with_halo.view(np.ndarray)
         else:
             return self._initializer
 
