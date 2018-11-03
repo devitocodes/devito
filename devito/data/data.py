@@ -157,11 +157,16 @@ class Data(np.ndarray):
             # no-op
             return
         elif np.isscalar(val):
-            pass
+            if index_is_basic(loc_idx):
+                # Won't go through `__getitem__` as it's basic indexing mode,
+                # so we should just propage `loc_idx`
+                super(Data, self).__setitem__(loc_idx, val)
+            else:
+                super(Data, self).__setitem__(glb_idx, val)
         elif isinstance(val, Data) and val._is_distributed:
             if self._is_distributed:
                 # `val` is decomposed, `self` is decomposed -> local set
-                pass
+                super(Data, self).__setitem__(glb_idx, val)
             else:
                 # `val` is decomposed, `self` is replicated -> gatherall-like
                 raise NotImplementedError
@@ -187,17 +192,14 @@ class Data(np.ndarray):
             else:
                 # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
                 pass
+            super(Data, self).__setitem__(glb_idx, val)
         elif isinstance(val, Iterable):
             if self._is_mpi_distributed:
                 raise NotImplementedError("With MPI data can only be set "
                                           "via scalars or numpy arrays")
+            super(Data, self).__setitem__(glb_idx, val)
         else:
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
-
-        # Finally, perform the `__setitem__`
-        # Note: we pass `glb_idx`, rather than `loc_idx`, as `__setitem__` calls
-        # `__getitem__`, which in turn expects a global index
-        super(Data, self).__setitem__(glb_idx, val)
 
     def _normalize_index(self, idx):
         if isinstance(idx, np.ndarray):
