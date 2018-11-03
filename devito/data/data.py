@@ -272,7 +272,12 @@ PROJECTED = Index('projected')
 
 
 def index_is_basic(idx):
-    return all(is_integer(i) or (i is NONLOCAL) for i in idx)
+    if is_integer(idx):
+        return True
+    elif isinstance(idx, (slice, np.ndarray)):
+        return False
+    else:
+        return all(is_integer(i) or (i is NONLOCAL) for i in idx)
 
 
 def index_apply_modulo(idx, modulo):
