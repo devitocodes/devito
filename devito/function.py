@@ -46,7 +46,7 @@ class Constant(AbstractCachedSymbol, ArgProvider):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self._value = kwargs.get('value')
+            self._value = kwargs.get('value', 0)
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
