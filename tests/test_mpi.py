@@ -947,6 +947,49 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[0, :-thickness] == 1.)
             assert np.all(u.data_ro_domain[0, -thickness:] == range(2, thickness+2))
 
+    @pytest.mark.parallel(nprocs=4)
+    def test_misc_dims(self):
+        """
+        Test MPI in presence of Functions with mixed distributed/replicated
+        Dimensions, with only a strict subset of the Grid dimensions used.
+        """
+        dx = Dimension(name='dx')
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=1, space_order=2, save=4)
+        c = Function(name='c', grid=grid, dimensions=(x, dx), shape=(4, 5))
+
+        step = Eq(u.forward, (
+            u[time, x-2, y] * c[x, 0]
+            + u[time, x-1, y] * c[x, 1]
+            + u[time, x, y] * c[x, 2]
+            + u[time, x+1, y] * c[x, 3]
+            + u[time, x+2, y] * c[x, 4]))
+
+        for i in range(4):
+            c.data[i, 0] = 1.0+i
+            c.data[i, 1] = 1.0+i
+            c.data[i, 2] = 3.0+i
+            c.data[i, 3] = 6.0+i
+            c.data[i, 4] = 5.0+i
+
+        u.data[:] = 0.0
+        u.data[0, 2, :] = 2.0
+
+        op = Operator(step)
+
+        op(time_m=0, time_M=0)
+
+        if LEFT in glb_pos_map[x]:
+            assert(np.all(u.data[1, 0, :] == 10.0))
+            assert(np.all(u.data[1, 1, :] == 14.0))
+        else:
+            assert(np.all(u.data[1, 2, :] == 10.0))
+            assert(np.all(u.data[1, 3, :] == 8.0))
+
     @pytest.mark.parallel(nprocs=9)
     def test_nontrivial_operator(self):
         """

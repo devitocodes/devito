@@ -2,7 +2,8 @@ from conftest import skipif_yask
 import pytest
 import numpy as np
 
-from devito import Grid, Function, TimeFunction, Eq, Operator, ALLOC_GUARD, ALLOC_FLAT
+from devito import (Grid, Function, TimeFunction, Dimension, Eq, Operator,
+                    ALLOC_GUARD, ALLOC_FLAT)
 from devito.data import Decomposition
 from devito.types import LEFT, RIGHT
 
@@ -91,7 +92,7 @@ class TestDataBasic(object):
         assert u.data[-1, -1, -1] == 0.
         assert u.data_with_halo[-1, -1, -1] == 3.
 
-    def test_data_arithmetic(self):
+    def test_arithmetic(self):
         """
         Tests arithmetic operations between :class:`Data` objects and values.
         """
@@ -319,7 +320,7 @@ class TestDataDistributed(object):
     """
 
     @pytest.mark.parallel(nprocs=4)
-    def test_data_localviews(self):
+    def test_localviews(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -533,6 +534,32 @@ class TestDataDistributed(object):
         except:
             assert False
 
+    @pytest.mark.parallel(nprocs=4)
+    def test_misc(self):
+        """Function with mixed distributed/replicated Dimensions."""
+        dx = Dimension(name='dx')
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+
+        # Note: `grid` must be passed to `c` since `x` is a distributed dimension,
+        # and `grid` carries the `x` decomposition
+        c = Function(name='c', grid=grid, dimensions=(x, dx), shape=(4, 5))
+
+        for i in range(4):
+            c.data[i, 0] = 1.0+i
+            c.data[i, 1] = 1.0+i
+            c.data[i, 2] = 3.0+i
+            c.data[i, 3] = 6.0+i
+            c.data[i, 4] = 5.0+i
+
+        if LEFT in glb_pos_map[x]:
+            assert(np.all(c.data[0] == [1., 1., 3., 6., 5.]))
+            assert(np.all(c.data[1] == [2., 2., 4., 7., 6.]))
+        else:
+            assert(np.all(c.data[2] == [3., 3., 5., 8., 7.]))
+            assert(np.all(c.data[3] == [4., 4., 6., 9., 8.]))
+
 
 def test_scalar_arg_substitution(t0, t1):
     """
@@ -572,4 +599,4 @@ def test_oob_guard():
 if __name__ == "__main__":
     from devito import configuration
     configuration['mpi'] = True
-    TestDataDistributed().test_indexing_in_views()
+    TestDataDistributed().test_misc()
