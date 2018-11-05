@@ -1663,7 +1663,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
         # A unique symbol for each indirection index
         indices = filter_ordered(flatten(index_matrix))
-        points = OrderedDict([(p, Symbol(name='ii%d' % i))
+        points = OrderedDict([(p, Symbol(name='ii_%s_%d' % (self.name, i)))
                               for i, p in enumerate(indices)])
 
         return index_matrix, points
@@ -1781,23 +1781,24 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         _, points = self._index_matrix(offset)
 
         # Guard through ConditionalDimension
-        conditions = []
+        conditions = {}
         for d, idx in zip(self.grid.dimensions, self._coordinate_indices):
             p = points[idx]
             lb = sympy.And(p >= d.symbolic_start - offset, evaluate=False)
             ub = sympy.And(p <= d.symbolic_end + offset, evaluate=False)
-            conditions.append(sympy.And(lb, ub, evaluate=False))
-        condition = sympy.And(*conditions, evaluate=False)
+            conditions[p] = sympy.And(lb, ub, evaluate=False)
+        condition = sympy.And(*conditions.values(), evaluate=False)
         cd = ConditionalDimension("%s_g" % self._sparse_dim, self._sparse_dim,
                                   condition=condition)
 
         if expr is None:
             out = self.indexify().xreplace({self._sparse_dim: cd})
         else:
-            out = expr.xreplace({self._sparse_dim: cd})
+            functions = {f for f in retrieve_functions(expr) if f.is_SparseFunction}
+            out = indexify(expr).xreplace({f._sparse_dim: cd for f in functions})
 
         # Equations for the indirection dimensions
-        eqns = [Eq(v, k) for k, v in points.items()]
+        eqns = [Eq(v, k) for k, v in points.items() if v in conditions]
 
         return out, eqns
 
