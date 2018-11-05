@@ -128,9 +128,10 @@ class TestGradient(object):
             # Data for the new model
             d = wave.forward(m=mloc)[0]
             # First order error Phi(m0+dm) - Phi(m0)
-            error1[i] = np.absolute(.5*linalg.norm(d.data - rec.data)**2 - F0)
+            F_i = .5*linalg.norm((d.data - rec.data).reshape(-1))**2
+            error1[i] = np.absolute(F_i - F0)
             # Second order term r Phi(m0+dm) - Phi(m0) - <J(m0)^T \delta d, dm>
-            error2[i] = np.absolute(.5*linalg.norm(d.data - rec.data)**2 - F0 - H[i] * G)
+            error2[i] = np.absolute(F_i - F0 - H[i] * G)
 
         # Test slope of the  tests
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
@@ -187,10 +188,12 @@ class TestGradient(object):
                             initializer=initializer)
             # Data for the new model
             d = wave.forward(m=mloc)[0]
+            delta_d = (d.data - rec.data).reshape(-1)
             # First order error F(m0 + hdm) - F(m0)
-            error1[i] = np.linalg.norm(d.data - rec.data, 1)
+
+            error1[i] = np.linalg.norm(delta_d, 1)
             # Second order term F(m0 + hdm) - F(m0) - J dm
-            error2[i] = np.linalg.norm(d.data - rec.data - H[i] * Jdm.data, 1)
+            error2[i] = np.linalg.norm(delta_d - H[i] * Jdm.data.reshape(-1), 1)
 
         # Test slope of the  tests
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)

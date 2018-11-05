@@ -568,7 +568,8 @@ class TestIsotropicAcoustic(object):
         exp_rec = 212.15
 
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
-        assert np.isclose(np.linalg.norm(rec.data), exp_rec, atol=exp_rec*1.e-2)
+        assert np.isclose(np.linalg.norm(rec.data.reshape(-1)), exp_rec,
+                          atol=exp_rec*1.e-2)
 
     def test_acoustic_adjoint(self, shape, kernel, space_order, nbpml):
         """
