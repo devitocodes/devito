@@ -94,8 +94,10 @@ class Parameters(OrderedDict, Signer):
         return self._name
 
     def _signature_items(self):
-        items = sorted(it for it in self.items()
-                       if it[0] not in ['log_level', 'first_touch'])
+        # Note: we are discarding some vars that do not affect the c level
+        # code in order to avoid recompiling when such vars are modified
+        discard = ['profiling', 'autotuning', 'log_level', 'first_touch']
+        items = sorted((k, v) for k, v in self.items() if k not in discard)
         return tuple(str(items)) + tuple(str(sorted(self.backend.items())))
 
 
