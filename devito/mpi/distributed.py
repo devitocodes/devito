@@ -1,17 +1,27 @@
 from collections import namedtuple
 from ctypes import Structure, c_int, c_void_p, sizeof
 from itertools import product
+from math import ceil
+import atexit
 
 from cached_property import cached_property
 from cgen import Struct, Value
 
 import numpy as np
-from mpi4py import MPI
 
+from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
 from devito.tools import EnrichedTuple, as_tuple
 
-__all__ = ['Distributor']
+
+# Do not prematurely initialize MPI
+# This allows launching a Devito program from within another Python program
+# that has *already* initialized MPI
+import mpi4py
+mpi4py.rc(initialize=False, finalize=False)
+from mpi4py import MPI  # noqa
+
+__all__ = ['Distributor', 'MPI']
 
 
 class Distributor(object):
@@ -27,50 +37,79 @@ class Distributor(object):
     def __init__(self, shape, dimensions, input_comm=None):
         self._glb_shape = shape
         self._dimensions = dimensions
-        self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
 
-        # `Compute_dims` sets the dimension sizes to be as close to each other
-        # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
-        # * topology[0] >= topology[1] >= topology[2]
-        # * topology[0] * topology[1] * topology[2] == self._input_comm.size
-        topology = MPI.Compute_dims(self._input_comm.size, len(shape))
-        # At this point MPI's dimension 0 corresponds to the rightmost element
-        # in `topology`. This is in reverse to `shape`'s ordering. Hence, we
-        # now restore consistency
-        self._topology = tuple(reversed(topology))
+        if configuration['mpi']:
+            # First time we enter here, we make sure MPI is initialized
+            if not MPI.Is_initialized():
+                MPI.Init()
 
-        if self._input_comm is not input_comm:
-            # By default, Devito arranges processes into a cartesian topology.
-            # MPI works with numbered dimensions and follows the C row-major
-            # numbering of the ranks, i.e. in a 2x3 Cartesian topology (0,0)
-            # maps to rank 0, (0,1) maps to rank 1, (0,2) maps to rank 2, (1,0)
-            # maps to rank 3, and so on.
-            self._comm = self._input_comm.Create_cart(self._topology)
+                # Make sure Finalize will be called upon exit
+                def finalize_mpi():
+                    MPI.Finalize()
+                atexit.register(finalize_mpi)
+
+            self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
+
+            # `MPI.Compute_dims` sets the dimension sizes to be as close to each other
+            # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
+            # * topology[0] >= topology[1] >= topology[2]
+            # * topology[0] * topology[1] * topology[2] == self._input_comm.size
+            # However, `MPI.Compute_dims` is distro-dependent, so we have to enforce
+            # some properties through our own wrapper (e.g., OpenMPI v3 does not
+            # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
+            topology = compute_dims(self._input_comm.size, len(shape))
+            # At this point MPI's dimension 0 corresponds to the rightmost element
+            # in `topology`. This is in reverse to `shape`'s ordering. Hence, we
+            # now restore consistency
+            self._topology = tuple(reversed(topology))
+
+            if self._input_comm is not input_comm:
+                # By default, Devito arranges processes into a cartesian topology.
+                # MPI works with numbered dimensions and follows the C row-major
+                # numbering of the ranks, i.e. in a 2x3 Cartesian topology (0,0)
+                # maps to rank 0, (0,1) maps to rank 1, (0,2) maps to rank 2, (1,0)
+                # maps to rank 3, and so on.
+                self._comm = self._input_comm.Create_cart(self._topology)
+            else:
+                self._comm = input_comm
         else:
-            self._comm = input_comm
+            self._input_comm = None
+            self._comm = MPI.COMM_NULL
+            self._topology = tuple(1 for _ in range(len(shape)))
 
-        # Perform domain decomposition
-        glb_numbs = [np.array_split(range(i), j) for i, j in zip(shape, self._topology)]
+        # The domain decomposition
+        glb_numbs = [np.array_split(range(i), j)
+                     for i, j in zip(shape, self._topology)]
         self._glb_numbs = EnrichedTuple(*glb_numbs, getters=self.dimensions)
 
     def __del__(self):
-        self._input_comm.Free()
-
-    @property
-    def myrank(self):
-        return self._comm.rank
-
-    @property
-    def mycoords(self):
-        return tuple(self._comm.coords)
+        if self._input_comm is not None:
+            self._input_comm.Free()
 
     @property
     def comm(self):
         return self._comm
 
     @property
+    def myrank(self):
+        if self.comm is not MPI.COMM_NULL:
+            return self.comm.rank
+        else:
+            return 0
+
+    @property
+    def mycoords(self):
+        if self.comm is not MPI.COMM_NULL:
+            return tuple(self.comm.coords)
+        else:
+            return tuple(0 for _ in range(self.ndim))
+
+    @property
     def nprocs(self):
-        return self._comm.size
+        if self.comm is not MPI.COMM_NULL:
+            return self.comm.size
+        else:
+            return 1
 
     @property
     def ndim(self):
@@ -112,8 +151,8 @@ class Distributor(object):
     @property
     def glb_numb(self):
         """Return the global numbering of this process' domain section."""
-        assert len(self._comm.coords) == len(self._glb_numbs)
-        glb_numb = [i[j] for i, j in zip(self._glb_numbs, self._comm.coords)]
+        assert len(self.mycoords) == len(self._glb_numbs)
+        glb_numb = [i[j] for i, j in zip(self._glb_numbs, self.mycoords)]
         return EnrichedTuple(*glb_numb, getters=self.dimensions)
 
     @property
@@ -281,3 +320,19 @@ class Distributor(object):
 
     def __repr__(self):
         return "Distributor(nprocs=%d)" % self.nprocs
+
+
+def compute_dims(nprocs, ndim):
+    # We don't do anything clever here. In fact, we do something very basic --
+    # we just try to distribute `nprocs` evenly over the number of dimensions,
+    # and if we can't we fallback to whatever MPI.Compute_dims gives...
+    v = pow(nprocs, 1/ndim)
+    if not v.is_integer():
+        # Since pow(64, 1/3) == 3.999..4
+        v = int(ceil(v))
+        if not v**ndim == nprocs:
+            # Fallback
+            return MPI.Compute_dims(nprocs, ndim)
+    else:
+        v = int(v)
+    return tuple(v for _ in range(ndim))

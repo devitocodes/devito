@@ -22,7 +22,7 @@ __all__ = ['jit_compile', 'load', 'make', 'GNUCompiler']
 
 def sniff_compiler_version(cc):
     """
-    Try to detect the compiler version.
+    Detect the compiler version.
 
     Adapted from: ::
 
@@ -49,11 +49,13 @@ def sniff_compiler_version(cc):
         try:
             # gcc-7 series only spits out patch level on dumpfullversion.
             ver = check_output([cc, "-dumpfullversion"], stderr=DEVNULL).decode("utf-8")
-            ver = version.StrictVersion(ver.strip())
+            ver = '.'.join(ver.strip().split('.')[:3])
+            ver = version.StrictVersion(ver)
         except CalledProcessError:
             try:
                 ver = check_output([cc, "-dumpversion"], stderr=DEVNULL).decode("utf-8")
-                ver = version.StrictVersion(ver.strip())
+                ver = '.'.join(ver.strip().split('.')[:3])
+                ver = version.StrictVersion(ver)
             except (CalledProcessError, UnicodeDecodeError):
                 pass
         except UnicodeDecodeError:
@@ -66,6 +68,21 @@ def sniff_compiler_version(cc):
         pass
 
     return ver
+
+
+def sniff_mpi_distro(mpiexec):
+    """
+    Detect the MPI version.
+    """
+    try:
+        ver = check_output([mpiexec, "--version"]).decode("utf-8")
+        if "open-mpi" in ver:
+            return 'OpenMPI'
+        elif "HYDRA" in ver:
+            return 'MPICH'
+    except (CalledProcessError, UnicodeDecodeError):
+        pass
+    return 'unknown'
 
 
 class Compiler(GCCToolchain):

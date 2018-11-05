@@ -4,7 +4,6 @@ from itertools import product
 import sympy
 import numpy as np
 from psutil import virtual_memory
-from mpi4py import MPI
 from cached_property import cached_property
 
 from devito.cgen_utils import INT, cast_mapper
@@ -13,6 +12,7 @@ from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
+from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_functions
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
@@ -454,7 +454,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
-        if MPI.COMM_WORLD.size == 1:
+        if not MPI.Is_initialized() or MPI.COMM_WORLD.size == 1:
             # Nothing to do
             return
         if MPI.COMM_WORLD.size > 1 and self.grid is None:
@@ -1363,6 +1363,12 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                                                 dtype=self.dtype, dimensions=dimensions,
                                                 shape=(self.npoint, self.grid.dim),
                                                 space_order=0, initializer=coordinates)
+                if self.npoint == 0:
+                    # This is a corner case -- we might get here, for example, when
+                    # running with MPI and some processes get 0-size arrays after
+                    # domain decomposition. We touch the data anyway to avoid the
+                    # case ``self._data is None``
+                    self.coordinates.data
 
     @property
     def coordinates(self):
@@ -1580,12 +1586,13 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
     def _dist_scatter(self, data=None):
         data = data if data is not None else self.data
-        comm = self.grid.distributor.comm
+        distributor = self.grid.distributor
 
         # If not using MPI, don't waste time
-        if comm.size == 1:
+        if distributor.nprocs == 1:
             return {self: data, self.coordinates: self.coordinates.data}
 
+        comm = distributor.comm
         mpitype = MPI._typedict[np.dtype(self.dtype).char]
 
         # Pack (reordered) data values so that they can be sent out via an Alltoallv
@@ -1612,11 +1619,13 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return {self: data, self.coordinates: coords}
 
     def _dist_gather(self, data):
-        comm = self.grid.distributor.comm
+        distributor = self.grid.distributor
 
         # If not using MPI, don't waste time
-        if comm.size == 1:
+        if distributor.nprocs == 1:
             return
+
+        comm = distributor.comm
 
         # Send back the sparse point values
         sshape, scount, sdisp, _, rcount, rdisp = self._dist_alltoall
@@ -1881,20 +1890,20 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
     def _dist_scatter(self, data=None):
         data = data if data is not None else self.data
-        comm = self.grid.distributor.comm
+        distributor = self.grid.distributor
 
         # If not using MPI, don't waste time
-        if comm.size == 1:
+        if distributor.nprocs == 1:
             return {self: data, self.gridpoints: self.gridpoints.data,
                     self.coefficients: self.coefficients.data}
 
         raise NotImplementedError
 
     def _dist_gather(self, data):
-        comm = self.grid.distributor.comm
+        distributor = self.grid.distributor
 
         # If not using MPI, don't waste time
-        if comm.size == 1:
+        if distributor.nprocs == 1:
             return
 
         raise NotImplementedError
