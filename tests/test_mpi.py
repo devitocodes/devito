@@ -5,7 +5,7 @@ from conftest import skipif_yask
 
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator, norm)
+                    SubDimension, Eq, Inc, Operator, norm, inner)
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
 from devito.parameters import configuration
@@ -1079,14 +1079,19 @@ class TestIsotropicAcoustic(object):
     Test the isotropic acoustic wave equation with MPI.
     """
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,exp_u,exp_rec', [
-        # Expected u/rec values derived "manually" from `test_adjoint.py`
-        ((60, ), 'OT2', 4, 10, False, 976.825, 9372.604),
-        ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420),
-        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902)
+    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
+        ((60, ), 'OT2', 4, 10, False, 976.825, 9372.604, 18851836.075, 47002871.882),
+        ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
+        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
     @pytest.mark.parallel(nprocs=[4, 16])
-    def test_forward(self, shape, kernel, space_order, nbpml, save, exp_u, exp_rec):
+    def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
+                       Eu, Erec, Ev, Esrca):
+        """
+        Unlike `test_adjoint_F` in test_adjoint.py, here we explicitly check the norms
+        of all Operator-evaluated Functions. The numbers we check against are derived
+        "manually" from sequential runs of test_adjoint::test_adjoint_F
+        """
         t0 = 0.0  # Start time
         tn = 500.  # Final time
         nrec = 130  # Number of receivers
@@ -1117,11 +1122,26 @@ class TestIsotropicAcoustic(object):
         solver = AcousticWaveSolver(model, source=src, receiver=rec,
                                     kernel=kernel, space_order=space_order)
 
-        # Run forward and adjoint operators
+        # Create adjoint receiver symbol
+        srca = Receiver(name='srca', grid=model.grid, time_range=solver.source.time_range,
+                        coordinates=solver.source.coordinates.data)
+
+        # Run forward operator
         rec, u, _ = solver.forward(save=save, rec=rec)
 
-        assert np.isclose(norm(u), exp_u, rtol=exp_u*1.e-8)
-        assert np.isclose(norm(rec), exp_rec, rtol=exp_rec*1.e-8)
+        assert np.isclose(norm(u), Eu, rtol=Eu*1.e-8)
+        assert np.isclose(norm(rec), Erec, rtol=Erec*1.e-8)
+
+        # Run adjoint operator
+        srca, v, _ = solver.adjoint(rec=rec, srca=srca)
+
+        assert np.isclose(norm(v), Ev, rtol=Eu*1.e-8)
+        assert np.isclose(norm(srca), Esrca, rtol=Erec*1.e-8)
+
+        # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
+        term1 = inner(srca, solver.source)
+        term2 = norm(rec)**2
+        assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
 
 if __name__ == "__main__":
@@ -1134,4 +1154,5 @@ if __name__ == "__main__":
     # TestSparseFunction().test_scatter_gather()
     # TestOperatorAdvanced().test_nontrivial_operator()
     # TestOperatorAdvanced().test_interpolation_dup()
-    TestIsotropicAcoustic().test_forward((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902)  # noqa
+    TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
+                                           153.122, 205.902, 27484.635, 11736.917)
