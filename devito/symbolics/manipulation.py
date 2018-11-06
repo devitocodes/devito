@@ -243,21 +243,22 @@ def convert_to_SSA(exprs):
     # Optimization: don't waste time reconstructing stuff if already in SSA form
     if all(len(i) == 1 for i in seen.values()):
         return exprs
-    # Do the SSA conversion
+    # SSA conversion
     c = 0
     mapper = {}
     processed = []
     for i, e in enumerate(exprs):
         where = seen[e.lhs]
         if len(where) > 1:
-            # Transform into SSA until the very last write, excluded
-            if where[-1] != i:
-                ssa_lhs = dSymbol(name='ssa_t%d' % c, dtype=e.lhs.base.function.dtype)
-                processed.append(e.func(ssa_lhs, e.rhs.xreplace(mapper)))
-                mapper[e.lhs] = ssa_lhs
-                c += 1
+            lhs = e.lhs if where[-1] == i else dSymbol(name='ssa_t%d' % c, dtype=e.dtype)
+            rhs = e.rhs.xreplace(mapper)
+            if e.is_Increment:
+                # Turn AugmentedAssignment into Assignment
+                processed.append(e.func(lhs, mapper[e.lhs] + rhs, is_Increment=False))
             else:
-                processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
+                processed.append(e.func(lhs, rhs))
+            mapper[e.lhs] = lhs
+            c += 1
         else:
             processed.append(e)
     return processed
