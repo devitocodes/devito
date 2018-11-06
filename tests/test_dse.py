@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 from conftest import x, y, z, skipif_yask  # noqa
 
-from devito import Eq, Constant, Function, TimeFunction, SparseFunction, Grid, Operator, ruido  # noqa
+from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseFunction,  # noqa
+                    Grid, Operator, ruido)
 from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
@@ -358,3 +359,35 @@ def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
 def test_estimate_cost(fa, fb, fc, t0, t1, t2, expr, expected):
     # Note: integer arithmetic isn't counted
     assert estimate_cost(EVAL(expr, fa, fb, fc, t0, t1, t2)) == expected
+
+
+@skipif_yask
+@pytest.mark.parametrize('exprs,exp_u,exp_v', [
+    (['Eq(s, 0)', 'Eq(s, s + 4)', 'Eq(u, s)'], 4, 0),
+    (['Eq(s, 0)', 'Eq(s, s + s + 4)', 'Eq(s, s + 4)', 'Eq(u, s)'], 8, 0),
+    (['Eq(s, 0)', 'Inc(s, 4)', 'Eq(u, s)'], 4, 0),
+    (['Eq(s, 0)', 'Inc(s, 4)', 'Eq(v, s)', 'Eq(u, s)'], 4, 4),
+    (['Eq(s, 0)', 'Inc(s, 4)', 'Eq(v, s)', 'Eq(s, s + 4)', 'Eq(u, s)'], 8, 4),
+    (['Eq(s, 0)', 'Inc(s, 4)', 'Eq(v, s)', 'Inc(s, 4)', 'Eq(u, s)'], 8, 4),
+    (['Eq(u, 0)', 'Inc(u, 4)', 'Eq(v, u)', 'Inc(u, 4)'], 8, 4),
+    (['Eq(u, 1)', 'Eq(v, 4)', 'Inc(u, v)', 'Inc(v, u)'], 5, 9),
+])
+def test_makeit_ssa(exprs, exp_u, exp_v):
+    """
+    A test building Operators with non-trivial sequences of input expressions
+    that push hard on the `makeit_ssa` utility function.
+    """
+    grid = Grid(shape=(4, 4))
+    u = Function(name='u', grid=grid)  # noqa
+    v = Function(name='v', grid=grid)  # noqa
+    s = Scalar(name='s')  # noqa
+
+    # List comprehension would need explicit locals/globals mappings to eval
+    for i, e in enumerate(list(exprs)):
+        exprs[i] = eval(e)
+
+    op = Operator(exprs)
+    op.apply()
+
+    assert np.all(u.data == exp_u)
+    assert np.all(v.data == exp_v)
