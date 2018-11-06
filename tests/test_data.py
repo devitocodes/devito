@@ -535,8 +535,52 @@ class TestDataDistributed(object):
             assert False
 
     @pytest.mark.parallel(nprocs=4)
-    def test_misc(self):
-        """Function with mixed distributed/replicated Dimensions."""
+    def test_misc_setup(self):
+        """Test setup of Functions with mixed distributed/replicated Dimensions."""
+        grid = Grid(shape=(4, 4))
+        _, y = grid.dimensions
+        dy = Dimension(name='dy')
+
+        # Note: `grid` must be passed to `c` since `x` is a distributed dimension,
+        # and `grid` carries the `x` decomposition
+        c = Function(name='c', grid=grid, dimensions=(y, dy), shape=(4, 5))
+
+        # The following should be identical to `c` in everything but the name
+        c2 = Function(name='c2', grid=grid, dimensions=(y, dy), shape=(None, 5))
+        assert c.shape == c2.shape == (2, 5)
+        assert c.shape_with_halo == c2.shape_with_halo
+        assert c._decomposition == c2._decomposition
+
+        # The following should all raise an exception as illegal
+        try:
+            Function(name='c3', grid=grid, dimensions=(y, dy))
+            assert False
+        except TypeError:
+            # Missing `shape`
+            assert True
+
+        # The following should all raise an exception as illegal
+        try:
+            Function(name='c4', grid=grid, dimensions=(y, dy), shape=(3, 5))
+            assert False
+        except ValueError:
+            # The provided y-size, 3, doesn't match the y-size in grid (4)
+            assert True
+
+        # The following should all raise an exception as illegal
+        try:
+            Function(name='c4', grid=grid, dimensions=(y, dy), shape=(4,))
+            assert False
+        except ValueError:
+            # Too few entries for `shape` (two expected, for `y` and `dy`)
+            assert True
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_misc_data(self):
+        """
+        Test data insertion/indexing for Functions with mixed
+        distributed/replicated Dimensions.
+        """
         dx = Dimension(name='dx')
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -546,6 +590,7 @@ class TestDataDistributed(object):
         # and `grid` carries the `x` decomposition
         c = Function(name='c', grid=grid, dimensions=(x, dx), shape=(4, 5))
 
+        # Data insertion
         for i in range(4):
             c.data[i, 0] = 1.0+i
             c.data[i, 1] = 1.0+i
@@ -553,12 +598,21 @@ class TestDataDistributed(object):
             c.data[i, 3] = 6.0+i
             c.data[i, 4] = 5.0+i
 
+        # Data indexing
         if LEFT in glb_pos_map[x]:
             assert(np.all(c.data[0] == [1., 1., 3., 6., 5.]))
             assert(np.all(c.data[1] == [2., 2., 4., 7., 6.]))
         else:
             assert(np.all(c.data[2] == [3., 3., 5., 8., 7.]))
             assert(np.all(c.data[3] == [4., 4., 6., 9., 8.]))
+
+        # Same as before, but with negative indices and non-trivial slices
+        if LEFT in glb_pos_map[x]:
+            assert(np.all(c.data[0:-3] == [1., 1., 3., 6., 5.]))
+            assert(np.all(c.data[-3:-2] == [2., 2., 4., 7., 6.]))
+        else:
+            assert(np.all(c.data[-2:-1] == [3., 3., 5., 8., 7.]))
+            assert(np.all(c.data[-1] == [4., 4., 6., 9., 8.]))
 
 
 def test_scalar_arg_substitution(t0, t1):
@@ -599,4 +653,4 @@ def test_oob_guard():
 if __name__ == "__main__":
     from devito import configuration
     configuration['mpi'] = True
-    TestDataDistributed().test_misc()
+    TestDataDistributed().test_misc_data()
