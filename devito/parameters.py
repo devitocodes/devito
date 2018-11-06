@@ -96,7 +96,7 @@ class Parameters(OrderedDict, Signer):
     def _signature_items(self):
         # Note: we are discarding some vars that do not affect the c level
         # code in order to avoid recompiling when such vars are modified
-        discard = ['profiling', 'autotuning', 'log_level', 'first_touch']
+        discard = ['profiling', 'autotuning', 'log_level', 'first-touch']
         items = sorted((k, v) for k, v in self.items() if k not in discard)
         return tuple(str(items)) + tuple(str(sorted(self.backend.items())))
 
@@ -115,7 +115,7 @@ env_vars_mapper = {
     'DEVITO_MPI': 'mpi',
     'DEVITO_AUTOTUNING': 'autotuning',
     'DEVITO_LOGGING': 'log_level',
-    'DEVITO_FIRST_TOUCH': 'first_touch',
+    'DEVITO_FIRST_TOUCH': 'first-touch',
     'DEVITO_DEBUG_COMPILER': 'debug_compiler',
     'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns'
 }

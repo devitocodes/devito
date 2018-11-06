@@ -31,6 +31,7 @@ del get_versions
 configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
 configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
+configuration.add('first-touch', 0, [0, 1], lambda i: bool(i))
 configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i))
 
 # Execution mode setup

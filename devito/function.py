@@ -144,7 +144,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
             # Data-related properties and data initialization
             self._data = None
-            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
+            self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
             self._allocator = kwargs.get('allocator', default_allocator())
             initializer = kwargs.get('initializer')
             if initializer is None or callable(initializer):
