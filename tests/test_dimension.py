@@ -675,7 +675,7 @@ class TestConditionalDimension(object):
         op = Operator(eqs)
         op.apply(time=0)
 
-        assert np.all(f.data_interior == 1.)
+        assert np.all(f.data[0, 1:-1, 1:-1] == 1.)
         assert np.all(f.data[0, 0] == 0.)
         assert np.all(f.data[0, -1] == 0.)
         assert np.all(f.data[0, :, 0] == 0.)
