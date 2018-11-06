@@ -1,22 +1,21 @@
-from __future__ import absolute_import
-
 import abc
 from functools import reduce
 from operator import mul
+import mmap
 
 import numpy as np
 import ctypes
 from ctypes.util import find_library
-import mmap
 
 from devito.equation import Eq
-from devito.parameters import configuration
-from devito.tools import as_tuple, numpy_to_ctypes
 from devito.logger import logger
+from devito.parameters import configuration
+from devito.tools import numpy_to_ctypes
 import devito
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
-           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD']
+           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
+           'default_allocator', 'first_touch']
 
 
 class MemoryAllocator(object):
@@ -323,119 +322,6 @@ def default_allocator():
             return ALLOC_NUMA_LOCAL
     else:
         return ALLOC_FLAT
-
-
-class Data(np.ndarray):
-
-    """
-    A special :class:`numpy.ndarray` allowing logical indexing.
-
-    The type :class:`numpy.ndarray` is subclassed as indicated at: ::
-
-        https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
-
-    :param shape: Shape of the domain region in grid points.
-    :param dimensions: A tuple of :class:`Dimension`s, representing the dimensions
-                       of the ``Data``.
-    :param dtype: A ``numpy.dtype`` for the raw data.
-    :param allocator: (Optional) a :class:`MemoryAllocator` to specialize memory
-                      allocation. Defaults to ``ALLOC_FLAT``.
-
-    .. note::
-
-        This type supports logical indexing over modulo buffered dimensions.
-
-    .. note::
-
-        Any view or copy ``A`` created starting from ``self``, for instance via
-        a slice operation or a universal function ("ufunc" in NumPy jargon), will
-        still be of type :class:`Data`. However, if ``A``'s rank is different than
-        ``self``'s rank, namely if ``A.ndim != self.ndim``, then the capability of
-        performing logical indexing is lost.
-    """
-
-    def __new__(cls, shape, dimensions, dtype, allocator=ALLOC_FLAT):
-        assert len(shape) == len(dimensions)
-        ndarray, memfree_args = allocator.alloc(shape, dtype)
-        obj = np.asarray(ndarray).view(cls)
-        obj._allocator = allocator
-        obj._memfree_args = memfree_args
-        obj._modulo = tuple(True if i.is_Stepping else False for i in dimensions)
-        return obj
-
-    def __del__(self):
-        if self._memfree_args is None:
-            return
-        self._allocator.free(*self._memfree_args)
-        self._memfree_args = None
-
-    def __array_finalize__(self, obj):
-        # `self` is the newly created object
-        # `obj` is the object from which `self` was created
-        if obj is None:
-            # `self` was created through __new__()
-            return
-        if type(obj) != Data or self.ndim != obj.ndim:
-            self._modulo = tuple(False for i in range(self.ndim))
-        else:
-            self._modulo = obj._modulo
-        # Views or references created via operations on `obj` do not get an
-        # explicit reference to the underlying data (`_memfree_args`). This makes sure
-        # that only one object (the "root" Data) will free the C-allocated memory
-        self._memfree_args = None
-
-    def __getitem__(self, index):
-        index = self._convert_index(index)
-        return super(Data, self).__getitem__(index)
-
-    def __setitem__(self, index, val):
-        index = self._convert_index(index)
-        super(Data, self).__setitem__(index, val)
-
-    def _convert_index(self, index):
-        if isinstance(index, np.ndarray):
-            # Advanced indexing, nothing special to do
-            return index
-
-        index = as_tuple(index)
-        if len(index) > self.ndim:
-            # Maybe user code is trying to add a new axis (see np.newaxis),
-            # so the resulting array will have shape larger than `self`'s,
-            # hence I can just let numpy deal with it, as by specification
-            # we're gonna drop modulo indexing anyway
-            return index
-
-        # Index conversion
-        wrapped = []
-        for i, mod, use_modulo in zip(index, self.shape, self._modulo):
-            if use_modulo is False:
-                # Nothing special to do (no logical indexing)
-                wrapped.append(i)
-            elif isinstance(i, slice):
-                if i.start is None:
-                    start = i.start
-                elif i.start >= 0:
-                    start = i.start % mod
-                else:
-                    start = -(i.start % mod)
-                if i.stop is None:
-                    stop = i.stop
-                elif i.stop >= 0:
-                    stop = i.stop % (mod + 1)
-                else:
-                    stop = -(i.stop % (mod + 1))
-                wrapped.append(slice(start, stop, i.step))
-            elif isinstance(i, (tuple, list)):
-                wrapped.append([k % mod for k in i])
-            else:
-                wrapped.append(i % mod)
-        return wrapped[0] if len(index) == 1 else tuple(wrapped)
-
-    def reset(self):
-        """
-        Set all grid entries to 0.
-        """
-        self[:] = 0.0
 
 
 def first_touch(array):
