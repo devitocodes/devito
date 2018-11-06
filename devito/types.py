@@ -485,9 +485,8 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     @cached_property
     def _offset_domain(self):
         """
-        The number of grid points between the first (last) allocated element
-        (possibly in the halo/padding region) and the first (last) domain element,
-        for each dimension.
+        The number of points between the first (last) allocated element
+        and the first (last) domain element, for each dimension.
         """
         left = tuple(np.add(self._extent_halo.left, self._extent_padding.left))
         right = tuple(np.add(self._extent_halo.right, self._extent_padding.right))
@@ -500,9 +499,8 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     @cached_property
     def _offset_halo(self):
         """
-        The number of grid points between the first (last) allocated element
-        (possibly in the halo/padding region) and the first (last) halo element,
-        for each dimension.
+        The number of points between the first (last) allocated element
+        and the first (last) halo element, for each dimension.
         """
         left = self._extent_padding.left
         right = self._extent_padding.right
@@ -515,7 +513,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     @cached_property
     def _extent_halo(self):
         """
-        The number of grid points in the halo region.
+        The number of points in the halo region.
         """
         left = tuple(zip(*self._halo))[0]
         right = tuple(zip(*self._halo))[1]
@@ -528,7 +526,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     @cached_property
     def _extent_padding(self):
         """
-        The number of grid points in the padding region.
+        The number of points in the padding region.
         """
         left = tuple(zip(*self._padding))[0]
         right = tuple(zip(*self._padding))[1]
@@ -537,18 +535,6 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         extents = tuple(Extent(i, j) for i, j in self._padding)
 
         return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
-
-    @property
-    def _mask_domain(self):
-        """A mask to access the domain region of the allocated data."""
-        return tuple(slice(i, -j) if j != 0 else slice(i, None)
-                     for i, j in self._offset_domain)
-
-    @property
-    def _mask_with_halo(self):
-        """A mask to access the domain+halo region of the allocated data."""
-        return tuple(slice(i, -j) if j != 0 else slice(i, None)
-                     for i, j in self._offset_halo)
 
     def _get_region(self, region, dimension, side, symbolic=False):
         """
