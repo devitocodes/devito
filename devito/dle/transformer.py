@@ -25,7 +25,7 @@ default_options = {
 This dictionary may be modified at backend-initialization time."""
 
 configuration.add('dle', 'advanced', list(default_modes))
-configuration.add('dle_options',
+configuration.add('dle-options',
                   ';'.join('%s:%s' % (k, v) for k, v in default_options.items()),
                   list(default_options))
 
@@ -75,7 +75,7 @@ def transform(node, mode='basic', options=None):
         if i not in default_options:
             dle_warning("Illegal DLE parameter '%s'" % i)
             params.pop(i)
-    params.update({k: v for k, v in configuration['dle_options'].items()
+    params.update({k: v for k, v in configuration['dle-options'].items()
                    if k not in params})
     params.update({k: v for k, v in default_options.items() if k not in params})
     params['compiler'] = configuration['compiler']

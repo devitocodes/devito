@@ -110,7 +110,7 @@ env_vars_mapper = {
     'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
-    'DEVITO_DLE_OPTIONS': 'dle_options',
+    'DEVITO_DLE_OPTIONS': 'dle-options',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_MPI': 'mpi',
     'DEVITO_AUTOTUNING': 'autotuning',
