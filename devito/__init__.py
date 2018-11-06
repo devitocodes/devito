@@ -28,10 +28,16 @@ from ._version import get_versions  # noqa
 __version__ = get_versions()['version']
 del get_versions
 
+# Setup compiler and backend
 configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
 configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
+
+# Should Devito run a first-touch Operator upon allocating data?
 configuration.add('first-touch', 0, [0, 1], lambda i: bool(i))
+
+# Should Devito ignore any unknown runtime arguments supplied to Operator.apply(),
+# or rather raise an exception (the default behaviour)?
 configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i))
 
 # Execution mode setup
