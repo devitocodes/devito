@@ -247,7 +247,7 @@ def create_profile(name):
     """
     Create a new :class:`Profiler`.
     """
-    if configuration['log_level'] == 'DEBUG':
+    if configuration['log-level'] == 'DEBUG':
         # Enforce performance profiling in DEBUG mode
         level = 'advanced'
     else:
