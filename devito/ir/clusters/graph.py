@@ -6,7 +6,7 @@ from cached_property import cached_property
 from devito.dimension import Dimension
 from devito.ir.equations import ClusterizedEq
 from devito.symbolics import (as_symbol, retrieve_indexed, retrieve_terminals,
-                              convert_to_SSA, q_indirect, q_timedimension)
+                              makeit_ssa, q_indirect, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten, filter_ordered
 
 __all__ = ['FlowGraph']
@@ -76,7 +76,7 @@ class FlowGraph(OrderedDict):
 
     def __init__(self, exprs, **kwargs):
         # Always convert to SSA
-        exprs = convert_to_SSA(exprs)
+        exprs = makeit_ssa(exprs)
         mapper = OrderedDict([(i.lhs, i) for i in exprs])
         assert len(set(mapper)) == len(exprs), "not SSA Cluster?"
 
