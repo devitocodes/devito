@@ -116,7 +116,7 @@ env_vars_mapper = {
     'DEVITO_AUTOTUNING': 'autotuning',
     'DEVITO_LOGGING': 'log_level',
     'DEVITO_FIRST_TOUCH': 'first-touch',
-    'DEVITO_DEBUG_COMPILER': 'debug_compiler',
+    'DEVITO_DEBUG_COMPILER': 'debug-compiler',
     'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns'
 }
 

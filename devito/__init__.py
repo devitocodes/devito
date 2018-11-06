@@ -64,7 +64,7 @@ def _at_callback(val):  # noqa
 configuration.add('autotuning', 'off', at_accepted, callback=_at_callback)  # noqa
 
 # Should Devito emit the JIT compilation commands?
-configuration.add('debug_compiler', 0, [0, 1], lambda i: bool(i))
+configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i))
 
 # Set the Instruction Set Architecture (ISA)
 ISAs = ['cpp', 'avx', 'avx2', 'avx512']
