@@ -202,7 +202,8 @@ class ClusterizedEq(Eq, IREq, FrozenExpr, Pickable):
         return expr
 
     def func(self, *args, **kwargs):
-        return super(ClusterizedEq, self).func(*args, **self.state)
+        kwargs = {k: kwargs.get(k, v) for k, v in self.state.items()}
+        return super(ClusterizedEq, self).func(*args, **kwargs)
 
     # Pickling support
     _pickle_args = ['lhs', 'rhs']
