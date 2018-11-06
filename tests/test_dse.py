@@ -3,8 +3,8 @@ from sympy import sin  # noqa
 import numpy as np
 import pytest
 from conftest import x, y, z, skipif_backend  # noqa
-from devito import (Eq, Function, TimeFunction, SparseFunction,
-                    Grid, Operator, configuration)  # noqa
+
+from devito import Eq, Constant, Function, TimeFunction, SparseFunction, Grid, Operator, ruido, configuration  # noqa
 from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
@@ -134,6 +134,8 @@ def test_tti_rewrite_aggressive(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
 
+@ruido(profiling='advanced')
+@skipif_backend(['yask', 'ops'])
 @pytest.mark.parametrize('kernel,space_order,expected', [
     ('shifted', 8, 355), ('shifted', 16, 622),
     ('centered', 8, 168), ('centered', 16, 300)

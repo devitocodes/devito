@@ -78,7 +78,7 @@ class Function(function.Function, Signer):
                 # Create a YASK grid; this allocates memory
                 grid = context.make_grid(self)
 
-                # /self._padding/ must be updated as (from the YASK docs):
+                # `self._padding` must be updated as (from the YASK docs):
                 # "The value may be slightly larger [...] due to rounding"
                 padding = []
                 for i in self.dimensions:
@@ -89,6 +89,7 @@ class Function(function.Function, Signer):
                         # time and misc dimensions
                         padding.append((0, 0))
                 self._padding = tuple(padding)
+                del self.shape_allocated  # Invalidate cached_property
 
                 self._data = Data(grid, self.shape_allocated, self.indices, self.dtype)
                 self._data.reset()
