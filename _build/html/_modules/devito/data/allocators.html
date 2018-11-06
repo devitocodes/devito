@@ -1,0 +1,537 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.data.allocators &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.data.allocators</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.data.allocators</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">abc</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
+<span class="kn">import</span> <span class="nn">mmap</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">ctypes</span>
+<span class="kn">from</span> <span class="nn">ctypes.util</span> <span class="k">import</span> <span class="n">find_library</span>
+
+<span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">logger</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">numpy_to_ctypes</span>
+<span class="kn">import</span> <span class="nn">devito</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ALLOC_FLAT&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_NUMA_LOCAL&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_NUMA_ANY&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ALLOC_KNL_MCDRAM&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_KNL_DRAM&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_GUARD&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;default_allocator&#39;</span><span class="p">,</span> <span class="s1">&#39;first_touch&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">MemoryAllocator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Abstract class defining the interface to memory allocators.&quot;&quot;&quot;</span>
+
+    <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span>
+
+    <span class="n">is_Posix</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Numa</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">_attempted_init</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">lib</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">available</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_attempted_init</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="bp">cls</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+            <span class="bp">cls</span><span class="o">.</span><span class="n">_attempted_init</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">lib</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the MemoryAllocator.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            This must be implemented by all subclasses of MemoryAllocator.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span>
+
+    <span class="k">def</span> <span class="nf">alloc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Allocate memory.</span>
+
+<span class="sd">        :param shape: Shape of the array to allocate.</span>
+<span class="sd">        :param dtype: Numpy datatype to allocate.</span>
+
+<span class="sd">        :returns (pointer, free_handle): The first element of the tuple is the reference</span>
+<span class="sd">                                         that can be used to access the data as a ctypes</span>
+<span class="sd">                                         object. The second element is an opaque object</span>
+<span class="sd">                                         that is needed only for the call to free.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">shape</span><span class="p">))</span>
+        <span class="n">ctype</span> <span class="o">=</span> <span class="n">numpy_to_ctypes</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="n">c_pointer</span><span class="p">,</span> <span class="n">memfree_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_alloc_C_libcall</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">ctype</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">c_pointer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Unable to allocate </span><span class="si">%d</span><span class="s2"> elements in memory&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">size</span><span class="p">))</span>
+
+        <span class="n">c_pointer</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">ndpointer</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+                                                                  <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">))</span>
+        <span class="n">pointer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">as_array</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">pointer</span><span class="p">,</span> <span class="n">memfree_args</span><span class="p">)</span>
+
+    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
+    <span class="k">def</span> <span class="nf">_alloc_C_libcall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">ctype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Perform the actual memory allocation by calling a C function.</span>
+<span class="sd">        Should return a 2-tuple (c_pointer, memfree_args), where the free args</span>
+<span class="sd">        are what is handed back to free() later to deallocate.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            This method should be implemented by a subclass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span>
+
+    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
+    <span class="k">def</span> <span class="nf">free</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Free memory previously allocated with ``self.alloc``.</span>
+
+<span class="sd">        Arguments are provided exactly as returned in the second</span>
+<span class="sd">        element of the tuple returned by _alloc_C_libcall</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            This method should be implemented by a subclass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span>
+
+
+<span class="k">class</span> <span class="nc">PosixAllocator</span><span class="p">(</span><span class="n">MemoryAllocator</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Memory allocator based on ``posix`` functions. The allocated memory is</span>
+<span class="sd">    aligned to page boundaries.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Posix</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">find_library</span><span class="p">(</span><span class="s1">&#39;c&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">handle</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">cls</span><span class="o">.</span><span class="n">lib</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">CDLL</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_alloc_C_libcall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">ctype</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">available</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t find `libc`&#39;s `posix_memalign` to &quot;</span>
+                               <span class="s2">&quot;allocate memory&quot;</span><span class="p">)</span>
+        <span class="n">c_bytesize</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_ulong</span><span class="p">(</span><span class="n">size</span> <span class="o">*</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">sizeof</span><span class="p">(</span><span class="n">ctype</span><span class="p">))</span>
+        <span class="n">c_pointer</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">(),</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">)</span>
+        <span class="n">alignment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">getpagesize</span><span class="p">()</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">posix_memalign</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">byref</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">),</span> <span class="n">alignment</span><span class="p">,</span> <span class="n">c_bytesize</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">c_pointer</span><span class="p">,</span> <span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">free</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c_pointer</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">free</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">GuardAllocator</span><span class="p">(</span><span class="n">PosixAllocator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Memory allocator based on ``posix`` functions. The allocated memory is</span>
+<span class="sd">    aligned to page boundaries.  Additionally, it allocates extra memory</span>
+<span class="sd">    before and after the data, and configures it so that an SEGV is thrown</span>
+<span class="sd">    immediately if an out-of-bounds access occurs.</span>
+
+<span class="sd">    Further, the remainder region of the last page (which cannot be</span>
+<span class="sd">    protected), is poisoned with NaNs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">padding_bytes</span><span class="o">=</span><span class="mi">1024</span><span class="o">*</span><span class="mi">1024</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">padding_bytes</span> <span class="o">=</span> <span class="n">padding_bytes</span>
+
+    <span class="k">def</span> <span class="nf">_alloc_C_libcall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">ctype</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">available</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t find `libc`&#39;s `posix_memalign` to &quot;</span>
+                               <span class="s2">&quot;allocate memory&quot;</span><span class="p">)</span>
+
+        <span class="n">pagesize</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">getpagesize</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">padding_bytes</span> <span class="o">%</span> <span class="n">pagesize</span> <span class="o">==</span> <span class="mi">0</span>
+
+        <span class="n">npages_pad</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">padding_bytes</span> <span class="o">//</span> <span class="n">pagesize</span>
+        <span class="n">nbytes_user</span> <span class="o">=</span> <span class="n">size</span> <span class="o">*</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">sizeof</span><span class="p">(</span><span class="n">ctype</span><span class="p">)</span>
+        <span class="n">npages_user</span> <span class="o">=</span> <span class="p">(</span><span class="n">nbytes_user</span> <span class="o">+</span> <span class="n">pagesize</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="n">pagesize</span>
+
+        <span class="n">npages_alloc</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">npages_pad</span> <span class="o">+</span> <span class="n">npages_user</span>
+
+        <span class="n">c_bytesize</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_ulong</span><span class="p">(</span><span class="n">npages_alloc</span> <span class="o">*</span> <span class="n">pagesize</span><span class="p">)</span>
+        <span class="n">c_pointer</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">(),</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">)</span>
+        <span class="n">alignment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">getpagesize</span><span class="p">()</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">posix_memalign</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">byref</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">),</span> <span class="n">alignment</span><span class="p">,</span> <span class="n">c_bytesize</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+        <span class="c1"># generate pointers to the left padding, the user data, and the right pad</span>
+        <span class="n">padleft_pointer</span> <span class="o">=</span> <span class="n">c_pointer</span>
+        <span class="n">c_pointer</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">(</span><span class="n">c_pointer</span><span class="o">.</span><span class="n">value</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">padding_bytes</span><span class="p">)</span>
+        <span class="n">padright_pointer</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">(</span><span class="n">c_pointer</span><span class="o">.</span><span class="n">value</span> <span class="o">+</span> <span class="n">npages_user</span> <span class="o">*</span> <span class="n">pagesize</span><span class="p">)</span>
+
+        <span class="c1"># and set the permissions on the pad memory to 0 (no access)</span>
+        <span class="c1"># if these fail, don&#39;t worry about failing the entire allocation</span>
+        <span class="n">c_padsize</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_ulong</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">padding_bytes</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">mprotect</span><span class="p">(</span><span class="n">padleft_pointer</span><span class="p">,</span> <span class="n">c_padsize</span><span class="p">,</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int</span><span class="p">(</span><span class="mi">0</span><span class="p">)):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;couldn&#39;t protect memory&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">mprotect</span><span class="p">(</span><span class="n">padright_pointer</span><span class="p">,</span> <span class="n">c_padsize</span><span class="p">,</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int</span><span class="p">(</span><span class="mi">0</span><span class="p">)):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;couldn&#39;t protect memory&quot;</span><span class="p">)</span>
+
+        <span class="c1"># if there is a multiple of 4 bytes left, use the code below to poison</span>
+        <span class="c1"># the memory</span>
+        <span class="k">if</span> <span class="n">nbytes_user</span> <span class="o">%</span> <span class="mi">4</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">poison_size</span> <span class="o">=</span> <span class="n">npages_user</span><span class="o">*</span><span class="n">pagesize</span> <span class="o">-</span> <span class="n">nbytes_user</span>
+            <span class="n">intp_type</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">POINTER</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_int</span><span class="p">)</span>
+            <span class="n">poison_ptr</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">(</span><span class="n">c_pointer</span><span class="o">.</span><span class="n">value</span> <span class="o">+</span> <span class="n">nbytes_user</span><span class="p">),</span>
+                                     <span class="n">intp_type</span><span class="p">)</span>
+
+            <span class="c1"># for both float32 and float64, a sequence of -100 int32s represents NaNs,</span>
+            <span class="c1"># at least on little-endian architectures.  It shouldn&#39;t matter what we</span>
+            <span class="c1"># put in there, anyway</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">poison_size</span> <span class="o">//</span> <span class="mi">4</span><span class="p">):</span>
+                <span class="n">poison_ptr</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">100</span>
+
+        <span class="k">return</span> <span class="n">c_pointer</span><span class="p">,</span> <span class="p">(</span><span class="n">padleft_pointer</span><span class="p">,</span> <span class="n">c_bytesize</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">free</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c_pointer</span><span class="p">,</span> <span class="n">total_size</span><span class="p">):</span>
+        <span class="c1"># unprotect it, since free() accesses it, I think...</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">mprotect</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="n">total_size</span><span class="p">,</span>
+                          <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int</span><span class="p">(</span><span class="n">mmap</span><span class="o">.</span><span class="n">PROT_READ</span> <span class="o">|</span> <span class="n">mmap</span><span class="o">.</span><span class="n">PROT_WRITE</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">free</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">NumaAllocator</span><span class="p">(</span><span class="n">MemoryAllocator</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Memory allocator based on ``libnuma`` functions. The allocated memory is</span>
+<span class="sd">    aligned to page boundaries. Through the argument ``node`` it is possible</span>
+<span class="sd">    to specify a NUMA node in which memory allocation should be attempted first</span>
+<span class="sd">    (will fall back to an arbitrary NUMA domain if not enough memory is available)</span>
+
+<span class="sd">    :param node: Either an integer, indicating a specific NUMA node, or the special</span>
+<span class="sd">                 keywords ``&#39;local&#39;`` or ``&#39;any&#39;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Numa</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">find_library</span><span class="p">(</span><span class="s1">&#39;numa&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">handle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">lib</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">CDLL</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lib</span><span class="o">.</span><span class="n">numa_available</span><span class="p">()</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="c1"># We are indeed on a NUMA system</span>
+        <span class="c1"># Allow the kernel to allocate memory on other NUMA nodes when there isn&#39;t</span>
+        <span class="c1"># enough free on the target node</span>
+        <span class="n">lib</span><span class="o">.</span><span class="n">numa_set_bind_policy</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="c1"># Required because numa_alloc* functions return pointers</span>
+        <span class="n">lib</span><span class="o">.</span><span class="n">numa_alloc_onnode</span><span class="o">.</span><span class="n">restype</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span>
+        <span class="n">lib</span><span class="o">.</span><span class="n">numa_alloc_local</span><span class="o">.</span><span class="n">restype</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span>
+        <span class="n">lib</span><span class="o">.</span><span class="n">numa_alloc</span><span class="o">.</span><span class="n">restype</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">lib</span> <span class="o">=</span> <span class="n">lib</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">NumaAllocator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_node</span> <span class="o">=</span> <span class="n">node</span>
+
+    <span class="k">def</span> <span class="nf">_alloc_C_libcall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">ctype</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">available</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t find `libnuma`&#39;s `numa_alloc_*` to &quot;</span>
+                               <span class="s2">&quot;allocate memory&quot;</span><span class="p">)</span>
+        <span class="n">c_bytesize</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_ulong</span><span class="p">(</span><span class="n">size</span> <span class="o">*</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">sizeof</span><span class="p">(</span><span class="n">ctype</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">put_onnode</span><span class="p">:</span>
+            <span class="n">c_pointer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">numa_alloc_onnode</span><span class="p">(</span><span class="n">c_bytesize</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">put_local</span><span class="p">:</span>
+            <span class="n">c_pointer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">numa_alloc_local</span><span class="p">(</span><span class="n">c_bytesize</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">c_pointer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">numa_alloc</span><span class="p">(</span><span class="n">c_bytesize</span><span class="p">)</span>
+
+        <span class="c1"># note!  even though restype was set above, ctypes returns a</span>
+        <span class="c1"># python integer.</span>
+        <span class="c1"># See https://stackoverflow.com/questions/17840144/</span>
+        <span class="k">if</span> <span class="n">c_pointer</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Convert it back to a void * - this is</span>
+            <span class="c1"># _very_ important when later # passing it to numa_free</span>
+            <span class="n">c_pointer</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">c_pointer</span><span class="p">,</span> <span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="n">c_bytesize</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">free</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c_pointer</span><span class="p">,</span> <span class="n">c_bytesize</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">numa_free</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="n">c_bytesize</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">node</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">put_onnode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_node</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">put_local</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node</span> <span class="o">==</span> <span class="s1">&#39;local&#39;</span>
+
+
+<span class="n">ALLOC_GUARD</span> <span class="o">=</span> <span class="n">GuardAllocator</span><span class="p">(</span><span class="mi">1048576</span><span class="p">)</span>
+<span class="n">ALLOC_FLAT</span> <span class="o">=</span> <span class="n">PosixAllocator</span><span class="p">()</span>
+<span class="n">ALLOC_KNL_DRAM</span> <span class="o">=</span> <span class="n">NumaAllocator</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">ALLOC_KNL_MCDRAM</span> <span class="o">=</span> <span class="n">NumaAllocator</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">ALLOC_NUMA_ANY</span> <span class="o">=</span> <span class="n">NumaAllocator</span><span class="p">(</span><span class="s1">&#39;any&#39;</span><span class="p">)</span>
+<span class="n">ALLOC_NUMA_LOCAL</span> <span class="o">=</span> <span class="n">NumaAllocator</span><span class="p">(</span><span class="s1">&#39;local&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="default_allocator"><a class="viewcode-back" href="../../../devito.data.html#devito.data.allocators.default_allocator">[docs]</a><span class="k">def</span> <span class="nf">default_allocator</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a :class:`MemoryAllocator` for the architecture on which the</span>
+<span class="sd">    process is running. Possible allocators are: ::</span>
+
+<span class="sd">        * ALLOC_FLAT: Align memory to page boundaries using the posix function</span>
+<span class="sd">                      ``posix_memalign``</span>
+<span class="sd">        * ALLOC_NUMA_LOCAL: Allocate memory in the &quot;closest&quot; NUMA node. This only</span>
+<span class="sd">                            makes sense on a NUMA architecture. Falls back to</span>
+<span class="sd">                            allocation in an arbitrary NUMA node if there isn&#39;t</span>
+<span class="sd">                            enough space.</span>
+<span class="sd">        * ALLOC_NUMA_ANY: Allocate memory in an arbitrary NUMA node.</span>
+<span class="sd">        * ALLOC_KNL_MCDRAM: On a Knights Landing platform, allocate memory in MCDRAM.</span>
+<span class="sd">                            Falls back to DRAM if there isn&#39;t enough space.</span>
+<span class="sd">        * ALLOC_KNL_DRAM: On a Knights Landing platform, allocate memory in DRAM.</span>
+
+<span class="sd">    The default allocator is chosen based on the following algorithm: ::</span>
+
+<span class="sd">        * If running in DEVELOP mode (env var DEVITO_DEVELOP), return ALLOC_FLAT;</span>
+<span class="sd">        * If ``libnuma`` is not available on the system, return ALLOC_FLAT (though</span>
+<span class="sd">          it typically is available, at least on relatively recent Linux distributions);</span>
+<span class="sd">        * If on a Knights Landing platform (codename ``knl``, see ``print_defaults()``)</span>
+<span class="sd">          return ALLOC_KNL_MCDRAM;</span>
+<span class="sd">        * If on a multi-socket Intel Xeon platform, return ALLOC_NUMA_LOCAL;</span>
+<span class="sd">        * In all other cases, return ALLOC_FLAT.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;develop-mode&#39;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">ALLOC_GUARD</span>
+    <span class="k">elif</span> <span class="n">NumaAllocator</span><span class="o">.</span><span class="n">available</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;knl&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ALLOC_KNL_MCDRAM</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ALLOC_NUMA_LOCAL</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ALLOC_FLAT</span></div>
+
+
+<div class="viewcode-block" id="first_touch"><a class="viewcode-back" href="../../../devito.data.html#devito.data.allocators.first_touch">[docs]</a><span class="k">def</span> <span class="nf">first_touch</span><span class="p">(</span><span class="n">array</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Uses an Operator to initialize the given array in the same pattern that</span>
+<span class="sd">    would later be used to access it.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">devito</span><span class="o">.</span><span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="mf">0.</span><span class="p">))()</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+
+  
+
+  <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

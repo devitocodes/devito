@@ -386,7 +386,11 @@
       <li><a href="devito.dse.html#devito.dse.manipulation.collect_nested">collect_nested() (in module devito.dse.manipulation)</a>
 </li>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.comm">comm (devito.mpi.distributed.Distributor attribute)</a>
+
+      <ul>
+        <li><a href="devito.mpi.html#devito.mpi.distributed.SparseDistributor.comm">(devito.mpi.distributed.SparseDistributor attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.dse.html#devito.dse.manipulation.common_subexprs_elimination">common_subexprs_elimination() (in module devito.dse.manipulation)</a>
 </li>
       <li><a href="devito.dse.html#devito.dse.manipulation.compact_temporaries">compact_temporaries() (in module devito.dse.manipulation)</a>
@@ -417,6 +421,8 @@
         <li><a href="devito.html#devito.function.Constant">(class in devito.function)</a>
 </li>
       </ul></li>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.convert_index">convert_index() (devito.data.decomposition.Decomposition method)</a>
+</li>
       <li><a href="devito.symbolics.html#devito.symbolics.manipulation.convert_to_SSA">convert_to_SSA() (in module devito.symbolics.manipulation)</a>
 </li>
       <li><a href="devito.html#devito.function.SparseFunction.coordinates">coordinates (devito.function.SparseFunction attribute)</a>
@@ -473,9 +479,17 @@
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.basic.Scope.d_output">d_output (devito.ir.support.basic.Scope attribute)</a>
 </li>
+      <li><a href="devito.data.html#devito.data.data.Data">Data (class in devito.data.data)</a>
+</li>
       <li><a href="devito.html#devito.function.Constant.data">data (devito.function.Constant attribute)</a>
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.space.DataSpace">DataSpace (class in devito.ir.support.space)</a>
+</li>
+      <li><a href="devito.mpi.html#devito.mpi.distributed.SparseDistributor.decompose">decompose() (devito.mpi.distributed.SparseDistributor class method)</a>
+</li>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition">Decomposition (class in devito.data.decomposition)</a>
+</li>
+      <li><a href="devito.data.html#devito.data.allocators.default_allocator">default_allocator() (in module devito.data.allocators)</a>
 </li>
       <li><a href="devito.tools.html#devito.tools.visitors.GenericVisitor.default_args">default_args (devito.tools.visitors.GenericVisitor attribute)</a>
 </li>
@@ -667,7 +681,13 @@
 </li>
       <li><a href="devito.core.html#module-devito.core.operator">devito.core.operator (module)</a>
 </li>
-      <li><a href="devito.html#module-devito.data">devito.data (module)</a>
+      <li><a href="devito.data.html#module-devito.data">devito.data (module)</a>
+</li>
+      <li><a href="devito.data.html#module-devito.data.allocators">devito.data.allocators (module)</a>
+</li>
+      <li><a href="devito.data.html#module-devito.data.data">devito.data.data (module)</a>
+</li>
+      <li><a href="devito.data.html#module-devito.data.decomposition">devito.data.decomposition (module)</a>
 </li>
       <li><a href="devito.html#module-devito.dimension">devito.dimension (module)</a>
 </li>
@@ -677,14 +697,14 @@
 </li>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.advanced">devito.dle.backends.advanced (module)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.basic">devito.dle.backends.basic (module)</a>
 </li>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.common">devito.dle.backends.common (module)</a>
 </li>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.parallelizer">devito.dle.backends.parallelizer (module)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.backends.html#module-devito.dle.backends.utils">devito.dle.backends.utils (module)</a>
 </li>
       <li><a href="devito.dle.html#module-devito.dle.blocking_utils">devito.dle.blocking_utils (module)</a>
@@ -809,6 +829,8 @@
 </li>
       <li><a href="devito.tools.html#module-devito.tools.memoization">devito.tools.memoization (module)</a>
 </li>
+      <li><a href="devito.tools.html#module-devito.tools.numpy_helper">devito.tools.numpy_helper (module)</a>
+</li>
       <li><a href="devito.tools.html#module-devito.tools.os_helper">devito.tools.os_helper (module)</a>
 </li>
       <li><a href="devito.tools.html#module-devito.tools.utils">devito.tools.utils (module)</a>
@@ -846,8 +868,6 @@
 </li>
         <li><a href="devito.ir.support.html#devito.ir.support.stencil.Stencil.dimensions">(devito.ir.support.stencil.Stencil attribute)</a>
 </li>
-        <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.dimensions">(devito.mpi.distributed.Distributor attribute)</a>
-</li>
       </ul></li>
       <li><a href="devito.html#devito.dimension.dimensions">dimensions() (in module devito.dimension)</a>
 </li>
@@ -864,6 +884,8 @@
 </li>
       </ul></li>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor">Distributor (class in devito.mpi.distributed)</a>
+</li>
+      <li><a href="devito.mpi.html#devito.mpi.distributed.SparseDistributor.distributor">distributor (devito.mpi.distributed.SparseDistributor attribute)</a>
 </li>
       <li><a href="devito.html#devito.logger.dle">dle() (in module devito.logger)</a>
 </li>
@@ -1073,6 +1095,8 @@
 </li>
       <li><a href="devito.finite_differences.html#devito.finite_differences.finite_difference.first_derivative">first_derivative() (in module devito.finite_differences.finite_difference)</a>
 </li>
+      <li><a href="devito.data.html#devito.data.allocators.first_touch">first_touch() (in module devito.data.allocators)</a>
+</li>
       <li><a href="devito.tools.html#devito.tools.utils.flatten">flatten() (in module devito.tools.utils)</a>
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.space.Interval.flip">flip() (devito.ir.support.space.Interval method)</a>
@@ -1097,10 +1121,10 @@
 </li>
       <li><a href="devito.html#devito.function.TimeFunction.forward">forward (devito.function.TimeFunction attribute)</a>
 </li>
-      <li><a href="devito.ir.support.html#devito.ir.support.space.Forward">Forward (in module devito.ir.support.space)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.ir.support.html#devito.ir.support.space.Forward">Forward (in module devito.ir.support.space)</a>
+</li>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.wavesolver.AcousticWaveSolver.forward">forward() (examples.seismic.acoustic.wavesolver.AcousticWaveSolver method)</a>
 
       <ul>
@@ -1215,17 +1239,13 @@
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.basic.Scope.getwrites">getwrites() (devito.ir.support.basic.Scope method)</a>
 </li>
-      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_numb">glb_numb (devito.mpi.distributed.Distributor attribute)</a>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.glb_max">glb_max (devito.data.decomposition.Decomposition attribute)</a>
 </li>
-      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_pos_map">glb_pos_map (devito.mpi.distributed.Distributor attribute)</a>
-</li>
-      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_ranges">glb_ranges (devito.mpi.distributed.Distributor attribute)</a>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.glb_min">glb_min (devito.data.decomposition.Decomposition attribute)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_shape">glb_shape (devito.mpi.distributed.Distributor attribute)</a>
-</li>
-      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_to_loc">glb_to_loc() (devito.mpi.distributed.Distributor method)</a>
+      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_pos_map">glb_pos_map (devito.mpi.distributed.Distributor attribute)</a>
 </li>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.glb_to_rank">glb_to_rank() (devito.mpi.distributed.Distributor method)</a>
 </li>
@@ -1911,8 +1931,6 @@
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.basic.TimedAccess.lex_le">lex_le() (devito.ir.support.basic.TimedAccess method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.ir.support.html#devito.ir.support.basic.TimedAccess.lex_lt">lex_lt() (devito.ir.support.basic.TimedAccess method)</a>
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.basic.TimedAccess.lex_ne">lex_ne() (devito.ir.support.basic.TimedAccess method)</a>
@@ -1925,14 +1943,32 @@
         <li><a href="devito.ir.support.html#devito.ir.support.space.Interval.limits">(devito.ir.support.space.Interval attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.List">List (class in devito.ir.iet.nodes)</a>
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.ListInitializer">ListInitializer (class in devito.symbolics.extended_sympy)</a>
 </li>
       <li><a href="devito.html#devito.compiler.load">load() (in module devito.compiler)</a>
 </li>
-      <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.MetaCall.local">local (devito.ir.iet.nodes.MetaCall attribute)</a>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.loc_abs_max">loc_abs_max (devito.data.decomposition.Decomposition attribute)</a>
 </li>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.loc_abs_min">loc_abs_min (devito.data.decomposition.Decomposition attribute)</a>
+</li>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.loc_abs_numb">loc_abs_numb (devito.data.decomposition.Decomposition attribute)</a>
+</li>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.loc_empty">loc_empty (devito.data.decomposition.Decomposition attribute)</a>
+</li>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.loc_rel_max">loc_rel_max (devito.data.decomposition.Decomposition attribute)</a>
+</li>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.loc_rel_min">loc_rel_min (devito.data.decomposition.Decomposition attribute)</a>
+</li>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.local">local (devito.data.decomposition.Decomposition attribute)</a>
+
+      <ul>
+        <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.MetaCall.local">(devito.ir.iet.nodes.MetaCall attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.LocalExpression">LocalExpression (class in devito.ir.iet.nodes)</a>
 </li>
       <li><a href="devito.html#devito.logger.log">log() (in module devito.logger)</a>
@@ -2016,9 +2052,17 @@
       <li><a href="devito.symbolics.html#devito.symbolics.extended_sympy.Mul">Mul (class in devito.symbolics.extended_sympy)</a>
 </li>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.mycoords">mycoords (devito.mpi.distributed.Distributor attribute)</a>
+
+      <ul>
+        <li><a href="devito.mpi.html#devito.mpi.distributed.SparseDistributor.mycoords">(devito.mpi.distributed.SparseDistributor attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.myrank">myrank (devito.mpi.distributed.Distributor attribute)</a>
+
+      <ul>
+        <li><a href="devito.mpi.html#devito.mpi.distributed.SparseDistributor.myrank">(devito.mpi.distributed.SparseDistributor attribute)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -2035,8 +2079,6 @@
         <li><a href="devito.html#devito.types.Indexed.name">(devito.types.Indexed attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.ndim">ndim (devito.mpi.distributed.Distributor attribute)</a>
-</li>
       <li><a href="devito.ir.support.html#devito.ir.support.space.Interval.negate">negate() (devito.ir.support.space.Interval method)</a>
 
       <ul>
@@ -2049,10 +2091,10 @@
 </li>
       <li><a href="devito.ir.stree.html#devito.ir.stree.tree.NodeConditional">NodeConditional (class in devito.ir.stree.tree)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.ir.stree.html#devito.ir.stree.tree.NodeExprs">NodeExprs (class in devito.ir.stree.tree)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.ir.stree.html#devito.ir.stree.tree.NodeHalo">NodeHalo (class in devito.ir.stree.tree)</a>
 </li>
       <li><a href="devito.ir.stree.html#devito.ir.stree.tree.NodeIteration">NodeIteration (class in devito.ir.stree.tree)</a>
@@ -2062,14 +2104,20 @@
       <li><a href="devito.ir.support.html#devito.ir.support.space.IterationSpace.nonderived_directions">nonderived_directions (devito.ir.support.space.IterationSpace attribute)</a>
 </li>
       <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.nprocs">nprocs (devito.mpi.distributed.Distributor attribute)</a>
+
+      <ul>
+        <li><a href="devito.mpi.html#devito.mpi.distributed.SparseDistributor.nprocs">(devito.mpi.distributed.SparseDistributor attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.properties.ntags">ntags() (in module devito.ir.iet.properties)</a>
 </li>
       <li><a href="devito.ir.support.html#devito.ir.support.space.NullInterval">NullInterval (class in devito.ir.support.space)</a>
 </li>
-      <li><a href="devito.tools.html#devito.tools.utils.numpy_to_ctypes">numpy_to_ctypes() (in module devito.tools.utils)</a>
+      <li><a href="devito.tools.html#devito.tools.numpy_helper.numpy_to_ctypes">numpy_to_ctypes() (in module devito.tools.numpy_helper)</a>
 </li>
-      <li><a href="devito.tools.html#devito.tools.utils.numpy_to_mpitypes">numpy_to_mpitypes() (in module devito.tools.utils)</a>
+      <li><a href="devito.tools.html#devito.tools.numpy_helper.numpy_to_mpitypes">numpy_to_mpitypes() (in module devito.tools.numpy_helper)</a>
+</li>
+      <li><a href="devito.tools.html#devito.tools.numpy_helper.numpy_view_offsets">numpy_view_offsets() (in module devito.tools.numpy_helper)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -2285,7 +2333,13 @@
       </ul></li>
       <li><a href="examples.seismic.html#examples.seismic.source.PointSource.resample">resample() (examples.seismic.source.PointSource method)</a>
 </li>
-      <li><a href="devito.html#devito.profiling.Timer.reset">reset() (devito.profiling.Timer method)</a>
+      <li><a href="devito.data.html#devito.data.data.Data.reset">reset() (devito.data.data.Data method)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.profiling.Timer.reset">(devito.profiling.Timer method)</a>
+</li>
+      </ul></li>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.reshape">reshape() (devito.data.decomposition.Decomposition method)</a>
 </li>
       <li><a href="devito.ir.iet.html#devito.ir.iet.nodes.Iteration.retag">retag() (devito.ir.iet.nodes.Iteration method)</a>
 </li>
@@ -2297,10 +2351,10 @@
 </li>
       <li><a href="devito.symbolics.html#devito.symbolics.search.retrieve_ops">retrieve_ops() (in module devito.symbolics.search)</a>
 </li>
-      <li><a href="devito.symbolics.html#devito.symbolics.search.retrieve_terminals">retrieve_terminals() (in module devito.symbolics.search)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.symbolics.html#devito.symbolics.search.retrieve_terminals">retrieve_terminals() (in module devito.symbolics.search)</a>
+</li>
       <li><a href="devito.symbolics.html#devito.symbolics.search.retrieve_trigonometry">retrieve_trigonometry() (in module devito.symbolics.search)</a>
 </li>
       <li><a href="devito.dse.html#devito.dse.transformer.rewrite">rewrite() (in module devito.dse.transformer)</a>
@@ -2392,8 +2446,6 @@
       <ul>
         <li><a href="devito.ir.support.html#devito.ir.support.space.IntervalGroup.shape">(devito.ir.support.space.IntervalGroup attribute)</a>
 </li>
-        <li><a href="devito.mpi.html#devito.mpi.distributed.Distributor.shape">(devito.mpi.distributed.Distributor attribute)</a>
-</li>
       </ul></li>
       <li><a href="examples.seismic.html#examples.seismic.source.Shot">Shot (in module examples.seismic.source)</a>
 </li>
@@ -2404,6 +2456,8 @@
       <li><a href="devito.html#devito.logger.silencio">silencio (class in devito.logger)</a>
 </li>
       <li><a href="devito.tools.html#devito.tools.utils.single_or">single_or() (in module devito.tools.utils)</a>
+</li>
+      <li><a href="devito.data.html#devito.data.decomposition.Decomposition.size">size (devito.data.decomposition.Decomposition attribute)</a>
 </li>
       <li><a href="devito.html#devito.dimension.Dimension.size_name">size_name (devito.dimension.Dimension attribute)</a>
 </li>
@@ -2425,6 +2479,8 @@
         <li><a href="devito.html#devito.dimension.Dimension.spacing">(devito.dimension.Dimension attribute)</a>
 </li>
       </ul></li>
+      <li><a href="devito.mpi.html#devito.mpi.distributed.SparseDistributor">SparseDistributor (class in devito.mpi.distributed)</a>
+</li>
       <li><a href="devito.html#devito.base.SparseFunction">SparseFunction (class in devito.base)</a>
 
       <ul>

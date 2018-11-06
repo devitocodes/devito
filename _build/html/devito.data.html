@@ -1,0 +1,579 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.data package &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="devito.dle package" href="devito.dle.html" />
+    <link rel="prev" title="devito.core package" href="devito.core.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Example Documentation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="devito.html">API Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="devito.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="devito.core.html">devito.core package</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">devito.data package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.data.allocators">devito.data.allocators module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.data.data">devito.data.data module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.data.decomposition">devito.data.decomposition module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.data">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.finite_differences.html">devito.finite_differences package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.mpi.html">devito.mpi package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.tools.html">devito.tools package</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.equation">devito.equation module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.function">devito.function module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.grid">devito.grid module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.logger">devito.logger module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.operator">devito.operator module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.parameters">devito.parameters module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.profiling">devito.profiling module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.types">devito.types module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="devito.html">devito package</a> &raquo;</li>
+        
+      <li>devito.data package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/devito.data.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="devito-data-package">
+<h1>devito.data package<a class="headerlink" href="#devito-data-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-devito.data.allocators">
+<span id="devito-data-allocators-module"></span><h2>devito.data.allocators module<a class="headerlink" href="#module-devito.data.allocators" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.data.allocators.default_allocator">
+<code class="descclassname">devito.data.allocators.</code><code class="descname">default_allocator</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data/allocators.html#default_allocator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.allocators.default_allocator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> for the architecture on which the
+process is running. Possible allocators are:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* ALLOC_FLAT: Align memory to page boundaries using the posix function
+              ``posix_memalign``
+* ALLOC_NUMA_LOCAL: Allocate memory in the &quot;closest&quot; NUMA node. This only
+                    makes sense on a NUMA architecture. Falls back to
+                    allocation in an arbitrary NUMA node if there isn&#39;t
+                    enough space.
+* ALLOC_NUMA_ANY: Allocate memory in an arbitrary NUMA node.
+* ALLOC_KNL_MCDRAM: On a Knights Landing platform, allocate memory in MCDRAM.
+                    Falls back to DRAM if there isn&#39;t enough space.
+* ALLOC_KNL_DRAM: On a Knights Landing platform, allocate memory in DRAM.
+</pre></div>
+</div>
+<p>The default allocator is chosen based on the following algorithm:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* If running in DEVELOP mode (env var DEVITO_DEVELOP), return ALLOC_FLAT;
+* If ``libnuma`` is not available on the system, return ALLOC_FLAT (though
+  it typically is available, at least on relatively recent Linux distributions);
+* If on a Knights Landing platform (codename ``knl``, see ``print_defaults()``)
+  return ALLOC_KNL_MCDRAM;
+* If on a multi-socket Intel Xeon platform, return ALLOC_NUMA_LOCAL;
+* In all other cases, return ALLOC_FLAT.
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.data.allocators.first_touch">
+<code class="descclassname">devito.data.allocators.</code><code class="descname">first_touch</code><span class="sig-paren">(</span><em>array</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data/allocators.html#first_touch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.allocators.first_touch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Uses an Operator to initialize the given array in the same pattern that
+would later be used to access it.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.data.data">
+<span id="devito-data-data-module"></span><h2>devito.data.data module<a class="headerlink" href="#module-devito.data.data" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.data.data.Data">
+<em class="property">class </em><code class="descclassname">devito.data.data.</code><code class="descname">Data</code><a class="reference internal" href="_modules/devito/data/data.html#Data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.data.Data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code></p>
+<p>A special <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> allowing logical indexing.</p>
+<p>The type <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> is subclassed as indicated at:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">docs</span><span class="o">.</span><span class="n">scipy</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">doc</span><span class="o">/</span><span class="n">numpy</span><span class="o">-</span><span class="mf">1.13</span><span class="o">.</span><span class="mi">0</span><span class="o">/</span><span class="n">user</span><span class="o">/</span><span class="n">basics</span><span class="o">.</span><span class="n">subclassing</span><span class="o">.</span><span class="n">html</span>
+</pre></div>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>shape</strong> – Shape of the array in grid points.</li>
+<li><strong>dimensions</strong> – The array :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Dimension`s.</li>
+<li><strong>dtype</strong> – A <code class="docutils literal notranslate"><span class="pre">numpy.dtype</span></code> for the raw data.</li>
+<li><strong>decomposition</strong> – (Optional) a mapper from <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span> <span class="pre">in</span>
+<span class="pre">``dimensions`</span></code> to :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Decomposition`s, which
+describe how the Data is distributed over a set
+of processes. The Decompositions will be used to
+translate global array indices into local indices.
+The local indices are relative to the calling process.
+This is only relevant in the case of distributed
+memory execution (via MPI).</li>
+<li><strong>allocator</strong> – (Optional) a <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to specialize memory
+allocation. Defaults to <code class="docutils literal notranslate"><span class="pre">ALLOC_FLAT</span></code>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This type supports logical indexing over modulo buffered dimensions.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Any view or copy <code class="docutils literal notranslate"><span class="pre">A</span></code> created starting from <code class="docutils literal notranslate"><span class="pre">self</span></code>, for instance via
+a slice operation or a universal function (“ufunc” in NumPy jargon), will
+still be of type <a class="reference internal" href="#devito.data.data.Data" title="devito.data.data.Data"><code class="xref py py-class docutils literal notranslate"><span class="pre">Data</span></code></a>. However, if <code class="docutils literal notranslate"><span class="pre">A</span></code>’s rank is different than
+<code class="docutils literal notranslate"><span class="pre">self</span></code>’s rank, namely if <code class="docutils literal notranslate"><span class="pre">A.ndim</span> <span class="pre">!=</span> <span class="pre">self.ndim</span></code>, then the capability of
+performing logical indexing is lost.</p>
+</div>
+<dl class="method">
+<dt id="devito.data.data.Data.reset">
+<code class="descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data/data.html#Data.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.data.Data.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set all Data entries to 0.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.data.decomposition">
+<span id="devito-data-decomposition-module"></span><h2>devito.data.decomposition module<a class="headerlink" href="#module-devito.data.decomposition" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.data.decomposition.Decomposition">
+<em class="property">class </em><code class="descclassname">devito.data.decomposition.</code><code class="descname">Decomposition</code><a class="reference internal" href="_modules/devito/data/decomposition.html#Decomposition"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.decomposition.Decomposition" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
+<p>A decomposition of a discrete “global” domain into multiple, non-overlapping
+“local” subdomains.</p>
+<dl class="docutils">
+<dt>items <span class="classifier-delimiter">:</span> <span class="classifier">iterable of int iterables</span></dt>
+<dd>The domain decomposition.</dd>
+<dt>local <span class="classifier-delimiter">:</span> <span class="classifier">int</span></dt>
+<dd>The local (“owned”) subdomain (0 &lt;= local &lt; len(items)).</dd>
+</dl>
+<p>For indices, we adopt the following name conventions:</p>
+<blockquote>
+<div><ul class="simple">
+<li>global/glb. Refers to the global domain.</li>
+<li>local/loc. Refers to the local subdomain.</li>
+</ul>
+</div></blockquote>
+<p>Further, a local index can be</p>
+<blockquote>
+<div><ul class="simple">
+<li>absolute/abs. Use the global domain numbering.</li>
+<li>relative/rel. Use the local domain numbering.</li>
+</ul>
+</div></blockquote>
+<p>In the following example, the domain consists of 8 indices, split over three
+subdomains. The instantiator owns the subdomain [3, 4].</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">Decomposition</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">]],</span> <span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span>
+<span class="go">Decomposition([0 1 2], &lt;&lt;[3 4]&gt;&gt;, [5 6 7])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">loc_abs_min</span>
+<span class="go">3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">loc_abs_max</span>
+<span class="go">4</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">loc_rel_min</span>
+<span class="go">0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">loc_rel_max</span>
+<span class="go">1</span>
+</pre></div>
+</div>
+<dl class="method">
+<dt id="devito.data.decomposition.Decomposition.convert_index">
+<code class="descname">convert_index</code><span class="sig-paren">(</span><em>*args</em>, <em>rel=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data/decomposition.html#Decomposition.convert_index"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.decomposition.Decomposition.convert_index" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert a global index into a relative (default) or absolute local index.</p>
+<dl class="docutils">
+<dt><a href="#id5"><span class="problematic" id="id6">*</span></a>args</dt>
+<dd><p class="first">There are three possible cases:
+* int. Given <code class="docutils literal notranslate"><span class="pre">I</span></code>, a global index, return the corresponding</p>
+<blockquote>
+<div>relative local index if <code class="docutils literal notranslate"><span class="pre">I</span></code> belongs to the local subdomain,
+None otherwise.</div></blockquote>
+<ul class="last simple">
+<li>int, DataSide. Given <code class="docutils literal notranslate"><span class="pre">O</span></code> and <code class="docutils literal notranslate"><span class="pre">S</span></code>, respectively a global
+offset and a side, return the relative local offset. This
+can be 0 if the local subdomain doesn’t intersect with the
+region defined by the given global offset.</li>
+<li>(int, int).  Given global <code class="docutils literal notranslate"><span class="pre">(min,</span> <span class="pre">max)</span></code>, return <code class="docutils literal notranslate"><span class="pre">(min',</span> <span class="pre">max')</span></code>
+representing the corresponding relative local min/max. If the
+input doesn’t intersect with the local subdomain, then <code class="docutils literal notranslate"><span class="pre">min'</span></code>
+and <code class="docutils literal notranslate"><span class="pre">max'</span></code> are two unspecified ints such that <code class="docutils literal notranslate"><span class="pre">max'=min'-n</span></code>,
+with <code class="docutils literal notranslate"><span class="pre">n</span> <span class="pre">&gt;</span> <span class="pre">1</span></code>.</li>
+<li>slice(a, b). Like above, with <code class="docutils literal notranslate"><span class="pre">min=a</span></code> and <code class="docutils literal notranslate"><span class="pre">max=b-1</span></code>.
+Return <code class="docutils literal notranslate"><span class="pre">slice(min',</span> <span class="pre">max'+1)</span></code>.</li>
+</ul>
+</dd>
+<dt>rel <span class="classifier-delimiter">:</span> <span class="classifier">bool, optional</span></dt>
+<dd>If False, convert into an absolute, instead of a relative, local index.</dd>
+</dl>
+<dl class="docutils">
+<dt>TypeError</dt>
+<dd>If the input doesn’t adhere to any of the supported format.</dd>
+</dl>
+<p>In the following example, the domain consists of 12 indices, split over
+four subdomains [0, 3]. We pick 2 as local subdomain.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">Decomposition</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">],</span> <span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">]],</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span>
+<span class="go">Decomposition([0 1 2], [3 4], &lt;&lt;[5 6 7]&gt;&gt;, [ 8 9 10 11])</span>
+</pre></div>
+</div>
+<p>A global index as single argument:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+<span class="go">0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>
+<span class="go">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>
+<span class="go">2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+<span class="go">None</span>
+</pre></div>
+</div>
+<p>Retrieve relative local min/man given global min/max</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">((</span><span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">))</span>
+<span class="go">(0, 2)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">((</span><span class="mi">5</span><span class="p">,</span> <span class="mi">9</span><span class="p">))</span>
+<span class="go">(0, 2)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<span class="go">(-1, -3)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="go">(0, 1)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">((</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+<span class="go">(0, 2)</span>
+</pre></div>
+</div>
+<p>Retrieve absolute local min/max given global min/max</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">((</span><span class="mi">5</span><span class="p">,</span> <span class="mi">9</span><span class="p">),</span> <span class="n">rel</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="go">(5, 9)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">convert_index</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">rel</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="go">(5, 6)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.decomposition.Decomposition.glb_max">
+<code class="descname">glb_max</code><a class="headerlink" href="#devito.data.decomposition.Decomposition.glb_max" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.decomposition.Decomposition.glb_min">
+<code class="descname">glb_min</code><a class="headerlink" href="#devito.data.decomposition.Decomposition.glb_min" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.decomposition.Decomposition.loc_abs_max">
+<code class="descname">loc_abs_max</code><a class="headerlink" href="#devito.data.decomposition.Decomposition.loc_abs_max" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.decomposition.Decomposition.loc_abs_min">
+<code class="descname">loc_abs_min</code><a class="headerlink" href="#devito.data.decomposition.Decomposition.loc_abs_min" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.decomposition.Decomposition.loc_abs_numb">
+<code class="descname">loc_abs_numb</code><a class="headerlink" href="#devito.data.decomposition.Decomposition.loc_abs_numb" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.decomposition.Decomposition.loc_empty">
+<code class="descname">loc_empty</code><a class="headerlink" href="#devito.data.decomposition.Decomposition.loc_empty" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.decomposition.Decomposition.loc_rel_max">
+<code class="descname">loc_rel_max</code><a class="headerlink" href="#devito.data.decomposition.Decomposition.loc_rel_max" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.decomposition.Decomposition.loc_rel_min">
+<code class="descname">loc_rel_min</code><a class="headerlink" href="#devito.data.decomposition.Decomposition.loc_rel_min" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.decomposition.Decomposition.local">
+<code class="descname">local</code><a class="headerlink" href="#devito.data.decomposition.Decomposition.local" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.data.decomposition.Decomposition.reshape">
+<code class="descname">reshape</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data/decomposition.html#Decomposition.reshape"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.decomposition.Decomposition.reshape" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a new <a class="reference internal" href="#devito.data.decomposition.Decomposition" title="devito.data.decomposition.Decomposition"><code class="xref py py-class docutils literal notranslate"><span class="pre">Decomposition</span></code></a> with extended or reduced boundary
+subdomains. This causes a new index enumeration.</p>
+<dl class="docutils">
+<dt><a href="#id7"><span class="problematic" id="id8">*</span></a>args</dt>
+<dd><p class="first">There are three possible cases:
+* int, int. The two integers represent the number of points to remove</p>
+<blockquote>
+<div>(negative value) or add (positive value) on the left and right sides,
+respectively.</div></blockquote>
+<ul class="last simple">
+<li>slice(a, b). The number of points to remove/add on the left and
+right sides is given by <code class="docutils literal notranslate"><span class="pre">self.glb_min</span> <span class="pre">-</span> <span class="pre">a</span></code> and <code class="docutils literal notranslate"><span class="pre">self.glb_max</span> <span class="pre">-</span> <span class="pre">b</span></code>,
+respectively.</li>
+<li>array_like. Explicitly states what indices in <code class="docutils literal notranslate"><span class="pre">self</span></code> should be
+retained.</li>
+</ul>
+</dd>
+</dl>
+<dl class="docutils">
+<dt>TypeError</dt>
+<dd>If the input doesn’t adhere to any of the supported format.</dd>
+</dl>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">Decomposition</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">],</span> <span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">]],</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span>
+<span class="go">Decomposition([0 1 2], [3 4], &lt;&lt;[5 6 7]&gt;&gt;, [ 8 9 10 11])</span>
+</pre></div>
+</div>
+<p>Providing explicit values</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="go">Decomposition([0 1 2 3], [4 5], &lt;&lt;[6 7 8]&gt;&gt;, [ 9 10 11 12 13])</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="go">Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [ 6  7  8  9 10 11])</span>
+</pre></div>
+</div>
+<p>Providing a slice</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">9</span><span class="p">))</span>
+<span class="go">Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [6])</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">))</span>
+<span class="go">Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [6 7])</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="mi">4</span><span class="p">))</span>
+<span class="go">Decomposition([0 1 2], [3], &lt;&lt;[]&gt;&gt;, [])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.data.decomposition.Decomposition.size">
+<code class="descname">size</code><a class="headerlink" href="#devito.data.decomposition.Decomposition.size" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.data">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.data" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="devito.dle.html" class="btn btn-neutral float-right" title="devito.dle package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="devito.core.html" class="btn btn-neutral" title="devito.core package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+
+  
+
+  <script type="text/javascript" src="_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

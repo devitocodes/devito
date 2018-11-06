@@ -90,6 +90,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">API Documentation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#subpackages">Subpackages</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="devito.core.html">devito.core package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.data.html">devito.data package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.finite_differences.html">devito.finite_differences package</a></li>
@@ -104,7 +105,6 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.base">devito.base module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.cgen_utils">devito.cgen_utils module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.compiler">devito.compiler module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.dimension">devito.dimension module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.exceptions">devito.exceptions module</a></li>
@@ -193,6 +193,14 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.core.html#module-devito.core.autotuning">devito.core.autotuning module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.core.html#module-devito.core.operator">devito.core.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.core.html#module-devito.core">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="devito.data.html">devito.data package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="devito.data.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.data.html#module-devito.data.allocators">devito.data.allocators module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.data.html#module-devito.data.data">devito.data.data module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.data.html#module-devito.data.decomposition">devito.data.decomposition module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.data.html#module-devito.data">Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="devito.dle.html">devito.dle package</a><ul>
@@ -316,6 +324,7 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.algorithms">devito.tools.algorithms module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.data_structures">devito.tools.data_structures module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.memoization">devito.tools.memoization module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.numpy_helper">devito.tools.numpy_helper module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.os_helper">devito.tools.os_helper module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.utils">devito.tools.utils module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.tools.html#module-devito.tools.validators">devito.tools.validators module</a></li>
@@ -1171,6 +1180,22 @@ __doc__ for more information about possible allocators.</li>
 SymPy uses <cite>*args</cite> to (re-)create the dimension arguments of the
 symbolic function.</p>
 </div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>About SparseFunction and MPI. There is a clear difference between:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* Where the sparse points *physically* live, i.e., on which MPI rank. This
+  depends on the user code, particularly on how the data is set up.
+* and which MPI rank *logically* owns a given sparse point. The logical
+  ownership depends on where the sparse point is located within `self.grid`.
+</pre></div>
+</div>
+<p class="last">Right before running an Operator (i.e., upon a call to <cite>op.apply()</cite>), a
+SparseFunction <cite>scatter`s its physically owned sparse points so that each
+MPI rank gets temporary access to all of its logically owned sparse points.
+A `gather</cite> operation, executed before returning control to user-land,
+updates the physically owned sparse points in <cite>self.data</cite> by collecting
+the values computed during <cite>op.apply()</cite> from different MPI ranks.</p>
+</div>
 <dl class="attribute">
 <dt id="devito.base.SparseFunction.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.base.SparseFunction.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -1528,9 +1553,6 @@ multiple processing trying to compile the same object.</p>
 
 </dd></dl>
 
-</div>
-<div class="section" id="module-devito.data">
-<span id="devito-data-module"></span><h2>devito.data module<a class="headerlink" href="#module-devito.data" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="module-devito.dimension">
 <span id="devito-dimension-module"></span><h2>devito.dimension module<a class="headerlink" href="#module-devito.dimension" title="Permalink to this headline">¶</a></h2>
@@ -2494,6 +2516,22 @@ __doc__ for more information about possible allocators.</li>
 SymPy uses <cite>*args</cite> to (re-)create the dimension arguments of the
 symbolic function.</p>
 </div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>About SparseFunction and MPI. There is a clear difference between:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* Where the sparse points *physically* live, i.e., on which MPI rank. This
+  depends on the user code, particularly on how the data is set up.
+* and which MPI rank *logically* owns a given sparse point. The logical
+  ownership depends on where the sparse point is located within `self.grid`.
+</pre></div>
+</div>
+<p class="last">Right before running an Operator (i.e., upon a call to <cite>op.apply()</cite>), a
+SparseFunction <cite>scatter`s its physically owned sparse points so that each
+MPI rank gets temporary access to all of its logically owned sparse points.
+A `gather</cite> operation, executed before returning control to user-land,
+updates the physically owned sparse points in <cite>self.data</cite> by collecting
+the values computed during <cite>op.apply()</cite> from different MPI ranks.</p>
+</div>
 <dl class="attribute">
 <dt id="devito.function.SparseFunction.coordinates">
 <code class="descname">coordinates</code><a class="headerlink" href="#devito.function.SparseFunction.coordinates" title="Permalink to this definition">¶</a></dt>
@@ -2513,6 +2551,11 @@ symbolic function.</p>
 <dt id="devito.function.SparseFunction.gridpoints">
 <code class="descname">gridpoints</code><a class="headerlink" href="#devito.function.SparseFunction.gridpoints" title="Permalink to this definition">¶</a></dt>
 <dd><p>The <em>reference</em> grid point corresponding to each sparse point.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">When using MPI, this property refers to the <em>physically</em> owned
+sparse points.</p>
+</div>
 </dd></dl>
 
 <dl class="method">
@@ -2732,6 +2775,11 @@ symbolic function.</p>
 <dt id="devito.function.PrecomputedSparseFunction.gridpoints">
 <code class="descname">gridpoints</code><a class="headerlink" href="#devito.function.PrecomputedSparseFunction.gridpoints" title="Permalink to this definition">¶</a></dt>
 <dd><p>The <em>reference</em> grid point corresponding to each sparse point.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">When using MPI, this property refers to the <em>physically</em> owned
+sparse points.</p>
+</div>
 </dd></dl>
 
 <dl class="method">

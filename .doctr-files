@@ -1,6 +1,7 @@
 ./Makefile
 ./_build/doctrees/developer.doctree
 ./_build/doctrees/devito.core.doctree
+./_build/doctrees/devito.data.doctree
 ./_build/doctrees/devito.dle.backends.doctree
 ./_build/doctrees/devito.dle.doctree
 ./_build/doctrees/devito.doctree
@@ -38,6 +39,9 @@
 ./_build/html/_modules/devito/compiler.html
 ./_build/html/_modules/devito/core/autotuning.html
 ./_build/html/_modules/devito/core/operator.html
+./_build/html/_modules/devito/data/allocators.html
+./_build/html/_modules/devito/data/data.html
+./_build/html/_modules/devito/data/decomposition.html
 ./_build/html/_modules/devito/dimension.html
 ./_build/html/_modules/devito/dle/backends/advanced.html
 ./_build/html/_modules/devito/dle/backends/basic.html
@@ -93,6 +97,7 @@
 ./_build/html/_modules/devito/tools/algorithms.html
 ./_build/html/_modules/devito/tools/data_structures.html
 ./_build/html/_modules/devito/tools/memoization.html
+./_build/html/_modules/devito/tools/numpy_helper.html
 ./_build/html/_modules/devito/tools/os_helper.html
 ./_build/html/_modules/devito/tools/utils.html
 ./_build/html/_modules/devito/tools/validators.html
@@ -119,6 +124,7 @@
 ./_build/html/_modules/sympy/core/assumptions.html
 ./_build/html/_sources/developer.rst.txt
 ./_build/html/_sources/devito.core.rst.txt
+./_build/html/_sources/devito.data.rst.txt
 ./_build/html/_sources/devito.dle.backends.rst.txt
 ./_build/html/_sources/devito.dle.rst.txt
 ./_build/html/_sources/devito.dse.backends.rst.txt
@@ -201,6 +207,7 @@
 ./_build/html/_static/websupport.js
 ./_build/html/developer.html
 ./_build/html/devito.core.html
+./_build/html/devito.data.html
 ./_build/html/devito.dle.backends.html
 ./_build/html/devito.dle.html
 ./_build/html/devito.dse.backends.html
@@ -235,6 +242,7 @@
 ./conf.py
 ./developer.rst
 ./devito.core.rst
+./devito.data.rst
 ./devito.dle.backends.rst
 ./devito.dle.rst
 ./devito.dse.backends.rst

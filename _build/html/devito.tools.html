@@ -89,6 +89,7 @@
 <li class="toctree-l1 current"><a class="reference internal" href="devito.html">API Documentation</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="devito.html#subpackages">Subpackages</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="devito.core.html">devito.core package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="devito.data.html">devito.data package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.finite_differences.html">devito.finite_differences package</a></li>
@@ -101,6 +102,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.algorithms">devito.tools.algorithms module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.data_structures">devito.tools.data_structures module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.memoization">devito.tools.memoization module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.numpy_helper">devito.tools.numpy_helper module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.os_helper">devito.tools.os_helper module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.utils">devito.tools.utils module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.validators">devito.tools.validators module</a></li>
@@ -115,7 +117,6 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.data">devito.data module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.equation">devito.equation module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.exceptions">devito.exceptions module</a></li>
@@ -456,6 +457,42 @@ be cached. Instead the method will be invoked like a static method:</p>
 </dd></dl>
 
 </div>
+<div class="section" id="module-devito.tools.numpy_helper">
+<span id="devito-tools-numpy-helper-module"></span><h2>devito.tools.numpy_helper module<a class="headerlink" href="#module-devito.tools.numpy_helper" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="devito.tools.numpy_helper.numpy_to_ctypes">
+<code class="descclassname">devito.tools.numpy_helper.</code><code class="descname">numpy_to_ctypes</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/numpy_helper.html#numpy_to_ctypes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.numpy_helper.numpy_to_ctypes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map numpy types to ctypes types.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.numpy_helper.numpy_to_mpitypes">
+<code class="descclassname">devito.tools.numpy_helper.</code><code class="descname">numpy_to_mpitypes</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/numpy_helper.html#numpy_to_mpitypes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.numpy_helper.numpy_to_mpitypes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map numpy types to MPI datatypes.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.numpy_helper.numpy_view_offsets">
+<code class="descclassname">devito.tools.numpy_helper.</code><code class="descname">numpy_view_offsets</code><span class="sig-paren">(</span><em>array</em>, <em>base=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/numpy_helper.html#numpy_view_offsets"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.numpy_helper.numpy_view_offsets" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve the offset of a view from its base array along each dimension and side.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>array</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code>.</li>
+<li><strong>base</strong> – The base of <code class="docutils literal notranslate"><span class="pre">array</span></code>. Most of the times the <code class="docutils literal notranslate"><span class="pre">base</span></code> is available
+through <code class="docutils literal notranslate"><span class="pre">array.base</span></code>. However, if this function is to be called
+within <code class="docutils literal notranslate"><span class="pre">__array_finalize__</span></code>, where <code class="docutils literal notranslate"><span class="pre">base</span></code> hasn’t been set yet,
+the <code class="docutils literal notranslate"><span class="pre">base</span></code> has to be provided explicitly</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
 <div class="section" id="module-devito.tools.os_helper">
 <span id="devito-tools-os-helper-module"></span><h2>devito.tools.os_helper module<a class="headerlink" href="#module-devito.tools.os_helper" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
@@ -564,22 +601,17 @@ boolean function with n &gt; 2 inputs. Hence the name <code class="docutils lite
 </dd></dl>
 
 <dl class="function">
+<dt id="devito.tools.utils.as_mapper">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">as_mapper</code><span class="sig-paren">(</span><em>iterable</em>, <em>key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#as_mapper"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.as_mapper" title="Permalink to this definition">¶</a></dt>
+<dd><p>Rearrange an iterable into a dictionary of lists in which keys are
+produced by the function <code class="docutils literal notranslate"><span class="pre">key</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
 <dt id="devito.tools.utils.filter_sorted">
 <code class="descclassname">devito.tools.utils.</code><code class="descname">filter_sorted</code><span class="sig-paren">(</span><em>elements</em>, <em>key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#filter_sorted"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.filter_sorted" title="Permalink to this definition">¶</a></dt>
 <dd><p>Filter elements in a list and sort them by key. The default key is
 <code class="docutils literal notranslate"><span class="pre">operator.attrgetter('name')</span></code>.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.utils.numpy_to_ctypes">
-<code class="descclassname">devito.tools.utils.</code><code class="descname">numpy_to_ctypes</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#numpy_to_ctypes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.numpy_to_ctypes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map numpy types to ctypes types.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.utils.numpy_to_mpitypes">
-<code class="descclassname">devito.tools.utils.</code><code class="descname">numpy_to_mpitypes</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#numpy_to_mpitypes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.numpy_to_mpitypes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map numpy types to MPI datatypes.</p>
 </dd></dl>
 
 <dl class="function">
@@ -605,13 +637,6 @@ boolean function with n &gt; 2 inputs. Hence the name <code class="docutils lite
 <code class="descclassname">devito.tools.utils.</code><code class="descname">sweep</code><span class="sig-paren">(</span><em>parameters</em>, <em>keys=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#sweep"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.sweep" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generator to create a parameter sweep from a dictionary of values
 or value lists.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.utils.as_mapper">
-<code class="descclassname">devito.tools.utils.</code><code class="descname">as_mapper</code><span class="sig-paren">(</span><em>iterable</em>, <em>key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#as_mapper"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.as_mapper" title="Permalink to this definition">¶</a></dt>
-<dd><p>Rearrange an iterable into a dictionary of lists in which keys are
-produced by the function <code class="docutils literal notranslate"><span class="pre">key</span></code>.</p>
 </dd></dl>
 
 </div>

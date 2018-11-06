@@ -1,0 +1,576 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.data.decomposition &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.data.decomposition</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.data.decomposition</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">is_integer</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">LEFT</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Decomposition&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Decomposition"><a class="viewcode-back" href="../../../devito.data.html#devito.data.decomposition.Decomposition">[docs]</a><span class="k">class</span> <span class="nc">Decomposition</span><span class="p">(</span><span class="nb">tuple</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A decomposition of a discrete &quot;global&quot; domain into multiple, non-overlapping</span>
+<span class="sd">    &quot;local&quot; subdomains.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    items : iterable of int iterables</span>
+<span class="sd">        The domain decomposition.</span>
+<span class="sd">    local : int</span>
+<span class="sd">        The local (&quot;owned&quot;) subdomain (0 &lt;= local &lt; len(items)).</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    For indices, we adopt the following name conventions:</span>
+
+<span class="sd">        * global/glb. Refers to the global domain.</span>
+<span class="sd">        * local/loc. Refers to the local subdomain.</span>
+
+<span class="sd">    Further, a local index can be</span>
+
+<span class="sd">        * absolute/abs. Use the global domain numbering.</span>
+<span class="sd">        * relative/rel. Use the local domain numbering.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    In the following example, the domain consists of 8 indices, split over three</span>
+<span class="sd">    subdomains. The instantiator owns the subdomain [3, 4].</span>
+
+<span class="sd">    &gt;&gt;&gt; d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7]], 1)</span>
+<span class="sd">    &gt;&gt;&gt; d</span>
+<span class="sd">    Decomposition([0 1 2], &lt;&lt;[3 4]&gt;&gt;, [5 6 7])</span>
+<span class="sd">    &gt;&gt;&gt; d.loc_abs_min</span>
+<span class="sd">    3</span>
+<span class="sd">    &gt;&gt;&gt; d.loc_abs_max</span>
+<span class="sd">    4</span>
+<span class="sd">    &gt;&gt;&gt; d.loc_rel_min</span>
+<span class="sd">    0</span>
+<span class="sd">    &gt;&gt;&gt; d.loc_rel_max</span>
+<span class="sd">    1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">local</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The decomposition must contain at least one subdomain&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">items</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Illegal Decomposition element type&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">local</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">local</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`local` must be an index in ``items``.&quot;</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Decomposition</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">items</span><span class="p">])</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_local</span> <span class="o">=</span> <span class="n">local</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">local</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">glb_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">ret</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span> <span class="k">else</span> <span class="n">ret</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">glb_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">default</span><span class="o">=-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">ret</span> <span class="o">==</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span> <span class="k">else</span> <span class="n">ret</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">loc_abs_numb</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">local</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">loc_empty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_numb</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">loc_abs_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_numb</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">loc_abs_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_numb</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">loc_rel_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">0</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">loc_rel_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_min</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">size</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">Decomposition</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span> <span class="o">==</span> <span class="n">o</span><span class="o">.</span><span class="n">local</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">o</span><span class="p">)</span> <span class="ow">and</span>\
+            <span class="nb">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;&lt;&lt;</span><span class="si">%s</span><span class="s1">&gt;&gt;&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span> <span class="o">==</span> <span class="n">i</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                          <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+        <span class="k">return</span> <span class="s2">&quot;Decomposition(</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="n">items</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">rel</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Alias for ``self.convert_index``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_index</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">rel</span><span class="o">=</span><span class="n">rel</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Decomposition.convert_index"><a class="viewcode-back" href="../../../devito.data.html#devito.data.decomposition.Decomposition.convert_index">[docs]</a>    <span class="k">def</span> <span class="nf">convert_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">rel</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convert a global index into a relative (default) or absolute local index.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        *args</span>
+<span class="sd">            There are three possible cases:</span>
+<span class="sd">            * int. Given ``I``, a global index, return the corresponding</span>
+<span class="sd">              relative local index if ``I`` belongs to the local subdomain,</span>
+<span class="sd">              None otherwise.</span>
+<span class="sd">            * int, DataSide. Given ``O`` and ``S``, respectively a global</span>
+<span class="sd">              offset and a side, return the relative local offset. This</span>
+<span class="sd">              can be 0 if the local subdomain doesn&#39;t intersect with the</span>
+<span class="sd">              region defined by the given global offset.</span>
+<span class="sd">            * (int, int).  Given global ``(min, max)``, return ``(min&#39;, max&#39;)``</span>
+<span class="sd">              representing the corresponding relative local min/max. If the</span>
+<span class="sd">              input doesn&#39;t intersect with the local subdomain, then ``min&#39;``</span>
+<span class="sd">              and ``max&#39;`` are two unspecified ints such that ``max&#39;=min&#39;-n``,</span>
+<span class="sd">              with ``n &gt; 1``.</span>
+<span class="sd">            * slice(a, b). Like above, with ``min=a`` and ``max=b-1``.</span>
+<span class="sd">              Return ``slice(min&#39;, max&#39;+1)``.</span>
+<span class="sd">        rel : bool, optional</span>
+<span class="sd">            If False, convert into an absolute, instead of a relative, local index.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TypeError</span>
+<span class="sd">            If the input doesn&#39;t adhere to any of the supported format.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        In the following example, the domain consists of 12 indices, split over</span>
+<span class="sd">        four subdomains [0, 3]. We pick 2 as local subdomain.</span>
+
+<span class="sd">        &gt;&gt;&gt; d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)</span>
+<span class="sd">        &gt;&gt;&gt; d</span>
+<span class="sd">        Decomposition([0 1 2], [3 4], &lt;&lt;[5 6 7]&gt;&gt;, [ 8 9 10 11])</span>
+
+<span class="sd">        A global index as single argument:</span>
+
+<span class="sd">        &gt;&gt;&gt; d.convert_index(5)</span>
+<span class="sd">        0</span>
+<span class="sd">        &gt;&gt;&gt; d.convert_index(6)</span>
+<span class="sd">        1</span>
+<span class="sd">        &gt;&gt;&gt; d.convert_index(7)</span>
+<span class="sd">        2</span>
+<span class="sd">        &gt;&gt;&gt; d.convert_index(3)</span>
+<span class="sd">        None</span>
+
+<span class="sd">        Retrieve relative local min/man given global min/max</span>
+
+<span class="sd">        &gt;&gt;&gt; d.convert_index((5, 7))</span>
+<span class="sd">        (0, 2)</span>
+<span class="sd">        &gt;&gt;&gt; d.convert_index((5, 9))</span>
+<span class="sd">        (0, 2)</span>
+<span class="sd">        &gt;&gt;&gt; d.convert_index((1, 3))</span>
+<span class="sd">        (-1, -3)</span>
+<span class="sd">        &gt;&gt;&gt; d.convert_index((1, 6))</span>
+<span class="sd">        (0, 1)</span>
+<span class="sd">        &gt;&gt;&gt; d.convert_index((None, None))</span>
+<span class="sd">        (0, 2)</span>
+
+<span class="sd">        Retrieve absolute local min/max given global min/max</span>
+
+<span class="sd">        &gt;&gt;&gt; d.convert_index((5, 9), rel=False)</span>
+<span class="sd">        (5, 9)</span>
+<span class="sd">        &gt;&gt;&gt; d.convert_index((1, 6), rel=False)</span>
+<span class="sd">        (5, 6)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_min</span> <span class="k">if</span> <span class="n">rel</span> <span class="ow">is</span> <span class="kc">True</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="n">top</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_max</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">glb_idx</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">):</span>
+                <span class="c1"># convert_index(index)</span>
+                <span class="c1"># -&gt; Base case, empty local subdomain</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_empty</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">None</span>
+                <span class="c1"># -&gt; Handle negative index</span>
+                <span class="k">if</span> <span class="n">glb_idx</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">glb_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="o">+</span> <span class="n">glb_idx</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="c1"># -&gt; Do the actual conversion</span>
+                <span class="k">if</span> <span class="n">glb_idx</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_numb</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">glb_idx</span> <span class="o">-</span> <span class="n">base</span>
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_min</span> <span class="o">&lt;=</span> <span class="n">glb_idx</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">None</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># This should raise an exception when used to access a numpy.array</span>
+                    <span class="k">return</span> <span class="n">glb_idx</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># convert_index((min, max))</span>
+                <span class="c1"># convert_index(slice(...))</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot convert index from `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_empty</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">3</span><span class="p">)</span>
+                    <span class="n">glb_idx_min</span><span class="p">,</span> <span class="n">glb_idx_max</span> <span class="o">=</span> <span class="n">glb_idx</span>
+                    <span class="n">retfunc</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_empty</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="nb">slice</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">3</span><span class="p">)</span>
+                    <span class="n">glb_idx_min</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_min</span> <span class="k">if</span> <span class="n">glb_idx</span><span class="o">.</span><span class="n">start</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">glb_idx</span><span class="o">.</span><span class="n">start</span>
+                    <span class="n">glb_idx_max</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="k">if</span> <span class="n">glb_idx</span><span class="o">.</span><span class="n">stop</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">glb_idx</span><span class="o">.</span><span class="n">stop</span><span class="o">-</span><span class="mi">1</span>
+                    <span class="n">retfunc</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">slice</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">glb_idx</span><span class="o">.</span><span class="n">step</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot convert index from `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">))</span>
+                <span class="c1"># -&gt; Handle negative min/max</span>
+                <span class="k">if</span> <span class="n">glb_idx_min</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">glb_idx_min</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">glb_idx_min</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="o">+</span> <span class="n">glb_idx_min</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">glb_idx_max</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">glb_idx_max</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">glb_idx_max</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="o">+</span> <span class="n">glb_idx_max</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="c1"># -&gt; Do the actual conversion</span>
+                <span class="k">if</span> <span class="n">glb_idx_min</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">glb_idx_min</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_min</span><span class="p">:</span>
+                    <span class="n">loc_min</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_min</span> <span class="o">-</span> <span class="n">base</span>
+                <span class="k">elif</span> <span class="n">glb_idx_min</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_max</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">retfunc</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">3</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">loc_min</span> <span class="o">=</span> <span class="n">glb_idx_min</span> <span class="o">-</span> <span class="n">base</span>
+                <span class="k">if</span> <span class="n">glb_idx_max</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">glb_idx_max</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_max</span><span class="p">:</span>
+                    <span class="n">loc_max</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_max</span> <span class="o">-</span> <span class="n">base</span>
+                <span class="k">elif</span> <span class="n">glb_idx_max</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_min</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">retfunc</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">3</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">loc_max</span> <span class="o">=</span> <span class="n">glb_idx_max</span> <span class="o">-</span> <span class="n">base</span>
+                <span class="k">return</span> <span class="n">retfunc</span><span class="p">(</span><span class="n">loc_min</span><span class="p">,</span> <span class="n">loc_max</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="c1"># convert_index(offset, side)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_empty</span><span class="p">:</span>
+                <span class="k">return</span> <span class="mi">0</span>
+            <span class="n">rel_ofs</span><span class="p">,</span> <span class="n">side</span> <span class="o">=</span> <span class="n">args</span>
+            <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="n">LEFT</span><span class="p">:</span>
+                <span class="n">abs_ofs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_min</span> <span class="o">+</span> <span class="n">rel_ofs</span>
+                <span class="n">extent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_max</span> <span class="o">-</span> <span class="n">base</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">abs_ofs</span> <span class="o">-</span> <span class="n">base</span><span class="p">,</span> <span class="n">extent</span><span class="p">)</span> <span class="k">if</span> <span class="n">abs_ofs</span> <span class="o">&gt;</span> <span class="n">base</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">abs_ofs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="o">-</span> <span class="n">rel_ofs</span>
+                <span class="n">extent</span> <span class="o">=</span> <span class="n">top</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc_abs_min</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">top</span> <span class="o">-</span> <span class="n">abs_ofs</span><span class="p">,</span> <span class="n">extent</span><span class="p">)</span> <span class="k">if</span> <span class="n">abs_ofs</span> <span class="o">&lt;</span> <span class="n">top</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Expected 1 or 2 arguments, found </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Decomposition.reshape"><a class="viewcode-back" href="../../../devito.data.html#devito.data.decomposition.Decomposition.reshape">[docs]</a>    <span class="k">def</span> <span class="nf">reshape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new :class:`Decomposition` with extended or reduced boundary</span>
+<span class="sd">        subdomains. This causes a new index enumeration.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        *args</span>
+<span class="sd">            There are three possible cases:</span>
+<span class="sd">            * int, int. The two integers represent the number of points to remove</span>
+<span class="sd">              (negative value) or add (positive value) on the left and right sides,</span>
+<span class="sd">              respectively.</span>
+<span class="sd">            * slice(a, b). The number of points to remove/add on the left and</span>
+<span class="sd">              right sides is given by ``self.glb_min - a`` and ``self.glb_max - b``,</span>
+<span class="sd">              respectively.</span>
+<span class="sd">            * array_like. Explicitly states what indices in ``self`` should be</span>
+<span class="sd">              retained.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TypeError</span>
+<span class="sd">            If the input doesn&#39;t adhere to any of the supported format.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)</span>
+<span class="sd">        &gt;&gt;&gt; d</span>
+<span class="sd">        Decomposition([0 1 2], [3 4], &lt;&lt;[5 6 7]&gt;&gt;, [ 8 9 10 11])</span>
+
+<span class="sd">        Providing explicit values</span>
+
+<span class="sd">        &gt;&gt;&gt; d.reshape(1, 1)</span>
+<span class="sd">        Decomposition([0 1 2 3], [4 5], &lt;&lt;[6 7 8]&gt;&gt;, [ 9 10 11 12 13])</span>
+
+<span class="sd">        &gt;&gt;&gt; d.reshape(-2, 2)</span>
+<span class="sd">        Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [ 6  7  8  9 10 11])</span>
+
+<span class="sd">        Providing a slice</span>
+
+<span class="sd">        &gt;&gt;&gt; d.reshape(slice(2, 9))</span>
+<span class="sd">        Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [6])</span>
+
+<span class="sd">        &gt;&gt;&gt; d.reshape(slice(2, -2))</span>
+<span class="sd">        Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [6 7])</span>
+
+<span class="sd">        &gt;&gt;&gt; d.reshape(slice(4))</span>
+<span class="sd">        Decomposition([0 1 2], [3], &lt;&lt;[]&gt;&gt;, [])</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">slice</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">nleft</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">nleft</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_min</span> <span class="o">-</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span>
+                <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">nright</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">nright</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">nright</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Iterable</span><span class="p">):</span>
+                <span class="n">items</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span> <span class="k">if</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">items</span><span class="p">)):</span>
+                    <span class="n">items</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">size</span><span class="p">)</span> <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">size</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">items</span><span class="p">[:</span><span class="n">i</span><span class="p">])</span>
+                <span class="k">return</span> <span class="n">Decomposition</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">nleft</span><span class="p">,</span> <span class="n">nright</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Expected 1 or 2 arguments, found </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
+
+        <span class="n">items</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="c1"># Handle corner cases first</span>
+        <span class="k">if</span> <span class="o">-</span><span class="n">nleft</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="ow">or</span> <span class="o">-</span><span class="n">nright</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Decomposition</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span><span class="p">)</span>
+
+        <span class="c1"># Handle left extension/reduction</span>
+        <span class="k">if</span> <span class="n">nleft</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">items</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="n">nleft</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">items</span><span class="p">[</span><span class="mi">0</span><span class="p">]])]</span> <span class="o">+</span> <span class="n">items</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="k">elif</span> <span class="n">nleft</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">sd</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">items</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="o">+</span> <span class="n">sd</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;=</span> <span class="o">-</span><span class="n">nleft</span><span class="p">:</span>
+                    <span class="n">items</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])]</span><span class="o">*</span><span class="n">i</span> <span class="o">+</span> <span class="p">[</span><span class="n">sd</span><span class="p">[(</span><span class="o">-</span><span class="n">nleft</span> <span class="o">-</span> <span class="n">n</span><span class="p">):]]</span> <span class="o">+</span> <span class="n">items</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
+                    <span class="k">break</span>
+                <span class="n">n</span> <span class="o">+=</span> <span class="n">sd</span><span class="o">.</span><span class="n">size</span>
+
+        <span class="c1"># Handle right extension/reduction</span>
+        <span class="k">if</span> <span class="n">nright</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">extension</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">nright</span><span class="p">)</span>
+            <span class="n">items</span> <span class="o">=</span> <span class="n">items</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">items</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">extension</span><span class="p">])]</span>
+        <span class="k">elif</span> <span class="n">nright</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">sd</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">items</span><span class="p">))):</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="o">+</span> <span class="n">sd</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;=</span> <span class="o">-</span><span class="n">nright</span><span class="p">:</span>
+                    <span class="n">items</span> <span class="o">=</span> <span class="n">items</span><span class="p">[:</span><span class="o">-</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">sd</span><span class="p">[:(</span><span class="n">nright</span> <span class="o">+</span> <span class="n">n</span><span class="p">)]]</span> <span class="o">+</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])]</span><span class="o">*</span><span class="n">i</span>
+                    <span class="k">break</span>
+                <span class="n">n</span> <span class="o">+=</span> <span class="n">sd</span><span class="o">.</span><span class="n">size</span>
+
+        <span class="c1"># Renumbering</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="n">nleft</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">items</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">Decomposition</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span><span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+
+  
+
+  <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

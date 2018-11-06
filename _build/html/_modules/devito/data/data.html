@@ -1,0 +1,578 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.data.data &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.data.data</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.data.data</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">devito.data.allocators</span> <span class="k">import</span> <span class="n">ALLOC_FLAT</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">is_integer</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Data&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Data"><a class="viewcode-back" href="../../../devito.data.html#devito.data.data.Data">[docs]</a><span class="k">class</span> <span class="nc">Data</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A special :class:`numpy.ndarray` allowing logical indexing.</span>
+
+<span class="sd">    The type :class:`numpy.ndarray` is subclassed as indicated at: ::</span>
+
+<span class="sd">        https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html</span>
+
+<span class="sd">    :param shape: Shape of the array in grid points.</span>
+<span class="sd">    :param dimensions: The array :class:`Dimension`s.</span>
+<span class="sd">    :param dtype: A ``numpy.dtype`` for the raw data.</span>
+<span class="sd">    :param decomposition: (Optional) a mapper from :class:`Dimension`s in</span>
+<span class="sd">                          ``dimensions`` to :class:`Decomposition`s, which</span>
+<span class="sd">                          describe how the Data is distributed over a set</span>
+<span class="sd">                          of processes. The Decompositions will be used to</span>
+<span class="sd">                          translate global array indices into local indices.</span>
+<span class="sd">                          The local indices are relative to the calling process.</span>
+<span class="sd">                          This is only relevant in the case of distributed</span>
+<span class="sd">                          memory execution (via MPI).</span>
+<span class="sd">    :param allocator: (Optional) a :class:`MemoryAllocator` to specialize memory</span>
+<span class="sd">                      allocation. Defaults to ``ALLOC_FLAT``.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        This type supports logical indexing over modulo buffered dimensions.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        Any view or copy ``A`` created starting from ``self``, for instance via</span>
+<span class="sd">        a slice operation or a universal function (&quot;ufunc&quot; in NumPy jargon), will</span>
+<span class="sd">        still be of type :class:`Data`. However, if ``A``&#39;s rank is different than</span>
+<span class="sd">        ``self``&#39;s rank, namely if ``A.ndim != self.ndim``, then the capability of</span>
+<span class="sd">        performing logical indexing is lost.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">decomposition</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">allocator</span><span class="o">=</span><span class="n">ALLOC_FLAT</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">dimensions</span><span class="p">)</span>
+        <span class="n">ndarray</span><span class="p">,</span> <span class="n">memfree_args</span> <span class="o">=</span> <span class="n">allocator</span><span class="o">.</span><span class="n">alloc</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ndarray</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_allocator</span> <span class="o">=</span> <span class="n">allocator</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_memfree_args</span> <span class="o">=</span> <span class="n">memfree_args</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_decomposition</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">((</span><span class="n">decomposition</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">True</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="k">else</span> <span class="kc">False</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">)</span>
+
+        <span class="c1"># By default, the indices used to access array values are interpreted as</span>
+        <span class="c1"># local indices</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_glb_indexing</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># This cannot be a property, as Data objects constructed from this</span>
+        <span class="c1"># object might not have any `decomposition`, but they would still be</span>
+        <span class="c1"># distributed. Hence, in `__array_finalize__` we must copy this value</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_is_decomposed</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">)</span>
+
+        <span class="c1"># Saves the last index used in `__getitem__`. This allows `__array_finalize__`</span>
+        <span class="c1"># to reconstruct information about the computed view (e.g., `decomposition`)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_index_stash</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Sanity check -- A Dimension can&#39;t be at the same time modulo-iterated</span>
+        <span class="c1"># and MPI-distributed</span>
+        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">_modulo</span><span class="p">)</span>
+                   <span class="k">if</span> <span class="n">j</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_memfree_args</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span><span class="o">.</span><span class="n">free</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_memfree_args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_memfree_args</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__array_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="c1"># `self` is the newly created object</span>
+        <span class="c1"># `obj` is the object from which `self` was created</span>
+        <span class="k">if</span> <span class="n">obj</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># `self` was created through __new__()</span>
+            <span class="k">return</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_index_stash</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Views or references created via operations on `obj` do not get an</span>
+        <span class="c1"># explicit reference to the underlying data (`_memfree_args`). This makes sure</span>
+        <span class="c1"># that only one object (the &quot;root&quot; Data) will free the C-allocated memory</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_memfree_args</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="o">!=</span> <span class="n">Data</span><span class="p">:</span>
+            <span class="c1"># Definitely from view casting</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_glb_indexing</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_is_decomposed</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">False</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span> <span class="o">=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span>
+        <span class="k">elif</span> <span class="n">obj</span><span class="o">.</span><span class="n">_index_stash</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># From `__getitem__`</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_glb_indexing</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_glb_indexing</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_is_decomposed</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_is_decomposed</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_normalize_index</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">_index_stash</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">m</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">_modulo</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+            <span class="n">decomposition</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">dec</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">elif</span> <span class="n">dec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">decomposition</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">decomposition</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dec</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">decomposition</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_glb_indexing</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_glb_indexing</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_is_decomposed</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_is_decomposed</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="n">obj</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
+                <span class="c1"># E.g., from a ufunc, such as `np.add`</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_modulo</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_decomposition</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># E.g., from a reduction operation such as `np.mean` or `np.all`</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">False</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span> <span class="o">=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_local</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a view of ``self`` with disabled global indexing.&quot;&quot;&quot;</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">view</span><span class="p">()</span>
+        <span class="n">ret</span><span class="o">.</span><span class="n">_glb_indexing</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">ret</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_global</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a view of ``self`` with enabled global indexing.&quot;&quot;&quot;</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">view</span><span class="p">()</span>
+        <span class="n">ret</span><span class="o">.</span><span class="n">_glb_indexing</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="n">ret</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_is_mpi_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_decomposed</span> <span class="ow">and</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local</span><span class="p">)</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">glb_idx</span><span class="p">):</span>
+        <span class="n">loc_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert_index</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">loc_idx</span> <span class="ow">is</span> <span class="n">NONLOCAL</span><span class="p">:</span>
+            <span class="c1"># Caller expects a scalar. However, `glb_idx` doesn&#39;t belong to</span>
+            <span class="c1"># self&#39;s data partition, so None is returned</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_index_stash</span> <span class="o">=</span> <span class="n">glb_idx</span>  <span class="c1"># Will be popped in `__array_finalize__`</span>
+            <span class="n">retval</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Data</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">loc_idx</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_index_stash</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">return</span> <span class="n">retval</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">glb_idx</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="n">loc_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert_index</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">loc_idx</span> <span class="ow">is</span> <span class="n">NONLOCAL</span><span class="p">:</span>
+            <span class="c1"># no-op</span>
+            <span class="k">return</span>
+        <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+            <span class="k">pass</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">Data</span><span class="p">)</span> <span class="ow">and</span> <span class="n">val</span><span class="o">.</span><span class="n">_is_decomposed</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_decomposed</span><span class="p">:</span>
+                <span class="c1"># `val` is decomposed, `self` is decomposed -&gt; local set</span>
+                <span class="k">pass</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># `val` is decomposed, `self` is replicated -&gt; gatherall-like</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_decomposed</span><span class="p">:</span>
+                <span class="c1"># `val` is replicated, `self` is decomposed -&gt; `val` gets decomposed</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_glb_indexing</span><span class="p">:</span>
+                    <span class="n">val_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_index</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">)</span>
+                    <span class="n">val_idx</span> <span class="o">=</span> <span class="p">[</span><span class="n">index_dist_to_repl</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">dec</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">dec</span> <span class="ow">in</span>
+                               <span class="nb">zip</span><span class="p">(</span><span class="n">val_idx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">)]</span>
+                    <span class="k">if</span> <span class="n">NONLOCAL</span> <span class="ow">in</span> <span class="n">val_idx</span><span class="p">:</span>
+                        <span class="c1"># no-op</span>
+                        <span class="k">return</span>
+                    <span class="n">val_idx</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">val_idx</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">PROJECTED</span><span class="p">]</span>
+                    <span class="c1"># NumPy broadcasting note:</span>
+                    <span class="c1"># When operating on two arrays, NumPy compares their shapes</span>
+                    <span class="c1"># element-wise. It starts with the trailing dimensions, and works</span>
+                    <span class="c1"># its way forward. Two dimensions are compatible when</span>
+                    <span class="c1"># * they are equal, or</span>
+                    <span class="c1"># * one of them is 1</span>
+                    <span class="c1"># Conceptually, below we apply the same rule</span>
+                    <span class="n">val_idx</span> <span class="o">=</span> <span class="n">val_idx</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">val_idx</span><span class="p">)</span><span class="o">-</span><span class="n">val</span><span class="o">.</span><span class="n">ndim</span><span class="p">:]</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">val</span><span class="p">[</span><span class="n">val_idx</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># `val` is replicated`, `self` is replicated -&gt; plain ndarray.__setitem__</span>
+                <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot insert obj of type `</span><span class="si">%s</span><span class="s2">` into a Data&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
+
+        <span class="c1"># Finally, perform the `__setitem__`</span>
+        <span class="c1"># Note: we pass `glb_idx`, rather than `loc_idx`, as `__setitem__` calls</span>
+        <span class="c1"># `__getitem__`, which in turn expects a global index</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Data</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_normalize_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="c1"># Advanced indexing mode</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">idx</span><span class="p">,)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">is</span> <span class="bp">Ellipsis</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">idx</span><span class="p">):</span>
+                <span class="c1"># Explicitly replace the Ellipsis</span>
+                <span class="n">items</span> <span class="o">=</span> <span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),)</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">idx</span><span class="p">[:</span><span class="n">idx</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="bp">Ellipsis</span><span class="p">)]</span> <span class="o">+</span> <span class="n">items</span> <span class="o">+</span> <span class="n">idx</span><span class="p">[</span><span class="n">idx</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="bp">Ellipsis</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">idx</span> <span class="o">+</span> <span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),)</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">idx</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_convert_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">glb_idx</span><span class="p">):</span>
+        <span class="n">glb_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_index</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
+            <span class="c1"># Maybe user code is trying to add a new axis (see np.newaxis),</span>
+            <span class="c1"># so the resulting array will be higher dimensional than `self`,</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_mpi_distributed</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot increase dimensionality of MPI-distributed Data&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># As by specification, we are forced to ignore modulo indexing</span>
+                <span class="k">return</span> <span class="n">glb_idx</span>
+
+        <span class="n">loc_idx</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">mod</span><span class="p">,</span> <span class="n">dec</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">glb_idx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_modulo</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">mod</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="c1"># Need to wrap index based on modulo</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="n">index_apply_modulo</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_glb_indexing</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">and</span> <span class="n">dec</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># Need to convert the user-provided global indices into local indices.</span>
+                <span class="c1"># Obviously this will have no effect if MPI is not used</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">v</span> <span class="o">=</span> <span class="n">index_glb_to_loc</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">dec</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_mpi_distributed</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Unsupported advanced indexing with &quot;</span>
+                                                  <span class="s2">&quot;MPI-distributed Data&quot;</span><span class="p">)</span>
+                    <span class="n">v</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="n">i</span>
+
+            <span class="c1"># Handle non-local, yet globally legal, indices</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">index_handle_oob</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+
+            <span class="n">loc_idx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+
+        <span class="c1"># Deal with NONLOCAL accesses</span>
+        <span class="k">if</span> <span class="n">NONLOCAL</span> <span class="ow">in</span> <span class="n">loc_idx</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">loc_idx</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="ow">and</span> <span class="n">index_is_basic</span><span class="p">(</span><span class="n">loc_idx</span><span class="p">):</span>
+                <span class="c1"># Caller expecting a scalar -- it will eventually get None</span>
+                <span class="n">loc_idx</span> <span class="o">=</span> <span class="p">[</span><span class="n">NONLOCAL</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Caller expecting an array -- it will eventually get a 0-length array</span>
+                <span class="n">loc_idx</span> <span class="o">=</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">is</span> <span class="n">NONLOCAL</span> <span class="k">else</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">loc_idx</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">loc_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">loc_idx</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">loc_idx</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Data.reset"><a class="viewcode-back" href="../../../devito.data.html#devito.data.data.Data.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set all Data entries to 0.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="p">[:]</span> <span class="o">=</span> <span class="mf">0.0</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">Index</span><span class="p">(</span><span class="n">Tag</span><span class="p">):</span>
+    <span class="k">pass</span>
+<span class="n">NONLOCAL</span> <span class="o">=</span> <span class="n">Index</span><span class="p">(</span><span class="s1">&#39;nonlocal&#39;</span><span class="p">)</span>  <span class="c1"># noqa</span>
+<span class="n">PROJECTED</span> <span class="o">=</span> <span class="n">Index</span><span class="p">(</span><span class="s1">&#39;projected&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">index_is_basic</span><span class="p">(</span><span class="n">idx</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">is_integer</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">i</span> <span class="ow">is</span> <span class="n">NONLOCAL</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">idx</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">index_apply_modulo</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">modulo</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">idx</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">idx</span> <span class="o">%</span> <span class="n">modulo</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">idx</span><span class="o">.</span><span class="n">start</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">start</span>
+        <span class="k">elif</span> <span class="n">idx</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">start</span> <span class="o">%</span> <span class="n">modulo</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">idx</span><span class="o">.</span><span class="n">start</span> <span class="o">%</span> <span class="n">modulo</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">idx</span><span class="o">.</span><span class="n">stop</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">stop</span>
+        <span class="k">elif</span> <span class="n">idx</span><span class="o">.</span><span class="n">stop</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">stop</span> <span class="o">%</span> <span class="p">(</span><span class="n">modulo</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">idx</span><span class="o">.</span><span class="n">stop</span> <span class="o">%</span> <span class="p">(</span><span class="n">modulo</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">slice</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="n">idx</span><span class="o">.</span><span class="n">step</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="n">modulo</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">idx</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">idx</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot apply modulo to index of type `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">idx</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">index_dist_to_repl</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">decomposition</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert a distributed array index a replicated array index.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">idx</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">PROJECTED</span>
+
+    <span class="k">if</span> <span class="n">decomposition</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">idx</span>
+
+    <span class="c1"># Derive shift value</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">start</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="nb">slice</span><span class="p">)</span> <span class="k">else</span> <span class="n">idx</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot derive shift value from type `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+    <span class="c1"># Convert into absolute local index</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">decomposition</span><span class="o">.</span><span class="n">convert_index</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">rel</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">idx</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">NONLOCAL</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="n">value</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">idx</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">idx</span> <span class="o">-</span> <span class="n">value</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">slice</span><span class="p">(</span><span class="n">idx</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="n">value</span><span class="p">,</span> <span class="n">idx</span><span class="o">.</span><span class="n">stop</span> <span class="o">-</span> <span class="n">value</span><span class="p">,</span> <span class="n">idx</span><span class="o">.</span><span class="n">step</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot apply shift to type `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">idx</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">index_glb_to_loc</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">decomposition</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert a global index into a local index.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">is_integer</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">decomposition</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">decomposition</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">idx</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">vectorize</span><span class="p">(</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">decomposition</span><span class="p">(</span><span class="n">i</span><span class="p">))(</span><span class="n">idx</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot convert global index of type `</span><span class="si">%s</span><span class="s2">` into a local index&quot;</span>
+                         <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">idx</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">index_handle_oob</span><span class="p">(</span><span class="n">idx</span><span class="p">):</span>
+    <span class="c1"># distributed.convert_index returns None when the index is globally</span>
+    <span class="c1"># legal, but out-of-bounds for the calling MPI rank</span>
+    <span class="k">if</span> <span class="n">idx</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">NONLOCAL</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">idx</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">idx</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">:</span>
+            <span class="c1"># A boolean mask, nothing to do</span>
+            <span class="k">return</span> <span class="n">idx</span>
+        <span class="k">elif</span> <span class="n">idx</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">idx</span> <span class="o">==</span> <span class="kc">None</span><span class="p">))</span>  <span class="c1"># noqa</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot identify OOB accesses when using &quot;</span>
+                             <span class="s2">&quot;multidimensional index arrays&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">idx</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+
+  
+
+  <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -7,6 +7,7 @@ Subpackages
 .. toctree::
 
     devito.core
+    devito.data
     devito.dle
     devito.dse
     devito.finite_differences
@@ -46,14 +47,6 @@ devito.compiler module
 ----------------------
 
 .. automodule:: devito.compiler
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito.data module
-------------------
-
-.. automodule:: devito.data
     :members:
     :undoc-members:
     :show-inheritance:
