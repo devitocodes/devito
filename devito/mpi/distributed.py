@@ -59,6 +59,15 @@ class AbstractDistributor(ABC):
         """The coordinates of the calling MPI rank in the Distributor topology."""
         return
 
+    @abstractmethod
+    def nprocs(self):
+        """A shortcut for the number of processes in the MPI communicator."""
+        return
+
+    @property
+    def is_parallel(self):
+        return self.nprocs > 1
+
     @cached_property
     def glb_numb(self):
         """The global indices owned by the calling MPI rank."""
