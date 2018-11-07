@@ -269,7 +269,7 @@ profiler_registry = {
     'advanced': AdvancedProfiler,
     'advisor': AdvisorProfiler
 }
-configuration.add('profiling', 'basic', list(profiler_registry))
+configuration.add('profiling', 'basic', list(profiler_registry), impacts_jit=False)
 
 
 def locate_intel_advisor():
