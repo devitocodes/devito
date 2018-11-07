@@ -204,12 +204,16 @@ class Timer(CompositeObject):
                                     [(i, c_double) for i in sections])
 
     def reset(self):
-        for i in self.pfields:
+        for i, _ in self.pfields:
             setattr(self.value._obj, i, 0.0)
         return self.value
 
+    @property
+    def sections(self):
+        return [i for i, _ in self.pfields]
+
     # Pickling support
-    _pickle_args = ['name', 'pfields']
+    _pickle_args = ['name', 'sections']
     _pickle_kwargs = []
 
 

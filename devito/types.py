@@ -789,7 +789,7 @@ class CompositeObject(Object):
 
     @property
     def pfields(self):
-        return tuple(i for i, _ in self.dtype._type_._fields_)
+        return tuple(self.dtype._type_._fields_)
 
     @property
     def ptype(self):
