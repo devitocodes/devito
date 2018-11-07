@@ -1,3 +1,5 @@
+import pytest
+
 import numpy as np
 from sympy import Symbol
 
@@ -5,10 +7,21 @@ from examples.seismic import demo_model
 from examples.seismic.source import TimeAxis, RickerSource
 
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
-                    TimeDimension, SteppingDimension, Operator)
+                    TimeDimension, SteppingDimension, Operator, configuration)
+from devito.profiling import Timer
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 
 import cloudpickle as pickle
+
+
+@pytest.fixture
+def enable_mpi_codegen(request):
+    configuration['mpi'] = True
+
+    def fin():
+        configuration['mpi'] = False
+
+    request.addfinalizer(fin)
 
 
 def test_constant():
@@ -79,6 +92,37 @@ def test_symbolics():
     pkl_li = pickle.dumps(li)
     new_li = pickle.loads(pkl_li)
     assert li == new_li
+
+
+def test_timers():
+    """Pickling for Timers used in Operators for C-level profiling."""
+    timer = Timer('timer', ['sec0', 'sec1'])
+    pkl_obj = pickle.dumps(timer)
+    new_obj = pickle.loads(pkl_obj)
+    assert new_obj.name == timer.name
+    assert new_obj.sections == timer.sections
+    assert new_obj.value._obj.sec0 == timer.value._obj.sec0 == 0.0
+    assert new_obj.value._obj.sec1 == timer.value._obj.sec1 == 0.0
+
+
+def test_mpi_neighbours(enable_mpi_codegen):
+    grid = Grid(shape=(4, 4, 4))
+    obj = grid.distributor._C_neighbours.obj
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.pname == new_obj.pname
+    assert obj.pfields == new_obj.pfields
+    assert obj.ptype == new_obj.ptype
+
+
+def test_mpi_comm(enable_mpi_codegen):
+    grid = Grid(shape=(4, 4, 4))
+    obj = grid.distributor._C_comm
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.dtype == new_obj.dtype
 
 
 def test_operator_parameters():
