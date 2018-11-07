@@ -30,9 +30,7 @@ class AbstractDistributor(ABC):
 
     """
     Decompose a set of :class:`Dimension`s over a set of MPI processes.
-
     .. note::
-
         This is an abstract class, which simply defines the interface that
         all subclasses are expected to implement.
     """
@@ -78,6 +76,7 @@ class AbstractDistributor(ABC):
         """Shape of the decomposed domain."""
         return EnrichedTuple(*self._glb_shape, getters=self.dimensions)
 
+>>>>>>> Resolve conflict.
     @property
     def shape(self):
         """The calling MPI rank's local shape."""
@@ -101,7 +100,6 @@ class AbstractDistributor(ABC):
     def glb_to_loc(self, dim, *args, strict=True):
         """
         Convert a global index into a relative (default) or absolute local index.
-
         Parameters
         ----------
         dim : :class:`Dimension`
@@ -125,7 +123,6 @@ class Distributor(AbstractDistributor):
 
     """
     Decompose a set of :class:`Dimension`s over a set of MPI processes.
-
     :param shape: The global shape of the domain to be decomposed.
     :param dimensions: The decomposed :class:`Dimension`s.
     :param comm: An MPI communicator.
@@ -252,7 +249,6 @@ class Distributor(AbstractDistributor):
     def glb_to_rank(self, index):
         """
         Return the rank owning a given global index.
-
         :param index: A single domain index, or a list of domain indices. In
                       the latter case, a list of corresponding ranks is returned.
         """
@@ -295,9 +291,7 @@ class Distributor(AbstractDistributor):
     def _C_comm(self):
         """
         A :class:`Object` wrapping an MPI communicator.
-
         Extracted from: ::
-
             https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py
         """
         from devito.types import Object
@@ -328,7 +322,6 @@ class SparseDistributor(AbstractDistributor):
     """
     Decompose a :class:`Dimension` representing a set of data values
     arbitrarily spread over a cartesian grid.
-
     :param npoint: The number of sparse data values.
     :param dimension: The decomposed :class:`Dimension`.
     :param distributor: The :class:`Distributor` the SparseDistributor depends on.
@@ -405,4 +398,4 @@ def compute_dims(nprocs, ndim):
             return MPI.Compute_dims(nprocs, ndim)
     else:
         v = int(v)
-    return tuple(v for _ in range(ndim))
+return tuple(v for _ in range(ndim))
