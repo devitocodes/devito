@@ -76,7 +76,6 @@ class AbstractDistributor(ABC):
         """Shape of the decomposed domain."""
         return EnrichedTuple(*self._glb_shape, getters=self.dimensions)
 
->>>>>>> Resolve conflict.
     @property
     def shape(self):
         """The calling MPI rank's local shape."""
