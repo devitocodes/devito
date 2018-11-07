@@ -258,6 +258,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         Shape of the domain region. The domain constitutes the area of the
         data written to by an :class:`Operator`.
+
+        Notes
+        -----
+        In an MPI context, this is the *local* domain region shape.
         """
         return self.shape_domain
 
@@ -269,6 +273,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
         Notes
         -----
+        In an MPI context, this is the *local* domain region shape.
+
         Alias to ``self.shape``.
         """
         return tuple(i - j for i, j in zip(self._shape, self.staggered))
@@ -281,10 +287,11 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
         Notes
         -----
-        If ``self`` is MPI-distributed, then the outhalo of inner ranks may be
-        empty, while the outhalo of boundary ranks will contain a number of
-        elements depending on the rank position in the decomposed grid (corner,
-        side, ...).
+        In an MPI context, this is the *local* with_halo region shape.
+
+        Further, note that the outhalo of inner ranks is typically empty, while
+        the outhalo of boundary ranks contains a number of elements depending
+        on the rank position in the decomposed grid (corner, side, ...).
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_domain,
                                                     self._extent_outhalo))
@@ -296,14 +303,13 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         Shape of the domain+inhalo region. The inhalo region comprises the
         outhalo as well as any additional "ghost" layers for MPI halo
-        exchanges. In other words, data in the inhalo region are exchanged
-        during an :class:`Operator` application to maintain consistent values
-        as in sequential runs.
+        exchanges. Data in the inhalo region are exchanged when running
+        :class:`Operator`s to maintain consistent values as in sequential runs.
 
         Notes
         -----
-        Typically, this property won't be used in user code to set or read data
-        values. Instead, it may come in handy for testing or debugging
+        Typically, this property won't be used in user code, but it may come
+        in handy for testing or debugging
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
 
@@ -312,6 +318,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         Shape of the allocated data. It includes the domain and inhalo regions,
         as well as any additional padding surrounding the halo.
+
+        Notes
+        -----
+        In an MPI context, this is the *local* with_halo region shape.
         """
         return tuple(j + i + k for i, (j, k) in zip(self._shape_with_inhalo,
                                                     self._padding))
