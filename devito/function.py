@@ -14,7 +14,7 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI, SparseDistributor
 from devito.parameters import configuration
-from devito.symbolics import indexify, retrieve_functions
+from devito.symbolics import indexify, retrieve_function_carriers
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
                           OWNED, HALO, LEFT, RIGHT)
@@ -1642,7 +1642,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         :param increment: (Optional) if True, perform an increment rather
                           than an assignment. Defaults to False.
         """
-        variables = list(retrieve_functions(expr))
+        variables = list(retrieve_function_carriers(expr))
 
         # List of indirection indices for all adjacent grid points
         idx_subs, eqns = self._interpolation_indices(variables, offset)
@@ -1670,7 +1670,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                        absorbing boundary conditions.
         """
 
-        variables = list(retrieve_functions(expr)) + [field]
+        variables = list(retrieve_function_carriers(expr)) + [field]
 
         # List of indirection indices for all adjacent grid points
         idx_subs, eqns = self._interpolation_indices(variables, offset)
