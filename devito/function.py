@@ -256,9 +256,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @cached_property
     def shape(self):
         """
-        Shape of the domain associated with this :class:`TensorFunction`.
-        The domain constitutes the area of the data written to in a
-        stencil update.
+        Shape of the domain region. The domain constitutes the area of the
+        data written to by an :class:`Operator`.
         """
         return self.shape_domain
 
@@ -819,7 +818,7 @@ class Function(TensorFunction, Differentiable):
         elif shape is None:
             if dimensions is not None and dimensions != grid.dimensions:
                 raise TypeError("Need `shape` as not all `dimensions` are in `grid`")
-            shape = grid.shape_domain
+            shape = grid.shape_local
         elif dimensions is None:
             raise TypeError("`dimensions` required if both `grid` and "
                             "`shape` are provided")
@@ -1059,7 +1058,7 @@ class TimeFunction(Function):
                 raise TypeError("Ambiguity detected: provide either `grid` and `save` "
                                 "or just `shape` ")
         elif shape is None:
-            shape = list(grid.shape_domain)
+            shape = list(grid.shape_local)
             if save is None:
                 shape.insert(cls._time_position, time_order + 1)
             elif isinstance(save, Buffer):
