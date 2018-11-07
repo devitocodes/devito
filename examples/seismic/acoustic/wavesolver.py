@@ -188,7 +188,7 @@ class AcousticWaveSolver(object):
         :param m: (Optional) Symbol for the time-constant square slowness
         """
         # Source term is read-only, so re-use the default
-        src = src or self.source
+        src = src or self.geometry.src
         # Create a new receiver object to store the result
         rec = rec or Receiver(name='rec', grid=self.model.grid,
                               time_range=self.geometry.time_axis,

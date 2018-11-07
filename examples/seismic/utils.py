@@ -26,6 +26,10 @@ class Acquisition_geometry(object):
     """
 
     def __init__(self, model, rec_pos, src_pos, t0, tn, **kwargs):
+        """
+        In practice woyuld be __init__(segyfile) and all below parameters
+        would come from a segy_read (at property call rather than at init)
+        """
         self._rec_positions = rec_pos
         self._nrec = rec_pos.shape[0]
         self._src_positions = src_pos
