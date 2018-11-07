@@ -853,6 +853,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;scope&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span><span class="p">)</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scope</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;heap&#39;</span><span class="p">,</span> <span class="s1">&#39;stack&#39;</span><span class="p">,</span> <span class="s1">&#39;external&#39;</span><span class="p">]</span>
 
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;halo&#39;</span><span class="p">,</span> <span class="s1">&#39;padding&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">]</span>
+
 
 <span class="c1"># Objects belonging to the Devito API not involving data, such as data structures</span>
 <span class="c1"># that need to be passed to external libraries</span>

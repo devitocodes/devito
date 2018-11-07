@@ -1223,6 +1223,12 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_parent</span><span class="p">)</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">parent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span>
+
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">]</span>
+
 
 <span class="k">class</span> <span class="nc">AbstractSparseFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>

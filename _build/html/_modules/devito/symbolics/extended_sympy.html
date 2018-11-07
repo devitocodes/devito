@@ -341,6 +341,9 @@
     <span class="k">def</span> <span class="nf">field</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span>
 
+    <span class="c1"># Our __new__ cannot accept the params argument</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span>
+
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
 
 
@@ -364,6 +367,9 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">composite</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pointer</span>
+
+    <span class="c1"># Our __new__ cannot accept the params argument</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
 
