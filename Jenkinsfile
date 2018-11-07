@@ -62,7 +62,7 @@ pipeline {
                          buildDocs()
                      }
                 }
-                stage('Build and test gcc-7 container') {
+                stage('Build and test gcc-7 YASK container') {
                      agent { dockerfile { label 'azure-linux'
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=7" } }
@@ -76,6 +76,22 @@ pipeline {
                          cleanWorkspace()
                          condaInstallDevito()
                          installYask()
+                         runCondaTests()
+                         runCodecov()
+                         buildDocs()
+                     }
+                }
+                stage('Build and test gcc-7 OPS container') {
+                     agent { dockerfile { label 'azure-linux'
+                                          filename 'Dockerfile.jenkins'
+                                          additionalBuildArgs "--build-arg gccvers=7" } }
+                     environment {
+                         HOME="${WORKSPACE}"
+                         DEVITO_BACKEND="ops"
+                     }
+                     steps {
+                         cleanWorkspace()
+                         condaInstallDevito()
                          runCondaTests()
                          runCodecov()
                          buildDocs()
