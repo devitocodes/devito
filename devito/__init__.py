@@ -34,11 +34,11 @@ configuration.add('compiler', 'custom', list(compiler_registry),
 configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
 
 # Should Devito run a first-touch Operator upon allocating data?
-configuration.add('first-touch', 0, [0, 1], lambda i: bool(i))
+configuration.add('first-touch', 0, [0, 1], lambda i: bool(i), False)
 
 # Should Devito ignore any unknown runtime arguments supplied to Operator.apply(),
 # or rather raise an exception (the default behaviour)?
-configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i))
+configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i), False)
 
 # Execution mode setup
 def _reinit_compiler(val):  # noqa
@@ -67,10 +67,11 @@ def _at_callback(val):  # noqa
         return at_setup(level, 'preemptive')
     else:
         return at_setup(level, mode)
-configuration.add('autotuning', 'off', at_accepted, callback=_at_callback)  # noqa
+configuration.add('autotuning', 'off', at_accepted, callback=_at_callback,  # noqa
+                  impacts_jit=False)
 
 # Should Devito emit the JIT compilation commands?
-configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i))
+configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i), False)
 
 # Set the Instruction Set Architecture (ISA)
 ISAs = ['cpp', 'avx', 'avx2', 'avx512']
