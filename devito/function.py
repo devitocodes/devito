@@ -1189,7 +1189,7 @@ class AbstractSparseFunction(TensorFunction):
             shape = (glb_npoint[grid.distributor.myrank],)
         return shape
 
-    @property
+    @cached_property
     def npoint(self):
         return self.shape[self._sparse_position]
 
@@ -1201,7 +1201,7 @@ class AbstractSparseFunction(TensorFunction):
     def _sparse_dim(self):
         return self.dimensions[self._sparse_position]
 
-    @property
+    @cached_property
     def gridpoints(self):
         """
         The *reference* grid point corresponding to each sparse point.
@@ -1213,7 +1213,7 @@ class AbstractSparseFunction(TensorFunction):
         """
         raise NotImplementedError
 
-    @property
+    @cached_property
     def _support(self):
         """
         The grid points surrounding each sparse point within the radius of self's
@@ -1697,7 +1697,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
         return idx_subs, eqns
 
-    @property
+    @cached_property
     def gridpoints(self):
         if self.coordinates._data is None:
             raise ValueError("No coordinates attached to this SparseFunction")

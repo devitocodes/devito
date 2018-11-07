@@ -87,6 +87,7 @@ class PointSource(SparseTimeFunction):
     """
 
     def __new__(cls, **kwargs):
+        print(kwargs)
         name = kwargs.pop('name')
         grid = kwargs.pop('grid')
         time_range = kwargs.pop('time_range')

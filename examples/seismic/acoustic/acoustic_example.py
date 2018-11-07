@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from devito.logger import info
 from devito import Constant, Function, smooth
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
+from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver, Acquisition_geometry
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
@@ -15,25 +15,29 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
 
-    # Derive timestepping from model spacing
-    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-    t0 = 0.0
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-    # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
+    # # Derive timestepping from model spacing
+    # dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
+    # t0 = 0.0
+    # time_range = TimeAxis(start=t0, stop=tn, step=dt)
+    #
+    # # Define source geometry (center of domain, just below surface)
+    # src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
     if len(shape) > 1:
-        src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
-    # Define receiver geometry (spread across x, just below surface)
-    rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+        src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
+    # # Define receiver geometry (spread across x, just below surface)
+    # rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     if len(shape) > 1:
-        rec.coordinates.data[:, 1] = np.array(model.domain_size)[1] * .5
-        rec.coordinates.data[:, -1] = model.origin[-1] + 2 * spacing[-1]
+        rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
+        rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
+    geometry = Acquisition_geometry(model, rec_coordinates, src_coordinates,
+                                    t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
 
     # Create solver object to provide relevant operators
-    solver = AcousticWaveSolver(model, source=src, receiver=rec, kernel=kernel,
+    solver = AcousticWaveSolver(model, geometry, kernel=kernel,
                                 space_order=space_order, **kwargs)
     return solver
 

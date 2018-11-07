@@ -51,7 +51,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     return [Eq(next, eq_time.subs({H: lap}))]
 
 
-def ForwardOperator(model, source, receiver, space_order=4,
+def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='OT2', **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
@@ -68,10 +68,11 @@ def ForwardOperator(model, source, receiver, space_order=4,
     u = TimeFunction(name='u', grid=model.grid,
                      save=source.nt if save else None,
                      time_order=2, space_order=space_order)
-    src = PointSource(name='src', grid=model.grid, time_range=source.time_range,
-                      npoint=source.npoint)
-    rec = Receiver(name='rec', grid=model.grid, time_range=receiver.time_range,
-                   npoint=receiver.npoint)
+    src = PointSource(name='src', grid=geometry.grid, time_range=geometry.time_axis,
+                      npoint=geometry.nsrc)
+
+    rec = Receiver(name='rec', grid=geometry.grid, time_range=geometry.time_axis,
+                      npoint=geometry.nrec)
 
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(u, m, s, damp, kernel)

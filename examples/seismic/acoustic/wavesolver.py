@@ -1,5 +1,5 @@
 from devito import Function, TimeFunction, memoized_meth
-from examples.seismic import PointSource, Receiver
+from examples.seismic import PointSource, Receiver, Acquisition_geometry
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
@@ -27,11 +27,9 @@ class AcousticWaveSolver(object):
 
     Note: space_order must always be greater than time_order
     """
-    def __init__(self, model, source, receiver, kernel='OT2', space_order=2, **kwargs):
+    def __init__(self, model, geometry, kernel='OT2', space_order=2, **kwargs):
         self.model = model
-        self.source = source
-        self.receiver = receiver
-
+        self.geometry = geometry
         self.space_order = space_order
         self.kernel = kernel
 
@@ -46,8 +44,8 @@ class AcousticWaveSolver(object):
     @memoized_meth
     def op_fwd(self, save=None):
         """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperator(self.model, save=save, source=self.source,
-                               receiver=self.receiver, kernel=self.kernel,
+        return ForwardOperator(self.model, save=save, geometry=self.geometry,
+                               kernel=self.kernel,
                                space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
@@ -85,11 +83,11 @@ class AcousticWaveSolver(object):
         :returns: Receiver, wavefield and performance summary
         """
         # Source term is read-only, so re-use the default
-        src = src or self.source
+        src = src or self.geometry.src
         # Create a new receiver object to store the result
         rec = rec or Receiver(name='rec', grid=self.model.grid,
-                              time_range=self.receiver.time_range,
-                              coordinates=self.receiver.coordinates.data)
+                              time_range=self.geometry.time_axis,
+                              coordinates=self.geometry.rec_positions)
 
         # Create the forward wavefield if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,
@@ -120,8 +118,8 @@ class AcousticWaveSolver(object):
         """
         # Create a new adjoint source and receiver symbol
         srca = srca or PointSource(name='srca', grid=self.model.grid,
-                                   time_range=self.source.time_range,
-                                   coordinates=self.source.coordinates.data)
+                                   time_range=self.geometry.time_axis,
+                                   coordinates=self.geometry.src_positions)
 
         # Create the adjoint wavefield if not provided
         v = v or TimeFunction(name='v', grid=self.model.grid,
@@ -193,8 +191,8 @@ class AcousticWaveSolver(object):
         src = src or self.source
         # Create a new receiver object to store the result
         rec = rec or Receiver(name='rec', grid=self.model.grid,
-                              time_range=self.receiver.time_range,
-                              coordinates=self.receiver.coordinates.data)
+                              time_range=self.geometry.time_axis,
+                              coordinates=self.geometry.rec_positions)
 
         # Create the forward wavefields u and U if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,
