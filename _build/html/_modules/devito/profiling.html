@@ -400,7 +400,11 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create a new :class:`Profiler`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">level</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;profiling&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;log_level&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;DEBUG&#39;</span><span class="p">:</span>
+        <span class="c1"># Enforce performance profiling in DEBUG mode</span>
+        <span class="n">level</span> <span class="o">=</span> <span class="s1">&#39;advanced&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">level</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;profiling&#39;</span><span class="p">]</span>
     <span class="n">profiler</span> <span class="o">=</span> <span class="n">profiler_registry</span><span class="p">[</span><span class="n">level</span><span class="p">](</span><span class="n">name</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">profiler</span><span class="o">.</span><span class="n">initialized</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">profiler</span>

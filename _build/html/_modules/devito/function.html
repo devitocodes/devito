@@ -167,7 +167,7 @@
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">MPI</span><span class="p">,</span> <span class="n">SparseDistributor</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_functions</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_function_carriers</span>
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="k">import</span> <span class="n">Differentiable</span><span class="p">,</span> <span class="n">generate_fd_shortcuts</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="p">(</span><span class="n">AbstractCachedFunction</span><span class="p">,</span> <span class="n">AbstractCachedSymbol</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Scalar</span><span class="p">,</span>
                           <span class="n">OWNED</span><span class="p">,</span> <span class="n">HALO</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">)</span>
@@ -1792,7 +1792,7 @@
 <span class="sd">        :param increment: (Optional) if True, perform an increment rather</span>
 <span class="sd">                          than an assignment. Defaults to False.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_functions</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+        <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
 
         <span class="c1"># List of indirection indices for all adjacent grid points</span>
         <span class="n">idx_subs</span><span class="p">,</span> <span class="n">eqns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_indices</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>
@@ -1820,7 +1820,7 @@
 <span class="sd">                       absorbing boundary conditions.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_functions</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span> <span class="o">+</span> <span class="p">[</span><span class="n">field</span><span class="p">]</span>
+        <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span> <span class="o">+</span> <span class="p">[</span><span class="n">field</span><span class="p">]</span>
 
         <span class="c1"># List of indirection indices for all adjacent grid points</span>
         <span class="n">idx_subs</span><span class="p">,</span> <span class="n">eqns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_indices</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>

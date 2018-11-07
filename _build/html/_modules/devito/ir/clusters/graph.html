@@ -159,7 +159,7 @@
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">ClusterizedEq</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="p">(</span><span class="n">as_symbol</span><span class="p">,</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span><span class="p">,</span>
-                              <span class="n">convert_to_SSA</span><span class="p">,</span> <span class="n">q_indirect</span><span class="p">,</span> <span class="n">q_timedimension</span><span class="p">)</span>
+                              <span class="n">makeit_ssa</span><span class="p">,</span> <span class="n">q_indirect</span><span class="p">,</span> <span class="n">q_timedimension</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">DefaultOrderedDict</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_ordered</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FlowGraph&#39;</span><span class="p">]</span>
@@ -229,7 +229,7 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="c1"># Always convert to SSA</span>
-        <span class="n">exprs</span> <span class="o">=</span> <span class="n">convert_to_SSA</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="n">makeit_ssa</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
         <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">])</span>
         <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">exprs</span><span class="p">),</span> <span class="s2">&quot;not SSA Cluster?&quot;</span>
 

@@ -154,8 +154,8 @@
 <span></span><span class="kn">from</span> <span class="nn">devito.symbolics.queries</span> <span class="k">import</span> <span class="p">(</span><span class="n">q_indexed</span><span class="p">,</span> <span class="n">q_function</span><span class="p">,</span> <span class="n">q_terminal</span><span class="p">,</span>
                                       <span class="n">q_leaf</span><span class="p">,</span> <span class="n">q_op</span><span class="p">,</span> <span class="n">q_trigonometry</span><span class="p">)</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;retrieve_indexed&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_functions&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_terminals&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;retrieve_ops&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_trigonometry&#39;</span><span class="p">,</span> <span class="s1">&#39;search&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;retrieve_indexed&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_functions&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_function_carriers&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;retrieve_terminals&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_ops&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_trigonometry&#39;</span><span class="p">,</span> <span class="s1">&#39;search&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">Search</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -265,16 +265,36 @@
 
 <div class="viewcode-block" id="retrieve_indexed"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.search.retrieve_indexed">[docs]</a><span class="k">def</span> <span class="nf">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;unique&#39;</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Shorthand to retrieve :class:`Indexed` objects in ``expr``.</span>
+<span class="sd">    Shorthand to retrieve the :class:`Indexed`s in ``expr``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">q_indexed</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="s1">&#39;dfs&#39;</span><span class="p">,</span> <span class="n">deep</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="retrieve_functions"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.search.retrieve_functions">[docs]</a><span class="k">def</span> <span class="nf">retrieve_functions</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;unique&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Shorthand to retrieve :class:`sympy.Function` objects in ``expr``.</span>
+<span class="sd">    Shorthand to retrieve the :class:`TensorFunction`s in ``expr``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">q_function</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="s1">&#39;dfs&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="retrieve_function_carriers"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.search.retrieve_function_carriers">[docs]</a><span class="k">def</span> <span class="nf">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;unique&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shorthand to retrieve the :class:`TensorFunction` carriers in ``expr``. An</span>
+<span class="sd">    object carreis a TensorFunction if any of the following conditions are met: ::</span>
+
+<span class="sd">        * it is itself a TensorFunction, OR</span>
+<span class="sd">        * it is a :class:`types.Indexed`, which internally has a pointer to a</span>
+<span class="sd">          TensorFunction</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">q_function</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">or</span> <span class="n">q_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+    <span class="n">retval</span> <span class="o">=</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="s1">&#39;dfs&#39;</span><span class="p">)</span>
+    <span class="c1"># Filter off Indexeds not carrying a TensorFunction</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">retval</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">function</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="n">retval</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">retval</span></div>
 
 
 <div class="viewcode-block" id="retrieve_terminals"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.search.retrieve_terminals">[docs]</a><span class="k">def</span> <span class="nf">retrieve_terminals</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;unique&#39;</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>

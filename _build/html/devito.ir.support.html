@@ -1025,16 +1025,6 @@ for a given dimension in order to have a flow dependence), the function
 </dd></dl>
 
 <dl class="function">
-<dt id="devito.ir.support.utils.group_expressions">
-<code class="descclassname">devito.ir.support.utils.</code><code class="descname">group_expressions</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#group_expressions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.group_expressions" title="Permalink to this definition">¶</a></dt>
-<dd><p><code class="docutils literal notranslate"><span class="pre">{exprs}</span> <span class="pre">-&gt;</span> <span class="pre">({exprs'},</span> <span class="pre">{exprs''},</span> <span class="pre">...)</span></code> where:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">There</span> <span class="n">are</span> <span class="n">data</span> <span class="n">dependences</span> <span class="n">within</span> <span class="n">exprs</span><span class="s1">&#39; and within exprs&#39;&#39;;</span>
-<span class="o">*</span> <span class="n">There</span> <span class="n">are</span> <span class="o">*</span><span class="n">no</span><span class="o">*</span> <span class="n">data</span> <span class="n">dependencies</span> <span class="n">across</span> <span class="n">exprs</span><span class="s1">&#39; and exprs&#39;&#39;.</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="function">
 <dt id="devito.ir.support.utils.align_accesses">
 <code class="descclassname">devito.ir.support.utils.</code><code class="descname">align_accesses</code><span class="sig-paren">(</span><em>expr</em>, <em>key=&lt;function &lt;lambda&gt;&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/support/utils.html#align_accesses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.support.utils.align_accesses" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="docutils literal notranslate"><span class="pre">expr</span> <span class="pre">-&gt;</span> <span class="pre">expr'</span></code>, with <code class="docutils literal notranslate"><span class="pre">expr'</span></code> semantically equivalent to <code class="docutils literal notranslate"><span class="pre">expr</span></code>, but

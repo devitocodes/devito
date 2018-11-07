@@ -762,9 +762,9 @@ objects.</p>
 </dd></dl>
 
 <dl class="function">
-<dt id="devito.symbolics.manipulation.convert_to_SSA">
-<code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">convert_to_SSA</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#convert_to_SSA"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.convert_to_SSA" title="Permalink to this definition">¶</a></dt>
-<dd><p>Convert an iterable of :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Eq`s into Static Single Assignment form.</p>
+<dt id="devito.symbolics.manipulation.makeit_ssa">
+<code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">makeit_ssa</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#makeit_ssa"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.makeit_ssa" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert an iterable of :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Eq`s into Static Single Assignment (SSA) form.</p>
 </dd></dl>
 
 <dl class="function">
@@ -893,13 +893,25 @@ x + 2 -&gt; True</p>
 <dl class="function">
 <dt id="devito.symbolics.search.retrieve_indexed">
 <code class="descclassname">devito.symbolics.search.</code><code class="descname">retrieve_indexed</code><span class="sig-paren">(</span><em>expr</em>, <em>mode='unique'</em>, <em>deep=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/search.html#retrieve_indexed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.search.retrieve_indexed" title="Permalink to this definition">¶</a></dt>
-<dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal notranslate"><span class="pre">Indexed</span></code> objects in <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
+<dd><p>Shorthand to retrieve the <code class="xref py py-class docutils literal notranslate"><span class="pre">Indexed`s</span> <span class="pre">in</span> <span class="pre">``expr`</span></code>.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.symbolics.search.retrieve_functions">
 <code class="descclassname">devito.symbolics.search.</code><code class="descname">retrieve_functions</code><span class="sig-paren">(</span><em>expr</em>, <em>mode='unique'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/search.html#retrieve_functions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.search.retrieve_functions" title="Permalink to this definition">¶</a></dt>
-<dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Function</span></code> objects in <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
+<dd><p>Shorthand to retrieve the <code class="xref py py-class docutils literal notranslate"><span class="pre">TensorFunction`s</span> <span class="pre">in</span> <span class="pre">``expr`</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.search.retrieve_function_carriers">
+<code class="descclassname">devito.symbolics.search.</code><code class="descname">retrieve_function_carriers</code><span class="sig-paren">(</span><em>expr</em>, <em>mode='unique'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/search.html#retrieve_function_carriers"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.search.retrieve_function_carriers" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shorthand to retrieve the <code class="xref py py-class docutils literal notranslate"><span class="pre">TensorFunction</span></code> carriers in <code class="docutils literal notranslate"><span class="pre">expr</span></code>. An
+object carreis a TensorFunction if any of the following conditions are met:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>* it is itself a TensorFunction, OR
+* it is a :class:`types.Indexed`, which internally has a pointer to a
+  TensorFunction
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="function">
