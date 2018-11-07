@@ -105,7 +105,7 @@ def set_log_noperf():
 
 
 configuration.add('log-level', 'INFO', list(logger_registry),
-                  lambda i: set_log_level(i))
+                  lambda i: set_log_level(i), False)
 
 
 class silencio(object):

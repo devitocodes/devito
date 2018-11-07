@@ -27,6 +27,7 @@ class Parameters(OrderedDict, Signer):
         self._name = name
         self._accepted = {}
         self._defaults = {}
+        self._impact_jit = {}
         self._update_functions = {}
         if kwargs is not None:
             for key, value in kwargs.items():
@@ -66,7 +67,7 @@ class Parameters(OrderedDict, Signer):
         """
         super(Parameters, self).__setitem__(key, value)
 
-    def add(self, key, value, accepted=None, callback=None):
+    def add(self, key, value, accepted=None, callback=None, impacts_jit=True):
         """
         Add a new parameter ``key`` with default value ``value``.
 
@@ -74,10 +75,15 @@ class Parameters(OrderedDict, Signer):
 
         If provided, make sure ``callback`` is executed when the value of ``key``
         changes.
+
+        If ``impacts_jit`` is False (defaults to True), then it can be assumed
+        that the parameter doesn't affect code generation, so it can be excluded
+        from the construction of the hash key.
         """
         super(Parameters, self).__setitem__(key, value)
         self._accepted[key] = accepted
         self._defaults[key] = value
+        self._impact_jit[key] = impacts_jit
         if callable(callback):
             self._update_functions[key] = callback
 
@@ -94,10 +100,9 @@ class Parameters(OrderedDict, Signer):
         return self._name
 
     def _signature_items(self):
-        # Note: we are discarding some vars that do not affect the c level
+        # Note: we are discarding some vars that do not affect the C level
         # code in order to avoid recompiling when such vars are modified
-        discard = ['profiling', 'autotuning', 'log-level', 'first-touch']
-        items = sorted((k, v) for k, v in self.items() if k not in discard)
+        items = sorted((k, v) for k, v in self.items() if self._impact_jit[k])
         return tuple(str(items)) + tuple(str(sorted(self.backend.items())))
 
 
