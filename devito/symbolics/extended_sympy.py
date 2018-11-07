@@ -188,6 +188,9 @@ class FieldFromPointer(FunctionFromPointer, Pickable):
     def field(self):
         return self.function
 
+    # Our __new__ cannot accept the params argument
+    _pickle_kwargs = []
+
     __repr__ = __str__
 
 
@@ -211,6 +214,9 @@ class FieldFromComposite(FunctionFromPointer, Pickable):
     @property
     def composite(self):
         return self.pointer
+
+    # Our __new__ cannot accept the params argument
+    _pickle_kwargs = []
 
     __repr__ = __str__
 
