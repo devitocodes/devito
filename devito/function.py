@@ -326,6 +326,25 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return tuple(j + i + k for i, (j, k) in zip(self._shape_with_inhalo,
                                                     self._padding))
 
+    @cached_property
+    def shape_global(self):
+        """
+        Global shape of the domain region. The domain constitutes the area of
+        the data written to by an :class:`Operator`.
+
+        Notes
+        -----
+        In an MPI context, this is the *global* domain region shape, which is
+        therefore identical on all MPI ranks.
+        """
+        if self.grid is None:
+            return self.shape
+        retval = []
+        for d, s in zip(self.dimensions, self.shape):
+            size = self.grid.dimension_map.get(d)
+            retval.append(size.glb if size is not None else s)
+        return tuple(retval)
+
     _offset_inhalo = AbstractCachedFunction._offset_halo
     _extent_inhalo = AbstractCachedFunction._extent_halo
 
@@ -821,7 +840,7 @@ class Function(TensorFunction, Differentiable):
     def __shape_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
         dimensions = kwargs.get('dimensions')
-        shape = kwargs.get('shape')
+        shape = kwargs.get('shape', kwargs.get('shape_global'))
         if grid is None:
             if shape is None:
                 raise TypeError("Need either `grid` or `shape`")
@@ -922,7 +941,7 @@ class Function(TensorFunction, Differentiable):
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
-        ['space_order', 'shape', 'dimensions']
+        ['space_order', 'shape_global', 'dimensions']
 
 
 class TimeFunction(Function):
