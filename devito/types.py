@@ -433,11 +433,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         halo, and domain regions. While halo and padding are known quantities
         (integers), the domain size is represented by a symbol.
         """
-        halo_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_halo]
-        padding_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_padding]
+        from devito.symbolics.extended_sympy import Add
+        halo_sizes = [Add(*i) for i in self._extent_halo]
+        pad_sizes = [Add(*i) for i in self._extent_padding]
         domain_sizes = [i.symbolic_size for i in self.indices]
-        ret = tuple(sympy.Add(i, j, k, evaluate=False)
-                    for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
+        ret = tuple(Add(i, j, k) for i, j, k in zip(domain_sizes, halo_sizes, pad_sizes))
         return EnrichedTuple(*ret, getters=self.dimensions)
 
     @property
