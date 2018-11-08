@@ -1,4 +1,5 @@
 import pytest
+from conftest import skipif_yask
 
 import numpy as np
 from sympy import Symbol
@@ -8,6 +9,7 @@ from examples.seismic.source import TimeAxis, RickerSource
 
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     TimeDimension, SteppingDimension, Operator, configuration)
+from devito.mpi.routines import MPIStatusObject, MPIRequestObject
 from devito.profiling import Timer
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 
@@ -105,26 +107,6 @@ def test_timers():
     assert new_obj.value._obj.sec1 == timer.value._obj.sec1 == 0.0
 
 
-def test_mpi_neighbours(enable_mpi_codegen):
-    grid = Grid(shape=(4, 4, 4))
-    obj = grid.distributor._C_neighbours.obj
-    pkl_obj = pickle.dumps(obj)
-    new_obj = pickle.loads(pkl_obj)
-    assert obj.name == new_obj.name
-    assert obj.pname == new_obj.pname
-    assert obj.pfields == new_obj.pfields
-    assert obj.ptype == new_obj.ptype
-
-
-def test_mpi_comm(enable_mpi_codegen):
-    grid = Grid(shape=(4, 4, 4))
-    obj = grid.distributor._C_comm
-    pkl_obj = pickle.dumps(obj)
-    new_obj = pickle.loads(pkl_obj)
-    assert obj.name == new_obj.name
-    assert obj.dtype == new_obj.dtype
-
-
 def test_operator_parameters():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -162,6 +144,40 @@ def test_operator_timefunction():
 
     new_op.apply(time_m=1, time_M=1, f=f)
     assert np.all(f.data[2] == 2)
+
+
+@skipif_yask
+def test_mpi_objects(enable_mpi_codegen):
+    # Neighbours
+    grid = Grid(shape=(4, 4, 4))
+    obj = grid.distributor._C_neighbours.obj
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.pname == new_obj.pname
+    assert obj.pfields == new_obj.pfields
+    assert obj.ptype == new_obj.ptype
+
+    # Communicator
+    obj = grid.distributor._C_comm
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.dtype == new_obj.dtype
+
+    # Status
+    obj = MPIStatusObject(name='status')
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.dtype == new_obj.dtype
+
+    # Request
+    obj = MPIRequestObject(name='request')
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.dtype == new_obj.dtype
 
 
 def test_full_model():
