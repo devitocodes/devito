@@ -180,6 +180,29 @@ def test_mpi_objects(enable_mpi_codegen):
     assert obj.dtype == new_obj.dtype
 
 
+@skipif_yask
+def test_mpi_operator(enable_mpi_codegen):
+    grid = Grid(shape=(4,))
+    f = TimeFunction(name='f', grid=grid)
+    g = TimeFunction(name='g', grid=grid)
+
+    # Using `sum` creates a stencil in `x`, which in turn will
+    # trigger the generation of code for MPI halo exchange
+    op = Operator(Eq(f.forward, f.sum() + 1))
+    op.apply(time=2)
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    assert str(op) == str(new_op)
+
+    new_op.apply(time=2, f=g)
+    assert np.all(f.data[0] == [2., 3., 3., 3.])
+    assert np.all(f.data[0] == [2., 3., 3., 3.])
+    assert np.all(g.data[0] == f.data[0])
+    assert np.all(g.data[1] == f.data[1])
+
+
 def test_full_model():
 
     shape = (50, 50, 50)
