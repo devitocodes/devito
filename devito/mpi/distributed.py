@@ -26,8 +26,9 @@ try:
 except ImportError:
     class MPI(object):
         COMM_NULL = None
+
         def Is_initialized():
-             return False
+            return False
 
 
 __all__ = ['Distributor', 'SparseDistributor', 'MPI']

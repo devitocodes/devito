@@ -1,4 +1,5 @@
 import versioneer
+import os
 
 from setuptools import setup, find_packages
 
@@ -13,6 +14,9 @@ for ir in required:
         reqs += [ir.split('/')[-1]]
     else:
         reqs += [ir]
+
+if os.environ.get('INSTALL_MPI') == '1':
+    reqs += ['mpi4py']
 
 setup(name='devito',
       version=versioneer.get_version(),

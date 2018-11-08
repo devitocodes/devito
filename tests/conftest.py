@@ -18,7 +18,7 @@ from devito.ir.iet import Iteration
 from devito.tools import as_tuple
 
 try:
-    import mpi4py
+    from mpi4py import MPI  # noqa
     no_mpi = False
 except ImportError:
     no_mpi = True
