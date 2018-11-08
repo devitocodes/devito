@@ -353,6 +353,10 @@ def jit_compile(soname, code, compiler):
     target = str(get_jit_dir().joinpath(soname))
     src_file = "%s.%s" % (target, compiler.src_ext)
 
+    # This makes a suite of cache directories based on the soname
+    cache_dir = get_codepy_dir().joinpath(soname[:7])
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
     # `catch_warnings` suppresses codepy complaining that it's taking
     # too long to acquire the cache lock. This warning can only appear
     # in a multiprocess session, typically (but not necessarily) when
@@ -361,7 +365,7 @@ def jit_compile(soname, code, compiler):
     with warnings.catch_warnings():
         tic = time()
         _, _, _, recompiled = compile_from_string(compiler, target, code, src_file,
-                                                  cache_dir=get_codepy_dir(),
+                                                  cache_dir=cache_dir,
                                                   debug=configuration['debug_compiler'])
         toc = time()
 
