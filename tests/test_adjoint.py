@@ -5,8 +5,8 @@ from conftest import skipif_yask, unit_box, points
 
 from devito import clear_cache, Operator
 from devito.logger import info
-from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
-from examples.seismic.acoustic import AcousticWaveSolver
+from examples.seismic import demo_model, Receiver
+from examples.seismic.acoustic import acoustic_setup
 
 
 presets = {
@@ -48,43 +48,24 @@ class TestAdjoint(object):
         location from data. This test uses the conventional dot test:
         < Fx, y> = <x, F^T y>
         """
-        t0 = 0.0  # Start time
         tn = 500.  # Final time
-        nrec = 130  # Number of receivers
 
-        # Create model from preset
-        model = demo_model(spacing=[15. for _ in shape], dtype=np.float64,
-                           space_order=space_order, shape=shape, nbpml=nbpml,
-                           **(presets[mkey]))
-
-        # Derive timestepping from model spacing
-        dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-        time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-        # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-        src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-        src.coordinates.data[0, -1] = 30.
-
-        # Define receiver geometry (same as source, but spread across x)
-        rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
-        rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-        rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
-
-        # Create solver object to provide relevant operators
-        solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                    kernel=kernel, space_order=space_order)
+        # Create solver from preset
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+                                nbpml=nbpml, tn=tn, space_order=space_order,
+                                **(presets[mkey]), dtype=np.float64)
 
         # Create adjoint receiver symbol
-        srca = Receiver(name='srca', grid=model.grid, time_range=solver.source.time_range,
-                        coordinates=solver.source.coordinates.data)
+        srca = Receiver(name='srca', grid=solver.model.grid,
+                        time_range=solver.geometry.time_axis,
+                        coordinates=solver.geometry.src_positions)
 
         # Run forward and adjoint operators
         rec, _, _ = solver.forward(save=False)
         solver.adjoint(rec=rec, srca=srca)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
-        term1 = np.dot(srca.data.reshape(-1), solver.source.data)
+        term1 = np.dot(srca.data.reshape(-1), solver.geometry.src.data)
         term2 = linalg.norm(rec.data.reshape(-1)) ** 2
         info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
@@ -101,45 +82,24 @@ class TestAdjoint(object):
         dot test:
         < Jx, y> = <x ,J^T y>
         """
-        t0 = 0.0  # Start time
         tn = 500.  # Final time
-        nrec = shape[0]  # Number of receivers
         nbpml = 10 + space_order / 2
-        spacing = [10. for _ in shape]
-
-        # Create two-layer "true" model from preset with a fault 1/3 way down
-        model = demo_model('layers-isotropic', ratio=3, vp_top=1.5, vp_bottom=2.5,
-                           spacing=spacing, space_order=space_order, shape=shape,
-                           nbpml=nbpml, dtype=np.float64)
-
-        # Derive timestepping from model spacing
-        dt = model.critical_dt
-        time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-        # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-        src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-        src.coordinates.data[0, -1] = 30.
-
-        # Define receiver geometry (same as source, but spread across x)
-        rec = Receiver(name='nrec', grid=model.grid, time_range=time_range, npoint=nrec)
-        rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-        rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
-
-        # Create solver object to provide relevant operators
-        solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                    kernel='OT2', space_order=space_order)
+        spacing = tuple([10.]*len(shape))
+        # Create solver from preset
+        solver = acoustic_setup(shape=shape, spacing=spacing,
+                                nbpml=nbpml, tn=tn, space_order=space_order,
+                                preset='layers-isotropic', dtype=np.float64)
 
         # Create initial model (m0) with a constant velocity throughout
         model0 = demo_model('layers-isotropic', ratio=3, vp_top=1.5, vp_bottom=1.5,
                             spacing=spacing, space_order=space_order, shape=shape,
-                            nbpml=nbpml, dtype=np.float64, grid=model.grid)
+                            nbpml=nbpml, dtype=np.float64, grid=solver.model.grid)
 
         # Compute the full wavefield u0
         _, u0, _ = solver.forward(save=True, m=model0.m)
 
         # Compute initial born perturbation from m - m0
-        dm = (model.m.data - model0.m.data)
+        dm = (solver.model.m.data - model0.m.data)
 
         du, _, _, _ = solver.born(dm, m=model0.m)
 

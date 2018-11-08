@@ -14,7 +14,6 @@ def scipy_smooth(img, sigma=5):
     return ndimage.gaussian_filter(img, sigma=sigma)
 
 
-
 class Acquisition_geometry(object):
     """
     Encapsulate the geometry of an acquisition:
@@ -38,17 +37,17 @@ class Acquisition_geometry(object):
         assert self.src_type in SRC_TYPES
         self._f0 = kwargs.get('f0')
         if self._src_type is not None and self._f0 is None:
-            error("Peak frequency must be provided in KH for source of type %s" % self._src_type)
+            error("Peak frequency must be provided in KH" +
+                  " for source of type %s" % self._src_type)
 
         self._grid = model.grid
         self._dt = model.critical_dt
         self._t0 = t0
         self._tn = tn
 
-
     @cached_property
     def time_axis(self):
-        return  TimeAxis(start=self.t0, stop=self.tn, step=self.dt)
+        return TimeAxis(start=self.t0, stop=self.tn, step=self.dt)
 
     @cached_property
     def src_type(self):
@@ -88,11 +87,15 @@ class Acquisition_geometry(object):
 
     @cached_property
     def rec_positions(self):
-        return self._rec_positions
+        return self._rec_positions.astype(self.dtype)
 
     @cached_property
     def src_positions(self):
-        return self._src_positions
+        return self._src_positions.astype(self.dtype)
+
+    @cached_property
+    def dtype(self):
+        return self.grid.dtype
 
     @cached_property
     def rec(self):
@@ -111,4 +114,5 @@ class Acquisition_geometry(object):
                                             time_range=self.time_axis, npoitn=self.nsrc,
                                             coordinates=self.src_positions)
 
-SRC_TYPES = {'Wavelet' : WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}
+
+SRC_TYPES = {'Wavelet': WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}

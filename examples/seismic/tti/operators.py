@@ -491,7 +491,7 @@ def kernel_staggered_3d(model, u, v, space_order):
     return [u_vx, u_vy, u_vz] + [pv_eq, ph_eq]
 
 
-def ForwardOperator(model, source, receiver, space_order=4,
+def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='centered', **kwargs):
     """
        Constructor method for the forward modelling operator in an acoustic media
@@ -515,15 +515,15 @@ def ForwardOperator(model, source, receiver, space_order=4,
 
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid, staggered=stagg_u,
-                     save=source.nt if save else None,
+                     save=geometry.nt if save else None,
                      time_order=time_order, space_order=space_order)
     v = TimeFunction(name='v', grid=model.grid, staggered=stagg_v,
-                     save=source.nt if save else None,
+                     save=geometry.nt if save else None,
                      time_order=time_order, space_order=space_order)
-    src = PointSource(name='src', grid=model.grid, time_range=source.time_range,
-                      npoint=source.npoint)
-    rec = Receiver(name='rec', grid=model.grid, time_range=receiver.time_range,
-                   npoint=receiver.npoint)
+    src = PointSource(name='src', grid=model.grid, time_range=geometry.time_axis,
+                      npoint=geometry.nsrc)
+    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
+                   npoint=geometry.nrec)
 
     # FD kernels of the PDE
     FD_kernel = kernels[(kernel, len(model.shape))]

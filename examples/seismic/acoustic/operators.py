@@ -72,7 +72,7 @@ def ForwardOperator(model, geometry, space_order=4,
                       npoint=geometry.nsrc)
 
     rec = Receiver(name='rec', grid=geometry.grid, time_range=geometry.time_axis,
-                      npoint=geometry.nrec)
+                   npoint=geometry.nrec)
 
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(u, m, s, damp, kernel)
@@ -144,7 +144,6 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
                    npoint=geometry.nrec)
 
-
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(v, m, s, damp, kernel, forward=False)
 
@@ -179,7 +178,6 @@ def BornOperator(model, geometry, space_order=4,
 
     rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
                    npoint=geometry.nrec)
-
 
     # Create wavefields and a dm field
     u = TimeFunction(name="u", grid=model.grid, save=None,

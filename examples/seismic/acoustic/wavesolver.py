@@ -1,5 +1,5 @@
 from devito import Function, TimeFunction, memoized_meth
-from examples.seismic import PointSource, Receiver, Acquisition_geometry
+from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
@@ -58,13 +58,15 @@ class AcousticWaveSolver(object):
     @memoized_meth
     def op_grad(self, save=True):
         """Cached operator for gradient runs"""
-        return GradientOperator(self.model, save=save, geometry=self.geometry, kernel=self.kernel,
+        return GradientOperator(self.model, save=save, geometry=self.geometry,
+                                kernel=self.kernel,
                                 space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
     def op_born(self):
         """Cached operator for born runs"""
-        return BornOperator(self.model, save=None, geometry=self.geometry, kernel=self.kernel,
+        return BornOperator(self.model, save=None, geometry=self.geometry,
+                            kernel=self.kernel,
                             space_order=self.space_order, **self._kwargs)
 
     def forward(self, src=None, rec=None, u=None, m=None, save=None, **kwargs):
@@ -160,7 +162,7 @@ class AcousticWaveSolver(object):
                              time_order=2, space_order=self.space_order)
             cp = DevitoCheckpoint([u])
             n_checkpoints = None
-            wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.source,
+            wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.geometry.src,
                                          u=u, m=m, dt=dt)
             wrap_rev = CheckpointOperator(self.op_grad(save=False), u=u, v=v,
                                           m=m, rec=rec, dt=dt, grad=grad)
