@@ -366,7 +366,8 @@ def jit_compile(soname, code, compiler):
         tic = time()
         _, _, _, recompiled = compile_from_string(compiler, target, code, src_file,
                                                   cache_dir=cache_dir,
-                                                  debug=configuration['debug_compiler'])
+                                                  debug=configuration['debug-compiler'],
+                                                  spinlock=configuration['mpi'])
         toc = time()
 
     if recompiled:
