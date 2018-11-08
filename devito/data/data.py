@@ -199,7 +199,8 @@ class Data(np.ndarray):
                 pass
         elif isinstance(val, Iterable):
             if self._is_mpi_distributed:
-                raise NotImplementedError("With MPI data can only be set via scalars or numpy arrays")
+                raise NotImplementedError("With MPI data can only be set "
+                                          "via scalars or numpy arrays")
                 pass
         else:
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
