@@ -17,9 +17,17 @@ from devito.types import Scalar, Array
 from devito.ir.iet import Iteration
 from devito.tools import as_tuple
 
+try:
+    import mpi4py
+    no_mpi = False
+except ImportError:
+    no_mpi = True
+    pass
 
 skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
                                  reason="YASK testing is currently restricted")
+
+skipif_mpi = pytest.mark.skipif(no_mpi, reason="mpi not installed")
 
 
 # Testing dimensions for space and time

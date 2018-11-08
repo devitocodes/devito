@@ -1,7 +1,7 @@
 import numpy as np
 
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_yask, skipif_mpi
 
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
@@ -13,6 +13,7 @@ from devito.types import LEFT, RIGHT
 
 
 @skipif_yask
+@skipif_mpi
 class TestDistributor(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
@@ -45,7 +46,6 @@ class TestDistributor(object):
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
-    @skipif_yask
     @pytest.mark.parallel(nprocs=[2, 4])
     def test_ctypes_neighbours(self):
         grid = Grid(shape=(4, 4))
@@ -64,6 +64,7 @@ class TestDistributor(object):
 
 
 @skipif_yask
+@skipif_mpi
 class TestFunction(object):
 
     @pytest.mark.parallel(nprocs=9)
@@ -263,7 +264,6 @@ class TestFunction(object):
             assert np.all(f._data_ro_with_inhalo._local[0, 1:-1] == 2.)
             assert f._data_ro_with_inhalo._local[0, 0] == 1.
 
-    @skipif_yask
     @pytest.mark.parallel(nprocs=4)
     @pytest.mark.parametrize('shape,expected', [
         ((15, 15), [((0, 8), (0, 8)), ((0, 8), (8, 15)),
@@ -278,6 +278,7 @@ class TestFunction(object):
 
 
 @skipif_yask
+@skipif_mpi
 class TestCodeGeneration(object):
 
     def test_iet_copy(self):
@@ -365,6 +366,7 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 
 
 @skipif_yask
+@skipif_mpi
 class TestSparseFunction(object):
 
     @pytest.mark.parallel(nprocs=4)
@@ -384,7 +386,6 @@ class TestSparseFunction(object):
         assert all(grid.distributor.glb_to_rank(i) == grid.distributor.myrank
                    for i in sf.gridpoints)
 
-    @skipif_yask
     @pytest.mark.parallel(nprocs=4)
     @pytest.mark.parametrize('coords,expected', [
         ([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]]),
@@ -455,6 +456,7 @@ class TestSparseFunction(object):
 
 
 @skipif_yask
+@skipif_mpi
 class TestOperatorSimple(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
@@ -654,6 +656,7 @@ class TestOperatorSimple(object):
 
 
 @skipif_yask
+@skipif_mpi
 class TestOperatorAdvanced(object):
 
     @pytest.mark.parallel(nprocs=[4])

@@ -77,7 +77,6 @@ before_install:
   - conda update -q conda
   # Useful for debugging any issues with conda
   - conda info -a
-  - sudo apt-get install -y -q mpich libmpich-dev
 
 install:
   # Install devito with conda
