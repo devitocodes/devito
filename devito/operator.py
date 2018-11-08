@@ -333,7 +333,7 @@ class Operator(Callable):
 
     def __setstate__(self, state):
         soname = state.pop('_soname', None)
-        binary = state.pop('binary')
+        binary = state.pop('binary', None)
         for k, v in state.items():
             setattr(self, k, v)
         # If the `sonames` don't match, there *might* be a hidden bug as the
@@ -346,11 +346,12 @@ class Operator(Callable):
         # pickler are two distinct processes and the unpickler runs with a
         # different `configuration` dictionary, then the `sonames` might indeed
         # be different, depending on which entries in `configuration` differ.
-        if soname is not None and soname != self._soname:
-            warning("The pickled and unpickled Operators have different .sonames; "
-                    "this might be a bug, or simply a harmless difference in "
-                    "`configuration`. You may check they produce the same code.")
-        save(self._soname, binary, self._compiler)
+        if soname is not None:
+            if soname != self._soname:
+                warning("The pickled and unpickled Operators have different .sonames; "
+                        "this might be a bug, or simply a harmless difference in "
+                        "`configuration`. You may check they produce the same code.")
+            save(self._soname, binary, self._compiler)
 
 
 class OperatorRunnable(Operator):
