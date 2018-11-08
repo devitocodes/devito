@@ -77,15 +77,15 @@ class Dimension(AbstractSymbol, ArgProvider):
     def limits(self):
         return (self.symbolic_start, self.symbolic_end, 1)
 
-    @property
+    @cached_property
     def size_name(self):
         return "%s_size" % self.name
 
-    @property
+    @cached_property
     def min_name(self):
         return "%s_m" % self.name
 
-    @property
+    @cached_property
     def max_name(self):
         return "%s_M" % self.name
 

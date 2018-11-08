@@ -700,6 +700,8 @@ class Array(AbstractCachedFunction):
         self._scope = kwargs.get('scope', self._scope)
         assert self._scope in ['heap', 'stack', 'external']
 
+    _pickle_kwargs = ['name', 'halo', 'padding', 'dimensions']
+
 
 # Objects belonging to the Devito API not involving data, such as data structures
 # that need to be passed to external libraries

@@ -1,8 +1,8 @@
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal,
                                       q_leaf, q_op, q_trigonometry)
 
-__all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_terminals',
-           'retrieve_ops', 'retrieve_trigonometry', 'search']
+__all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
+           'retrieve_terminals', 'retrieve_ops', 'retrieve_trigonometry', 'search']
 
 
 class Search(object):
@@ -112,16 +112,36 @@ def search(expr, query, mode='unique', visit='dfs', deep=False):
 
 def retrieve_indexed(expr, mode='unique', deep=False):
     """
-    Shorthand to retrieve :class:`Indexed` objects in ``expr``.
+    Shorthand to retrieve the :class:`Indexed`s in ``expr``.
     """
     return search(expr, q_indexed, mode, 'dfs', deep)
 
 
 def retrieve_functions(expr, mode='unique'):
     """
-    Shorthand to retrieve :class:`sympy.Function` objects in ``expr``.
+    Shorthand to retrieve the :class:`TensorFunction`s in ``expr``.
     """
     return search(expr, q_function, mode, 'dfs')
+
+
+def retrieve_function_carriers(expr, mode='unique'):
+    """
+    Shorthand to retrieve the :class:`TensorFunction` carriers in ``expr``. An
+    object carreis a TensorFunction if any of the following conditions are met: ::
+
+        * it is itself a TensorFunction, OR
+        * it is a :class:`types.Indexed`, which internally has a pointer to a
+          TensorFunction
+    """
+    query = lambda i: q_function(i) or q_indexed(i)
+    retval = search(expr, query, mode, 'dfs')
+    # Filter off Indexeds not carrying a TensorFunction
+    for i in list(retval):
+        try:
+            i.function
+        except AttributeError:
+            retval.remove(i)
+    return retval
 
 
 def retrieve_terminals(expr, mode='unique', deep=False):

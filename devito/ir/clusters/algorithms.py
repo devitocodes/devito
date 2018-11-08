@@ -1,7 +1,7 @@
 import sympy
 
 from devito.ir.support import (Scope, DataSpace, IterationSpace, detect_flow_directions,
-                               force_directions, group_expressions)
+                               force_directions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, xreplace_indices
 from devito.types import Scalar
@@ -234,23 +234,22 @@ def clusterize(exprs):
     Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s.
     """
     clusters = ClusterGroup()
-    for group in group_expressions(exprs):
-        flowmap = detect_flow_directions(group)
-        prev = None
-        for idx, e in enumerate(group):
-            if e.is_Tensor:
-                scalars = [i for i in group[prev:idx] if i.is_Scalar]
-                # Iteration space
-                ispace = IterationSpace.merge(e.ispace, *[i.ispace for i in scalars])
-                # Enforce iteration directions
-                fdirs, _ = force_directions(flowmap, lambda d: ispace.directions.get(d))
-                ispace = IterationSpace(ispace.intervals, ispace.sub_iterators, fdirs)
-                # Data space
-                dspace = DataSpace.merge(e.dspace, *[i.dspace for i in scalars])
-                # Prepare for next range
-                prev = idx
+    flowmap = detect_flow_directions(exprs)
+    prev = None
+    for idx, e in enumerate(exprs):
+        if e.is_Tensor:
+            scalars = [i for i in exprs[prev:idx] if i.is_Scalar]
+            # Iteration space
+            ispace = IterationSpace.merge(e.ispace, *[i.ispace for i in scalars])
+            # Enforce iteration directions
+            fdirs, _ = force_directions(flowmap, lambda d: ispace.directions.get(d))
+            ispace = IterationSpace(ispace.intervals, ispace.sub_iterators, fdirs)
+            # Data space
+            dspace = DataSpace.merge(e.dspace, *[i.dspace for i in scalars])
+            # Prepare for next range
+            prev = idx
 
-                clusters.append(PartialCluster(scalars + [e], ispace, dspace))
+            clusters.append(PartialCluster(scalars + [e], ispace, dspace))
 
     # Group PartialClusters together where possible
     clusters = groupby(clusters)
