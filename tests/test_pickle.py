@@ -118,6 +118,18 @@ def test_operator_parameters():
         pickle.loads(pkl_i)
 
 
+def test_unjitted_operator():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+
+    op = Operator(Eq(f, f + 1))
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    assert str(op) == str(new_op)
+
+
 def test_operator_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -127,6 +139,8 @@ def test_operator_function():
 
     pkl_op = pickle.dumps(op)
     new_op = pickle.loads(pkl_op)
+
+    assert str(op) == str(new_op)
 
     new_op.apply(f=f)
     assert np.all(f.data == 2)
@@ -142,11 +156,14 @@ def test_operator_timefunction():
     pkl_op = pickle.dumps(op)
     new_op = pickle.loads(pkl_op)
 
+    assert str(op) == str(new_op)
+
     new_op.apply(time_m=1, time_M=1, f=f)
     assert np.all(f.data[2] == 2)
 
 
 @skipif_yask
+@pytest.mark.parallel(nprocs=[1])
 def test_mpi_objects(enable_mpi_codegen):
     # Neighbours
     grid = Grid(shape=(4, 4, 4))
@@ -181,6 +198,7 @@ def test_mpi_objects(enable_mpi_codegen):
 
 
 @skipif_yask
+@pytest.mark.parallel(nprocs=[1])
 def test_mpi_operator(enable_mpi_codegen):
     grid = Grid(shape=(4,))
     f = TimeFunction(name='f', grid=grid)
