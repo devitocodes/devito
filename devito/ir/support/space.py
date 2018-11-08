@@ -2,6 +2,7 @@ import abc
 from collections import OrderedDict
 from functools import reduce
 from operator import mul
+from cached_property import cached_property
 
 from frozendict import frozendict
 
@@ -212,7 +213,7 @@ class IntervalGroup(PartialOrderTuple):
     def __repr__(self):
         return "IntervalGroup[%s]" % (', '.join([repr(i) for i in self]))
 
-    @property
+    @cached_property
     def dimensions(self):
         return filter_ordered([i.dim for i in self])
 
@@ -224,7 +225,7 @@ class IntervalGroup(PartialOrderTuple):
     def shape(self):
         return tuple(i.extent for i in self)
 
-    @property
+    @cached_property
     def is_well_defined(self):
         """
         Return True if all :class:`Interval`s are over different :class:`Dimension`s,
@@ -294,7 +295,7 @@ class IntervalGroup(PartialOrderTuple):
         if not self.is_well_defined:
             raise ValueError("Cannot fetch Interval from ill defined Space")
         for i in self:
-            if i.dim == key:
+            if i.dim is key:
                 return i
         return NullInterval(key)
 

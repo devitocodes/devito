@@ -65,6 +65,7 @@ class Constant(AbstractCachedSymbol, ArgProvider):
         """Return a tuple of argument names introduced by this symbol."""
         return (self.name,)
 
+    @memoized_meth
     def _arg_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
@@ -579,6 +580,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """Return a tuple of argument names introduced by this function."""
         return (self.name,)
 
+    @memoized_meth
     def _arg_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
@@ -1288,6 +1290,7 @@ class AbstractSparseFunction(TensorFunction):
         """
         raise NotImplementedError
 
+    @memoized_meth
     def _arg_defaults(self, alias=None):
         key = alias or self
         mapper = {self: key}
