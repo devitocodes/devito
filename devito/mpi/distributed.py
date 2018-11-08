@@ -407,7 +407,6 @@ class MPICommObject(Object):
 
     # Pickling support
     _pickle_args = []
-    _pickle_kwargs = []
 
 
 def compute_dims(nprocs, ndim):
