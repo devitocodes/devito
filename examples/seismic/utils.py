@@ -79,6 +79,10 @@ class Acquisition_geometry(object):
         return self._nrec
 
     @cached_property
+    def nt(self):
+        return self.time_axis.num
+
+    @cached_property
     def nsrc(self):
         return self._nsrc
 

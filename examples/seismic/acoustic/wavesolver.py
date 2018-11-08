@@ -51,22 +51,20 @@ class AcousticWaveSolver(object):
     @memoized_meth
     def op_adj(self):
         """Cached operator for adjoint runs"""
-        return AdjointOperator(self.model, save=None, source=self.source,
-                               receiver=self.receiver, kernel=self.kernel,
+        return AdjointOperator(self.model, save=None, geometry=self.geometry,
+                               kernel=self.kernel,
                                space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
     def op_grad(self, save=True):
         """Cached operator for gradient runs"""
-        return GradientOperator(self.model, save=save, source=self.source,
-                                receiver=self.receiver, kernel=self.kernel,
+        return GradientOperator(self.model, save=save, geometry=self.geometry, kernel=self.kernel,
                                 space_order=self.space_order, **self._kwargs)
 
     @memoized_meth
     def op_born(self):
         """Cached operator for born runs"""
-        return BornOperator(self.model, save=None, source=self.source,
-                            receiver=self.receiver, kernel=self.kernel,
+        return BornOperator(self.model, save=None, geometry=self.geometry, kernel=self.kernel,
                             space_order=self.space_order, **self._kwargs)
 
     def forward(self, src=None, rec=None, u=None, m=None, save=None, **kwargs):
@@ -91,7 +89,7 @@ class AcousticWaveSolver(object):
 
         # Create the forward wavefield if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,
-                              save=self.source.nt if save else None,
+                              save=self.geometry.nt if save else None,
                               time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
