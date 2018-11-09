@@ -28,8 +28,7 @@ class Operator(OperatorRunnable):
     A special :class:`OperatorCore` to JIT-compile and run operators through YASK.
     """
 
-    _default_headers = OperatorRunnable._default_headers
-    _default_headers += ['#define restrict __restrict']
+    _default_headers = OperatorRunnable._default_headers + ['#define restrict __restrict']
     _default_includes = OperatorRunnable._default_includes + ['yask_kernel_api.hpp']
 
     def __init__(self, expressions, **kwargs):
