@@ -5,7 +5,7 @@ import pytest
 from conftest import x, y, z, skipif_backend  # noqa
 
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseFunction,  # noqa
-                    Grid, Operator, ruido)
+                    Grid, Operator, ruido, configuration)
 from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
@@ -350,7 +350,6 @@ def test_estimate_cost(fa, fb, fc, t0, t1, t2, expr, expected):
     assert estimate_cost(EVAL(expr, fa, fb, fc, t0, t1, t2)) == expected
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,exp_u,exp_v', [
     (['Eq(s, 0)', 'Eq(s, s + 4)', 'Eq(u, s)'], 4, 0),
     (['Eq(s, 0)', 'Eq(s, s + s + 4)', 'Eq(s, s + 4)', 'Eq(u, s)'], 8, 0),
