@@ -25,6 +25,7 @@ def skipif_backend(backends):
     return pytest.mark.skipif(any(conditions),
                               reason="{} testing is currently restricted".format(b))
 
+
 # Testing dimensions for space and time
 grid = Grid(shape=(3, 3, 3))
 time = grid.time_dim
