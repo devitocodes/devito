@@ -12,11 +12,11 @@ def stress_fields(model, save, space_order):
         stagg_xz = (x, z)
         # Create symbols for forward wavefield, source and receivers
         txx = TimeFunction(name='txx', grid=model.grid, staggered=stagg_xx, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
         tzz = TimeFunction(name='tzz', grid=model.grid, staggered=stagg_zz, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
         txz = TimeFunction(name='txz', grid=model.grid, staggered=stagg_xz, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
         tyy = txy = tyz = None
     elif model.grid.dim == 3:
         x, y, z = model.space_dimensions
@@ -26,17 +26,17 @@ def stress_fields(model, save, space_order):
         stagg_xy = (x, y)
         # Create symbols for forward wavefield, source and receivers
         txx = TimeFunction(name='txx', grid=model.grid, staggered=stagg_xx, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
         tzz = TimeFunction(name='tzz', grid=model.grid, staggered=stagg_zz, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
         tyy = TimeFunction(name='tyy', grid=model.grid, staggered=stagg_yy, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
         txz = TimeFunction(name='txz', grid=model.grid, staggered=stagg_xz, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
         txy = TimeFunction(name='txy', grid=model.grid, staggered=stagg_xy, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
         tyz = TimeFunction(name='tyz', grid=model.grid, staggered=stagg_yz, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
 
     return txx, tyy, tzz, txy, txz, tyz
     
@@ -50,13 +50,13 @@ def pressure_fields(model, save, space_order):
         stagg_p = NODE
         # Create symbols for forward wavefield, source and receivers
         p = TimeFunction(name='p', grid=model.grid, staggered=stagg_p, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
     elif model.grid.dim == 3:
         x, y, z = model.space_dimensions
         stagg_p = NODE
         # Create symbols for forward wavefield, source and receivers
         p = TimeFunction(name='p', grid=model.grid, staggered=stagg_p, save=save,
-                           time_order=1, space_order=space_order)
+                           time_order=2, space_order=space_order)
     return p
 
 
@@ -70,9 +70,9 @@ def particle_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         vy = None
     elif model.grid.dim == 3:
         x, y, z = model.space_dimensions
@@ -81,11 +81,11 @@ def particle_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
 
     return vx, vy, vz
 # ------------------------------------------------------------------------------
@@ -100,9 +100,9 @@ def relative_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         wx = TimeFunction(name='wx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         wz = TimeFunction(name='wz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         wy = None
     elif model.grid.dim == 3:
         x, y, z = model.space_dimensions
@@ -111,11 +111,11 @@ def relative_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         wx = TimeFunction(name='wx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         wy = TimeFunction(name='wy', grid=model.grid, staggered=stagg_y,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         wz = TimeFunction(name='wz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
 
     return wx, wy, wz
 # ------------------------------------------------------------------------------
@@ -127,10 +127,11 @@ def poroelastic_2d(model, space_order, save, source, receiver):
     rho_s, rho_f, phi, k, mu_f, K_dr, K_s, K_f, G, T, damp = model.G, model.rho_s, model.rho_f, model.phi, model.k, model.mu_f, model.K_dr, model.K_s, model.K_f, model.T, model.damp
     
     # Delta T (sic)                                               
-    dt = model.grid.stepping_dim.spacing   # s
+    dt = model.grid.stepping_dim.spacing    # s
+    #dt = model.critical_dt                  # s
     
     # Biot Coefficient
-    alpha = 1.0 - K_dr/K_s                  # -
+    alpha = 1.0 - K_dr/K_s                  # Pa/Pa, -
     
     # Biot Modulus
     M = 1.0 / (phi/K_f + (alpha - phi)/K_s) # Pa
@@ -177,7 +178,7 @@ def poroelastic_2d(model, space_order, save, source, receiver):
     u_p   = Eq(p.forward, damp*(p - dt*(alpha*M*(vx.forward.dx + vz.forward.dy) 
                               + M*(wx.forward.dx + wz.forward.dy) ) ) )
 
-    src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver)
+    src_rec_expr = src_rec(vx, vy, vz, wx, wy, wz, txx, tyy, tzz, p, model, source, receiver)
     return [u_vx, u_vz, u_wx, u_wz, u_txx, u_tzz, u_txz, u_p] + src_rec_expr
 # ------------------------------------------------------------------------------
 
@@ -187,7 +188,8 @@ def poroelastic_3d(model, space_order, save, source, receiver):
     """
     vp, vs, rho_s, rho_f, phi, k, mu_f, K_dr, K_s, K_f, damp = model.vp, model.vs, model.rho_s, model.rho_f, model.phi, model.k, model.mu_f, model.K_dr, model.K_s, model.K_f, model.damp
     
-    dt = model.grid.stepping_dim.spacing
+    # Delta T (sic)                                               
+    dt = model.grid.stepping_dim.spacing    # s
     
     # Biot Coefficient
     alpha = 1.0 - K_dr/K_s
@@ -198,7 +200,7 @@ def poroelastic_3d(model, space_order, save, source, receiver):
     # Bulk Density
     rho_b = phi*rho_f + (1.0 - phi)*rho_s
 
-    # Shear Modulus of Sa                mturated Rock
+    # Shear Modulus of Saturated Rock
     mu = (vs**2)*rho_b
     
     # Lame Parameter of Saturated Rock
@@ -228,7 +230,7 @@ def poroelastic_3d(model, space_order, save, source, receiver):
     return [u_vx, u_vy, u_vz, u_txx, u_tyy, u_tzz, u_txz, u_txy, u_tyz] + src_rec_expr
 # ------------------------------------------------------------------------------
 
-def src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver):
+def src_rec(vx, vy, vz, wx, wy, wz, txx, tyy, tzz, p, model, source, receiver):
     """
     Source injection and receiver interpolation
     """
@@ -244,7 +246,8 @@ def src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver):
     # The source injection term
     src_xx = src.inject(field=txx.forward, expr=src * dt, offset=model.nbpml)
     src_zz = src.inject(field=tzz.forward, expr=src * dt, offset=model.nbpml)
-    src_expr = src_xx + src_zz
+    src_pp = src.inject(field=p.forward,   expr=src * dt, offset=model.nbpml)
+    src_expr = src_xx + src_zz + src_pp
     if model.grid.dim == 3:
         src_yy = src.inject(field=tyy.forward, expr=src * dt, offset=model.nbpml)
         src_expr += src_yy

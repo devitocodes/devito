@@ -6,22 +6,23 @@ from examples.seismic.poroelastic import PoroelasticWaveSolver
 from examples.seismic import RickerSource, Receiver, TimeAxis, demo_model, plot_image
 # ==============================================================================
 
-def poroelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, nbpml=10,
+def poroelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=0.5, space_order=4, nbpml=10,
                   constant=True, **kwargs):
 
     nrec = 2*shape[0]
     preset = 'constant-poroelastic' if constant else 'layers-poroelastic'
     model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
-                       dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
+                       dtype=kwargs.pop('dtype', np.float64), spacing=spacing)
 
     # Derive timestepping from model spacing
     dt = model.critical_dt
+    print('critical dt: ' + np.str(dt))
     t0 = 0.0
     time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
     # Define source geometry (center of domain, just below surface)
     # Ricker source peak frequency is in kHz
-    src = RickerSource(name='src', grid=model.grid, f0=0.05, time_range=time_range)
+    src = RickerSource(name='src', grid=model.grid, f0=0.0010, time_range=time_range)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     if len(shape) > 1:
         src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
@@ -34,7 +35,7 @@ def poroelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order
         rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
     
     # Create solver object to provide relevant operators
-    solver = PoroelasticWaveSolver(model, source=src, receiver=rec, space_order=space_order, **kwargs)
+    solver = PoroelasticWaveSolver(model, source=src, receiver=rec, space_order=space_order, dtype=np.float64, **kwargs)
     
     return solver
 # ------------------------------------------------------------------------------
@@ -77,9 +78,9 @@ if __name__ == "__main__":
 
     # 2D preset parameters
     if args.dim2:
-        shape = (150, 150)
-        spacing = (2.0, 2.0)
-        tn = 5.0 
+        shape = (250, 250)   # Dimensions
+        spacing = (5.0, 5.0) # Spacing, m
+        tn = 0.5
         # 3D preset parameters
     else:
         shape = (150, 150, 150)

@@ -57,51 +57,44 @@ def demo_model(preset, **kwargs):
 
     if preset.lower() in ['constant-poroelastic']:
         # A constant single-layer model in a 2D or 3D domain
-        shape = kwargs.pop('shape', (101, 101))
+        shape = kwargs.pop('shape', (201, 201))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         nbpml = kwargs.pop('nbpml', 10)
-        dtype = kwargs.pop('dtype', np.float32)
-        vp = kwargs.pop('vp', 1500)        # m/s
-        vs = kwargs.pop('vs', 1.7 * vp)    # m/s
+        dtype = kwargs.pop('dtype', np.float64)
 
         # Matrix Properties
-        G = kwargs.pop('G', 0.82e9)        # Shear Modulus, Pa = kg / (m * s**2)
-        phi = kwargs.pop('phi', 0.1)       # Porosity, %
-        k = kwargs.pop('k', 1e-12)         # Permeability, m**2
-        K_dr = kwargs.pop('K_dr', 1.37e9)  # Drained bulk modulus, Pa = kg / (m * s**2)
-        T = kwargs.pop('T', 1.0)           # Tortuosity, -
+        G = np.ones(shape, dtype=dtype)*kwargs.pop('G', 4.55e08)        # Shear Modulus, Pa = kg / (m * s**2)
+        phi = np.ones(shape, dtype=dtype)*kwargs.pop('phi', 0.3)       # Porosity, %
+        k = np.ones(shape, dtype=dtype)*kwargs.pop('k', 1e-12)         # Permeability, m**2
+        K_dr = np.ones(shape, dtype=dtype)*kwargs.pop('K_dr', 6.21e08)  # Drained bulk modulus, Pa = kg / (m * s**2)
+        T = np.ones(shape, dtype=dtype)*kwargs.pop('T', 1.0)           # Tortuosity, -
         
         # Solid Properties                
-        rho_s = kwargs.pop('rho_s', 2650)  # Solid grain density, kg/m**3
-        K_s = kwargs.pop('K_s', 4.0e9)     # Solid grain bulk modulus, Pa = kg / (m * s**2)
+        rho_s = np.ones(shape, dtype=dtype)*kwargs.pop('rho_s', 2650.)  # Solid grain density, kg/m**3
+        K_s = np.ones(shape, dtype=dtype)*kwargs.pop('K_s', 3.6e10)     # Solid grain bulk modulus, Pa = kg / (m * s**2)
         
         # Fluid Properties
-        rho_f = kwargs.pop('rho_f', 1000)  # Fluid density, kg/m**3
-        mu_f = kwargs.pop('mu_f', 0.002)   # Fluid viscosity, Pa*s = (kg / (m * s**2)) * s
-        K_f = kwargs.pop('K_f', 2.15e9)    # Fluid bulk modulus, Pa = kg / (m * s**2)
+        rho_f = np.ones(shape, dtype=dtype)*kwargs.pop('rho_f', 1000.)  # Fluid density, kg/m**3
+        mu_f = np.ones(shape, dtype=dtype)*kwargs.pop('mu_f', 0.001)   # Fluid viscosity, Pa*s = (kg / (m * s**2)) * s
+        K_f = np.ones(shape, dtype=dtype)*kwargs.pop('K_f', 2.25e9)    # Fluid bulk modulus, Pa = kg / (m * s**2)
                 
-        return ModelPoroelastic(space_order=space_order, vp=vp, vs=vs, rho_s=rho_s,
+        return ModelPoroelastic(space_order=space_order, rho_s=rho_s,
         rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s, K_f=K_f, G=G,
         T=T, origin=origin, shape=shape, dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['layers-poroelastic', 'twolayer-poroelastic',
                             '2layer-poroelastic']:
-        # A two-layer model in a 2D or 3D domain with two different
-        # velocities split across the height dimension:
-        # By default, the top part of the domain has 1.5 km/s,
-        # and the bottom part of the domain has 2.5 km/s.
-        shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+
+        shape = kwargs.pop('shape', (201, 201))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape])) # sec
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        dtype = kwargs.pop('dtype', np.float32)
+        dtype = kwargs.pop('dtype', np.float64)
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
-        vp = kwargs.pop('vp', 1500)        # m/s
-        vs = kwargs.pop('vs', 1500 * vp)   # m/s
         
         # Matrix Properties
-        G = kwargs.pop('G', 0.82)          # GPa
+        G = kwargs.pop('G', 0.82e9)        # Pa
         phi = kwargs.pop('phi', 0.1)       # %
         
         # Permeability, m**2
@@ -113,7 +106,7 @@ def demo_model(preset, **kwargs):
         T = kwargs.pop('T', 1.0)
         
         # Solid Properties                
-        rho_s = kwargs.pop('rho_s', 2650)  # kg/m**3
+        rho_s = kwargs.pop('rho_s', 2300)  # kg/m**3
         K_s = kwargs.pop('K_s', 4.0e9)       # Pa
         
         # Fluid Properties
@@ -128,7 +121,7 @@ def demo_model(preset, **kwargs):
         k[:] = k_top  # Top velocity (background)
         k[..., int(shape[-1] / ratio):] = k_bottom  # Bottom velocity
 
-        return ModelPoroelastic(space_order=space_order, vp=vp, vs=vs, rho_s=rho_s,
+        return ModelPoroelastic(space_order=space_order, rho_s=rho_s,
         rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s, K_f=K_f, G=G,
         T=T, origin=origin, shape=shape, dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
 
@@ -140,7 +133,7 @@ def demo_model(preset, **kwargs):
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         nbpml = kwargs.pop('nbpml', 10)
-        dtype = kwargs.pop('dtype', np.float32)
+        dtype = kwargs.pop('dtype', np.float64)
         vp = kwargs.pop('vp', 1.5)
 
         return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
@@ -153,7 +146,7 @@ def demo_model(preset, **kwargs):
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         nbpml = kwargs.pop('nbpml', 10)
-        dtype = kwargs.pop('dtype', np.float32)
+        dtype = kwargs.pop('dtype', np.float64)
         v = np.empty(shape, dtype=dtype)
         v[:] = 1.5
         epsilon = .3*np.ones(shape, dtype=dtype)
@@ -176,7 +169,7 @@ def demo_model(preset, **kwargs):
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        dtype = kwargs.pop('dtype', np.float32)
+        dtype = kwargs.pop('dtype', np.float64)
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
@@ -199,7 +192,7 @@ def demo_model(preset, **kwargs):
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        dtype = kwargs.pop('dtype', np.float32)
+        dtype = kwargs.pop('dtype', np.float64)
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
@@ -225,7 +218,7 @@ def demo_model(preset, **kwargs):
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        dtype = kwargs.pop('dtype', np.float32)
+        dtype = kwargs.pop('dtype', np.float64)
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
@@ -256,7 +249,7 @@ def demo_model(preset, **kwargs):
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
-        dtype = kwargs.pop('dtype', np.float32)
+        dtype = kwargs.pop('dtype', np.float64)
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
@@ -279,7 +272,7 @@ def demo_model(preset, **kwargs):
         # A simple circle in a 2D domain with a background velocity.
         # By default, the circle velocity is 2.5 km/s,
         # and the background veloity is 3.0 km/s.
-        dtype = kwargs.pop('dtype', np.float32)
+        dtype = kwargs.pop('dtype', np.float64)
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
@@ -781,7 +774,7 @@ class ModelPoroelastic(Physical_Model):
     creation of seismic wave propagation operators:
     :param damp: The damping field for absorbing boundary condition
     """
-    def __init__(self, origin, spacing, shape, space_order, vp, vs, rho_s, rho_f,
+    def __init__(self, origin, spacing, shape, space_order, rho_s, rho_f,
                  phi, k, mu_f, K_dr, K_s, K_f, G, T, nbpml=20, dtype=np.float32):
         super(ModelPoroelastic, self).__init__(origin, spacing, shape, space_order,
         nbpml=nbpml, dtype=dtype)
@@ -790,29 +783,13 @@ class ModelPoroelastic(Physical_Model):
         self.damp = Function(name="damp", grid=self.grid)
         damp_boundary(self.damp, self.nbpml, spacing=self.spacing, mask=True)
 
-        # Create square slowness of the wave as symbol `m`
-        if isinstance(vp, np.ndarray):
-            self.vp = Function(name="vp", grid=self.grid, space_order=space_order)
-            initialize_function(self.vp, vp, self.nbpml)
-        else:
-            self.vp = Constant(name="vp", value=vp)
-        self._physical_parameters = ('vp',)
-
-        # Create square slowness of the wave as symbol `m`
-        if isinstance(vs, np.ndarray):
-            self.vs = Function(name="vs", grid=self.grid, space_order=space_order)
-            initialize_function(self.vs, vs, self.nbpml)
-        else:
-            self.vs = Constant(name="vs", value=vs)
-        self._physical_parameters += ('vs',)
-
         # Create solid density of the matrix symbol `rho_s`
         if isinstance(rho_s, np.ndarray):
             self.rho_s = Function(name="rho_s", grid=self.grid, space_order=space_order)
             initialize_function(self.rho_s, rho_s, self.nbpml)
         else:
             self.rho_s = Constant(name="rho_s", value=rho_s)
-        self._physical_parameters += ('rho_s',)
+        self._physical_parameters = ('rho_s',)
 
         # Create density of the pore fluid symbol `rho_f`
         if isinstance(rho_s, np.ndarray):
@@ -894,4 +871,11 @@ class ModelPoroelastic(Physical_Model):
         #
         # The CFL condtion is then given by
         # dt < h / (sqrt(2) * max(vp)))
-        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))        
+        alpha = 1.0 - self.K_dr.data/self.K_s.data
+        M =  (alpha - self.phi.data)/self.K_s.data + self.phi.data/self.K_f.data
+        rho_b = self.rho_s.data  * (1.0-self.phi.data) + self.rho_f.data * self.phi.data
+        Vp = ( (self.K_dr.data + 4.0/3.0 * self.G.data + alpha**2. * M) / rho_b )**0.5
+        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2.)*np.max(Vp)) /10.0) 
+#        return .5*np.min(self.spacing) / (np.sqrt(2.)*np.max(Vp))
+        #return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))
+

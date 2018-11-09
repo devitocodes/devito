@@ -173,8 +173,8 @@ class WaveletSource(PointSource):
 
     :param name: Name for the resulting symbol
     :param grid: :class:`Grid` object defining the computational domain.
-    :param f0: Peak frequency for Ricker wavelet in kHz
-    :param time_values: Discretized values of time in ms
+    :param f0: Peak frequency for Ricker wavelet in Hz
+    :param time_values: Discretized values of time in s
     """
 
     def __new__(cls, *args, **kwargs):
@@ -193,8 +193,8 @@ class WaveletSource(PointSource):
         """
         Defines a wavelet with a peak frequency f0 at time t.
 
-        :param f0: Peak frequency in kHz
-        :param t: Discretized values of time in ms
+        :param f0: Peak frequency in Hz
+        :param t: Discretized values of time in s
         """
         raise NotImplementedError('Wavelet not defined')
 
@@ -209,7 +209,7 @@ class WaveletSource(PointSource):
         wavelet = wavelet or self.data[:, idx]
         plt.figure()
         plt.plot(self.time_values, wavelet)
-        plt.xlabel('Time (ms)')
+        plt.xlabel('Time (s)')
         plt.ylabel('Amplitude')
         plt.tick_params()
         plt.show()
@@ -235,8 +235,8 @@ class RickerSource(WaveletSource):
         """
         Defines a Ricker wavelet with a peak frequency f0 at time t.
 
-        :param f0: Peak frequency in kHz
-        :param t: Discretized values of time in ms
+        :param f0: Peak frequency in Hz
+        :param t: Discretized values of time in s
         """
         r = (np.pi * f0 * (t - 1./f0))
         return (1-2.*r**2)*np.exp(-r**2)
@@ -259,10 +259,10 @@ class GaborSource(WaveletSource):
         """
         Defines a Gabor wavelet with a peak frequency f0 at time t.
 
-        :param f0: Peak frequency in kHz
-        :param t: Discretized values of time in ms
+        :param f0: Peak frequency in Hz
+        :param t: Discretized values of time in s
         """
-        agauss = 0.5 * f0
+        agauss = 0.5 * f0*1000
         tcut = 1.5 / agauss
-        s = (t-tcut) * agauss
+        s = (t/1000.-tcut) * agauss
         return np.exp(-2*s**2) * np.cos(2 * np.pi * s)
