@@ -1,18 +1,19 @@
 from __future__ import absolute_import
-
-from conftest import EVAL, time, x, y, z, skipif_yask
-
+from conftest import EVAL, time, x, y, z
 import numpy as np
 import pytest
-
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL)
+                    NODE, CELL, configuration)
 from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
 from devito.tools import flatten
+
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
+                                configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
 
 def dimify(dimensions):
@@ -29,7 +30,6 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
     return s.indexify() if mode == 'indexed' else s
 
 
-@skipif_yask
 class TestCodeGen(object):
 
     @classmethod
@@ -130,7 +130,6 @@ class TestCodeGen(object):
                for i in flatten(retrieve_indexed(i) for i in exprs))
 
 
-@skipif_yask
 class TestArithmetic(object):
 
     @classmethod
@@ -303,7 +302,6 @@ class TestArithmetic(object):
         assert np.all(u.data[:] == 3)
 
 
-@skipif_yask
 class TestAllocation(object):
 
     @classmethod
@@ -369,7 +367,6 @@ class TestAllocation(object):
         assert f.data[index] == 2.
 
 
-@skipif_yask
 class TestArguments(object):
 
     @classmethod
@@ -792,7 +789,6 @@ class TestArguments(object):
         assert (a.data[8:, :] == 1.).all()
 
 
-@skipif_yask
 class TestDeclarator(object):
 
     @classmethod
@@ -909,7 +905,6 @@ class TestDeclarator(object):
   return 0;""" in str(operator.ccode)
 
 
-@skipif_yask
 class TestLoopScheduler(object):
 
     def test_consistency_coupled_wo_ofs(self, tu, tv, ti0, t0, t1):
