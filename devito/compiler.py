@@ -363,6 +363,8 @@ def jit_compile(soname, code, compiler):
     # many processes are frequently attempting jit-compilation (e.g.,
     # when running the test suite in parallel)
     with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
         tic = time()
         _, _, _, recompiled = compile_from_string(compiler, target, code, src_file,
                                                   cache_dir=cache_dir,
