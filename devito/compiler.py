@@ -366,10 +366,12 @@ def jit_compile(soname, code, compiler):
         warnings.simplefilter('ignore')
 
         tic = time()
+        # Spinlock in case of MPI
+        sleep_delay = 0 if configuration['mpi'] else 1
         _, _, _, recompiled = compile_from_string(compiler, target, code, src_file,
                                                   cache_dir=cache_dir,
-                                                  debug=configuration['debug-compiler'],
-                                                  spinlock=configuration['mpi'])
+                                                  debug=configuration['debug_compiler'],
+                                                  sleep_delay=sleep_delay)
         toc = time()
 
     if recompiled:
