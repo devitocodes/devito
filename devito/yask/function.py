@@ -6,7 +6,7 @@ import numpy as np
 import devito.function as function
 from devito.exceptions import InvalidArgument
 from devito.logger import yask as log
-from devito.tools import Signer, numpy_to_ctypes
+from devito.tools import Signer, numpy_to_ctypes, memoized_meth
 from devito.types import _SymbolCache
 
 from devito.yask.data import Data, DataScalar
@@ -184,6 +184,7 @@ class TimeFunction(function.TimeFunction, Function):
             indices[cls._time_position] = indices[cls._time_position].root
         return tuple(indices)
 
+    @memoized_meth
     def _arg_defaults(self, alias=None):
         args = super(TimeFunction, self)._arg_defaults(alias=alias)
         # This is a little hack: a TimeFunction originally meant to be accessed

@@ -237,6 +237,30 @@ def test_interpolate_custom(shape, coords, npoints=20):
     assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
 
 
+@skipif_yask
+@pytest.mark.parametrize('shape, coords', [
+    ((11, 11), [(.05, .9), (.01, .8)]),
+    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
+])
+def test_interpolate_indexed(shape, coords, npoints=20):
+    """Test generic point interpolation testing the x-coordinate of an
+    abitrary set of points going across the grid. Unlike other tests,
+    here we interpolate an expression built using the indexed notation.
+    """
+    a = unit_box(shape=shape)
+    p = custom_points(a.grid, coords, npoints=npoints)
+    xcoords = p.coordinates.data[:, 0]
+
+    p.data[:] = 1.
+    expr = p.interpolate(a[a.grid.dimensions] * p.indices[0])
+    Operator(expr)(a=a)
+
+    assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
+    assert np.allclose(p.data[1, :], 1.0 * xcoords, rtol=1e-6)
+    assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
+
+
+@skipif_yask
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)

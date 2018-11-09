@@ -161,7 +161,8 @@ class PartialCluster(object):
         expressions are dropped. The :class:`DataSpace` is updated
         accordingly."""
         assert self.ispace.is_compatible(other.ispace)
-        self.exprs.extend([i for i in other.exprs if i not in self.exprs])
+        self.exprs.extend([i for i in other.exprs
+                           if i not in self.exprs or i.is_Increment])
         self.dspace = DataSpace.merge(self.dspace, other.dspace)
         self.ispace = IterationSpace.merge(self.ispace, other.ispace)
 
