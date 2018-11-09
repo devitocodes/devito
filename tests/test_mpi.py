@@ -1,18 +1,19 @@
 import numpy as np
-
 import pytest
-from conftest import skipif_yask
-
+from conftest import skipif_backend  # noqa
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator)
+                    SubDimension, Eq, Inc, Operator, configuration)
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
-from devito.parameters import configuration
 from devito.types import LEFT, RIGHT
 
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
+                                configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
-@skipif_yask
+
+@skipif_backend(['yask', 'ops'])
 class TestDistributor(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
@@ -45,7 +46,7 @@ class TestDistributor(object):
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
-    @skipif_yask
+    @skipif_backend(['yask', 'ops'])
     @pytest.mark.parallel(nprocs=[2, 4])
     def test_ctypes_neighbours(self):
         grid = Grid(shape=(4, 4))
@@ -63,7 +64,7 @@ class TestDistributor(object):
         assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 class TestFunction(object):
 
     @pytest.mark.parallel(nprocs=9)
@@ -263,7 +264,7 @@ class TestFunction(object):
             assert np.all(f._data_ro_with_inhalo._local[0, 1:-1] == 2.)
             assert f._data_ro_with_inhalo._local[0, 0] == 1.
 
-    @skipif_yask
+    @skipif_backend(['yask', 'ops'])
     @pytest.mark.parallel(nprocs=4)
     @pytest.mark.parametrize('shape,expected', [
         ((15, 15), [((0, 8), (0, 8)), ((0, 8), (8, 15)),
@@ -277,7 +278,6 @@ class TestFunction(object):
                    for i, j in zip(f.local_indices, expected[grid.distributor.myrank]))
 
 
-@skipif_yask
 class TestCodeGeneration(object):
 
     def test_iet_copy(self):
@@ -364,7 +364,6 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 }"""
 
 
-@skipif_yask
 class TestSparseFunction(object):
 
     @pytest.mark.parallel(nprocs=4)
@@ -384,7 +383,7 @@ class TestSparseFunction(object):
         assert all(grid.distributor.glb_to_rank(i) == grid.distributor.myrank
                    for i in sf.gridpoints)
 
-    @skipif_yask
+    @skipif_backend(['yask', 'ops'])
     @pytest.mark.parallel(nprocs=4)
     @pytest.mark.parametrize('coords,expected', [
         ([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]]),
@@ -454,7 +453,6 @@ class TestSparseFunction(object):
         assert np.all(sf.data == data[sf.local_indices]*2)
 
 
-@skipif_yask
 class TestOperatorSimple(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
@@ -653,7 +651,6 @@ class TestOperatorSimple(object):
         assert len(calls) == 0
 
 
-@skipif_yask
 class TestOperatorAdvanced(object):
 
     @pytest.mark.parallel(nprocs=[4])
