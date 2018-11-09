@@ -16,6 +16,7 @@ presets = {
     'layers': {'preset': 'layers-isotropic', 'ratio': 3},
 }
 
+
 class TestAdjoint(object):
 
     def setup_method(self, method):
