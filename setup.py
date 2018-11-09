@@ -15,7 +15,7 @@ for ir in required:
     else:
         reqs += [ir]
 
-if os.environ.get('INSTALL_MPI') == '1':
+if os.system('which mpicc') == '0':
     reqs += ['mpi4py']
 
 setup(name='devito',

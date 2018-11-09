@@ -287,19 +287,18 @@ def configuration_override(key, value):
     return dec
 
 
-# Support to run MPI tests
-# This is partly extracted from:
-# `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
-
-mpi_exec = 'mpiexec'
-mpi_distro = sniff_mpi_distro(mpi_exec)
-
-
 def parallel(item):
     """Run a test in parallel.
 
     :parameter item: The test item to run.
     """
+    # Support to run MPI tests
+    # This is partly extracted from:
+    # `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
+
+    mpi_exec = 'mpiexec'
+    mpi_distro = sniff_mpi_distro(mpi_exec)
+
     marker = item.get_closest_marker("parallel")
     nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
     for i in nprocs:

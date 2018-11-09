@@ -19,50 +19,13 @@ pipeline {
                      environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=0
-						 INSTALL_MPI=0
+                         INSTALL_MPI=1
                          PYTHONPATH="${WORKSPACE}/lib/python3.6/site-packages/"
                      }
                      steps {
                          cleanWorkspace()
                          pipInstallDevito()
                          runPipTests()
-                     }
-                }
-                // For each combination of parameters required, build and test
-                stage('Build and test gcc-4.9 container with MPI') {
-                     agent { dockerfile { label 'azure-linux-8core'
-                                          filename 'Dockerfile.jenkins'
-                                          additionalBuildArgs "--build-arg gccvers=4.9" } }
-                     environment {
-                         HOME="${WORKSPACE}"
-                         DEVITO_OPENMP=0
-						 INSTALL_MPI=1
-                         PYTHONPATH="${WORKSPACE}/lib/python3.6/site-packages/"
-                     }
-                     steps {
-                         cleanWorkspace()
-                         pipInstallDevito()
-                         runPipTests()
-                     }
-                }
-                stage('Build and test gcc-4.9 OpenMP container') {
-                     agent { dockerfile { label 'azure-linux-8core'
-                                          filename 'Dockerfile.jenkins'
-                                          additionalBuildArgs "--build-arg gccvers=4.9" } }
-                     environment {
-                         HOME="${WORKSPACE}"
-                         DEVITO_OPENMP=1
-						 INSTALL_MPI=1
-                         OMP_NUM_THREADS=2
-                     }
-                     steps {
-                         cleanWorkspace()
-                         condaInstallDevito()
-						 condaInstallMPI()
-                         runCondaTests()
-                         runExamples()
-                         runCodecov()
-                         buildDocs()
                      }
                 }
                 stage('Build and test gcc-4.9 OpenMP container no MPI') {
@@ -72,7 +35,7 @@ pipeline {
                      environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=1
-						 INSTALL_MPI=0
+                         INSTALL_MPI=0
                          OMP_NUM_THREADS=2
                      }
                      steps {
@@ -91,7 +54,7 @@ pipeline {
                      environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=0
-						 INSTALL_MPI=1
+                         INSTALL_MPI=1
                      }
                      steps {
                          cleanWorkspace()
@@ -111,7 +74,7 @@ pipeline {
                          HOME="${WORKSPACE}"
                          DEVITO_BACKEND="yask"
                          DEVITO_OPENMP="0"
-						 INSTALL_MPI="1"
+                         INSTALL_MPI="1"
                          YC_CXX="g++-7"
                      }
                      steps {
@@ -131,7 +94,7 @@ pipeline {
                      environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=0
-						 INSTALL_MPI=1
+                         INSTALL_MPI=1
                      }
                      steps {
                          cleanWorkspace()
