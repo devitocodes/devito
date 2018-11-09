@@ -75,18 +75,25 @@ class OperatorCore(OperatorRunnable):
             return args
         elif setup is True:
             level = configuration['autotuning'].level or 'basic'
-            return autotune(self, args, level, configuration['autotuning'].mode)
+            args = autotune(self, args, level, configuration['autotuning'].mode)
         elif isinstance(setup, str):
-            return autotune(self, args, setup, configuration['autotuning'].mode)
+            args = autotune(self, args, setup, configuration['autotuning'].mode)
         elif isinstance(setup, tuple) and len(setup) == 2:
             level, mode = setup
             if level is False:
                 return args
             else:
-                return autotune(self, args, level, mode)
+                args = autotune(self, args, level, mode)
         else:
             raise ValueError("Expected bool, str, or 2-tuple, got `%s` instead"
                              % type(setup))
+
+        # Record the tuned values
+        mapper = self._state.setdefault('tuned', {})
+        mapper.update({k: v for k, v in args.items()
+                       if k in [i.tunable.name for i in self._dle_args]})
+
+        return args
 
 
 class OperatorDebug(OperatorCore):

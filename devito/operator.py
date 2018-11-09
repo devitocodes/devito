@@ -70,6 +70,10 @@ class Operator(Callable):
         # References to local or external routines
         self._func_table = OrderedDict()
 
+        # Internal state. May be used to store information about previous runs,
+        # autotuning reports, etc
+        self._state = {}
+
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
         expressions = self._apply_substitutions(expressions, subs)

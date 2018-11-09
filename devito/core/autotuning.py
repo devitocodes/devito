@@ -70,7 +70,7 @@ def autotune(operator, args, level, mode):
         return args
 
     # Attempted block sizes ...
-    mapper = OrderedDict([(i.argument.symbolic_size.name, i) for i in tunable])
+    mapper = OrderedDict([(i.tunable.name, i) for i in tunable])
     # ... Defaults (basic mode)
     blocksizes = [OrderedDict([(i, v) for i in mapper]) for v in options['at_blocksize']]
     # ... Always try the entire iteration space (degenerate block)
