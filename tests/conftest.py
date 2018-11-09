@@ -18,9 +18,12 @@ from devito.ir.iet import Iteration
 from devito.tools import as_tuple
 
 
-skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
-                                 reason="YASK testing is currently restricted")
-
+def skipif_backend(backends):
+    conditions = []
+    for b in backends:
+        conditions.append(b == configuration['backend'])
+    return pytest.mark.skipif(any(conditions),
+                              reason="{} testing is currently restricted".format(b))
 
 # Testing dimensions for space and time
 grid = Grid(shape=(3, 3, 3))
