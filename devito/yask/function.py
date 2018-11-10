@@ -6,7 +6,7 @@ import numpy as np
 import devito.function as function
 from devito.exceptions import InvalidArgument
 from devito.logger import yask as log
-from devito.tools import Signer, numpy_to_ctypes
+from devito.tools import Signer, numpy_to_ctypes, memoized_meth
 from devito.types import _SymbolCache
 
 from devito.yask.data import Data, DataScalar
@@ -78,7 +78,7 @@ class Function(function.Function, Signer):
                 # Create a YASK grid; this allocates memory
                 grid = context.make_grid(self)
 
-                # /self._padding/ must be updated as (from the YASK docs):
+                # `self._padding` must be updated as (from the YASK docs):
                 # "The value may be slightly larger [...] due to rounding"
                 padding = []
                 for i in self.dimensions:
@@ -89,6 +89,7 @@ class Function(function.Function, Signer):
                         # time and misc dimensions
                         padding.append((0, 0))
                 self._padding = tuple(padding)
+                del self.shape_allocated  # Invalidate cached_property
 
                 self._data = Data(grid, self.shape_allocated, self.indices, self.dtype)
                 self._data.reset()
@@ -183,6 +184,7 @@ class TimeFunction(function.TimeFunction, Function):
             indices[cls._time_position] = indices[cls._time_position].root
         return tuple(indices)
 
+    @memoized_meth
     def _arg_defaults(self, alias=None):
         args = super(TimeFunction, self)._arg_defaults(alias=alias)
         # This is a little hack: a TimeFunction originally meant to be accessed

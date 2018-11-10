@@ -77,15 +77,15 @@ class Dimension(AbstractSymbol, ArgProvider):
     def limits(self):
         return (self.symbolic_start, self.symbolic_end, 1)
 
-    @property
+    @cached_property
     def size_name(self):
         return "%s_size" % self.name
 
-    @property
+    @cached_property
     def min_name(self):
         return "%s_m" % self.name
 
-    @property
+    @cached_property
     def max_name(self):
         return "%s_M" % self.name
 
@@ -127,7 +127,8 @@ class Dimension(AbstractSymbol, ArgProvider):
         :param alias: (Optional) name under which to store values.
         """
         dim = alias or self
-        return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
+        return {dim.min_name: start or 0, dim.size_name: size,
+                dim.max_name: size if size is None else size-1}
 
     def _arg_values(self, args, interval, grid, **kwargs):
         """
@@ -145,39 +146,38 @@ class Dimension(AbstractSymbol, ArgProvider):
                      indices.
         :param kwargs: Dictionary of user-provided argument overrides.
         """
-        # Fetch user input, and convert it into local values if necessary
-        minv = kwargs.pop(self.min_name, None)
-        maxv = kwargs.pop(self.max_name, kwargs.pop(self.name, None))
+        # Fetch user input and convert into rank-local values
+        glb_minv = kwargs.pop(self.min_name, None)
+        glb_maxv = kwargs.pop(self.max_name, kwargs.pop(self.name, None))
         if grid is not None and grid.is_distributed(self):
-            minv, maxv = grid.distributor.glb_to_loc(self, (minv, maxv))
+            loc_minv, loc_maxv = grid.distributor.glb_to_loc(self, (glb_minv, glb_maxv))
+        else:
+            loc_minv, loc_maxv = glb_minv, glb_maxv
 
-        # If not user-provided, use min/max default value, but adjust it
-        # so as to avoid OOB accesses
+        # If no user-override provided, use a suitable default value
         defaults = self._arg_defaults()
-        values = {}
-        if minv is None:
-            values[self.min_name] = args.get(self.min_name, defaults[self.min_name])
+        if glb_minv is None:
+            loc_minv = args.get(self.min_name, defaults[self.min_name])
             try:
-                values[self.min_name] -= min(interval.lower, 0)
+                loc_minv -= min(interval.lower, 0)
             except (AttributeError, TypeError):
                 pass
-        else:
-            values[self.min_name] = minv
-        if maxv is None:
-            values[self.max_name] = args.get(self.max_name, defaults[self.max_name])
+        if glb_maxv is None:
+            loc_maxv = args.get(self.max_name, defaults[self.max_name])
             try:
-                values[self.max_name] -= (1 + max(interval.upper, 0))
+                loc_maxv -= max(interval.upper, 0)
             except (AttributeError, TypeError):
                 pass
-        else:
-            values[self.max_name] = maxv
 
-        return values
+        return {self.min_name: loc_minv, self.max_name: loc_maxv}
 
     def _arg_check(self, args, size, interval):
         """
-        :raises InvalidArgument: If any of the ``self``-related runtime arguments
-                                 in ``args`` will cause an out-of-bounds access.
+        Raises
+        ------
+        InvalidArgument
+            If any of the ``self``-related runtime arguments in ``args``
+            will cause an out-of-bounds access.
         """
         if self.min_name not in args:
             raise InvalidArgument("No runtime value for %s" % self.min_name)
@@ -260,7 +260,8 @@ class DefaultDimension(Dimension):
     def _arg_defaults(self, start=None, size=None, alias=None):
         dim = alias or self
         size = size or dim._default_value
-        return {dim.min_name: start or 0, dim.max_name: size, dim.size_name: size}
+        return {dim.min_name: start or 0, dim.size_name: size,
+                dim.max_name: size if size is None else size-1}
 
 
 class DerivedDimension(Dimension):

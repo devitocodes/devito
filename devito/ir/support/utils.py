@@ -1,16 +1,14 @@
 from collections import OrderedDict, defaultdict
-from itertools import groupby
 
 from devito.dimension import Dimension, ModuloDimension
-from devito.ir.support.basic import Access, Scope
+from devito.ir.support.basic import Access
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
-           'detect_flow_directions', 'force_directions', 'group_expressions',
-           'align_accesses', 'detect_io']
+           'detect_flow_directions', 'force_directions', 'align_accesses', 'detect_io']
 
 
 def detect_accesses(expr):
@@ -216,46 +214,6 @@ def force_directions(mapper, key):
             directions[k.parent] = v1
 
     return directions, clashes
-
-
-def group_expressions(exprs):
-    """``{exprs} -> ({exprs'}, {exprs''}, ...)`` where: ::
-
-        * There are data dependences within exprs' and within exprs'';
-        * There are *no* data dependencies across exprs' and exprs''.
-    """
-    # Partion based on data dependences
-    mapper = OrderedDict()
-    ngroups = 0
-    for e1 in exprs:
-        if e1 in mapper:
-            # Optimization: we know already that a group for `e1` has been found
-            continue
-        found = False
-        for e2 in exprs:
-            if e1 is e2:
-                continue
-            elif Scope([e1, e2]).has_dep:
-                v = mapper.get(e1, mapper.get(e2))
-                if v is None:
-                    ngroups += 1
-                    v = ngroups
-                mapper[e1] = mapper[e2] = v
-                found = True
-        if not found:
-            ngroups += 1
-            mapper[e1] = ngroups
-
-    # Reorder to match input ordering
-    groups = []
-    data = sorted(mapper, key=lambda i: mapper[i])
-    for k, g in groupby(data, key=lambda i: mapper[i]):
-        groups.append(tuple(sorted(g, key=lambda i: exprs.index(i))))
-
-    # Sanity check
-    assert max(mapper.values()) == len(groups)
-
-    return tuple(groups)
 
 
 def detect_io(exprs, relax=False):

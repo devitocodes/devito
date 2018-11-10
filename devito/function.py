@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from itertools import product
 
 import sympy
@@ -12,9 +12,9 @@ from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
-from devito.mpi import MPI
+from devito.mpi import MPI, SparseDistributor
 from devito.parameters import configuration
-from devito.symbolics import indexify, retrieve_functions
+from devito.symbolics import indexify, retrieve_function_carriers
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
                           OWNED, HALO, LEFT, RIGHT)
@@ -65,6 +65,7 @@ class Constant(AbstractCachedSymbol, ArgProvider):
         """Return a tuple of argument names introduced by this symbol."""
         return (self.name,)
 
+    @memoized_meth
     def _arg_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
@@ -134,6 +135,9 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             # There may or may not be a `Grid` attached to the TensorFunction
             self._grid = kwargs.get('grid')
 
+            # A `Distributor` to handle domain decomposition (only relevant for MPI)
+            self._distributor = self.__distributor_setup__(**kwargs)
+
             # Staggering metadata
             self._staggered = self.__staggered_setup__(**kwargs)
 
@@ -167,7 +171,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
                 self._data = Data(self.shape_allocated, self.indices, self.dtype,
-                                  allocator=self._allocator)
+                                  self._decomposition, self._allocator)
                 if self._first_touch:
                     first_touch(self)
                 if callable(self._initializer):
@@ -224,6 +228,12 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                     mask.append(0)
             return tuple(mask)
 
+    def __distributor_setup__(self, **kwargs):
+        grid = kwargs.get('grid')
+        # There may or may not be a `Distributor`. In the latter case, the
+        # TensorFunction is to be considered "local" to each MPI rank
+        return kwargs.get('distributor') if grid is None else grid.distributor
+
     @property
     def _data_buffer(self):
         """Reference to the data. Unlike ``data, data_with_halo, data_allocated``,
@@ -242,7 +252,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     def staggered(self):
         return self._staggered
 
-    @property
+    @cached_property
     def shape(self):
         """
         Shape of the domain associated with this :class:`TensorFunction`.
@@ -251,7 +261,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         return self.shape_domain
 
-    @property
+    @cached_property
     def shape_domain(self):
         """
         Shape of the domain associated with this :class:`TensorFunction`.
@@ -264,7 +274,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         return tuple(i - j for i, j in zip(self._shape, self.staggered))
 
-    @property
+    @cached_property
     def shape_with_halo(self):
         """
         Shape of the domain plus the read-only stencil boundary associated
@@ -272,7 +282,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
 
-    @property
+    @cached_property
     def shape_allocated(self):
         """
         Shape of the allocated data associated with this :class:`Function`.
@@ -280,6 +290,51 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         padding outside of the halo.
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))
+
+    _offset_inhalo = AbstractCachedFunction._offset_halo
+    _extent_inhalo = AbstractCachedFunction._extent_halo
+
+    @cached_property
+    def _extent_outhalo(self):
+        """
+        The number of points in the outer halo region.
+        """
+        if self._distributor is None:
+            return self._extent_inhalo
+
+        left = [self._distributor.glb_to_loc(d, i, LEFT, strict=False)
+                for d, i in zip(self.dimensions, self._extent_inhalo.left)]
+        right = [self._distributor.glb_to_loc(d, i, RIGHT, strict=False)
+                 for d, i in zip(self.dimensions, self._extent_inhalo.right)]
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in zip(left, right))
+
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _mask_domain(self):
+        """
+        A mask to access the domain region of the allocated data.
+        """
+        return tuple(slice(i, -j) if j != 0 else slice(i, None)
+                     for i, j in self._offset_domain)
+
+    @cached_property
+    def _mask_inhalo(self):
+        """
+        A mask to access the domain+inhalo region of the allocated data.
+        """
+        return tuple(slice(i, -j) if j != 0 else slice(i, None)
+                     for i, j in self._offset_inhalo)
+
+    @cached_property
+    def _mask_outhalo(self):
+        """
+        A mask to access the domain+outhalo region of the allocated data.
+        """
+        return tuple(slice(i.start - j.left, i.stop and i.stop + j.right or None)
+                     for i, j in zip(self._mask_domain, self._extent_outhalo))
 
     @property
     def data(self):
@@ -315,30 +370,13 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             Alias to ``self.data``.
         """
         self._is_halo_dirty = True
-        return self._data[self._mask_domain]
-
-    @property
-    @_allocate_memory
-    def data_interior(self):
-        """
-        The interior data values.
-
-        Elements are stored in row-major format.
-
-        .. note::
-
-            With this accessor you are claiming that you will modify
-            the values you get back. If you only need to look at the
-            values, use :meth:`data_ro_interior` instead.
-        """
-        self._is_halo_dirty = True
-        return self._data[self._mask_interior]
+        return self._data[self._mask_domain]._global
 
     @property
     @_allocate_memory
     def data_with_halo(self):
         """
-        The domain+halo data values.
+        The domain+outhalo data values.
 
         Elements are stored in row-major format.
 
@@ -350,7 +388,33 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return self._data[self._mask_with_halo]
+        return self._data[self._mask_outhalo]._global
+
+    _data_with_outhalo = data_with_halo
+
+    @property
+    @_allocate_memory
+    def _data_with_inhalo(self):
+        """
+        The domain+inhalo data values.
+
+        Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_with_inhalo` instead.
+
+        .. note::
+
+            Typically, this property won't be used in user code to set
+            or read data values. Instead, it may come in handy for
+            testing or debugging
+        """
+        self._is_halo_dirty = True
+        self._halo_exchange()
+        return self._data[self._mask_inhalo]._global
 
     @property
     @_allocate_memory
@@ -368,7 +432,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return self._data
+        return self._data._global
 
     @property
     @_allocate_memory
@@ -376,25 +440,25 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         A read-only view of the domain data values.
         """
-        view = self._data[self._mask_domain]
-        view.setflags(write=False)
-        return view
-
-    @property
-    @_allocate_memory
-    def data_ro_interior(self):
-        """
-        A read-only view of the interior data values.
-        """
-        view = self._data[self._mask_interior]
+        view = self._data[self._mask_domain]._global
         view.setflags(write=False)
         return view
 
     @property
     @_allocate_memory
     def data_ro_with_halo(self):
-        """A read-only view of the domain+halo data values."""
-        view = self._data[self._mask_with_halo]
+        """A read-only view of the domain+outhalo data values."""
+        view = self._data[self._mask_outhalo]._global
+        view.setflags(write=False)
+        return view
+
+    _data_ro_with_outhalo = data_ro_with_halo
+
+    @property
+    @_allocate_memory
+    def _data_ro_with_inhalo(self):
+        """A read-only view of the domain+inhalo data values."""
+        view = self._data[self._mask_inhalo]._global
         view.setflags(write=False)
         return view
 
@@ -402,9 +466,28 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @_allocate_memory
     def data_ro_allocated(self):
         """A read-only view of the domain+halo+padding data values."""
-        view = self._data.view()
+        view = self._data._global
         view.setflags(write=False)
         return view
+
+    @cached_property
+    def local_indices(self):
+        """
+        A tuple of slices representing the global indices that logically
+        belong to the calling MPI rank.
+
+        .. note::
+
+            Given a Function ``f(x, y)`` with shape ``(nx, ny)``, when *not*
+            using MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``.
+            On the other hand, when MPI is used, the local ranges depend on the
+            domain decomposition, which is carried by ``self.grid``.
+        """
+        if self._distributor is None:
+            return tuple(slice(0, s) for s in self.shape)
+        else:
+            return tuple(self._distributor.glb_slices.get(d, slice(0, s))
+                         for s, d in zip(self.shape, self.dimensions))
 
     @property
     def space_dimensions(self):
@@ -432,32 +515,30 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                     for i, j in zip(symbolic_shape, self.staggered))
         return EnrichedTuple(*ret, getters=self.dimensions)
 
-    @property
-    def _mask_interior(self):
-        """A mask to access the interior region of the allocated data."""
-        if self.grid is None:
-            glb_pos_map = {d: [LEFT, RIGHT] for d in self.dimensions}
-        else:
-            glb_pos_map = self.grid.distributor.glb_pos_map
-        ret = []
-        for d, i in zip(self.dimensions, self._mask_domain):
-            if d.is_Space:
-                lshift = int(LEFT in glb_pos_map.get(d, []))
-                rshift = int(RIGHT in glb_pos_map.get(d, []))
-                if i.stop is None:
-                    ret.append(slice(i.start + lshift, -rshift or None))
-                else:
-                    ret.append(slice(i.start + lshift, i.stop - rshift))
-            else:
-                ret.append(i)
-        return tuple(ret)
+    @cached_property
+    def _decomposition(self):
+        """
+        A mapper from self's distributed :class:`Dimension`s to their
+        :class:`Decomposition`s.
+
+        .. note::
+
+            The partitioning encoded in the returned :class:`Decomposition`s
+            includes the indices falling in the halo+padding regions.
+        """
+        if self._distributor is None:
+            return {}
+        mapper = {d: self._distributor.decomposition[d] for d in self.dimensions
+                  if d in self._distributor.dimensions}
+        # Extend the `Decomposition`s to include the non-domain indices
+        return {d: v.reshape(*self._offset_domain[d]) for d, v in mapper.items()}
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
         if not MPI.Is_initialized() or MPI.COMM_WORLD.size == 1:
             # Nothing to do
             return
-        if MPI.COMM_WORLD.size > 1 and self.grid is None:
+        if MPI.COMM_WORLD.size > 1 and self._distributor is None:
             raise RuntimeError("`%s` cannot perfom a halo exchange as it has "
                                "no Grid attached" % self.name)
         if self._in_flight:
@@ -471,9 +552,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     def __halo_begin_exchange(self, dim):
         """Begin a halo exchange along a given :class:`Dimension`."""
-        distributor = self.grid.distributor
-        neighbours = distributor.neighbours
-        comm = distributor.comm
+        neighbours = self._distributor.neighbours
+        comm = self._distributor.comm
         for i in [LEFT, RIGHT]:
             neighbour = neighbours[dim][i]
             owned_region = self._get_view(OWNED, dim, i)
@@ -500,6 +580,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """Return a tuple of argument names introduced by this function."""
         return (self.name,)
 
+    @memoized_meth
     def _arg_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
@@ -741,8 +822,8 @@ class Function(TensorFunction, Differentiable):
         points = []
         for d in (as_tuple(dims) or self.space_dimensions):
             if p is None:
-                lp = self._extent_halo[d].left
-                rp = self._extent_halo[d].right
+                lp = self._extent_inhalo[d].left
+                rp = self._extent_inhalo[d].right
             else:
                 lp = p // 2 + p % 2
                 rp = p // 2
@@ -767,7 +848,7 @@ class Function(TensorFunction, Differentiable):
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
-        ['space_order', 'shape', 'dimensions', 'staggered']
+        ['space_order', 'shape', 'dimensions']
 
 
 class TimeFunction(Function):
@@ -991,6 +1072,12 @@ class SubFunction(Function):
         else:
             return self._parent._arg_defaults(alias=self._parent).reduce_all()
 
+    @property
+    def parent(self):
+        return self._parent
+
+    _pickle_kwargs = Function._pickle_kwargs + ['parent']
+
 
 class AbstractSparseFunction(TensorFunction):
     """
@@ -1012,18 +1099,7 @@ class AbstractSparseFunction(TensorFunction):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(AbstractSparseFunction, self).__init__(*args, **kwargs)
-
-            npoint = kwargs.get('npoint')
-            if not isinstance(npoint, int):
-                raise TypeError('SparseFunction needs `npoint` int argument')
-            if npoint < 0:
-                raise ValueError('`npoint` must be >= 0')
-            self.npoint = npoint
-
-            # A Grid must have been provided
-            if self.grid is None:
-                raise TypeError('SparseFunction needs `grid` argument')
-
+            self._npoint = kwargs['npoint']
             self._space_order = kwargs.get('space_order', 0)
 
     @classmethod
@@ -1039,26 +1115,38 @@ class AbstractSparseFunction(TensorFunction):
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
-        return kwargs.get('shape', (kwargs.get('npoint'),))
+        grid = kwargs.get('grid')
+        # A Grid must have been provided
+        if grid is None:
+            raise TypeError('Need `grid` argument')
+        shape = kwargs.get('shape')
+        npoint = kwargs['npoint']
+        if shape is None:
+            glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
+            shape = (glb_npoint[grid.distributor.myrank],)
+        return shape
+
+    @property
+    def npoint(self):
+        return self.shape[self._sparse_position]
+
+    @property
+    def space_order(self):
+        return self._space_order
 
     @property
     def _sparse_dim(self):
         return self.dimensions[self._sparse_position]
 
-    def _is_owned(self, point):
-        """Return True if ``point`` is in self's local domain, False otherwise."""
-        point = as_tuple(point)
-        if len(point) != self.grid.dim:
-            raise ValueError("`%s` is an %dD point (expected %dD)"
-                             % (point, len(point), self.grid.dim))
-        distributor = self.grid.distributor
-        return all(distributor.glb_to_loc(d, p) is not None
-                   for d, p in zip(self.grid.dimensions, point))
-
     @property
     def gridpoints(self):
         """
         The *reference* grid point corresponding to each sparse point.
+
+        .. note::
+
+            When using MPI, this property refers to the *physically* owned
+            sparse points.
         """
         raise NotImplementedError
 
@@ -1202,6 +1290,7 @@ class AbstractSparseFunction(TensorFunction):
         """
         raise NotImplementedError
 
+    @memoized_meth
     def _arg_defaults(self, alias=None):
         key = alias or self
         mapper = {self: key}
@@ -1268,22 +1357,10 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
-
-            nt = kwargs.get('nt')
-            if not isinstance(nt, int):
-                raise TypeError('Sparse TimeFunction needs `nt` int argument')
-            if nt <= 0:
-                raise ValueError('`nt` must be > 0')
-            self.nt = nt
-
             self.time_dim = self.indices[self._time_position]
             self._time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise ValueError("`time_order` must be int")
-
-    @property
-    def time_order(self):
-        return self._time_order
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1298,7 +1375,26 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
-        return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+        shape = kwargs.get('shape')
+        if shape is None:
+            nt = kwargs.get('nt')
+            if not isinstance(nt, int):
+                raise TypeError('Need `nt` int argument')
+            if nt <= 0:
+                raise ValueError('`nt` must be > 0')
+
+            shape = list(AbstractSparseFunction.__shape_setup__(**kwargs))
+            shape.insert(cls._time_position, nt)
+
+        return tuple(shape)
+
+    @property
+    def nt(self):
+        return self.shape[self._time_position]
+
+    @property
+    def time_order(self):
+        return self._time_order
 
     @property
     def _time_size(self):
@@ -1340,6 +1436,22 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         The parameters must always be given as keyword arguments, since
         SymPy uses `*args` to (re-)create the dimension arguments of the
         symbolic function.
+
+    .. note::
+
+        About SparseFunction and MPI. There is a clear difference between: ::
+
+            * Where the sparse points *physically* live, i.e., on which MPI rank. This
+              depends on the user code, particularly on how the data is set up.
+            * and which MPI rank *logically* owns a given sparse point. The logical
+              ownership depends on where the sparse point is located within `self.grid`.
+
+        Right before running an Operator (i.e., upon a call to `op.apply()`), a
+        SparseFunction `scatter`s its physically owned sparse points so that each
+        MPI rank gets temporary access to all of its logically owned sparse points.
+        A `gather` operation, executed before returning control to user-land,
+        updates the physically owned sparse points in `self.data` by collecting
+        the values computed during `op.apply()` from different MPI ranks.
     """
 
     is_SparseFunction = True
@@ -1359,16 +1471,26 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                 self._coordinates = coordinates
             else:
                 dimensions = (self.indices[-1], Dimension(name='d'))
+                # Only retain the local data region
+                if coordinates is not None:
+                    coordinates = np.array(coordinates)
                 self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
                                                 dtype=self.dtype, dimensions=dimensions,
                                                 shape=(self.npoint, self.grid.dim),
-                                                space_order=0, initializer=coordinates)
+                                                space_order=0, initializer=coordinates,
+                                                distributor=self._distributor)
                 if self.npoint == 0:
                     # This is a corner case -- we might get here, for example, when
                     # running with MPI and some processes get 0-size arrays after
-                    # domain decomposition. We touch the data anyway to avoid the
+                    # domain decomposition. We "touch" the data anyway to avoid the
                     # case ``self._data is None``
                     self.coordinates.data
+
+    def __distributor_setup__(self, **kwargs):
+        """A `SparseDistributor` handles the SparseFunction decomposition based on
+        physical ownership, and allows to convert between global and local indices."""
+        return SparseDistributor(kwargs['npoint'], self._sparse_dim,
+                                 kwargs['grid'].distributor)
 
     @property
     def coordinates(self):
@@ -1505,7 +1627,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         if self.coordinates._data is None:
             raise ValueError("No coordinates attached to this SparseFunction")
         ret = []
-        for coords in self.coordinates.data:
+        for coords in self.coordinates.data._local:
             ret.append(tuple(int(sympy.floor((c - o.data)/i.spacing.data)) for c, o, i in
                              zip(coords, self.grid.origin, self.grid.dimensions)))
         return ret
@@ -1520,7 +1642,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         :param increment: (Optional) if True, perform an increment rather
                           than an assignment. Defaults to False.
         """
-        variables = list(retrieve_functions(expr))
+        variables = list(retrieve_function_carriers(expr))
 
         # List of indirection indices for all adjacent grid points
         idx_subs, eqns = self._interpolation_indices(variables, offset)
@@ -1548,7 +1670,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                        absorbing boundary conditions.
         """
 
-        variables = list(retrieve_functions(expr)) + [field]
+        variables = list(retrieve_function_carriers(expr)) + [field]
 
         # List of indirection indices for all adjacent grid points
         idx_subs, eqns = self._interpolation_indices(variables, offset)
@@ -1558,6 +1680,10 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
                      for b, vsub in zip(self._coefficients, idx_subs)])
 
         return eqns
+
+    @cached_property
+    def _decomposition(self):
+        return {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
 
     @property
     def _dist_subfunc_alltoall(self):
@@ -1585,7 +1711,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return sshape, scount, sdisp, rshape, rcount, rdisp
 
     def _dist_scatter(self, data=None):
-        data = data if data is not None else self.data
+        data = data if data is not None else self.data._local
         distributor = self.grid.distributor
 
         # If not using MPI, don't waste time
@@ -1605,7 +1731,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         data = scattered
 
         # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
-        coords = self.coordinates.data[self._dist_subfunc_scatter_mask]
+        coords = self.coordinates.data._local[self._dist_subfunc_scatter_mask]
         # Send out the sparse point coordinates
         _, scount, sdisp, rshape, rcount, rdisp = self._dist_subfunc_alltoall
         scattered = np.empty(shape=rshape, dtype=self.coordinates.dtype)
@@ -1636,7 +1762,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         data = gathered
 
         # Insert back into `self.data` based on the original (expected) data layout
-        self.data[:] = data[self._dist_gather_mask]
+        self._data[:] = data[self._dist_gather_mask]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
         # in `_dist_scatter` is here received; a sparse point that is received in
@@ -1787,7 +1913,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             # Grid points per sparse point (2 in the case of bilinear and trilinear)
             r = kwargs.get('r')
             if not isinstance(r, int):
-                raise TypeError('Interpolation needs `r` int argument')
+                raise TypeError('Need `r` int argument')
             if r <= 0:
                 raise ValueError('`r` must be > 0')
             self.r = r
