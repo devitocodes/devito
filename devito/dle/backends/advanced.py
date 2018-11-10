@@ -9,7 +9,7 @@ import cgen
 import numpy as np
 
 from devito.cgen_utils import ccode
-from devito.dimension import Dimension
+from devito.dimension import IncrDimension
 from devito.dle import fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
                                  simdinfo, get_simd_flag, get_simd_items)
@@ -123,20 +123,17 @@ class AdvancedRewriter(BasicRewriter):
             intra_blocks = []
             remainders = []
             for i in iterations:
-                name = "%s%d_block" % (i.dim.name, len(mapper))
-
                 # Build Iteration over blocks
-                dim = blocked.setdefault(i, Dimension(name=name))
-                bsize = dim.symbolic_size
-                bstart = i.limits[0]
+                name = "%s%d_block" % (i.dim.name, len(mapper))
+                dim = blocked.setdefault(i, IncrDimension(i.dim, name=name))
                 binnersize = i.symbolic_extent + (i.offsets[1] - i.offsets[0])
-                bfinish = i.dim.symbolic_end - (binnersize % bsize)
-                inter_block = Iteration([], dim, [bstart, bfinish, bsize],
-                                        offsets=i.offsets, properties=PARALLEL)
+                bfinish = i.dim.symbolic_end - (binnersize % dim.step)
+                inter_block = Iteration([], dim, bfinish, offsets=i.offsets,
+                                        properties=PARALLEL)
                 inter_blocks.append(inter_block)
 
                 # Build Iteration within a block
-                limits = (dim, dim + bsize - 1, 1)
+                limits = (dim, dim + dim.step - 1, 1)
                 intra_block = i._rebuild([], limits=limits, offsets=(0, 0),
                                          properties=i.properties + (TAG, ELEMENTAL))
                 intra_blocks.append(intra_block)
