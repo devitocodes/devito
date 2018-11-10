@@ -26,6 +26,8 @@ class Dimension(AbstractSymbol, ArgProvider):
     is_Sub = False
     is_Conditional = False
     is_Stepping = False
+    is_Modulo = False
+    is_Incr = False
 
     """
     A Dimension is a symbol representing a problem dimension and thus defining a
@@ -610,6 +612,8 @@ class ModuloDimension(DerivedDimension):
     :param name: (Optional) force a name for this Dimension.
     """
 
+    is_Modulo = True
+
     def __new__(cls, parent, offset, modulo, name=None):
         return ModuloDimension.__xnew_cached_(cls, parent, offset, modulo, name)
 
@@ -673,12 +677,16 @@ class IncrDimension(DerivedDimension):
     start + 2*k, ...``.
 
     :param parent: Parent dimension from which the IncrDimension is created.
-    :param start: An integer representing the starting point of the sequence.
-    :param step: The distance between two consecutive points.
+    :param start: (Optional) an integer representing the starting point of the
+                  sequence. Defaults to the parent's symbolic start.
+    :param step: (Optional) the distance between two consecutive points.
+                 Defaults to the symbolic size.
     :param name: (Optional) force a name for this Dimension.
     """
 
-    def __new__(cls, parent, start, step, name=None):
+    is_Incr = True
+
+    def __new__(cls, parent, start=None, step=None, name=None):
         return IncrDimension.__xnew_cached_(cls, parent, start, step, name)
 
     def __new_stage2__(cls, parent, start, step, name):
@@ -691,13 +699,13 @@ class IncrDimension(DerivedDimension):
 
     __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
-    @property
+    @cached_property
     def step(self):
-        return self._step
+        return self._step if self._step is not None else self.symbolic_size
 
     @cached_property
     def symbolic_start(self):
-        return self._start
+        return self._start if self._start is not None else self.parent.symbolic_start
 
     @property
     def symbolic_incr(self):
