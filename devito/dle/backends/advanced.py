@@ -9,8 +9,7 @@ import cgen
 import numpy as np
 
 from devito.cgen_utils import ccode
-from devito.dimension import IncrDimension
-from devito.dle import fold_blockable_tree, unfold_blocked_tree
+from devito.dle import BlockDimension, fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
@@ -125,7 +124,7 @@ class AdvancedRewriter(BasicRewriter):
             for i in iterations:
                 # Build Iteration over blocks
                 name = "%s%d_block" % (i.dim.name, len(mapper))
-                dim = blocked.setdefault(i, IncrDimension(i.dim, name=name))
+                dim = blocked.setdefault(i, BlockDimension(i.dim, name=name))
                 binnersize = i.symbolic_extent + (i.offsets[1] - i.offsets[0])
                 bfinish = i.dim.symbolic_end - (binnersize % dim.step)
                 inter_block = Iteration([], dim, bfinish, offsets=i.offsets,

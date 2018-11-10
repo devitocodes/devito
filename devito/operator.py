@@ -149,21 +149,6 @@ class Operator(Callable):
         for p in self.input:
             p._arg_check(args, self._dspace[p])
 
-        # Derive additional values for DLE arguments
-        # TODO: This is not pretty, but it works for now. Ideally, the
-        # DLE arguments would be massaged into the IET so as to comply
-        # with the rest of the argument derivation procedure.
-        for arg in self._dle_args:
-            dim = arg.argument
-            osize = (1 + arg.original_dim.symbolic_end
-                     - arg.original_dim.symbolic_start).subs(args)
-            if arg.value is None:
-                args[dim.symbolic_size.name] = osize
-            elif isinstance(arg.value, int):
-                args[dim.symbolic_size.name] = arg.value
-            else:
-                args[dim.symbolic_size.name] = arg.value(osize)
-
         # Add in the profiler argument
         args[self.profiler.name] = self.profiler.timer.reset()
 

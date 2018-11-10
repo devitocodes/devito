@@ -7,7 +7,7 @@ from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacent,
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple, flatten
 
-__all__ = ['fold_blockable_tree', 'unfold_blocked_tree']
+__all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 
 
 def fold_blockable_tree(node, exclude_innermost=False):
@@ -268,3 +268,21 @@ class IterationFold(Iteration):
                       for shift, nodes in self.folds)
 
         return folds + as_tuple(root)
+
+
+class BlockDimension(IncrDimension):
+
+    def _arg_defaults(self, **kwargs):
+        # TODO: need a heuristic to pick a default block size
+        return {self.step.name: 8}
+
+    def _arg_values(self, args, interval, grid, **kwargs):
+        if self.step.name in kwargs:
+            return {self.step.name: kwargs.pop(self.step)}
+        else:
+            blocksize = self._arg_defaults()[self.step.name]
+            if args[self.root.min_name] < blocksize < args[self.root.max_name]:
+                return {self.step.name: blocksize}
+            else:
+                # Avoid OOB
+                return {self.step.name: 1}
