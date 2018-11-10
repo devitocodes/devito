@@ -327,7 +327,7 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># `val` is decomposed, `self` is replicated -&gt; gatherall-like</span>
                 <span class="k">raise</span> <span class="ne">NotImplementedError</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">):</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_decomposed</span><span class="p">:</span>
                 <span class="c1"># `val` is replicated, `self` is decomposed -&gt; `val` gets decomposed</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_glb_indexing</span><span class="p">:</span>
@@ -350,6 +350,10 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># `val` is replicated`, `self` is replicated -&gt; plain ndarray.__setitem__</span>
                 <span class="k">pass</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_mpi_distributed</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;With MPI data can only be set &quot;</span>
+                                          <span class="s2">&quot;via scalars or numpy arrays&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot insert obj of type `</span><span class="si">%s</span><span class="s2">` into a Data&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
 
