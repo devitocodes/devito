@@ -174,7 +174,7 @@ class Data(np.ndarray):
             else:
                 # `val` is decomposed, `self` is replicated -> gatherall-like
                 raise NotImplementedError
-        elif isinstance(val, Iterable):
+        elif isinstance(val, np.ndarray):
             if self._is_decomposed:
                 # `val` is replicated, `self` is decomposed -> `val` gets decomposed
                 if self._glb_indexing:
@@ -197,6 +197,10 @@ class Data(np.ndarray):
             else:
                 # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
                 pass
+        elif isinstance(val, Iterable):
+            if self._is_mpi_distributed:
+                raise NotImplementedError("With MPI data can only be set "
+                                          "via scalars or numpy arrays")
         else:
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
 
