@@ -351,6 +351,8 @@ class Iteration(Node):
         if isinstance(limits, Iterable):
             assert(len(limits) == 3)
             self.limits = tuple(limits)
+        elif self.dim.is_Incr:
+            self.limits = (self.dim.symbolic_start, limits, self.dim.step)
         else:
             self.limits = (0, limits, 1)
 
@@ -364,7 +366,7 @@ class Iteration(Node):
         self.properties = as_tuple(filter_sorted(properties))
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)
-        assert all(i.is_Derived and i.root is dimension for i in self.uindices)
+        assert all(i.is_Derived and i.root is self.dim for i in self.uindices)
 
     def __repr__(self):
         properties = ""
