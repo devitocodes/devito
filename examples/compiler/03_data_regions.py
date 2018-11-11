@@ -11,7 +11,7 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "Now we will learn how the `Halo` and `Padding` regions affect the Operator construction. For that, we will use the time marching example shown in [01_iet](https://github.com/opesci/devito/blob/master/examples/compiler/01_iet.ipynb) tutorial. "
+    "In this tutorial we will learn about data regions and how these impact the Operator construction. We will use the simple time marching example shown in [01_iet](https://github.com/opesci/devito/blob/master/examples/compiler/01_iet.ipynb) tutorial. "
    ]
   },
   {
@@ -31,7 +31,7 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "At this moment, we have a time-varying 3x3 grid filled with `1's`. Below, we can see the `domain` data values:"
+    "At this point, we have a time-varying 3x3 grid filled with `1's`. Below, we can see the `domain` data values:"
    ]
   },
   {
@@ -61,7 +61,7 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "We now create an `Operator` that increments by `2` all points in the computational domain at each timestep."
+    "We now create an `Operator` that, at each timestep, increments by `2` all points in the computational domain."
    ]
   },
   {
@@ -81,7 +81,7 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "Finally, we can print the `op` to see the generated code."
+    "We can print `op` to get the generated code."
    ]
   },
   {
@@ -141,14 +141,14 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "When we take a look at the constructed expression ($u[t1][x + 1][y + 1] = u[t0][x + 1][y + 1] + 2$) we see `+1` being added to the spatial indexes of `u`."
+    "When we take a look at the constructed expression, `u[t1][x + 1][y + 1] = u[t0][x + 1][y + 1] + 2`, we see several `+1` were added to the spatial indexes of `u`."
    ]
   },
   {
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "That occurs because there are grid points surrounding the `domain region`, i.e. ghost points that are accessed by the stencil when iterating in the proximity of the domain boundary. Those points represent a region called `Halo`. The Halo region can be seen below, it's the zeros surrounding the domain region."
+    "This is because the domain region is actually surrounded by 'ghost' points, which can be accessed via a stencil when iterating in proximity of the domain boundary. The ghost points define the `halo` region. The halo region can be accessed through the `data_with_halo` data accessor; as we see below, the halo are the zeros surrounding the domain region."
    ]
   },
   {
@@ -182,9 +182,9 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "Thus, the array accesses become logically aligned to the equation’s natural domain. For instance, given the usual Function $u(t, x, y)$ having one point on each side of the `x` and `y` halo regions, the array accesses $u[t, x, y]$ and $u[t, x + 2, y + 2]$ are transformed, respectively, into $u[t, x + 1, y + 1]$ and $u[t, x + 3, y + 3]$. When $x = y = 0$, therefore, the values $u[t, 1, 1]$ and $u[t, 3, 3]$ are fetched, representing the first and third points in the computational domain. \n",
+    "By adding the '+1' offsets, the Devito compiler ensures the array accesses are logically aligned to the equation’s natural domain. For instance, the `TimeFunction` $u(t, x, y)$ used in the example above has one point on each side of the `x` and `y` halo regions, so the array accesses $u[t, x, y]$ and $u[t, x + 2, y + 2]$ would be transformed, respectively, into $u[t, x + 1, y + 1]$ and $u[t, x + 3, y + 3]$. When $x = y = 0$, therefore, the values $u[t, 1, 1]$ and $u[t, 3, 3]$ are fetched, representing the first and third points in the computational domain. \n",
     "\n",
-    "By default, the Halo region has `1` point on each side of the space dimensions. Sometimes, those points may be unnecessary. On the other hand, for instance, depending on the PDE being approximated, more points may be necessary. Thus, this default value can be changed by passing a value in `space_order`:"
+    "By default, the halo region has `space_order` points on each side of the space dimensions. Sometimes, these points may be unnecessary, or, depending on the partial differential equation being approximated, extra points may be necessary. A different radius for the halo region can be set by passing a tuple to `space_order`."
    ]
   },
   {
@@ -251,7 +251,7 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "Also, one can pass a 3-tuple `(o, lp, rp)` instead of a single integer representing the discretization order. Here, `o` is the discretization order, while `lp` and `rp` indicate how many points are expected on left (lp) and right (rp) of a point of interest."
+    "One can also pass a 3-tuple `(o, lp, rp)` instead of a single integer representing the discretization order. Here, `o` is the discretization order, while `lp` and `rp` indicate how many points are expected on left (lp) and right (rp) of a point of interest."
    ]
   },
   {
@@ -299,7 +299,7 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "Let's write the code again, but, this time, changing the `space_order` values."
+    "Let's have a look at the Operator generated code when using `u_new`."
    ]
   },
   {
@@ -363,7 +363,7 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "Finally, let's run the operator."
+    "And finally, let's run it, to convince ourselves that no halo values will be written."
    ]
   },
   {
@@ -409,7 +409,7 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "The halo is surrounded by another data region, called `padding`. Padding can be used for data alignment. By default, there is no padding, but it can be changed by passing a value in `padding`, as shown below:"
+    "The halo region, in turn, is surrounded by another data region, called `padding`. Padding can be used for data alignment. By default, there is no padding. This can be changed by passing a suitable value to `padding`, as shown below:"
    ]
   },
   {
@@ -474,8 +474,8 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "Now we see `+4` being added on each side of the space dimensions. Of which, +2 belong to space_order (halo) and +2 belong to padding.\n",
-    "We can see the data using `data_allocated`."
+    "Now we see `+4` was added to each space dimension index. Of this '+4', '+2' is due to the halo (`space_order=2`), and another +2 to the padding.\n",
+    "With the `data_allocated` accessor it is possible to access the domain+halo+padding data view."
    ]
   },
   {
@@ -521,7 +521,7 @@
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "The `data_allocated` property shows the `domain + halo + padding` data values. Above, the domain is filled with 2's, the halo is filled with 1's and the padding is filled with 0's."
+    "Above, the domain is filled with 2, the halo is filled with 1, and the padding is filled with 0."
    ]
   }
  ],
