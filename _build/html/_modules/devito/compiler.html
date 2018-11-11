@@ -506,16 +506,25 @@
     <span class="n">target</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">get_jit_dir</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">soname</span><span class="p">))</span>
     <span class="n">src_file</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">compiler</span><span class="o">.</span><span class="n">src_ext</span><span class="p">)</span>
 
+    <span class="c1"># This makes a suite of cache directories based on the soname</span>
+    <span class="n">cache_dir</span> <span class="o">=</span> <span class="n">get_codepy_dir</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">soname</span><span class="p">[:</span><span class="mi">7</span><span class="p">])</span>
+    <span class="n">cache_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
     <span class="c1"># `catch_warnings` suppresses codepy complaining that it&#39;s taking</span>
     <span class="c1"># too long to acquire the cache lock. This warning can only appear</span>
     <span class="c1"># in a multiprocess session, typically (but not necessarily) when</span>
     <span class="c1"># many processes are frequently attempting jit-compilation (e.g.,</span>
     <span class="c1"># when running the test suite in parallel)</span>
     <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+
         <span class="n">tic</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+        <span class="c1"># Spinlock in case of MPI</span>
+        <span class="n">sleep_delay</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="mi">1</span>
         <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">recompiled</span> <span class="o">=</span> <span class="n">compile_from_string</span><span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">code</span><span class="p">,</span> <span class="n">src_file</span><span class="p">,</span>
-                                                  <span class="n">cache_dir</span><span class="o">=</span><span class="n">get_codepy_dir</span><span class="p">(),</span>
-                                                  <span class="n">debug</span><span class="o">=</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;debug_compiler&#39;</span><span class="p">])</span>
+                                                  <span class="n">cache_dir</span><span class="o">=</span><span class="n">cache_dir</span><span class="p">,</span>
+                                                  <span class="n">debug</span><span class="o">=</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;debug_compiler&#39;</span><span class="p">],</span>
+                                                  <span class="n">sleep_delay</span><span class="o">=</span><span class="n">sleep_delay</span><span class="p">)</span>
         <span class="n">toc</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
 
     <span class="k">if</span> <span class="n">recompiled</span><span class="p">:</span>
