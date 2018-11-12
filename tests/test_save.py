@@ -1,9 +1,13 @@
+import pytest
 import numpy as np
 
 from conftest import skipif_backend
 
-from devito import Buffer, Grid, Eq, Operator, TimeFunction, solve
+from devito import Buffer, Grid, Eq, Operator, TimeFunction, solve, configuration
 
+
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
 def initial(nt, nx, ny):
     xx, yy = np.meshgrid(np.linspace(0., 1., nx, dtype=np.float32),
@@ -36,7 +40,7 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
     return u.data[timesteps - 1]
 
 
-@skipif_backend(['yask', 'ops'])
+@skipif_backend(['yask'])
 def test_save():
     assert(np.array_equal(run_simulation(True), run_simulation()))
 

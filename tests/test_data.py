@@ -2,10 +2,13 @@ from conftest import skipif_backend
 import pytest
 import numpy as np
 
-from devito import Grid, Function, TimeFunction, Eq, Operator, ALLOC_GUARD, ALLOC_FLAT
+from devito import (Grid, Function, TimeFunction, Eq, Operator, # noqa
+                    configuration, ALLOC_GUARD, ALLOC_FLAT)
 from devito.data import Decomposition
 from devito.types import LEFT, RIGHT
 
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
 class TestDataBasic(object):
 
@@ -119,7 +122,7 @@ class TestDataBasic(object):
         arr.fill(2.)
         assert np.all(arr - u.data == 1.)
 
-    @skipif_backend(['yask', 'ops'])  # YASK and OPS backends do not support MPI yet
+    @skipif_backend(['yask'])  # YASK and OPS backends do not support MPI yet
     def test_illegal_indexing(self):
         """
         Tests that indexing into illegal entries throws an exception.
@@ -193,7 +196,7 @@ class TestDataBasic(object):
         assert v._extent_padding.left == v._extent_padding.right == (1, 3, 4)
 
 
-@skipif_backend(['yask', 'ops'])
+@skipif_backend(['yask'])
 class TestDecomposition(object):
 
     """
@@ -309,7 +312,7 @@ class TestDecomposition(object):
         assert d.reshape((1, 3, 10, 11, 14)) == Decomposition([[0], [1], [], [2, 3]], 2)
 
 
-@skipif_backend(['yask', 'ops'])  # YASK and OPS backends do not support MPI yet
+@skipif_backend(['yask'])  # YASK and OPS backends do not support MPI yet
 class TestDataDistributed(object):
 
     """
