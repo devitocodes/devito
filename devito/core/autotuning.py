@@ -1,11 +1,10 @@
-from __future__ import absolute_import
-
 from collections import OrderedDict
 from itertools import combinations
 from functools import reduce
 from operator import mul
 import resource
 
+from devito.dle import BlockDimension
 from devito.ir import Backward, Iteration, FindNodes, FindSymbols
 from devito.logger import perf, warning
 from devito.parameters import configuration
@@ -38,11 +37,8 @@ def autotune(operator, args, level, mode):
         raise ValueError("The accepted `(level, mode)` combinations are `%s`; "
                          "provided `%s` instead" % (accepted, key))
 
-    parameters = operator.parameters
-    tunable = operator._dle_args
-
     # We get passed all the arguments, but the cfunction only requires a subset
-    at_args = OrderedDict([(p.name, args[p.name]) for p in parameters])
+    at_args = OrderedDict([(p.name, args[p.name]) for p in operator.parameters])
 
     # User-provided output data won't be altered in `preemptive` mode
     if mode == 'preemptive':
@@ -52,10 +48,12 @@ def autotune(operator, args, level, mode):
                 at_args[k] = v.copy()
 
     iterations = FindNodes(Iteration).visit(operator.body)
-    dim_mapper = {i.dim.name: i.dim for i in iterations}
 
-    # Shrink the iteration space of time-stepping dimension so that auto-tuner
-    # runs will finish quickly
+    # Detect tunable arguments
+    tunable = {i.dim.symbolic_size.name: i for i in iterations
+               if isinstance(i.dim, BlockDimension) and not i.is_Remainder}
+
+    # Shrink the time dimension's iteration range for quick autotuning
     steppers = [i for i in iterations if i.dim.is_Time]
     if len(steppers) == 0:
         stepper = None
@@ -69,17 +67,19 @@ def autotune(operator, args, level, mode):
         warning("AutoTuner: Couldn't understand loop structure; giving up")
         return args
 
-    # Attempted block sizes ...
-    mapper = OrderedDict([(i.tunable.name, i) for i in tunable])
-    # ... Defaults (basic mode)
-    blocksizes = [OrderedDict([(i, v) for i in mapper]) for v in options['at_blocksize']]
-    # ... Always try the entire iteration space (degenerate block)
-    itershape = [mapper[i].iteration.symbolic_extent.subs(args) for i in mapper]
-    blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j-1))
-                      for i, j in zip(mapper, itershape)]))
-    # ... More attempts if auto-tuning in aggressive mode
+    # Max attemptable block size
+    max_bs = OrderedDict((k, v.dim.max_step.subs(args)) for k, v in tunable.items())
+
+    # Attempted block sizes:
+    # 1) Defaults (basic mode)
+    blocksizes = [OrderedDict([(i, v) for i in tunable]) for v in options['at_blocksize']]
+    # 2) Always try the entire iteration space (degenerate block)
+    blocksizes.append(max_bs)
+    # 3) More attempts if auto-tuning in aggressive mode
     if level == 'aggressive':
         blocksizes = more_heuristic_attempts(blocksizes)
+    # Finally, drop block sizes exceeding the iteration space extent
+    blocksizes = [i for i in blocksizes if all(i[k] <= v for k, v in max_bs.items())]
 
     # How many temporaries are allocated on the stack?
     # Will drop block sizes that might lead to a stack overflow
@@ -95,29 +95,12 @@ def autotune(operator, args, level, mode):
         # Can we safely autotune over the given time range?
         check_time_bounds(stepper, at_args, args)
 
-        illegal = False
-        for k, v in at_args.items():
-            if k in bs:
-                val = bs[k]
-                start = mapper[k].original_dim.symbolic_start.subs(args)
-                end = mapper[k].original_dim.symbolic_end.subs(args)
-
-                if val <= mapper[k].iteration.extent(start, end):
-                    at_args[k] = val
-                else:
-                    # Block size cannot be larger than actual dimension
-                    illegal = True
-                    break
-        if illegal:
-            continue
+        # Update `at_args` to use the new block shape
+        at_args = {k: bs.get(k, v) for k, v in at_args.items()}
 
         # Make sure we remain within stack bounds, otherwise skip block size
-        dim_sizes = {}
-        for k, v in at_args.items():
-            if k in bs:
-                dim_sizes[mapper[k].argument.symbolic_size] = bs[k]
-            elif k in dim_mapper:
-                dim_sizes[dim_mapper[k].symbolic_size] = v
+        # TODO: just use at_args within xreplace/subs ???
+        dim_sizes = {tunable[i].dim.symbolic_size: bs[i] for i in at_args if i in bs}
         try:
             bs_stack_space = stack_space.xreplace(dim_sizes)
         except AttributeError:
