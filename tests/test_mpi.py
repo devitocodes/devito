@@ -1084,7 +1084,7 @@ class TestIsotropicAcoustic(object):
         ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
-    @pytest.mark.parallel(nprocs=[4, 16])
+    @pytest.mark.parallel(nprocs=[4, 8])
     def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
                        Eu, Erec, Ev, Esrca):
         """
