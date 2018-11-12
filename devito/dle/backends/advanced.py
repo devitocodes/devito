@@ -1,7 +1,3 @@
-# The internal loop engine
-
-from __future__ import absolute_import
-
 from collections import OrderedDict
 from itertools import combinations
 
@@ -15,8 +11,7 @@ from devito.dle.backends import (BasicRewriter, Ompizer, dle_pass, simdinfo,
 from devito.exceptions import DLEException
 from devito.ir.iet import (Expression, Iteration, List, HaloSpot, PARALLEL, ELEMENTAL,
                            REMAINDER, tagger, FindSymbols, FindNodes, Transformer,
-                           FindAdjacent, IsPerfectIteration, compose_nodes,
-                           retrieve_iteration_tree)
+                           IsPerfectIteration, compose_nodes, retrieve_iteration_tree)
 from devito.logger import perf_adv
 from devito.tools import as_tuple
 
