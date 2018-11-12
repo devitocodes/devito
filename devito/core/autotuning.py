@@ -36,6 +36,9 @@ def autotune(operator, args, level, mode):
     if key not in accepted:
         raise ValueError("The accepted `(level, mode)` combinations are `%s`; "
                          "provided `%s` instead" % (accepted, key))
+    if not any(isinstance(i, BlockDimension) for i in operator.dimensions):
+        # Nothing to tune for
+        return args
 
     # We get passed all the arguments, but the cfunction only requires a subset
     at_args = OrderedDict([(p.name, args[p.name]) for p in operator.parameters])

@@ -1,12 +1,11 @@
 import abc
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from time import time
 
 from devito.logger import dle
-from devito.tools import as_tuple
 
 
-__all__ = ['AbstractRewriter', 'Arg', 'BlockingArg', 'State', 'dle_pass']
+__all__ = ['AbstractRewriter', 'State', 'dle_pass']
 
 
 def dle_pass(func):
@@ -34,56 +33,15 @@ class State(object):
         self.nodes = nodes
 
         self.elemental_functions = []
-        self.arguments = []
+        self.dimensions = []
         self.includes = []
-        self.flags = defaultdict(bool)
 
     def update(self, nodes, **kwargs):
         self.nodes = nodes
 
         self.elemental_functions.extend(list(kwargs.get('elemental_functions', [])))
-        self.arguments.extend(list(kwargs.get('arguments', [])))
+        self.dimensions.extend(list(kwargs.get('dimensions', [])))
         self.includes.extend(list(kwargs.get('includes', [])))
-        self.flags.update({i: True for i in as_tuple(kwargs.get('flags', ()))})
-
-
-class Arg(object):
-
-    """A DLE-produced argument."""
-
-    def __init__(self, argument, value):
-        self.argument = argument
-        self.value = value
-
-    def __repr__(self):
-        return "DLE-GenericArg"
-
-
-class BlockingArg(Arg):
-
-    def __init__(self, blocked_dim, iteration, value):
-        """
-        Represent an argument introduced in the kernel by Rewriter._loop_blocking.
-
-        :param blocked_dim: The blocked :class:`Dimension`.
-        :param iteration: The :class:`Iteration` object from which the ``blocked_dim``
-                          was derived.
-        :param value: A suggested value determined by the DLE.
-        """
-        super(BlockingArg, self).__init__(blocked_dim, value)
-        self.iteration = iteration
-
-    def __repr__(self):
-        return "DLE-BlockingArg[%s,%s,suggested=%s]" %\
-            (self.argument, self.original_dim, self.value)
-
-    @property
-    def original_dim(self):
-        return self.iteration.dim
-
-    @property
-    def tunable(self):
-        return self.argument.symbolic_size
 
 
 class AbstractRewriter(object):

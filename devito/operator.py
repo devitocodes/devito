@@ -8,7 +8,6 @@ import numpy as np
 import sympy
 
 from devito.compiler import jit_compile, load, save
-from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
@@ -274,17 +273,14 @@ class Operator(Callable):
         # Apply the Devito Loop Engine (DLE) for loop optimization
         dle = kwargs.get("dle", configuration['dle'])
 
-        dle_state = transform(iet, *set_dle_mode(dle))
+        state = transform(iet, *set_dle_mode(dle))
 
-        self._dle_args = dle_state.arguments
-        self._dle_flags = dle_state.flags
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                             for i in dle_state.elemental_functions]))
-        self.dimensions.extend([i.argument for i in self._dle_args
-                                if isinstance(i.argument, Dimension)])
-        self._includes.extend(list(dle_state.includes))
+                                             for i in state.elemental_functions]))
+        self.dimensions.extend(state.dimensions)
+        self._includes.extend(state.includes)
 
-        return dle_state.nodes
+        return state.nodes
 
     def _generate_mpi(self, iet, **kwargs):
         """Transform the Iteration/Expression tree adding nodes performing halo

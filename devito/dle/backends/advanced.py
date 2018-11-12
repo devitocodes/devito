@@ -10,14 +10,14 @@ import numpy as np
 
 from devito.cgen_utils import ccode
 from devito.dle import BlockDimension, fold_blockable_tree, unfold_blocked_tree
-from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
-                                 simdinfo, get_simd_flag, get_simd_items)
+from devito.dle.backends import (BasicRewriter, Ompizer, dle_pass, simdinfo,
+                                 get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
 from devito.ir.iet import (Expression, Iteration, List, HaloSpot, PARALLEL, ELEMENTAL,
                            REMAINDER, tagger, FindSymbols, FindNodes, Transformer,
                            FindAdjacent, IsPerfectIteration, compose_nodes,
                            retrieve_iteration_tree)
-from devito.logger import dle_warning, perf_adv
+from devito.logger import perf_adv
 from devito.tools import as_tuple
 
 
@@ -176,33 +176,7 @@ class AdvancedRewriter(BasicRewriter):
         if not blocked:
             return processed, {}
 
-        # Determine the block shape
-        blockshape = self.params.get('blockshape')
-        if not blockshape:
-            # Use trivial heuristic for a suitable blockshape
-            def heuristic(dim_size):
-                ths = 8  # FIXME: This really needs to be improved
-                return ths if dim_size > ths else 1
-            blockshape = {k: heuristic for k in blocked.keys()}
-        else:
-            try:
-                nitems, nrequired = len(blockshape), len(blocked)
-                blockshape = {k: v for k, v in zip(blocked, blockshape)}
-                if nitems > nrequired:
-                    dle_warning("Provided 'blockshape' has more entries than "
-                                "blocked loops; dropping entries ...")
-                if nitems < nrequired:
-                    dle_warning("Provided 'blockshape' has fewer entries than "
-                                "blocked loops; dropping dimensions ...")
-            except TypeError:
-                blockshape = {list(blocked)[0]: blockshape}
-            blockshape.update({k: None for k in blocked.keys()
-                               if k not in blockshape})
-
-        # Track any additional arguments required to execute /state.nodes/
-        arguments = [BlockingArg(v, k, blockshape[k]) for k, v in blocked.items()]
-
-        return processed, {'arguments': arguments, 'flags': 'blocking'}
+        return processed, {'dimensions': list(blocked.values())}
 
     @dle_pass
     def _simdize(self, nodes, state):
@@ -368,7 +342,7 @@ class SpeculativeRewriter(AdvancedRewriter):
                     mapper[i] = List(header=pragma, body=i)
         processed = Transformer(mapper).visit(processed)
 
-        return processed, {'flags': 'ntstores'}
+        return processed, {}
 
 
 class CustomRewriter(SpeculativeRewriter):
