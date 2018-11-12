@@ -1794,7 +1794,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         if expr is None:
             out = self.indexify().xreplace({self._sparse_dim: cd})
         else:
-            functions = {f for f in retrieve_functions(expr) if f.is_SparseFunction}
+            functions = {f for f in retrieve_function_carriers(expr)
+                         if f.is_SparseFunction}
             out = indexify(expr).xreplace({f._sparse_dim: cd for f in functions})
 
         # Equations for the indirection dimensions
