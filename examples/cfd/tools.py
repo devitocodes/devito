@@ -16,7 +16,7 @@ def plot_field(field, xmax=2., ymax=2., zmax=None, view=None, linewidth=0):
     y_coord = np.linspace(0, ymax, field.shape[1])
     fig = pyplot.figure(figsize=(11, 7), dpi=100)
     ax = fig.gca(projection='3d')
-    X, Y = np.meshgrid(x_coord, y_coord)
+    X, Y = np.meshgrid(x_coord, y_coord, indexing='ij')
     ax.plot_surface(X, Y, field[:], cmap=cm.viridis, rstride=1, cstride=1,
                     linewidth=linewidth, antialiased=False)
 
