@@ -6,6 +6,7 @@ import psutil
 from devito.ir.iet import (FindSymbols, FindNodes, Transformer, Block, Expression,
                            List, Iteration, retrieve_iteration_tree, filter_iterations,
                            IsPerfectIteration)
+from devito.parameters import configuration
 
 
 class Ompizer(object):
@@ -35,12 +36,17 @@ class Ompizer(object):
         self.key = key
 
     def _pragma_for(self, root, candidates):
+        # We need to access the core count. Are we cross-compiling?
+        try:
+            ncores = configuration['cross-compile'].cpu_count()
+        except AttributeError:
+            ncores = psutil.cpu_count(logical=False)
+
         # Heuristic: if at least two parallel loops are available and the
         # physical core count is greater than COLLAPSE, then omp-collapse them
         nparallel = len(candidates)
-        if (psutil.cpu_count(logical=False) < Ompizer.COLLAPSE
-                or nparallel < 2
-                or not IsPerfectIteration().visit(root)):
+        isperfect = IsPerfectIteration().visit(root)
+        if ncores < Ompizer.COLLAPSE or nparallel < 2 or not isperfect:
             return self.lang['for']
         else:
             return self.lang['collapse'](nparallel)

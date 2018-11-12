@@ -77,6 +77,9 @@ configuration.add('isa', 'cpp', ISAs)
 PLATFORMs = ['intel64', 'snb', 'ivb', 'hsw', 'bdw', 'skx', 'knl']
 configuration.add('platform', 'intel64', PLATFORMs)
 
+# (Undocumented) escape hatch for cross-compilation
+configuration.add('cross-compile', None)
+
 
 def infer_cpu():
     """
