@@ -6,7 +6,8 @@ from conftest import x, y, z, skipif_backend  # noqa
 
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseFunction,  # noqa
                     Grid, Operator, ruido, configuration)
-from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
+from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree
+from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
@@ -129,10 +130,25 @@ def test_tti_rewrite_speculative(tti_nodse):
 
 def test_tti_rewrite_aggressive(tti_nodse):
     operator = tti_operator(dse='aggressive')
-    rec, u, v, _ = operator.forward()
+    rec, u, v, _ = operator.forward(kernel='centered', save=False)
 
     assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
+
+    # Also check that DLE's loop blocking with DSE=aggressive does the right thing
+    # There should be exactly two BlockDimensions; bugs in the past were generating
+    # either code with no blocking (zero BlockDimensions) or code with four
+    # BlockDimensions (i.e., Iteration folding was somewhat broken)
+    op = operator.op_fwd(kernel='centered', save=False)
+    block_dims = [i for i in op.dimensions if isinstance(i, BlockDimension)]
+    assert len(block_dims) == 2
+
+    # Also, in this operator, we expect six temporary Arrays, two on the stack and
+    # four on the heap
+    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+    assert len([i for i in arrays if i._mem_stack]) == 2
+    assert len([i for i in arrays if i._mem_heap]) == 4
+    assert len([i for i in arrays if i._mem_external]) == 0
 
 
 @ruido(profiling='advanced')
