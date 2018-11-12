@@ -54,31 +54,9 @@ class AdvancedRewriter(BasicRewriter):
         Drop unnecessary halo exchanges, or shuffle them around to improve
         computation-communication overlap.
         """
-        # First, seek adjacent redundant HaloSpots, since by dropping any of
-        # these we may be able to change the IET nesting, thus affecting
-        # later manipulation passes
-        # Example (assume halo1 is redundant and has same HaloScheme as halo0):
-        # root -> halo0 -> iteration0        root -> halo0 -> iteration0
-        #      |                        ==>                |
-        #      -> halo1 -> iteration1                      -> iteration1
-        mapper = {}
-        for k, v in FindAdjacent(HaloSpot).visit(iet).items():
-            for adjacents in v:
-                # Note: at this point `adjacents` has at least two items
-                crt = adjacents[0]
-                for i in adjacents[1:]:
-                    if i.is_Redundant and i.halo_scheme == crt.halo_scheme:
-                        mapper[crt] = crt._rebuild(body=mapper.get(crt, crt).body + (i,),
-                                                   **crt.args_frozen)
-                        mapper[i] = None
-                    else:
-                        crt = i
-        processed = Transformer(mapper).visit(iet)
-
-        # Then, drop any leftover redundant HaloSpot
-        hss = FindNodes(HaloSpot).visit(processed)
-        mapper = {i: i.body[0] for i in hss if i.is_Redundant}
-        processed = Transformer(mapper, nested=True).visit(processed)
+        hss = FindNodes(HaloSpot).visit(iet)
+        mapper = {i: None for i in hss if i.is_Redundant}
+        processed = Transformer(mapper, nested=True).visit(iet)
 
         return processed, {}
 
@@ -171,10 +149,6 @@ class AdvancedRewriter(BasicRewriter):
 
         # Finish unrolling any previously folded Iterations
         processed = unfold_blocked_tree(rebuilt)
-
-        # All blocked dimensions
-        if not blocked:
-            return processed, {}
 
         return processed, {'dimensions': list(blocked.values())}
 
