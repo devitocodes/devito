@@ -27,7 +27,7 @@ class AdvancedRewriter(BasicRewriter):
         self._simdize(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
-        self._create_elemental_functions(state)
+        self._create_efuncs(state)
         self._minimize_remainders(state)
 
     @dle_pass
@@ -268,7 +268,7 @@ class AdvancedRewriterSafeMath(AdvancedRewriter):
         self._simdize(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
-        self._create_elemental_functions(state)
+        self._create_efuncs(state)
         self._minimize_remainders(state)
 
 
@@ -282,7 +282,7 @@ class SpeculativeRewriter(AdvancedRewriter):
         self._simdize(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
-        self._create_elemental_functions(state)
+        self._create_efuncs(state)
         self._minimize_remainders(state)
 
     @dle_pass
@@ -322,7 +322,7 @@ class CustomRewriter(SpeculativeRewriter):
         'blocking': SpeculativeRewriter._loop_blocking,
         'openmp': SpeculativeRewriter._parallelize,
         'simd': SpeculativeRewriter._simdize,
-        'split': SpeculativeRewriter._create_elemental_functions
+        'split': SpeculativeRewriter._create_efuncs
     }
 
     def __init__(self, nodes, passes, params):

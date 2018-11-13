@@ -128,14 +128,14 @@ def _new_operator3(shape, **kwargs):
     return u.data[1, :], op
 
 
-def test_create_elemental_functions_simple(simple_function):
+def test_create_efuncs_simple(simple_function):
     roots = [i[-1] for i in retrieve_iteration_tree(simple_function)]
     retagged = [i._rebuild(properties=tagger(0)) for i in roots]
     mapper = {i: j._rebuild(properties=(j.properties + (ELEMENTAL,)))
               for i, j in zip(roots, retagged)}
     function = Transformer(mapper).visit(simple_function)
     handle = transform(function, mode='split')
-    block = List(body=[handle.nodes] + handle.elemental_functions)
+    block = List(body=[handle.nodes] + handle.efuncs)
     output = str(block.ccode)
     # Make output compiler independent
     output = [i for i in output.split('\n')
@@ -170,14 +170,14 @@ void f_0(float *restrict a_vec, float *restrict b_vec,"""
 }""")
 
 
-def test_create_elemental_functions_complex(complex_function):
+def test_create_efuncs_complex(complex_function):
     roots = [i[-1] for i in retrieve_iteration_tree(complex_function)]
     retagged = [j._rebuild(properties=tagger(i)) for i, j in enumerate(roots)]
     mapper = {i: j._rebuild(properties=(j.properties + (ELEMENTAL,)))
               for i, j in zip(roots, retagged)}
     function = Transformer(mapper).visit(complex_function)
     handle = transform(function, mode='split')
-    block = List(body=[handle.nodes] + handle.elemental_functions)
+    block = List(body=[handle.nodes] + handle.efuncs)
     output = str(block.ccode)
     # Make output compiler independent
     output = [i for i in output.split('\n')

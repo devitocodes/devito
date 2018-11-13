@@ -189,7 +189,7 @@ class Operator(Callable):
         return args
 
     @property
-    def elemental_functions(self):
+    def _efuncs(self):
         return tuple(i.root for i in self._func_table.values())
 
     @cached_property
@@ -270,13 +270,13 @@ class Operator(Callable):
         """Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
-        # Apply the Devito Loop Engine (DLE) for loop optimization
         dle = kwargs.get("dle", configuration['dle'])
 
+        # Apply the Devito Loop Engine (DLE) for loop optimization
         state = transform(iet, *set_dle_mode(dle))
 
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                             for i in state.elemental_functions]))
+                                             for i in state.efuncs]))
         self.dimensions.extend(state.dimensions)
         self.input.extend(state.input)
         self._includes.extend(state.includes)

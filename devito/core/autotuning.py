@@ -86,8 +86,7 @@ def autotune(operator, args, level, mode):
 
     # How many temporaries are allocated on the stack?
     # Will drop block sizes that might lead to a stack overflow
-    functions = FindSymbols('symbolics').visit(operator.body +
-                                               operator.elemental_functions)
+    functions = FindSymbols('symbolics').visit(operator.body + operator._efuncs)
     stack_shapes = [i.symbolic_shape for i in functions if i.is_Array and i._mem_stack]
     stack_space = sum(reduce(mul, i, 1) for i in stack_shapes)*operator._dtype().itemsize
 

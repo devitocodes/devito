@@ -14,8 +14,8 @@ def dle_pass(func):
         tic = time()
         # Processing
         processed, extra = func(self, state.nodes, state)
-        for i, nodes in enumerate(list(state.elemental_functions)):
-            state.elemental_functions[i], _ = func(self, nodes, state)
+        for i, nodes in enumerate(list(state.efuncs)):
+            state.efuncs[i], _ = func(self, nodes, state)
         # State update
         state.update(processed, **extra)
         toc = time()
@@ -32,7 +32,7 @@ class State(object):
     def __init__(self, nodes):
         self.nodes = nodes
 
-        self.elemental_functions = []
+        self.efuncs = []
         self.dimensions = []
         self.input = []
         self.includes = []
@@ -40,7 +40,7 @@ class State(object):
     def update(self, nodes, **kwargs):
         self.nodes = nodes
 
-        self.elemental_functions.extend(list(kwargs.get('elemental_functions', [])))
+        self.efuncs.extend(list(kwargs.get('efuncs', [])))
         self.dimensions.extend(list(kwargs.get('dimensions', [])))
         self.input.extend(list(kwargs.get('input', [])))
         self.includes.extend(list(kwargs.get('includes', [])))
