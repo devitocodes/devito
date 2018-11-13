@@ -1,11 +1,12 @@
-from __future__ import absolute_import
 from functools import reduce
 from operator import mul
 import numpy as np
+
 import pytest
 from conftest import EVAL
-from devito.dle import transform
+
 from devito import Grid, Function, TimeFunction, Eq, Operator, solve, configuration
+from devito.dle import transform
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
                            Transformer, FindNodes, iet_analyze, retrieve_iteration_tree)
@@ -391,6 +392,27 @@ def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
         else:
             for k in pragmas:
                 assert 'omp for' not in k.value
+
+
+def test_dynamic_nthreads():
+    grid = Grid(shape=(16, 16, 16))
+    f = TimeFunction(name='f', grid=grid)
+
+    op = Operator(Eq(f.forward, f + 1.), dle='openmp')
+
+    # Check num_threads appears in the generated code
+    # Not very elegant, but it does the trick
+    assert 'num_threads(nt)' in str(op)
+
+    # Check `op` accepts the `nthreads` kwarg
+    op.apply(time=0)
+    op.apply(time_m=1, time_M=1, nthreads=4)
+    assert np.all(f.data[0] == 2.)
+
+    # Check the actual value assumed by `nthreads`
+    from devito.dle.backends.parallelizer import ncores
+    assert op.arguments(time=0)['nthreads'] == ncores()  # default value
+    assert op.arguments(time=0, nthreads=123)['nthreads'] == 123  # user supplied
 
 
 @pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
