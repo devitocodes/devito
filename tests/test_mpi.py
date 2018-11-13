@@ -14,7 +14,7 @@ from examples.seismic.acoustic import AcousticWaveSolver
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
                                 configuration['backend'] == 'ops',
                                 reason="testing is currently restricted")
-                                
+
 
 @skipif_backend(['yask', 'ops'])
 class TestDistributor(object):
@@ -1069,7 +1069,7 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[1] == 3)
 
 
-@skipif_yask
+@skipif_backend(['yask'])
 class TestIsotropicAcoustic(object):
 
     """
