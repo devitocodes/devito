@@ -41,7 +41,7 @@ class Decomposition(tuple):
 
     >>> d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7]], 1)
     >>> d
-    Decomposition([0 1 2], <<[3 4]>>, [5 6 7])
+    Decomposition([0,2], <<[3,4]>>, [5,7])
     >>> d.loc_abs_min
     3
     >>> d.loc_abs_max
@@ -112,9 +112,14 @@ class Decomposition(tuple):
             all(np.all(i == j) for i, j in zip(self, o))
 
     def __repr__(self):
-        items = ', '.join('<<%s>>' % str(v) if self.local == i else str(v)
-                          for i, v in enumerate(self))
-        return "Decomposition(%s)" % items
+        ret = []
+        for i, v in enumerate(self):
+            bounds = (min(v, default=None), max(v, default=None))
+            item = '[]' if bounds == (None, None) else '[%d,%d]' % bounds
+            if self.local == i:
+                item = "<<%s>>" % item
+            ret.append(item)
+        return 'Decomposition(%s)' % ', '.join(ret)
 
     def __call__(self, *args, rel=True):
         """Alias for ``self.convert_index``."""
@@ -157,7 +162,7 @@ class Decomposition(tuple):
 
         >>> d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
         >>> d
-        Decomposition([0 1 2], [3 4], <<[5 6 7]>>, [ 8 9 10 11])
+        Decomposition([0,2], [3,4], <<[5,7]>>, [8,11])
 
         A global index as single argument:
 
@@ -292,42 +297,43 @@ class Decomposition(tuple):
         --------
         >>> d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
         >>> d
-        Decomposition([0 1 2], [3 4], <<[5 6 7]>>, [ 8 9 10 11])
+        Decomposition([0,2], [3,4], <<[5,7]>>, [8,11])
 
         Providing explicit values
 
         >>> d.reshape(1, 1)
-        Decomposition([0 1 2 3], [4 5], <<[6 7 8]>>, [ 9 10 11 12 13])
+        Decomposition([0,3], [4,5], <<[6,8]>>, [9,13])
 
         >>> d.reshape(-2, 2)
-        Decomposition([0], [1 2], <<[3 4 5]>>, [ 6  7  8  9 10 11])
+        Decomposition([0,0], [1,2], <<[3,5]>>, [6,11])
 
         Providing a slice
 
         >>> d.reshape(slice(2, 9))
-        Decomposition([0], [1 2], <<[3 4 5]>>, [6])
+        Decomposition([0,0], [1,2], <<[3,5]>>, [6,6])
 
         >>> d.reshape(slice(2, -2))
-        Decomposition([0], [1 2], <<[3 4 5]>>, [6 7])
+        Decomposition([0,0], [1,2], <<[3,5]>>, [6,7])
 
         >>> d.reshape(slice(4))
-        Decomposition([0 1 2], [3], <<[]>>, [])
+        Decomposition([0,2], [3,3], <<[]>>, [])
         """
 
         if len(args) == 1:
-            if isinstance(args[0], slice):
-                if args[0].start is None:
+            arg = args[0]
+            if isinstance(arg, slice):
+                if arg.start is None or self.glb_min is None:
                     nleft = 0
                 else:
-                    nleft = self.glb_min - args[0].start
-                if args[0].stop is None:
+                    nleft = self.glb_min - arg.start
+                if arg.stop is None or self.glb_max is None:
                     nright = 0
-                elif args[0].stop < 0:
-                    nright = args[0].stop
+                elif arg.stop < 0:
+                    nright = arg.stop
                 else:
-                    nright = args[0].stop - self.glb_max - 1
-            elif isinstance(args[0], Iterable):
-                items = [np.array([j for j in i if j in args[0]]) for i in self]
+                    nright = arg.stop - self.glb_max - 1
+            elif isinstance(arg, Iterable):
+                items = [np.array([j for j in i if j in arg]) for i in self]
                 for i, arr in enumerate(list(items)):
                     items[i] = np.arange(arr.size) + sum(j.size for j in items[:i])
                 return Decomposition(items, self.local)

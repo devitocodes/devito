@@ -12,56 +12,45 @@ __all__ = ['Data']
 class Data(np.ndarray):
 
     """
-    A special :class:`numpy.ndarray` allowing logical indexing.
+    A :class:`numpy.ndarray` supporting distributed dimensions.
 
-    The type :class:`numpy.ndarray` is subclassed as indicated at: ::
+    Parameters
+    ----------
+    shape : tuple of ints
+        Shape of created array.
+    dtype : numpy.dtype
+        The data type of the raw data.
+    decomposition : tuple of :class:`Decomposition`, optional
+        The data decomposition, for each dimension.
+    modulo : tuple of bool, optional
+        If the i-th entry is True, then the i-th array dimension uses modulo indexing.
+    allocator : :class:`MemoryAllocator`, optional
+        Used to allocate memory. Defaults to ``ALLOC_FLAT``.
+
+    Notes
+    -----
+    NumPy array subclassing is described at: ::
 
         https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
 
-    :param shape: Shape of the array in grid points.
-    :param dimensions: The array :class:`Dimension`s.
-    :param dtype: A ``numpy.dtype`` for the raw data.
-    :param decomposition: (Optional) a mapper from :class:`Dimension`s in
-                          ``dimensions`` to :class:`Decomposition`s, which
-                          describe how the Data is distributed over a set
-                          of processes. The Decompositions will be used to
-                          translate global array indices into local indices.
-                          The local indices are relative to the calling process.
-                          This is only relevant in the case of distributed
-                          memory execution (via MPI).
-    :param allocator: (Optional) a :class:`MemoryAllocator` to specialize memory
-                      allocation. Defaults to ``ALLOC_FLAT``.
-
-    .. note::
-
-        This type supports logical indexing over modulo buffered dimensions.
-
-    .. note::
-
-        Any view or copy ``A`` created starting from ``self``, for instance via
-        a slice operation or a universal function ("ufunc" in NumPy jargon), will
-        still be of type :class:`Data`. However, if ``A``'s rank is different than
-        ``self``'s rank, namely if ``A.ndim != self.ndim``, then the capability of
-        performing logical indexing is lost.
+    Any view or copy created from ``self``, for instance via a slice operation
+    or a universal function ("ufunc" in NumPy jargon), will still be of type
+    :class:`Data`.
     """
 
-    def __new__(cls, shape, dimensions, dtype, decomposition=None, allocator=ALLOC_FLAT):
-        assert len(shape) == len(dimensions)
+    def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=ALLOC_FLAT):
+        assert len(shape) == len(modulo)
         ndarray, memfree_args = allocator.alloc(shape, dtype)
         obj = np.asarray(ndarray).view(cls)
         obj._allocator = allocator
         obj._memfree_args = memfree_args
-        obj._decomposition = tuple((decomposition or {}).get(i) for i in dimensions)
-        obj._modulo = tuple(True if i.is_Stepping else False for i in dimensions)
-
-        # By default, the indices used to access array values are interpreted as
-        # local indices
-        obj._glb_indexing = False
+        obj._decomposition = decomposition or (None,)*len(shape)
+        obj._modulo = modulo or (False,)*len(shape)
 
         # This cannot be a property, as Data objects constructed from this
         # object might not have any `decomposition`, but they would still be
         # distributed. Hence, in `__array_finalize__` we must copy this value
-        obj._is_decomposed = any(i is not None for i in obj._decomposition)
+        obj._is_distributed = any(i is not None for i in obj._decomposition)
 
         # Saves the last index used in `__getitem__`. This allows `__array_finalize__`
         # to reconstruct information about the computed view (e.g., `decomposition`)
@@ -96,18 +85,17 @@ class Data(np.ndarray):
 
         if type(obj) != Data:
             # Definitely from view casting
-            self._glb_indexing = False
-            self._is_decomposed = False
+            self._is_distributed = False
             self._modulo = tuple(False for i in range(self.ndim))
             self._decomposition = (None,)*self.ndim
         elif obj._index_stash is not None:
             # From `__getitem__`
-            self._glb_indexing = obj._glb_indexing
-            self._is_decomposed = obj._is_decomposed
-            idx = obj._normalize_index(obj._index_stash)
-            self._modulo = tuple(m for i, m in zip(idx, obj._modulo) if not is_integer(i))
+            self._is_distributed = obj._is_distributed
+            glb_idx = obj._normalize_index(obj._index_stash)
+            self._modulo = tuple(m for i, m in zip(glb_idx, obj._modulo)
+                                 if not is_integer(i))
             decomposition = []
-            for i, dec in zip(idx, obj._decomposition):
+            for i, dec in zip(glb_idx, obj._decomposition):
                 if is_integer(i):
                     continue
                 elif dec is None:
@@ -116,8 +104,7 @@ class Data(np.ndarray):
                     decomposition.append(dec.reshape(i))
             self._decomposition = tuple(decomposition)
         else:
-            self._glb_indexing = obj._glb_indexing
-            self._is_decomposed = obj._is_decomposed
+            self._is_distributed = obj._is_distributed
             if self.ndim == obj.ndim:
                 # E.g., from a ufunc, such as `np.add`
                 self._modulo = obj._modulo
@@ -129,21 +116,25 @@ class Data(np.ndarray):
 
     @property
     def _local(self):
-        """Return a view of ``self`` with disabled global indexing."""
+        """A view of ``self`` with global indexing disabled."""
         ret = self.view()
-        ret._glb_indexing = False
+        ret._is_distributed = False
         return ret
 
-    @property
-    def _global(self):
-        """Return a view of ``self`` with enabled global indexing."""
-        ret = self.view()
-        ret._glb_indexing = True
+    def _global(self, glb_idx, decomposition):
+        """A "global" view of ``self`` over a given :class:`Decomposition`."""
+        if self._is_distributed:
+            raise ValueError("Cannot derive a decomposed view from a decomposed Data")
+        if len(decomposition) != self.ndim:
+            raise ValueError("`decomposition` should have ndim=%d entries" % self.ndim)
+        ret = self[glb_idx]
+        ret._decomposition = decomposition
+        ret._is_distributed = any(i is not None for i in decomposition)
         return ret
 
     @property
     def _is_mpi_distributed(self):
-        return self._is_decomposed and configuration['mpi']
+        return self._is_distributed and configuration['mpi']
 
     def __repr__(self):
         return super(Data, self._local).__repr__()
@@ -155,7 +146,7 @@ class Data(np.ndarray):
             # self's data partition, so None is returned
             return None
         else:
-            self._index_stash = glb_idx  # Will be popped in `__array_finalize__`
+            self._index_stash = glb_idx
             retval = super(Data, self).__getitem__(loc_idx)
             self._index_stash = None
             return retval
@@ -166,48 +157,49 @@ class Data(np.ndarray):
             # no-op
             return
         elif np.isscalar(val):
-            pass
-        elif isinstance(val, Data) and val._is_decomposed:
-            if self._is_decomposed:
+            if index_is_basic(loc_idx):
+                # Won't go through `__getitem__` as it's basic indexing mode,
+                # so we should just propage `loc_idx`
+                super(Data, self).__setitem__(loc_idx, val)
+            else:
+                super(Data, self).__setitem__(glb_idx, val)
+        elif isinstance(val, Data) and val._is_distributed:
+            if self._is_distributed:
                 # `val` is decomposed, `self` is decomposed -> local set
-                pass
+                super(Data, self).__setitem__(glb_idx, val)
             else:
                 # `val` is decomposed, `self` is replicated -> gatherall-like
                 raise NotImplementedError
         elif isinstance(val, np.ndarray):
-            if self._is_decomposed:
+            if self._is_distributed:
                 # `val` is replicated, `self` is decomposed -> `val` gets decomposed
-                if self._glb_indexing:
-                    val_idx = self._normalize_index(glb_idx)
-                    val_idx = [index_dist_to_repl(i, dec) for i, dec in
-                               zip(val_idx, self._decomposition)]
-                    if NONLOCAL in val_idx:
-                        # no-op
-                        return
-                    val_idx = [i for i in val_idx if i is not PROJECTED]
-                    # NumPy broadcasting note:
-                    # When operating on two arrays, NumPy compares their shapes
-                    # element-wise. It starts with the trailing dimensions, and works
-                    # its way forward. Two dimensions are compatible when
-                    # * they are equal, or
-                    # * one of them is 1
-                    # Conceptually, below we apply the same rule
-                    val_idx = val_idx[len(val_idx)-val.ndim:]
-                    val = val[val_idx]
+                val_idx = self._normalize_index(glb_idx)
+                val_idx = [index_dist_to_repl(i, dec) for i, dec in
+                           zip(val_idx, self._decomposition)]
+                if NONLOCAL in val_idx:
+                    # no-op
+                    return
+                val_idx = [i for i in val_idx if i is not PROJECTED]
+                # NumPy broadcasting note:
+                # When operating on two arrays, NumPy compares their shapes
+                # element-wise. It starts with the trailing dimensions, and works
+                # its way forward. Two dimensions are compatible when
+                # * they are equal, or
+                # * one of them is 1
+                # Conceptually, below we apply the same rule
+                val_idx = val_idx[len(val_idx)-val.ndim:]
+                val = val[val_idx]
             else:
                 # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
                 pass
+            super(Data, self).__setitem__(glb_idx, val)
         elif isinstance(val, Iterable):
             if self._is_mpi_distributed:
                 raise NotImplementedError("With MPI data can only be set "
                                           "via scalars or numpy arrays")
+            super(Data, self).__setitem__(glb_idx, val)
         else:
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
-
-        # Finally, perform the `__setitem__`
-        # Note: we pass `glb_idx`, rather than `loc_idx`, as `__setitem__` calls
-        # `__getitem__`, which in turn expects a global index
-        super(Data, self).__setitem__(glb_idx, val)
 
     def _normalize_index(self, idx):
         if isinstance(idx, np.ndarray):
@@ -239,7 +231,7 @@ class Data(np.ndarray):
             if mod is True:
                 # Need to wrap index based on modulo
                 v = index_apply_modulo(i, s)
-            elif self._glb_indexing is True and dec is not None:
+            elif self._is_distributed is True and dec is not None:
                 # Need to convert the user-provided global indices into local indices.
                 # Obviously this will have no effect if MPI is not used
                 try:
@@ -282,7 +274,12 @@ PROJECTED = Index('projected')
 
 
 def index_is_basic(idx):
-    return all(is_integer(i) or (i is NONLOCAL) for i in idx)
+    if is_integer(idx):
+        return True
+    elif isinstance(idx, (slice, np.ndarray)):
+        return False
+    else:
+        return all(is_integer(i) or (i is NONLOCAL) for i in idx)
 
 
 def index_apply_modulo(idx, modulo):
@@ -314,11 +311,8 @@ def index_dist_to_repl(idx, decomposition):
     """
     Convert a distributed array index a replicated array index.
     """
-    if is_integer(idx):
-        return PROJECTED
-
     if decomposition is None:
-        return idx
+        return PROJECTED if is_integer(idx) else idx
 
     # Derive shift value
     value = idx.start if isinstance(idx, slice) else idx
@@ -330,7 +324,9 @@ def index_dist_to_repl(idx, decomposition):
     # Convert into absolute local index
     idx = decomposition.convert_index(idx, rel=False)
 
-    if idx is None:
+    if is_integer(idx):
+        return PROJECTED
+    elif idx is None:
         return NONLOCAL
     elif isinstance(idx, (tuple, list)):
         return [i - value for i in idx]
