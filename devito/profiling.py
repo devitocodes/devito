@@ -108,10 +108,6 @@ class Profiler(object):
 
 class AdvancedProfiler(Profiler):
 
-    def __init__(self, name):
-
-        super(AdvancedProfiler, self).__init__(name)
-
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, arguments, dtype):
         """
