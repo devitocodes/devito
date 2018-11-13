@@ -2,7 +2,8 @@ from conftest import skipif_yask, skipif_nompi
 import pytest
 import numpy as np
 
-from devito import Grid, Function, TimeFunction, Eq, Operator, ALLOC_GUARD, ALLOC_FLAT
+from devito import (Grid, Function, TimeFunction, Dimension, Eq, Operator,
+                    ALLOC_GUARD, ALLOC_FLAT)
 from devito.data import Decomposition
 from devito.types import LEFT, RIGHT
 
@@ -76,7 +77,8 @@ class TestDataBasic(object):
         u = Function(name='yu3D', grid=grid, space_order=2)
 
         assert u.shape == u.data.shape == domain_shape
-        assert u.shape_with_halo == u.data_with_halo.shape == (20, 20, 20)
+        assert u._shape_with_inhalo == u.data_with_halo.shape == (20, 20, 20)
+        assert u.shape_with_halo == u._shape_with_inhalo  # W/o MPI, these two coincide
 
         # Test simple insertion and extraction
         u.data_with_halo[0, 0, 0] = 1.
@@ -90,7 +92,7 @@ class TestDataBasic(object):
         assert u.data[-1, -1, -1] == 0.
         assert u.data_with_halo[-1, -1, -1] == 3.
 
-    def test_data_arithmetic(self):
+    def test_arithmetic(self):
         """
         Tests arithmetic operations between :class:`Data` objects and values.
         """
@@ -167,7 +169,8 @@ class TestDataBasic(object):
         u0 = Function(name='u0', grid=grid, space_order=0)
         u2 = Function(name='u2', grid=grid, space_order=2)
 
-        assert u0.shape == u0.shape_with_halo == u0.shape_allocated
+        assert u0.shape == u0._shape_with_inhalo == u0.shape_allocated
+        assert u0.shape_with_halo == u0._shape_with_inhalo  # W/o MPI, these two coincide
         assert len(u2.shape) == len(u2._extent_halo.left)
         assert tuple(i + j*2 for i, j in zip(u2.shape, u2._extent_halo.left)) ==\
             u2.shape_with_halo
@@ -318,7 +321,7 @@ class TestDataDistributed(object):
     """
 
     @pytest.mark.parallel(nprocs=4)
-    def test_data_localviews(self):
+    def test_localviews(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -354,14 +357,12 @@ class TestDataDistributed(object):
         u.data[:] = 1.
         assert np.all(u.data == 1.)
         assert np.all(u.data._local == 1.)
-        assert np.all(u.data._global == 1.)
 
         v.data_with_halo[:] = 1.
         assert v.data_with_halo[:].shape == (3, 3)
         assert np.all(v.data_with_halo == 1.)
         assert np.all(v.data_with_halo[:] == 1.)
         assert np.all(v.data_with_halo._local == 1.)
-        assert np.all(v.data_with_halo._global == 1.)
 
     @pytest.mark.parallel(nprocs=4)
     def test_indexing(self):
@@ -408,7 +409,6 @@ class TestDataDistributed(object):
         # to the local rank domain, so it must be == myrank
         assert np.all(u.data == myrank)
         assert np.all(u.data._local == myrank)
-        assert np.all(u.data._global == myrank)
         if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(u.data[:2, :2] == myrank)
             assert u.data[:2, 2:].size == u.data[2:, :2].size == u.data[2:, 2:].size == 0
@@ -535,6 +535,32 @@ class TestDataDistributed(object):
         except:
             assert False
 
+    @pytest.mark.parallel(nprocs=4)
+    def test_misc(self):
+        """Function with mixed distributed/replicated Dimensions."""
+        dx = Dimension(name='dx')
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+
+        # Note: `grid` must be passed to `c` since `x` is a distributed dimension,
+        # and `grid` carries the `x` decomposition
+        c = Function(name='c', grid=grid, dimensions=(x, dx), shape=(4, 5))
+
+        for i in range(4):
+            c.data[i, 0] = 1.0+i
+            c.data[i, 1] = 1.0+i
+            c.data[i, 2] = 3.0+i
+            c.data[i, 3] = 6.0+i
+            c.data[i, 4] = 5.0+i
+
+        if LEFT in glb_pos_map[x]:
+            assert(np.all(c.data[0] == [1., 1., 3., 6., 5.]))
+            assert(np.all(c.data[1] == [2., 2., 4., 7., 6.]))
+        else:
+            assert(np.all(c.data[2] == [3., 3., 5., 8., 7.]))
+            assert(np.all(c.data[3] == [4., 4., 6., 9., 8.]))
+
 
 def test_scalar_arg_substitution(t0, t1):
     """
@@ -574,4 +600,4 @@ def test_oob_guard():
 if __name__ == "__main__":
     from devito import configuration
     configuration['mpi'] = True
-    TestDataDistributed().test_indexing_in_views()
+    TestDataDistributed().test_misc()

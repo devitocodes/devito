@@ -25,7 +25,7 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
     and "indexed" API."""
     assert(mode in ['function', 'indexed'])
     s = Function(name=name, dimensions=dimensions, shape=shape)
-    s.data_allocated[:] = value
+    s.data_with_halo[:] = value
     return s.indexify() if mode == 'indexed' else s
 
 
@@ -421,7 +421,7 @@ class TestArguments(object):
             'x_size': 5, 'x_m': 0, 'x_M': 4,
             'y_size': 6, 'y_m': 0, 'y_M': 5,
             'z_size': 7, 'z_m': 0, 'z_M': 6,
-            'f': f.data_allocated, 'g': g.data_allocated,
+            'f': f.data_with_halo, 'g': g.data_with_halo,
         }
         self.verify_arguments(op.arguments(time=4), expected)
         exp_parameters = ['f', 'g', 'x_m', 'x_M', 'x_size', 'y_m',
@@ -473,7 +473,7 @@ class TestArguments(object):
             'x_size': 5, 'x_m': 0, 'x_M': 3,
             'y_size': 6, 'y_m': 0, 'y_M': 4,
             'z_size': 7, 'z_m': 0, 'z_M': 5,
-            'g': g.data_allocated
+            'g': g.data_with_halo
         }
         self.verify_arguments(arguments, expected)
         # Verify execution
@@ -497,7 +497,7 @@ class TestArguments(object):
             'x_size': 5, 'x_m': 1, 'x_M': 3,
             'y_size': 6, 'y_m': 2, 'y_M': 4,
             'z_size': 7, 'z_m': 3, 'z_M': 5,
-            'g': g.data_allocated
+            'g': g.data_with_halo
         }
         self.verify_arguments(arguments, expected)
         # Verify execution
@@ -528,7 +528,7 @@ class TestArguments(object):
             'y_size': 6, 'y_m': 2, 'y_M': 4,
             'z_size': 7, 'z_m': 3, 'z_M': 5,
             'time_m': 1, 'time_M': 4,
-            'f': f.data_allocated
+            'f': f.data_with_halo
         }
         self.verify_arguments(arguments, expected)
         # Verify execution
@@ -564,7 +564,7 @@ class TestArguments(object):
         assert (a2.data[:] == 6.).all()
 
         # Override with user-allocated numpy data
-        a3 = np.zeros_like(a.data_allocated)
+        a3 = np.zeros_like(a.data_with_halo)
         a3[:] = 4.
         op(a=a3)
         assert (a3[[slice(i.left, -i.right) for i in a._offset_domain]] == 7.).all()
@@ -597,7 +597,7 @@ class TestArguments(object):
         assert (a2.data[:] == 6.).all()
 
         # Override with user-allocated numpy data
-        a3 = np.zeros_like(a.data_allocated)
+        a3 = np.zeros_like(a.data_with_halo)
         a3[:] = 4.
         op(time_m=0, time=1, a=a3)
         assert (a3[[slice(i.left, -i.right) for i in a._offset_domain]] == 7.).all()
@@ -1141,10 +1141,10 @@ class TestLoopScheduler(object):
         p_aux = Dimension(name='p_aux')
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
                      space_order=2)
-        b.data_allocated[:] = 1.0
+        b.data_with_halo[:] = 1.0
         b2 = Function(name='b2', shape=(10,) + shape, dimensions=(p_aux,) + dimensions,
                       space_order=2)
-        b2.data_allocated[:] = 1.0
+        b2.data_with_halo[:] = 1.0
         eqns = [Eq(a.forward, a.laplace + 1.),
                 Eq(b, time*b*a + b)]
         eqns2 = [Eq(a.forward, a.laplace + 1.),
@@ -1161,7 +1161,7 @@ class TestLoopScheduler(object):
 
         # Verify both operators produce the same result
         op(time=10)
-        a.data_allocated[:] = 0.
+        a.data_with_halo[:] = 0.
         op2(time=10)
 
         for i in range(10):

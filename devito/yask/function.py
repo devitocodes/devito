@@ -155,7 +155,7 @@ class Function(function.Function, Signer):
 
     @cached_property
     @_allocate_memory
-    def data_allocated(self):
+    def _data_allocated(self):
         return Data(self._data.grid, self.shape_allocated, self.indices, self.dtype)
 
     def _arg_defaults(self, alias=None):

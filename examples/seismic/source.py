@@ -117,10 +117,6 @@ class PointSource(SparseTimeFunction):
 
         return obj
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(PointSource, self).__init__(*args, **kwargs)
-
     @cached_property
     def time_values(self):
         return self._time_range.time_values
