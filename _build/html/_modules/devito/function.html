@@ -159,8 +159,9 @@
 <span class="kn">from</span> <span class="nn">psutil</span> <span class="k">import</span> <span class="n">virtual_memory</span>
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 
+<span class="kn">from</span> <span class="nn">devito.builtins</span> <span class="k">import</span> <span class="n">assign</span>
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">cast_mapper</span>
-<span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="n">Data</span><span class="p">,</span> <span class="n">default_allocator</span><span class="p">,</span> <span class="n">first_touch</span>
+<span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="n">Data</span><span class="p">,</span> <span class="n">default_allocator</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">,</span> <span class="n">DefaultDimension</span>
 <span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span>
@@ -198,7 +199,7 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;value&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;value&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__dtype_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -307,7 +308,7 @@
                 <span class="c1"># a reference to the user-provided buffer</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span> <span class="o">=</span> <span class="kc">None</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">initializer</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">data_allocated</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">initializer</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data_with_halo</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">initializer</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="c1"># This is a corner case -- we might get here, for example, when</span>
                     <span class="c1"># running with MPI and some processes get 0-size arrays after</span>
@@ -323,21 +324,21 @@
         <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Allocating memory for </span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">))</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
-                                  <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+                                  <span class="n">modulo</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_modulo</span><span class="p">,</span> <span class="n">allocator</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span><span class="p">)</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span><span class="p">:</span>
-                    <span class="n">first_touch</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+                    <span class="n">assign</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span><span class="p">):</span>
                     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span><span class="p">:</span>
                         <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;`first touch` together with `initializer` causing &quot;</span>
                                 <span class="s2">&quot;redundant data initialization&quot;</span><span class="p">)</span>
                     <span class="k">try</span><span class="p">:</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_with_halo</span><span class="p">)</span>
                     <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
                         <span class="c1"># Perhaps user only wants to initialise the physical domain</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data_with_halo</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">wrapper</span>
 
@@ -389,9 +390,9 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_data_buffer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Reference to the data. Unlike ``data, data_with_halo, data_allocated``,</span>
+        <span class="sd">&quot;&quot;&quot;Reference to the data. Unlike :attr:`data` and :attr:`data_with_halo`,</span>
 <span class="sd">        this *never* returns a view of the data. This method is for internal use only.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_allocated</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_allocated</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_mem_external</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -417,32 +418,57 @@
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">shape_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Shape of the domain associated with this :class:`TensorFunction`.</span>
-<span class="sd">        The domain constitutes the area of the data written to in a</span>
-<span class="sd">        stencil update.</span>
+<span class="sd">        Shape of the domain region. The domain constitutes the area of the</span>
+<span class="sd">        data written to by an :class:`Operator`.</span>
 
-<span class="sd">        .. note::</span>
-
-<span class="sd">            Alias to ``self.shape``.</span>
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Alias to ``self.shape``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">))</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">shape_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Shape of the domain plus the read-only stencil boundary associated</span>
-<span class="sd">        with this :class:`Function`.</span>
+<span class="sd">        Shape of the domain+outhalo region. The outhalo is the region</span>
+<span class="sd">        surrounding the domain that may be read by an :class:`Operator`.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        If ``self`` is MPI-distributed, then the outhalo of inner ranks may be</span>
+<span class="sd">        empty, while the outhalo of boundary ranks will contain a number of</span>
+<span class="sd">        elements depending on the rank position in the decomposed grid (corner,</span>
+<span class="sd">        side, ...).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span><span class="p">,</span>
+                                                    <span class="bp">self</span><span class="o">.</span><span class="n">_extent_outhalo</span><span class="p">))</span>
+
+    <span class="n">_shape_with_outhalo</span> <span class="o">=</span> <span class="n">shape_with_halo</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_shape_with_inhalo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the domain+inhalo region. The inhalo region comprises the</span>
+<span class="sd">        outhalo as well as any additional &quot;ghost&quot; layers for MPI halo</span>
+<span class="sd">        exchanges. In other words, data in the inhalo region are exchanged</span>
+<span class="sd">        during an :class:`Operator` application to maintain consistent values</span>
+<span class="sd">        as in sequential runs.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Typically, this property won&#39;t be used in user code to set or read data</span>
+<span class="sd">        values. Instead, it may come in handy for testing or debugging</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">))</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">shape_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Shape of the allocated data associated with this :class:`Function`.</span>
-<span class="sd">        It includes the domain and halo regions, as well as any additional</span>
-<span class="sd">        padding outside of the halo.</span>
+<span class="sd">        Shape of the allocated data. It includes the domain and inhalo regions,</span>
+<span class="sd">        as well as any additional padding surrounding the halo.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_with_halo</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_with_inhalo</span><span class="p">,</span>
+                                                    <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">))</span>
 
     <span class="n">_offset_inhalo</span> <span class="o">=</span> <span class="n">AbstractCachedFunction</span><span class="o">.</span><span class="n">_offset_halo</span>
     <span class="n">_extent_inhalo</span> <span class="o">=</span> <span class="n">AbstractCachedFunction</span><span class="o">.</span><span class="n">_extent_halo</span>
@@ -464,6 +490,13 @@
         <span class="n">extents</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Extent</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">))</span>
 
         <span class="k">return</span> <span class="n">EnrichedTuple</span><span class="p">(</span><span class="o">*</span><span class="n">extents</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="n">right</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_mask_modulo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A boolean mask telling which :class:`Dimension`s support modulo-indexing.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">True</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="k">else</span> <span class="kc">False</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_mask_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -489,6 +522,30 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="n">j</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">stop</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">stop</span> <span class="o">+</span> <span class="n">j</span><span class="o">.</span><span class="n">right</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span>
                      <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_outhalo</span><span class="p">))</span>
 
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_decomposition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A tuple of :class:`Decomposition`s, representing the domain</span>
+<span class="sd">        decomposition.  None is used as a placeholder for non-decomposed</span>
+<span class="sd">        Dimensions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="kc">None</span><span class="p">,)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">decomposition</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_dimensions</span><span class="p">}</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_decomposition_outhalo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A tuple of :class:`Decomposition`s, representing the domain+outhalo</span>
+<span class="sd">        decomposition.  None is used as a placeholder for non-decomposed</span>
+<span class="sd">        Dimensions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="kc">None</span><span class="p">,)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_extent_inhalo</span><span class="p">[</span><span class="n">d</span><span class="p">])</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">v</span>
+                     <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">))</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -496,11 +553,11 @@
 
 <span class="sd">        Elements are stored in row-major format.</span>
 
-<span class="sd">        .. note::</span>
-
-<span class="sd">            With this accessor you are claiming that you will modify</span>
-<span class="sd">            the values you get back. If you only need to look at the</span>
-<span class="sd">            values, use :meth:`data_ro` instead.</span>
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back. If you only need to look at the values, use :meth:`data_ro`</span>
+<span class="sd">        instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_domain</span>
 
@@ -512,18 +569,16 @@
 
 <span class="sd">        Elements are stored in row-major format.</span>
 
-<span class="sd">        .. note::</span>
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Alias to ``self.data``.</span>
 
-<span class="sd">            With this accessor you are claiming that you will modify</span>
-<span class="sd">            the values you get back. If you only need to look at the</span>
-<span class="sd">            values, use :meth:`data_ro_domain` instead.</span>
-
-<span class="sd">        .. note::</span>
-
-<span class="sd">            Alias to ``self.data``.</span>
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back. If you only need to look at the values, use</span>
+<span class="sd">        :meth:`data_ro_domain` instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">]</span><span class="o">.</span><span class="n">_global</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_global</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="nd">@_allocate_memory</span>
@@ -533,15 +588,16 @@
 
 <span class="sd">        Elements are stored in row-major format.</span>
 
-<span class="sd">        .. note::</span>
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
 
-<span class="sd">            With this accessor you are claiming that you will modify</span>
-<span class="sd">            the values you get back. If you only need to look at the</span>
-<span class="sd">            values, use :meth:`data_ro_with_halo` instead.</span>
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back. If you only need to look at the values, use</span>
+<span class="sd">        :meth:`data_ro_with_halo` instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_halo_exchange</span><span class="p">()</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_outhalo</span><span class="p">]</span><span class="o">.</span><span class="n">_global</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_global</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_outhalo</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition_outhalo</span><span class="p">)</span>
 
     <span class="n">_data_with_outhalo</span> <span class="o">=</span> <span class="n">data_with_halo</span>
 
@@ -553,39 +609,43 @@
 
 <span class="sd">        Elements are stored in row-major format.</span>
 
-<span class="sd">        .. note::</span>
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This accessor does *not* support global indexing.</span>
 
-<span class="sd">            With this accessor you are claiming that you will modify</span>
-<span class="sd">            the values you get back. If you only need to look at the</span>
-<span class="sd">            values, use :meth:`data_ro_with_inhalo` instead.</span>
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back. If you only need to look at the values, use</span>
+<span class="sd">        :meth:`data_ro_with_inhalo` instead.</span>
 
-<span class="sd">        .. note::</span>
-
-<span class="sd">            Typically, this property won&#39;t be used in user code to set</span>
-<span class="sd">            or read data values. Instead, it may come in handy for</span>
-<span class="sd">            testing or debugging</span>
+<span class="sd">        Typically, this accessor won&#39;t be used in user code to set or read data</span>
+<span class="sd">        values. Instead, it may come in handy for testing or debugging</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_halo_exchange</span><span class="p">()</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_inhalo</span><span class="p">]</span><span class="o">.</span><span class="n">_global</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_inhalo</span><span class="p">])</span>
 
     <span class="nd">@property</span>
     <span class="nd">@_allocate_memory</span>
-    <span class="k">def</span> <span class="nf">data_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_data_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        The allocated data values, that is domain+halo+padding.</span>
+<span class="sd">        The allocated data values, that is domain+inhalo+padding.</span>
 
 <span class="sd">        Elements are stored in row-major format.</span>
 
-<span class="sd">        .. note::</span>
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This accessor does *not* support global indexing.</span>
 
-<span class="sd">            With this accessor you are claiming that you will modify</span>
-<span class="sd">            the values you get back. If you only need to look at the</span>
-<span class="sd">            values, use :meth:`data_ro_allocated` instead.</span>
+<span class="sd">        With this accessor you are claiming that you will modify the values you</span>
+<span class="sd">        get back. If you only need to look at the values, use</span>
+<span class="sd">        :meth:`data_ro_allocated` instead.</span>
+
+<span class="sd">        Typically, this accessor won&#39;t be used in user code to set or read data</span>
+<span class="sd">        values. Instead, it may come in handy for testing or debugging</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_halo_dirty</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_halo_exchange</span><span class="p">()</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_global</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="nd">@_allocate_memory</span>
@@ -593,15 +653,17 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A read-only view of the domain data values.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">]</span><span class="o">.</span><span class="n">_global</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_global</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition</span><span class="p">)</span>
         <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">view</span>
 
     <span class="nd">@property</span>
     <span class="nd">@_allocate_memory</span>
     <span class="k">def</span> <span class="nf">data_ro_with_halo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;A read-only view of the domain+outhalo data values.&quot;&quot;&quot;</span>
-        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_outhalo</span><span class="p">]</span><span class="o">.</span><span class="n">_global</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A read-only view of the domain+outhalo data values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_global</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_outhalo</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decomposition_outhalo</span><span class="p">)</span>
         <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">view</span>
 
@@ -610,18 +672,30 @@
     <span class="nd">@property</span>
     <span class="nd">@_allocate_memory</span>
     <span class="k">def</span> <span class="nf">_data_ro_with_inhalo</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;A read-only view of the domain+inhalo data values.&quot;&quot;&quot;</span>
-        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_inhalo</span><span class="p">]</span><span class="o">.</span><span class="n">_global</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A read-only view of the domain+inhalo data values.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This accessor does *not* support global indexing.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_mask_inhalo</span><span class="p">]</span>
         <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">view</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">view</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="nd">@_allocate_memory</span>
-    <span class="k">def</span> <span class="nf">data_ro_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;A read-only view of the domain+halo+padding data values.&quot;&quot;&quot;</span>
-        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_global</span>
+    <span class="k">def</span> <span class="nf">_data_ro_allocated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A read-only view of the domain+inhalo+padding data values.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This accessor does *not* support global indexing.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
         <span class="n">view</span><span class="o">.</span><span class="n">setflags</span><span class="p">(</span><span class="n">write</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">view</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">view</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">local_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -629,12 +703,12 @@
 <span class="sd">        A tuple of slices representing the global indices that logically</span>
 <span class="sd">        belong to the calling MPI rank.</span>
 
-<span class="sd">        .. note::</span>
-
-<span class="sd">            Given a Function ``f(x, y)`` with shape ``(nx, ny)``, when *not*</span>
-<span class="sd">            using MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``.</span>
-<span class="sd">            On the other hand, when MPI is used, the local ranges depend on the</span>
-<span class="sd">            domain decomposition, which is carried by ``self.grid``.</span>
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Given a Function ``f(x, y)`` with shape ``(nx, ny)``, when *not* using</span>
+<span class="sd">        MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``.  On</span>
+<span class="sd">        the other hand, when MPI is used, the local ranges depend on the domain</span>
+<span class="sd">        decomposition, which is carried by ``self.grid``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
@@ -642,15 +716,22 @@
             <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">glb_slices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">s</span><span class="p">))</span>
                          <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">))</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">space_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Tuple of :class:`Dimension`s that define physical space.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Space</span><span class="p">)</span>
 
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_dist_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Tuple of MPI-distributed :class:`Dimension`s.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">()</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">initializer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_with_halo</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initializer</span>
 
@@ -668,31 +749,13 @@
                     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">symbolic_shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">EnrichedTuple</span><span class="p">(</span><span class="o">*</span><span class="n">ret</span><span class="p">,</span> <span class="n">getters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
-    <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">_decomposition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        A mapper from self&#39;s distributed :class:`Dimension`s to their</span>
-<span class="sd">        :class:`Decomposition`s.</span>
-
-<span class="sd">        .. note::</span>
-
-<span class="sd">            The partitioning encoded in the returned :class:`Decomposition`s</span>
-<span class="sd">            includes the indices falling in the halo+padding regions.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">{}</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">decomposition</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span>
-                  <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">dimensions</span><span class="p">}</span>
-        <span class="c1"># Extend the `Decomposition`s to include the non-domain indices</span>
-        <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">d</span><span class="p">])</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
-
     <span class="k">def</span> <span class="nf">_halo_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Perform the halo exchange with the neighboring processes.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">MPI</span><span class="o">.</span><span class="n">Is_initialized</span><span class="p">()</span> <span class="ow">or</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
             <span class="c1"># Nothing to do</span>
             <span class="k">return</span>
         <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` cannot perfom a halo exchange as it has &quot;</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` cannot perform a halo exchange as it has &quot;</span>
                                <span class="s2">&quot;no Grid attached&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_in_flight</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;`</span><span class="si">%s</span><span class="s2">` cannot initiate a halo exchange as previous &quot;</span>
@@ -1296,10 +1359,10 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The *reference* grid point corresponding to each sparse point.</span>
 
-<span class="sd">        .. note::</span>
-
-<span class="sd">            When using MPI, this property refers to the *physically* owned</span>
-<span class="sd">            sparse points.</span>
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        When using MPI, this property refers to the *physically* owned</span>
+<span class="sd">        sparse points.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span>
 
@@ -1319,7 +1382,7 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_datamap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a mapper ``M : MPI rank -&gt; required sparse data``.</span>
+<span class="sd">        Mapper ``M : MPI rank -&gt; required sparse data``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">ret</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_support</span><span class="p">):</span>
@@ -1331,12 +1394,11 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_scatter_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a mask to index into ``self.data``, which creates a new</span>
-<span class="sd">        data array that logically contains N consecutive groups of sparse</span>
-<span class="sd">        data values, where N is the number of MPI ranks. The i-th group</span>
-<span class="sd">        contains the sparse data values accessible by the i-th MPI rank.</span>
-<span class="sd">        Thus, sparse data values along the boundary of two or more MPI</span>
-<span class="sd">        ranks are duplicated.</span>
+<span class="sd">        A mask to index into ``self.data``, which creates a new data array that</span>
+<span class="sd">        logically contains N consecutive groups of sparse data values, where N</span>
+<span class="sd">        is the number of MPI ranks. The i-th group contains the sparse data</span>
+<span class="sd">        values accessible by the i-th MPI rank.  Thus, sparse data values along</span>
+<span class="sd">        the boundary of two or more MPI ranks are duplicated.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">dmap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
         <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">dmap</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">dmap</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
@@ -1356,10 +1418,10 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_gather_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a mask to index into the ``data`` received upon returning</span>
-<span class="sd">        from ``self._dist_alltoall``. This mask creates a new data array</span>
-<span class="sd">        in which duplicate sparse data values have been discarded. The</span>
-<span class="sd">        resulting data array can thus be used to populate ``self.data``.</span>
+<span class="sd">        A mask to index into the ``data`` received upon returning from</span>
+<span class="sd">        ``self._dist_alltoall``. This mask creates a new data array in which</span>
+<span class="sd">        duplicate sparse data values have been discarded. The resulting data</span>
+<span class="sd">        array can thus be used to populate ``self.data``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">ret</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_scatter_mask</span><span class="p">)</span>
         <span class="n">mask</span> <span class="o">=</span> <span class="n">ret</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
@@ -1370,9 +1432,8 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_count</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a 2-tuple of comm-sized iterables, which tells how many sparse</span>
-<span class="sd">        points is this MPI rank expected to send/receive to/from each other</span>
-<span class="sd">        MPI rank.</span>
+<span class="sd">        A 2-tuple of comm-sized iterables, which tells how many sparse points</span>
+<span class="sd">        is this MPI rank expected to send/receive to/from each other MPI rank.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">dmap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_datamap</span>
         <span class="n">comm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
@@ -1383,11 +1444,20 @@
 
         <span class="k">return</span> <span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span>
 
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">_dist_reorder_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        An ordering mask that puts ``self._sparse_position`` at the front.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">,)</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the metadata necessary to perform an ``MPI_Alltoallv`` distributing</span>
-<span class="sd">        the sparse data values across the MPI ranks needing them.</span>
+<span class="sd">        The metadata necessary to perform an ``MPI_Alltoallv`` distributing the</span>
+<span class="sd">        sparse data values across the MPI ranks needing them.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">ssparse</span><span class="p">,</span> <span class="n">rsparse</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_count</span>
 
@@ -1418,12 +1488,17 @@
         <span class="n">rshape</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
         <span class="n">rshape</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">rsparse</span><span class="p">)</span>
 
+        <span class="c1"># May have to swap axes, as `MPI_Alltoallv` expects contiguous data, and</span>
+        <span class="c1"># the sparse dimension may not be the outermost</span>
+        <span class="n">sshape</span> <span class="o">=</span> <span class="p">[</span><span class="n">sshape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">]</span>
+        <span class="n">rshape</span> <span class="o">=</span> <span class="p">[</span><span class="n">rshape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">]</span>
+
         <span class="k">return</span> <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_subfunc_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the metadata necessary to perform an ``MPI_Alltoallv`` distributing</span>
+<span class="sd">        The metadata necessary to perform an ``MPI_Alltoallv`` distributing</span>
 <span class="sd">        self&#39;s SubFunction values across the MPI ranks needing them.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span>
@@ -1651,7 +1726,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">coordinates_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_coefficients</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1741,7 +1816,7 @@
 
         <span class="c1"># A unique symbol for each indirection index</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">index_matrix</span><span class="p">))</span>
-        <span class="n">points</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">p</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;ii</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">))</span>
+        <span class="n">points</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">p</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;ii_</span><span class="si">%s</span><span class="s1">_</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)))</span>
                               <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices</span><span class="p">)])</span>
 
         <span class="k">return</span> <span class="n">index_matrix</span><span class="p">,</span> <span class="n">points</span>
@@ -1786,14 +1861,16 @@
         <span class="k">return</span> <span class="n">ret</span>
 
 <div class="viewcode-block" id="SparseFunction.interpolate"><a class="viewcode-back" href="../../devito.html#devito.function.SparseFunction.interpolate">[docs]</a>    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">increment</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">self_subs</span><span class="o">=</span><span class="p">{}):</span>
-        <span class="sd">&quot;&quot;&quot;Creates a :class:`sympy.Eq` equation for the interpolation</span>
-<span class="sd">        of an expression onto this sparse point collection.</span>
+        <span class="sd">&quot;&quot;&quot;Generate equations interpolating an arbitrary expression into ``self``.</span>
 
-<span class="sd">        :param expr: The expression to interpolate.</span>
-<span class="sd">        :param offset: Additional offset from the boundary for</span>
-<span class="sd">                       absorbing boundary conditions.</span>
-<span class="sd">        :param increment: (Optional) if True, perform an increment rather</span>
-<span class="sd">                          than an assignment. Defaults to False.</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        expr : sympy.Expr</span>
+<span class="sd">            Input expression to interpolate.</span>
+<span class="sd">        offset : int, optional</span>
+<span class="sd">            Additional offset from the boundary.</span>
+<span class="sd">        increment: bool, optional</span>
+<span class="sd">            If True, generate increments (Inc) rather than assignments (Eq).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
 
@@ -1815,12 +1892,16 @@
         <span class="k">return</span> <span class="n">eqns</span> <span class="o">+</span> <span class="n">summands</span> <span class="o">+</span> <span class="n">last</span></div>
 
 <div class="viewcode-block" id="SparseFunction.inject"><a class="viewcode-back" href="../../devito.html#devito.function.SparseFunction.inject">[docs]</a>    <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol for injection of an expression onto a grid</span>
+        <span class="sd">&quot;&quot;&quot;Generate equations injecting an arbitrary expression into a field.</span>
 
-<span class="sd">        :param field: The grid field into which we inject.</span>
-<span class="sd">        :param expr: The expression to inject.</span>
-<span class="sd">        :param offset: Additional offset from the boundary for</span>
-<span class="sd">                       absorbing boundary conditions.</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        field : Function</span>
+<span class="sd">            Input field into which the injection is performed.</span>
+<span class="sd">        expr : sympy.Expr</span>
+<span class="sd">            Injected expression.</span>
+<span class="sd">        offset : int, optional</span>
+<span class="sd">            Additional offset from the boundary.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span> <span class="o">+</span> <span class="p">[</span><span class="n">field</span><span class="p">]</span>
@@ -1834,9 +1915,51 @@
 
         <span class="k">return</span> <span class="n">eqns</span></div>
 
+<div class="viewcode-block" id="SparseFunction.guard"><a class="viewcode-back" href="../../devito.html#devito.function.SparseFunction.guard">[docs]</a>    <span class="k">def</span> <span class="nf">guard</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a guarded expression, that is expressions that are</span>
+<span class="sd">        evaluated by an Operator only if certain conditions are met.</span>
+<span class="sd">        The introduced condition, here, is that all grid points in the</span>
+<span class="sd">        support of a sparse value must fall within the grid domain (i.e.,</span>
+<span class="sd">        *not* on the halo).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        expr : sympy.Expr, optional</span>
+<span class="sd">            Input expression, from which the guarded expression is derived.</span>
+<span class="sd">            If not specified, defaults to ``self``.</span>
+<span class="sd">        offset : int, optional</span>
+<span class="sd">            Relax the guard condition by introducing a tolerance offset.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">points</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_index_matrix</span><span class="p">(</span><span class="n">offset</span><span class="p">)</span>
+
+        <span class="c1"># Guard through ConditionalDimension</span>
+        <span class="n">conditions</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_indices</span><span class="p">):</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">points</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="n">lb</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">And</span><span class="p">(</span><span class="n">p</span> <span class="o">&gt;=</span> <span class="n">d</span><span class="o">.</span><span class="n">symbolic_start</span> <span class="o">-</span> <span class="n">offset</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">ub</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">And</span><span class="p">(</span><span class="n">p</span> <span class="o">&lt;=</span> <span class="n">d</span><span class="o">.</span><span class="n">symbolic_end</span> <span class="o">+</span> <span class="n">offset</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">conditions</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">And</span><span class="p">(</span><span class="n">lb</span><span class="p">,</span> <span class="n">ub</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">condition</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">And</span><span class="p">(</span><span class="o">*</span><span class="n">conditions</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">cd</span> <span class="o">=</span> <span class="n">ConditionalDimension</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_g&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">,</span>
+                                  <span class="n">condition</span><span class="o">=</span><span class="n">condition</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">expr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">:</span> <span class="n">cd</span><span class="p">})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">functions</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+                         <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_SparseFunction</span><span class="p">}</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">indexify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">f</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">:</span> <span class="n">cd</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">functions</span><span class="p">})</span>
+
+        <span class="c1"># Equations for the indirection dimensions</span>
+        <span class="n">eqns</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">points</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">conditions</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">out</span><span class="p">,</span> <span class="n">eqns</span></div>
+
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_decomposition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">decomposition</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">]}</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">decomposition</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_dim</span><span class="p">]}</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_subfunc_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1874,14 +1997,17 @@
         <span class="n">comm</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
         <span class="n">mpitype</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_typedict</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">char</span><span class="p">]</span>
 
-        <span class="c1"># Pack (reordered) data values so that they can be sent out via an Alltoallv</span>
+        <span class="c1"># Pack sparse data values so that they can be sent out via an Alltoallv</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_scatter_mask</span><span class="p">]</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">))</span>
         <span class="c1"># Send out the sparse point values</span>
         <span class="n">_</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_alltoall</span>
         <span class="n">scattered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">rshape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
         <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">data</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
                        <span class="p">[</span><span class="n">scattered</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">scattered</span>
+        <span class="c1"># Unpack data values so that they follow the expected storage layout</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">))</span>
 
         <span class="c1"># Pack (reordered) coordinates so that they can be sent out via an Alltoallv</span>
         <span class="n">coords</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_local</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_scatter_mask</span><span class="p">]</span>
@@ -1893,7 +2019,7 @@
         <span class="n">coords</span> <span class="o">=</span> <span class="n">scattered</span>
 
         <span class="c1"># Translate global coordinates into local coordinates</span>
-        <span class="n">coords</span> <span class="o">=</span> <span class="n">coords</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin_domain</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="n">coords</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin_offset</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="p">:</span> <span class="n">coords</span><span class="p">}</span>
 
@@ -1906,6 +2032,8 @@
 
         <span class="n">comm</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
 
+        <span class="c1"># Pack sparse data values so that they can be sent out via an Alltoallv</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">))</span>
         <span class="c1"># Send back the sparse point values</span>
         <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_alltoall</span>
         <span class="n">gathered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">sshape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
@@ -1913,8 +2041,8 @@
         <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">data</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
                        <span class="p">[</span><span class="n">gathered</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">gathered</span>
-
-        <span class="c1"># Insert back into `self.data` based on the original (expected) data layout</span>
+        <span class="c1"># Unpack data values so that they follow the expected storage layout</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_gather_mask</span><span class="p">]</span>
 
         <span class="c1"># Note: this method &quot;mirrors&quot; `_dist_scatter`: a sparse point that is sent</span>

@@ -160,15 +160,13 @@
 <span class="kn">import</span> <span class="nn">ctypes</span>
 <span class="kn">from</span> <span class="nn">ctypes.util</span> <span class="k">import</span> <span class="n">find_library</span>
 
-<span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">logger</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">numpy_to_ctypes</span>
-<span class="kn">import</span> <span class="nn">devito</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ALLOC_FLAT&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_NUMA_LOCAL&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_NUMA_ANY&#39;</span><span class="p">,</span>
            <span class="s1">&#39;ALLOC_KNL_MCDRAM&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_KNL_DRAM&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_GUARD&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;default_allocator&#39;</span><span class="p">,</span> <span class="s1">&#39;first_touch&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;default_allocator&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">MemoryAllocator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -475,14 +473,6 @@
             <span class="k">return</span> <span class="n">ALLOC_NUMA_LOCAL</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">ALLOC_FLAT</span></div>
-
-
-<div class="viewcode-block" id="first_touch"><a class="viewcode-back" href="../../../devito.data.html#devito.data.allocators.first_touch">[docs]</a><span class="k">def</span> <span class="nf">first_touch</span><span class="p">(</span><span class="n">array</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Uses an Operator to initialize the given array in the same pattern that</span>
-<span class="sd">    would later be used to access it.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">devito</span><span class="o">.</span><span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="mf">0.</span><span class="p">))()</span></div>
 </pre></div>
 
            </div>

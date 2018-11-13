@@ -35,6 +35,7 @@
 ./_build/html/_modules/devito.html
 ./_build/html/_modules/devito/backends.html
 ./_build/html/_modules/devito/base.html
+./_build/html/_modules/devito/builtins.html
 ./_build/html/_modules/devito/cgen_utils.html
 ./_build/html/_modules/devito/compiler.html
 ./_build/html/_modules/devito/core/autotuning.html

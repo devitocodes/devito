@@ -340,9 +340,9 @@
         <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">))</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">origin_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">origin_offset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Origin of the local (per-process) physical domain.</span>
+<span class="sd">        Offset of the local (per-process) origin from the domain origin.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">grid_origin</span> <span class="o">=</span> <span class="p">[</span><span class="nb">min</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_numb</span><span class="p">]</span>
         <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">grid_origin</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
@@ -393,6 +393,9 @@
 <span class="sd">        Returns a map of default argument values defined by this Grid.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">args</span> <span class="o">=</span> <span class="n">ReducerMap</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">v</span><span class="o">.</span><span class="n">loc</span><span class="p">))</span>
 
         <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]:</span>
             <span class="n">distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distributor</span>

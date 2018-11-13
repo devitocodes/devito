@@ -194,7 +194,7 @@
 
 <span class="sd">    &gt;&gt;&gt; d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7]], 1)</span>
 <span class="sd">    &gt;&gt;&gt; d</span>
-<span class="sd">    Decomposition([0 1 2], &lt;&lt;[3 4]&gt;&gt;, [5 6 7])</span>
+<span class="sd">    Decomposition([0,2], &lt;&lt;[3,4]&gt;&gt;, [5,7])</span>
 <span class="sd">    &gt;&gt;&gt; d.loc_abs_min</span>
 <span class="sd">    3</span>
 <span class="sd">    &gt;&gt;&gt; d.loc_abs_max</span>
@@ -265,9 +265,14 @@
             <span class="nb">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">items</span> <span class="o">=</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;&lt;&lt;</span><span class="si">%s</span><span class="s1">&gt;&gt;&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span> <span class="o">==</span> <span class="n">i</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
-                          <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
-        <span class="k">return</span> <span class="s2">&quot;Decomposition(</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="n">items</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">bounds</span> <span class="o">=</span> <span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">))</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="s1">&#39;[]&#39;</span> <span class="k">if</span> <span class="n">bounds</span> <span class="o">==</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;[</span><span class="si">%d</span><span class="s1">,</span><span class="si">%d</span><span class="s1">]&#39;</span> <span class="o">%</span> <span class="n">bounds</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span> <span class="o">==</span> <span class="n">i</span><span class="p">:</span>
+                <span class="n">item</span> <span class="o">=</span> <span class="s2">&quot;&lt;&lt;</span><span class="si">%s</span><span class="s2">&gt;&gt;&quot;</span> <span class="o">%</span> <span class="n">item</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s1">&#39;Decomposition(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">rel</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Alias for ``self.convert_index``.&quot;&quot;&quot;</span>
@@ -310,7 +315,7 @@
 
 <span class="sd">        &gt;&gt;&gt; d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)</span>
 <span class="sd">        &gt;&gt;&gt; d</span>
-<span class="sd">        Decomposition([0 1 2], [3 4], &lt;&lt;[5 6 7]&gt;&gt;, [ 8 9 10 11])</span>
+<span class="sd">        Decomposition([0,2], [3,4], &lt;&lt;[5,7]&gt;&gt;, [8,11])</span>
 
 <span class="sd">        A global index as single argument:</span>
 
@@ -445,42 +450,43 @@
 <span class="sd">        --------</span>
 <span class="sd">        &gt;&gt;&gt; d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)</span>
 <span class="sd">        &gt;&gt;&gt; d</span>
-<span class="sd">        Decomposition([0 1 2], [3 4], &lt;&lt;[5 6 7]&gt;&gt;, [ 8 9 10 11])</span>
+<span class="sd">        Decomposition([0,2], [3,4], &lt;&lt;[5,7]&gt;&gt;, [8,11])</span>
 
 <span class="sd">        Providing explicit values</span>
 
 <span class="sd">        &gt;&gt;&gt; d.reshape(1, 1)</span>
-<span class="sd">        Decomposition([0 1 2 3], [4 5], &lt;&lt;[6 7 8]&gt;&gt;, [ 9 10 11 12 13])</span>
+<span class="sd">        Decomposition([0,3], [4,5], &lt;&lt;[6,8]&gt;&gt;, [9,13])</span>
 
 <span class="sd">        &gt;&gt;&gt; d.reshape(-2, 2)</span>
-<span class="sd">        Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [ 6  7  8  9 10 11])</span>
+<span class="sd">        Decomposition([0,0], [1,2], &lt;&lt;[3,5]&gt;&gt;, [6,11])</span>
 
 <span class="sd">        Providing a slice</span>
 
 <span class="sd">        &gt;&gt;&gt; d.reshape(slice(2, 9))</span>
-<span class="sd">        Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [6])</span>
+<span class="sd">        Decomposition([0,0], [1,2], &lt;&lt;[3,5]&gt;&gt;, [6,6])</span>
 
 <span class="sd">        &gt;&gt;&gt; d.reshape(slice(2, -2))</span>
-<span class="sd">        Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [6 7])</span>
+<span class="sd">        Decomposition([0,0], [1,2], &lt;&lt;[3,5]&gt;&gt;, [6,7])</span>
 
 <span class="sd">        &gt;&gt;&gt; d.reshape(slice(4))</span>
-<span class="sd">        Decomposition([0 1 2], [3], &lt;&lt;[]&gt;&gt;, [])</span>
+<span class="sd">        Decomposition([0,2], [3,3], &lt;&lt;[]&gt;&gt;, [])</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">slice</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">arg</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">start</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_min</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">nleft</span> <span class="o">=</span> <span class="mi">0</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">nleft</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_min</span> <span class="o">-</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span>
-                <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">nleft</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_min</span> <span class="o">-</span> <span class="n">arg</span><span class="o">.</span><span class="n">start</span>
+                <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">stop</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">nright</span> <span class="o">=</span> <span class="mi">0</span>
-                <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="n">nright</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span>
+                <span class="k">elif</span> <span class="n">arg</span><span class="o">.</span><span class="n">stop</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">nright</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">stop</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">nright</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="o">-</span> <span class="mi">1</span>
-            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Iterable</span><span class="p">):</span>
-                <span class="n">items</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span> <span class="k">if</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]</span>
+                    <span class="n">nright</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">stop</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">glb_max</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">):</span>
+                <span class="n">items</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span> <span class="k">if</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">arg</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]</span>
                 <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">items</span><span class="p">)):</span>
                     <span class="n">items</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">size</span><span class="p">)</span> <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">size</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">items</span><span class="p">[:</span><span class="n">i</span><span class="p">])</span>
                 <span class="k">return</span> <span class="n">Decomposition</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span><span class="p">)</span>

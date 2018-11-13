@@ -110,6 +110,7 @@
 <li class="toctree-l2"><a class="reference internal" href="devito.html#submodules">Submodules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.backends">devito.backends module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.base">devito.base module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.builtins">devito.builtins module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.cgen_utils">devito.cgen_utils module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.compiler">devito.compiler module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="devito.html#module-devito.dimension">devito.dimension module</a></li>
@@ -227,13 +228,6 @@ process is running. Possible allocators are:</p>
 </div>
 </dd></dl>
 
-<dl class="function">
-<dt id="devito.data.allocators.first_touch">
-<code class="descclassname">devito.data.allocators.</code><code class="descname">first_touch</code><span class="sig-paren">(</span><em>array</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data/allocators.html#first_touch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.allocators.first_touch" title="Permalink to this definition">¶</a></dt>
-<dd><p>Uses an Operator to initialize the given array in the same pattern that
-would later be used to access it.</p>
-</dd></dl>
-
 </div>
 <div class="section" id="module-devito.data.data">
 <span id="devito-data-data-module"></span><h2>devito.data.data module<a class="headerlink" href="#module-devito.data.data" title="Permalink to this headline">¶</a></h2>
@@ -241,46 +235,26 @@ would later be used to access it.</p>
 <dt id="devito.data.data.Data">
 <em class="property">class </em><code class="descclassname">devito.data.data.</code><code class="descname">Data</code><a class="reference internal" href="_modules/devito/data/data.html#Data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.data.Data" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code></p>
-<p>A special <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> allowing logical indexing.</p>
-<p>The type <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> is subclassed as indicated at:</p>
+<p>A <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code> supporting distributed dimensions.</p>
+<dl class="docutils">
+<dt>shape <span class="classifier-delimiter">:</span> <span class="classifier">tuple of ints</span></dt>
+<dd>Shape of created array.</dd>
+<dt>dtype <span class="classifier-delimiter">:</span> <span class="classifier">numpy.dtype</span></dt>
+<dd>The data type of the raw data.</dd>
+<dt>decomposition <span class="classifier-delimiter">:</span> <span class="classifier">tuple of <code class="xref py py-class docutils literal notranslate"><span class="pre">Decomposition</span></code>, optional</span></dt>
+<dd>The data decomposition, for each dimension.</dd>
+<dt>modulo <span class="classifier-delimiter">:</span> <span class="classifier">tuple of bool, optional</span></dt>
+<dd>If the i-th entry is True, then the i-th array dimension uses modulo indexing.</dd>
+<dt>allocator <span class="classifier-delimiter">:</span> <span class="classifier"><code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code>, optional</span></dt>
+<dd>Used to allocate memory. Defaults to <code class="docutils literal notranslate"><span class="pre">ALLOC_FLAT</span></code>.</dd>
+</dl>
+<p>NumPy array subclassing is described at:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">docs</span><span class="o">.</span><span class="n">scipy</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">doc</span><span class="o">/</span><span class="n">numpy</span><span class="o">-</span><span class="mf">1.13</span><span class="o">.</span><span class="mi">0</span><span class="o">/</span><span class="n">user</span><span class="o">/</span><span class="n">basics</span><span class="o">.</span><span class="n">subclassing</span><span class="o">.</span><span class="n">html</span>
 </pre></div>
 </div>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>shape</strong> – Shape of the array in grid points.</li>
-<li><strong>dimensions</strong> – The array :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Dimension`s.</li>
-<li><strong>dtype</strong> – A <code class="docutils literal notranslate"><span class="pre">numpy.dtype</span></code> for the raw data.</li>
-<li><strong>decomposition</strong> – (Optional) a mapper from <code class="xref py py-class docutils literal notranslate"><span class="pre">Dimension`s</span> <span class="pre">in</span>
-<span class="pre">``dimensions`</span></code> to :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Decomposition`s, which
-describe how the Data is distributed over a set
-of processes. The Decompositions will be used to
-translate global array indices into local indices.
-The local indices are relative to the calling process.
-This is only relevant in the case of distributed
-memory execution (via MPI).</li>
-<li><strong>allocator</strong> – (Optional) a <code class="xref py py-class docutils literal notranslate"><span class="pre">MemoryAllocator</span></code> to specialize memory
-allocation. Defaults to <code class="docutils literal notranslate"><span class="pre">ALLOC_FLAT</span></code>.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">This type supports logical indexing over modulo buffered dimensions.</p>
-</div>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Any view or copy <code class="docutils literal notranslate"><span class="pre">A</span></code> created starting from <code class="docutils literal notranslate"><span class="pre">self</span></code>, for instance via
-a slice operation or a universal function (“ufunc” in NumPy jargon), will
-still be of type <a class="reference internal" href="#devito.data.data.Data" title="devito.data.data.Data"><code class="xref py py-class docutils literal notranslate"><span class="pre">Data</span></code></a>. However, if <code class="docutils literal notranslate"><span class="pre">A</span></code>’s rank is different than
-<code class="docutils literal notranslate"><span class="pre">self</span></code>’s rank, namely if <code class="docutils literal notranslate"><span class="pre">A.ndim</span> <span class="pre">!=</span> <span class="pre">self.ndim</span></code>, then the capability of
-performing logical indexing is lost.</p>
-</div>
+<p>Any view or copy created from <code class="docutils literal notranslate"><span class="pre">self</span></code>, for instance via a slice operation
+or a universal function (“ufunc” in NumPy jargon), will still be of type
+<a class="reference internal" href="#devito.data.data.Data" title="devito.data.data.Data"><code class="xref py py-class docutils literal notranslate"><span class="pre">Data</span></code></a>.</p>
 <dl class="method">
 <dt id="devito.data.data.Data.reset">
 <code class="descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data/data.html#Data.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.data.Data.reset" title="Permalink to this definition">¶</a></dt>
@@ -322,7 +296,7 @@ performing logical indexing is lost.</p>
 subdomains. The instantiator owns the subdomain [3, 4].</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">Decomposition</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">]],</span> <span class="mi">1</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">d</span>
-<span class="go">Decomposition([0 1 2], &lt;&lt;[3 4]&gt;&gt;, [5 6 7])</span>
+<span class="go">Decomposition([0,2], &lt;&lt;[3,4]&gt;&gt;, [5,7])</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">loc_abs_min</span>
 <span class="go">3</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">loc_abs_max</span>
@@ -338,7 +312,7 @@ subdomains. The instantiator owns the subdomain [3, 4].</p>
 <code class="descname">convert_index</code><span class="sig-paren">(</span><em>*args</em>, <em>rel=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/data/decomposition.html#Decomposition.convert_index"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.data.decomposition.Decomposition.convert_index" title="Permalink to this definition">¶</a></dt>
 <dd><p>Convert a global index into a relative (default) or absolute local index.</p>
 <dl class="docutils">
-<dt><a href="#id5"><span class="problematic" id="id6">*</span></a>args</dt>
+<dt><a href="#id1"><span class="problematic" id="id2">*</span></a>args</dt>
 <dd><p class="first">There are three possible cases:
 * int. Given <code class="docutils literal notranslate"><span class="pre">I</span></code>, a global index, return the corresponding</p>
 <blockquote>
@@ -369,7 +343,7 @@ Return <code class="docutils literal notranslate"><span class="pre">slice(min',<
 four subdomains [0, 3]. We pick 2 as local subdomain.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">Decomposition</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">],</span> <span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">]],</span> <span class="mi">2</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">d</span>
-<span class="go">Decomposition([0 1 2], [3 4], &lt;&lt;[5 6 7]&gt;&gt;, [ 8 9 10 11])</span>
+<span class="go">Decomposition([0,2], [3,4], &lt;&lt;[5,7]&gt;&gt;, [8,11])</span>
 </pre></div>
 </div>
 <p>A global index as single argument:</p>
@@ -456,7 +430,7 @@ four subdomains [0, 3]. We pick 2 as local subdomain.</p>
 <dd><p>Create a new <a class="reference internal" href="#devito.data.decomposition.Decomposition" title="devito.data.decomposition.Decomposition"><code class="xref py py-class docutils literal notranslate"><span class="pre">Decomposition</span></code></a> with extended or reduced boundary
 subdomains. This causes a new index enumeration.</p>
 <dl class="docutils">
-<dt><a href="#id7"><span class="problematic" id="id8">*</span></a>args</dt>
+<dt><a href="#id3"><span class="problematic" id="id4">*</span></a>args</dt>
 <dd><p class="first">There are three possible cases:
 * int, int. The two integers represent the number of points to remove</p>
 <blockquote>
@@ -477,29 +451,29 @@ retained.</li>
 </dl>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">Decomposition</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">],</span> <span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">]],</span> <span class="mi">2</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">d</span>
-<span class="go">Decomposition([0 1 2], [3 4], &lt;&lt;[5 6 7]&gt;&gt;, [ 8 9 10 11])</span>
+<span class="go">Decomposition([0,2], [3,4], &lt;&lt;[5,7]&gt;&gt;, [8,11])</span>
 </pre></div>
 </div>
 <p>Providing explicit values</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-<span class="go">Decomposition([0 1 2 3], [4 5], &lt;&lt;[6 7 8]&gt;&gt;, [ 9 10 11 12 13])</span>
+<span class="go">Decomposition([0,3], [4,5], &lt;&lt;[6,8]&gt;&gt;, [9,13])</span>
 </pre></div>
 </div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
-<span class="go">Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [ 6  7  8  9 10 11])</span>
+<span class="go">Decomposition([0,0], [1,2], &lt;&lt;[3,5]&gt;&gt;, [6,11])</span>
 </pre></div>
 </div>
 <p>Providing a slice</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">9</span><span class="p">))</span>
-<span class="go">Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [6])</span>
+<span class="go">Decomposition([0,0], [1,2], &lt;&lt;[3,5]&gt;&gt;, [6,6])</span>
 </pre></div>
 </div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">))</span>
-<span class="go">Decomposition([0], [1 2], &lt;&lt;[3 4 5]&gt;&gt;, [6 7])</span>
+<span class="go">Decomposition([0,0], [1,2], &lt;&lt;[3,5]&gt;&gt;, [6,7])</span>
 </pre></div>
 </div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="mi">4</span><span class="p">))</span>
-<span class="go">Decomposition([0 1 2], [3], &lt;&lt;[]&gt;&gt;, [])</span>
+<span class="go">Decomposition([0,2], [3,3], &lt;&lt;[]&gt;&gt;, [])</span>
 </pre></div>
 </div>
 </dd></dl>

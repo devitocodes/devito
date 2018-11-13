@@ -35,6 +35,14 @@ devito.base module
     :undoc-members:
     :show-inheritance:
 
+devito.builtins module
+----------------------
+
+.. automodule:: devito.builtins
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito.cgen\_utils module
 -------------------------
 
