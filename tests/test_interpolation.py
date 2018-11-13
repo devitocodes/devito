@@ -7,7 +7,8 @@ from devito.cgen_utils import FLOAT
 from devito import (Grid, Operator, Function, SparseFunction, Dimension,
                     TimeFunction, PrecomputedSparseFunction,
                     PrecomputedSparseTimeFunction)
-from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
+from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
+                              AcquisitionGeometry)
 from examples.seismic.acoustic import AcousticWaveSolver
 
 
@@ -388,20 +389,19 @@ def test_position(shape):
     dt = model.critical_dt
     time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
-    # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = 30.
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(shape)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = 30.
 
-    # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    rec_coordinates = np.empty((nrec, len(shape)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
 
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Ricker', f0=0.010)
     # Create solver object to provide relevant operators
-    solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                time_order=2,
-                                space_order=4)
+    solver = AcousticWaveSolver(model, geometry, time_order=2, space_order=4)
 
     rec, u, _ = solver.forward(save=False)
 
@@ -416,9 +416,9 @@ def test_position(shape):
                                               num=nrec)
     rec2.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
-    ox_g, oy_g, oz_g = tuple(o.data for o in model.grid.origin)
+    ox_g, oy_g, oz_g = tuple(o.dtype(o.data+100.) for o in model.grid.origin)
 
     rec1, u1, _ = solver.forward(save=False, src=src, rec=rec2,
-                                 o_x=ox_g+100., o_y=oy_g+100., o_z=oz_g+100.)
+                                 o_x=ox_g, o_y=oy_g, o_z=oz_g)
 
     assert(np.allclose(rec.data, rec1.data, atol=1e-5))

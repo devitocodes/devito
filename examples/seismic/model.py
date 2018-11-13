@@ -100,7 +100,7 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 10)
-        ratio = kwargs.pop('ratio', 2)
+        ratio = kwargs.pop('ratio', 3)
         vp_top = kwargs.pop('vp_top', 1.5)
         vp_bottom = kwargs.pop('vp_bottom', 2.5)
 

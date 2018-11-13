@@ -132,14 +132,14 @@ def test_forward_with_breaks(shape, kernel, space_order):
 
     rec = Receiver(name='rec', grid=grid, time_range=solver.geometry.time_axis,
                    npoint=nrec)
-    rec.coordinates.data[:, :] = solver.receiver.coordinates.data[:]
+    rec.coordinates.data[:, :] = solver.geometry.rec_positions
 
     dt = solver.model.critical_dt
 
     u = TimeFunction(name='u', grid=grid, time_order=2, space_order=space_order)
     cp = DevitoCheckpoint([u])
     wrap_fw = CheckpointOperator(solver.op_fwd(save=False), rec=rec,
-                                 src=solver.source, u=u, dt=dt)
+                                 src=solver.geometry.src, u=u, dt=dt)
     wrap_rev = CheckpointOperator(solver.op_grad(save=False), u=u, dt=dt, rec=rec)
 
     wrp = Revolver(cp, wrap_fw, wrap_rev, None, rec._time_range.num-time_order)

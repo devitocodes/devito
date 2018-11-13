@@ -5,7 +5,7 @@ from numpy import linalg
 
 from devito import TimeFunction, configuration
 from devito.logger import log
-from examples.seismic import TimeAxis, RickerSource, Receiver, Model, demo_model
+from examples.seismic import  Model, demo_model, AcquisitionGeometry
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
 
@@ -28,6 +28,7 @@ def test_tti(shape, space_order, kernel):
     origin = [0. for _ in shape]
     spacing = [10. for _ in shape]
     vp = 1.5 * np.ones(shape)
+    nrec = shape[0]
 
     # Constant model for true velocity
     model = Model(origin=origin, shape=shape, vp=vp,
@@ -35,39 +36,38 @@ def test_tti(shape, space_order, kernel):
                   epsilon=np.zeros(shape), delta=np.zeros(shape),
                   theta=np.zeros(shape), phi=np.zeros(shape))
 
-    # Define seismic data and parameters
-    f0 = .010
-    dt = model.critical_dt
-    t0 = 0.0
-    tn = 350.0
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
-    nt = time_range.num
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    last = (nt - 2) % 3
-    indlast = [(last + 1) % 3, last % 3, (last-1) % 3]
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
+    rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    # Generate a wavefield as initial condition
-    source = RickerSource(name='src', grid=model.grid, f0=f0, time_range=time_range)
-    source.coordinates.data[0, :] = np.array(model.domain_size) * .5
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=0.0, tn=350., src_type='Ricker', f0=0.010)
 
-    receiver = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=1)
-
-    acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
-                                  time_order=2, space_order=so)
+    acoustic = AcousticWaveSolver(model, geometry, time_order=2, space_order=so)
     rec, u1, _ = acoustic.forward(save=False)
 
-    source.data.fill(0.)
     # Solvers
-    acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
-                                  time_order=2, space_order=so)
+    solver_tti = AnisotropicWaveSolver(model, geometry, time_order=2,
+                                       space_order=space_order)
 
-    solver_tti = AnisotropicWaveSolver(model, source=source, receiver=receiver,
-                                       time_order=2, space_order=space_order)
+    # zero src
+    src = geometry.src
+    src.data.fill(0.)
+    # last time index
+    nt = geometry.nt
+    last = (nt - 2) % 3
+    indlast = [(last + 1) % 3, last % 3, (last-1) % 3]
 
     # Create new wavefield object restart forward computation
     u = TimeFunction(name='u', grid=model.grid, time_order=2, space_order=so)
     u.data[0:3, :] = u1.data[indlast, :]
-    acoustic.forward(save=False, u=u, time_M=10, src=source)
+    acoustic.forward(save=False, u=u, time_M=10, src=src)
 
     utti = TimeFunction(name='u', grid=model.grid, time_order=to, space_order=so)
     vtti = TimeFunction(name='v', grid=model.grid, time_order=to, space_order=so)
@@ -75,7 +75,7 @@ def test_tti(shape, space_order, kernel):
     utti.data[0:to+1, :] = u1.data[indlast[:to+1], :]
     vtti.data[0:to+1, :] = u1.data[indlast[:to+1], :]
 
-    solver_tti.forward(u=utti, v=vtti, kernel=kernel, time_M=10, src=source)
+    solver_tti.forward(u=utti, v=vtti, kernel=kernel, time_M=10, src=src)
 
     normal_u = u.data[:]
     normal_utti = .5 * utti.data[:]
@@ -92,28 +92,25 @@ def test_tti(shape, space_order, kernel):
 @pytest.mark.parametrize('shape', [(50, 60), (50, 60, 70)])
 def test_tti_staggered(shape):
     spacing = [10. for _ in shape]
-
+    nrec = 1
     # Model
-    model = demo_model('constant-tti', shape=shape, spacing=spacing)
+    model = demo_model('layers-tti', shape=shape, spacing=spacing)
 
-    # Define seismic data and parameters
-    f0 = .010
-    dt = model.critical_dt
-    t0 = 0.0
-    tn = 250.0
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    # Generate a wavefield as initial condition
-    source = RickerSource(name='src', grid=model.grid, f0=f0, time_range=time_range)
-    source.coordinates.data[0, :] = np.array(model.domain_size) * .5
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    receiver = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=1)
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=0.0, tn=250., src_type='Ricker', f0=0.010)
 
     # Solvers
-    solver_tti = AnisotropicWaveSolver(model, source=source, receiver=receiver,
-                                       time_order=2, space_order=8)
-    solver_tti2 = AnisotropicWaveSolver(model, source=source, receiver=receiver,
-                                        time_order=2, space_order=8)
+    solver_tti = AnisotropicWaveSolver(model, geometry, time_order=2, space_order=8)
+    solver_tti2 = AnisotropicWaveSolver(model, geometry, time_order=2, space_order=8)
 
     # Solve
     configuration['dse'] = 'aggressive'

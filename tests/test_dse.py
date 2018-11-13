@@ -39,7 +39,7 @@ def run_acoustic_forward(dse=None):
 
     rec_coordinates = np.empty((nrec, len(spacing)))
     rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec_coordinates[:, -1] = src_coordinates[0, 1:]
+    rec_coordinates[:, -1] = src_coordinates[0, -1]
 
     geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
                                    t0=t0, tn=tn, src_type='Ricker', f0=0.010)
