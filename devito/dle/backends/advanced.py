@@ -184,7 +184,7 @@ class AdvancedRewriter(BasicRewriter):
         """
         def key(i):
             return i.is_ParallelRelaxed and not (i.is_Elementizable or i.is_Vectorizable)
-        return self._parallelizer(key).make_parallel(iet), {}
+        return self._parallelizer(key).make_parallel(iet)
 
     @dle_pass
     def _minimize_remainders(self, nodes, state):

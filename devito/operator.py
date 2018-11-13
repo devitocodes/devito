@@ -278,6 +278,7 @@ class Operator(Callable):
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                              for i in state.elemental_functions]))
         self.dimensions.extend(state.dimensions)
+        self.input.extend(state.input)
         self._includes.extend(state.includes)
 
         return state.nodes

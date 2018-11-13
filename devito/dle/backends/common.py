@@ -34,6 +34,7 @@ class State(object):
 
         self.elemental_functions = []
         self.dimensions = []
+        self.input = []
         self.includes = []
 
     def update(self, nodes, **kwargs):
@@ -41,6 +42,7 @@ class State(object):
 
         self.elemental_functions.extend(list(kwargs.get('elemental_functions', [])))
         self.dimensions.extend(list(kwargs.get('dimensions', [])))
+        self.input.extend(list(kwargs.get('input', [])))
         self.includes.extend(list(kwargs.get('includes', [])))
 
 

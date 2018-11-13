@@ -1,12 +1,32 @@
 from collections import OrderedDict
 
+import numpy as np
 import cgen as c
 import psutil
 
+from devito.function import Constant
+from devito.ir.equations import DummyEq
 from devito.ir.iet import (FindSymbols, FindNodes, Transformer, Block, Expression,
-                           List, Iteration, retrieve_iteration_tree, filter_iterations,
-                           IsPerfectIteration)
+                           LocalExpression, List, Iteration, retrieve_iteration_tree,
+                           filter_iterations, IsPerfectIteration)
 from devito.parameters import configuration
+from devito.types import Symbol
+from devito.tools import memoized_func
+
+
+@memoized_func
+def ncores():
+    try:
+        return configuration['cross-compile'].cpu_count()
+    except AttributeError:
+        return psutil.cpu_count(logical=False)
+
+
+class NThreads(Constant):
+
+    def __new__(cls, **kwargs):
+        return super(NThreads, cls).__new__(cls, name='nthreads', dtype=np.int32,
+                                            value=ncores())
 
 
 class Ompizer(object):
@@ -18,8 +38,7 @@ class Ompizer(object):
     lang = {
         'for': c.Pragma('omp for schedule(static)'),
         'collapse': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
-        'par-region': lambda i: c.Pragma('omp parallel %s' % i),
-        'par-for': c.Pragma('omp parallel for schedule(static)'),
+        'par-region': lambda i: c.Pragma('omp parallel num_threads(nt) %s' % i),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
@@ -30,30 +49,26 @@ class Ompizer(object):
 
     def __init__(self, key):
         """
-        :param key: A function returning True if ``v`` can be parallelized,
-                    False otherwise.
+        Parameters
+        ----------
+        key : callable
+            Return True if an Iteration can be parallelized, False otherwise.
         """
         self.key = key
 
     def _pragma_for(self, root, candidates):
-        # We need to access the core count. Are we cross-compiling?
-        try:
-            ncores = configuration['cross-compile'].cpu_count()
-        except AttributeError:
-            ncores = psutil.cpu_count(logical=False)
-
         # Heuristic: if at least two parallel loops are available and the
         # physical core count is greater than COLLAPSE, then omp-collapse them
         nparallel = len(candidates)
         isperfect = IsPerfectIteration().visit(root)
-        if ncores < Ompizer.COLLAPSE or nparallel < 2 or not isperfect:
+        if ncores() < Ompizer.COLLAPSE or nparallel < 2 or not isperfect:
             return self.lang['for']
         else:
             return self.lang['collapse'](nparallel)
 
     def _make_parallel_tree(self, root, candidates):
         """
-        Return a mapper to parallelize the :class:`Iteration`s within /root/.
+        Return a mapper to parallelize the :class:`Iteration`s within ``root``.
         """
         parallel = self._pragma_for(root, candidates)
 
@@ -74,7 +89,7 @@ class Ompizer(object):
     def make_parallel(self, iet):
         """
         Transform ``iet`` by decorating its parallel :class:`Iteration`s with
-        suitable ``#pragma omp ...`` triggering thread-level parallelism.
+        suitable ``#pragma omp ...`` for thread-level parallelism.
         """
         # Group sequences of loops that should go within the same parallel region
         was_tagged = False
@@ -110,5 +125,14 @@ class Ompizer(object):
             for k, v in list(mapper.items()):
                 if isinstance(v, Iteration):
                     mapper[k] = None if v.is_Remainder else par_region
+        processed = Transformer(mapper).visit(iet)
 
-        return Transformer(mapper).visit(iet)
+        # Hack/workaround to the fact that the OpenMP pragmas are not true
+        # IET nodes, so the `nthreads` variables won't be detected as a
+        # Callable parameter unless inserted in a mock Expression
+        if mapper:
+            nt = NThreads()
+            eq = LocalExpression(DummyEq(Symbol(name='nt', dtype=np.int32), nt))
+            return List(body=[eq, processed]), {'input': [nt]}
+        else:
+            return List(body=processed), {}
