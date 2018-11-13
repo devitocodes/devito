@@ -8,6 +8,7 @@ from devito.dle import BlockDimension
 from devito.ir import Backward, Iteration, FindNodes, FindSymbols
 from devito.logger import perf, warning
 from devito.parameters import configuration
+from devito.tools import filter_ordered
 
 __all__ = ['autotune']
 
@@ -53,7 +54,7 @@ def autotune(operator, args, level, mode):
     iterations = FindNodes(Iteration).visit(operator.body)
 
     # Detect tunable arguments
-    tunable = {i.dim.symbolic_size.name: i for i in iterations
+    tunable = {i.dim.step.name: i for i in iterations
                if isinstance(i.dim, BlockDimension) and not i.is_Remainder}
 
     # Shrink the time dimension's iteration range for quick autotuning
@@ -71,18 +72,21 @@ def autotune(operator, args, level, mode):
         return args
 
     # Max attemptable block size
-    max_bs = OrderedDict((k, v.dim.max_step.subs(args)) for k, v in tunable.items())
+    max_bs = tuple((k, v.dim.max_step.subs(args)) for k, v in tunable.items())
 
     # Attempted block sizes:
     # 1) Defaults (basic mode)
-    blocksizes = [OrderedDict([(i, v) for i in tunable]) for v in options['at_blocksize']]
+    block_sizes = [tuple((i, v) for i in tunable) for v in options['at_blocksize']]
     # 2) Always try the entire iteration space (degenerate block)
-    blocksizes.append(max_bs)
+    block_sizes.append(max_bs)
     # 3) More attempts if auto-tuning in aggressive mode
     if level == 'aggressive':
-        blocksizes = more_heuristic_attempts(blocksizes)
-    # Finally, drop block sizes exceeding the iteration space extent
-    blocksizes = [i for i in blocksizes if all(i[k] <= v for k, v in max_bs.items())]
+        block_sizes = more_heuristic_attempts(block_sizes)
+    # Drop unnecessary attempts:
+    # 1) block sizes exceeding the iteration space extent
+    block_sizes = [i for i in block_sizes if all(dict(i)[k] <= v for k, v in max_bs)]
+    # 2) redundant block sizes
+    block_sizes = filter_ordered(block_sizes)
 
     # How many temporaries are allocated on the stack?
     # Will drop block sizes that might lead to a stack overflow
@@ -93,28 +97,26 @@ def autotune(operator, args, level, mode):
     # Note: there is only a single loop over 'blocksize' because only
     # square blocks are tested
     timings = OrderedDict()
-    for bs in blocksizes:
+    for bs in block_sizes:
+        mapper = OrderedDict(bs)
+
         # Can we safely autotune over the given time range?
-        check_time_bounds(stepper, at_args, args)
+        check_time_bounds(stepper, at_args, args, mode)
 
         # Update `at_args` to use the new block shape
-        at_args = {k: bs.get(k, v) for k, v in at_args.items()}
+        at_args = {k: mapper.get(k, v) for k, v in at_args.items()}
 
         # Make sure we remain within stack bounds, otherwise skip block size
-        # TODO: just use at_args within xreplace/subs ???
-        dim_sizes = {tunable[i].dim.symbolic_size: bs[i] for i in at_args if i in bs}
         try:
-            bs_stack_space = stack_space.xreplace(dim_sizes)
-        except AttributeError:
-            bs_stack_space = stack_space
-        try:
-            if int(bs_stack_space) > options['at_stack_limit']:
+            if int(stack_space.subs(at_args)) > options['at_stack_limit']:
                 continue
         except TypeError:
             # We should never get here
             warning("AutoTuner: Couldn't determine stack size; skipping block shape %s"
                     % str(bs))
             continue
+        except AttributeError:
+            assert stack_space == 0
 
         # Use AutoTuner-specific profiler structs
         timer = operator.profiler.timer.reset()
@@ -122,9 +124,9 @@ def autotune(operator, args, level, mode):
 
         operator.cfunction(*list(at_args.values()))
         elapsed = sum(getattr(timer._obj, i) for i, _ in timer._obj._fields_)
-        timings[tuple(bs.items())] = elapsed
+        timings[bs] = elapsed
         perf("AutoTuner: Block shape <%s> took %f (s) in %d timesteps" %
-             (','.join('%d' % i for i in bs.values()), elapsed, timesteps))
+             (','.join('%d' % i for i in mapper.values()), elapsed, timesteps))
 
         # Prepare for the next autotuning run
         update_time_bounds(stepper, at_args, timesteps, mode)
@@ -147,7 +149,13 @@ def autotune(operator, args, level, mode):
     assert operator.profiler.name in args
     args[operator.profiler.name] = operator.profiler.timer.reset()
 
-    return args
+    # Autotuning summary
+    summary = {}
+    summary['runs'] = len(timings)
+    summary['tpr'] = timesteps  # tpp -> timesteps per run
+    summary['tuned'] = dict(best)
+
+    return args, summary
 
 
 def init_time_bounds(stepper, at_args):
@@ -170,8 +178,8 @@ def init_time_bounds(stepper, at_args):
     return stepper.extent(start=at_args[dim.min_name], finish=at_args[dim.max_name])
 
 
-def check_time_bounds(stepper, at_args, args):
-    if stepper is None:
+def check_time_bounds(stepper, at_args, args, mode):
+    if mode != 'runtime' or stepper is None:
         return
     dim = stepper.dim.root
     if stepper.direction is Backward:
@@ -207,33 +215,30 @@ def finalize_time_bounds(stepper, at_args, args, mode):
         args[dim.max_name] = args[dim.max_name]
 
 
-def more_heuristic_attempts(blocksizes):
+def more_heuristic_attempts(block_sizes):
+    block_sizes = list(block_sizes)
+
     # Ramp up to higher block sizes
-    handle = OrderedDict([(i, options['at_blocksize'][-1]) for i in blocksizes[0]])
+    handle = tuple((i[0], options['at_blocksize'][-1]) for i in block_sizes[0])
     for i in range(3):
-        new_bs = OrderedDict([(k, v*2) for k, v in handle.items()])
-        blocksizes.insert(blocksizes.index(handle) + 1, new_bs)
+        new_bs = tuple((b, v*2) for b, v in handle)
+        block_sizes.insert(block_sizes.index(handle) + 1, new_bs)
         handle = new_bs
 
     handle = []
     # Extended shuffling for the smaller block sizes
-    for bs in blocksizes[:4]:
-        for i in blocksizes:
-            handle.append(OrderedDict(list(bs.items())[:-1] + [list(i.items())[-1]]))
+    for bs in block_sizes[:4]:
+        for i in block_sizes:
+            handle.append(bs[:-1] + (i[-1],))
     # Some more shuffling for all block sizes
-    for bs in list(blocksizes):
+    for bs in list(block_sizes):
         ncombs = len(bs)
         for i in range(ncombs):
-            for j in combinations(bs, i+1):
-                item = [(k, bs[k]*2 if k in j else v) for k, v in bs.items()]
-                handle.append(OrderedDict(item))
+            for j in combinations(dict(bs), i+1):
+                handle.append(tuple((b, v*2 if b in j else v) for b, v in bs))
+    block_sizes.extend(handle)
 
-    unique = []
-    for i in blocksizes + handle:
-        if i not in unique:
-            unique.append(i)
-
-    return unique
+    return block_sizes
 
 
 options = {

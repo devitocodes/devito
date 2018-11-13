@@ -2,7 +2,6 @@ from collections import OrderedDict
 
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
-from devito.dle import BlockDimension
 from devito.ir.iet import (Call, List, HaloSpot, MetaCall, FindNodes, Transformer,
                            filter_iterations, retrieve_iteration_tree)
 from devito.ir.support import align_accesses
@@ -76,23 +75,21 @@ class OperatorCore(OperatorRunnable):
             return args
         elif setup is True:
             level = configuration['autotuning'].level or 'basic'
-            args = autotune(self, args, level, configuration['autotuning'].mode)
+            args, summary = autotune(self, args, level, configuration['autotuning'].mode)
         elif isinstance(setup, str):
-            args = autotune(self, args, setup, configuration['autotuning'].mode)
+            args, summary = autotune(self, args, setup, configuration['autotuning'].mode)
         elif isinstance(setup, tuple) and len(setup) == 2:
             level, mode = setup
             if level is False:
                 return args
             else:
-                args = autotune(self, args, level, mode)
+                args, summary = autotune(self, args, level, mode)
         else:
             raise ValueError("Expected bool, str, or 2-tuple, got `%s` instead"
                              % type(setup))
 
         # Record the tuned values
-        mapper = self._state.setdefault('tuned', {})
-        mapper.update({d.step: args[d.step.name] for d in self.dimensions
-                       if isinstance(d, BlockDimension)})
+        self._state.setdefault('autotuning', []).append(summary)
 
         return args
 
