@@ -272,13 +272,17 @@ class IterationFold(Iteration):
 
 class BlockDimension(IncrDimension):
 
+    @property
+    def _arg_names(self):
+        return (self.step.name,) + self.parent._arg_names
+
     def _arg_defaults(self, **kwargs):
         # TODO: need a heuristic to pick a default block size
         return {self.step.name: 8}
 
     def _arg_values(self, args, interval, grid, **kwargs):
         if self.step.name in kwargs:
-            return {self.step.name: kwargs.pop(self.step)}
+            return {self.step.name: kwargs.pop(self.step.name)}
         else:
             blocksize = self._arg_defaults()[self.step.name]
             if args[self.root.min_name] < blocksize < args[self.root.max_name]:
