@@ -187,9 +187,9 @@ class Grid(ArgProvider):
         return dict(zip(self.spacing_symbols, self.spacing))
 
     @property
-    def origin_domain(self):
+    def origin_offset(self):
         """
-        Origin of the local (per-process) physical domain.
+        Offset of the local (per-process) origin from the domain origin.
         """
         grid_origin = [min(i) for i in self.distributor.glb_numb]
         assert len(grid_origin) == len(self.spacing)
@@ -240,6 +240,9 @@ class Grid(ArgProvider):
         Returns a map of default argument values defined by this Grid.
         """
         args = ReducerMap()
+
+        for k, v in self.dimension_map.items():
+            args.update(k._arg_defaults(start=0, size=v.loc))
 
         if configuration['mpi']:
             distributor = self.distributor

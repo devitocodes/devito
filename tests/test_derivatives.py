@@ -237,8 +237,8 @@ def test_subsampled_fd():
     grid2 = Grid((6, 6), dimensions=dims)
     u2 = TimeFunction(name='u2', grid=grid2, save=nt, space_order=1)
     for i in range(nt):
-        for j in range(u2.data_allocated.shape[2]):
-            u2.data_allocated[i, :, j] = np.arange(u2.data_allocated.shape[2])
+        for j in range(u2.data_with_halo.shape[2]):
+            u2.data_with_halo[i, :, j] = np.arange(u2.data_with_halo.shape[2])
 
     eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2.dx)]
     op = Operator(eqns, dse="advanced")

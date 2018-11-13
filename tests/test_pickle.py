@@ -11,6 +11,19 @@ from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 import cloudpickle as pickle
 
 
+def test_constant():
+    c = Constant(name='c')
+    assert c.data == 0.
+    c.data = 1.
+
+    pkl_c = pickle.dumps(c)
+    new_c = pickle.loads(pkl_c)
+
+    # .data is initialized, so it should have been pickled too
+    assert np.all(c.data == 1.)
+    assert np.all(new_c.data == 1.)
+
+
 def test_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
