@@ -14,7 +14,7 @@ from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevar
 from devito.types import Scalar
 from devito.tools import generator
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, TimeAxis, RickerSource, GaborSource, Receiver
+from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
@@ -32,21 +32,19 @@ def run_acoustic_forward(dse=None):
     model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
                        spacing=spacing, shape=shape, nbpml=nbpml)
 
-    # Derive timestepping from model spacing
-    dt = model.critical_dt
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = 20.
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, -1] = src_coordinates[0, 1:]
 
-    # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='nrec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Ricker', f0=0.010)
 
-    solver = AcousticWaveSolver(model, source=src, receiver=rec, dse=dse, dle='basic')
+    solver = AcousticWaveSolver(model, geometry, dse=dse, dle='basic')
     rec, u, _ = solver.forward(save=False)
 
     return u, rec
@@ -75,23 +73,19 @@ def tti_operator(dse=False, space_order=4):
     model = demo_model('layers-tti', ratio=3, nbpml=nbpml, space_order=space_order,
                        shape=shape, spacing=spacing)
 
-    # Derive timestepping from model spacing
-    # Derive timestepping from model spacing
-    dt = model.critical_dt
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    # Define source geometry (center of domain, just below surface)
-    src = GaborSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, -1] = src_coordinates[0, 1:]
 
-    # Define receiver geometry (spread across x, lust below surface)
-    rec = Receiver(name='nrec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Gabor', f0=0.010)
 
-    return AnisotropicWaveSolver(model, source=src, receiver=rec,
-                                 space_order=space_order, dse=dse)
+    return AnisotropicWaveSolver(model, geometry, space_order=space_order, dse=dse)
 
 
 @pytest.fixture(scope="session")

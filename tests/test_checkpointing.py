@@ -130,7 +130,7 @@ def test_forward_with_breaks(shape, kernel, space_order):
 
     grid = solver.model.grid
 
-    rec = Receiver(name='rec', grid=grid, time_range=solver.receiver.time_range,
+    rec = Receiver(name='rec', grid=grid, time_range=solver.geometry.time_axis,
                    npoint=nrec)
     rec.coordinates.data[:, :] = solver.receiver.coordinates.data[:]
 
@@ -160,7 +160,7 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
                             space_order=space_order, time_order=time_order)
     rec, u, summary = solver.forward(save=True)
-    last_time_step = solver.source.nt-1
+    last_time_step = solver.geometry.nt-1
     field_last_time_step = np.copy(u.data[last_time_step, :, :])
     rec_bk = np.copy(rec.data)
     rec, u, summary = solver.forward(save=False)
