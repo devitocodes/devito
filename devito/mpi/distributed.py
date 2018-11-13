@@ -27,6 +27,7 @@ except ImportError:
     class MPI(object):
         COMM_NULL = None
 
+        @classmethod
         def Is_initialized():
             return False
 

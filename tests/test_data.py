@@ -1,4 +1,4 @@
-from conftest import skipif_yask, skipif_mpi
+from conftest import skipif_yask, skipif_nompi
 import pytest
 import numpy as np
 
@@ -309,7 +309,7 @@ class TestDecomposition(object):
         assert d.reshape((1, 3, 10, 11, 14)) == Decomposition([[0], [1], [], [2, 3]], 2)
 
 
-@skipif_mpi
+@skipif_nompi
 @skipif_yask  # YASK backend does not support MPI yet
 class TestDataDistributed(object):
 

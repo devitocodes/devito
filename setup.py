@@ -6,6 +6,9 @@ from setuptools import setup, find_packages
 with open('requirements.txt') as f:
     required = f.read().splitlines()
 
+with open('requirements-optional.txt') as f:
+    optionals = f.read().splitlines()
+    
 reqs = []
 links = []
 for ir in required:
@@ -15,8 +18,16 @@ for ir in required:
     else:
         reqs += [ir]
 
-if os.system('which mpicc') == '0':
-    reqs += ['mpi4py']
+
+opt_reqs = []
+opt_links = []
+for ir in optionals:
+    if ir[0:3] == 'git':
+        opt_links += [ir + '#egg=' + ir.split('/')[-1] + '-0']
+        opt_reqs += [ir.split('/')[-1]]
+    else:
+        opt_reqs += [ir]
+
 
 setup(name='devito',
       version=versioneer.get_version(),
@@ -35,5 +46,6 @@ setup(name='devito',
       license='MIT',
       packages=find_packages(exclude=['docs', 'tests', 'examples']),
       install_requires=reqs,
+      extras_require={'extras':  optionals}
       dependency_links=links,
       test_suite='tests')

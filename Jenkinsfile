@@ -59,7 +59,7 @@ pipeline {
                      steps {
                          cleanWorkspace()
                          condaInstallDevito()
-						 condaInstallMPI()
+                         condaInstallMPI()
                          runCondaTests()
                          runExamples()
                          runCodecov()
@@ -80,7 +80,7 @@ pipeline {
                      steps {
                          cleanWorkspace()
                          condaInstallDevito()
-						 condaInstallMPI()
+                         condaInstallMPI()
                          installYask()
                          runCondaTests()
                          runCodecov()
@@ -123,7 +123,7 @@ def condaInstallDevito () {
 }
 
 def condaInstallMPI () {
-    sh 'source activate devito ; pip install -r mpi_requirements.txt'
+    sh 'source activate devito ; pip install -r requirements-optional.txt'
 }
 
 def pipInstallDevito () {

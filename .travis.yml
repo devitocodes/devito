@@ -29,7 +29,7 @@ matrix:
           packages:
             - gcc-5
             - g++-5
-      env: DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0 RUN_EXAMPLES=True INSTALL_TYPE=conda MPI_INSTALL=0
+      env: DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0 RUN_EXAMPLES=False INSTALL_TYPE=conda MPI_INSTALL=0
     - os: linux
       python: "3.6"
       addons:
@@ -86,15 +86,12 @@ install:
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       conda env create -q -f environment.yml python=$TRAVIS_PYTHON_VERSION;
       source activate devito;
-      pip install -e .;
+      if [[ $MPI_INSTALL == '1' ]]; then pip install -e .[extras]; else pip install -e .; fi
       conda list;
     fi
 
-  # Install mpi4py if mpi is installed
-  - if [[ $INSTALL_TYPE == 'conda' ]] && [[ $MPI_INSTALL == '1' ]]; then pip install -r mpi_requirements.txt; fi
-
   # Install devito with pip
-  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py install; fi
+  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then pip install setup.py install; fi
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config

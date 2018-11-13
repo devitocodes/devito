@@ -19,15 +19,13 @@ from devito.tools import as_tuple
 
 try:
     from mpi4py import MPI  # noqa
-    no_mpi = False
 except ImportError:
-    no_mpi = True
     pass
 
 skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
                                  reason="YASK testing is currently restricted")
 
-skipif_mpi = pytest.mark.skipif(no_mpi, reason="mpi not installed")
+skipif_nompi = pytest.mark.skipif(MPI is None, reason="mpi not installed")
 
 
 # Testing dimensions for space and time

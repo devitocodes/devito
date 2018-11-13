@@ -1,7 +1,7 @@
 import numpy as np
 
 import pytest
-from conftest import skipif_yask, skipif_mpi
+from conftest import skipif_yask, skipif_nompi
 
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
@@ -13,7 +13,7 @@ from devito.types import LEFT, RIGHT
 
 
 @skipif_yask
-@skipif_mpi
+@skipif_nompi
 class TestDistributor(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
@@ -64,7 +64,7 @@ class TestDistributor(object):
 
 
 @skipif_yask
-@skipif_mpi
+@skipif_nompi
 class TestFunction(object):
 
     @pytest.mark.parallel(nprocs=9)
@@ -278,7 +278,7 @@ class TestFunction(object):
 
 
 @skipif_yask
-@skipif_mpi
+@skipif_nompi
 class TestCodeGeneration(object):
 
     def test_iet_copy(self):
@@ -366,7 +366,7 @@ otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
 
 
 @skipif_yask
-@skipif_mpi
+@skipif_nompi
 class TestSparseFunction(object):
 
     @pytest.mark.parallel(nprocs=4)
@@ -456,7 +456,7 @@ class TestSparseFunction(object):
 
 
 @skipif_yask
-@skipif_mpi
+@skipif_nompi
 class TestOperatorSimple(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
@@ -656,7 +656,7 @@ class TestOperatorSimple(object):
 
 
 @skipif_yask
-@skipif_mpi
+@skipif_nompi
 class TestOperatorAdvanced(object):
 
     @pytest.mark.parallel(nprocs=[4])
