@@ -10,6 +10,7 @@ from devito.types import LEFT, RIGHT
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
                                 reason="testing is currently restricted")
 
+
 class TestDataBasic(object):
 
     def test_simple_indexing(self):

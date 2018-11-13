@@ -9,6 +9,7 @@ from devito import Buffer, Grid, Eq, Operator, TimeFunction, solve, configuratio
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
                                 reason="testing is currently restricted")
 
+
 def initial(nt, nx, ny):
     xx, yy = np.meshgrid(np.linspace(0., 1., nx, dtype=np.float32),
                          np.linspace(0., 1., ny, dtype=np.float32))

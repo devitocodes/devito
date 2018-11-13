@@ -6,6 +6,7 @@ from examples.seismic import TimeAxis, RickerSource, demo_model
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
                                 reason="testing is currently restricted")
 
+
 def test_resample():
 
     shape = (50, 50, 50)
