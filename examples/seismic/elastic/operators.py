@@ -170,8 +170,7 @@ def src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry):
     return src_expr + rec_term1 + rec_term2
 
 
-def ForwardOperator(model, geometry, space_order=4,
-                    save=False, **kwargs):
+def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     """
     Constructor method for the forward modelling operator in an elastic media
 
@@ -182,9 +181,8 @@ def ForwardOperator(model, geometry, space_order=4,
     :param save: Saving flag, True saves all time steps, False only the three buffered
                  indices (last three time steps)
     """
-
-    pde = kernels[model.grid.dim](model, space_order, geometry.nt if save else None,
-                                  geometry)
+    wave = kernels[model.grid.dim]
+    pde = wave(model, space_order, geometry.nt if save else None, geometry)
 
     # Substitute spacing terms to reduce flops
     return Operator(pde, subs=model.spacing_map,

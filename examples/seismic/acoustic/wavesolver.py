@@ -45,29 +45,29 @@ class AcousticWaveSolver(object):
     def op_fwd(self, save=None):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
-                               kernel=self.kernel,
-                               space_order=self.space_order, **self._kwargs)
+                               kernel=self.kernel, space_order=self.space_order,
+                               **self._kwargs)
 
     @memoized_meth
     def op_adj(self):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=None, geometry=self.geometry,
-                               kernel=self.kernel,
-                               space_order=self.space_order, **self._kwargs)
+                               kernel=self.kernel, space_order=self.space_order,
+                               **self._kwargs)
 
     @memoized_meth
     def op_grad(self, save=True):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=save, geometry=self.geometry,
-                                kernel=self.kernel,
-                                space_order=self.space_order, **self._kwargs)
+                                kernel=self.kernel, space_order=self.space_order,
+                                **self._kwargs)
 
     @memoized_meth
     def op_born(self):
         """Cached operator for born runs"""
         return BornOperator(self.model, save=None, geometry=self.geometry,
-                            kernel=self.kernel,
-                            space_order=self.space_order, **self._kwargs)
+                            kernel=self.kernel, space_order=self.space_order,
+                            **self._kwargs)
 
     def forward(self, src=None, rec=None, u=None, m=None, save=None, **kwargs):
         """

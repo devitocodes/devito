@@ -2,7 +2,7 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import warning
-from examples.seismic import demo_model, Acquisition_geometry
+from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
@@ -23,8 +23,8 @@ def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     if len(shape) > 1:
         rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
         rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
-    geometry = Acquisition_geometry(model, rec_coordinates, src_coordinates,
-                                    t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
 
     return AnisotropicWaveSolver(model, geometry,
                                  space_order=space_order, **kwargs)

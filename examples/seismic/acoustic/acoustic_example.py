@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from devito.logger import info
 from devito import Constant, Function, smooth
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, Acquisition_geometry
+from examples.seismic import demo_model, AcquisitionGeometry
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
@@ -25,8 +25,8 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     if len(shape) > 1:
         rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
         rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
-    geometry = Acquisition_geometry(model, rec_coordinates, src_coordinates,
-                                    t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
 
     # Create solver object to provide relevant operators
     solver = AcousticWaveSolver(model, geometry, kernel=kernel,
@@ -55,7 +55,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     # Define receiver geometry (spread across x, just below surface)
     rec, u, summary = solver.forward(save=save, autotune=autotune)
 
-    if preset=='constant':
+    if preset =='constant':
         # With  a new m as Constant
         m0 = Constant(name="m", value=.25, dtype=np.float32)
         solver.forward(save=save, m=m0)

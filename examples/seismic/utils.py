@@ -4,7 +4,7 @@ from scipy import ndimage
 from devito import error
 
 from .source import *
-__all__ = ['scipy_smooth', 'Acquisition_geometry']
+__all__ = ['scipy_smooth', 'AcquisitionGeometry']
 
 
 def scipy_smooth(img, sigma=5):
@@ -14,7 +14,7 @@ def scipy_smooth(img, sigma=5):
     return ndimage.gaussian_filter(img, sigma=sigma)
 
 
-class Acquisition_geometry(object):
+class AcquisitionGeometry(object):
     """
     Encapsulate the geometry of an acquisition:
     - receiver positions and number
@@ -34,7 +34,7 @@ class Acquisition_geometry(object):
         self._src_positions = src_pos
         self._nsrc = src_pos.shape[0]
         self._src_type = kwargs.get('src_type')
-        assert self.src_type in SRC_TYPES
+        assert self.src_type in sources
         self._f0 = kwargs.get('f0')
         if self._src_type is not None and self._f0 is None:
             error("Peak frequency must be provided in KH" +
@@ -110,9 +110,9 @@ class Acquisition_geometry(object):
                                time_range=self.time_axis, npoint=self.nsrc,
                                coordinates=self.src_positions)
         else:
-            return SRC_TYPES[self.src_type](name='src', grid=self.grid, f0=self.f0,
-                                            time_range=self.time_axis, npoitn=self.nsrc,
-                                            coordinates=self.src_positions)
+            return sources[self.src_type](name='src', grid=self.grid, f0=self.f0,
+                                          time_range=self.time_axis, npoitn=self.nsrc,
+                                          coordinates=self.src_positions)
 
 
-SRC_TYPES = {'Wavelet': WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}
+sources = {'Wavelet': WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}

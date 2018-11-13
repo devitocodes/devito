@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 
 from devito.logger import info
 from examples.seismic.elastic import ElasticWaveSolver
-from examples.seismic import demo_model, Acquisition_geometry
+from examples.seismic import demo_model, AcquisitionGeometry
 
 
 def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, nbpml=10,
@@ -25,8 +25,8 @@ def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, 
     if len(shape) > 1:
         rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
         rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
-    geometry = Acquisition_geometry(model, rec_coordinates, src_coordinates,
-                                    t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
 
     # Create solver object to provide relevant operators
     solver = ElasticWaveSolver(model, geometry, space_order=space_order, **kwargs)
