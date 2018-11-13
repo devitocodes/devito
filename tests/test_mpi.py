@@ -3,15 +3,18 @@ import pytest
 from conftest import skipif_backend  # noqa
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator, configuration)
+                    SubDimension, Eq, Inc, Operator, norm, inner, configuration)
 from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
 from devito.types import LEFT, RIGHT
 
+from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
+from examples.seismic.acoustic import AcousticWaveSolver
+
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
                                 configuration['backend'] == 'ops',
                                 reason="testing is currently restricted")
-
+                                
 
 @skipif_backend(['yask', 'ops'])
 class TestDistributor(object):
@@ -132,13 +135,13 @@ class TestFunction(object):
 
         glb_pos_map = grid.distributor.glb_pos_map
         if LEFT in glb_pos_map[y]:
-            assert np.all(f._data_ro_with_inhalo._local[1:-1, -1] == 2.)
-            assert np.all(f._data_ro_with_inhalo._local[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo[:, 0] == 0.)
         else:
-            assert np.all(f._data_ro_with_inhalo._local[1:-1, 0] == 1.)
-            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
-        assert np.all(f._data_ro_with_inhalo._local[0] == 0.)
-        assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, 0] == 1.)
+            assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
+        assert np.all(f._data_ro_with_inhalo[0] == 0.)
+        assert np.all(f._data_ro_with_inhalo[-1] == 0.)
 
     @pytest.mark.parallel(nprocs=2)
     def test_halo_exchange_bilateral_asymmetric(self):
@@ -180,13 +183,13 @@ class TestFunction(object):
 
         glb_pos_map = grid.distributor.glb_pos_map
         if LEFT in glb_pos_map[y]:
-            assert np.all(f._data_ro_with_inhalo._local[2:-1, -1] == 2.)
-            assert np.all(f._data_ro_with_inhalo._local[:, 0:2] == 0.)
+            assert np.all(f._data_ro_with_inhalo[2:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo[:, 0:2] == 0.)
         else:
-            assert np.all(f._data_ro_with_inhalo._local[2:-1, 0:2] == 1.)
-            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
-        assert np.all(f._data_ro_with_inhalo._local[0:2] == 0.)
-        assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[2:-1, 0:2] == 1.)
+            assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
+        assert np.all(f._data_ro_with_inhalo[0:2] == 0.)
+        assert np.all(f._data_ro_with_inhalo[-1] == 0.)
 
     @pytest.mark.parallel(nprocs=4)
     def test_halo_exchange_quadrilateral(self):
@@ -240,29 +243,29 @@ class TestFunction(object):
 
         glb_pos_map = grid.distributor.glb_pos_map
         if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(f._data_ro_with_inhalo._local[0] == 0.)
-            assert np.all(f._data_ro_with_inhalo._local[:, 0] == 0.)
-            assert np.all(f._data_ro_with_inhalo._local[1:-1, -1] == 2.)
-            assert np.all(f._data_ro_with_inhalo._local[-1, 1:-1] == 3.)
-            assert f._data_ro_with_inhalo._local[-1, -1] == 4.
+            assert np.all(f._data_ro_with_inhalo[0] == 0.)
+            assert np.all(f._data_ro_with_inhalo[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo[-1, 1:-1] == 3.)
+            assert f._data_ro_with_inhalo[-1, -1] == 4.
         elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(f._data_ro_with_inhalo._local[0] == 0.)
-            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
-            assert np.all(f._data_ro_with_inhalo._local[1:-1, 0] == 1.)
-            assert np.all(f._data_ro_with_inhalo._local[-1, 1:-1] == 4.)
-            assert f._data_ro_with_inhalo._local[-1, 0] == 3.
+            assert np.all(f._data_ro_with_inhalo[0] == 0.)
+            assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, 0] == 1.)
+            assert np.all(f._data_ro_with_inhalo[-1, 1:-1] == 4.)
+            assert f._data_ro_with_inhalo[-1, 0] == 3.
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
-            assert np.all(f._data_ro_with_inhalo._local[:, 0] == 0.)
-            assert np.all(f._data_ro_with_inhalo._local[1:-1, -1] == 4.)
-            assert np.all(f._data_ro_with_inhalo._local[0, 1:-1] == 1.)
-            assert f._data_ro_with_inhalo._local[0, -1] == 2.
+            assert np.all(f._data_ro_with_inhalo[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, -1] == 4.)
+            assert np.all(f._data_ro_with_inhalo[0, 1:-1] == 1.)
+            assert f._data_ro_with_inhalo[0, -1] == 2.
         else:
-            assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
-            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
-            assert np.all(f._data_ro_with_inhalo._local[1:-1, 0] == 3.)
-            assert np.all(f._data_ro_with_inhalo._local[0, 1:-1] == 2.)
-            assert f._data_ro_with_inhalo._local[0, 0] == 1.
+            assert np.all(f._data_ro_with_inhalo[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, 0] == 3.)
+            assert np.all(f._data_ro_with_inhalo[0, 1:-1] == 2.)
+            assert f._data_ro_with_inhalo[0, 0] == 1.
 
     @skipif_backend(['yask', 'ops'])
     @pytest.mark.parallel(nprocs=4)
@@ -941,6 +944,49 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[0, :-thickness] == 1.)
             assert np.all(u.data_ro_domain[0, -thickness:] == range(2, thickness+2))
 
+    @pytest.mark.parallel(nprocs=4)
+    def test_misc_dims(self):
+        """
+        Test MPI in presence of Functions with mixed distributed/replicated
+        Dimensions, with only a strict subset of the Grid dimensions used.
+        """
+        dx = Dimension(name='dx')
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=1, space_order=2, save=4)
+        c = Function(name='c', grid=grid, dimensions=(x, dx), shape=(4, 5))
+
+        step = Eq(u.forward, (
+            u[time, x-2, y] * c[x, 0]
+            + u[time, x-1, y] * c[x, 1]
+            + u[time, x, y] * c[x, 2]
+            + u[time, x+1, y] * c[x, 3]
+            + u[time, x+2, y] * c[x, 4]))
+
+        for i in range(4):
+            c.data[i, 0] = 1.0+i
+            c.data[i, 1] = 1.0+i
+            c.data[i, 2] = 3.0+i
+            c.data[i, 3] = 6.0+i
+            c.data[i, 4] = 5.0+i
+
+        u.data[:] = 0.0
+        u.data[0, 2, :] = 2.0
+
+        op = Operator(step)
+
+        op(time_m=0, time_M=0)
+
+        if LEFT in glb_pos_map[x]:
+            assert(np.all(u.data[1, 0, :] == 10.0))
+            assert(np.all(u.data[1, 1, :] == 14.0))
+        else:
+            assert(np.all(u.data[1, 2, :] == 10.0))
+            assert(np.all(u.data[1, 3, :] == 8.0))
+
     @pytest.mark.parallel(nprocs=9)
     def test_nontrivial_operator(self):
         """
@@ -1023,25 +1069,76 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[1] == 3)
 
 
+@skipif_yask
 class TestIsotropicAcoustic(object):
 
     """
-    Test the acoustic wave model with MPI.
+    Test the isotropic acoustic wave equation with MPI.
     """
 
-    # TODO: Cannot mark the following test as `xfail` since this marker
-    # doesn't cope well with the `parallel` mark. Leaving it commented out
-    # for the time being...
-    # @pytest.mark.parametrize('shape, kernel, space_order, nbpml', [
-    #     # 1 tests with varying time and space orders
-    #     ((60, ), 'OT2', 4, 10),
-    # ])
-    # @pytest.mark.parallel(nprocs=2)
-    # def test_adjoint_F(self, shape, kernel, space_order, nbpml):
-    #     from test_adjoint import TestAdjoint
-    #     TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
+    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
+        ((60, ), 'OT2', 4, 10, False, 976.825, 9372.604, 18851836.075, 47002871.882),
+        ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
+        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
+    ])
+    @pytest.mark.parallel(nprocs=[4, 8])
+    def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
+                       Eu, Erec, Ev, Esrca):
+        """
+        Unlike `test_adjoint_F` in test_adjoint.py, here we explicitly check the norms
+        of all Operator-evaluated Functions. The numbers we check against are derived
+        "manually" from sequential runs of test_adjoint::test_adjoint_F
+        """
+        t0 = 0.0  # Start time
+        tn = 500.  # Final time
+        nrec = 130  # Number of receivers
+        spacing = 15.  # Grid spacing
 
-    pass
+        # Create model from preset
+        model = demo_model(spacing=[spacing for _ in shape], dtype=np.float64,
+                           space_order=space_order, shape=shape, nbpml=nbpml,
+                           preset='layers-isotropic', ratio=3)
+
+        # Derive timestepping from model spacing
+        dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
+        time_range = TimeAxis(start=t0, stop=tn, step=dt)
+
+        # Define source geometry (center of domain, just below surface)
+        src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
+        src.coordinates.data[0, :] = np.array(model.domain_size) * .5
+        src.coordinates.data[0, -1] = 30.
+
+        # Define receiver geometry (same as source, but spread across x)
+        rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
+        rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+        if len(shape) > 1:
+            rec.coordinates.data[:, 1] = np.array(model.domain_size)[1] * .5
+            rec.coordinates.data[:, -1] = 30.
+
+        # Create solver object to provide relevant operators
+        solver = AcousticWaveSolver(model, source=src, receiver=rec,
+                                    kernel=kernel, space_order=space_order)
+
+        # Create adjoint receiver symbol
+        srca = Receiver(name='srca', grid=model.grid, time_range=solver.source.time_range,
+                        coordinates=solver.source.coordinates.data)
+
+        # Run forward operator
+        rec, u, _ = solver.forward(save=save, rec=rec)
+
+        assert np.isclose(norm(u), Eu, rtol=Eu*1.e-8)
+        assert np.isclose(norm(rec), Erec, rtol=Erec*1.e-8)
+
+        # Run adjoint operator
+        srca, v, _ = solver.adjoint(rec=rec, srca=srca)
+
+        assert np.isclose(norm(v), Ev, rtol=Eu*1.e-8)
+        assert np.isclose(norm(srca), Esrca, rtol=Erec*1.e-8)
+
+        # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
+        term1 = inner(srca, solver.source)
+        term2 = norm(rec)**2
+        assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
 
 if __name__ == "__main__":
@@ -1052,5 +1149,7 @@ if __name__ == "__main__":
     # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
     # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
     # TestSparseFunction().test_scatter_gather()
-    TestOperatorAdvanced().test_nontrivial_operator()
+    # TestOperatorAdvanced().test_nontrivial_operator()
     # TestOperatorAdvanced().test_interpolation_dup()
+    TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
+                                           153.122, 205.902, 27484.635, 11736.917)

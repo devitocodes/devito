@@ -2,10 +2,9 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import info
-from devito import Constant, Function
+from devito import Constant, Function, smooth
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
-from examples.seismic.utils import smooth
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
@@ -30,7 +29,8 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     if len(shape) > 1:
-        rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+        rec.coordinates.data[:, 1] = np.array(model.domain_size)[1] * .5
+        rec.coordinates.data[:, -1] = model.origin[-1] + 2 * spacing[-1]
 
     # Create solver object to provide relevant operators
     solver = AcousticWaveSolver(model, source=src, receiver=rec, kernel=kernel,

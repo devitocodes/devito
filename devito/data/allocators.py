@@ -7,15 +7,13 @@ import numpy as np
 import ctypes
 from ctypes.util import find_library
 
-from devito.equation import Eq
 from devito.logger import logger
 from devito.parameters import configuration
 from devito.tools import numpy_to_ctypes
-import devito
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
-           'default_allocator', 'first_touch']
+           'default_allocator']
 
 
 class MemoryAllocator(object):
@@ -322,11 +320,3 @@ def default_allocator():
             return ALLOC_NUMA_LOCAL
     else:
         return ALLOC_FLAT
-
-
-def first_touch(array):
-    """
-    Uses an Operator to initialize the given array in the same pattern that
-    would later be used to access it.
-    """
-    devito.Operator(Eq(array, 0.))()

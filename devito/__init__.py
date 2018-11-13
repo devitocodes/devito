@@ -8,6 +8,7 @@ from itertools import product
 import cpuinfo
 
 from devito.base import *  # noqa
+from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
