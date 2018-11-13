@@ -99,25 +99,25 @@ def relative_velocity_fields(model, save, space_order):
         stagg_x = x
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
-        wx = TimeFunction(name='wx', grid=model.grid, staggered=stagg_x,
+        qx = TimeFunction(name='qx', grid=model.grid, staggered=stagg_x,
                           time_order=2, space_order=space_order, save=save)
-        wz = TimeFunction(name='wz', grid=model.grid, staggered=stagg_z,
+        qz = TimeFunction(name='qz', grid=model.grid, staggered=stagg_z,
                           time_order=2, space_order=space_order, save=save)
-        wy = None
+        qy = None
     elif model.grid.dim == 3:
         x, y, z = model.space_dimensions
         stagg_x = x
         stagg_y = y
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
-        wx = TimeFunction(name='wx', grid=model.grid, staggered=stagg_x,
+        qx = TimeFunction(name='qx', grid=model.grid, staggered=stagg_x,
                           time_order=2, space_order=space_order, save=save)
-        wy = TimeFunction(name='wy', grid=model.grid, staggered=stagg_y,
+        qy = TimeFunction(name='qy', grid=model.grid, staggered=stagg_y,
                           time_order=2, space_order=space_order, save=save)
-        wz = TimeFunction(name='wz', grid=model.grid, staggered=stagg_z,
+        qz = TimeFunction(name='qz', grid=model.grid, staggered=stagg_z,
                           time_order=2, space_order=space_order, save=save)
 
-    return wx, wy, wz
+    return qx, qy, qz
 # ------------------------------------------------------------------------------
 
 def poroelastic_2d(model, space_order, save, source, receiver):
@@ -143,43 +143,51 @@ def poroelastic_2d(model, space_order, save, source, receiver):
     K_G = K_dr + alpha**2 * M               # Pa
 
     # Lame Parameter of Saturated Medium
-    l_c = K_G - 2.0/3.0 * G                 # Pa
+    l_u = K_G - 2.0/3.0 * G                 # Pa
     
     # Create symbols for forward wavefield, source and receivers
     vx, vy, vz = particle_velocity_fields(model, save, space_order)
-    wx, wy, wz = relative_velocity_fields(model, save, space_order)    
+    qx, qy, qz = relative_velocity_fields(model, save, space_order)    
     txx, tyy, tzz, _, txz, _ = stress_fields(model, save, space_order)
     p = pressure_fields(model, save, space_order) # Different order needed?
     
     # Convenience terms for nightmarish poroelastodynamic FD stencils
-    _m = T * (rho_f/phi)  # Effective fluid density / mass coupling coefficient, kg/m**3
+    rho_m = T * (rho_f/phi)  # Effective fluid density / mass coupling coefficient, kg/m**3
     _b = mu_f / k         # Fluid Mobility / resistiving damping, (Pa * s) / m**2 = kg / (m**3 * s)
     
-    A = _m / (_m * rho_b - rho_f**2)
-    B = (rho_b * _b) / (rho_b - rho_f**2)
-    C = rho_f / (_m * rho_b - rho_f**2)
-    D = (-1 * rho_f) / (_m * rho_b - rho_f**2)
-    E = (-1 * rho_b * _b) / (_m * rho_b - rho_f**2)
-    F = (-1 * rho_b) / (_m * rho_b - rho_f**2)
+   
+    # Update Coefficients
+    rho_bar = rho_b*rho_m - rho_f*rho_f
+    a1 = (rho_m*dt) / rho_bar**2
+    a2 = (rho_f*dt) / rho_bar**2    
+    a3 = (rho_f*_b*dt) / rho_bar**2
+    a4 = (2.0*rho_bar**2 - rho_b*_b*dt) / (2.0*rho_bar**2 + rho_b*_b*dt)       
+    a5 = -1.0*(rho_f*dt) / (rho_bar**2 + rho_b*_b*dt)
+    a6 = -1.0*(rho_b*dt) / (rho_bar**2 + rho_b*_b*dt)
+    a7 = G*dt
+    a8 = l_u*dt
+    a9 = alpha*M*dt
+    a10 = -1.0*M*dt
+    
+    
     
     # Stencils
-    u_vx  = Eq(vx.forward, damp*(vx + dt*( A*(txx.dx + txz.dy) + C*p.dx + B*wx ) ) )
-    u_vz  = Eq(vz.forward, damp*(vz + dt*( A*(txz.dx + tzz.dy) + C*p.dy + B*wz ) ) )
+    u_vx  = Eq(vx.forward, damp*(vx + a1*(txx.dx + txz.dy) + a2*p.dx  + a3*qx) )
+    u_vz  = Eq(vz.forward, damp*(vz + a1*(txz.dx + tzz.dy) + a2*p.dy  + a3*qz) )
     
-    u_wx  = Eq(wx.forward, damp*(wx + dt*( D*(txx.dx + txz.dy) + F*p.dx + E*wx ) ) )
-    u_wz  = Eq(wz.forward, damp*(wz + dt*( D*(txz.dx + tzz.dy) + F*p.dy + E*wz ) ) )
+    u_qx  = Eq(qx.forward, damp*(a4*qx + a5*(txx.dx + txz.dy) + a6*p.dx) )
+    u_qz  = Eq(qz.forward, damp*(a4*qz + a5*(txz.dx + tzz.dy) + a6*p.dy) )
     
-    u_txx = Eq(txx.forward, damp*(txx + dt*((l_c + 2*G)*vx.forward.dx + l_c*vz.forward.dy
-                                      + alpha*M*(wx.forward.dx + wz.forward.dy) ) ) )
-    u_tzz = Eq(tzz.forward, damp*(tzz + dt*((l_c + 2*G)*vz.forward.dy + l_c*vx.forward.dx
-                                      + alpha*M*(wx.forward.dx + wz.forward.dy) ) ) )
-    u_txz = Eq(txz.forward, damp*(txz + dt*(G*(vz.forward.dx + vx.forward.dy) ) ) )
-    
-    u_p   = Eq(p.forward, damp*(p - dt*(alpha*M*(vx.forward.dx + vz.forward.dy) 
-                              + M*(wx.forward.dx + wz.forward.dy) ) ) )
+#    u_txx = Eq(txx.forward, damp*(txx + a7*(vx.forward.dx + vx.forward.dx) + (a8*vx.forward.dx + a9*qx.forward.dx) ) )
+#    u_tzz = Eq(tzz.forward, damp*(tzz + a7*(vz.forward.dy + vz.forward.dy) + (a8*vz.forward.dy + a9*qz.forward.dy) ) )
+    u_txx = Eq(txx.forward, damp*(txx + dt*((l_u + 2.0*G)*vx.forward.dx + l_u*vz.forward.dy + alpha*M*(qx.forward.dx + qz.forward.dy))))
+    u_tzz = Eq(tzz.forward, damp*(tzz + dt*((l_u + 2.0*G)*vz.forward.dy + l_u*vx.forward.dx + alpha*M*(qx.forward.dx + qz.forward.dy))))
+    u_txz = Eq(txz.forward, damp*(txz + a7*(vx.forward.dy + vz.forward.dx) ) )
+        
+    u_p   = Eq(p.forward, damp*(p - a9*(vx.forward.dx + vz.forward.dy) + a10*(qx.forward.dx + qz.forward.dy) ) ) 
 
-    src_rec_expr = src_rec(vx, vy, vz, wx, wy, wz, txx, tyy, tzz, p, model, source, receiver)
-    return [u_vx, u_vz, u_wx, u_wz, u_txx, u_tzz, u_txz, u_p] + src_rec_expr
+    src_rec_expr = src_rec(vx, vy, vz, qx, qy, qz, txx, tyy, tzz, p, model, source, receiver)
+    return [u_vx, u_vz, u_qx, u_qz, u_txx, u_tzz, u_txz, u_p] + src_rec_expr
 # ------------------------------------------------------------------------------
 
 def poroelastic_3d(model, space_order, save, source, receiver):
@@ -208,7 +216,7 @@ def poroelastic_3d(model, space_order, save, source, receiver):
 
     # Create symbols for forward wavefield, source and receivers
     vx, vy, vz = particle_velocity_fields(model, save, space_order)
-    wx, wy, wz = relative_velocity_fields(model, save, space_order)    
+    qx, qy, qz = relative_velocity_fields(model, save, space_order)    
     txx, tyy, tzz, txy, txz, tyz = stress_fields(model, save, space_order)
 
     # Stencils
@@ -230,7 +238,7 @@ def poroelastic_3d(model, space_order, save, source, receiver):
     return [u_vx, u_vy, u_vz, u_txx, u_tyy, u_tzz, u_txz, u_txy, u_tyz] + src_rec_expr
 # ------------------------------------------------------------------------------
 
-def src_rec(vx, vy, vz, wx, wy, wz, txx, tyy, tzz, p, model, source, receiver):
+def src_rec(vx, vy, vz, qx, qy, qz, txx, tyy, tzz, p, model, source, receiver):
     """
     Source injection and receiver interpolation
     """
@@ -244,12 +252,12 @@ def src_rec(vx, vy, vz, wx, wy, wz, txx, tyy, tzz, p, model, source, receiver):
                     npoint=receiver.npoint)
 
     # The source injection term
-    src_xx = src.inject(field=txx.forward, expr=src * dt, offset=model.nbpml)
-    src_zz = src.inject(field=tzz.forward, expr=src * dt, offset=model.nbpml)
-    src_pp = src.inject(field=p.forward,   expr=src * dt, offset=model.nbpml)
+    src_xx = src.inject(field=txx.forward, expr=src * (1.0 - model.phi) * dt, offset=model.nbpml)
+    src_zz = src.inject(field=tzz.forward, expr=src * (1.0 - model.phi) * dt, offset=model.nbpml)
+    src_pp = src.inject(field=p.forward,   expr=src * model.phi * dt, offset=model.nbpml)
     src_expr = src_xx + src_zz + src_pp
     if model.grid.dim == 3:
-        src_yy = src.inject(field=tyy.forward, expr=src * dt, offset=model.nbpml)
+        src_yy = src.inject(field=tyy.forward, expr=src * (1.0 - model.phi) * dt, offset=model.nbpml)
         src_expr += src_yy
 
     # Create interpolation expression for receivers

@@ -64,15 +64,15 @@ def demo_model(preset, **kwargs):
         dtype = kwargs.pop('dtype', np.float64)
 
         # Matrix Properties
-        G = np.ones(shape, dtype=dtype)*kwargs.pop('G', 4.55e08)        # Shear Modulus, Pa = kg / (m * s**2)
-        phi = np.ones(shape, dtype=dtype)*kwargs.pop('phi', 0.3)       # Porosity, %
+        G = np.ones(shape, dtype=dtype)*kwargs.pop('G', 25e09)        # Shear Modulus, Pa = kg / (m * s**2)
+        phi = np.ones(shape, dtype=dtype)*kwargs.pop('phi', 0.1)       # Porosity, %
         k = np.ones(shape, dtype=dtype)*kwargs.pop('k', 1e-12)         # Permeability, m**2
-        K_dr = np.ones(shape, dtype=dtype)*kwargs.pop('K_dr', 6.21e08)  # Drained bulk modulus, Pa = kg / (m * s**2)
-        T = np.ones(shape, dtype=dtype)*kwargs.pop('T', 1.0)           # Tortuosity, -
+        K_dr = np.ones(shape, dtype=dtype)*kwargs.pop('K_dr', 6.21e09)  # Drained bulk modulus, Pa = kg / (m * s**2)
+        T = np.ones(shape, dtype=dtype)*kwargs.pop('T', 65.0)           # Tortuosity, -
         
         # Solid Properties                
         rho_s = np.ones(shape, dtype=dtype)*kwargs.pop('rho_s', 2650.)  # Solid grain density, kg/m**3
-        K_s = np.ones(shape, dtype=dtype)*kwargs.pop('K_s', 3.6e10)     # Solid grain bulk modulus, Pa = kg / (m * s**2)
+        K_s = np.ones(shape, dtype=dtype)*kwargs.pop('K_s', 36e9)     # Solid grain bulk modulus, Pa = kg / (m * s**2)
         
         # Fluid Properties
         rho_f = np.ones(shape, dtype=dtype)*kwargs.pop('rho_f', 1000.)  # Fluid density, kg/m**3
@@ -87,7 +87,7 @@ def demo_model(preset, **kwargs):
                             '2layer-poroelastic']:
 
         shape = kwargs.pop('shape', (201, 201))
-        spacing = kwargs.pop('spacing', tuple([10. for _ in shape])) # sec
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape])) 
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float64)
         nbpml = kwargs.pop('nbpml', 10)
@@ -107,7 +107,7 @@ def demo_model(preset, **kwargs):
         
         # Solid Properties                
         rho_s = kwargs.pop('rho_s', 2300)  # kg/m**3
-        K_s = kwargs.pop('K_s', 4.0e9)       # Pa
+        K_s = kwargs.pop('K_s', 4.0e9)     # Pa
         
         # Fluid Properties
         rho_f = kwargs.pop('rho_f', 1000)  # kg/m**3      
@@ -870,12 +870,13 @@ class ModelPoroelastic(Physical_Model):
         # For a fixed time order this number goes down as the space order increases.
         #
         # The CFL condtion is then given by
-        # dt < h / (sqrt(2) * max(vp)))
+        # dt < np.(h / (sqrt(2) * max(vp)))
         alpha = 1.0 - self.K_dr.data/self.K_s.data
         M =  (alpha - self.phi.data)/self.K_s.data + self.phi.data/self.K_f.data
         rho_b = self.rho_s.data  * (1.0-self.phi.data) + self.rho_f.data * self.phi.data
         Vp = ( (self.K_dr.data + 4.0/3.0 * self.G.data + alpha**2. * M) / rho_b )**0.5
-        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2.)*np.max(Vp)) /10.0) 
+        Vs = ( self.G.data / rho_b)**0.5
+        return self.dtype(np.min( np.min(self.spacing) / (Vp**2 - Vs**2)**0.5) ) 
 #        return .5*np.min(self.spacing) / (np.sqrt(2.)*np.max(Vp))
         #return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))
 

@@ -39,7 +39,7 @@ class PoroelasticWaveSolver(object):
 
     def forward(self, src=None, rec1=None, rec2=None, rho_s=None,
                       rho_f=None, phi=None, k=None, mu_f=None, K_dr=None, K_s=None,
-                      K_f=None, G=None, T=None, vx=None, vz=None, wx=None, wz=None,
+                      K_f=None, G=None, T=None, vx=None, vz=None, qx=None, qz=None,
                       txx=None, tzz=None, txz=None, p=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
@@ -75,14 +75,14 @@ class PoroelasticWaveSolver(object):
         save_t = src.nt if save else None
         
         vx, vy, vz = particle_velocity_fields(self.model, save_t, self.space_order)
-        wx, wy, wz = relative_velocity_fields(self.model, save_t, self.space_order)
+        qx, qy, qz = relative_velocity_fields(self.model, save_t, self.space_order)
         txx, tyy, tzz, txy, txz, tyz = stress_fields(self.model, save_t, self.space_order)
         p = pressure_fields(self.model, save_t, self.space_order)
         
         kwargs['vx'] = vx
         kwargs['vz'] = vz
-        kwargs['wx'] = wx
-        kwargs['wz'] = wz        
+        kwargs['qx'] = qx
+        kwargs['qz'] = qz        
         kwargs['txx'] = txx
         kwargs['tzz'] = tzz
         kwargs['txz'] = txz
@@ -90,14 +90,12 @@ class PoroelasticWaveSolver(object):
         
         if self.model.grid.dim == 3:
             kwargs['vy'] = vy
-            kwargs['wy'] = wy
+            kwargs['qy'] = qy
             kwargs['tyy'] = tyy
             kwargs['txy'] = txy
             kwargs['tyz'] = tyz
 
         # Pick m from model unless explicitly provided
-        # vp    = vp    or self.model.vp
-        # vs    = vs    or self.model.vs
         rho_s = rho_s or self.model.rho_s
         rho_f = rho_f or self.model.rho_f
         phi   = phi   or self.model.phi
@@ -114,4 +112,4 @@ class PoroelasticWaveSolver(object):
         rho_s=rho_s, rho_f=rho_f, phi=phi, k=k, mu_f=mu_f, K_dr=K_dr, K_s=K_s,
         K_f=K_f, G=G, T=T, dt=kwargs.pop('dt', self.dt), **kwargs)
         
-        return rec1, rec2, vx, vz, wx, wz, txx, tzz, txz, p, summary
+        return rec1, rec2, vx, vz, qx, qz, txx, tzz, txz, p, summary

@@ -238,8 +238,8 @@ class RickerSource(WaveletSource):
         :param f0: Peak frequency in Hz
         :param t: Discretized values of time in s
         """
-        r = (np.pi * f0 * (t - 1./f0))
-        return (1-2.*r**2)*np.exp(-r**2)
+        y = (1.0 - 2.0*(np.pi**2)*(f0**2)*(t**2)) * np.exp(-(np.pi**2)*(f0**2)*(t**2))
+        return y
 
 
 class GaborSource(WaveletSource):
