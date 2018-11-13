@@ -18,7 +18,6 @@ This dictionary may be modified at backend-initialization time."""
 
 default_options = {
     'blockinner': False,
-    'blockshape': None,
     'blockalways': False
 }
 """Default values for the supported optimization options.
@@ -36,37 +35,33 @@ def init_dle(backend_modes):
         default_modes[i] = backend_modes[i]
 
 
-def transform(node, mode='basic', options=None):
+def transform(iet, mode='basic', options=None):
     """
-    Transform Iteration/Expression trees to generate highly optimized C code.
+    Transform Iteration/Expression trees (IET) to generate optimized C code.
 
-    :param node: The Iteration/Expression tree to be transformed, or an iterable
-                 of Iteration/Expression trees.
-    :param mode: Drive the tree transformation. ``mode`` is a string indicating
-                 a certain optimization pipeline.
-    :param options: A dictionary with additional information to drive the DLE.
-
-    The ``mode`` parameter accepts the following values: ::
-
+    Parameters
+    ----------
+    iet : Node
+        The root of the IET to be transformed.
+    mode : str, optional
+        The transformation mode.
         * 'noop': Do nothing.
         * 'basic': Add instructions to avoid denormal numbers and create elemental
-                   functions for rapid JIT-compilation.
+                   functions for quicker JIT-compilation.
         * 'advanced': 'basic', vectorization, loop blocking.
         * 'speculative': Apply all of the 'advanced' transformations, plus other
                          transformations that might increase (or possibly decrease)
                          performance.
-
-    The ``options`` parameter accepts the following values: ::
-
-        * 'blockshape': The block shape for loop blocking (a tuple).
+    options : dict, optional
         * 'blockinner': By default, loop blocking is not applied to the innermost
-                        dimension of an Iteration/Expression tree (to maximize
-                        vectorization). Set this flag to True to override this
-                        heuristic.
-        * 'blockalways': Apply blocking even though the DLE thinks it's not
-                         worthwhile applying it.
+                        dimensions so as to to maximize SIMD vectorization). Set this
+                        flag to True to override this heuristic.
+        * 'blockalways': Sometimes, the DLE may decide not to apply blocking to
+                         blockable loop nests due to heuristics aimed at not
+                         decreasing performance. Set this flag to True to
+                         uncoditionally apply loop blocking.
     """
-    assert isinstance(node, Node)
+    assert isinstance(iet, Node)
 
     # Parse options (local options take precedence over global options)
     options = options or {}
@@ -87,14 +82,14 @@ def transform(node, mode='basic', options=None):
 
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':
-        return State(node)
+        return State(iet)
     elif mode not in default_modes:
         try:
-            rewriter = CustomRewriter(node, mode, params)
+            rewriter = CustomRewriter(iet, mode, params)
             return rewriter.run()
         except DLEException:
             dle_warning("Unknown transformer mode(s) %s" % mode)
-            return State(node)
+            return State(iet)
     else:
-        rewriter = default_modes[mode](node, params)
+        rewriter = default_modes[mode](iet, params)
         return rewriter.run()
