@@ -1,6 +1,6 @@
-from __future__ import absolute_import
-
 from collections import OrderedDict
+from functools import reduce
+from operator import mul
 
 from cached_property import cached_property
 import ctypes
@@ -299,6 +299,31 @@ class Operator(Callable):
         tree ``iet``."""
         casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
         return List(body=casts + [iet])
+
+    @cached_property
+    def _mem_summary(self):
+        """The amount of data, in bytes, used by the Operator. This is provided as
+        symbolic expressions, one symbolic expression for each memory scope (external,
+        stack, heap)."""
+        tensors = [i for i in derive_parameters(self) if i.is_Tensor]
+
+        summary = {}
+
+        external = [i.symbolic_shape for i in tensors if i._mem_external]
+        external = sum(reduce(mul, i, 1) for i in external)*self._dtype().itemsize
+        summary['external'] = external
+
+        heap = [i.symbolic_shape for i in tensors if i._mem_heap]
+        heap = sum(reduce(mul, i, 1) for i in heap)*self._dtype().itemsize
+        summary['heap'] = heap
+
+        stack = [i.symbolic_shape for i in tensors if i._mem_stack]
+        stack = sum(reduce(mul, i, 1) for i in stack)*self._dtype().itemsize
+        summary['stack'] = stack
+
+        summary['total'] = external + heap + stack
+
+        return summary
 
     def __getstate__(self):
         if self._lib:
