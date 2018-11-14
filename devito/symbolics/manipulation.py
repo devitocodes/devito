@@ -9,8 +9,8 @@ from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
 from devito.types import Symbol as dSymbol
 
-__all__ = ['freeze', 'xreplace_constrained', 'xreplace_indices', 'pow_to_mul',
-           'as_symbol', 'indexify', 'makeit_ssa', 'split_affine']
+__all__ = ['freeze', 'unfreeze', 'evaluate', 'xreplace_constrained', 'xreplace_indices',
+           'pow_to_mul', 'as_symbol', 'indexify', 'makeit_ssa', 'split_affine']
 
 
 def freeze(expr):
@@ -38,6 +38,26 @@ def freeze(expr):
             return Eq(*rebuilt_args, evaluate=False)
     else:
         return expr.func(*[freeze(e) for e in expr.args])
+
+
+def unfreeze(expr):
+    """
+    Reconstruct ``expr`` turning all :class:`FrozenExpr` subtrees into their
+    SymPy equivalents.
+    """
+    if expr.is_Atom or expr.is_Indexed:
+        return expr
+    func = expr.func.__base__ if isinstance(expr, FrozenExpr) else expr.func
+    return func(*[unfreeze(e) for e in expr.args])
+
+
+def evaluate(expr, **subs):
+    """
+    Numerically evaluate a SymPy expression. Subtrees of type :class:`FrozenExpr`
+    are forcibly evaluated.
+    """
+    expr = unfreeze(expr)
+    return expr.subs(subs)
 
 
 def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repeat=False):
