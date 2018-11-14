@@ -144,7 +144,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
             # Data-related properties and data initialization
             self._data = None
-            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
+            self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
             self._allocator = kwargs.get('allocator', default_allocator())
             initializer = kwargs.get('initializer')
             if initializer is None or callable(initializer):
@@ -817,25 +817,27 @@ class Function(TensorFunction, Differentiable):
             if shape is None:
                 raise TypeError("Need either `grid` or `shape`")
         elif shape is None:
+            if dimensions is not None and dimensions != grid.dimensions:
+                raise TypeError("Need `shape` as not all `dimensions` are in `grid`")
             shape = grid.shape_domain
         elif dimensions is None:
             raise TypeError("`dimensions` required if both `grid` and "
                             "`shape` are provided")
         else:
             # Got `grid`, `dimensions`, and `shape`. We sanity-check that the
-            # Dimensions in `dimensions` which also appear in `grid` have
-            # size (given by `shape`) matching the one in `grid`
+            # Dimensions in `dimensions` also appearing in `grid` have same size
+            # (given by `shape`) as that provided in `grid`
             if len(shape) != len(dimensions):
-                raise TypeError("`shape` and `dimensions` must have the "
-                                "same number of entries")
+                raise ValueError("`shape` and `dimensions` must have the "
+                                 "same number of entries")
             loc_shape = []
             for d, s in zip(dimensions, shape):
                 if d in grid.dimensions:
                     size = grid.dimension_map[d]
-                    if size.glb != s:
-                        raise TypeError("Dimension `%s` is given size `%d`, "
-                                        "while `grid` says `%s` has size `%d` "
-                                        % (d, s, d, size.glb))
+                    if size.glb != s and s is not None:
+                        raise ValueError("Dimension `%s` is given size `%d`, "
+                                         "while `grid` says `%s` has size `%d` "
+                                         % (d, s, d, size.glb))
                     else:
                         loc_shape.append(size.loc)
                 else:

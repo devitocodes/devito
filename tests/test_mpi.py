@@ -654,6 +654,23 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 0
 
+    @pytest.mark.parallel(nprocs=2)
+    def test_reapply_with_different_functions(self):
+        grid1 = Grid(shape=(30, 30, 30))
+        f1 = Function(name='f', grid=grid1, space_order=4)
+
+        op = Operator(Eq(f1, 1.))
+        op.apply()
+
+        grid2 = Grid(shape=(40, 40, 40))
+        f2 = Function(name='f', grid=grid2, space_order=4)
+
+        # Re-application
+        op.apply(f=f2)
+
+        assert np.all(f1.data == 1.)
+        assert np.all(f2.data == 1.)
+
 
 @skipif_yask
 class TestOperatorAdvanced(object):
