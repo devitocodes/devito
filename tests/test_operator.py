@@ -788,6 +788,29 @@ class TestArguments(object):
         assert (a.data[3:7, :] >= 2.).all()
         assert (a.data[8:, :] == 1.).all()
 
+    def test_argument_unknown(self):
+        """Check that Operators deal with unknown runtime arguments."""
+        grid = Grid(shape=(11, 11))
+        a = Function(name='a', grid=grid)
+
+        op = Operator(Eq(a, a + a))
+        try:
+            op.apply(b=3)
+            assert False
+        except ValueError:
+            # `b` means nothing to `op`, so we end up here
+            assert True
+
+        try:
+            configuration['ignore-unknowns'] = True
+            op.apply(b=3)
+            assert True
+        except ValueError:
+            # we should not end up here as we're now ignoring unknown arguments
+            assert False
+        finally:
+            configuration['ignore-unknowns'] = configuration._defaults['ignore-unknowns']
+
 
 class TestDeclarator(object):
 
