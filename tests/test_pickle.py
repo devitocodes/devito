@@ -130,6 +130,10 @@ def test_unjitted_operator():
     assert str(op) == str(new_op)
 
 
+# With yask, broken padding in the generated code upon pickling, since
+# in this test the data is allocated after generating the code.
+# This is a symptom we need parametric padding
+@skipif_yask
 def test_operator_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -146,9 +150,47 @@ def test_operator_function():
     assert np.all(f.data == 2)
 
 
+def test_operator_function_w_preallocation():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+    f.data
+
+    op = Operator(Eq(f, f + 1))
+    op.apply()
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    assert str(op) == str(new_op)
+
+    new_op.apply(f=f)
+    assert np.all(f.data == 2)
+
+
+# With yask, broken padding in the generated code upon pickling, since
+# in this test the data is allocated after generating the code.
+# This is a symptom we need parametric padding
+@skipif_yask
 def test_operator_timefunction():
     grid = Grid(shape=(3, 3, 3))
     f = TimeFunction(name='f', grid=grid, save=3)
+
+    op = Operator(Eq(f.forward, f + 1))
+    op.apply(time=0)
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    assert str(op) == str(new_op)
+
+    new_op.apply(time_m=1, time_M=1, f=f)
+    assert np.all(f.data[2] == 2)
+
+
+def test_operator_timefunction_w_preallocation():
+    grid = Grid(shape=(3, 3, 3))
+    f = TimeFunction(name='f', grid=grid, save=3)
+    f.data
 
     op = Operator(Eq(f.forward, f + 1))
     op.apply(time=0)
