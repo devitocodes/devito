@@ -9,35 +9,35 @@ from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
 from devito.types import Symbol as dSymbol
 
-__all__ = ['freeze_expression', 'xreplace_constrained', 'xreplace_indices',
-           'pow_to_mul', 'as_symbol', 'indexify', 'makeit_ssa', 'split_affine']
+__all__ = ['freeze', 'xreplace_constrained', 'xreplace_indices', 'pow_to_mul',
+           'as_symbol', 'indexify', 'makeit_ssa', 'split_affine']
 
 
-def freeze_expression(expr):
+def freeze(expr):
     """
     Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
-    into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
+    into :class:`FrozenExpr` equivalents.
     """
     if expr.is_Atom or expr.is_Indexed:
         return expr
     elif expr.is_Add:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
+        rebuilt_args = [freeze(e) for e in expr.args]
         return Add(*rebuilt_args, evaluate=False)
     elif expr.is_Mul:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
+        rebuilt_args = [freeze(e) for e in expr.args]
         return Mul(*rebuilt_args, evaluate=False)
     elif expr.is_Pow:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
+        rebuilt_args = [freeze(e) for e in expr.args]
         return Pow(*rebuilt_args, evaluate=False)
     elif expr.is_Equality:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
+        rebuilt_args = [freeze(e) for e in expr.args]
         if isinstance(expr, FrozenExpr):
             # Avoid dropping metadata associated with /expr/
             return expr.func(*rebuilt_args)
         else:
             return Eq(*rebuilt_args, evaluate=False)
     else:
-        return expr.func(*[freeze_expression(e) for e in expr.args])
+        return expr.func(*[freeze(e) for e in expr.args])
 
 
 def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repeat=False):

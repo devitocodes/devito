@@ -2,7 +2,7 @@ import abc
 from collections import OrderedDict
 from time import time
 
-from devito.symbolics import estimate_cost, freeze_expression, pow_to_mul
+from devito.symbolics import estimate_cost, freeze, pow_to_mul
 
 from devito.logger import dse
 from devito.tools import flatten, generator
@@ -114,4 +114,4 @@ class AbstractRewriter(object):
               the DSE passes.
         """
         exprs = [pow_to_mul(e) for e in cluster.exprs]
-        return cluster.rebuild([freeze_expression(e) for e in exprs])
+        return cluster.rebuild([freeze(e) for e in exprs])
