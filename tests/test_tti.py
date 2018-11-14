@@ -5,7 +5,7 @@ from numpy import linalg
 
 from devito import TimeFunction, configuration
 from devito.logger import log
-from examples.seismic import  Model, demo_model, AcquisitionGeometry
+from examples.seismic import Model, demo_model, AcquisitionGeometry
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
 
