@@ -29,9 +29,9 @@ class AcquisitionGeometry(object):
         In practice woyuld be __init__(segyfile) and all below parameters
         would come from a segy_read (at property call rather than at init)
         """
-        self._rec_positions = rec_pos
+        self.rec_positions = rec_pos
         self._nrec = rec_pos.shape[0]
-        self._src_positions = src_pos
+        self.src_positions = src_pos
         self._nsrc = src_pos.shape[0]
         self._src_type = kwargs.get('src_type')
         assert self.src_type in sources
@@ -45,7 +45,11 @@ class AcquisitionGeometry(object):
         self._t0 = t0
         self._tn = tn
 
-    @cached_property
+    def resample(self, dt):
+        self._dt = dt
+        return self
+
+    @property
     def time_axis(self):
         return TimeAxis(start=self.t0, stop=self.tn, step=self.dt)
 
@@ -74,36 +78,28 @@ class AcquisitionGeometry(object):
         return self._dt
 
     @cached_property
-    def nrec(self):
-        return self._nrec
-
-    @cached_property
     def nt(self):
         return self.time_axis.num
 
-    @cached_property
+    @property
+    def nrec(self):
+        return self._nrec
+
+    @property
     def nsrc(self):
         return self._nsrc
-
-    @cached_property
-    def rec_positions(self):
-        return self._rec_positions.astype(self.dtype)
-
-    @cached_property
-    def src_positions(self):
-        return self._src_positions.astype(self.dtype)
 
     @cached_property
     def dtype(self):
         return self.grid.dtype
 
-    @cached_property
+    @property
     def rec(self):
         return Receiver(name='rec', grid=self.grid,
                         time_range=self.time_axis, npoint=self.nrec,
                         coordinates=self.rec_positions)
 
-    @cached_property
+    @property
     def src(self):
         if self.src_type is None:
             return PointSource(name='src', grid=self.grid,
@@ -113,6 +109,9 @@ class AcquisitionGeometry(object):
             return sources[self.src_type](name='src', grid=self.grid, f0=self.f0,
                                           time_range=self.time_axis, npoitn=self.nsrc,
                                           coordinates=self.src_positions)
+
+    _pickle_args = ['model', 'rec_positions', 'src_positions', 't0', 'tn']
+    _pickle_kwargs = ['src_type', 'f0']
 
 
 sources = {'Wavelet': WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}
