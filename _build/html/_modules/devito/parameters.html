@@ -180,6 +180,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_accepted</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_defaults</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_impact_jit</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_update_functions</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">if</span> <span class="n">kwargs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -219,7 +220,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">Parameters</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">accepted</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">accepted</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">impacts_jit</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Add a new parameter ``key`` with default value ``value``.</span>
 
@@ -227,10 +228,15 @@
 
 <span class="sd">        If provided, make sure ``callback`` is executed when the value of ``key``</span>
 <span class="sd">        changes.</span>
+
+<span class="sd">        If ``impacts_jit`` is False (defaults to True), then it can be assumed</span>
+<span class="sd">        that the parameter doesn&#39;t affect code generation, so it can be excluded</span>
+<span class="sd">        from the construction of the hash key.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">Parameters</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">accepted</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_impact_jit</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">impacts_jit</span>
         <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="n">callback</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_update_functions</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">callback</span>
 
@@ -247,10 +253,9 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
 
     <span class="k">def</span> <span class="nf">_signature_items</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># Note: we are discarding some vars that do not affect the c level</span>
+        <span class="c1"># Note: we are discarding some vars that do not affect the C level</span>
         <span class="c1"># code in order to avoid recompiling when such vars are modified</span>
-        <span class="n">discard</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;profiling&#39;</span><span class="p">,</span> <span class="s1">&#39;autotuning&#39;</span><span class="p">,</span> <span class="s1">&#39;log_level&#39;</span><span class="p">,</span> <span class="s1">&#39;first_touch&#39;</span><span class="p">]</span>
-        <span class="n">items</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">((</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">discard</span><span class="p">)</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">((</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_impact_jit</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">items</span><span class="p">))</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">items</span><span class="p">())))</span>
 
 
@@ -263,13 +268,14 @@
     <span class="s1">&#39;DEVITO_DEVELOP&#39;</span><span class="p">:</span> <span class="s1">&#39;develop-mode&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DSE&#39;</span><span class="p">:</span> <span class="s1">&#39;dse&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DLE&#39;</span><span class="p">:</span> <span class="s1">&#39;dle&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;DEVITO_DLE_OPTIONS&#39;</span><span class="p">:</span> <span class="s1">&#39;dle_options&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DEVITO_DLE_OPTIONS&#39;</span><span class="p">:</span> <span class="s1">&#39;dle-options&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_OPENMP&#39;</span><span class="p">:</span> <span class="s1">&#39;openmp&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_MPI&#39;</span><span class="p">:</span> <span class="s1">&#39;mpi&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_AUTOTUNING&#39;</span><span class="p">:</span> <span class="s1">&#39;autotuning&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;DEVITO_LOGGING&#39;</span><span class="p">:</span> <span class="s1">&#39;log_level&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;DEVITO_FIRST_TOUCH&#39;</span><span class="p">:</span> <span class="s1">&#39;first_touch&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;DEVITO_DEBUG_COMPILER&#39;</span><span class="p">:</span> <span class="s1">&#39;debug_compiler&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DEVITO_LOGGING&#39;</span><span class="p">:</span> <span class="s1">&#39;log-level&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DEVITO_FIRST_TOUCH&#39;</span><span class="p">:</span> <span class="s1">&#39;first-touch&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DEVITO_DEBUG_COMPILER&#39;</span><span class="p">:</span> <span class="s1">&#39;debug-compiler&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DEVITO_IGNORE_UNKNOWN_PARAMS&#39;</span><span class="p">:</span> <span class="s1">&#39;ignore-unknowns&#39;</span>
 <span class="p">}</span>
 
 

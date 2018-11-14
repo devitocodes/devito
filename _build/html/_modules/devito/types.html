@@ -164,12 +164,9 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sympy</span>
 
-<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">EnrichedTuple</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">ctypes_to_C</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;Indexed&#39;</span><span class="p">]</span>
-
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
 
 <span class="c1"># This cache stores a reference to each created data object</span>
 <span class="c1"># so that we may re-create equivalent symbols during symbolic</span>

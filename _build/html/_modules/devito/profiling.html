@@ -400,7 +400,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create a new :class:`Profiler`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;log_level&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;DEBUG&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;log-level&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;DEBUG&#39;</span><span class="p">:</span>
         <span class="c1"># Enforce performance profiling in DEBUG mode</span>
         <span class="n">level</span> <span class="o">=</span> <span class="s1">&#39;advanced&#39;</span>
     <span class="k">else</span><span class="p">:</span>
@@ -422,7 +422,7 @@
     <span class="s1">&#39;advanced&#39;</span><span class="p">:</span> <span class="n">AdvancedProfiler</span><span class="p">,</span>
     <span class="s1">&#39;advisor&#39;</span><span class="p">:</span> <span class="n">AdvisorProfiler</span>
 <span class="p">}</span>
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;profiling&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">profiler_registry</span><span class="p">))</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;profiling&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">profiler_registry</span><span class="p">),</span> <span class="n">impacts_jit</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">locate_intel_advisor</span><span class="p">():</span>

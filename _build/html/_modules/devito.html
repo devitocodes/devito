@@ -179,9 +179,17 @@
 <span class="n">__version__</span> <span class="o">=</span> <span class="n">get_versions</span><span class="p">()[</span><span class="s1">&#39;version&#39;</span><span class="p">]</span>
 <span class="k">del</span> <span class="n">get_versions</span>
 
+<span class="c1"># Setup compiler and backend</span>
 <span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;compiler&#39;</span><span class="p">,</span> <span class="s1">&#39;custom&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">compiler_registry</span><span class="p">),</span>
                   <span class="n">callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">i</span><span class="p">]())</span>
 <span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;backend&#39;</span><span class="p">,</span> <span class="s1">&#39;core&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">backends_registry</span><span class="p">),</span> <span class="n">callback</span><span class="o">=</span><span class="n">init_backend</span><span class="p">)</span>
+
+<span class="c1"># Should Devito run a first-touch Operator upon allocating data?</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;first-touch&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="kc">False</span><span class="p">)</span>
+
+<span class="c1"># Should Devito ignore any unknown runtime arguments supplied to Operator.apply(),</span>
+<span class="c1"># or rather raise an exception (the default behaviour)?</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;ignore-unknowns&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="kc">False</span><span class="p">)</span>
 
 <span class="c1"># Execution mode setup</span>
 <span class="k">def</span> <span class="nf">_reinit_compiler</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>  <span class="c1"># noqa</span>
@@ -210,10 +218,11 @@
         <span class="k">return</span> <span class="n">at_setup</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="s1">&#39;preemptive&#39;</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">at_setup</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;autotuning&#39;</span><span class="p">,</span> <span class="s1">&#39;off&#39;</span><span class="p">,</span> <span class="n">at_accepted</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="n">_at_callback</span><span class="p">)</span>  <span class="c1"># noqa</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;autotuning&#39;</span><span class="p">,</span> <span class="s1">&#39;off&#39;</span><span class="p">,</span> <span class="n">at_accepted</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="n">_at_callback</span><span class="p">,</span>  <span class="c1"># noqa</span>
+                  <span class="n">impacts_jit</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 <span class="c1"># Should Devito emit the JIT compilation commands?</span>
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;debug_compiler&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;debug-compiler&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="kc">False</span><span class="p">)</span>
 
 <span class="c1"># Set the Instruction Set Architecture (ISA)</span>
 <span class="n">ISAs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;cpp&#39;</span><span class="p">,</span> <span class="s1">&#39;avx&#39;</span><span class="p">,</span> <span class="s1">&#39;avx2&#39;</span><span class="p">,</span> <span class="s1">&#39;avx512&#39;</span><span class="p">]</span>

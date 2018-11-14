@@ -212,6 +212,15 @@
         <span class="sd">&quot;&quot;&quot;The coordinates of the calling MPI rank in the Distributor topology.&quot;&quot;&quot;</span>
         <span class="k">return</span>
 
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">nprocs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A shortcut for the number of processes in the MPI communicator.&quot;&quot;&quot;</span>
+        <span class="k">return</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_parallel</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nprocs</span> <span class="o">&gt;</span> <span class="mi">1</span>
+
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">glb_numb</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;The global indices owned by the calling MPI rank.&quot;&quot;&quot;</span>
@@ -444,6 +453,15 @@
             <span class="n">ret</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">RIGHT</span><span class="p">]</span> <span class="o">=</span> <span class="n">dest</span>
         <span class="k">return</span> <span class="n">ret</span>
 
+    <span class="c1"># The MPI communicator type for use with ctypes. This is stored on the class</span>
+    <span class="c1"># itself as we want different Distributors, perhaps used in different Grids,</span>
+    <span class="c1"># to have the same MPI.Comm type, otherwise Operators might complain at apply-</span>
+    <span class="c1"># time when performing type checking, i.e. right before jumping to C-land</span>
+    <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_sizeof</span><span class="p">(</span><span class="n">MPI</span><span class="o">.</span><span class="n">Comm</span><span class="p">)</span> <span class="o">==</span> <span class="n">sizeof</span><span class="p">(</span><span class="n">c_int</span><span class="p">):</span>
+        <span class="n">_C_commtype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_int</span><span class="p">,),</span> <span class="p">{})</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_C_commtype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
+
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_C_comm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -454,10 +472,7 @@
 <span class="sd">            https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Object</span>
-        <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_sizeof</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="p">)</span> <span class="o">==</span> <span class="n">sizeof</span><span class="p">(</span><span class="n">c_int</span><span class="p">):</span>
-            <span class="n">ctype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_int</span><span class="p">,),</span> <span class="p">{})</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">ctype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
+        <span class="n">ctype</span> <span class="o">=</span> <span class="n">Distributor</span><span class="o">.</span><span class="n">_C_commtype</span>
         <span class="n">comm_ptr</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_addressof</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="p">)</span>
         <span class="n">comm_val</span> <span class="o">=</span> <span class="n">ctype</span><span class="o">.</span><span class="n">from_address</span><span class="p">(</span><span class="n">comm_ptr</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">Object</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;comm&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">ctype</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">comm_val</span><span class="p">)</span>

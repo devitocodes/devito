@@ -297,7 +297,7 @@
 
             <span class="c1"># Data-related properties and data initialization</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="kc">None</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first_touch&#39;</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first-touch&#39;</span><span class="p">])</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;allocator&#39;</span><span class="p">,</span> <span class="n">default_allocator</span><span class="p">())</span>
             <span class="n">initializer</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;initializer&#39;</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">initializer</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">callable</span><span class="p">(</span><span class="n">initializer</span><span class="p">):</span>
@@ -970,25 +970,27 @@
             <span class="k">if</span> <span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Need either `grid` or `shape`&quot;</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dimensions</span> <span class="o">!=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Need `shape` as not all `dimensions` are in `grid`&quot;</span><span class="p">)</span>
             <span class="n">shape</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">shape_domain</span>
         <span class="k">elif</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`dimensions` required if both `grid` and &quot;</span>
                             <span class="s2">&quot;`shape` are provided&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># Got `grid`, `dimensions`, and `shape`. We sanity-check that the</span>
-            <span class="c1"># Dimensions in `dimensions` which also appear in `grid` have</span>
-            <span class="c1"># size (given by `shape`) matching the one in `grid`</span>
+            <span class="c1"># Dimensions in `dimensions` also appearing in `grid` have same size</span>
+            <span class="c1"># (given by `shape`) as that provided in `grid`</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">dimensions</span><span class="p">):</span>
-                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`shape` and `dimensions` must have the &quot;</span>
-                                <span class="s2">&quot;same number of entries&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`shape` and `dimensions` must have the &quot;</span>
+                                 <span class="s2">&quot;same number of entries&quot;</span><span class="p">)</span>
             <span class="n">loc_shape</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
                 <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
                     <span class="n">size</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimension_map</span><span class="p">[</span><span class="n">d</span><span class="p">]</span>
-                    <span class="k">if</span> <span class="n">size</span><span class="o">.</span><span class="n">glb</span> <span class="o">!=</span> <span class="n">s</span><span class="p">:</span>
-                        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Dimension `</span><span class="si">%s</span><span class="s2">` is given size `</span><span class="si">%d</span><span class="s2">`, &quot;</span>
-                                        <span class="s2">&quot;while `grid` says `</span><span class="si">%s</span><span class="s2">` has size `</span><span class="si">%d</span><span class="s2">` &quot;</span>
-                                        <span class="o">%</span> <span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">size</span><span class="o">.</span><span class="n">glb</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">size</span><span class="o">.</span><span class="n">glb</span> <span class="o">!=</span> <span class="n">s</span> <span class="ow">and</span> <span class="n">s</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Dimension `</span><span class="si">%s</span><span class="s2">` is given size `</span><span class="si">%d</span><span class="s2">`, &quot;</span>
+                                         <span class="s2">&quot;while `grid` says `</span><span class="si">%s</span><span class="s2">` has size `</span><span class="si">%d</span><span class="s2">` &quot;</span>
+                                         <span class="o">%</span> <span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">size</span><span class="o">.</span><span class="n">glb</span><span class="p">))</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">loc_shape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">size</span><span class="o">.</span><span class="n">loc</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
