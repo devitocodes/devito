@@ -272,8 +272,9 @@ def test_cache_blocking_structure(blockinner, expected):
     assert all(i[0].is_Remainder for i in iterations[1:])
 
     # Check presence of openmp pragmas at the right place
-    _, op = _new_operator1((10, 31, 45), dle=('blocking,openmp',
-                                              {'blockalways': True,
+    _, op = _new_operator1((10, 31, 45), dle=('blocking',
+                                              {'openmp': True,
+                                               'blockalways': True,
                                                'blockinner': blockinner}))
     iterations = retrieve_iteration_tree(op)
     assert len(iterations) == expected
