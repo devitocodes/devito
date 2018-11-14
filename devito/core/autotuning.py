@@ -8,6 +8,7 @@ from devito.dle import BlockDimension
 from devito.ir import Backward, Iteration, FindNodes, FindSymbols
 from devito.logger import perf, warning
 from devito.parameters import configuration
+from devito.symbolics import evaluate
 from devito.tools import filter_ordered
 
 __all__ = ['autotune']
@@ -108,7 +109,7 @@ def autotune(operator, args, level, mode):
 
         # Make sure we remain within stack bounds, otherwise skip block size
         try:
-            if int(stack_space.subs(at_args)) > options['at_stack_limit']:
+            if int(evaluate(stack_space, **at_args)) > options['at_stack_limit']:
                 continue
         except TypeError:
             # We should never get here
@@ -136,7 +137,7 @@ def autotune(operator, args, level, mode):
         perf("AutoTuner: Selected block shape %s" % best)
     except ValueError:
         warning("AutoTuner: Couldn't find legal block shapes")
-        return args
+        return args, {}
 
     # Build the new argument list
     args = {k: best.get(k, v) for k, v in args.items()}
