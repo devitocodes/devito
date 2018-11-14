@@ -171,9 +171,11 @@ class Operator(Callable):
             args = self._autotune(args)
 
         # Check all user-provided keywords are known to the Operator
-        for k, v in kwargs.items():
-            if k not in self._known_arguments:
-                raise ValueError("Unrecognized argument %s=%s passed to `apply`" % (k, v))
+        if not configuration['ignore-unknowns']:
+            for k, v in kwargs.items():
+                if k not in self._known_arguments:
+                    raise ValueError("Unrecognized argument %s=%s passed to `apply`"
+                                     % (k, v))
 
         return args
 

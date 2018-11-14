@@ -247,7 +247,7 @@ def create_profile(name):
     """
     Create a new :class:`Profiler`.
     """
-    if configuration['log_level'] == 'DEBUG':
+    if configuration['log-level'] == 'DEBUG':
         # Enforce performance profiling in DEBUG mode
         level = 'advanced'
     else:
@@ -269,7 +269,7 @@ profiler_registry = {
     'advanced': AdvancedProfiler,
     'advisor': AdvisorProfiler
 }
-configuration.add('profiling', 'basic', list(profiler_registry))
+configuration.add('profiling', 'basic', list(profiler_registry), impacts_jit=False)
 
 
 def locate_intel_advisor():
