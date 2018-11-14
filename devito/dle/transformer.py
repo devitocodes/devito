@@ -28,6 +28,8 @@ configuration.add('dle-options',
                   ';'.join('%s:%s' % (k, v) for k, v in default_options.items()),
                   list(default_options))
 
+all_options = tuple(default_options) + ('openmp',)
+
 
 def init_dle(backend_modes):
     global default_modes
@@ -53,28 +55,26 @@ def transform(iet, mode='basic', options=None):
                          transformations that might increase (or possibly decrease)
                          performance.
     options : dict, optional
-        * 'blockinner': By default, loop blocking is not applied to the innermost
-                        dimensions so as to to maximize SIMD vectorization). Set this
-                        flag to True to override this heuristic.
-        * 'blockalways': Sometimes, the DLE may decide not to apply blocking to
-                         blockable loop nests due to heuristics aimed at not
-                         decreasing performance. Set this flag to True to
-                         uncoditionally apply loop blocking.
+        * 'openmp': Enable/disable OpenMP. Defaults to `configuration['openmp']`.
+        * 'blockinner': Enable/disable blocking of innermost loops. By default,
+                        this is disabled to maximize SIMD vectorization. Pass True
+                        to override this heuristic.
+        * 'blockalways': Pass True to unconditionally apply loop blocking, even when
+                         the compiler heuristically thinks that it might not be
+                         profitable and/or dangerous for performance.
     """
     assert isinstance(iet, Node)
 
-    # Parse options (local options take precedence over global options)
+    # Parse options (local values take precedence over global ones)
     options = options or {}
     params = options.copy()
     for i in options:
-        if i not in default_options:
-            dle_warning("Illegal DLE parameter '%s'" % i)
+        if i not in all_options:
+            dle_warning("Illegal DLE option '%s'" % i)
             params.pop(i)
     params.update({k: v for k, v in configuration['dle-options'].items()
                    if k not in params})
-    params.update({k: v for k, v in default_options.items() if k not in params})
-    params['compiler'] = configuration['compiler']
-    params['openmp'] = configuration['openmp']
+    params.setdefault('openmp', configuration['openmp'])
 
     # Force OpenMP if parallelism was requested, even though mode is 'noop'
     if mode == 'noop' and params['openmp'] is True:

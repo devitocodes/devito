@@ -328,6 +328,8 @@ class CustomRewriter(SpeculativeRewriter):
     def __init__(self, nodes, passes, params):
         try:
             passes = passes.split(',')
+            if 'openmp' not in passes and params['openmp']:
+                passes.append('openmp')
         except AttributeError:
             # Already in tuple format
             if not all(i in CustomRewriter.passes_mapper for i in passes):

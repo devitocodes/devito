@@ -471,9 +471,6 @@ class OperatorRunnable(Operator):
 
 
 def set_dse_mode(mode):
-    """
-    Transform :class:`Operator` input in a format understandable by the DLE.
-    """
     if not mode:
         return 'noop'
     elif isinstance(mode, str):
@@ -486,9 +483,6 @@ def set_dse_mode(mode):
 
 
 def set_dle_mode(mode):
-    """
-    Transform :class:`Operator` input in a format understandable by the DLE.
-    """
     if not mode:
         return mode, {}
     elif isinstance(mode, str):
@@ -497,7 +491,10 @@ def set_dle_mode(mode):
         if len(mode) == 0:
             return 'noop', {}
         elif isinstance(mode[-1], dict):
-            return tuple(flatten(i.split(',') for i in mode[:-1])), mode[-1]
+            if len(mode) == 2:
+                return mode
+            else:
+                return tuple(flatten(i.split(',') for i in mode[:-1])), mode[-1]
         else:
             return tuple(flatten(i.split(',') for i in mode)), {}
     raise TypeError("Illegal DLE mode %s." % str(mode))
