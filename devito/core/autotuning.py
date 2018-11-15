@@ -1,12 +1,11 @@
 from collections import OrderedDict
-from itertools import combinations
-from functools import reduce
-from operator import mul
+from itertools import chain, combinations, product
 import resource
+import psutil
 
-from devito.dle import BlockDimension
-from devito.ir import Backward, Iteration, FindNodes, FindSymbols
-from devito.logger import perf, warning
+from devito.dle import BlockDimension, NThreads
+from devito.ir import Backward, Iteration, FindNodes
+from devito.logger import perf, warning as _warning
 from devito.parameters import configuration
 from devito.symbolics import evaluate
 from devito.tools import filter_ordered
@@ -38,9 +37,14 @@ def autotune(operator, args, level, mode):
     if key not in accepted:
         raise ValueError("The accepted `(level, mode)` combinations are `%s`; "
                          "provided `%s` instead" % (accepted, key))
-    if not any(isinstance(i, BlockDimension) for i in operator.dimensions):
+
+    # Tunable objects
+    blockable = [i for i in operator.dimensions if isinstance(i, BlockDimension)]
+    nthreads = [i for i in operator.input if isinstance(i, NThreads)]
+
+    if len(nthreads + blockable) == 0:
         # Nothing to tune for
-        return args
+        return args, {}
 
     # We get passed all the arguments, but the cfunction only requires a subset
     at_args = OrderedDict([(p.name, args[p.name]) for p in operator.parameters])
@@ -52,13 +56,8 @@ def autotune(operator, args, level, mode):
             if k in output:
                 at_args[k] = v.copy()
 
-    iterations = FindNodes(Iteration).visit(operator.body)
-
-    # Detect tunable arguments
-    tunable = {i.dim.step.name: i for i in iterations
-               if isinstance(i.dim, BlockDimension) and not i.is_Remainder}
-
     # Shrink the time dimension's iteration range for quick autotuning
+    iterations = FindNodes(Iteration).visit(operator.body)
     steppers = [i for i in iterations if i.dim.is_Time]
     if len(steppers) == 0:
         stepper = None
@@ -67,76 +66,59 @@ def autotune(operator, args, level, mode):
         stepper = steppers[0]
         timesteps = init_time_bounds(stepper, at_args)
         if timesteps is None:
-            return args
+            return args, {}
     else:
-        warning("AutoTuner: Couldn't understand loop structure; giving up")
-        return args
+        warning("couldn't understand loop structure; giving up")
+        return args, {}
 
-    # Max attemptable block size
-    max_bs = tuple((k, v.dim.max_step.subs(args)) for k, v in tunable.items())
+    # Generated loop-blocking attempts
+    block_shapes = generate_block_shapes(blockable, args, level)
 
-    # Attempted block sizes:
-    # 1) Defaults (basic mode)
-    block_sizes = [tuple((i, v) for i in tunable) for v in options['at_blocksize']]
-    # 2) Always try the entire iteration space (degenerate block)
-    block_sizes.append(max_bs)
-    # 3) More attempts if auto-tuning in aggressive mode
-    if level == 'aggressive':
-        block_sizes = more_heuristic_attempts(block_sizes)
-    # Drop unnecessary attempts:
-    # 1) block sizes exceeding the iteration space extent
-    block_sizes = [i for i in block_sizes if all(dict(i)[k] <= v for k, v in max_bs)]
-    # 2) redundant block sizes
-    block_sizes = filter_ordered(block_sizes)
+    # Generate nthreads attempts
+    nthreads = generate_nthreads(nthreads, level)
 
-    # How many temporaries are allocated on the stack?
-    # Will drop block sizes that might lead to a stack overflow
-    functions = FindSymbols('symbolics').visit(operator.body + operator._efuncs)
-    stack_shapes = [i.symbolic_shape for i in functions if i.is_Array and i._mem_stack]
-    stack_space = sum(reduce(mul, i, 1) for i in stack_shapes)*operator._dtype().itemsize
+    generators = [i for i in [block_shapes, nthreads] if i]
 
-    # Note: there is only a single loop over 'blocksize' because only
-    # square blocks are tested
     timings = OrderedDict()
-    for bs in block_sizes:
-        mapper = OrderedDict(bs)
+    for i in product(*generators):
+        run = tuple(chain(*i))
+        mapper = OrderedDict(run)
 
         # Can we safely autotune over the given time range?
         check_time_bounds(stepper, at_args, args, mode)
 
-        # Update `at_args` to use the new block shape
+        # Update `at_args` to use the new tunable values
         at_args = {k: mapper.get(k, v) for k, v in at_args.items()}
 
-        # Make sure we remain within stack bounds, otherwise skip block size
+        # Make sure we remain within stack bounds, otherwise skip run
         try:
-            if int(evaluate(stack_space, **at_args)) > options['at_stack_limit']:
+            stack_footprint = operator._mem_summary['stack']
+            if int(evaluate(stack_footprint, **at_args)) > options['stack_limit']:
                 continue
         except TypeError:
-            # We should never get here
-            warning("AutoTuner: Couldn't determine stack size; skipping block shape %s"
-                    % str(bs))
+            warning("couldn't determine stack size; skipping run %s" % str(i))
             continue
         except AttributeError:
-            assert stack_space == 0
+            assert stack_footprint == 0
 
-        # Use AutoTuner-specific profiler structs
-        timer = operator.profiler.timer.reset()
-        at_args[operator.profiler.name] = timer
+        # Use fresh profiling data
+        timer = operator._profiler.timer.reset()
+        at_args[operator._profiler.name] = timer
 
         operator.cfunction(*list(at_args.values()))
-        elapsed = sum(getattr(timer._obj, i) for i, _ in timer._obj._fields_)
-        timings[bs] = elapsed
-        perf("AutoTuner: Block shape <%s> took %f (s) in %d timesteps" %
-             (','.join('%d' % i for i in mapper.values()), elapsed, timesteps))
+        elapsed = sum(getattr(timer._obj, k) for k, _ in timer._obj._fields_)
+        timings[run] = elapsed
+        log("run <%s> took %f (s) in %d timesteps" %
+            (','.join('%s=%s' % (k, v) for k, v in mapper.items()), elapsed, timesteps))
 
         # Prepare for the next autotuning run
         update_time_bounds(stepper, at_args, timesteps, mode)
 
     try:
         best = dict(min(timings, key=timings.get))
-        perf("AutoTuner: Selected block shape %s" % best)
+        log("selected best: %s" % best)
     except ValueError:
-        warning("AutoTuner: Couldn't find legal block shapes")
+        warning("couldn't perform any runs")
         return args, {}
 
     # Build the new argument list
@@ -147,13 +129,13 @@ def autotune(operator, args, level, mode):
     finalize_time_bounds(stepper, at_args, args, mode)
 
     # Reset profiling data
-    assert operator.profiler.name in args
-    args[operator.profiler.name] = operator.profiler.timer.reset()
+    assert operator._profiler.name in args
+    args[operator._profiler.name] = operator._profiler.timer.reset()
 
     # Autotuning summary
     summary = {}
     summary['runs'] = len(timings)
-    summary['tpr'] = timesteps  # tpp -> timesteps per run
+    summary['tpr'] = timesteps  # tpr -> timesteps per run
     summary['tuned'] = dict(best)
 
     return args, summary
@@ -164,16 +146,14 @@ def init_time_bounds(stepper, at_args):
         return
     dim = stepper.dim.root
     if stepper.direction is Backward:
-        at_args[dim.max_name] = at_args[dim.max_name]
-        at_args[dim.min_name] = at_args[dim.max_name] - options['at_squeezer']
+        at_args[dim.min_name] = at_args[dim.max_name] - options['squeezer']
         if at_args[dim.max_name] < at_args[dim.min_name]:
-            warning("AutoTuner: too few time iterations; giving up")
+            warning("too few time iterations; giving up")
             return False
     else:
-        at_args[dim.min_name] = at_args[dim.min_name]
-        at_args[dim.max_name] = at_args[dim.min_name] + options['at_squeezer']
+        at_args[dim.max_name] = at_args[dim.min_name] + options['squeezer']
         if at_args[dim.min_name] > at_args[dim.max_name]:
-            warning("AutoTuner: too few time iterations; giving up")
+            warning("too few time iterations; giving up")
             return False
 
     return stepper.extent(start=at_args[dim.min_name], finish=at_args[dim.max_name])
@@ -216,35 +196,68 @@ def finalize_time_bounds(stepper, at_args, args, mode):
         args[dim.max_name] = args[dim.max_name]
 
 
-def more_heuristic_attempts(block_sizes):
-    block_sizes = list(block_sizes)
+def generate_block_shapes(blockable, args, level):
+    # Max attemptable block shape
+    max_bs = tuple((d.step.name, d.max_step.subs(args)) for d in blockable)
 
-    # Ramp up to higher block sizes
-    handle = tuple((i[0], options['at_blocksize'][-1]) for i in block_sizes[0])
-    for i in range(3):
-        new_bs = tuple((b, v*2) for b, v in handle)
-        block_sizes.insert(block_sizes.index(handle) + 1, new_bs)
-        handle = new_bs
+    # Attempted block shapes:
+    # 1) Defaults (basic mode)
+    ret = [tuple((d.step.name, v) for d in blockable) for v in options['blocksize']]
+    # 2) Always try the entire iteration space (degenerate block)
+    ret.append(max_bs)
+    # 3) More attempts if auto-tuning in aggressive mode
+    if level == 'aggressive':
+        # Ramp up to larger block shapes
+        handle = tuple((i, options['blocksize'][-1]) for i, _ in ret[0])
+        for i in range(3):
+            new_bs = tuple((b, v*2) for b, v in handle)
+            ret.insert(ret.index(handle) + 1, new_bs)
+            handle = new_bs
 
-    handle = []
-    # Extended shuffling for the smaller block sizes
-    for bs in block_sizes[:4]:
-        for i in block_sizes:
-            handle.append(bs[:-1] + (i[-1],))
-    # Some more shuffling for all block sizes
-    for bs in list(block_sizes):
-        ncombs = len(bs)
-        for i in range(ncombs):
-            for j in combinations(dict(bs), i+1):
-                handle.append(tuple((b, v*2 if b in j else v) for b, v in bs))
-    block_sizes.extend(handle)
+        handle = []
+        # Extended shuffling for the smaller block shapes
+        for bs in ret[:4]:
+            for i in ret:
+                handle.append(bs[:-1] + (i[-1],))
+        # Some more shuffling for all block shapes
+        for bs in list(ret):
+            ncombs = len(bs)
+            for i in range(ncombs):
+                for j in combinations(dict(bs), i+1):
+                    handle.append(tuple((b, v*2 if b in j else v) for b, v in bs))
+        ret.extend(handle)
 
-    return block_sizes
+    # Drop unnecessary attempts:
+    # 1) Block shapes exceeding the iteration space extent
+    ret = [i for i in ret if all(dict(i)[k] <= v for k, v in max_bs)]
+    # 2) Redundant block shapes
+    ret = filter_ordered(ret)
+
+    return ret
+
+
+def generate_nthreads(nthreads, level):
+    ret = [((i.name, i.data),) for i in nthreads]
+
+    # On the KNL, also try running with a different number of hyperthreads
+    if level == 'aggressive' and configuration['platform'] == 'knl':
+        ret.extend([((i.name, psutil.cpu_count()),) for i in nthreads])
+        ret.extend([((i.name, psutil.cpu_count() // 2),) for i in nthreads])
+
+    return ret
 
 
 options = {
-    'at_squeezer': 4,
-    'at_blocksize': sorted({8, 16, 24, 32, 40, 64, 128}),
-    'at_stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
+    'squeezer': 4,
+    'blocksize': sorted({8, 16, 24, 32, 40, 64, 128}),
+    'stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }
 """Autotuning options."""
+
+
+def log(msg):
+    perf("AutoTuner: %s" % msg)
+
+
+def warning(msg):
+    _warning("AutoTuner: %s" % msg)
