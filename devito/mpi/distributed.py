@@ -68,6 +68,15 @@ class AbstractDistributor(ABC):
         """The coordinates of the calling MPI rank in the Distributor topology."""
         return
 
+    @abstractmethod
+    def nprocs(self):
+        """A shortcut for the number of processes in the MPI communicator."""
+        return
+
+    @property
+    def is_parallel(self):
+        return self.nprocs > 1
+
     @cached_property
     def glb_numb(self):
         """The global indices owned by the calling MPI rank."""
@@ -300,6 +309,15 @@ class Distributor(AbstractDistributor):
             ret[d][RIGHT] = dest
         return ret
 
+    # The MPI communicator type for use with ctypes. This is stored on the class
+    # itself as we want different Distributors, perhaps used in different Grids,
+    # to have the same MPI.Comm type, otherwise Operators might complain at apply-
+    # time when performing type checking, i.e. right before jumping to C-land
+    if MPI._sizeof(MPI.Comm) == sizeof(c_int):
+        _C_commtype = type('MPI_Comm', (c_int,), {})
+    else:
+        _C_commtype = type('MPI_Comm', (c_void_p,), {})
+
     @cached_property
     def _C_comm(self):
         """
@@ -310,10 +328,7 @@ class Distributor(AbstractDistributor):
             https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py
         """
         from devito.types import Object
-        if MPI._sizeof(self._comm) == sizeof(c_int):
-            ctype = type('MPI_Comm', (c_int,), {})
-        else:
-            ctype = type('MPI_Comm', (c_void_p,), {})
+        ctype = Distributor._C_commtype
         comm_ptr = MPI._addressof(self._comm)
         comm_val = ctype.from_address(comm_ptr)
         return Object(name='comm', dtype=ctype, value=comm_val)
