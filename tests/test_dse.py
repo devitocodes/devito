@@ -66,7 +66,7 @@ def test_acoustic_rewrite_basic():
 
 # TTI
 
-def tti_operator(dse=False, space_order=4):
+def tti_operator(dse=False, dle='advanced', space_order=4):
     nrec = 101
     t0 = 0.0
     tn = 250.
