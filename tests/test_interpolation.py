@@ -12,7 +12,6 @@ from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
 from examples.seismic.acoustic import AcousticWaveSolver
 
 
-@pytest.fixture
 def a(shape=(11, 11)):
     grid = Grid(shape=shape)
     a = Function(name='a', grid=grid)
@@ -22,7 +21,6 @@ def a(shape=(11, 11)):
     return a
 
 
-@pytest.fixture
 def at(shape=(11, 11)):
     grid = Grid(shape=shape)
     a = TimeFunction(name='a', grid=grid)
