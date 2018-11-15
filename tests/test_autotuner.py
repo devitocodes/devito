@@ -27,7 +27,9 @@ def test_at_is_actually_working(shape, expected):
     outfield = Function(name='outfield', grid=grid)
 
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
-    op = Operator(stencil, dle=('blocking', {'blockinner': True, 'blockalways': True}))
+    op = Operator(stencil, dle=('blocking', {'openmp': False,
+                                             'blockinner': True,
+                                             'blockalways': True}))
 
     # Run with whatever `configuration` says (by default, basic+preemptive)
     op(infield=infield, outfield=outfield, autotune=True)
@@ -56,7 +58,7 @@ def test_at_is_actually_working(shape, expected):
 def test_timesteps_per_at_run():
     """
     Check that each autotuning run (ie with a given block shape) takes
-    ``autotuning.core.options['at_squeezer']`` timesteps, for an operator
+    ``autotuning.core.options['squeezer']`` timesteps, for an operator
     performing the increment ``a[t + timeorder, ...] = f(a[t, ...], ...)``.
     """
     from devito.core.autotuning import options
@@ -71,7 +73,7 @@ def test_timesteps_per_at_run():
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
     outfield = Function(name='outfield', grid=grid)
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
-    op = Operator(stencil, dle=('blocking', {'blockalways': True}))
+    op = Operator(stencil, dle=('blocking', {'openmp': False, 'blockalways': True}))
     op(infield=infield, outfield=outfield, autotune=True)
     assert op._state['autotuning'][-1]['runs'] == 4
     assert op._state['autotuning'][-1]['tpr'] == 1
@@ -85,10 +87,10 @@ def test_timesteps_per_at_run():
         outfield = TimeFunction(name='outfield', grid=grid, time_order=to)
         stencil = Eq(outfield[t + to, x, y, z],
                      outfield.indexify() + infield.indexify()*3.0)
-        op = Operator(stencil, dle=('blocking', {'blockalways': True}))
+        op = Operator(stencil, dle=('blocking', {'openmp': False, 'blockalways': True}))
         op(infield=infield, outfield=outfield, time=20, autotune=True)
         assert op._state['autotuning'][-1]['runs'] == 4
-        assert op._state['autotuning'][-1]['tpr'] == options['at_squeezer']+1
+        assert op._state['autotuning'][-1]['tpr'] == options['squeezer']+1
 
 
 @ruido(profiling='advanced')
@@ -97,7 +99,7 @@ def test_nondestructive_forward():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f + 1.))
+    op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': False}))
     summary = op.apply(time=100, autotune=('basic', 'runtime'))
 
     # At is expected to have attempted 6 block shapes
@@ -115,7 +117,7 @@ def test_nondestructive_backward():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.backward, f + 1.))
+    op = Operator(Eq(f.backward, f + 1.), dle=('advanced', {'openmp': False}))
     summary = op.apply(time=101, autotune=('basic', 'runtime'))
 
     # At is expected to have attempted 6 block shapes
@@ -127,8 +129,35 @@ def test_nondestructive_backward():
     assert np.all(f.data[1] == 100)
 
 
+def test_blocking_only():
+    grid = Grid(shape=(64, 64, 64))
+    f = TimeFunction(name='f', grid=grid)
+
+    op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': False}))
+    op.apply(time=0, autotune=True)
+
+    assert op._state['autotuning'][0]['runs'] == 6
+    assert op._state['autotuning'][0]['tpr'] == 5
+    assert len(op._state['autotuning'][0]['tuned']) == 2
+    assert 'nthreads' not in op._state['autotuning'][0]['tuned']
+
+
+def test_mixed_blocking_nthreads():
+    grid = Grid(shape=(64, 64, 64))
+    f = TimeFunction(name='f', grid=grid)
+
+    op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': True}))
+    op.apply(time=100, autotune=True)
+
+    assert op._state['autotuning'][0]['runs'] == 6
+    assert op._state['autotuning'][0]['tpr'] == 5
+    assert len(op._state['autotuning'][0]['tuned']) == 3
+    assert 'nthreads' in op._state['autotuning'][0]['tuned']
+
+
 def test_tti_aggressive():
     from test_dse import tti_operator
-    op = tti_operator(dse='aggressive').op_fwd(kernel='centered', save=False)
+    wave_solver = tti_operator(dse='aggressive', dle=('advanced', {'openmp': False}))
+    op = wave_solver.op_fwd(kernel='centered', save=False)
     op.apply(time=0, autotune='aggressive')
     assert op._state['autotuning'][0]['runs'] == 33
