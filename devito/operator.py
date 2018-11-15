@@ -96,7 +96,7 @@ class Operator(Callable):
         iet = iet_build(stree)
 
         # Insert code for C-level performance profiling
-        iet, self.profiler = self._profile_sections(iet)
+        iet, self._profiler = self._profile_sections(iet)
 
         # Translate into backend-specific representation
         iet = self._specialize_iet(iet, **kwargs)
@@ -149,7 +149,7 @@ class Operator(Callable):
             p._arg_check(args, self._dspace[p])
 
         # Add in the profiler argument
-        args[self.profiler.name] = self.profiler.timer.reset()
+        args[self._profiler.name] = self._profiler.timer.reset()
 
         # Add in any backend-specific argument
         args.update(kwargs.pop('backend', {}))
@@ -161,8 +161,7 @@ class Operator(Callable):
         if not configuration['ignore-unknowns']:
             for k, v in kwargs.items():
                 if k not in self._known_arguments:
-                    raise ValueError("Unrecognized argument %s=%s passed to `apply`"
-                                     % (k, v))
+                    raise ValueError("Unrecognized argument %s=%s" % (k, v))
 
         return args
 
@@ -467,7 +466,7 @@ class OperatorRunnable(Operator):
 
     def _profile_output(self, args):
         """Return a performance summary of the profiled sections."""
-        summary = self.profiler.summary(args, self._dtype)
+        summary = self._profiler.summary(args, self._dtype)
         info("Operator `%s` run in %.2f s" % (self.name, sum(summary.timings.values())))
         for k, v in summary.items():
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
