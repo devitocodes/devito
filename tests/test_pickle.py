@@ -5,7 +5,7 @@ import numpy as np
 from sympy import Symbol
 
 from examples.seismic import demo_model
-from examples.seismic.source import TimeAxis, RickerSource
+from examples.seismic.source import TimeAxis, RickerSource, Receiver
 
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     TimeDimension, SteppingDimension, Operator, configuration)
@@ -75,6 +75,22 @@ def test_sparse_function():
     assert sf.space_order == new_sf.space_order
     assert sf.dtype == new_sf.dtype
     assert sf.npoint == new_sf.npoint
+
+
+def test_receiver():
+    grid = Grid(shape=(3,))
+    time_range = TimeAxis(start=0., stop=1000., step=0.1)
+    nreceivers = 3
+
+    rec = Receiver(name='rec', grid=grid, time_range=time_range, npoint=nreceivers,
+                   coordinates=[(0.,), (1.,), (2.,)])
+    rec.data[:] = 1.
+
+    pkl_rec = pickle.dumps(rec)
+    new_rec = pickle.loads(pkl_rec)
+
+    assert np.all(new_rec.data == 1)
+    assert np.all(new_rec.coordinates.data == [[0.], [1.], [2.]])
 
 
 def test_symbolics():
