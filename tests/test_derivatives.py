@@ -14,11 +14,14 @@ _PRECISION = 9
 def x(grid):
     return grid.dimensions[0]
 
+
 def y(grid):
     return grid.dimensions[1]
 
+
 def z(grid):
     return grid.dimensions[2]
+
 
 def t(grid):
     return grid.stepping_dim
@@ -31,7 +34,7 @@ class TestFD(object):
     Tests the accuracy w.r.t polynomials
     Test that the shortcut produce the same answer as the FD functions
     """
-    
+
     def setup_method(self):
         self.shape = (20, 20, 20)
         self.grid = Grid(self.shape)
@@ -42,7 +45,7 @@ class TestFD(object):
     ])
     def test_stencil_derivative(self, SymbolType, dim):
         """Test symbolic behaviour when expanding stencil derivatives"""
-        i = dim(self.grid)  # issue fixtures+parametrize: github.com/pytest-dev/pytest/issues/349
+        i = dim(self.grid)
         u = SymbolType(name='u', grid=self.grid)
         u.data[:] = 66.6
         di = u.diff(i)
@@ -77,7 +80,7 @@ class TestFD(object):
     @pytest.mark.parametrize('order', [1, 2, 4, 6, 8, 10, 12, 14, 16])
     def test_derivatives_space(self, derivative, dim, order):
         """Test first derivative expressions against native sympy"""
-        dim = dim(self.grid) # issue fixtures+parametrize: github.com/pytest-dev/pytest/issues/349
+        dim = dim(self.grid)
         u = TimeFunction(name='u', grid=self.grid, time_order=2, space_order=order)
         expr = getattr(u, derivative)
         # Establish native sympy derivative expression
@@ -96,7 +99,7 @@ class TestFD(object):
     @pytest.mark.parametrize('order', [2, 4, 6, 8, 10, 12, 14, 16])
     def test_second_derivatives_space(self, derivative, dim, order):
         """Test second derivative expressions against native sympy"""
-        dim = dim(self.grid)  # issue fixtures+parametrize: github.com/pytest-dev/pytest/issues/349
+        dim = dim(self.grid)
         u = TimeFunction(name='u', grid=self.grid, time_order=2, space_order=order)
         expr = getattr(u, derivative)
         # Establish native sympy derivative expression
