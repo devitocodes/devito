@@ -230,3 +230,7 @@ class DummyEq(ClusterizedEq):
         else:
             raise ValueError("Cannot construct DummyEq from args=%s" % str(args))
         return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace, dspace=obj.dspace)
+
+    # Pickling support
+    _pickle_args = ['lhs', 'rhs']
+    _pickle_kwargs = []
