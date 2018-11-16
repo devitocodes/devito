@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.core package &mdash; Devito 1 documentation</title>
+  <title>devito.ops package &mdash; Devito 1 documentation</title>
   
 
   
@@ -28,8 +28,8 @@
   <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="devito.data package" href="devito.data.html" />
-    <link rel="prev" title="devito package" href="devito.html" /> 
+    <link rel="next" title="devito.symbolics package" href="devito.symbolics.html" />
+    <link rel="prev" title="devito.mpi package" href="devito.mpi.html" /> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -89,20 +89,19 @@
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Example Documentation</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="devito.html">API Documentation</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="devito.html#subpackages">Subpackages</a><ul class="current">
-<li class="toctree-l3 current"><a class="current reference internal" href="#">devito.core package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.core.autotuning">devito.core.autotuning module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.core.operator">devito.core.operator module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.core">Module contents</a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="devito.core.html">devito.core package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.data.html">devito.data package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dle.html">devito.dle package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.dse.html">devito.dse package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.finite_differences.html">devito.finite_differences package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.ir.html">devito.ir package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.mpi.html">devito.mpi package</a></li>
-<li class="toctree-l3"><a class="reference internal" href="devito.ops.html">devito.ops package</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">devito.ops package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.ops.operator">devito.ops.operator module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-devito.ops">Module contents</a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="devito.symbolics.html">devito.symbolics package</a></li>
 <li class="toctree-l3"><a class="reference internal" href="devito.tools.html">devito.tools package</a></li>
 </ul>
@@ -173,13 +172,13 @@
         
           <li><a href="devito.html">devito package</a> &raquo;</li>
         
-      <li>devito.core package</li>
+      <li>devito.ops package</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
-            <a href="_sources/devito.core.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/devito.ops.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -192,36 +191,25 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="devito-core-package">
-<h1>devito.core package<a class="headerlink" href="#devito-core-package" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="devito-ops-package">
+<h1>devito.ops package<a class="headerlink" href="#devito-ops-package" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-devito.core.autotuning">
-<span id="devito-core-autotuning-module"></span><h2>devito.core.autotuning module<a class="headerlink" href="#module-devito.core.autotuning" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="devito.core.autotuning.autotune">
-<code class="descclassname">devito.core.autotuning.</code><code class="descname">autotune</code><span class="sig-paren">(</span><em>operator</em>, <em>arguments</em>, <em>parameters</em>, <em>tunable</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/core/autotuning.html#autotune"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.core.autotuning.autotune" title="Permalink to this definition">¶</a></dt>
-<dd><p>Acting as a high-order function, take as input an operator and a list of
-operator arguments to perform empirical autotuning. Some of the operator
-arguments are marked as tunable.</p>
-</dd></dl>
-
-</div>
-<div class="section" id="module-devito.core.operator">
-<span id="devito-core-operator-module"></span><h2>devito.core.operator module<a class="headerlink" href="#module-devito.core.operator" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.ops.operator">
+<span id="devito-ops-operator-module"></span><h2>devito.ops.operator module<a class="headerlink" href="#module-devito.ops.operator" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
-<dt id="devito.core.operator.Operator">
-<em class="property">class </em><code class="descclassname">devito.core.operator.</code><code class="descname">Operator</code><a class="reference internal" href="_modules/devito/core/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.core.operator.Operator" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dt id="devito.ops.operator.Operator">
+<em class="property">class </em><code class="descclassname">devito.ops.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>expressions</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ops/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ops.operator.Operator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.operator.OperatorRunnable" title="devito.operator.OperatorRunnable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.operator.OperatorRunnable</span></code></a></p>
+<p>A special <code class="xref py py-class docutils literal notranslate"><span class="pre">OperatorCore</span></code> to JIT-compile and run operators through OPS.</p>
 </dd></dl>
 
 </div>
-<div class="section" id="module-devito.core">
-<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.core" title="Permalink to this headline">¶</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">core</span></code> Devito backend is simply a “shadow” of the <code class="docutils literal notranslate"><span class="pre">base</span></code> backend,
-common to all other backends. The <code class="docutils literal notranslate"><span class="pre">core</span></code> backend (and therefore the <code class="docutils literal notranslate"><span class="pre">base</span></code>
-backend as well) are used to run Devito on standard CPU architectures.</p>
+<div class="section" id="module-devito.ops">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-devito.ops" title="Permalink to this headline">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ops</span></code> Devito backend uses the OPS library to generate,
+JIT-compile, and run kernels on multiple architectures.</p>
 </div>
 </div>
 
@@ -233,10 +221,10 @@ backend as well) are used to run Devito on standard CPU architectures.</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="devito.data.html" class="btn btn-neutral float-right" title="devito.data package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="devito.symbolics.html" class="btn btn-neutral float-right" title="devito.symbolics package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="devito.html" class="btn btn-neutral" title="devito package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="devito.mpi.html" class="btn btn-neutral" title="devito.mpi package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

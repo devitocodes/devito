@@ -13,6 +13,7 @@ Subpackages
     devito.finite_differences
     devito.ir
     devito.mpi
+    devito.ops
     devito.symbolics
     devito.tools
 
