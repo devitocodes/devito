@@ -85,12 +85,9 @@ def sendrecv(f, fixed):
     # the domain boundary, where the sender is actually MPI.PROC_NULL
     scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
-    MPI_Status = type('MPI_Status', (c_void_p,), {})
-    srecv = LocalObject(name='srecv', dtype=MPI_Status)
-
-    MPI_Request = type('MPI_Request', (c_void_p,), {})
-    rrecv = LocalObject(name='rrecv', dtype=MPI_Request)
-    rsend = LocalObject(name='rsend', dtype=MPI_Request)
+    srecv = MPIStatusObject(name='srecv')
+    rrecv = MPIRequestObject(name='rrecv')
+    rsend = MPIRequestObject(name='rsend')
 
     count = reduce(mul, bufs.shape, 1)
     recv = Call('MPI_Irecv', [bufs, count, Macro(numpy_to_mpitypes(f.dtype)),
@@ -161,3 +158,25 @@ def update_halo(f, fixed):
     parameters = ([f] + masks + [comm, nb] + list(fixed.values()) +
                   [d.symbolic_size for d in f.dimensions])
     return Callable('halo_exchange_%s' % f.name, iet, 'void', parameters, ('static',))
+
+
+class MPIStatusObject(LocalObject):
+
+    dtype = type('MPI_Status', (c_void_p,), {})
+
+    def __init__(self, name):
+        self.name = name
+
+    # Pickling support
+    _pickle_args = ['name']
+
+
+class MPIRequestObject(LocalObject):
+
+    dtype = type('MPI_Request', (c_void_p,), {})
+
+    def __init__(self, name):
+        self.name = name
+
+    # Pickling support
+    _pickle_args = ['name']

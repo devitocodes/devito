@@ -332,7 +332,7 @@ def save(soname, binary, compiler):
         debug("%s: `%s` was not saved in `%s` as it already exists"
               % (compiler, sofile.name, get_jit_dir()))
     else:
-        with open(str(path), 'wb') as f:
+        with open(str(sofile), 'wb') as f:
             f.write(binary)
         debug("%s: `%s` successfully saved in `%s`"
               % (compiler, sofile.name, get_jit_dir()))
