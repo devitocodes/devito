@@ -225,6 +225,37 @@ new expression identical to self.</p>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="devito.symbolics.extended_sympy.FrozenExpr.evalf">
+<code class="descname">evalf</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#FrozenExpr.evalf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.FrozenExpr.evalf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate the given formula to an accuracy of n digits.
+Optional keyword arguments:</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>subs=&lt;dict&gt;</dt>
+<dd>Substitute numerical values for symbols, e.g.
+subs={x:3, y:1+pi}. The substitutions must be given as a
+dictionary.</dd>
+<dt>maxn=&lt;integer&gt;</dt>
+<dd>Allow a maximum temporary working precision of maxn digits
+(default=100)</dd>
+<dt>chop=&lt;bool&gt;</dt>
+<dd>Replace tiny real or imaginary parts in subresults
+by exact zeros (default=False)</dd>
+<dt>strict=&lt;bool&gt;</dt>
+<dd>Raise PrecisionExhausted if any subresult fails to evaluate
+to full accuracy, given the available maxprec
+(default=False)</dd>
+<dt>quad=&lt;str&gt;</dt>
+<dd>Choose algorithm for numerical quadrature. By default,
+tanh-sinh quadrature is used. For oscillatory
+integrals on an infinite interval, try quad=’osc’.</dd>
+<dt>verbose=&lt;bool&gt;</dt>
+<dd>Print debug information (default=False)</dd>
+</dl>
+</div></blockquote>
+</dd></dl>
+
+<dl class="method">
 <dt id="devito.symbolics.extended_sympy.FrozenExpr.xreplace">
 <code class="descname">xreplace</code><span class="sig-paren">(</span><em>rule</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/extended_sympy.html#FrozenExpr.xreplace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.extended_sympy.FrozenExpr.xreplace" title="Permalink to this definition">¶</a></dt>
 <dd><p>Replace occurrences of objects within the expression.</p>
@@ -990,7 +1021,6 @@ object carreis a TensorFunction if any of the following conditions are met:</p>
         <script type="text/javascript" src="_static/jquery.js"></script>
         <script type="text/javascript" src="_static/underscore.js"></script>
         <script type="text/javascript" src="_static/doctools.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
 
   

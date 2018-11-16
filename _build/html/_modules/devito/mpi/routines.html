@@ -238,12 +238,9 @@
     <span class="c1"># the domain boundary, where the sender is actually MPI.PROC_NULL</span>
     <span class="n">scatter</span> <span class="o">=</span> <span class="n">Conditional</span><span class="p">(</span><span class="n">CondNe</span><span class="p">(</span><span class="n">fromrank</span><span class="p">,</span> <span class="n">Macro</span><span class="p">(</span><span class="s1">&#39;MPI_PROC_NULL&#39;</span><span class="p">)),</span> <span class="n">scatter</span><span class="p">)</span>
 
-    <span class="n">MPI_Status</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Status&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
-    <span class="n">srecv</span> <span class="o">=</span> <span class="n">LocalObject</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;srecv&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">MPI_Status</span><span class="p">)</span>
-
-    <span class="n">MPI_Request</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Request&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
-    <span class="n">rrecv</span> <span class="o">=</span> <span class="n">LocalObject</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rrecv&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">MPI_Request</span><span class="p">)</span>
-    <span class="n">rsend</span> <span class="o">=</span> <span class="n">LocalObject</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rsend&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">MPI_Request</span><span class="p">)</span>
+    <span class="n">srecv</span> <span class="o">=</span> <span class="n">MPIStatusObject</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;srecv&#39;</span><span class="p">)</span>
+    <span class="n">rrecv</span> <span class="o">=</span> <span class="n">MPIRequestObject</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rrecv&#39;</span><span class="p">)</span>
+    <span class="n">rsend</span> <span class="o">=</span> <span class="n">MPIRequestObject</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;rsend&#39;</span><span class="p">)</span>
 
     <span class="n">count</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">bufs</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
     <span class="n">recv</span> <span class="o">=</span> <span class="n">Call</span><span class="p">(</span><span class="s1">&#39;MPI_Irecv&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">bufs</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">Macro</span><span class="p">(</span><span class="n">numpy_to_mpitypes</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">dtype</span><span class="p">)),</span>
@@ -314,6 +311,28 @@
     <span class="n">parameters</span> <span class="o">=</span> <span class="p">([</span><span class="n">f</span><span class="p">]</span> <span class="o">+</span> <span class="n">masks</span> <span class="o">+</span> <span class="p">[</span><span class="n">comm</span><span class="p">,</span> <span class="n">nb</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">fixed</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">+</span>
                   <span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">])</span>
     <span class="k">return</span> <span class="n">Callable</span><span class="p">(</span><span class="s1">&#39;halo_exchange_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">iet</span><span class="p">,</span> <span class="s1">&#39;void&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;static&#39;</span><span class="p">,))</span></div>
+
+
+<span class="k">class</span> <span class="nc">MPIStatusObject</span><span class="p">(</span><span class="n">LocalObject</span><span class="p">):</span>
+
+    <span class="n">dtype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Status&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">MPIRequestObject</span><span class="p">(</span><span class="n">LocalObject</span><span class="p">):</span>
+
+    <span class="n">dtype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Request&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
 </pre></div>
 
            </div>
@@ -351,7 +370,6 @@
         <script type="text/javascript" src="../../../_static/jquery.js"></script>
         <script type="text/javascript" src="../../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../../_static/doctools.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
 
   

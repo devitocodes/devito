@@ -409,9 +409,12 @@
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Shape of the domain associated with this :class:`TensorFunction`.</span>
-<span class="sd">        The domain constitutes the area of the data written to in a</span>
-<span class="sd">        stencil update.</span>
+<span class="sd">        Shape of the domain region. The domain constitutes the area of the</span>
+<span class="sd">        data written to by an :class:`Operator`.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        In an MPI context, this is the *local* domain region shape.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span>
 
@@ -423,6 +426,8 @@
 
 <span class="sd">        Notes</span>
 <span class="sd">        -----</span>
+<span class="sd">        In an MPI context, this is the *local* domain region shape.</span>
+
 <span class="sd">        Alias to ``self.shape``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">staggered</span><span class="p">))</span>
@@ -435,10 +440,11 @@
 
 <span class="sd">        Notes</span>
 <span class="sd">        -----</span>
-<span class="sd">        If ``self`` is MPI-distributed, then the outhalo of inner ranks may be</span>
-<span class="sd">        empty, while the outhalo of boundary ranks will contain a number of</span>
-<span class="sd">        elements depending on the rank position in the decomposed grid (corner,</span>
-<span class="sd">        side, ...).</span>
+<span class="sd">        In an MPI context, this is the *local* with_halo region shape.</span>
+
+<span class="sd">        Further, note that the outhalo of inner ranks is typically empty, while</span>
+<span class="sd">        the outhalo of boundary ranks contains a number of elements depending</span>
+<span class="sd">        on the rank position in the decomposed grid (corner, side, ...).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span><span class="p">,</span>
                                                     <span class="bp">self</span><span class="o">.</span><span class="n">_extent_outhalo</span><span class="p">))</span>
@@ -450,14 +456,13 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Shape of the domain+inhalo region. The inhalo region comprises the</span>
 <span class="sd">        outhalo as well as any additional &quot;ghost&quot; layers for MPI halo</span>
-<span class="sd">        exchanges. In other words, data in the inhalo region are exchanged</span>
-<span class="sd">        during an :class:`Operator` application to maintain consistent values</span>
-<span class="sd">        as in sequential runs.</span>
+<span class="sd">        exchanges. Data in the inhalo region are exchanged when running</span>
+<span class="sd">        :class:`Operator`s to maintain consistent values as in sequential runs.</span>
 
 <span class="sd">        Notes</span>
 <span class="sd">        -----</span>
-<span class="sd">        Typically, this property won&#39;t be used in user code to set or read data</span>
-<span class="sd">        values. Instead, it may come in handy for testing or debugging</span>
+<span class="sd">        Typically, this property won&#39;t be used in user code, but it may come</span>
+<span class="sd">        in handy for testing or debugging</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape_domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_halo</span><span class="p">))</span>
 
@@ -466,9 +471,32 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Shape of the allocated data. It includes the domain and inhalo regions,</span>
 <span class="sd">        as well as any additional padding surrounding the halo.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        In an MPI context, this is the *local* with_halo region shape.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_shape_with_inhalo</span><span class="p">,</span>
                                                     <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">))</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">shape_global</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Global shape of the domain region. The domain constitutes the area of</span>
+<span class="sd">        the data written to by an :class:`Operator`.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        In an MPI context, this is the *global* domain region shape, which is</span>
+<span class="sd">        therefore identical on all MPI ranks.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimension_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+            <span class="n">retval</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">size</span><span class="o">.</span><span class="n">glb</span> <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">s</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">retval</span><span class="p">)</span>
 
     <span class="n">_offset_inhalo</span> <span class="o">=</span> <span class="n">AbstractCachedFunction</span><span class="o">.</span><span class="n">_offset_halo</span>
     <span class="n">_extent_inhalo</span> <span class="o">=</span> <span class="n">AbstractCachedFunction</span><span class="o">.</span><span class="n">_extent_halo</span>
@@ -965,14 +993,14 @@
     <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">grid</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">)</span>
         <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
-        <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">)</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape_global&#39;</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Need either `grid` or `shape`&quot;</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dimensions</span> <span class="o">!=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Need `shape` as not all `dimensions` are in `grid`&quot;</span><span class="p">)</span>
-            <span class="n">shape</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">shape_domain</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">shape_local</span>
         <span class="k">elif</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`dimensions` required if both `grid` and &quot;</span>
                             <span class="s2">&quot;`shape` are provided&quot;</span><span class="p">)</span>
@@ -1066,7 +1094,7 @@
 
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">TensorFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span>\
-        <span class="p">[</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">]</span></div>
+        <span class="p">[</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="s1">&#39;shape_global&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">]</span></div>
 
 
 <div class="viewcode-block" id="TimeFunction"><a class="viewcode-back" href="../../devito.html#devito.function.TimeFunction">[docs]</a><span class="k">class</span> <span class="nc">TimeFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
@@ -1212,7 +1240,7 @@
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Ambiguity detected: provide either `grid` and `save` &quot;</span>
                                 <span class="s2">&quot;or just `shape` &quot;</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">shape</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">shape_domain</span><span class="p">)</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">shape_local</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">save</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">shape</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_time_position</span><span class="p">,</span> <span class="n">time_order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
             <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">save</span><span class="p">,</span> <span class="n">Buffer</span><span class="p">):</span>
@@ -2415,7 +2443,6 @@
         <script type="text/javascript" src="../../_static/jquery.js"></script>
         <script type="text/javascript" src="../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../_static/doctools.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
 
   

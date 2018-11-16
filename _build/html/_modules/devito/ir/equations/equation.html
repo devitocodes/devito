@@ -382,7 +382,11 @@
             <span class="n">obj</span> <span class="o">=</span> <span class="n">LoweredEq</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot construct DummyEq from args=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">ClusterizedEq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">ispace</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">dspace</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">ClusterizedEq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">ispace</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">ispace</span><span class="p">,</span> <span class="n">dspace</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">dspace</span><span class="p">)</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;lhs&#39;</span><span class="p">,</span> <span class="s1">&#39;rhs&#39;</span><span class="p">]</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span></div>
 </pre></div>
 
            </div>
@@ -420,7 +424,6 @@
         <script type="text/javascript" src="../../../../_static/jquery.js"></script>
         <script type="text/javascript" src="../../../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../../../_static/doctools.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
 
   

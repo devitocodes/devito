@@ -165,7 +165,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="n">Decomposition</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">,</span> <span class="n">CompositeObject</span><span class="p">,</span> <span class="n">Object</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">EnrichedTuple</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">is_integer</span>
 
 
@@ -453,34 +453,14 @@
             <span class="n">ret</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">RIGHT</span><span class="p">]</span> <span class="o">=</span> <span class="n">dest</span>
         <span class="k">return</span> <span class="n">ret</span>
 
-    <span class="c1"># The MPI communicator type for use with ctypes. This is stored on the class</span>
-    <span class="c1"># itself as we want different Distributors, perhaps used in different Grids,</span>
-    <span class="c1"># to have the same MPI.Comm type, otherwise Operators might complain at apply-</span>
-    <span class="c1"># time when performing type checking, i.e. right before jumping to C-land</span>
-    <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_sizeof</span><span class="p">(</span><span class="n">MPI</span><span class="o">.</span><span class="n">Comm</span><span class="p">)</span> <span class="o">==</span> <span class="n">sizeof</span><span class="p">(</span><span class="n">c_int</span><span class="p">):</span>
-        <span class="n">_C_commtype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_int</span><span class="p">,),</span> <span class="p">{})</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">_C_commtype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
-
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_C_comm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        A :class:`Object` wrapping an MPI communicator.</span>
-
-<span class="sd">        Extracted from: ::</span>
-
-<span class="sd">            https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Object</span>
-        <span class="n">ctype</span> <span class="o">=</span> <span class="n">Distributor</span><span class="o">.</span><span class="n">_C_commtype</span>
-        <span class="n">comm_ptr</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_addressof</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_comm</span><span class="p">)</span>
-        <span class="n">comm_val</span> <span class="o">=</span> <span class="n">ctype</span><span class="o">.</span><span class="n">from_address</span><span class="p">(</span><span class="n">comm_ptr</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">Object</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;comm&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">ctype</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">comm_val</span><span class="p">)</span>
+        <span class="sd">&quot;&quot;&quot;An :class:`Object` wrapping an MPI communicator.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">MPICommObject</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">comm</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_C_neighbours</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;A ctypes Struct to access the neighborhood of a given rank.&quot;&quot;&quot;</span>
-        <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">CompositeObject</span>
+        <span class="sd">&quot;&quot;&quot;A :class:`ctypes.Struct` to access the neighborhood of a given rank.&quot;&quot;&quot;</span>
         <span class="n">entries</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">product</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="p">[</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">]))</span>
         <span class="n">fields</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;</span><span class="si">%s%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">),</span> <span class="n">c_int</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">]</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">CompositeObject</span><span class="p">(</span><span class="s1">&#39;nb&#39;</span><span class="p">,</span> <span class="s1">&#39;neighbours&#39;</span><span class="p">,</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">fields</span><span class="p">)</span>
@@ -560,6 +540,28 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">nprocs</span></div>
 
 
+<span class="k">class</span> <span class="nc">MPICommObject</span><span class="p">(</span><span class="n">Object</span><span class="p">):</span>
+
+    <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;comm&#39;</span>
+
+    <span class="c1"># See https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py</span>
+    <span class="k">if</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_sizeof</span><span class="p">(</span><span class="n">MPI</span><span class="o">.</span><span class="n">Comm</span><span class="p">)</span> <span class="o">==</span> <span class="n">sizeof</span><span class="p">(</span><span class="n">c_int</span><span class="p">):</span>
+        <span class="n">dtype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_int</span><span class="p">,),</span> <span class="p">{})</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">dtype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s1">&#39;MPI_Comm&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">c_void_p</span><span class="p">,),</span> <span class="p">{})</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">comm</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">comm</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Should only end up here upon unpickling</span>
+            <span class="n">comm</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span>
+        <span class="n">comm_ptr</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_addressof</span><span class="p">(</span><span class="n">comm</span><span class="p">)</span>
+        <span class="n">comm_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">from_address</span><span class="p">(</span><span class="n">comm_ptr</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">comm_val</span>
+
+    <span class="c1"># Pickling support</span>
+    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[]</span>
+
+
 <span class="k">def</span> <span class="nf">compute_dims</span><span class="p">(</span><span class="n">nprocs</span><span class="p">,</span> <span class="n">ndim</span><span class="p">):</span>
     <span class="c1"># We don&#39;t do anything clever here. In fact, we do something very basic --</span>
     <span class="c1"># we just try to distribute `nprocs` evenly over the number of dimensions,</span>
@@ -611,7 +613,6 @@
         <script type="text/javascript" src="../../../_static/jquery.js"></script>
         <script type="text/javascript" src="../../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../../_static/doctools.js"></script>
-        <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
 
   
