@@ -4,9 +4,8 @@ import numpy as np
 import pytest
 from sympy import Derivative, simplify, diff
 
-from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
-                    clear_cache, ConditionalDimension, left, right, centered,
-                    staggered_diff)
+from devito import (Grid, Function, TimeFunction, Eq, Operator, clear_cache,
+                    ConditionalDimension, left, right, centered, staggered_diff)
 from devito.finite_differences import Differentiable
 
 _PRECISION = 9

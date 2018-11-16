@@ -2,7 +2,6 @@ import pytest
 from conftest import skipif_backend
 
 import numpy as np
-import pytest
 from sympy import Symbol
 
 from examples.seismic import demo_model
