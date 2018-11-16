@@ -4,13 +4,14 @@ import numpy as np
 from sympy import And
 
 import pytest
-from conftest import skipif_yask, configuration_override
+from conftest import skipif_backend, configuration_override
 
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, SubDimension)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
+@skipif_backend(['ops'])
 class TestSubDimension(object):
 
     def test_interior(self):
@@ -35,7 +36,7 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, :, 0] == 0.)
         assert np.all(u.data[1, :, :, -1] == 0.)
 
-    @skipif_yask
+    @skipif_backend(['yask'])
     def test_domain_vs_interior(self):
         """
         Tests application of an Operator consisting of two equations, one
@@ -125,7 +126,7 @@ class TestSubDimension(object):
                    for i in range(1, thickness + 1))
         assert np.all(u.data[0, thickness:-thickness, thickness:-thickness] == 1.)
 
-    @skipif_yask
+    @skipif_backend(['yask'])
     def test_flow_detection_interior(self):
         """
         Test detection of flow directions when :class:`SubDimension`s are used
@@ -175,7 +176,7 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, 0:5] == 0)
         assert np.all(u.data[1, :, 6:] == 0)
 
-    @skipif_yask
+    @skipif_backend(['yask'])
     @pytest.mark.parametrize('exprs,expected,', [
         # Carried dependence in both /t/ and /x/
         (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y])'], 'y'),
@@ -208,7 +209,7 @@ class TestSubDimension(object):
         assert all(i.is_Sequential for i in iterations if i.dim.name != expected)
         assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
 
-    @skipif_yask
+    @skipif_backend(['yask'])
     @pytest.mark.parametrize('exprs,expected,', [
         (['Eq(u[t, x, yleft], u[t, x, yleft] + 1.)'], ['yleft']),
         # All outers are parallel, carried dependence in `yleft`, so no SIMD in `yleft`
@@ -412,7 +413,7 @@ class TestSubDimension(object):
         assert np.all(u.data[1, 1:18, 1:18] == 0.)
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 class TestConditionalDimension(object):
 
     """A collection of tests to check the correct functioning of
