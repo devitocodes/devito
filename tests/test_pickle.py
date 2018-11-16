@@ -1,5 +1,5 @@
 import pytest
-from conftest import skipif_yask
+from conftest import skipif_backend
 
 import numpy as np
 from sympy import Symbol
@@ -14,6 +14,9 @@ from devito.profiling import Timer
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 
 import cloudpickle as pickle
+
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
 
 @pytest.fixture
@@ -149,7 +152,7 @@ def test_unjitted_operator():
 # With yask, broken padding in the generated code upon pickling, since
 # in this test the data is allocated after generating the code.
 # This is a symptom we need parametric padding
-@skipif_yask
+@skipif_backend(['yask'])
 def test_operator_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -186,7 +189,7 @@ def test_operator_function_w_preallocation():
 # With yask, broken padding in the generated code upon pickling, since
 # in this test the data is allocated after generating the code.
 # This is a symptom we need parametric padding
-@skipif_yask
+@skipif_backend(['yask'])
 def test_operator_timefunction():
     grid = Grid(shape=(3, 3, 3))
     f = TimeFunction(name='f', grid=grid, save=3)
@@ -220,7 +223,7 @@ def test_operator_timefunction_w_preallocation():
     assert np.all(f.data[2] == 2)
 
 
-@skipif_yask
+@skipif_backend(['yask'])
 @pytest.mark.parallel(nprocs=[1])
 def test_mpi_objects(enable_mpi_codegen):
     # Neighbours
@@ -255,7 +258,7 @@ def test_mpi_objects(enable_mpi_codegen):
     assert obj.dtype == new_obj.dtype
 
 
-@skipif_yask
+@skipif_backend(['yask'])
 @pytest.mark.parallel(nprocs=[1])
 def test_mpi_operator(enable_mpi_codegen):
     grid = Grid(shape=(4,))

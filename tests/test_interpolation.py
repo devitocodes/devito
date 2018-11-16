@@ -1,14 +1,17 @@
 import numpy as np
 import pytest
-from conftest import skipif_yask, unit_box, points, unit_box_time, time_points
+from conftest import unit_box, points, unit_box_time, time_points
 from math import sin, floor
-
 from devito.cgen_utils import FLOAT
 from devito import (Grid, Operator, Function, SparseFunction, Dimension,
                     TimeFunction, PrecomputedSparseFunction,
-                    PrecomputedSparseTimeFunction)
+                    PrecomputedSparseTimeFunction, configuration)
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
+
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
+                                configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
 
 def a(shape=(11, 11)):
@@ -60,7 +63,6 @@ def precompute_linear_interpolation(points, grid, origin):
     return gridpoints, coefficients
 
 
-@skipif_yask
 def test_precomputed_interpolation():
     """ Test interpolation with PrecomputedSparseFunction which accepts
         precomputed values for coefficients
@@ -92,7 +94,6 @@ def test_precomputed_interpolation():
     assert(all(np.isclose(sf.data, expected_values, rtol=1e-6)))
 
 
-@skipif_yask
 def test_precomputed_interpolation_time():
     """ Test interpolation with PrecomputedSparseFunction which accepts
         precomputed values for coefficients, but this time with a TimeFunction
@@ -125,7 +126,6 @@ def test_precomputed_interpolation_time():
         assert all(np.isclose(sf.data[it, :], it))
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -144,7 +144,6 @@ def test_interpolate(shape, coords, npoints=20):
     assert np.allclose(p.data[:], xcoords, rtol=1e-6)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -164,7 +163,6 @@ def test_interpolate_cumm(shape, coords, npoints=20):
     assert np.allclose(p.data[:], xcoords + 1., rtol=1e-6)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -198,7 +196,6 @@ def test_interpolate_time_shift(shape, coords, npoints=20):
     assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -217,7 +214,6 @@ def test_interpolate_array(shape, coords, npoints=20):
     assert np.allclose(p.data[:], xcoords, rtol=1e-6)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -239,7 +235,6 @@ def test_interpolate_custom(shape, coords, npoints=20):
     assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -262,7 +257,6 @@ def test_interpolate_indexed(shape, coords, npoints=20):
     assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -284,7 +278,6 @@ def test_inject(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -325,7 +318,6 @@ def test_inject_time_shift(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -348,7 +340,6 @@ def test_inject_array(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -371,7 +362,6 @@ def test_inject_from_field(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
-@skipif_yask
 @pytest.mark.parametrize('shape', [(50, 50, 50)])
 def test_position(shape):
     t0 = 0.0  # Start time
