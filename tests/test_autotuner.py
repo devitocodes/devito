@@ -129,7 +129,6 @@ def test_timesteps_per_at_run():
     buffer.close()
 
 
-@skipif_yask
 def test_nondestructive_forward():
     """Test autotuning in non-destructive mode."""
     grid = Grid(shape=(64, 64, 64))
@@ -143,7 +142,6 @@ def test_nondestructive_forward():
     assert np.all(f.data[1] == 101)
 
 
-@skipif_yask
 def test_nondestructive_backward():
     """Test autotuning in non-destructive mode."""
     grid = Grid(shape=(64, 64, 64))
