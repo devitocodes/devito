@@ -1,14 +1,32 @@
+import pytest
+from conftest import skipif_backend
+
 import numpy as np
 from sympy import Symbol
 
 from examples.seismic import demo_model
-from examples.seismic.source import TimeAxis, RickerSource
+from examples.seismic.source import TimeAxis, RickerSource, Receiver
 
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
-                    TimeDimension, SteppingDimension, Operator)
+                    TimeDimension, SteppingDimension, Operator, configuration)
+from devito.mpi.routines import MPIStatusObject, MPIRequestObject
+from devito.profiling import Timer
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 
 import cloudpickle as pickle
+
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
+
+
+@pytest.fixture
+def enable_mpi_codegen(request):
+    configuration['mpi'] = True
+
+    def fin():
+        configuration['mpi'] = False
+
+    request.addfinalizer(fin)
 
 
 def test_constant():
@@ -62,6 +80,22 @@ def test_sparse_function():
     assert sf.npoint == new_sf.npoint
 
 
+def test_receiver():
+    grid = Grid(shape=(3,))
+    time_range = TimeAxis(start=0., stop=1000., step=0.1)
+    nreceivers = 3
+
+    rec = Receiver(name='rec', grid=grid, time_range=time_range, npoint=nreceivers,
+                   coordinates=[(0.,), (1.,), (2.,)])
+    rec.data[:] = 1.
+
+    pkl_rec = pickle.dumps(rec)
+    new_rec = pickle.loads(pkl_rec)
+
+    assert np.all(new_rec.data == 1)
+    assert np.all(new_rec.coordinates.data == [[0.], [1.], [2.]])
+
+
 def test_symbolics():
     a = Symbol('a')
 
@@ -81,6 +115,17 @@ def test_symbolics():
     assert li == new_li
 
 
+def test_timers():
+    """Pickling for Timers used in Operators for C-level profiling."""
+    timer = Timer('timer', ['sec0', 'sec1'])
+    pkl_obj = pickle.dumps(timer)
+    new_obj = pickle.loads(pkl_obj)
+    assert new_obj.name == timer.name
+    assert new_obj.sections == timer.sections
+    assert new_obj.value._obj.sec0 == timer.value._obj.sec0 == 0.0
+    assert new_obj.value._obj.sec1 == timer.value._obj.sec1 == 0.0
+
+
 def test_operator_parameters():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -92,6 +137,22 @@ def test_operator_parameters():
         pickle.loads(pkl_i)
 
 
+def test_unjitted_operator():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+
+    op = Operator(Eq(f, f + 1))
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    assert str(op) == str(new_op)
+
+
+# With yask, broken padding in the generated code upon pickling, since
+# in this test the data is allocated after generating the code.
+# This is a symptom we need parametric padding
+@skipif_backend(['yask'])
 def test_operator_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -102,10 +163,33 @@ def test_operator_function():
     pkl_op = pickle.dumps(op)
     new_op = pickle.loads(pkl_op)
 
+    assert str(op) == str(new_op)
+
     new_op.apply(f=f)
     assert np.all(f.data == 2)
 
 
+def test_operator_function_w_preallocation():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+    f.data
+
+    op = Operator(Eq(f, f + 1))
+    op.apply()
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    assert str(op) == str(new_op)
+
+    new_op.apply(f=f)
+    assert np.all(f.data == 2)
+
+
+# With yask, broken padding in the generated code upon pickling, since
+# in this test the data is allocated after generating the code.
+# This is a symptom we need parametric padding
+@skipif_backend(['yask'])
 def test_operator_timefunction():
     grid = Grid(shape=(3, 3, 3))
     f = TimeFunction(name='f', grid=grid, save=3)
@@ -116,8 +200,86 @@ def test_operator_timefunction():
     pkl_op = pickle.dumps(op)
     new_op = pickle.loads(pkl_op)
 
+    assert str(op) == str(new_op)
+
     new_op.apply(time_m=1, time_M=1, f=f)
     assert np.all(f.data[2] == 2)
+
+
+def test_operator_timefunction_w_preallocation():
+    grid = Grid(shape=(3, 3, 3))
+    f = TimeFunction(name='f', grid=grid, save=3)
+    f.data
+
+    op = Operator(Eq(f.forward, f + 1))
+    op.apply(time=0)
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    assert str(op) == str(new_op)
+
+    new_op.apply(time_m=1, time_M=1, f=f)
+    assert np.all(f.data[2] == 2)
+
+
+@skipif_backend(['yask'])
+@pytest.mark.parallel(nprocs=[1])
+def test_mpi_objects(enable_mpi_codegen):
+    # Neighbours
+    grid = Grid(shape=(4, 4, 4))
+    obj = grid.distributor._C_neighbours.obj
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.pname == new_obj.pname
+    assert obj.pfields == new_obj.pfields
+    assert obj.ptype == new_obj.ptype
+
+    # Communicator
+    obj = grid.distributor._C_comm
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.dtype == new_obj.dtype
+
+    # Status
+    obj = MPIStatusObject(name='status')
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.dtype == new_obj.dtype
+
+    # Request
+    obj = MPIRequestObject(name='request')
+    pkl_obj = pickle.dumps(obj)
+    new_obj = pickle.loads(pkl_obj)
+    assert obj.name == new_obj.name
+    assert obj.dtype == new_obj.dtype
+
+
+@skipif_backend(['yask'])
+@pytest.mark.parallel(nprocs=[1])
+def test_mpi_operator(enable_mpi_codegen):
+    grid = Grid(shape=(4,))
+    f = TimeFunction(name='f', grid=grid)
+    g = TimeFunction(name='g', grid=grid)
+
+    # Using `sum` creates a stencil in `x`, which in turn will
+    # trigger the generation of code for MPI halo exchange
+    op = Operator(Eq(f.forward, f.sum() + 1))
+    op.apply(time=2)
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    assert str(op) == str(new_op)
+
+    new_op.apply(time=2, f=g)
+    assert np.all(f.data[0] == [2., 3., 3., 3.])
+    assert np.all(f.data[0] == [2., 3., 3., 3.])
+    assert np.all(g.data[0] == f.data[0])
+    assert np.all(g.data[1] == f.data[1])
 
 
 def test_full_model():
