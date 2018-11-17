@@ -496,7 +496,7 @@ class TestIsotropicAcoustic(object):
 
     @pytest.fixture
     def src(self, model, dtype):
-        t0, tn, dt = self.time_params(model)
+        t0, tn, dt = self.time_params
         time_range = TimeAxis(start=t0, stop=tn, step=dt)  # Discretized time axis
         # Define source geometry (center of domain, just below surface)
         src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range,
@@ -508,7 +508,7 @@ class TestIsotropicAcoustic(object):
     @pytest.fixture
     def rec(self, model, src, dtype):
         nrec = 130  # Number of receivers
-        t0, tn, dt = self.time_params(model)
+        t0, tn, dt = self.time_params
         time_range = TimeAxis(start=t0, stop=tn, step=dt)
         rec = Receiver(name='rec', grid=model.grid,
                        time_range=time_range,
