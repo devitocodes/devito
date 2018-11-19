@@ -2,8 +2,8 @@ from conftest import skipif_backend
 import pytest
 import numpy as np
 
-from devito import (Grid, Function, TimeFunction, Dimension, Eq, Operator, # noqa
-                    configuration, ALLOC_GUARD, ALLOC_FLAT)
+from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
+                    Eq, Operator, configuration, ALLOC_GUARD, ALLOC_FLAT)
 from devito.data import Decomposition
 from devito.types import LEFT, RIGHT
 
@@ -197,6 +197,16 @@ class TestDataBasic(object):
         assert v._offset_domain.left == v._offset_domain.right == (3, 5, 6)
         assert v._extent_padding == ((1, 1), (3, 3), (4, 4))
         assert v._extent_padding.left == v._extent_padding.right == (1, 3, 4)
+
+    def test_indexing_into_sparse(self):
+        """
+        Test indexing into SparseFunctions.
+        """
+        grid = Grid(shape=(4, 4))
+        sf = SparseTimeFunction(name='sf', grid=grid, npoint=1, nt=10)
+
+        sf.data[1:-1, 0] = np.arange(8)
+        assert np.all(sf.data[1:-1, 0] == np.arange(8))
 
 
 @skipif_backend(['yask'])
