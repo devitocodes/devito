@@ -156,13 +156,17 @@ def ctypes_to_C(ctype):
     elif issubclass(ctype, ctypes.Union):
         return 'union %s' % ctype.__name__
     elif issubclass(ctype, ctypes._Pointer):
-        return '%s*' % ctypes_to_C(ctype._type_)
+        return '%s *' % ctypes_to_C(ctype._type_)
     elif ctype.__name__.startswith('c_'):
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
         # Here, we're following the ctypes convention that each basic type has
-        # the format c_X_p, where X is the C typename, for instance `int` or `float`.
-        return ctype.__name__[2:-2]
+        # either the format c_X_p or c_X, where X is the C typename, for instance
+        # `int` or `float`.
+        if ctype.__name__.endswith('_p'):
+            return '%s *' % ctype.__name__[2:-2]
+        else:
+            return ctype.__name__[2:]
     else:
         # A custom datatype (e.g., a typedef-ed pointer to struct)
         return ctype.__name__
