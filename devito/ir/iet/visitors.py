@@ -142,16 +142,13 @@ class CGen(Visitor):
         ret = []
         for i in args:
             if i.is_AbstractObject:
-                ret.append(c.Value(i.ctype, i.name))
-            elif i.is_Symbol:
-                ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
+                ret.append(c.Value(i._C_typename, i._C_name))
             elif i.is_Tensor:
-                ret.append(c.Value(c.dtype_to_ctype(i.dtype),
-                                   '*restrict %s_vec' % i.name))
-            elif i.is_Dimension:
-                ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
+                ret.append(c.Value(i._C_typename, '*restrict %s' % i._C_name))
+            elif i.is_Symbol:
+                ret.append(c.Value('const %s' % i._C_typename, i._C_name))
             else:
-                ret.append(c.Value('void', '*_%s' % i.name))
+                ret.append(c.Value('void', '*_%s' % i._C_name))
         return ret
 
     def _args_call(self, args):
@@ -160,16 +157,12 @@ class CGen(Visitor):
         ret = []
         for i in args:
             try:
-                if i.is_Object:
-                    ret.append(i.name)
-                elif i.is_LocalObject:
-                    ret.append('&%s' % i.name)
+                if i.is_LocalObject:
+                    ret.append('&%s' % i._C_name)
                 elif i.is_Array:
-                    ret.append("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name))
-                elif i.is_Symbol:
-                    ret.append(i.name)
-                elif i.is_TensorFunction:
-                    ret.append('%s_vec' % i.name)
+                    ret.append("(%s*)%s" % (i._C_typename, i.name))
+                else:
+                    ret.append(i._C_name)
             except AttributeError:
                 ret.append(ccode(i))
         return ret
@@ -182,7 +175,7 @@ class CGen(Visitor):
         align = "__attribute__((aligned(64)))"
         shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
         lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
-        rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(f.dtype), shape, '%s_vec' % f.name)
+        rvalue = '(%s (*)%s) %s' % (f._C_typename, shape, '%s' % f._C_name)
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):

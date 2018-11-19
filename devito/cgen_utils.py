@@ -24,7 +24,7 @@ class Allocator(object):
         """
         handle = self.stack.setdefault(scope, OrderedDict())
         if obj.is_LocalObject:
-            handle[obj] = c.Value(obj.ctype, obj.name)
+            handle[obj] = c.Value(obj._C_typename, obj.name)
         else:
             shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
             alignment = "__attribute__((aligned(64)))"
@@ -39,11 +39,11 @@ class Allocator(object):
             return
 
         decl = "(*%s)%s" % (obj.name, "".join("[%s]" % i for i in obj.symbolic_shape[1:]))
-        decl = c.Value(c.dtype_to_ctype(obj.dtype), decl)
+        decl = c.Value(obj._C_typename, decl)
 
         shape = "".join("[%s]" % i for i in obj.symbolic_shape)
         alloc = "posix_memalign((void**)&%s, 64, sizeof(%s%s))"
-        alloc = alloc % (obj.name, c.dtype_to_ctype(obj.dtype), shape)
+        alloc = alloc % (obj.name, obj._C_typename, shape)
         alloc = c.Statement(alloc)
 
         free = c.Statement('free(%s)' % obj.name)

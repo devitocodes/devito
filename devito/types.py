@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-from cached_property import cached_property
 import weakref
 import abc
 import gc
@@ -10,6 +8,8 @@ from ctypes import POINTER, byref
 
 import numpy as np
 import sympy
+from cached_property import cached_property
+from cgen import dtype_to_ctype
 
 from devito.symbolics import Add
 from devito.tools import ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_C
@@ -24,13 +24,11 @@ _SymbolCache = {}
 
 class Basic(object):
     """
-    Base class for API objects, mainly used to build equations.
-
-    There are three relevant sub-types of :class:`Basic`: ::
+    Three relevant types inherit from this class: ::
 
         * AbstractSymbol: represents a scalar; may carry data; may be used
                           to build equations.
-        * AbstractFunction: represents a discrete function as a tensor; may
+        * AbstractFunction: represents a discrete R^n -> R function; may
                             carry data; may be used to build equations.
         * AbstractObject: represents a generic object, for example a (pointer
                           to) data structure.
@@ -41,10 +39,14 @@ class Basic(object):
                     |                     |                  |
              AbstractSymbol       AbstractFunction     AbstractObject
 
-    .. note::
+    Subtypes must implement a number of methods/properties to enable code
+    generation via the Devito compiler. These methods/properties are easily
+    recognizable as their name starts with _C_.
 
-        The :class:`AbstractFunction` sub-hierarchy is mainly implemented in
-        :mod:`function.py`.
+    Notes
+    -----
+    Part of the :class:`AbstractFunction` sub-hierarchy is implemented in
+    :mod:`function.py`.
     """
 
     # Top hierarchy
@@ -78,6 +80,41 @@ class Basic(object):
 
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
+        return
+
+    @abc.abstractproperty
+    def _C_name(self):
+        """
+        The C-level name of the object.
+
+        Returns
+        -------
+        str
+        """
+        return
+
+    @abc.abstractproperty
+    def _C_typename(self):
+        """
+        The C-level type of the object.
+
+        Returns
+        -------
+        str
+        """
+        return
+
+    @property
+    def _C_typedecl(self):
+        """
+        The C-level fields of the object.
+
+        Returns
+        -------
+        :class:`cgen.Struct` or None
+            None if the object C type can be expressed with a basic C type,
+            such as float or int.
+        """
         return
 
 
@@ -175,6 +212,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
         return ()
 
     @property
+    def base(self):
+        return self
+
+    @property
     def function(self):
         return self
 
@@ -229,13 +270,17 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
         return None
 
     @property
-    def base(self):
-        return self
+    def dtype(self):
+        """The data type of the object."""
+        return self._dtype
 
     @property
-    def dtype(self):
-        """Return the data type of the object."""
-        return self._dtype
+    def _C_name(self):
+        return self.name
+
+    @property
+    def _C_typename(self):
+        return dtype_to_ctype(self.dtype)
 
     # Pickling support
     _pickle_kwargs = ['name', 'dtype']
@@ -426,6 +471,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     def ndim(self):
         """Return the rank of the function."""
         return len(self.indices)
+
+    @property
+    def _C_name(self):
+        return "%s_vec" % self.name
+
+    @property
+    def _C_typename(self):
+        return dtype_to_ctype(self.dtype)
 
     @property
     def symbolic_shape(self):
@@ -734,7 +787,11 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
         return {self}
 
     @property
-    def ctype(self):
+    def _C_name(self):
+        return self.name
+
+    @property
+    def _C_typename(self):
         return ctypes_to_C(self.dtype)
 
     # Pickling support
@@ -801,6 +858,10 @@ class CompositeObject(Object):
 
     def _hashable_content(self):
         return (self.name, self.pfields)
+
+    @property
+    def _C_typedecl(self):
+        raise NotImplementedError
 
     # Pickling support
     _pickle_args = ['name', 'pname', 'ptype', 'pfields']

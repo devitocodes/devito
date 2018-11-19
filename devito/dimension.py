@@ -4,6 +4,7 @@ import sympy
 from sympy.core.cache import cacheit
 import numpy as np
 from cached_property import cached_property
+from cgen import dtype_to_ctype
 
 from devito.exceptions import InvalidArgument
 from devito.types import LEFT, RIGHT, AbstractSymbol, Scalar
@@ -31,6 +32,7 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     # Unlike other Symbols, Dimensions can only be integers
     dtype = np.int32
+    _C_typename = dtype_to_ctype(dtype)
 
     """
     A Dimension is a symbol representing a problem dimension and thus defining a
@@ -90,12 +92,12 @@ class Dimension(AbstractSymbol, ArgProvider):
         return "%s_M" % self.name
 
     @property
-    def spacing(self):
-        return self._spacing
+    def _C_name(self):
+        return self.name
 
     @property
-    def base(self):
-        return self
+    def spacing(self):
+        return self._spacing
 
     @property
     def root(self):
