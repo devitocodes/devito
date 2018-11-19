@@ -312,7 +312,7 @@ def index_dist_to_repl(idx, decomposition):
     Convert a distributed array index a replicated array index.
     """
     if decomposition is None:
-        return PROJECTED if is_integer(idx) else idx
+        return PROJECTED if is_integer(idx) else slice(None)
 
     # Derive shift value
     value = idx.start if isinstance(idx, slice) else idx
