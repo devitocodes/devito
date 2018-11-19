@@ -29,6 +29,9 @@ class Dimension(AbstractSymbol, ArgProvider):
     is_Modulo = False
     is_Incr = False
 
+    # Unlike other Symbols, Dimensions can only be integers
+    dtype = np.int32
+
     """
     A Dimension is a symbol representing a problem dimension and thus defining a
     potential iteration space.
@@ -50,11 +53,6 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     def __str__(self):
         return self.name
-
-    @property
-    def dtype(self):
-        # TODO: Do dimensions really need a dtype?
-        return np.int32
 
     @cached_property
     def symbolic_size(self):
