@@ -3,15 +3,17 @@ from examples.seismic.acoustic.acoustic_example import acoustic_setup
 from examples.seismic import Receiver
 from pyrevolve import Revolver
 import numpy as np
-from conftest import skipif_yask
 import pytest
 from functools import reduce
 
-from devito import Grid, TimeFunction, Operator, Function, Eq, silencio
+from devito import Grid, TimeFunction, Operator, Function, Eq, silencio, configuration
+
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
+                                configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
 
 @silencio(log_level='WARNING')
-@skipif_yask
 def test_segmented_incremment():
     """
     Test for segmented operator execution of a one-sided first order
@@ -41,7 +43,6 @@ def test_segmented_incremment():
 
 
 @silencio(log_level='WARNING')
-@skipif_yask
 def test_segmented_fibonacci():
     """
     Test for segmented operator execution of a one-sided second order
@@ -78,7 +79,6 @@ def test_segmented_fibonacci():
 
 
 @silencio(log_level='WARNING')
-@skipif_yask
 def test_segmented_averaging():
     """
     Test for segmented operator execution of a two-sided, second order
@@ -112,7 +112,6 @@ def test_segmented_averaging():
 
 
 @silencio(log_level='WARNING')
-@skipif_yask
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('kernel', ['OT2'])
 @pytest.mark.parametrize('shape', [(70, 80), (50, 50, 50)])
@@ -151,7 +150,6 @@ def test_forward_with_breaks(shape, kernel, space_order):
 
 
 @silencio(log_level='WARNING')
-@skipif_yask
 def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
                                   time_order=2, space_order=4, nbpml=10):
     """ Run the acoustic example with and without save=True. Make sure the result is the
@@ -169,7 +167,6 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     assert(np.allclose(rec.data, rec_bk))
 
 
-@skipif_yask
 def test_index_alignment(const):
     """ A much simpler test meant to ensure that the forward and reverse indices are
     correctly aligned (i.e. u * v , where u is the forward field and v the reverse field

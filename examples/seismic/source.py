@@ -93,7 +93,7 @@ class PointSource(SparseTimeFunction):
         time_order = kwargs.pop('time_order', 2)
         p_dim = kwargs.pop('dimension', Dimension(name='p_%s' % name))
 
-        coordinates = kwargs.pop('coordinates', None)
+        coordinates = kwargs.pop('coordinates', kwargs.pop('coordinates_data', None))
         # Either `npoint` or `coordinates` must be provided
         npoint = kwargs.pop('npoint', None)
         if npoint is None:

@@ -1,12 +1,11 @@
 from conftest import EVAL
-
 from sympy import sin  # noqa
 import numpy as np
 import pytest
-from conftest import x, y, z, skipif_yask  # noqa
+from conftest import x, y, z, skipif_backend  # noqa
 
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseFunction,  # noqa
-                    Grid, Operator, ruido)
+                    Grid, Operator, ruido, configuration)
 from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
@@ -16,6 +15,10 @@ from devito.tools import generator
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
+
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
+                                configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
 
 # Acoustic
@@ -50,7 +53,6 @@ def run_acoustic_forward(dse=None):
     return u, rec
 
 
-@skipif_yask
 def test_acoustic_rewrite_basic():
     ret1 = run_acoustic_forward(dse=None)
     ret2 = run_acoustic_forward(dse='basic')
@@ -95,7 +97,6 @@ def tti_nodse():
     return v, rec
 
 
-@skipif_yask
 def test_tti_rewrite_basic(tti_nodse):
     operator = tti_operator(dse='basic')
     rec, u, v, _ = operator.forward()
@@ -104,7 +105,6 @@ def test_tti_rewrite_basic(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
 
 
-@skipif_yask
 def test_tti_rewrite_advanced(tti_nodse):
     operator = tti_operator(dse='advanced')
     rec, u, v, _ = operator.forward()
@@ -113,7 +113,6 @@ def test_tti_rewrite_advanced(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
 
-@skipif_yask
 def test_tti_rewrite_speculative(tti_nodse):
     operator = tti_operator(dse='speculative')
     rec, u, v, _ = operator.forward()
@@ -122,7 +121,6 @@ def test_tti_rewrite_speculative(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
 
-@skipif_yask
 def test_tti_rewrite_aggressive(tti_nodse):
     operator = tti_operator(dse='aggressive')
     rec, u, v, _ = operator.forward()
@@ -132,7 +130,7 @@ def test_tti_rewrite_aggressive(tti_nodse):
 
 
 @ruido(profiling='advanced')
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 @pytest.mark.parametrize('kernel,space_order,expected', [
     ('shifted', 8, 355), ('shifted', 16, 622),
     ('centered', 8, 168), ('centered', 16, 300)
@@ -146,7 +144,6 @@ def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
 # DSE manipulation
 
 
-@skipif_yask
 def test_scheduling_after_rewrite():
     """Tests loop scheduling after DSE-induced expression hoisting."""
     grid = Grid((10, 10))
@@ -169,7 +166,6 @@ def test_scheduling_after_rewrite():
     assert trees[1][0].dim == trees[2][0].dim == trees[3][0].dim == grid.time_dim
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(tu, ti0 + ti1 + 5.)'],
@@ -195,7 +191,6 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(ti0, 3.)', 'Eq(tv, 2.4)', 'Eq(tu, tv + 5. + ti0)'],
@@ -222,7 +217,6 @@ def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(tu, (tv + tw + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
@@ -245,7 +239,6 @@ def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expect
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     (['Eq(t0, 3.)', 'Eq(t1, 7.)', 'Eq(ti0, t0*3. + 2.)', 'Eq(ti1, t1 + t0 + 1.5)',
       'Eq(tv, (ti0 + ti1)*t0)', 'Eq(tw, (ti0 + ti1)*t1)',
@@ -260,7 +253,6 @@ def test_graph_trace(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
         assert set([j.lhs for j in g.trace(i)]) == mapper[i]
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # trivial
     (['Eq(t0, 1.)', 'Eq(t1, fa[x] + fb[x])'],
@@ -286,7 +278,6 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
         assert g.is_index(k) == v
 
 
-@skipif_yask
 @pytest.mark.parametrize('expr,expected', [
     ('2*fa[x] + fb[x]', '2*fa[x] + fb[x]'),
     ('fa[x]**2', 'fa[x]*fa[x]'),
@@ -301,7 +292,6 @@ def test_pow_to_mul(fa, fb, expr, expected):
     assert str(pow_to_mul(eval(expr))) == expected
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # none (different distance)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
@@ -336,7 +326,6 @@ def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
         assert (len(v.aliased) == 1 and mapper[k] is None) or v.anti_stencil == mapper[k]
 
 
-@skipif_yask
 @pytest.mark.parametrize('expr,expected', [
     ('Eq(t0, t1)', 0),
     ('Eq(t0, fa[x] + fb[x])', 1),
@@ -355,7 +344,6 @@ def test_estimate_cost(fa, fb, fc, t0, t1, t2, expr, expected):
     assert estimate_cost(EVAL(expr, fa, fb, fc, t0, t1, t2)) == expected
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,exp_u,exp_v', [
     (['Eq(s, 0)', 'Eq(s, s + 4)', 'Eq(u, s)'], 4, 0),
     (['Eq(s, 0)', 'Eq(s, s + s + 4)', 'Eq(s, s + 4)', 'Eq(u, s)'], 8, 0),

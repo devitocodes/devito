@@ -1,14 +1,15 @@
 import numpy as np
 import pytest
 from numpy import linalg
-from conftest import skipif_yask
-
-from devito import Function, info, clear_cache, smooth
-from examples.seismic.acoustic.acoustic_example import acoustic_setup as setup
+from devito import Function, info, clear_cache, configuration
+from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
 from examples.seismic import Receiver
 
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
+                                configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
-@skipif_yask
+
 class TestGradient(object):
 
     def setup_method(self, method):
@@ -65,7 +66,6 @@ class TestGradient(object):
         gradient2, _ = wave.gradient(residual, u0, m=m0, checkpointing=False)
         assert np.allclose(gradient.data, gradient2.data)
 
-    @skipif_yask
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(70, 80)])
