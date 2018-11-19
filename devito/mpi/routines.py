@@ -61,7 +61,7 @@ def sendrecv(f, fixed):
     assert f.is_Function
     assert f.grid is not None
 
-    comm = f.grid.distributor._C_comm
+    comm = f.grid.distributor._obj_comm
 
     buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions if d not in fixed]
     bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype, scope='heap')
@@ -115,7 +115,7 @@ def update_halo(f, fixed):
 
     distributor = f.grid.distributor
     nb = distributor._obj_neighbours
-    comm = distributor._C_comm
+    comm = distributor._obj_comm
 
     fixed = {d: Symbol(name="o%s" % d.root) for d in fixed}
 

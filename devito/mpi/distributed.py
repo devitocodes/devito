@@ -298,7 +298,7 @@ class Distributor(AbstractDistributor):
         return ret
 
     @cached_property
-    def _C_comm(self):
+    def _obj_comm(self):
         """An :class:`Object` representing the MPI communicator."""
         return MPICommObject(self.comm)
 

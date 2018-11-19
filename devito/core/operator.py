@@ -43,7 +43,7 @@ class OperatorCore(OperatorRunnable):
         for hs in halo_spots:
             for f, v in hs.fmapper.items():
                 stencil = [int(i) for i in hs.mask[f].values()]
-                comm = f.grid.distributor._C_comm
+                comm = f.grid.distributor._obj_comm
                 nb = f.grid.distributor._obj_neighbours
                 loc_indices = list(v.loc_indices.values())
                 dsizes = [d.symbolic_size for d in f.dimensions]

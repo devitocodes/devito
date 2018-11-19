@@ -246,7 +246,7 @@ class Grid(ArgProvider):
 
         if configuration['mpi']:
             distributor = self.distributor
-            args[distributor._C_comm.name] = distributor._C_comm.value
+            args[distributor._obj_comm.name] = distributor._obj_comm.value
             args[distributor._obj_neighbours.name] = distributor._obj_neighbours.value
 
         return args

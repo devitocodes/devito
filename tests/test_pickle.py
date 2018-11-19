@@ -273,7 +273,7 @@ def test_mpi_objects(enable_mpi_codegen):
     assert obj.pfields == new_obj.pfields
 
     # Communicator
-    obj = grid.distributor._C_comm
+    obj = grid.distributor._obj_comm
     pkl_obj = pickle.dumps(obj)
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
