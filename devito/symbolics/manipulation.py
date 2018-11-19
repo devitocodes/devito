@@ -7,10 +7,9 @@ from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
-from devito.types import Symbol as dSymbol
 
 __all__ = ['freeze', 'unfreeze', 'evaluate', 'xreplace_constrained', 'xreplace_indices',
-           'pow_to_mul', 'as_symbol', 'indexify', 'makeit_ssa', 'split_affine']
+           'pow_to_mul', 'as_symbol', 'indexify', 'split_affine']
 
 
 def freeze(expr):
@@ -250,36 +249,3 @@ def indexify(expr):
         except AttributeError:
             pass
     return expr.xreplace(mapper)
-
-
-def makeit_ssa(exprs):
-    """
-    Convert an iterable of :class:`Eq`s into Static Single Assignment (SSA) form.
-    """
-    # Identify recurring LHSs
-    seen = {}
-    for i, e in enumerate(exprs):
-        seen.setdefault(e.lhs, []).append(i)
-    # Optimization: don't waste time reconstructing stuff if already in SSA form
-    if all(len(i) == 1 for i in seen.values()):
-        return exprs
-    # SSA conversion
-    c = 0
-    mapper = {}
-    processed = []
-    for i, e in enumerate(exprs):
-        where = seen[e.lhs]
-        rhs = e.rhs.xreplace(mapper)
-        if len(where) > 1:
-            needssa = e.is_Scalar or where[-1] != i
-            lhs = dSymbol(name='ssa%d' % c, dtype=e.dtype) if needssa else e.lhs
-            if e.is_Increment:
-                # Turn AugmentedAssignment into Assignment
-                processed.append(e.func(lhs, mapper[e.lhs] + rhs, is_Increment=False))
-            else:
-                processed.append(e.func(lhs, rhs))
-            mapper[e.lhs] = lhs
-            c += 1
-        else:
-            processed.append(e.func(e.lhs, rhs))
-    return processed
