@@ -22,8 +22,12 @@ try:
 except ImportError:
     pass
 
-skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
-                                 reason="YASK testing is currently restricted")
+def skipif_backend(backends):
+    conditions = []
+    for b in backends:
+        conditions.append(b == configuration['backend'])
+    return pytest.mark.skipif(any(conditions),
+                              reason="{} testing is currently restricted".format(b))
 
 skipif_nompi = pytest.mark.skipif(MPI is None, reason="mpi not installed")
 

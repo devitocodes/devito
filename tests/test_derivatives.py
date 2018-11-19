@@ -1,11 +1,11 @@
+from conftest import skipif_backend
+
 import numpy as np
 import pytest
-from conftest import skipif_yask
 from sympy import Derivative, simplify, diff
 
-from devito import (Grid, Function, TimeFunction, Eq, Operator,
-                    clear_cache, ConditionalDimension, left, right, centered,
-                    staggered_diff)
+from devito import (Grid, Function, TimeFunction, Eq, Operator, clear_cache,
+                    ConditionalDimension, left, right, centered, staggered_diff)
 from devito.finite_differences import Differentiable
 
 _PRECISION = 9
@@ -27,7 +27,7 @@ def t(grid):
     return grid.stepping_dim
 
 
-@skipif_yask
+@skipif_backend(['yask', 'ops'])
 class TestFD(object):
     """
     Class for finite difference testing
