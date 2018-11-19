@@ -11,7 +11,7 @@ from ctypes import POINTER, byref
 import numpy as np
 import sympy
 
-from devito.symbolics.extended_sympy import Add
+from devito.symbolics import Add
 from devito.tools import ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_C
 
 __all__ = ['Symbol', 'Indexed']
@@ -430,9 +430,9 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     @property
     def symbolic_shape(self):
         """
-        Return the symbolic shape of the object. This includes the padding,
-        halo, and domain regions. While halo and padding are known quantities
-        (integers), the domain size is represented by a symbol.
+        The symbolic shape of the object. This includes the domain, halo, and
+        padding regions. While halo and padding are known quantities (integers),
+        the domain size is represented by a symbol.
         """
         halo_sizes = [Add(*i) for i in self._extent_halo]
         pad_sizes = [Add(*i) for i in self._extent_padding]
