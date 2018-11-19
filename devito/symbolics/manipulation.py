@@ -5,7 +5,6 @@ from sympy import Number, Indexed, Symbol, LM, LC
 
 from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
-from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
 
 __all__ = ['freeze', 'unfreeze', 'evaluate', 'xreplace_constrained', 'xreplace_indices',
@@ -199,6 +198,7 @@ def as_symbol(expr):
     """
     Extract the "main" symbol from a SymPy object.
     """
+    from devito.dimension import Dimension
     try:
         return Number(expr)
     except (TypeError, ValueError):
