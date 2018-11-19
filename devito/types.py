@@ -4,12 +4,12 @@ import gc
 from collections import namedtuple
 from operator import mul
 from functools import reduce
-from ctypes import POINTER, byref
+from ctypes import POINTER, Structure, byref
 
 import numpy as np
 import sympy
 from cached_property import cached_property
-from cgen import dtype_to_ctype
+from cgen import Struct, Value, dtype_to_ctype
 
 from devito.symbolics import Add
 from devito.tools import ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_C
@@ -827,20 +827,20 @@ class Object(AbstractObject, ArgProvider):
 class CompositeObject(Object):
 
     """
-    Represent a pointer object to a composite type (e.g., struct, union),
+    Represent a pointer object to a composite type (i.e., a C struct),
     provided by the outside world.
     """
 
     _dtype_cache = {}
 
     @classmethod
-    def _generate_unique_dtype(cls, pname, ptype, pfields):
-        dtype = POINTER(type(pname, (ptype,), {'_fields_': pfields}))
-        key = (pname, ptype, tuple(pfields))
+    def _generate_unique_dtype(cls, pname, pfields):
+        dtype = POINTER(type(pname, (Structure,), {'_fields_': pfields}))
+        key = (pname, tuple(pfields))
         return cls._dtype_cache.setdefault(key, dtype)
 
-    def __init__(self, name, pname, ptype, pfields, value=None):
-        dtype = CompositeObject._generate_unique_dtype(pname, ptype, pfields)
+    def __init__(self, name, pname, pfields, value=None):
+        dtype = CompositeObject._generate_unique_dtype(pname, pfields)
         value = value or byref(dtype._type_())
         super(CompositeObject, self).__init__(name, dtype, value)
 
@@ -849,22 +849,22 @@ class CompositeObject(Object):
         return tuple(self.dtype._type_._fields_)
 
     @property
-    def ptype(self):
-        return self.dtype._type_.__base__
-
-    @property
     def pname(self):
         return self.dtype._type_.__name__
+
+    @property
+    def fields(self):
+        return [i for i, _ in self.pfields]
 
     def _hashable_content(self):
         return (self.name, self.pfields)
 
-    @property
+    @cached_property
     def _C_typedecl(self):
-        raise NotImplementedError
+        return Struct(self.pname, [Value(ctypes_to_C(j), i) for i, j in self.pfields])
 
     # Pickling support
-    _pickle_args = ['name', 'pname', 'ptype', 'pfields']
+    _pickle_args = ['name', 'pname', 'pfields']
     _pickle_kwargs = []
 
 

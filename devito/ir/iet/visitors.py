@@ -297,12 +297,13 @@ class CGen(Visitor):
         header = [c.Line(i) for i in o._headers]
         includes = [c.Include(i, system=False) for i in o._includes]
         includes += [blankline]
-        cglobals = list(o._globals)
+        cdefs = [i._C_typedecl for i in o.parameters if i._C_typedecl is not None]
+        cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
         if o._compiler.src_ext == 'cpp':
-            cglobals += [c.Extern('C', signature)]
-        cglobals = [i for j in cglobals for i in (j, blankline)]
+            cdefs += [c.Extern('C', signature)]
+        cdefs = [i for j in cdefs for i in (j, blankline)]
 
-        return c.Module(header + includes + cglobals +
+        return c.Module(header + includes + cdefs +
                         esigns + [blankline, kernel] + efuncs)
 
 

@@ -483,7 +483,6 @@ class OperatorRunnable(Operator):
         """Instrument the Iteration/Expression tree for C-level profiling."""
         profiler = create_profile('timers')
         iet = profiler.instrument(iet)
-        self._globals.append(profiler.cdef)
         self._includes.extend(profiler._default_includes)
         self._func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
         return iet, profiler

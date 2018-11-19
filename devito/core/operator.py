@@ -44,20 +44,12 @@ class OperatorCore(OperatorRunnable):
             for f, v in hs.fmapper.items():
                 stencil = [int(i) for i in hs.mask[f].values()]
                 comm = f.grid.distributor._C_comm
-                nb = f.grid.distributor._C_neighbours.obj
+                nb = f.grid.distributor._obj_neighbours
                 loc_indices = list(v.loc_indices.values())
                 dsizes = [d.symbolic_size for d in f.dimensions]
                 parameters = [f] + stencil + [comm, nb] + loc_indices + dsizes
                 call = Call('halo_exchange_%s' % f.name, parameters)
                 mapper.setdefault(hs, []).append(call)
-
-        # Sorting is for deterministic code generation. However, in practice,
-        # we don't expect `cstructs` to contain more than one element because
-        # there should always be one grid per Operator (though we're not really
-        # enforcing it)
-        cstructs = {f.grid.distributor._C_neighbours.cdef
-                    for f in flatten(i.fmapper for i in halo_spots)}
-        self._globals.extend(sorted(cstructs, key=lambda i: i.tpname))
 
         self._includes.append('mpi.h')
 

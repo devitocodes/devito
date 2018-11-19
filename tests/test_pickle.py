@@ -265,13 +265,12 @@ def test_operator_timefunction_w_preallocation():
 def test_mpi_objects(enable_mpi_codegen):
     # Neighbours
     grid = Grid(shape=(4, 4, 4))
-    obj = grid.distributor._C_neighbours.obj
+    obj = grid.distributor._obj_neighbours
     pkl_obj = pickle.dumps(obj)
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
     assert obj.pname == new_obj.pname
     assert obj.pfields == new_obj.pfields
-    assert obj.ptype == new_obj.ptype
 
     # Communicator
     obj = grid.distributor._C_comm

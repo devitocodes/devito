@@ -114,7 +114,7 @@ def update_halo(f, fixed):
     assert f.grid is not None
 
     distributor = f.grid.distributor
-    nb = distributor._C_neighbours.obj
+    nb = distributor._obj_neighbours
     comm = distributor._C_comm
 
     fixed = {d: Symbol(name="o%s" % d.root) for d in fixed}

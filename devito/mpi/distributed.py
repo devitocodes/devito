@@ -1,13 +1,10 @@
-from collections import namedtuple
-from ctypes import Structure, c_int, c_void_p, sizeof
+from ctypes import c_int, c_void_p, sizeof
 from itertools import product
 from math import ceil
 from abc import ABC, abstractmethod
 import atexit
 
 from cached_property import cached_property
-from cgen import Struct, Value
-
 import numpy as np
 
 from devito.data import Decomposition
@@ -302,20 +299,19 @@ class Distributor(AbstractDistributor):
 
     @cached_property
     def _C_comm(self):
-        """An :class:`Object` wrapping an MPI communicator."""
+        """An :class:`Object` representing the MPI communicator."""
         return MPICommObject(self.comm)
 
     @cached_property
-    def _C_neighbours(self):
-        """A :class:`ctypes.Struct` to access the neighborhood of a given rank."""
+    def _obj_neighbours(self):
+        """A :class:`CompositeObject` describing the calling MPI rank's
+        neighborhood in the decomposed grid."""
         entries = list(product(self.dimensions, [LEFT, RIGHT]))
-        fields = [('%s%s' % (d, i), c_int) for d, i in entries]
-        obj = CompositeObject('nb', 'neighbours', Structure, fields)
+        fields = ['%s%s' % (d, i) for d, i in entries]
+        obj = MPINeighborhood(fields)
         for d, i in entries:
             setattr(obj.value._obj, '%s%s' % (d, i), self.neighbours[d][i])
-        cdef = Struct('neighbours', [Value('int', i) for i, _ in fields])
-        CNeighbours = namedtuple('CNeighbours', 'ctype cdef obj')
-        return CNeighbours(obj.dtype, cdef, obj)
+        return obj
 
 
 class SparseDistributor(AbstractDistributor):
@@ -407,6 +403,16 @@ class MPICommObject(Object):
 
     # Pickling support
     _pickle_args = []
+
+
+class MPINeighborhood(CompositeObject):
+
+    def __init__(self, fields):
+        super(MPINeighborhood, self).__init__('nb', 'neighbours',
+                                              [(i, c_int) for i in fields])
+
+    # Pickling support
+    _pickle_args = ['fields']
 
 
 def compute_dims(nprocs, ndim):
