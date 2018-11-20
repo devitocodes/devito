@@ -201,10 +201,22 @@
 <span id="devito-core-autotuning-module"></span><h2>devito.core.autotuning module<a class="headerlink" href="#module-devito.core.autotuning" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="devito.core.autotuning.autotune">
-<code class="descclassname">devito.core.autotuning.</code><code class="descname">autotune</code><span class="sig-paren">(</span><em>operator</em>, <em>arguments</em>, <em>parameters</em>, <em>tunable</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/core/autotuning.html#autotune"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.core.autotuning.autotune" title="Permalink to this definition">¶</a></dt>
-<dd><p>Acting as a high-order function, take as input an operator and a list of
-operator arguments to perform empirical autotuning. Some of the operator
-arguments are marked as tunable.</p>
+<code class="descclassname">devito.core.autotuning.</code><code class="descname">autotune</code><span class="sig-paren">(</span><em>operator</em>, <em>args</em>, <em>level</em>, <em>mode</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/core/autotuning.html#autotune"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.core.autotuning.autotune" title="Permalink to this definition">¶</a></dt>
+<dd><p>Operator autotuning.</p>
+<dl class="docutils">
+<dt>operator <span class="classifier-delimiter">:</span> <span class="classifier">Operator</span></dt>
+<dd>Input Operator.</dd>
+<dt>args <span class="classifier-delimiter">:</span> <span class="classifier">dict_like</span></dt>
+<dd>The runtime arguments with which <cite>operator</cite> is run.</dd>
+<dt>level <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd>The autotuning aggressiveness (basic, aggressive). A more aggressive
+autotuning might eventually result in higher performance, though in
+some circumstances it might instead increase the actual runtime.</dd>
+<dt>mode <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd>The autotuning mode (preemptive, runtime). In preemptive mode, the
+output runtime values supplied by the user to <cite>operator.apply</cite> are
+replaced with shadow copies.</dd>
+</dl>
 </dd></dl>
 
 </div>

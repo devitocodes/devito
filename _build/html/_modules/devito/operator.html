@@ -223,6 +223,10 @@
         <span class="c1"># References to local or external routines</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_func_table</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
 
+        <span class="c1"># Internal state. May be used to store information about previous runs,</span>
+        <span class="c1"># autotuning reports, etc</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_state</span> <span class="o">=</span> <span class="p">{}</span>
+
         <span class="c1"># Expression lowering: indexification, substitution rules, specialization</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">indexify</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_substitutions</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">subs</span><span class="p">)</span>
@@ -320,8 +324,7 @@
         <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;backend&#39;</span><span class="p">,</span> <span class="p">{}))</span>
 
         <span class="c1"># Execute autotuning and adjust arguments accordingly</span>
-        <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;autotune&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">level</span><span class="p">):</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;autotune&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]))</span>
 
         <span class="c1"># Check all user-provided keywords are known to the Operator</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;ignore-unknowns&#39;</span><span class="p">]:</span>
@@ -407,7 +410,7 @@
         <span class="sd">&quot;&quot;&quot;Introduce C-level profiling nodes within the Iteration/Expression tree.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">iet</span><span class="p">),</span> <span class="kc">None</span>
 
-    <span class="k">def</span> <span class="nf">_autotune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_autotune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">setup</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Use auto-tuning on this Operator to determine empirically the</span>
 <span class="sd">        best block sizes when loop blocking is in use.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">args</span>

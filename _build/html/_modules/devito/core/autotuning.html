@@ -159,27 +159,50 @@
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
 <span class="kn">import</span> <span class="nn">resource</span>
 
-<span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span>
+<span class="kn">from</span> <span class="nn">devito.ir</span> <span class="k">import</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;autotune&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="autotune"><a class="viewcode-back" href="../../../devito.core.html#devito.core.autotuning.autotune">[docs]</a><span class="k">def</span> <span class="nf">autotune</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">tunable</span><span class="p">):</span>
+<div class="viewcode-block" id="autotune"><a class="viewcode-back" href="../../../devito.core.html#devito.core.autotuning.autotune">[docs]</a><span class="k">def</span> <span class="nf">autotune</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Acting as a high-order function, take as input an operator and a list of</span>
-<span class="sd">    operator arguments to perform empirical autotuning. Some of the operator</span>
-<span class="sd">    arguments are marked as tunable.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># We get passed all the arguments, but the cfunction only requires a subset</span>
-    <span class="n">at_arguments</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">arguments</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">])</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">])</span>
+<span class="sd">    Operator autotuning.</span>
 
-    <span class="c1"># User-provided output data must not be altered</span>
-    <span class="n">output</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">operator</span><span class="o">.</span><span class="n">output</span><span class="p">]</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">output</span><span class="p">:</span>
-            <span class="n">at_arguments</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    operator : Operator</span>
+<span class="sd">        Input Operator.</span>
+<span class="sd">    args : dict_like</span>
+<span class="sd">        The runtime arguments with which `operator` is run.</span>
+<span class="sd">    level : str</span>
+<span class="sd">        The autotuning aggressiveness (basic, aggressive). A more aggressive</span>
+<span class="sd">        autotuning might eventually result in higher performance, though in</span>
+<span class="sd">        some circumstances it might instead increase the actual runtime.</span>
+<span class="sd">    mode : str</span>
+<span class="sd">        The autotuning mode (preemptive, runtime). In preemptive mode, the</span>
+<span class="sd">        output runtime values supplied by the user to `operator.apply` are</span>
+<span class="sd">        replaced with shadow copies.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="p">[</span><span class="n">level</span><span class="p">,</span> <span class="n">mode</span><span class="p">]</span>
+    <span class="n">accepted</span> <span class="o">=</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">accepted</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The accepted `(level, mode)` combinations are `</span><span class="si">%s</span><span class="s2">`; &quot;</span>
+                         <span class="s2">&quot;provided `</span><span class="si">%s</span><span class="s2">` instead&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">accepted</span><span class="p">,</span> <span class="n">key</span><span class="p">))</span>
+
+    <span class="n">parameters</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">parameters</span>
+    <span class="n">tunable</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">_dle_args</span>
+
+    <span class="c1"># We get passed all the arguments, but the cfunction only requires a subset</span>
+    <span class="n">at_args</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">])</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">])</span>
+
+    <span class="c1"># User-provided output data won&#39;t be altered in `preemptive` mode</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;preemptive&#39;</span><span class="p">:</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">operator</span><span class="o">.</span><span class="n">output</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">output</span><span class="p">:</span>
+                <span class="n">at_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
 
     <span class="n">iterations</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Iteration</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
     <span class="n">dim_mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span><span class="p">}</span>
@@ -188,33 +211,27 @@
     <span class="c1"># runs will finish quickly</span>
     <span class="n">steppers</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">]</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">steppers</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">stepper</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">timesteps</span> <span class="o">=</span> <span class="mi">1</span>
     <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">steppers</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
         <span class="n">stepper</span> <span class="o">=</span> <span class="n">steppers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">start</span> <span class="o">=</span> <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span>
-        <span class="n">timesteps</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">finish</span><span class="o">=</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span>
-        <span class="k">if</span> <span class="n">timesteps</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">timesteps</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">timesteps</span>
-            <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;AutoTuner: Number of timesteps adjusted to </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">timesteps</span><span class="p">)</span>
-        <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">start</span>
-        <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timesteps</span>
-        <span class="k">if</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
-            <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">start</span>
-            <span class="n">at_arguments</span><span class="p">[</span><span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timesteps</span>
+        <span class="n">timesteps</span> <span class="o">=</span> <span class="n">init_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">timesteps</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">args</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AutoTuner: Couldn&#39;t understand loop structure; giving up&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">arguments</span>
+        <span class="k">return</span> <span class="n">args</span>
 
     <span class="c1"># Attempted block sizes ...</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">symbolic_size</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tunable</span><span class="p">])</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">tunable</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tunable</span><span class="p">])</span>
     <span class="c1"># ... Defaults (basic mode)</span>
     <span class="n">blocksizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">])</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_blocksize&#39;</span><span class="p">]]</span>
     <span class="c1"># ... Always try the entire iteration space (degenerate block)</span>
-    <span class="n">itershape</span> <span class="o">=</span> <span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">iteration</span><span class="o">.</span><span class="n">symbolic_extent</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">]</span>
+    <span class="n">itershape</span> <span class="o">=</span> <span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">iteration</span><span class="o">.</span><span class="n">symbolic_extent</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">]</span>
     <span class="n">blocksizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">iteration</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">j</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
                       <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">itershape</span><span class="p">)]))</span>
     <span class="c1"># ... More attempts if auto-tuning in aggressive mode</span>
-    <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">level</span> <span class="o">==</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">:</span>
         <span class="n">blocksizes</span> <span class="o">=</span> <span class="n">more_heuristic_attempts</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">)</span>
 
     <span class="c1"># How many temporaries are allocated on the stack?</span>
@@ -228,15 +245,18 @@
     <span class="c1"># square blocks are tested</span>
     <span class="n">timings</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">bs</span> <span class="ow">in</span> <span class="n">blocksizes</span><span class="p">:</span>
+        <span class="c1"># Can we safely autotune over the given time range?</span>
+        <span class="n">check_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
         <span class="n">illegal</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">at_arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">at_args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">bs</span><span class="p">:</span>
                 <span class="n">val</span> <span class="o">=</span> <span class="n">bs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
-                <span class="n">start</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_start</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
-                <span class="n">end</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_end</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
+                <span class="n">start</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_start</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+                <span class="n">end</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_end</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="n">val</span> <span class="o">&lt;=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">iteration</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
-                    <span class="n">at_arguments</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+                    <span class="n">at_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="c1"># Block size cannot be larger than actual dimension</span>
                     <span class="n">illegal</span> <span class="o">=</span> <span class="kc">True</span>
@@ -246,7 +266,7 @@
 
         <span class="c1"># Make sure we remain within stack bounds, otherwise skip block size</span>
         <span class="n">dim_sizes</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">at_arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">at_args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">bs</span><span class="p">:</span>
                 <span class="n">dim_sizes</span><span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">symbolic_size</span><span class="p">]</span> <span class="o">=</span> <span class="n">bs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
             <span class="k">elif</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">dim_mapper</span><span class="p">:</span>
@@ -266,31 +286,93 @@
 
         <span class="c1"># Use AutoTuner-specific profiler structs</span>
         <span class="n">timer</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">timer</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-        <span class="n">at_arguments</span><span class="p">[</span><span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timer</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timer</span>
 
-        <span class="n">operator</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">at_arguments</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+        <span class="n">operator</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">at_args</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
         <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">timer</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">timer</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">_fields_</span><span class="p">)</span>
         <span class="n">timings</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">bs</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span> <span class="o">=</span> <span class="n">elapsed</span>
         <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;AutoTuner: Block shape &lt;</span><span class="si">%s</span><span class="s2">&gt; took </span><span class="si">%f</span><span class="s2"> (s) in </span><span class="si">%d</span><span class="s2"> timesteps&quot;</span> <span class="o">%</span>
              <span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bs</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">elapsed</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">))</span>
+
+        <span class="c1"># Prepare for the next autotuning run</span>
+        <span class="n">update_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">best</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">timings</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">timings</span><span class="o">.</span><span class="n">get</span><span class="p">))</span>
         <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;AutoTuner: Selected block shape </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">best</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
         <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AutoTuner: Couldn&#39;t find legal block shapes&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">arguments</span>
+        <span class="k">return</span> <span class="n">args</span>
 
     <span class="c1"># Build the new argument list</span>
-    <span class="n">tuned</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">tuned</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">best</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">mapper</span> <span class="k">else</span> <span class="n">v</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">best</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
 
-    <span class="c1"># Reset the profiling struct</span>
-    <span class="k">assert</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">tuned</span>
-    <span class="n">tuned</span><span class="p">[</span><span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">timer</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="c1"># In `runtime` mode, some timesteps have been executed already, so we</span>
+    <span class="c1"># get to adjust the time range</span>
+    <span class="n">finalize_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">tuned</span></div>
+    <span class="c1"># Reset profiling data</span>
+    <span class="k">assert</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">args</span>
+    <span class="n">args</span><span class="p">[</span><span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">timer</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">args</span></div>
+
+
+<span class="k">def</span> <span class="nf">init_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">stepper</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">dim</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">root</span>
+    <span class="k">if</span> <span class="n">stepper</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Backward</span><span class="p">:</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">-</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]:</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AutoTuner: too few time iterations; giving up&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">+</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]:</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AutoTuner: too few time iterations; giving up&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">return</span> <span class="n">stepper</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">],</span> <span class="n">finish</span><span class="o">=</span><span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">check_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">stepper</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">dim</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">root</span>
+    <span class="k">if</span> <span class="n">stepper</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Backward</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Too few time iterations&quot;</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Too few time iterations&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">update_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">!=</span> <span class="s1">&#39;runtime&#39;</span> <span class="ow">or</span> <span class="n">stepper</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">dim</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">root</span>
+    <span class="k">if</span> <span class="n">stepper</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Backward</span><span class="p">:</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">-=</span> <span class="n">timesteps</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">-=</span> <span class="n">timesteps</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">+=</span> <span class="n">timesteps</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">+=</span> <span class="n">timesteps</span>
+
+
+<span class="k">def</span> <span class="nf">finalize_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">!=</span> <span class="s1">&#39;runtime&#39;</span> <span class="ow">or</span> <span class="n">stepper</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">dim</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">root</span>
+    <span class="k">if</span> <span class="n">stepper</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Backward</span><span class="p">:</span>
+        <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span>
+        <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span>
+        <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span>
 
 
 <span class="k">def</span> <span class="nf">more_heuristic_attempts</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">):</span>
