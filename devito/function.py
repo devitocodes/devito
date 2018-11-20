@@ -1,10 +1,12 @@
 from collections import OrderedDict, namedtuple
 from itertools import product
+from ctypes import POINTER, c_void_p, c_int
 
 import sympy
 import numpy as np
 from psutil import virtual_memory
 from cached_property import cached_property
+from cgen import Struct, Value
 
 from devito.builtins import assign
 from devito.cgen_utils import INT, cast_mapper
@@ -21,7 +23,7 @@ from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, 
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_tuple,
                           flatten, is_integer, prod, powerset, filter_ordered,
-                          memoized_meth)
+                          ctypes_to_C, memoized_meth)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -114,10 +116,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     Utility class to encapsulate all symbolic types that represent
     tensor (array) data.
 
-    .. note::
-
-        Users should not instantiate this class. Use :class:`Function` or
-        :class:`SparseFunction` (or their subclasses) instead.
+    Notes
+    -----
+    Users should not instantiate this class. Use :class:`Function` or
+    :class:`SparseFunction` (or their subclasses) instead.
     """
 
     # Required by SymPy, otherwise the presence of __getitem__ will make SymPy
@@ -622,6 +624,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         symbolic_shape = super(TensorFunction, self).symbolic_shape
         ret = tuple(Add(i, -j) for i, j in zip(symbolic_shape, self.staggered))
         return EnrichedTuple(*ret, getters=self.dimensions)
+
+    _C_typedecl = Struct('function',
+                         [Value('%srestrict' % ctypes_to_C(c_void_p), 'data'),
+                          Value(ctypes_to_C(POINTER(c_int)), 'pad')])
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""

@@ -107,7 +107,7 @@ class Basic(object):
     @property
     def _C_typedecl(self):
         """
-        The C-level fields of the object.
+        A C-level struct declaration representing the object.
 
         Returns
         -------
