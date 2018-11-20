@@ -53,6 +53,9 @@ docker-compose run devito /tests
 
 # start a jupyter notebook server on port 8888
 docker-compose up devito
+
+# start a bash shell with devito
+docker-compose run devito /bin/bash
 ```
 
 ## Examples

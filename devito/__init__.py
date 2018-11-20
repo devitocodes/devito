@@ -8,6 +8,7 @@ from itertools import product
 import cpuinfo
 
 from devito.base import *  # noqa
+from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
@@ -27,9 +28,17 @@ from ._version import get_versions  # noqa
 __version__ = get_versions()['version']
 del get_versions
 
+# Setup compiler and backend
 configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
 configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
+
+# Should Devito run a first-touch Operator upon allocating data?
+configuration.add('first-touch', 0, [0, 1], lambda i: bool(i), False)
+
+# Should Devito ignore any unknown runtime arguments supplied to Operator.apply(),
+# or rather raise an exception (the default behaviour)?
+configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i), False)
 
 # Execution mode setup
 def _reinit_compiler(val):  # noqa
@@ -43,7 +52,7 @@ configuration.add('mpi', 0, [0, 1], callback=_reinit_compiler)
 # Autotuning setup
 AT_LEVELs = ['off', 'basic', 'aggressive']
 AT_MODEs = ['preemptive', 'runtime']
-at_default_mode = {'core': 'preemptive', 'yask': 'runtime'}
+at_default_mode = {'core': 'preemptive', 'yask': 'runtime', 'ops': 'runtime'}
 at_setup = namedtuple('at_setup', 'level mode')
 at_accepted = AT_LEVELs + [list(i) for i in product(AT_LEVELs, AT_MODEs)]
 def _at_callback(val):  # noqa
@@ -58,10 +67,11 @@ def _at_callback(val):  # noqa
         return at_setup(level, 'preemptive')
     else:
         return at_setup(level, mode)
-configuration.add('autotuning', 'off', at_accepted, callback=_at_callback)  # noqa
+configuration.add('autotuning', 'off', at_accepted, callback=_at_callback,  # noqa
+                  impacts_jit=False)
 
 # Should Devito emit the JIT compilation commands?
-configuration.add('debug_compiler', 0, [0, 1], lambda i: bool(i))
+configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i), False)
 
 # Set the Instruction Set Architecture (ISA)
 ISAs = ['cpp', 'avx', 'avx2', 'avx512']

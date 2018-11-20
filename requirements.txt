@@ -1,7 +1,6 @@
 numpy==1.14
 sympy>=1.2
 scipy
-matplotlib
 pytest-runner
 flake8>=2.1.0
 jedi

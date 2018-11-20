@@ -9,7 +9,7 @@ services:
       dockerfile: docker/Dockerfile
 
     environment:
-      DEVITO_ARCH: gcc-4.9
+      DEVITO_ARCH: gcc
       DEVITO_OPENMP: 0
 
     volumes:

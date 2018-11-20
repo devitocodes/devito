@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-
 from functools import reduce
 from operator import mul
 try:
@@ -9,16 +8,16 @@ except ImportError:
     from io import StringIO
 
 import pytest
-from conftest import skipif_yask
-
 import numpy as np
-
 from devito import Grid, Function, TimeFunction, Eq, Operator, configuration, silencio
 from devito.logger import logger, logging
 
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
+                                configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
+
 
 @silencio(log_level='DEBUG')
-@skipif_yask
 @pytest.mark.parametrize("shape,expected", [
     ((30, 30), 17),
     ((30, 30, 30), 21)
@@ -61,7 +60,6 @@ def test_at_is_actually_working(shape, expected):
 
 
 @silencio(log_level='DEBUG')
-@skipif_yask
 def test_timesteps_per_at_run():
     """
     Check that each autotuning run (ie with a given block shape) takes

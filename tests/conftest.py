@@ -18,16 +18,20 @@ from devito.ir.iet import Iteration
 from devito.tools import as_tuple
 
 try:
-    import mpi4py
-    no_mpi = False
+    from mpi4py import MPI  # noqa
 except ImportError:
-    no_mpi = True
     pass
 
-skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
-                                 reason="YASK testing is currently restricted")
 
-skipif_mpi = pytest.mark.skipif(no_mpi, reason="mpi not installed")
+def skipif_backend(backends):
+    conditions = []
+    for b in backends:
+        conditions.append(b == configuration['backend'])
+    return pytest.mark.skipif(any(conditions),
+                              reason="{} testing is currently restricted".format(b))
+
+
+skipif_nompi = pytest.mark.skipif(MPI is None, reason="mpi not installed")
 
 
 # Testing dimensions for space and time
@@ -57,7 +61,6 @@ def timefunction(name, space_order=1):
     return TimeFunction(name=name, grid=grid, space_order=space_order)
 
 
-@pytest.fixture(scope="session")
 def unit_box(name='a', shape=(11, 11), grid=None):
     """Create a field with value 0. to 1. in each dimension"""
     grid = grid or Grid(shape=shape)
@@ -67,7 +70,6 @@ def unit_box(name='a', shape=(11, 11), grid=None):
     return a
 
 
-@pytest.fixture(scope="session")
 def unit_box_time(name='a', shape=(11, 11)):
     """Create a field with value 0. to 1. in each dimension"""
     grid = Grid(shape=shape)
@@ -78,7 +80,6 @@ def unit_box_time(name='a', shape=(11, 11)):
     return a
 
 
-@pytest.fixture(scope="session")
 def points(grid, ranges, npoints, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
@@ -89,7 +90,6 @@ def points(grid, ranges, npoints, name='points'):
     return points
 
 
-@pytest.fixture(scope="session")
 def time_points(grid, ranges, npoints, name='points', nt=10):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
@@ -287,19 +287,18 @@ def configuration_override(key, value):
     return dec
 
 
-# Support to run MPI tests
-# This is partly extracted from:
-# `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
-
-mpi_exec = 'mpiexec'
-mpi_distro = sniff_mpi_distro(mpi_exec)
-
-
 def parallel(item):
     """Run a test in parallel.
 
     :parameter item: The test item to run.
     """
+    # Support to run MPI tests
+    # This is partly extracted from:
+    # `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
+
+    mpi_exec = 'mpiexec'
+    mpi_distro = sniff_mpi_distro(mpi_exec)
+
     marker = item.get_closest_marker("parallel")
     nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
     for i in nprocs:

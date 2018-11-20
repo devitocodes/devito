@@ -1,5 +1,11 @@
 import numpy as np
+import pytest
 from numpy.random import rand
+
+from devito import configuration
+
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
 
 def test_numpy_dot():
