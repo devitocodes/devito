@@ -110,8 +110,5 @@ class AcquisitionGeometry(object):
                                           time_range=self.time_axis, npoitn=self.nsrc,
                                           coordinates=self.src_positions)
 
-    _pickle_args = ['model', 'rec_positions', 'src_positions', 't0', 'tn']
-    _pickle_kwargs = ['src_type', 'f0']
-
 
 sources = {'Wavelet': WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}
