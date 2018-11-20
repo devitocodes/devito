@@ -65,9 +65,9 @@ class MemoryAllocator(object):
         if c_pointer is None:
             raise RuntimeError("Unable to allocate %d elements in memory", str(size))
 
-        c_pointer = ctypes.cast(c_pointer, np.ctypeslib.ndpointer(dtype=dtype,
+        c_pointer_cast = ctypes.cast(c_pointer, np.ctypeslib.ndpointer(dtype=dtype,
                                                                   shape=shape))
-        pointer = np.ctypeslib.as_array(c_pointer, shape=shape)
+        pointer = np.ctypeslib.as_array(c_pointer_cast, shape=shape)
 
         return (pointer, memfree_args)
 
@@ -242,7 +242,14 @@ class NumaAllocator(MemoryAllocator):
         if not self.available():
             raise RuntimeError("Couldn't find `libnuma`'s `numa_alloc_*` to "
                                "allocate memory")
-        c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
+
+        if size == 0:
+            # work around the fact that the allocator may return NULL when
+            # the size is 0, and numpy does not like that
+            c_bytesize = ctypes.c_ulong(1)
+        else:
+            c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
+
         if self.put_onnode:
             c_pointer = self.lib.numa_alloc_onnode(c_bytesize, self._node)
         elif self.put_local:
@@ -253,7 +260,8 @@ class NumaAllocator(MemoryAllocator):
         # note!  even though restype was set above, ctypes returns a
         # python integer.
         # See https://stackoverflow.com/questions/17840144/
-        if c_pointer == 0:
+        # edit: it apparently can return None, also!
+        if c_pointer == 0 or c_pointer is None:
             return None, None
         else:
             # Convert it back to a void * - this is
