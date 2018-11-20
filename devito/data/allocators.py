@@ -65,8 +65,8 @@ class MemoryAllocator(object):
         if c_pointer is None:
             raise RuntimeError("Unable to allocate %d elements in memory", str(size))
 
-        c_pointer_cast = ctypes.cast(c_pointer, np.ctypeslib.ndpointer(dtype=dtype,
-                                                                  shape=shape))
+        c_pointer_cast = ctypes.cast(
+            c_pointer, np.ctypeslib.ndpointer(dtype=dtype, shape=shape))
         pointer = np.ctypeslib.as_array(c_pointer_cast, shape=shape)
 
         return (pointer, memfree_args)
