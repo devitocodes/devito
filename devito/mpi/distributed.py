@@ -12,7 +12,7 @@ import numpy as np
 
 from devito.data import Decomposition
 from devito.parameters import configuration
-from devito.types import LEFT, RIGHT
+from devito.types import LEFT, RIGHT, CompositeObject, Object
 from devito.tools import EnrichedTuple, as_tuple, is_integer
 
 
@@ -58,6 +58,15 @@ class AbstractDistributor(ABC):
     def mycoords(self):
         """The coordinates of the calling MPI rank in the Distributor topology."""
         return
+
+    @abstractmethod
+    def nprocs(self):
+        """A shortcut for the number of processes in the MPI communicator."""
+        return
+
+    @property
+    def is_parallel(self):
+        return self.nprocs > 1
 
     @cached_property
     def glb_numb(self):
@@ -293,26 +302,12 @@ class Distributor(AbstractDistributor):
 
     @cached_property
     def _C_comm(self):
-        """
-        A :class:`Object` wrapping an MPI communicator.
-
-        Extracted from: ::
-
-            https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py
-        """
-        from devito.types import Object
-        if MPI._sizeof(self._comm) == sizeof(c_int):
-            ctype = type('MPI_Comm', (c_int,), {})
-        else:
-            ctype = type('MPI_Comm', (c_void_p,), {})
-        comm_ptr = MPI._addressof(self._comm)
-        comm_val = ctype.from_address(comm_ptr)
-        return Object(name='comm', dtype=ctype, value=comm_val)
+        """An :class:`Object` wrapping an MPI communicator."""
+        return MPICommObject(self.comm)
 
     @cached_property
     def _C_neighbours(self):
-        """A ctypes Struct to access the neighborhood of a given rank."""
-        from devito.types import CompositeObject
+        """A :class:`ctypes.Struct` to access the neighborhood of a given rank."""
         entries = list(product(self.dimensions, [LEFT, RIGHT]))
         fields = [('%s%s' % (d, i), c_int) for d, i in entries]
         obj = CompositeObject('nb', 'neighbours', Structure, fields)
@@ -390,6 +385,28 @@ class SparseDistributor(AbstractDistributor):
     @property
     def nprocs(self):
         return self.distributor.nprocs
+
+
+class MPICommObject(Object):
+
+    name = 'comm'
+
+    # See https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py
+    if MPI._sizeof(MPI.Comm) == sizeof(c_int):
+        dtype = type('MPI_Comm', (c_int,), {})
+    else:
+        dtype = type('MPI_Comm', (c_void_p,), {})
+
+    def __init__(self, comm=None):
+        if comm is None:
+            # Should only end up here upon unpickling
+            comm = MPI.COMM_WORLD
+        comm_ptr = MPI._addressof(comm)
+        comm_val = self.dtype.from_address(comm_ptr)
+        self.value = comm_val
+
+    # Pickling support
+    _pickle_args = []
 
 
 def compute_dims(nprocs, ndim):

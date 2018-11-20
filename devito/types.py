@@ -11,12 +11,9 @@ from ctypes import POINTER, byref
 import numpy as np
 import sympy
 
-from devito.parameters import configuration
 from devito.tools import ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_C
 
 __all__ = ['Symbol', 'Indexed']
-
-configuration.add('first_touch', 0, [0, 1], lambda i: bool(i))
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
@@ -436,11 +433,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         halo, and domain regions. While halo and padding are known quantities
         (integers), the domain size is represented by a symbol.
         """
-        halo_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_halo]
-        padding_sizes = [sympy.Add(*i, evaluate=False) for i in self._extent_padding]
+        from devito.symbolics.extended_sympy import Add
+        halo_sizes = [Add(*i) for i in self._extent_halo]
+        pad_sizes = [Add(*i) for i in self._extent_padding]
         domain_sizes = [i.symbolic_size for i in self.indices]
-        ret = tuple(sympy.Add(i, j, k, evaluate=False)
-                    for i, j, k in zip(domain_sizes, halo_sizes, padding_sizes))
+        ret = tuple(Add(i, j, k) for i, j, k in zip(domain_sizes, halo_sizes, pad_sizes))
         return EnrichedTuple(*ret, getters=self.dimensions)
 
     @property
@@ -792,7 +789,7 @@ class CompositeObject(Object):
 
     @property
     def pfields(self):
-        return tuple(i for i, _ in self.dtype._type_._fields_)
+        return tuple(self.dtype._type_._fields_)
 
     @property
     def ptype(self):

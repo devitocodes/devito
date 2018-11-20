@@ -104,8 +104,8 @@ def set_log_noperf():
     logger.setLevel(WARNING)
 
 
-configuration.add('log_level', 'INFO', list(logger_registry),
-                  lambda i: set_log_level(i))
+configuration.add('log-level', 'INFO', list(logger_registry),
+                  lambda i: set_log_level(i), False)
 
 
 class silencio(object):
@@ -120,10 +120,10 @@ class silencio(object):
     def __call__(self, func, *args, **kwargs):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            previous = configuration['log_level']
-            configuration['log_level'] = self.log_level
+            previous = configuration['log-level']
+            configuration['log-level'] = self.log_level
             result = func(*args, **kwargs)
-            configuration['log_level'] = previous
+            configuration['log-level'] = previous
             return result
         return wrapper
 

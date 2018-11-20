@@ -70,11 +70,30 @@ class OperatorCore(OperatorRunnable):
 
         return iet
 
-    def _autotune(self, args):
-        if self._dle_flags.get('blocking', False):
-            return autotune(self, args, self.parameters, self._dle_args)
-        else:
+    def _autotune(self, args, setup):
+        if setup is False or not self._dle_flags.get('blocking'):
             return args
+        elif setup is True:
+            level = configuration['autotuning'].level or 'basic'
+            args = autotune(self, args, level, configuration['autotuning'].mode)
+        elif isinstance(setup, str):
+            args = autotune(self, args, setup, configuration['autotuning'].mode)
+        elif isinstance(setup, tuple) and len(setup) == 2:
+            level, mode = setup
+            if level is False:
+                return args
+            else:
+                args = autotune(self, args, level, mode)
+        else:
+            raise ValueError("Expected bool, str, or 2-tuple, got `%s` instead"
+                             % type(setup))
+
+        # Record the tuned values
+        mapper = self._state.setdefault('tuned', {})
+        mapper.update({k: v for k, v in args.items()
+                       if k in [i.tunable.name for i in self._dle_args]})
+
+        return args
 
 
 class OperatorDebug(OperatorCore):

@@ -144,7 +144,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
             # Data-related properties and data initialization
             self._data = None
-            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
+            self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
             self._allocator = kwargs.get('allocator', default_allocator())
             initializer = kwargs.get('initializer')
             if initializer is None or callable(initializer):
@@ -256,9 +256,12 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @cached_property
     def shape(self):
         """
-        Shape of the domain associated with this :class:`TensorFunction`.
-        The domain constitutes the area of the data written to in a
-        stencil update.
+        Shape of the domain region. The domain constitutes the area of the
+        data written to by an :class:`Operator`.
+
+        Notes
+        -----
+        In an MPI context, this is the *local* domain region shape.
         """
         return self.shape_domain
 
@@ -270,6 +273,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
         Notes
         -----
+        In an MPI context, this is the *local* domain region shape.
+
         Alias to ``self.shape``.
         """
         return tuple(i - j for i, j in zip(self._shape, self.staggered))
@@ -282,10 +287,11 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
         Notes
         -----
-        If ``self`` is MPI-distributed, then the outhalo of inner ranks may be
-        empty, while the outhalo of boundary ranks will contain a number of
-        elements depending on the rank position in the decomposed grid (corner,
-        side, ...).
+        In an MPI context, this is the *local* with_halo region shape.
+
+        Further, note that the outhalo of inner ranks is typically empty, while
+        the outhalo of boundary ranks contains a number of elements depending
+        on the rank position in the decomposed grid (corner, side, ...).
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_domain,
                                                     self._extent_outhalo))
@@ -297,14 +303,13 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         Shape of the domain+inhalo region. The inhalo region comprises the
         outhalo as well as any additional "ghost" layers for MPI halo
-        exchanges. In other words, data in the inhalo region are exchanged
-        during an :class:`Operator` application to maintain consistent values
-        as in sequential runs.
+        exchanges. Data in the inhalo region are exchanged when running
+        :class:`Operator`s to maintain consistent values as in sequential runs.
 
         Notes
         -----
-        Typically, this property won't be used in user code to set or read data
-        values. Instead, it may come in handy for testing or debugging
+        Typically, this property won't be used in user code, but it may come
+        in handy for testing or debugging
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
 
@@ -313,9 +318,32 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         Shape of the allocated data. It includes the domain and inhalo regions,
         as well as any additional padding surrounding the halo.
+
+        Notes
+        -----
+        In an MPI context, this is the *local* with_halo region shape.
         """
         return tuple(j + i + k for i, (j, k) in zip(self._shape_with_inhalo,
                                                     self._padding))
+
+    @cached_property
+    def shape_global(self):
+        """
+        Global shape of the domain region. The domain constitutes the area of
+        the data written to by an :class:`Operator`.
+
+        Notes
+        -----
+        In an MPI context, this is the *global* domain region shape, which is
+        therefore identical on all MPI ranks.
+        """
+        if self.grid is None:
+            return self.shape
+        retval = []
+        for d, s in zip(self.dimensions, self.shape):
+            size = self.grid.dimension_map.get(d)
+            retval.append(size.glb if size is not None else s)
+        return tuple(retval)
 
     _offset_inhalo = AbstractCachedFunction._offset_halo
     _extent_inhalo = AbstractCachedFunction._extent_halo
@@ -812,30 +840,32 @@ class Function(TensorFunction, Differentiable):
     def __shape_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
         dimensions = kwargs.get('dimensions')
-        shape = kwargs.get('shape')
+        shape = kwargs.get('shape', kwargs.get('shape_global'))
         if grid is None:
             if shape is None:
                 raise TypeError("Need either `grid` or `shape`")
         elif shape is None:
-            shape = grid.shape_domain
+            if dimensions is not None and dimensions != grid.dimensions:
+                raise TypeError("Need `shape` as not all `dimensions` are in `grid`")
+            shape = grid.shape_local
         elif dimensions is None:
             raise TypeError("`dimensions` required if both `grid` and "
                             "`shape` are provided")
         else:
             # Got `grid`, `dimensions`, and `shape`. We sanity-check that the
-            # Dimensions in `dimensions` which also appear in `grid` have
-            # size (given by `shape`) matching the one in `grid`
+            # Dimensions in `dimensions` also appearing in `grid` have same size
+            # (given by `shape`) as that provided in `grid`
             if len(shape) != len(dimensions):
-                raise TypeError("`shape` and `dimensions` must have the "
-                                "same number of entries")
+                raise ValueError("`shape` and `dimensions` must have the "
+                                 "same number of entries")
             loc_shape = []
             for d, s in zip(dimensions, shape):
                 if d in grid.dimensions:
                     size = grid.dimension_map[d]
-                    if size.glb != s:
-                        raise TypeError("Dimension `%s` is given size `%d`, "
-                                        "while `grid` says `%s` has size `%d` "
-                                        % (d, s, d, size.glb))
+                    if size.glb != s and s is not None:
+                        raise ValueError("Dimension `%s` is given size `%d`, "
+                                         "while `grid` says `%s` has size `%d` "
+                                         % (d, s, d, size.glb))
                     else:
                         loc_shape.append(size.loc)
                 else:
@@ -911,7 +941,7 @@ class Function(TensorFunction, Differentiable):
 
     # Pickling support
     _pickle_kwargs = TensorFunction._pickle_kwargs +\
-        ['space_order', 'shape', 'dimensions']
+        ['space_order', 'shape_global', 'dimensions']
 
 
 class TimeFunction(Function):
@@ -1057,7 +1087,7 @@ class TimeFunction(Function):
                 raise TypeError("Ambiguity detected: provide either `grid` and `save` "
                                 "or just `shape` ")
         elif shape is None:
-            shape = list(grid.shape_domain)
+            shape = list(grid.shape_local)
             if save is None:
                 shape.insert(cls._time_position, time_order + 1)
             elif isinstance(save, Buffer):

@@ -18,8 +18,12 @@ from devito.ir.iet import Iteration
 from devito.tools import as_tuple
 
 
-skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
-                                 reason="YASK testing is currently restricted")
+def skipif_backend(backends):
+    conditions = []
+    for b in backends:
+        conditions.append(b == configuration['backend'])
+    return pytest.mark.skipif(any(conditions),
+                              reason="{} testing is currently restricted".format(b))
 
 
 # Testing dimensions for space and time
@@ -49,7 +53,6 @@ def timefunction(name, space_order=1):
     return TimeFunction(name=name, grid=grid, space_order=space_order)
 
 
-@pytest.fixture(scope="session")
 def unit_box(name='a', shape=(11, 11), grid=None):
     """Create a field with value 0. to 1. in each dimension"""
     grid = grid or Grid(shape=shape)
@@ -59,7 +62,6 @@ def unit_box(name='a', shape=(11, 11), grid=None):
     return a
 
 
-@pytest.fixture(scope="session")
 def unit_box_time(name='a', shape=(11, 11)):
     """Create a field with value 0. to 1. in each dimension"""
     grid = Grid(shape=shape)
@@ -70,7 +72,6 @@ def unit_box_time(name='a', shape=(11, 11)):
     return a
 
 
-@pytest.fixture(scope="session")
 def points(grid, ranges, npoints, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
@@ -81,7 +82,6 @@ def points(grid, ranges, npoints, name='points'):
     return points
 
 
-@pytest.fixture(scope="session")
 def time_points(grid, ranges, npoints, name='points', nt=10):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
