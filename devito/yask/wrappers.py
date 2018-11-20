@@ -199,9 +199,9 @@ class YaskKernel(object):
         self.soln.prepare_solution()
 
         # Set up auto-tuning
-        if configuration['autotuning'] is False:
+        if configuration['autotuning'].level is False:
             self.soln.reset_auto_tuner(False)
-        elif configuration['autotuning'] == 'preemptive':
+        elif configuration['autotuning'].mode == 'preemptive':
             self.soln.run_auto_tuner_now()
 
     def post_apply(self):

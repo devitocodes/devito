@@ -6,27 +6,50 @@ from functools import reduce
 from operator import mul
 import resource
 
-from devito.ir.iet import Iteration, FindNodes, FindSymbols
+from devito.ir import Backward, Iteration, FindNodes, FindSymbols
 from devito.logger import perf, warning
 from devito.parameters import configuration
 
 __all__ = ['autotune']
 
 
-def autotune(operator, arguments, parameters, tunable):
+def autotune(operator, args, level, mode):
     """
-    Acting as a high-order function, take as input an operator and a list of
-    operator arguments to perform empirical autotuning. Some of the operator
-    arguments are marked as tunable.
-    """
-    # We get passed all the arguments, but the cfunction only requires a subset
-    at_arguments = OrderedDict([(p.name, arguments[p.name]) for p in parameters])
+    Operator autotuning.
 
-    # User-provided output data must not be altered
-    output = [i.name for i in operator.output]
-    for k, v in arguments.items():
-        if k in output:
-            at_arguments[k] = v.copy()
+    Parameters
+    ----------
+    operator : Operator
+        Input Operator.
+    args : dict_like
+        The runtime arguments with which `operator` is run.
+    level : str
+        The autotuning aggressiveness (basic, aggressive). A more aggressive
+        autotuning might eventually result in higher performance, though in
+        some circumstances it might instead increase the actual runtime.
+    mode : str
+        The autotuning mode (preemptive, runtime). In preemptive mode, the
+        output runtime values supplied by the user to `operator.apply` are
+        replaced with shadow copies.
+    """
+    key = [level, mode]
+    accepted = configuration._accepted['autotuning']
+    if key not in accepted:
+        raise ValueError("The accepted `(level, mode)` combinations are `%s`; "
+                         "provided `%s` instead" % (accepted, key))
+
+    parameters = operator.parameters
+    tunable = operator._dle_args
+
+    # We get passed all the arguments, but the cfunction only requires a subset
+    at_args = OrderedDict([(p.name, args[p.name]) for p in parameters])
+
+    # User-provided output data won't be altered in `preemptive` mode
+    if mode == 'preemptive':
+        output = [i.name for i in operator.output]
+        for k, v in args.items():
+            if k in output:
+                at_args[k] = v.copy()
 
     iterations = FindNodes(Iteration).visit(operator.body)
     dim_mapper = {i.dim.name: i.dim for i in iterations}
@@ -35,33 +58,27 @@ def autotune(operator, arguments, parameters, tunable):
     # runs will finish quickly
     steppers = [i for i in iterations if i.dim.is_Time]
     if len(steppers) == 0:
+        stepper = None
         timesteps = 1
     elif len(steppers) == 1:
         stepper = steppers[0]
-        start = at_arguments[stepper.dim.min_name]
-        timesteps = stepper.extent(start=start, finish=options['at_squeezer']) - 1
-        if timesteps < 0:
-            timesteps = options['at_squeezer'] - timesteps
-            perf("AutoTuner: Number of timesteps adjusted to %d" % timesteps)
-        at_arguments[stepper.dim.min_name] = start
-        at_arguments[stepper.dim.max_name] = timesteps
-        if stepper.dim.is_Stepping:
-            at_arguments[stepper.dim.parent.min_name] = start
-            at_arguments[stepper.dim.parent.max_name] = timesteps
+        timesteps = init_time_bounds(stepper, at_args)
+        if timesteps is None:
+            return args
     else:
         warning("AutoTuner: Couldn't understand loop structure; giving up")
-        return arguments
+        return args
 
     # Attempted block sizes ...
-    mapper = OrderedDict([(i.argument.symbolic_size.name, i) for i in tunable])
+    mapper = OrderedDict([(i.tunable.name, i) for i in tunable])
     # ... Defaults (basic mode)
     blocksizes = [OrderedDict([(i, v) for i in mapper]) for v in options['at_blocksize']]
     # ... Always try the entire iteration space (degenerate block)
-    itershape = [mapper[i].iteration.symbolic_extent.subs(arguments) for i in mapper]
+    itershape = [mapper[i].iteration.symbolic_extent.subs(args) for i in mapper]
     blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j-1))
                       for i, j in zip(mapper, itershape)]))
     # ... More attempts if auto-tuning in aggressive mode
-    if configuration['autotuning'].level == 'aggressive':
+    if level == 'aggressive':
         blocksizes = more_heuristic_attempts(blocksizes)
 
     # How many temporaries are allocated on the stack?
@@ -75,15 +92,18 @@ def autotune(operator, arguments, parameters, tunable):
     # square blocks are tested
     timings = OrderedDict()
     for bs in blocksizes:
+        # Can we safely autotune over the given time range?
+        check_time_bounds(stepper, at_args, args)
+
         illegal = False
-        for k, v in at_arguments.items():
+        for k, v in at_args.items():
             if k in bs:
                 val = bs[k]
-                start = mapper[k].original_dim.symbolic_start.subs(arguments)
-                end = mapper[k].original_dim.symbolic_end.subs(arguments)
+                start = mapper[k].original_dim.symbolic_start.subs(args)
+                end = mapper[k].original_dim.symbolic_end.subs(args)
 
                 if val <= mapper[k].iteration.extent(start, end):
-                    at_arguments[k] = val
+                    at_args[k] = val
                 else:
                     # Block size cannot be larger than actual dimension
                     illegal = True
@@ -93,7 +113,7 @@ def autotune(operator, arguments, parameters, tunable):
 
         # Make sure we remain within stack bounds, otherwise skip block size
         dim_sizes = {}
-        for k, v in at_arguments.items():
+        for k, v in at_args.items():
             if k in bs:
                 dim_sizes[mapper[k].argument.symbolic_size] = bs[k]
             elif k in dim_mapper:
@@ -113,31 +133,93 @@ def autotune(operator, arguments, parameters, tunable):
 
         # Use AutoTuner-specific profiler structs
         timer = operator.profiler.timer.reset()
-        at_arguments[operator.profiler.name] = timer
+        at_args[operator.profiler.name] = timer
 
-        operator.cfunction(*list(at_arguments.values()))
+        operator.cfunction(*list(at_args.values()))
         elapsed = sum(getattr(timer._obj, i) for i, _ in timer._obj._fields_)
         timings[tuple(bs.items())] = elapsed
         perf("AutoTuner: Block shape <%s> took %f (s) in %d timesteps" %
              (','.join('%d' % i for i in bs.values()), elapsed, timesteps))
+
+        # Prepare for the next autotuning run
+        update_time_bounds(stepper, at_args, timesteps, mode)
 
     try:
         best = dict(min(timings, key=timings.get))
         perf("AutoTuner: Selected block shape %s" % best)
     except ValueError:
         warning("AutoTuner: Couldn't find legal block shapes")
-        return arguments
+        return args
 
     # Build the new argument list
-    tuned = OrderedDict()
-    for k, v in arguments.items():
-        tuned[k] = best[k] if k in mapper else v
+    args = {k: best.get(k, v) for k, v in args.items()}
 
-    # Reset the profiling struct
-    assert operator.profiler.name in tuned
-    tuned[operator.profiler.name] = operator.profiler.timer.reset()
+    # In `runtime` mode, some timesteps have been executed already, so we
+    # get to adjust the time range
+    finalize_time_bounds(stepper, at_args, args, mode)
 
-    return tuned
+    # Reset profiling data
+    assert operator.profiler.name in args
+    args[operator.profiler.name] = operator.profiler.timer.reset()
+
+    return args
+
+
+def init_time_bounds(stepper, at_args):
+    if stepper is None:
+        return
+    dim = stepper.dim.root
+    if stepper.direction is Backward:
+        at_args[dim.max_name] = at_args[dim.max_name]
+        at_args[dim.min_name] = at_args[dim.max_name] - options['at_squeezer']
+        if at_args[dim.max_name] < at_args[dim.min_name]:
+            warning("AutoTuner: too few time iterations; giving up")
+            return False
+    else:
+        at_args[dim.min_name] = at_args[dim.min_name]
+        at_args[dim.max_name] = at_args[dim.min_name] + options['at_squeezer']
+        if at_args[dim.min_name] > at_args[dim.max_name]:
+            warning("AutoTuner: too few time iterations; giving up")
+            return False
+
+    return stepper.extent(start=at_args[dim.min_name], finish=at_args[dim.max_name])
+
+
+def check_time_bounds(stepper, at_args, args):
+    if stepper is None:
+        return
+    dim = stepper.dim.root
+    if stepper.direction is Backward:
+        if at_args[dim.min_name] < args[dim.min_name]:
+            raise ValueError("Too few time iterations")
+
+    else:
+        if at_args[dim.max_name] > args[dim.max_name]:
+            raise ValueError("Too few time iterations")
+
+
+def update_time_bounds(stepper, at_args, timesteps, mode):
+    if mode != 'runtime' or stepper is None:
+        return
+    dim = stepper.dim.root
+    if stepper.direction is Backward:
+        at_args[dim.max_name] -= timesteps
+        at_args[dim.min_name] -= timesteps
+    else:
+        at_args[dim.min_name] += timesteps
+        at_args[dim.max_name] += timesteps
+
+
+def finalize_time_bounds(stepper, at_args, args, mode):
+    if mode != 'runtime' or stepper is None:
+        return
+    dim = stepper.dim.root
+    if stepper.direction is Backward:
+        args[dim.max_name] = at_args[dim.max_name]
+        args[dim.min_name] = args[dim.min_name]
+    else:
+        args[dim.min_name] = at_args[dim.min_name]
+        args[dim.max_name] = args[dim.max_name]
 
 
 def more_heuristic_attempts(blocksizes):
