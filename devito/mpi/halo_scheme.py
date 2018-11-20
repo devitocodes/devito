@@ -37,7 +37,7 @@ Halo = namedtuple('Halo', 'dim side amount')
 class HaloScheme(object):
 
     """
-    A HaloScheme describes a halo exchange pattern through a mapper: ::
+    A HaloScheme describes a set of halo exchanges through a mapper: ::
 
         M : Function -> HaloSchemeEntry
 
@@ -59,16 +59,19 @@ class HaloScheme(object):
     how to access the corresponding non-halo dimension. Thus, in this example
     ``loc_indices`` could be, for instance, ``{t: 0}`` or ``{t: t-1}``.
 
-    :param exprs: The :class:`IREq`s for which the HaloScheme is built.
-    :param ispace: A :class:`IterationSpace` describing the iteration
-                   directions and the sub-iterators used by the ``exprs``.
-    :param dspace: A :class:`DataSpace` describing the ``exprs`` data
-                   access pattern.
-    :param fmapper: (Optional) Alternatively, a HaloScheme can be built from a
-                   set of known HaloSchemeEntry. If ``fmapper`` is provided,
-                   then ``exprs``, ``ispace``, and ``dspace`` are ignored.
-                   ``fmapper`` is a dictionary having same format as ``M``, the
-                   HaloScheme mapper defined at the top of this docstring.
+    Parameters
+    ----------
+    exprs : tuple of :class:`IREq`
+        The expressions for which the HaloScheme is built
+    ispace : :class:`IterationSpace`
+        Description of iteration directions and sub-iterators used in ``exprs``.
+    dspace : :class:`DataSpace`
+        Description of the data access pattern in ``exprs``.
+    fmapper : dict, optional
+        The format is the same as ``M``. When provided, ``exprs``, ``ispace`` and
+        ``dspace`` are ignored. It should be used to aggregate several existing
+        HaloSchemes into a single, "bigger" HaloScheme, without performing any
+        additional analysis.
     """
 
     def __init__(self, exprs=None, ispace=None, dspace=None, fmapper=None):
@@ -130,9 +133,9 @@ class HaloScheme(object):
 
 def hs_classify(scope):
     """
-    Return a mapper ``Function -> (Dimension -> [HaloLabel]`` describing what
-    type of halo exchange is expected by the various :class:`TensorFunction`s
-    in a :class:`Scope`.
+    A mapper ``Function -> (Dimension -> [HaloLabel]`` describing what type of
+    halo exchange is expected by the various :class:`TensorFunction`s in a
+    :class:`Scope`.
     """
     mapper = {}
     for f, r in scope.reads.items():
@@ -188,9 +191,9 @@ def hs_classify(scope):
 
 def hs_comp_halos(f, dims, dspace=None):
     """
-    Return an iterable of 3-tuples ``[(Dimension, DataSide, amount), ...]``
-    describing the amount of halo that should be exchange along the two sides of
-    a set of :class:`Dimension`s.
+    An iterable of 3-tuples ``[(Dimension, DataSide, amount), ...]`` describing
+    the amount of halo that should be exchange along the two sides of a set of
+    :class:`Dimension`s.
     """
     halos = []
     for d in dims:
