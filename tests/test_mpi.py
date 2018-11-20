@@ -960,6 +960,25 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[0, :-thickness] == 1.)
             assert np.all(u.data_ro_domain[0, -thickness:] == range(2, thickness+2))
 
+    @pytest.mark.parallel(nprocs=2)
+    def test_interior_w_stencil(self):
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u[t, x-1] + u[t, x+1] + 1, subdomain=grid.interior))
+        op.apply(time=1)
+
+        glb_pos_map = u.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(u.data_ro_domain[0, 1] == 2.)
+            assert np.all(u.data_ro_domain[0, 2:] == 3.)
+        else:
+            assert np.all(u.data_ro_domain[0, -2] == 2.)
+            assert np.all(u.data_ro_domain[0, :-2] == 3.)
+
     @pytest.mark.parallel(nprocs=4)
     def test_misc_dims(self):
         """
@@ -1132,5 +1151,14 @@ class TestIsotropicAcoustic(object):
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
-                                           153.122, 205.902, 27484.635, 11736.917)
+    # TestDecomposition().test_reshape_left_right()
+    # TestOperatorSimple().test_trivial_eq_2d()
+    # TestFunction().test_halo_exchange_bilateral()
+    # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
+    # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
+    # TestSparseFunction().test_scatter_gather()
+    # TestOperatorAdvanced().test_nontrivial_operator()
+    TestOperatorAdvanced().test_interior_w_stencil()
+    # TestOperatorAdvanced().test_interpolation_dup()
+    # TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
+    #                                        153.122, 205.902, 27484.635, 11736.917)
