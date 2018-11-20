@@ -70,6 +70,10 @@ class Operator(Callable):
         # References to local or external routines
         self._func_table = OrderedDict()
 
+        # Internal state. May be used to store information about previous runs,
+        # autotuning reports, etc
+        self._state = {}
+
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
         expressions = self._apply_substitutions(expressions, subs)
@@ -167,8 +171,7 @@ class Operator(Callable):
         args.update(kwargs.pop('backend', {}))
 
         # Execute autotuning and adjust arguments accordingly
-        if kwargs.pop('autotune', configuration['autotuning'].level):
-            args = self._autotune(args)
+        args = self._autotune(args, kwargs.pop('autotune', configuration['autotuning']))
 
         # Check all user-provided keywords are known to the Operator
         if not configuration['ignore-unknowns']:
@@ -254,7 +257,7 @@ class Operator(Callable):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         return List(body=iet), None
 
-    def _autotune(self, args):
+    def _autotune(self, args, setup):
         """Use auto-tuning on this Operator to determine empirically the
         best block sizes when loop blocking is in use."""
         return args

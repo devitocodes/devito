@@ -81,6 +81,10 @@ class BlockingArg(Arg):
     def original_dim(self):
         return self.iteration.dim
 
+    @property
+    def tunable(self):
+        return self.argument.symbolic_size
+
 
 class AbstractRewriter(object):
     """
