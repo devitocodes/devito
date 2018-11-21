@@ -147,6 +147,15 @@ def hs_classify(scope):
         v = mapper.setdefault(f, {})
         for i in r:
             for d in i.findices:
+                # Note: if `i` makes use of SubDimensions, we might end up adding useless
+                # (yet harmless) halo exchanges.  This depends on the extent of a
+                # SubDimension; e.g., in rare circumstances, a SubDimension might span a
+                # region that falls completely within a single MPI rank, thus requiring
+                # no communication whatsoever. However, the SubDimension extent is only
+                # known at runtime (op.apply time), so unless one starts messing up with
+                # the generated code (by adding explicit `if-then-else`s to dynamically
+                # prevent a halo exchange), there is no escape from conservatively
+                # assuming that some halo exchanges will be required
                 if i.affine(d):
                     if f.grid.is_distributed(d):
                         if i.touch_halo(d):
@@ -205,7 +214,7 @@ def hs_comp_halos(f, dims, dspace=None):
         else:
             # We can limit the amount of halo exchanged based on the stencil
             # radius, which is dictated by `dspace`
-            v = dspace[f][d.root]
+            v = dspace[f].relaxed[d]
             lower, upper = v.limits if not v.is_Null else (0, 0)
             lsize = f._offset_domain[d].left - lower
             rsize = upper - f._offset_domain[d].right
