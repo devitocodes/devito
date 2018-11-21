@@ -314,9 +314,11 @@ class TestCodeGeneration(object):
         assert str(iet.body[0]) == """\
 float (*restrict dat)[dat_x_size][dat_y_size] __attribute__((aligned(64))) =\
  (float (*)[dat_x_size][dat_y_size]) dat_vec;
-float bufs[buf_x_size][buf_y_size] __attribute__((aligned(64)));
+float (*bufs)[buf_y_size];
+float (*bufg)[buf_y_size];
+posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
+posix_memalign((void**)&bufg, 64, sizeof(float[buf_x_size][buf_y_size]));
 MPI_Request rrecv;
-float bufg[buf_x_size][buf_y_size] __attribute__((aligned(64)));
 MPI_Request rsend;
 MPI_Status srecv;
 MPI_Irecv((float*)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
@@ -329,7 +331,9 @@ if (fromrank != MPI_PROC_NULL)
 {
   scatter_f((float*)bufs,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
 dat_y_size,ostime,osx,osy);
-}"""
+}
+free(bufs);
+free(bufg);"""
 
     @pytest.mark.parallel(nprocs=1)
     def test_iet_update_halo(self):
