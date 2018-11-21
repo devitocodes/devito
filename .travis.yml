@@ -96,7 +96,7 @@ install:
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       conda env create -q -f environment.yml python=$TRAVIS_PYTHON_VERSION;
       source activate devito;
-      if [[ $MPI_INSTALL == '1' ]]; then pip install -e .[extras]; else pip install -e .; fi
+      pip install -e .;
       conda list;
     fi
   - if [[ "$MPI_INSTALL" == '1' ]]; then
@@ -105,6 +105,7 @@ install:
 
   # Install devito with pip
   - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py install; fi
+  - if [[ $MPI_INSTALL == '1' ]]; then pip install -e .[extras]; fi
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config

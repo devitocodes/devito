@@ -62,11 +62,7 @@ def _at_callback(val):  # noqa
         level, mode = val
     if level == 'off':
         level = False
-    if configuration['backend'] == 'core' and mode == 'runtime':
-        warning("Unsupported auto-tuning mode `runtime` with backend `core`")
-        return at_setup(level, 'preemptive')
-    else:
-        return at_setup(level, mode)
+    return at_setup(level, mode)
 configuration.add('autotuning', 'off', at_accepted, callback=_at_callback,  # noqa
                   impacts_jit=False)
 

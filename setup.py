@@ -1,5 +1,4 @@
 import versioneer
-import os
 
 from setuptools import setup, find_packages
 
@@ -44,6 +43,6 @@ setup(name='devito',
       license='MIT',
       packages=find_packages(exclude=['docs', 'tests', 'examples']),
       install_requires=reqs,
-      extras_require={'extras':  opt_reqs},
+      extras_require={'extras': opt_reqs},
       dependency_links=links,
       test_suite='tests')

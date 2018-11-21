@@ -70,6 +70,10 @@ class Operator(Callable):
         # References to local or external routines
         self._func_table = OrderedDict()
 
+        # Internal state. May be used to store information about previous runs,
+        # autotuning reports, etc
+        self._state = {}
+
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
         expressions = self._apply_substitutions(expressions, subs)
@@ -167,8 +171,7 @@ class Operator(Callable):
         args.update(kwargs.pop('backend', {}))
 
         # Execute autotuning and adjust arguments accordingly
-        if kwargs.pop('autotune', configuration['autotuning'].level):
-            args = self._autotune(args)
+        args = self._autotune(args, kwargs.pop('autotune', configuration['autotuning']))
 
         # Check all user-provided keywords are known to the Operator
         if not configuration['ignore-unknowns']:
@@ -254,7 +257,7 @@ class Operator(Callable):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         return List(body=iet), None
 
-    def _autotune(self, args):
+    def _autotune(self, args, setup):
         """Use auto-tuning on this Operator to determine empirically the
         best block sizes when loop blocking is in use."""
         return args
@@ -436,7 +439,18 @@ class OperatorRunnable(Operator):
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
-        self.cfunction(*arg_values)
+        try:
+            self.cfunction(*arg_values)
+        except ctypes.ArgumentError as e:
+            if e.args[0].startswith("argument "):
+                argnum = int(e.args[0][9:].split(':')[0]) - 1
+                newmsg = "error in argument '%s' with value '%s': %s" % (
+                    self.parameters[argnum].name,
+                    arg_values[argnum],
+                    e.args[0])
+                raise ctypes.ArgumentError(newmsg) from e
+            else:
+                raise
 
         # Post-process runtime arguments
         self._postprocess_arguments(args, **kwargs)
