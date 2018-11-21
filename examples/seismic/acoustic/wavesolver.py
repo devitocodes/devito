@@ -30,7 +30,7 @@ class AcousticWaveSolver(object):
     def __init__(self, model, geometry, kernel='OT2', space_order=2, **kwargs):
         self.model = model
         self.geometry = geometry
-        
+
         assert self.model == geometry.model
 
         self.space_order = space_order

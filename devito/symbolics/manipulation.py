@@ -255,7 +255,7 @@ def makeit_ssa(exprs):
             lhs = dSymbol(name='ssa%d' % c, dtype=e.dtype) if needssa else e.lhs
             if e.is_Increment:
                 # Turn AugmentedAssignment into Assignment
-                processed.append(e.func(lhs, lhs + rhs, is_Increment=False))
+                processed.append(e.func(lhs, mapper[e.lhs] + rhs, is_Increment=False))
             else:
                 processed.append(e.func(lhs, rhs))
             mapper[e.lhs] = lhs

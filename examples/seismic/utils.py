@@ -1,4 +1,3 @@
-from cached_property import cached_property
 from scipy import ndimage
 
 from devito import error
@@ -25,15 +24,15 @@ class AcquisitionGeometry(Pickable):
     necessary information
     """
 
-    def __init__(self, model, rec_pos, src_pos, t0, tn, **kwargs):
+    def __init__(self, model, rec_positions, src_positions, t0, tn, **kwargs):
         """
         In practice would be __init__(segyfile) and all below parameters
         would come from a segy_read (at property call rather than at init)
         """
-        self.rec_positions = rec_pos
-        self._nrec = rec_pos.shape[0]
-        self.src_positions = src_pos
-        self._nsrc = src_pos.shape[0]
+        self.rec_positions = rec_positions
+        self._nrec = rec_positions.shape[0]
+        self.src_positions = src_positions
+        self._nsrc = src_positions.shape[0]
         self._src_type = kwargs.get('src_type')
         assert self.src_type in sources
         self._f0 = kwargs.get('f0')
@@ -56,37 +55,37 @@ class AcquisitionGeometry(Pickable):
 
     @property
     def model(self):
-        return self._model 
+        return self._model
 
     @model.setter
     def model(self, model):
         self._model = model
 
-    @cached_property
+    @property
     def src_type(self):
         return self._src_type
 
-    @cached_property
+    @property
     def grid(self):
         return self.model.grid
 
-    @cached_property
+    @property
     def f0(self):
         return self._f0
 
-    @cached_property
+    @property
     def tn(self):
         return self._tn
 
-    @cached_property
+    @property
     def t0(self):
         return self._t0
 
-    @cached_property
+    @property
     def dt(self):
         return self._dt
 
-    @cached_property
+    @property
     def nt(self):
         return self.time_axis.num
 
@@ -98,7 +97,7 @@ class AcquisitionGeometry(Pickable):
     def nsrc(self):
         return self._nsrc
 
-    @cached_property
+    @property
     def dtype(self):
         return self.grid.dtype
 
@@ -119,7 +118,8 @@ class AcquisitionGeometry(Pickable):
                                           time_range=self.time_axis, npoint=self.nsrc,
                                           coordinates=self.src_positions)
 
-    _pickle_args = ['model', 'rec_positions', 'src_positions', 't0', 'tn', 'f0', 'src_type']
+    _pickle_args = ['model', 'rec_positions', 'src_positions', 't0', 'tn']
+    _pickle_kwargs = ['f0', 'src_type']
 
 
 sources = {'Wavelet': WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}
