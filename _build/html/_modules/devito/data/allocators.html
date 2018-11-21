@@ -218,9 +218,9 @@
         <span class="k">if</span> <span class="n">c_pointer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Unable to allocate </span><span class="si">%d</span><span class="s2"> elements in memory&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">size</span><span class="p">))</span>
 
-        <span class="n">c_pointer</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">ndpointer</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
-                                                                  <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">))</span>
-        <span class="n">pointer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">as_array</span><span class="p">(</span><span class="n">c_pointer</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">c_pointer_cast</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span>
+            <span class="n">c_pointer</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">ndpointer</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">))</span>
+        <span class="n">pointer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">as_array</span><span class="p">(</span><span class="n">c_pointer_cast</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="p">(</span><span class="n">pointer</span><span class="p">,</span> <span class="n">memfree_args</span><span class="p">)</span>
 
@@ -395,7 +395,14 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">available</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t find `libnuma`&#39;s `numa_alloc_*` to &quot;</span>
                                <span class="s2">&quot;allocate memory&quot;</span><span class="p">)</span>
-        <span class="n">c_bytesize</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_ulong</span><span class="p">(</span><span class="n">size</span> <span class="o">*</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">sizeof</span><span class="p">(</span><span class="n">ctype</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># work around the fact that the allocator may return NULL when</span>
+            <span class="c1"># the size is 0, and numpy does not like that</span>
+            <span class="n">c_bytesize</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_ulong</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">c_bytesize</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_ulong</span><span class="p">(</span><span class="n">size</span> <span class="o">*</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">sizeof</span><span class="p">(</span><span class="n">ctype</span><span class="p">))</span>
+
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">put_onnode</span><span class="p">:</span>
             <span class="n">c_pointer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">numa_alloc_onnode</span><span class="p">(</span><span class="n">c_bytesize</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node</span><span class="p">)</span>
         <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">put_local</span><span class="p">:</span>
@@ -406,7 +413,8 @@
         <span class="c1"># note!  even though restype was set above, ctypes returns a</span>
         <span class="c1"># python integer.</span>
         <span class="c1"># See https://stackoverflow.com/questions/17840144/</span>
-        <span class="k">if</span> <span class="n">c_pointer</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># edit: it apparently can return None, also!</span>
+        <span class="k">if</span> <span class="n">c_pointer</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">c_pointer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># Convert it back to a void * - this is</span>
