@@ -2,6 +2,7 @@ from cached_property import cached_property
 from scipy import ndimage
 
 from devito import error
+from devito.tools import Pickable
 
 from .source import *
 __all__ = ['scipy_smooth', 'AcquisitionGeometry']
@@ -14,7 +15,7 @@ def scipy_smooth(img, sigma=5):
     return ndimage.gaussian_filter(img, sigma=sigma)
 
 
-class AcquisitionGeometry(object):
+class AcquisitionGeometry(Pickable):
     """
     Encapsulate the geometry of an acquisition:
     - receiver positions and number
@@ -26,7 +27,7 @@ class AcquisitionGeometry(object):
 
     def __init__(self, model, rec_pos, src_pos, t0, tn, **kwargs):
         """
-        In practice woyuld be __init__(segyfile) and all below parameters
+        In practice would be __init__(segyfile) and all below parameters
         would come from a segy_read (at property call rather than at init)
         """
         self.rec_positions = rec_pos
@@ -40,7 +41,7 @@ class AcquisitionGeometry(object):
             error("Peak frequency must be provided in KH" +
                   " for source of type %s" % self._src_type)
 
-        self._grid = model.grid
+        self._model = model
         self._dt = model.critical_dt
         self._t0 = t0
         self._tn = tn
@@ -53,13 +54,21 @@ class AcquisitionGeometry(object):
     def time_axis(self):
         return TimeAxis(start=self.t0, stop=self.tn, step=self.dt)
 
+    @property
+    def model(self):
+        return self._model 
+
+    @model.setter
+    def model(self, model):
+        self._model = model
+
     @cached_property
     def src_type(self):
         return self._src_type
 
     @cached_property
     def grid(self):
-        return self._grid
+        return self.model.grid
 
     @cached_property
     def f0(self):
@@ -107,8 +116,10 @@ class AcquisitionGeometry(object):
                                coordinates=self.src_positions)
         else:
             return sources[self.src_type](name='src', grid=self.grid, f0=self.f0,
-                                          time_range=self.time_axis, npoitn=self.nsrc,
+                                          time_range=self.time_axis, npoint=self.nsrc,
                                           coordinates=self.src_positions)
+
+    _pickle_args = ['model', 'rec_positions', 'src_positions', 't0', 'tn', 'f0', 'src_type']
 
 
 sources = {'Wavelet': WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}
