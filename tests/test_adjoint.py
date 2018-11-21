@@ -1,13 +1,15 @@
 import numpy as np
 import pytest
 from numpy import linalg
-from conftest import skipif_yask, unit_box, points
-
-from devito import clear_cache, Operator
+from conftest import unit_box, points
+from devito import clear_cache, Operator, configuration
 from devito.logger import info
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
 
+pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
+                                configuration['backend'] == 'ops',
+                                reason="testing is currently restricted")
 
 presets = {
     'constant': {'preset': 'constant-isotropic'},
@@ -15,7 +17,6 @@ presets = {
 }
 
 
-@skipif_yask
 class TestAdjoint(object):
 
     def setup_method(self, method):

@@ -52,7 +52,7 @@ configuration.add('mpi', 0, [0, 1], callback=_reinit_compiler)
 # Autotuning setup
 AT_LEVELs = ['off', 'basic', 'aggressive']
 AT_MODEs = ['preemptive', 'runtime']
-at_default_mode = {'core': 'preemptive', 'yask': 'runtime'}
+at_default_mode = {'core': 'preemptive', 'yask': 'runtime', 'ops': 'runtime'}
 at_setup = namedtuple('at_setup', 'level mode')
 at_accepted = AT_LEVELs + [list(i) for i in product(AT_LEVELs, AT_MODEs)]
 def _at_callback(val):  # noqa
@@ -62,11 +62,7 @@ def _at_callback(val):  # noqa
         level, mode = val
     if level == 'off':
         level = False
-    if configuration['backend'] == 'core' and mode == 'runtime':
-        warning("Unsupported auto-tuning mode `runtime` with backend `core`")
-        return at_setup(level, 'preemptive')
-    else:
-        return at_setup(level, mode)
+    return at_setup(level, mode)
 configuration.add('autotuning', 'off', at_accepted, callback=_at_callback,  # noqa
                   impacts_jit=False)
 
