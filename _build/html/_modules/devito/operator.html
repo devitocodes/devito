@@ -592,7 +592,18 @@
 
         <span class="c1"># Invoke kernel function with args</span>
         <span class="n">arg_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">args</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="n">arg_values</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="n">arg_values</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">ArgumentError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;argument &quot;</span><span class="p">):</span>
+                <span class="n">argnum</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">9</span><span class="p">:]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span>
+                <span class="n">newmsg</span> <span class="o">=</span> <span class="s2">&quot;error in argument &#39;</span><span class="si">%s</span><span class="s2">&#39; with value &#39;</span><span class="si">%s</span><span class="s2">&#39;: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">argnum</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">arg_values</span><span class="p">[</span><span class="n">argnum</span><span class="p">],</span>
+                    <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="k">raise</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">ArgumentError</span><span class="p">(</span><span class="n">newmsg</span><span class="p">)</span> <span class="kn">from</span> <span class="nn">e</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span>
 
         <span class="c1"># Post-process runtime arguments</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_postprocess_arguments</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
