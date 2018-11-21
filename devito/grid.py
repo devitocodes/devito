@@ -201,7 +201,7 @@ class Grid(ArgProvider):
         return self._shape
 
     @property
-    def shape_domain(self):
+    def shape_local(self):
         """Shape of the local (per-process) physical domain."""
         return self._distributor.shape
 
@@ -212,7 +212,7 @@ class Grid(ArgProvider):
         local size.
         """
         return {d: namedtuple('Size', 'glb loc')(g, l)
-                for d, g, l in zip(self.dimensions, self.shape, self.shape_domain)}
+                for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
 
     @property
     def distributor(self):

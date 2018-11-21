@@ -380,12 +380,13 @@ def generate_fd_shortcuts(function):
             derivatives[name_fd] = (deriv, desciption)
         else:
             # Left
-            deriv = partial(first_derivative, order=space_fd_order, dim=d, side=left)
+            dim_order = time_fd_order if d.is_Time else space_fd_order
+            deriv = partial(first_derivative, order=dim_order, dim=d, side=left)
             name_fd = 'd%sl' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
             # Right
-            deriv = partial(first_derivative, order=space_fd_order, dim=d, side=right)
+            deriv = partial(first_derivative, order=dim_order, dim=d, side=right)
             name_fd = 'd%sr' % name
             desciption = 'right first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
