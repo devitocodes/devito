@@ -44,6 +44,10 @@ class AbstractInterval(object):
     def _rebuild(self):
         return
 
+    @abc.abstractproperty
+    def relaxed(self):
+        return
+
     def intersection(self, o):
         return self._rebuild()
 
@@ -88,6 +92,10 @@ class NullInterval(AbstractInterval):
     def _rebuild(self):
         return NullInterval(self.dim)
 
+    @property
+    def relaxed(self):
+        return NullInterval(self.dim.root)
+
     def union(self, o):
         if self.dim == o.dim:
             return o._rebuild()
@@ -129,6 +137,10 @@ class Interval(AbstractInterval):
 
     def _rebuild(self):
         return Interval(self.dim, self.lower, self.upper)
+
+    @property
+    def relaxed(self):
+        return Interval(self.dim.root, self.lower, self.upper)
 
     @property
     def limits(self):
@@ -265,6 +277,10 @@ class IntervalGroup(PartialOrderTuple):
         intervals = [Interval._apply_op(v, op) for v in mapper.values()]
         relations = set().union(*[ig.relations for ig in interval_groups])
         return IntervalGroup(intervals, relations=relations)
+
+    @cached_property
+    def relaxed(self):
+        return IntervalGroup.generate('union', IntervalGroup(i.relaxed for i in self))
 
     def intersection(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
@@ -456,6 +472,13 @@ class DataSpace(Space):
     @property
     def parts(self):
         return self._parts
+
+    @cached_property
+    def relaxed(self):
+        """A view of the DataSpace assuming that any SubDimensions entirely span
+        their root Dimension."""
+        return DataSpace(self.intervals.relaxed,
+                         {k: v.relaxed for k, v in self.parts.items()})
 
     def __getitem__(self, key):
         ret = self.intervals[key]
