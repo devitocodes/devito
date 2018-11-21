@@ -64,8 +64,8 @@ def sendrecv(f, fixed):
     comm = f.grid.distributor._C_comm
 
     buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions if d not in fixed]
-    bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype, scope='stack')
-    bufs = Array(name='bufs', dimensions=buf_dims, dtype=f.dtype, scope='stack')
+    bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype, scope='heap')
+    bufs = Array(name='bufs', dimensions=buf_dims, dtype=f.dtype, scope='heap')
 
     dat_dims = [Dimension(name='dat_%s' % d.root) for d in f.dimensions]
     dat = Array(name='dat', dimensions=dat_dims, dtype=f.dtype, scope='external')
