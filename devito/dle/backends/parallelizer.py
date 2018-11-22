@@ -8,7 +8,7 @@ from devito.function import Constant
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (FindSymbols, FindNodes, Transformer, Block, Expression,
                            LocalExpression, List, Iteration, retrieve_iteration_tree,
-                           filter_iterations, IsPerfectIteration)
+                           filter_iterations, IsPerfectIteration, COLLAPSED)
 from devito.parameters import configuration
 from devito.types import Symbol
 
@@ -34,8 +34,7 @@ class Ompizer(object):
     greater than this threshold."""
 
     lang = {
-        'for': c.Pragma('omp for schedule(static)'),
-        'collapse': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
+        'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
         'par-region': lambda i: c.Pragma('omp parallel num_threads(nt) %s' % i),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
@@ -54,21 +53,25 @@ class Ompizer(object):
         """
         self.key = key
 
-    def _pragma_for(self, root, candidates):
+    def _ncollapse(self, root, candidates):
         # Heuristic: if at least two parallel loops are available and the
         # physical core count is greater than COLLAPSE, then omp-collapse them
         nparallel = len(candidates)
         isperfect = IsPerfectIteration().visit(root)
         if ncores() < Ompizer.COLLAPSE or nparallel < 2 or not isperfect:
-            return self.lang['for']
+            return 1
         else:
-            return self.lang['collapse'](nparallel)
+            return nparallel
 
     def _make_parallel_tree(self, root, candidates):
         """
         Return a mapper to parallelize the :class:`Iteration`s within ``root``.
         """
-        parallel = self._pragma_for(root, candidates)
+        ncollapse = self._ncollapse(root, candidates)
+        parallel = self.lang['for'](ncollapse)
+
+        pragmas = root.pragmas + (parallel,)
+        properties = root.properties + (COLLAPSED(ncollapse),)
 
         # Introduce the `omp for` pragma
         mapper = OrderedDict()
@@ -78,9 +81,9 @@ class Ompizer(object):
             subs = {i: List(header=self.lang['atomic'], body=i)
                     for i in exprs if i.is_Increment}
             handle = Transformer(subs).visit(root)
-            mapper[root] = handle._rebuild(pragmas=root.pragmas + (parallel,))
+            mapper[root] = handle._rebuild(pragmas=pragmas, properties=properties)
         else:
-            mapper[root] = root._rebuild(pragmas=root.pragmas + (parallel,))
+            mapper[root] = root._rebuild(pragmas=pragmas, properties=properties)
 
         return mapper
 
