@@ -4,11 +4,11 @@ import resource
 import psutil
 
 from devito.dle import BlockDimension, NThreads
-from devito.ir import Backward, Iteration, FindNodes
+from devito.ir import Backward, retrieve_iteration_tree
 from devito.logger import perf, warning as _warning
 from devito.parameters import configuration
 from devito.symbolics import evaluate
-from devito.tools import filter_ordered
+from devito.tools import filter_ordered, flatten, prod
 
 __all__ = ['autotune']
 
@@ -56,26 +56,31 @@ def autotune(operator, args, level, mode):
             if k in output:
                 at_args[k] = v.copy()
 
+    trees = retrieve_iteration_tree(operator.body)
+
     # Shrink the time dimension's iteration range for quick autotuning
-    iterations = FindNodes(Iteration).visit(operator.body)
-    steppers = [i for i in iterations if i.dim.is_Time]
+    steppers = {i for i in flatten(trees) if i.dim.is_Time}
     if len(steppers) == 0:
         stepper = None
         timesteps = 1
     elif len(steppers) == 1:
-        stepper = steppers[0]
+        stepper = steppers.pop()
         timesteps = init_time_bounds(stepper, at_args)
         if timesteps is None:
             return args, {}
     else:
-        warning("couldn't understand loop structure; giving up")
+        warning("cannot perform autotuning unless there is one time loop; skipping")
         return args, {}
+
+    # Formula to calculate the number of parallel blocks given block shape,
+    # number of threads, and extent of the parallel iteration space
+    calculate_parblocks = make_calculate_parblocks(trees, blockable, nthreads)
 
     # Generated loop-blocking attempts
     block_shapes = generate_block_shapes(blockable, args, level)
 
     # Generate nthreads attempts
-    nthreads = generate_nthreads(nthreads, level)
+    nthreads = generate_nthreads(nthreads, args, level)
 
     generators = [i for i in [block_shapes, nthreads] if i]
 
@@ -85,10 +90,14 @@ def autotune(operator, args, level, mode):
         mapper = OrderedDict(run)
 
         # Can we safely autotune over the given time range?
-        check_time_bounds(stepper, at_args, args, mode)
+        if not check_time_bounds(stepper, at_args, args, mode):
+            break
 
         # Update `at_args` to use the new tunable values
         at_args = {k: mapper.get(k, v) for k, v in at_args.items()}
+
+        if heuristically_discard_run(calculate_parblocks, at_args):
+            continue
 
         # Make sure we remain within stack bounds, otherwise skip run
         try:
@@ -148,12 +157,12 @@ def init_time_bounds(stepper, at_args):
     if stepper.direction is Backward:
         at_args[dim.min_name] = at_args[dim.max_name] - options['squeezer']
         if at_args[dim.max_name] < at_args[dim.min_name]:
-            warning("too few time iterations; giving up")
+            warning("too few time iterations; skipping")
             return False
     else:
         at_args[dim.max_name] = at_args[dim.min_name] + options['squeezer']
         if at_args[dim.min_name] > at_args[dim.max_name]:
-            warning("too few time iterations; giving up")
+            warning("too few time iterations; skipping")
             return False
 
     return stepper.extent(start=at_args[dim.min_name], finish=at_args[dim.max_name])
@@ -161,15 +170,17 @@ def init_time_bounds(stepper, at_args):
 
 def check_time_bounds(stepper, at_args, args, mode):
     if mode != 'runtime' or stepper is None:
-        return
+        return True
     dim = stepper.dim.root
     if stepper.direction is Backward:
         if at_args[dim.min_name] < args[dim.min_name]:
-            raise ValueError("Too few time iterations")
-
+            warning("too few time iterations; stopping")
+            return False
     else:
         if at_args[dim.max_name] > args[dim.max_name]:
-            raise ValueError("Too few time iterations")
+            warning("too few time iterations; stopping")
+            return False
+    return True
 
 
 def update_time_bounds(stepper, at_args, timesteps, mode):
@@ -194,6 +205,18 @@ def finalize_time_bounds(stepper, at_args, args, mode):
     else:
         args[dim.min_name] = at_args[dim.min_name]
         args[dim.max_name] = args[dim.max_name]
+
+
+def make_calculate_parblocks(trees, blockable, nthreads):
+    blocks_per_threads = []
+    main_block_trees = [i for i in trees if set(blockable) < set(i.dimensions)]
+    for tree, nt in product(main_block_trees, nthreads):
+        block_iters = [i for i in tree if i.dim in blockable]
+        par_block_iters = block_iters[:block_iters[0].ncollapsed]
+        niterations = prod(i.extent() for i in par_block_iters)
+        block_size = prod(i.dim.step for i in par_block_iters)
+        blocks_per_threads.append((niterations / block_size) / nt)
+    return blocks_per_threads
 
 
 def generate_block_shapes(blockable, args, level):
@@ -236,15 +259,22 @@ def generate_block_shapes(blockable, args, level):
     return ret
 
 
-def generate_nthreads(nthreads, level):
-    ret = [((i.name, i.data),) for i in nthreads]
+def generate_nthreads(nthreads, args, level):
+    ret = [((i.name, args[i.name]),) for i in nthreads]
 
     # On the KNL, also try running with a different number of hyperthreads
     if level == 'aggressive' and configuration['platform'] == 'knl':
         ret.extend([((i.name, psutil.cpu_count()),) for i in nthreads])
-        ret.extend([((i.name, psutil.cpu_count() // 2),) for i in nthreads])
+        ret.extend([((i.name, psutil.cpu_count(logical=False)),) for i in nthreads])
 
-    return ret
+    return filter_ordered(ret)
+
+
+def heuristically_discard_run(calculate_parblocks, at_args):
+    if configuration['develop-mode']:
+        return False
+    # Drop run if not at least one block per thread
+    return all(i.subs(at_args) < 1 for i in calculate_parblocks)
 
 
 options = {
