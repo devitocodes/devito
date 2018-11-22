@@ -309,7 +309,7 @@ def index_apply_modulo(idx, modulo):
 
 def index_dist_to_repl(idx, decomposition):
     """
-    Convert a distributed array index a replicated array index.
+    Convert a distributed array index into a replicated array index.
     """
     if decomposition is None:
         return PROJECTED if is_integer(idx) else slice(None)
