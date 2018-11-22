@@ -863,6 +863,10 @@ class IterationTree(tuple):
     def inner(self):
         return self[-1] if self else None
 
+    @property
+    def dimensions(self):
+        return [i.dim for i in self]
+
     def __repr__(self):
         return "IterationTree%s" % super(IterationTree, self).__repr__()
 
