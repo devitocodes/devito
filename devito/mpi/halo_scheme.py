@@ -34,6 +34,13 @@ HaloSchemeEntry = namedtuple('HaloSchemeEntry', 'loc_indices halos')
 Halo = namedtuple('Halo', 'dim side amount')
 
 
+class HaloMask(OrderedDict):
+
+    @cached_property
+    def need_halo_exchange(self):
+        return {d for (d, _), v in self.items() if v}
+
+
 class HaloScheme(object):
 
     """
@@ -127,7 +134,7 @@ class HaloScheme(object):
             for i in product(f.dimensions, [LEFT, RIGHT]):
                 if i[0] in v.loc_indices:
                     continue
-                mapper.setdefault(f, OrderedDict())[i] = i in needed
+                mapper.setdefault(f, HaloMask())[i] = i in needed
         return mapper
 
 
