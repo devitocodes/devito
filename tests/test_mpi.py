@@ -582,20 +582,6 @@ class TestOperatorSimple(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(nprocs=1)
-    def test_stencil_nowrite_implies_haloupdate(self):
-        grid = Grid(shape=(12,))
-        x = grid.dimensions[0]
-        t = grid.stepping_dim
-
-        f = TimeFunction(name='f', grid=grid)
-        g = Function(name='g', grid=grid)
-
-        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
-
-        calls = FindNodes(Call).visit(op)
-        assert len(calls) == 1
-
-    @pytest.mark.parallel(nprocs=1)
     def test_avoid_redundant_haloupdate(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -613,6 +599,33 @@ class TestOperatorSimple(object):
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
+
+    @pytest.mark.parallel(nprocs=1)
+    def test_avoid_haloupdate_if_distr_but_sequential(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+
+        op = Operator(Eq(f, f[t, x-1] + f[t, x+1] + 1.))
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
+
+    @pytest.mark.parallel(nprocs=1)
+    def test_avoid_haloupdate_if_nodeps(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
 
     @pytest.mark.parallel(nprocs=2)
     def test_redo_haloupdate_due_to_antidep(self):
