@@ -15,8 +15,7 @@ from devito.equation import *  # noqa
 from devito.grid import *  # noqa
 from devito.finite_differences import *  # noqa
 from devito.function import Buffer, NODE, CELL  # noqa
-from devito.logger import error, warning, info, set_log_level, silencio  # noqa
-from devito.profiling import ruido  # noqa
+from devito.logger import error, warning, info, set_log_level  # noqa
 from devito.parameters import *  # noqa
 from devito.tools import *  # noqa
 

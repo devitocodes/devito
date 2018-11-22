@@ -5,7 +5,7 @@ import pytest
 from conftest import x, y, z, skipif_backend  # noqa
 
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseFunction,  # noqa
-                    Grid, Operator, ruido, configuration)
+                    Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree
 from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
@@ -151,7 +151,7 @@ def test_tti_rewrite_aggressive(tti_nodse):
     assert len([i for i in arrays if i._mem_external]) == 0
 
 
-@ruido(profiling='advanced')
+@switchconfig(profiling='advanced')
 @skipif_backend(['yask', 'ops'])
 @pytest.mark.parametrize('kernel,space_order,expected', [
     ('shifted', 8, 355), ('shifted', 16, 622),

@@ -4,7 +4,7 @@ from operator import mul
 import pytest
 import numpy as np
 from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
-                    silencio, ruido)
+                    switchconfig)
 from unittest.mock import patch
 
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
@@ -19,7 +19,7 @@ class MockArch(object):
         return 4
 
 
-@silencio(log_level='DEBUG')
+@switchconfig(log_level='DEBUG')
 @pytest.mark.parametrize("shape,expected", [
     ((30, 30), 13),
     ((30, 30, 30), 17)
@@ -62,7 +62,7 @@ def test_at_is_actually_working(shape, expected):
     assert op._state['autotuning'][-1]['tpr'] == 1
 
 
-@silencio(log_level='DEBUG')
+@switchconfig(log_level='DEBUG')
 def test_timesteps_per_at_run():
     """
     Check that each autotuning run (ie with a given block shape) takes
@@ -101,7 +101,7 @@ def test_timesteps_per_at_run():
         assert op._state['autotuning'][-1]['tpr'] == options['squeezer']+1
 
 
-@ruido(profiling='advanced')
+@switchconfig(profiling='advanced')
 def test_nondestructive_forward():
     """Test autotuning in non-destructive mode."""
     grid = Grid(shape=(64, 64, 64))
@@ -119,7 +119,7 @@ def test_nondestructive_forward():
     assert np.all(f.data[1] == 101)
 
 
-@ruido(profiling='advanced')
+@switchconfig(profiling='advanced')
 def test_nondestructive_backward():
     """Test autotuning in non-destructive mode."""
     grid = Grid(shape=(64, 64, 64))
@@ -171,19 +171,14 @@ def test_tti_aggressive():
     assert op._state['autotuning'][0]['runs'] == 33
 
 
+@switchconfig(develop_mode=False, cross_compile=MockArch)
 @patch("devito.dle.backends.parallelizer.Ompizer.COLLAPSE", 1)
 def test_discarding_runs():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
 
-    configuration['develop-mode'] = False
-    configuration['cross-compile'] = MockArch
-
     op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': True}))
     op.apply(time=100, autotune='aggressive')
-
-    configuration['develop-mode'] = True
-    configuration['cross-compile'] = None
 
     assert op._state['autotuning'][0]['runs'] == 20
     assert op._state['autotuning'][0]['tpr'] == 5
