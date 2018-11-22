@@ -223,18 +223,29 @@ def mark_halospots(analysis):
     ``analysis.iet``."""
     properties = OrderedDict()
 
-    def analyze(fmapper, scope):
-        for f, hse in fmapper.items():
+    def is_redundant(hs, scope):
+        for f, hse in hs.fmapper.items():
             if any(dep.cause & set(hse.loc_indices) for dep in scope.d_anti.project(f)):
+                return False
+        return True
+
+    def is_pointless(hs, scope):
+        # A halo exchange is 'pointless' if it can be performed w/o impacting the
+        # correctness, though it'd be practically useless as, for exampe, it occurs
+        # along a sequential dimension or there actually are no data dependences
+        for f, m in hs.mask.items():
+            if any(dep.cause != m.need_halo_exchange for dep in scope.d_all.project(f)):
                 return False
         return True
 
     for i, scope in analysis.scopes.items():
         mapper = as_mapper(FindNodes(HaloSpot).visit(i), lambda hs: hs.halo_scheme)
-        for k, v in mapper.items():
-            if len(v) == 1:
-                continue
-            if analyze(k.fmapper, scope):
+        for hs, v in mapper.items():
+            if len(v) > 1 and is_redundant(hs, scope):
                 properties.update({i: REDUNDANT for i in v[1:]})
+                continue
+
+            if is_pointless(hs, scope):
+                properties.update({i: REDUNDANT for i in v})
 
     analysis.update(properties)
