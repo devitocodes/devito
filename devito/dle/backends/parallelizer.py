@@ -11,10 +11,8 @@ from devito.ir.iet import (FindSymbols, FindNodes, Transformer, Block, Expressio
                            filter_iterations, IsPerfectIteration)
 from devito.parameters import configuration
 from devito.types import Symbol
-from devito.tools import memoized_func
 
 
-@memoized_func
 def ncores():
     try:
         return configuration['cross-compile'].cpu_count()
