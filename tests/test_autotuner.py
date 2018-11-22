@@ -5,10 +5,18 @@ import pytest
 import numpy as np
 from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
                     silencio, ruido)
+from unittest.mock import patch
 
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
                                 configuration['backend'] == 'ops',
                                 reason="testing is currently restricted")
+
+
+# To enforce cross-compilation for a 4-core architecture
+class MockArch(object):
+    @classmethod
+    def cpu_count(cls):
+        return 4
 
 
 @silencio(log_level='DEBUG')
@@ -102,7 +110,7 @@ def test_nondestructive_forward():
     op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': False}))
     summary = op.apply(time=100, autotune=('basic', 'runtime'))
 
-    # At is expected to have attempted 6 block shapes
+    # AT is expected to have attempted 6 block shapes
     assert op._state['autotuning'][0]['runs'] == 6
 
     # AT is expected to have executed 30 timesteps
@@ -120,7 +128,7 @@ def test_nondestructive_backward():
     op = Operator(Eq(f.backward, f + 1.), dle=('advanced', {'openmp': False}))
     summary = op.apply(time=101, autotune=('basic', 'runtime'))
 
-    # At is expected to have attempted 6 block shapes
+    # AT is expected to have attempted 6 block shapes
     assert op._state['autotuning'][0]['runs'] == 6
 
     # AT is expected to have executed 30 timesteps
@@ -161,3 +169,31 @@ def test_tti_aggressive():
     op = wave_solver.op_fwd(kernel='centered', save=False)
     op.apply(time=0, autotune='aggressive')
     assert op._state['autotuning'][0]['runs'] == 33
+
+
+@patch("devito.dle.backends.parallelizer.Ompizer.COLLAPSE", 1)
+def test_discarding_runs():
+    grid = Grid(shape=(64, 64, 64))
+    f = TimeFunction(name='f', grid=grid)
+
+    configuration['develop-mode'] = False
+    configuration['cross-compile'] = MockArch
+
+    op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': True}))
+    op.apply(time=100, autotune='aggressive')
+
+    configuration['develop-mode'] = True
+    configuration['cross-compile'] = None
+
+    assert op._state['autotuning'][0]['runs'] == 20
+    assert op._state['autotuning'][0]['tpr'] == 5
+    assert len(op._state['autotuning'][0]['tuned']) == 3
+    assert op._state['autotuning'][0]['tuned']['nthreads'] == 4
+
+    # With 1 < 4 threads, the AT eventually tries many more combinations
+    op.apply(time=100, nthreads=1, autotune='aggressive')
+
+    assert op._state['autotuning'][1]['runs'] == 30
+    assert op._state['autotuning'][1]['tpr'] == 5
+    assert len(op._state['autotuning'][1]['tuned']) == 3
+    assert op._state['autotuning'][1]['tuned']['nthreads'] == 1
