@@ -181,6 +181,18 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
     def indexify(self):
         return self
 
+    def _subs(self, old, new, **hints):
+        """This stub allows sympy.Basic.subs to operate on an expression
+        involving devito Scalars.  Ordinarily the comparisons between
+        devito subclasses of sympy types are quite strict."""
+        try:
+            if old.name == self.name:
+                return new
+        except AttributeError:
+            pass
+
+        return self
+
 
 class AbstractCachedSymbol(AbstractSymbol, Cached):
     """
@@ -266,18 +278,6 @@ class Scalar(Symbol):
 
     def update(self, dtype=None, **kwargs):
         self.dtype = dtype or self.dtype
-
-    def _subs(self, old, new, **hints):
-        """This stub allows sympy.Basic.subs to operate on an expression
-        involving devito Scalars.  Ordinarily the comparisons between
-        devito subclasses of sympy types are quite strict."""
-        try:
-            if old.name == self.name:
-                return new
-        except AttributeError:
-            pass
-
-        return self
 
 
 class AbstractFunction(sympy.Function, Basic, Pickable):
