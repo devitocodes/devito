@@ -415,6 +415,13 @@ class Iteration(Node):
         return REMAINDER in self.properties
 
     @property
+    def ncollapsed(self):
+        for i in self.properties:
+            if i.name == 'collapsed':
+                return i.val
+        return 0
+
+    @property
     def tag(self):
         for i in self.properties:
             if i.name == 'tag':
