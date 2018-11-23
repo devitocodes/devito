@@ -1,4 +1,4 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, namedtuple, defaultdict
 from itertools import product
 from operator import attrgetter
 
@@ -24,6 +24,7 @@ class HaloLabel(Tag):
 
 NONE = HaloLabel('none')
 UNSUPPORTED = HaloLabel('unsupported')
+POINTLESS = HaloLabel('pointless')
 IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
 FULL = HaloLabel('full')
@@ -151,7 +152,7 @@ def hs_classify(scope):
         elif f.grid is None:
             # TODO: improve me
             continue
-        v = mapper.setdefault(f, {})
+        v = mapper.setdefault(f, defaultdict(list))
         for i in r:
             for d in i.findices:
                 # Note: if `i` makes use of SubDimensions, we might end up adding useless
@@ -165,19 +166,21 @@ def hs_classify(scope):
                 # assuming that some halo exchanges will be required
                 if i.affine(d):
                     if f.grid.is_distributed(d):
-                        if i.touch_halo(d):
-                            v.setdefault(d, []).append(STENCIL)
+                        if d in scope.d_from_access(i).cause:
+                            v[d].append(POINTLESS)
+                        elif i.touch_halo(d):
+                            v[d].append(STENCIL)
                         else:
-                            v.setdefault(d, []).append(IDENTITY)
+                            v[d].append(IDENTITY)
                     else:
-                        v.setdefault(d, []).append(NONE)
+                        v[d].append(NONE)
                 elif i.is_increment:
                     # A read used for a distributed local-reduction. Users are expected
                     # to deal with this data access pattern by themselves, for example
                     # by resorting to common techniques such as redundant computation
-                    v.setdefault(d, []).append(UNSUPPORTED)
+                    v[d].append(UNSUPPORTED)
                 elif i.irregular(d) and f.grid.is_distributed(d):
-                    v.setdefault(d, []).append(FULL)
+                    v[d].append(FULL)
 
     # Sanity check and reductions
     for f, v in mapper.items():
@@ -185,6 +188,10 @@ def hs_classify(scope):
             unique_hl = set(hl)
             if unique_hl == {STENCIL, IDENTITY}:
                 v[d] = STENCIL
+            elif POINTLESS in unique_hl:
+                v[d] = POINTLESS
+            elif UNSUPPORTED in unique_hl:
+                v[d] = UNSUPPORTED
             elif len(unique_hl) == 1:
                 v[d] = unique_hl.pop()
             else:
