@@ -4,7 +4,7 @@ from conftest import skipif_backend  # noqa
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
                     SubDimension, Eq, Inc, Operator, norm, inner, configuration)
-from devito.ir.iet import Call, Conditional, FindNodes
+from devito.ir.iet import Call, Conditional, Iteration, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
 from devito.types import LEFT, RIGHT
 
@@ -608,13 +608,24 @@ class TestOperatorSimple(object):
 
         f = TimeFunction(name='f', grid=grid)
 
-        op = Operator(Eq(f, f[t, x-1] + f[t, x+1] + 1.))
+        # There is an anti-dependence between the first and second Eqs, so
+        # the compiler places them in different x-loops. However, none of the
+        # two loops should be preceded by a halo exchange, though for different
+        # reasons:
+        # * the equation in the first loop has no stencil
+        # * the equation in the second loop is inherently sequential, so the
+        #   compiler should be sufficiently smart to see that there is no point
+        #   in adding a halo exchange
+        op = Operator([Eq(f, f + 1),
+                       Eq(f, f[t, x-1] + f[t, x+1] + 1.)])
 
+        iterations = FindNodes(Iteration).visit(op)
+        assert len(iterations) == 3
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 0
 
     @pytest.mark.parallel(nprocs=1)
-    def test_avoid_haloupdate_if_nodeps(self):
+    def test_stencil_nowrite_implies_haloupdate_anyway(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -622,10 +633,13 @@ class TestOperatorSimple(object):
         f = TimeFunction(name='f', grid=grid)
         g = Function(name='g', grid=grid)
 
+        # It does a halo update, even though there's no data dependence,
+        # because when the halo updates are placed, the compiler conservatively
+        # assumes there might have been another equation writing to `f` before.
         op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
 
         calls = FindNodes(Call).visit(op)
-        assert len(calls) == 0
+        assert len(calls) == 1
 
     @pytest.mark.parallel(nprocs=2)
     def test_redo_haloupdate_due_to_antidep(self):
