@@ -557,15 +557,15 @@ class Dependence(object):
     def distance(self):
         return self.source.distance(self.sink)
 
-    @property
+    @cached_property
     def _defined_findices(self):
         return set(flatten(i._defines for i in self.findices))
 
-    @property
+    @cached_property
     def distance_mapper(self):
         return {i: j for i, j in zip(self.findices, self.distance)}
 
-    @property
+    @cached_property
     def cause(self):
         """Return the findex causing the dependence."""
         for i, j in zip(self.findices, self.distance):
@@ -577,15 +577,45 @@ class Dependence(object):
                 return i._defines
         return set()
 
-    @property
+    @cached_property
+    def read(self):
+        if self.is_flow:
+            return self.sink
+        elif self.is_anti:
+            return self.source
+        else:
+            return None
+
+    @cached_property
+    def write(self):
+        if self.is_flow:
+            return self.source
+        elif self.is_anti:
+            return self.sink
+        else:
+            return None
+
+    @cached_property
+    def is_flow(self):
+        return self.source.is_write and self.sink.is_read
+
+    @cached_property
+    def is_anti(self):
+        return self.source.is_read and self.sink.is_write
+
+    @cached_property
+    def is_waw(self):
+        return self.source.is_write and self.sink.is_write
+
+    @cached_property
     def is_regular(self):
         return self.source.is_regular and self.sink.is_regular
 
-    @property
+    @cached_property
     def is_increment(self):
         return self.source.is_increment and self.sink.is_increment
 
-    @property
+    @cached_property
     def is_irregular(self):
         return not self.is_regular
 
