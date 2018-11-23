@@ -82,6 +82,7 @@ class Operator(Callable):
 
         # Group expressions based on their iteration space and data dependences,
         # and apply the Devito Symbolic Engine (DSE) for flop optimization
+        from IPython import embed; embed()
         clusters = clusterize(expressions)
         clusters = rewrite(clusters, mode=set_dse_mode(dse))
         self._dtype, self._dspace = clusters.meta
