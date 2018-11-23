@@ -559,7 +559,7 @@ class Dependence(object):
 
     @cached_property
     def _defined_findices(self):
-        return set(flatten(i._defines for i in self.findices))
+        return frozenset(flatten(i._defines for i in self.findices))
 
     @cached_property
     def distance_mapper(self):
@@ -575,7 +575,7 @@ class Dependence(object):
             except TypeError:
                 # Conservatively assume this is an offending dimension
                 return i._defines
-        return set()
+        return frozenset()
 
     @cached_property
     def read(self):
@@ -619,6 +619,7 @@ class Dependence(object):
     def is_irregular(self):
         return not self.is_regular
 
+    @memoized_meth
     def is_carried(self, dim=None):
         """Return True if definitely a dimension-carried dependence,
         False otherwise."""
@@ -631,6 +632,7 @@ class Dependence(object):
             # Conservatively assume this is a carried dependence
             return True
 
+    @memoized_meth
     def is_reduce(self, dim):
         """Return True if ``dim`` may represent a reduction dimension for
         ``self``, False otherwise."""
@@ -639,6 +641,7 @@ class Dependence(object):
         test2 = all(i not in self._defined_findices for i in dim._defines)
         return test0 and test1 and test2
 
+    @memoized_meth
     def is_reduce_atmost(self, dim=None):
         """More relaxed than :meth:`is_reduce`. Return True  if ``dim`` may
         represent a reduction dimension for ``self`` or if `self`` is definitely
@@ -671,6 +674,7 @@ class Dependence(object):
             # Conservatively assume this is not dimension-independent
             return False
 
+    @memoized_meth
     def is_inplace(self, dim=None):
         """Stronger than ``is_indep()``, as it also compares the timestamps."""
         return self.source.lex_eq(self.sink) and self.is_indep(dim)
@@ -681,20 +685,20 @@ class Dependence(object):
 
 class DependenceGroup(list):
 
-    @property
+    @cached_property
     def cause(self):
-        return set().union(*[i.cause for i in self])
+        return frozenset().union(*[i.cause for i in self])
 
-    @property
+    @cached_property
     def functions(self):
         """Return the :class:`TensorFunction`s inducing a dependence."""
-        return {i.function for i in self}
+        return frozenset({i.function for i in self})
 
-    @property
+    @cached_property
     def none(self):
         return len(self) == 0
 
-    @property
+    @cached_property
     def increment(self):
         """Return the increment-induced dependences."""
         return DependenceGroup(i for i in self if i.is_increment)
