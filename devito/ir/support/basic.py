@@ -847,3 +847,9 @@ class Scope(object):
     def d_all(self):
         """Retrieve all flow, anti, and output dependences."""
         return self.d_flow + self.d_anti + self.d_output
+
+    @memoized_meth
+    def d_from_access(self, access):
+        """Retrieve all dependences involving a given :class:`TimedAccess`."""
+        return DependenceGroup(d for d in self.d_all
+                               if d.source is access or d.sink is access)
