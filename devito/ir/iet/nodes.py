@@ -19,7 +19,7 @@ from devito.ir.support import Forward, detect_io
 from devito.dimension import Dimension
 from devito.symbolics import FunctionFromPointer, as_symbol
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          validate_type)
+                          validate_type, dtype_to_cstr)
 from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
@@ -582,7 +582,7 @@ class Callable(Node):
         self.parameters = as_tuple(parameters)
 
     def __repr__(self):
-        parameters = ",".join(['void*' if i.is_Object else c.dtype_to_ctype(i.dtype)
+        parameters = ",".join(['void*' if i.is_Object else dtype_to_cstr(i.dtype)
                                for i in self.parameters])
         return "%s[%s]<%s; %s>" % (self.__class__.__name__, self.name, self.retval,
                                    parameters)

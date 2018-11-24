@@ -21,7 +21,7 @@ from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
 from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_sorted,
-                          numpy_to_ctypes, split)
+                          dtype_to_ctype, split)
 
 
 class Operator(Callable):
@@ -227,7 +227,7 @@ class Operator(Callable):
                 if i.is_Object:
                     argtypes.append(i.dtype)
                 elif i.is_Scalar:
-                    argtypes.append(numpy_to_ctypes(i.dtype))
+                    argtypes.append(dtype_to_ctype(i.dtype))
                 elif i.is_Tensor:
                     argtypes.append(np.ctypeslib.ndpointer(dtype=i.dtype, flags='C'))
                 else:

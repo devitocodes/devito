@@ -9,7 +9,7 @@ from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls)
 from devito.symbolics import CondNe, FieldFromPointer, Macro
 from devito.types import Array, Symbol, LocalObject, OWNED, HALO, LEFT, RIGHT
-from devito.tools import numpy_to_mpitypes
+from devito.tools import dtype_to_mpitype
 
 __all__ = ['copy', 'sendrecv', 'update_halo']
 
@@ -90,9 +90,9 @@ def sendrecv(f, fixed):
     rsend = MPIRequestObject(name='rsend')
 
     count = reduce(mul, bufs.shape, 1)
-    recv = Call('MPI_Irecv', [bufs, count, Macro(numpy_to_mpitypes(f.dtype)),
+    recv = Call('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
                               fromrank, '13', comm, rrecv])
-    send = Call('MPI_Isend', [bufg, count, Macro(numpy_to_mpitypes(f.dtype)),
+    send = Call('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
                               torank, '13', comm, rsend])
 
     waitrecv = Call('MPI_Wait', [rrecv, srecv])

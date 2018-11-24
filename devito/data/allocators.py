@@ -9,7 +9,7 @@ from ctypes.util import find_library
 
 from devito.logger import logger
 from devito.parameters import configuration
-from devito.tools import numpy_to_ctypes
+from devito.tools import dtype_to_ctype
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
@@ -59,7 +59,7 @@ class MemoryAllocator(object):
                                          that is needed only for the call to free.
         """
         size = int(reduce(mul, shape))
-        ctype = numpy_to_ctypes(dtype)
+        ctype = dtype_to_ctype(dtype)
 
         c_pointer, memfree_args = self._alloc_C_libcall(size, ctype)
         if c_pointer is None:

@@ -4,8 +4,6 @@ Visitor hierarchy to inspect and/or create IETs.
 The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 """
 
-from __future__ import absolute_import
-
 from collections import Iterable, OrderedDict
 from operator import attrgetter
 
@@ -14,7 +12,7 @@ import cgen as c
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
 from devito.ir.support.space import Backward
-from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
+from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype_to_cstr
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
@@ -201,7 +199,7 @@ class CGen(Visitor):
                                          ccode(o.expr.rhs, dtype=o.dtype)))
 
     def visit_LocalExpression(self, o):
-        return c.Initializer(c.Value(c.dtype_to_ctype(o.dtype),
+        return c.Initializer(c.Value(dtype_to_cstr(o.dtype),
                              ccode(o.expr.lhs, dtype=o.dtype)),
                              ccode(o.expr.rhs, dtype=o.dtype))
 

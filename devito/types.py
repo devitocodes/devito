@@ -9,10 +9,11 @@ from ctypes import POINTER, Structure, byref
 import numpy as np
 import sympy
 from cached_property import cached_property
-from cgen import Struct, Value, dtype_to_ctype
+from cgen import Struct, Value
 
 from devito.symbolics import Add
-from devito.tools import ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_C
+from devito.tools import (ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_cstr,
+                          dtype_to_cstr, dtype_to_ctype)
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -280,7 +281,7 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
 
     @property
     def _C_typename(self):
-        return dtype_to_ctype(self.dtype)
+        return dtype_to_cstr(self.dtype)
 
     # Pickling support
     _pickle_kwargs = ['name', 'dtype']
@@ -478,7 +479,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @property
     def _C_typename(self):
-        return dtype_to_ctype(self.dtype)
+        return dtype_to_cstr(self.dtype)
 
     @property
     def symbolic_shape(self):
@@ -792,7 +793,7 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
 
     @property
     def _C_typename(self):
-        return ctypes_to_C(self.dtype)
+        return ctypes_to_cstr(self.dtype)
 
     # Pickling support
     _pickle_args = ['name', 'dtype']
@@ -861,7 +862,7 @@ class CompositeObject(Object):
 
     @cached_property
     def _C_typedecl(self):
-        return Struct(self.pname, [Value(ctypes_to_C(j), i) for i, j in self.pfields])
+        return Struct(self.pname, [Value(ctypes_to_cstr(j), i) for i, j in self.pfields])
 
     # Pickling support
     _pickle_args = ['name', 'pname', 'pfields']

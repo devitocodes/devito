@@ -6,10 +6,12 @@ from operator import attrgetter, mul
 
 import numpy as np
 import sympy
+from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'roundm',
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
-           'filter_sorted', 'ctypes_to_C', 'ctypes_pointer', 'pprint', 'sweep']
+           'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
+           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep']
 
 
 def prod(iterable):
@@ -149,14 +151,37 @@ def filter_sorted(elements, key=None):
     return sorted(filter_ordered(elements, key=key), key=key)
 
 
-def ctypes_to_C(ctype):
-    """Map ctypes types to C types."""
+def dtype_to_cstr(dtype):
+    """Translate numpy.dtype into C string."""
+    return cgen_dtype_to_ctype(dtype)
+
+
+def dtype_to_ctype(dtype):
+    """Translate numpy.dtype into a ctypes type."""
+    return {np.int32: ctypes.c_int,
+            np.float32: ctypes.c_float,
+            np.int64: ctypes.c_int64,
+            np.float64: ctypes.c_double}[dtype]
+
+
+def dtype_to_mpitype(dtype):
+    """Map numpy types to MPI datatypes."""
+    return {np.int32: 'MPI_INT',
+            np.float32: 'MPI_FLOAT',
+            np.int64: 'MPI_LONG',
+            np.float64: 'MPI_DOUBLE'}[dtype]
+
+
+def ctypes_to_cstr(ctype):
+    """Translate ctypes types into C strings."""
     if issubclass(ctype, ctypes.Structure):
         return 'struct %s' % ctype.__name__
     elif issubclass(ctype, ctypes.Union):
         return 'union %s' % ctype.__name__
     elif issubclass(ctype, ctypes._Pointer):
-        return '%s *' % ctypes_to_C(ctype._type_)
+        return '%s *' % ctypes_to_cstr(ctype._type_)
+    elif issubclass(ctype, ctypes.Array):
+        return '(%s[%d])' % (ctypes_to_cstr(ctype._type), ctype._length_)
     elif ctype.__name__.startswith('c_'):
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?

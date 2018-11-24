@@ -6,7 +6,7 @@ import numpy as np
 import devito.function as function
 from devito.exceptions import InvalidArgument
 from devito.logger import yask as log
-from devito.tools import Signer, numpy_to_ctypes, memoized_meth
+from devito.tools import Signer, dtype_to_ctype, memoized_meth
 from devito.types import _SymbolCache
 
 from devito.yask.data import Data, DataScalar
@@ -103,7 +103,7 @@ class Function(function.Function, Signer):
     @property
     @_allocate_memory
     def _data_buffer(self):
-        ctype = numpy_to_ctypes(self.dtype)
+        ctype = dtype_to_ctype(self.dtype)
         cpointer = ctypes.cast(int(self._data.grid.get_raw_storage_buffer()),
                                ctypes.POINTER(ctype))
         ndpointer = np.ctypeslib.ndpointer(dtype=self.dtype, shape=self.shape_allocated)

@@ -23,7 +23,7 @@ from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, 
                           OWNED, HALO, LEFT, RIGHT)
 from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_tuple,
                           flatten, is_integer, prod, powerset, filter_ordered,
-                          ctypes_to_C, memoized_meth)
+                          ctypes_to_cstr, memoized_meth)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -626,8 +626,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return EnrichedTuple(*ret, getters=self.dimensions)
 
     _C_typedecl = Struct('function',
-                         [Value('%srestrict' % ctypes_to_C(c_void_p), 'data'),
-                          Value(ctypes_to_C(POINTER(c_int)), 'pad')])
+                         [Value('%srestrict' % ctypes_to_cstr(c_void_p), 'data'),
+                          Value(ctypes_to_cstr(POINTER(c_int*2)), 'pad')])
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
