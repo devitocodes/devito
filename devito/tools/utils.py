@@ -172,16 +172,19 @@ def dtype_to_mpitype(dtype):
             np.float64: 'MPI_DOUBLE'}[dtype]
 
 
-def ctypes_to_cstr(ctype):
+def ctypes_to_cstr(ctype, toarray=None):
     """Translate ctypes types into C strings."""
     if issubclass(ctype, ctypes.Structure):
         return 'struct %s' % ctype.__name__
     elif issubclass(ctype, ctypes.Union):
         return 'union %s' % ctype.__name__
     elif issubclass(ctype, ctypes._Pointer):
-        return '%s *' % ctypes_to_cstr(ctype._type_)
+        if toarray:
+            return ctypes_to_cstr(ctype._type_, '(* %s)' % toarray)
+        else:
+            return '%s *' % ctypes_to_cstr(ctype._type_)
     elif issubclass(ctype, ctypes.Array):
-        return '(%s[%d])' % (ctypes_to_cstr(ctype._type), ctype._length_)
+        return '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
@@ -190,6 +193,8 @@ def ctypes_to_cstr(ctype):
         # `int` or `float`.
         if ctype.__name__.endswith('_p'):
             return '%s *' % ctype.__name__[2:-2]
+        elif toarray:
+            return '%s %s' % (ctype.__name__[2:], toarray)
         else:
             return ctype.__name__[2:]
     else:
