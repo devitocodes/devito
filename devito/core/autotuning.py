@@ -265,7 +265,8 @@ def generate_nthreads(nthreads, args, level):
     # On the KNL, also try running with a different number of hyperthreads
     if level == 'aggressive' and configuration['platform'] == 'knl':
         ret.extend([((i.name, psutil.cpu_count()),) for i in nthreads])
-        ret.extend([((i.name, psutil.cpu_count(logical=False)),) for i in nthreads])
+        ret.extend([((i.name, psutil.cpu_count() // 2),) for i in nthreads])
+        ret.extend([((i.name, psutil.cpu_count() // 4),) for i in nthreads])
 
     return filter_ordered(ret)
 
