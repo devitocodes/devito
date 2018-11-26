@@ -5,6 +5,7 @@ import pytest
 import numpy as np
 from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
                     switchconfig)
+from devito.types import LEFT
 from unittest.mock import patch
 
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
@@ -144,7 +145,7 @@ def test_mode_destructive():
     f = TimeFunction(name='f', grid=grid, time_order=0)
 
     op = Operator(Eq(f, f + 1.), dle=('advanced', {'openmp': False}))
-    summary = op.apply(time=100, autotune=('basic', 'destructive'))
+    op.apply(time=100, autotune=('basic', 'destructive'))
 
     # AT is expected to have executed 30 timesteps (6 block shapes, 5 timesteps each)
     # The operator runs for 101 timesteps
@@ -207,3 +208,36 @@ def test_discarding_runs():
     assert op._state['autotuning'][1]['tpr'] == 5
     assert len(op._state['autotuning'][1]['tuned']) == 3
     assert op._state['autotuning'][1]['tuned']['nthreads'] == 1
+
+
+@pytest.mark.parallel(nprocs=2)
+def test_at_w_mpi():
+    """Make sure autotuning works in presence of MPI. MPI ranks work
+    in isolation to determine the best block size, locally."""
+    grid = Grid(shape=(8, 8))
+    t = grid.stepping_dim
+    x, y = grid.dimensions
+
+    f = TimeFunction(name='f', grid=grid, time_order=1)
+    f.data_with_halo[:] = 1.
+
+    eq = Eq(f.forward, f[t, x, y-1] + f[t, x, y+1])
+    op = Operator(eq, dle=('advanced', {'openmp': False, 'blockinner': True}))
+
+    op.apply(time=-1, autotune=('basic', 'runtime'))
+    # Nothing really happened, as not enough timesteps
+    assert np.all(f.data_ro_domain[0] == 1.)
+    assert np.all(f.data_ro_domain[1] == 1.)
+
+    # The 'destructive' mode writes directly to `f` for whatever timesteps required
+    # to perform the autotuning. Eventually, the result is complete garbage; note
+    # also that this autotuning mode disables the halo exchanges
+    op.apply(time=-1, autotune=('basic', 'destructive'))
+    assert np.all(f._data_ro_with_inhalo.sum() == 904)
+
+    # Check the halo hasn't been touched during AT
+    glb_pos_map = grid.distributor.glb_pos_map
+    if LEFT in glb_pos_map[y]:
+        assert np.all(f._data_ro_with_inhalo[:, :, -1] == 1)
+    else:
+        assert np.all(f._data_ro_with_inhalo[:, :, 0] == 1)
