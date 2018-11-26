@@ -6,11 +6,10 @@ import numpy as np
 
 from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
-from devito.ir.iet import (Iteration, Expression, ForeignExpression, Section,
-                           MetaCall, FindNodes, Transformer, retrieve_iteration_tree)
+from devito.ir.iet import ForeignExpression, MetaCall, Transformer, find_offloadable_trees
 from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
-from devito.tools import ReducerMap, Signer, filter_ordered, flatten
+from devito.tools import Signer, filter_ordered, flatten
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
@@ -208,30 +207,3 @@ class Operator(OperatorRunnable):
             local_grids = [i for i in self.parameters if i.name in local_grids]
             yk_soln = context.make_yk_solution(name, None, local_grids)
             self.yk_solns[(dimensions, yk_soln_obj)] = yk_soln
-
-
-def find_offloadable_trees(iet):
-    """
-    Return the trees within ``iet`` that can be computed by YASK.
-
-    A tree is "offloadable to YASK" if it is embedded in a time stepping loop
-    *and* all of the grids accessed by the enclosed equations are homogeneous
-    (i.e., same dimensions and data type).
-    """
-    offloadable = OrderedDict()
-    roots = [i for i in FindNodes(Iteration).visit(iet) if i.dim.is_Time]
-    for root in roots:
-        sections = FindNodes(Section).visit(root)
-        for section in sections:
-            for tree in retrieve_iteration_tree(section):
-                if not all(i.is_Affine for i in tree):
-                    # Non-affine array accesses unsupported by YASK
-                    break
-                exprs = [i.expr for i in FindNodes(Expression).visit(tree.root)]
-                grid = ReducerMap([('', i.grid) for i in exprs if i.grid]).unique('')
-                writeto_dimensions = tuple(i.dim.root for i in tree)
-                if grid.dimensions == writeto_dimensions:
-                    offloadable.setdefault(section, []).append(tree)
-                else:
-                    break
-    return offloadable
