@@ -102,8 +102,8 @@ def test_timesteps_per_at_run():
 
 
 @switchconfig(profiling='advanced')
-def test_nondestructive_forward():
-    """Test autotuning in non-destructive mode."""
+def test_mode_runtime_forward():
+    """Test autotuning in runtime mode."""
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
 
@@ -120,8 +120,8 @@ def test_nondestructive_forward():
 
 
 @switchconfig(profiling='advanced')
-def test_nondestructive_backward():
-    """Test autotuning in non-destructive mode."""
+def test_mode_runtime_backward():
+    """Test autotuning in runtime mode."""
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
 
@@ -135,6 +135,21 @@ def test_nondestructive_backward():
     assert summary['section0'].itershapes[0][0] == 101-30
     assert np.all(f.data[0] == 101)
     assert np.all(f.data[1] == 100)
+
+
+@switchconfig(profiling='advanced')
+def test_mode_destructive():
+    """Test autotuning in destructive mode."""
+    grid = Grid(shape=(64, 64, 64))
+    f = TimeFunction(name='f', grid=grid, time_order=0)
+
+    op = Operator(Eq(f, f + 1.), dle=('advanced', {'openmp': False}))
+    summary = op.apply(time=100, autotune=('basic', 'destructive'))
+
+    # AT is expected to have executed 30 timesteps (6 block shapes, 5 timesteps each)
+    # The operator runs for 101 timesteps
+    # So, overall, f.data[0] is incremented 131 times
+    assert np.all(f.data == 131)
 
 
 def test_blocking_only():
