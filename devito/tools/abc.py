@@ -52,7 +52,7 @@ class ArgProvider(object):
     @abc.abstractmethod
     def _arg_defaults(self):
         """
-        Returns a map of default argument values defined by this type.
+        A map of default argument values defined by this type.
         """
         raise NotImplementedError('%s does not provide any default arguments' %
                                   self.__class__)
@@ -60,9 +60,12 @@ class ArgProvider(object):
     @abc.abstractmethod
     def _arg_values(self, **kwargs):
         """
-        Returns a map of argument values after evaluating user input.
+        A map of argument values after evaluating user input.
 
-        :param kwargs: Dictionary of user-provided argument overrides.
+        Parameters
+        ----------
+        **kwargs
+            User-provided argument overrides.
         """
         raise NotImplementedError('%s does not provide argument value derivation' %
                                   self.__class__)
@@ -70,14 +73,18 @@ class ArgProvider(object):
     @abc.abstractmethod
     def _arg_apply(self, *args, **kwargs):
         """
-        Change self's state using information in ``args`` and ``kwargs``.
+        Postprocess arguments upon returning from dynamically executed code. May be
+        called if self's state needs to be updated.
         """
         pass  # no-op
 
     @abc.abstractmethod
     def _arg_check(self, *args, **kwargs):
         """
-        Raises an exception if an argument value is illegal.
+        Raises
+        ------
+        InvalidArgument
+            If an argument value is illegal.
         """
         pass  # no-op
 
