@@ -28,6 +28,9 @@ class MemoryAllocator(object):
     _attempted_init = False
     lib = None
 
+    guaranteed_alignment = 64
+    """Guaranteed data alignment."""
+
     @classmethod
     def available(cls):
         if cls._attempted_init is False:

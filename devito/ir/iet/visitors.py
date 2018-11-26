@@ -170,10 +170,10 @@ class CGen(Visitor):
         Build cgen type casts for an :class:`AbstractFunction`.
         """
         f = o.function
-        align = "__attribute__((aligned(64)))"
+        align = "__attribute__((aligned(%d)))" % f._data_alignment
         shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
         lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
-        rvalue = '(%s (*)%s) %s' % (f._C_typename, shape, '%s' % f._C_name)
+        rvalue = '(%s (*)%s) %s' % (f._C_typename, shape, f._C_name)
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):

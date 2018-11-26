@@ -656,6 +656,11 @@ class AbstractCachedFunction(AbstractFunction, Cached):
                 index_array.append(slice(None))
         return self._data[index_array]
 
+    @property
+    def _data_alignment(self):
+        """The address of any allocated memory is a multiple of the alignment."""
+        return default_allocator().guaranteed_alignment
+
     def indexify(self, indices=None):
         """Create a :class:`sympy.Indexed` object from the current object."""
         if indices is not None:

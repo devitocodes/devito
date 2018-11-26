@@ -243,6 +243,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return self._data_allocated
 
     @property
+    def _data_alignment(self):
+        return self._allocator.guaranteed_alignment
+
+    @property
     def _mem_external(self):
         return True
 

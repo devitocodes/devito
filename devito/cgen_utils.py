@@ -27,7 +27,7 @@ class Allocator(object):
             handle[obj] = c.Value(obj._C_typename, obj.name)
         else:
             shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
-            alignment = "__attribute__((aligned(64)))"
+            alignment = "__attribute__((aligned(%d)))" % obj._data_alignment
             handle[obj] = c.POD(obj.dtype, "%s%s %s" % (obj.name, shape, alignment))
 
     def push_heap(self, obj):
@@ -42,8 +42,8 @@ class Allocator(object):
         decl = c.Value(obj._C_typename, decl)
 
         shape = "".join("[%s]" % i for i in obj.symbolic_shape)
-        alloc = "posix_memalign((void**)&%s, 64, sizeof(%s%s))"
-        alloc = alloc % (obj.name, obj._C_typename, shape)
+        alloc = "posix_memalign((void**)&%s, %d, sizeof(%s%s))"
+        alloc = alloc % (obj.name, obj._data_alignment, obj._C_typename, shape)
         alloc = c.Statement(alloc)
 
         free = c.Statement('free(%s)' % obj.name)
