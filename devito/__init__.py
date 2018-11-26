@@ -50,7 +50,7 @@ configuration.add('mpi', 0, [0, 1], callback=_reinit_compiler)
 
 # Autotuning setup
 AT_LEVELs = ['off', 'basic', 'aggressive']
-AT_MODEs = ['preemptive', 'runtime']
+AT_MODEs = ['preemptive', 'destructive', 'runtime']
 at_default_mode = {'core': 'preemptive', 'yask': 'runtime', 'ops': 'runtime'}
 at_setup = namedtuple('at_setup', 'level mode')
 at_accepted = AT_LEVELs + [list(i) for i in product(AT_LEVELs, AT_MODEs)]
