@@ -6,6 +6,7 @@ import psutil
 from devito.dle import BlockDimension, NThreads
 from devito.ir import Backward, retrieve_iteration_tree
 from devito.logger import perf, warning as _warning
+from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import evaluate
 from devito.tools import filter_ordered, flatten, prod
@@ -55,6 +56,19 @@ def autotune(operator, args, level, mode):
         for k, v in args.items():
             if k in output:
                 at_args[k] = v.copy()
+
+    # Disable halo exchanges as the number of autotuning steps performed on each
+    # rank may be different. Also, this makes the autotuning runtimes reliable
+    # regardless of whether the timed regions include the halo exchanges or not,
+    # as now the halo exchanges become a no-op.
+    try:
+        nb = []
+        if mode != 'runtime':
+            for i, _ in at_args['nb']._obj._fields_:
+                nb.append((i, getattr(at_args['nb']._obj, i)))
+                setattr(at_args['nb']._obj, i, MPI.PROC_NULL)
+    except KeyError:
+        assert not configuration['mpi']
 
     trees = retrieve_iteration_tree(operator.body)
 
@@ -140,6 +154,10 @@ def autotune(operator, args, level, mode):
     # Reset profiling data
     assert operator._profiler.name in args
     args[operator._profiler.name] = operator._profiler.timer.reset()
+
+    # Reinstate MPI neighbourhood
+    for i, v in nb:
+        setattr(args['nb']._obj, i, v)
 
     # Autotuning summary
     summary = {}
