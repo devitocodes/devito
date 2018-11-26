@@ -1,10 +1,14 @@
-from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
+from collections import OrderedDict
+
+from devito.ir.iet import (Iteration, List, IterationTree, FindSections, FindSymbols,
+                           FindNodes, Section, Expression)
+
 from devito.symbolics import Macro
-from devito.tools import flatten
+from devito.tools import flatten, ReducerMap
 from devito.types import Array, LocalObject
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree',
-           'compose_nodes', 'derive_parameters']
+           'compose_nodes', 'derive_parameters', 'find_offloadable_trees']
 
 
 def retrieve_iteration_tree(node, mode='normal'):
@@ -137,3 +141,30 @@ def derive_parameters(nodes, drop_locals=False):
         parameters = [p for p in parameters if not isinstance(p, LocalObject)]
 
     return parameters
+
+
+def find_offloadable_trees(iet):
+    """
+    Return the trees within ``iet`` that can be computed by YASK.
+
+    A tree is "offloadable to YASK" if it is embedded in a time stepping loop
+    *and* all of the grids accessed by the enclosed equations are homogeneous
+    (i.e., same dimensions and data type).
+    """
+    offloadable = OrderedDict()
+    roots = [i for i in FindNodes(Iteration).visit(iet) if i.dim.is_Time]
+    for root in roots:
+        sections = FindNodes(Section).visit(root)
+        for section in sections:
+            for tree in retrieve_iteration_tree(section):
+                if not all(i.is_Affine for i in tree):
+                    # Non-affine array accesses unsupported by YASK
+                    break
+                exprs = [i.expr for i in FindNodes(Expression).visit(tree.root)]
+                grid = ReducerMap([('', i.grid) for i in exprs if i.grid]).unique('')
+                writeto_dimensions = tuple(i.dim.root for i in tree)
+                if grid.dimensions == writeto_dimensions:
+                    offloadable.setdefault(section, []).append(tree)
+                else:
+                    break
+    return offloadable
