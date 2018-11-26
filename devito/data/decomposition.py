@@ -3,8 +3,8 @@ from collections import Iterable
 import numpy as np
 from cached_property import cached_property
 
+from devito.data.meta import LEFT
 from devito.tools import is_integer
-from devito.types import LEFT
 
 __all__ = ['Decomposition']
 

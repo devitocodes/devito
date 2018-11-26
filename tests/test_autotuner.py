@@ -5,7 +5,7 @@ import pytest
 import numpy as np
 from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
                     switchconfig)
-from devito.types import LEFT
+from devito.data import LEFT
 from unittest.mock import patch
 
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or

@@ -10,7 +10,7 @@ from cgen import Struct, Value
 
 from devito.builtins import assign
 from devito.cgen_utils import INT, cast_mapper
-from devito.data import Data, default_allocator
+from devito.data import OWNED, HALO, LEFT, RIGHT, Data, default_allocator
 from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
@@ -19,8 +19,7 @@ from devito.mpi import MPI, SparseDistributor
 from devito.parameters import configuration
 from devito.symbolics import Add, indexify, retrieve_function_carriers
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
-                          OWNED, HALO, LEFT, RIGHT)
+from devito.types import AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar
 from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_tuple,
                           flatten, is_integer, prod, powerset, filter_ordered,
                           ctypes_to_cstr, memoized_meth)

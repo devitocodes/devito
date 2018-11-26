@@ -2,13 +2,14 @@ from functools import reduce
 from operator import mul
 from ctypes import c_void_p
 
+from devito.data import OWNED, HALO, LEFT, RIGHT
 from devito.dimension import Dimension
 from devito.mpi.utils import get_views
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls)
 from devito.symbolics import CondNe, FieldFromPointer, Macro
-from devito.types import Array, Symbol, LocalObject, OWNED, HALO, LEFT, RIGHT
+from devito.types import Array, Symbol, LocalObject
 from devito.tools import dtype_to_mpitype
 
 __all__ = ['copy', 'sendrecv', 'update_halo']

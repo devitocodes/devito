@@ -11,6 +11,7 @@ import sympy
 from cached_property import cached_property
 from cgen import Struct, Value
 
+from devito.data import OWNED, HALO, LEFT, RIGHT, default_allocator
 from devito.symbolics import Add
 from devito.tools import (ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_cstr,
                           dtype_to_cstr, dtype_to_ctype)
@@ -950,21 +951,3 @@ class CacheManager(object):
         for key, val in list(_SymbolCache.items()):
             if val() is None:
                 del _SymbolCache[key]
-
-
-class DataRegion(Tag):
-    pass
-
-
-DOMAIN = DataRegion('domain')
-OWNED = DataRegion('owned')
-HALO = DataRegion('halo')
-
-
-class DataSide(Tag):
-    pass
-
-
-LEFT = DataSide('left')
-RIGHT = DataSide('right')
-CENTER = DataSide('center')

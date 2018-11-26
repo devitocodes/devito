@@ -4,9 +4,9 @@ from conftest import skipif_backend  # noqa
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
                     SubDimension, Eq, Inc, Operator, norm, inner, configuration)
+from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
-from devito.types import LEFT, RIGHT
 
 from examples.seismic.acoustic import acoustic_setup
 

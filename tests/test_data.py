@@ -4,8 +4,7 @@ import numpy as np
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
                     Eq, Operator, configuration, ALLOC_GUARD, ALLOC_FLAT)
-from devito.data import Decomposition
-from devito.types import LEFT, RIGHT
+from devito.data import LEFT, RIGHT, Decomposition
 
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
                                 reason="testing is currently restricted")

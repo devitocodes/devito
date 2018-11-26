@@ -5,10 +5,10 @@ from operator import attrgetter
 from cached_property import cached_property
 from frozendict import frozendict
 
+from devito.data import LEFT, RIGHT
 from devito.ir.support import Scope
 from devito.logger import warning
 from devito.parameters import configuration
-from devito.types import LEFT, RIGHT
 from devito.tools import Tag, as_mapper
 
 __all__ = ['HaloScheme', 'HaloSchemeException']
