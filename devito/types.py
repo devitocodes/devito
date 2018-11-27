@@ -762,7 +762,7 @@ class Array(AbstractCachedFunction):
 
     @property
     def _C_typename(self):
-        return dtype_to_cstr(self.dtype)
+        return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
 
     def update(self, **kwargs):
         self._shape = kwargs.get('shape', self.shape)
