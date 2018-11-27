@@ -13,7 +13,7 @@ from cgen import Struct, Value
 
 from devito.data import OWNED, HALO, LEFT, RIGHT, default_allocator
 from devito.symbolics import Add
-from devito.tools import (ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_cstr,
+from devito.tools import (ArgProvider, EnrichedTuple, Pickable, ctypes_to_cstr,
                           dtype_to_cstr, dtype_to_ctype)
 
 __all__ = ['Symbol', 'Indexed']

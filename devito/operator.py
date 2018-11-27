@@ -4,7 +4,6 @@ from operator import mul
 
 from cached_property import cached_property
 import ctypes
-import numpy as np
 import sympy
 
 from devito.compiler import jit_compile, load, save
@@ -20,8 +19,7 @@ from devito.ir.stree import st_build
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
-from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_sorted,
-                          dtype_to_ctype, split)
+from devito.tools import Signer, ReducerMap, as_tuple, flatten, filter_sorted, split
 
 
 class Operator(Callable):
