@@ -630,14 +630,16 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     _C_structname = 'dataobj'
     _C_typename = 'struct %s *' % _C_structname
+    _C_field_data = 'data'
+    _C_field_size = 'size'
 
     _C_typedecl = Struct(_C_structname,
-                         [Value('%srestrict' % ctypes_to_cstr(c_void_p), 'data'),
-                          Value(ctypes_to_cstr(POINTER(c_int)), 'size')])
+                         [Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_size)])
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
-                            {'_fields_': [('data', c_void_p),
-                                          ('size', POINTER(c_int))]}))
+                            {'_fields_': [(_C_field_data, c_void_p),
+                                          (_C_field_size, POINTER(c_int))]}))
 
     def _C_make_dataobj(self, data):
         dataobj = byref(self._C_ctype._type_())
