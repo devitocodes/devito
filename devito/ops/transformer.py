@@ -1,10 +1,8 @@
-from devito.types import Array
-
 from devito.ir.iet import Callable
 from devito.ir.iet.nodes import Expression, ClusterizedEq
 from devito.ir.iet.visitors import FindNodes
 
-from devito.ops.node_factory import OPSNodeFactory
+from devito.ops.node_factory import OpsNodeFactory
 from devito.ops.utils import namespace
 
 
@@ -27,7 +25,7 @@ def opsit(trees):
 
         # Only one node factory for all expression so we can keep track
         # of all kernels generated.
-        nfops = OPSNodeFactory()
+        nfops = OpsNodeFactory()
 
         count = 0
         for k, v in conditions:
@@ -86,8 +84,8 @@ def make_ops_ast(expr, nfops, mapper, arguments):
         dimensions = [make_ops_ast(i, nfops, mapper, arguments)
                       for i in expr.indices]
 
-        grid_access, grid_name = nfops.new_grid(expr.name, dimensions)
-        arguments.append(Array(name=grid_name, dimensions=[], dtype=expr.dtype))
+        grid_access = nfops.new_grid(expr, dimensions)
+
         return grid_access
     else:
         print(expr)

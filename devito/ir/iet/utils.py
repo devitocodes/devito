@@ -144,12 +144,20 @@ def derive_parameters(nodes, drop_locals=False):
 
 
 def find_offloadable_trees(iet):
-    """
-    Return the trees within ``iet`` that can be computed by YASK.
+    """ 
+    Find offloadable trees. A tree is offloadable when all of the array accesses are
+    constant/affine functions of the Iteration variables and the Iteration bounds
+    are fixed (but possibly symbolic).
 
-    A tree is "offloadable to YASK" if it is embedded in a time stepping loop
-    *and* all of the grids accessed by the enclosed equations are homogeneous
-    (i.e., same dimensions and data type).
+    Parameters
+    ----------
+    iet : :class:`Node`
+        The searched tree
+
+    Returns
+    -------
+    list of :class:`Node`
+        Each item in the list is the root of an offloadable tree
     """
     offloadable = OrderedDict()
     roots = [i for i in FindNodes(Iteration).visit(iet) if i.dim.is_Time]
