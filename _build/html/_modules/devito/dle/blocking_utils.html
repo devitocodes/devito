@@ -160,7 +160,7 @@
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">xreplace_indices</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">flatten</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;fold_blockable_tree&#39;</span><span class="p">,</span> <span class="s1">&#39;unfold_blocked_tree&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;BlockDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;fold_blockable_tree&#39;</span><span class="p">,</span> <span class="s1">&#39;unfold_blocked_tree&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="fold_blockable_tree"><a class="viewcode-back" href="../../../devito.dle.html#devito.dle.blocking_utils.fold_blockable_tree">[docs]</a><span class="k">def</span> <span class="nf">fold_blockable_tree</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">exclude_innermost</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -421,6 +421,28 @@
                       <span class="k">for</span> <span class="n">shift</span><span class="p">,</span> <span class="n">nodes</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">folds</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">folds</span> <span class="o">+</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="BlockDimension"><a class="viewcode-back" href="../../../devito.dle.html#devito.dle.blocking_utils.BlockDimension">[docs]</a><span class="k">class</span> <span class="nc">BlockDimension</span><span class="p">(</span><span class="n">IncrDimension</span><span class="p">):</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">,)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_arg_names</span>
+
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># TODO: need a heuristic to pick a default block size</span>
+        <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="mi">8</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">)}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">blocksize</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">()[</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">blocksize</span> <span class="o">&lt;</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">max_name</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">blocksize</span><span class="p">}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Avoid OOB</span>
+                <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span></div>
 </pre></div>
 
            </div>

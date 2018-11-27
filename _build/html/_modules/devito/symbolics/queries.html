@@ -153,7 +153,6 @@
   <h1>Source code for devito.symbolics.queries</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">diff</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">nan</span>
 
-<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
 
@@ -238,6 +237,7 @@
 
 
 <div class="viewcode-block" id="q_timedimension"><a class="viewcode-back" href="../../../devito.symbolics.html#devito.symbolics.queries.q_timedimension">[docs]</a><span class="k">def</span> <span class="nf">q_timedimension</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
     <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Time</span></div>
 
 

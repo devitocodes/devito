@@ -1682,18 +1682,8 @@ multiple processing trying to compile the same object.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.Dimension.is_NonlinearDerived">
-<code class="descname">is_NonlinearDerived</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_NonlinearDerived" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.is_Space">
-<code class="descname">is_Space</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Space" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.is_Stepping">
-<code class="descname">is_Stepping</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Stepping" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.dimension.Dimension.is_Incr">
+<code class="descname">is_Incr</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Incr" title="Permalink to this definition">¶</a></dt>
 <dd><p>A Dimension is a symbol representing a problem dimension and thus defining a
 potential iteration space.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -1709,6 +1699,26 @@ potential iteration space.</p>
 </tbody>
 </table>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Modulo">
+<code class="descname">is_Modulo</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Modulo" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_NonlinearDerived">
+<code class="descname">is_NonlinearDerived</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_NonlinearDerived" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Space">
+<code class="descname">is_Space</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Space" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Stepping">
+<code class="descname">is_Stepping</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Stepping" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Sub">
@@ -3080,13 +3090,6 @@ one file per rank.</li>
 <dd><p>Do not print performance-related messages.</p>
 </dd></dl>
 
-<dl class="class">
-<dt id="devito.logger.silencio">
-<em class="property">class </em><code class="descclassname">devito.logger.</code><code class="descname">silencio</code><span class="sig-paren">(</span><em>log_level='WARNING'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#silencio"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.silencio" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Decorator to temporarily change log levels.</p>
-</dd></dl>
-
 <dl class="function">
 <dt id="devito.logger.log">
 <code class="descclassname">devito.logger.</code><code class="descname">log</code><span class="sig-paren">(</span><em>msg</em>, <em>level=20</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#log"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.log" title="Permalink to this definition">¶</a></dt>
@@ -3164,11 +3167,6 @@ DSE_WARN, DLE, DLE_WARN, WARNING, ERROR, CRITICAL.</li>
 <code class="descname">cfunction</code><a class="headerlink" href="#devito.operator.Operator.cfunction" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns the JIT-compiled C function as a ctypes.FuncPtr object.</p>
 </dd></dl>
-
-<dl class="attribute">
-<dt id="devito.operator.Operator.elemental_functions">
-<code class="descname">elemental_functions</code><a class="headerlink" href="#devito.operator.Operator.elemental_functions" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 </dd></dl>
 
@@ -3249,14 +3247,12 @@ to run).</p>
 <dl class="function">
 <dt id="devito.operator.set_dle_mode">
 <code class="descclassname">devito.operator.</code><code class="descname">set_dle_mode</code><span class="sig-paren">(</span><em>mode</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#set_dle_mode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.set_dle_mode" title="Permalink to this definition">¶</a></dt>
-<dd><p>Transform <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a> input in a format understandable by the DLE.</p>
-</dd></dl>
+<dd></dd></dl>
 
 <dl class="function">
 <dt id="devito.operator.set_dse_mode">
 <code class="descclassname">devito.operator.</code><code class="descname">set_dse_mode</code><span class="sig-paren">(</span><em>mode</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#set_dse_mode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.set_dse_mode" title="Permalink to this definition">¶</a></dt>
-<dd><p>Transform <a class="reference internal" href="#devito.operator.Operator" title="devito.operator.Operator"><code class="xref py py-class docutils literal notranslate"><span class="pre">Operator</span></code></a> input in a format understandable by the DLE.</p>
-</dd></dl>
+<dd></dd></dl>
 
 </div>
 <div class="section" id="module-devito.parameters">
@@ -3264,13 +3260,13 @@ to run).</p>
 <p>The parameters dictionary contains global parameter settings.</p>
 <dl class="data">
 <dt id="devito.parameters.configuration">
-<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = {'autotuning': at_setup(level=False, mode='preemptive'), 'backend': 'core', 'compiler': DevitoJITCompiler[GNUCompiler], 'debug-compiler': False, 'develop-mode': True, 'dle': 'advanced', 'dle-options': {'blockalways': False, 'blockinner': False, 'blockshape': None}, 'dse': 'advanced', 'first-touch': False, 'ignore-unknowns': False, 'isa': 'cpp', 'log-level': 'INFO', 'mpi': False, 'openmp': False, 'platform': 'intel64', 'profiling': 'basic'}</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = {'autotuning': at_setup(level=False, mode='preemptive'), 'backend': 'core', 'compiler': DevitoJITCompiler[GNUCompiler], 'cross-compile': None, 'debug-compiler': False, 'develop-mode': True, 'dle': 'advanced', 'dle-options': {'blockalways': False, 'blockinner': False}, 'dse': 'advanced', 'first-touch': False, 'ignore-unknowns': False, 'isa': 'cpp', 'log-level': 'INFO', 'mpi': False, 'openmp': False, 'platform': 'intel64', 'profiling': 'basic'}</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Devito configuration parameters.</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="devito.parameters.init_configuration">
-<code class="descclassname">devito.parameters.</code><code class="descname">init_configuration</code><span class="sig-paren">(</span><em>configuration={'autotuning': at_setup(level=False, mode='preemptive'), 'backend': 'core', 'compiler': DevitoJITCompiler[GNUCompiler], 'debug-compiler': False, 'develop-mode': True, 'dle': 'advanced', 'dle-options': {'blockalways': False, 'blockinner': False, 'blockshape': None}, 'dse': 'advanced', 'first-touch': False, 'ignore-unknowns': False, 'isa': 'cpp', 'log-level': 'INFO', 'mpi': False, 'openmp': False, 'platform': 'intel64', 'profiling': 'basic'}, env_vars_mapper={'DEVITO_ARCH': 'compiler', 'DEVITO_AUTOTUNING': 'autotuning', 'DEVITO_BACKEND': 'backend', 'DEVITO_DEBUG_COMPILER': 'debug-compiler', 'DEVITO_DEVELOP': 'develop-mode', 'DEVITO_DLE': 'dle', 'DEVITO_DLE_OPTIONS': 'dle-options', 'DEVITO_DSE': 'dse', 'DEVITO_FIRST_TOUCH': 'first-touch', 'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns', 'DEVITO_ISA': 'isa', 'DEVITO_LOGGING': 'log-level', 'DEVITO_MPI': 'mpi', 'DEVITO_OPENMP': 'openmp', 'DEVITO_PLATFORM': 'platform', 'DEVITO_PROFILING': 'profiling'}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#init_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.init_configuration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.parameters.</code><code class="descname">init_configuration</code><span class="sig-paren">(</span><em>configuration={'autotuning': at_setup(level=False, mode='preemptive'), 'backend': 'core', 'compiler': DevitoJITCompiler[GNUCompiler], 'cross-compile': None, 'debug-compiler': False, 'develop-mode': True, 'dle': 'advanced', 'dle-options': {'blockalways': False, 'blockinner': False}, 'dse': 'advanced', 'first-touch': False, 'ignore-unknowns': False, 'isa': 'cpp', 'log-level': 'INFO', 'mpi': False, 'openmp': False, 'platform': 'intel64', 'profiling': 'basic'}, env_vars_mapper={'DEVITO_ARCH': 'compiler', 'DEVITO_AUTOTUNING': 'autotuning', 'DEVITO_BACKEND': 'backend', 'DEVITO_DEBUG_COMPILER': 'debug-compiler', 'DEVITO_DEVELOP': 'develop-mode', 'DEVITO_DLE': 'dle', 'DEVITO_DLE_OPTIONS': 'dle-options', 'DEVITO_DSE': 'dse', 'DEVITO_FIRST_TOUCH': 'first-touch', 'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns', 'DEVITO_ISA': 'isa', 'DEVITO_LOGGING': 'log-level', 'DEVITO_MPI': 'mpi', 'DEVITO_OPENMP': 'openmp', 'DEVITO_PLATFORM': 'platform', 'DEVITO_PROFILING': 'profiling'}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#init_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.init_configuration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">
@@ -3290,6 +3286,13 @@ as well as all of the accepted values.</p>
 <dt id="devito.parameters.add_sub_configuration">
 <code class="descclassname">devito.parameters.</code><code class="descname">add_sub_configuration</code><span class="sig-paren">(</span><em>sub_configuration</em>, <em>sub_env_vars_mapper=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#add_sub_configuration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.add_sub_configuration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="class">
+<dt id="devito.parameters.switchconfig">
+<em class="property">class </em><code class="descclassname">devito.parameters.</code><code class="descname">switchconfig</code><span class="sig-paren">(</span><em>**params</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#switchconfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.switchconfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Decorator to temporarily change <cite>configuration</cite> parameters.</p>
+</dd></dl>
 
 </div>
 <div class="section" id="module-devito.profiling">
@@ -3319,13 +3322,6 @@ as well as all of the accepted values.</p>
 <dt id="devito.profiling.create_profile">
 <code class="descclassname">devito.profiling.</code><code class="descname">create_profile</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiling.html#create_profile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiling.create_profile" title="Permalink to this definition">¶</a></dt>
 <dd><p>Create a new <code class="xref py py-class docutils literal notranslate"><span class="pre">Profiler</span></code>.</p>
-</dd></dl>
-
-<dl class="class">
-<dt id="devito.profiling.ruido">
-<em class="property">class </em><code class="descclassname">devito.profiling.</code><code class="descname">ruido</code><span class="sig-paren">(</span><em>profiling='advanced'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiling.html#ruido"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiling.ruido" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Decorator to temporarily change (increase) profiling levels.</p>
 </dd></dl>
 
 </div>

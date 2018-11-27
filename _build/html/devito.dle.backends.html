@@ -261,29 +261,6 @@ abstract method <code class="docutils literal notranslate"><span class="pre">_pi
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.dle.backends.common.Arg">
-<em class="property">class </em><code class="descclassname">devito.dle.backends.common.</code><code class="descname">Arg</code><span class="sig-paren">(</span><em>argument</em>, <em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/common.html#Arg"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.common.Arg" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>A DLE-produced argument.</p>
-</dd></dl>
-
-<dl class="class">
-<dt id="devito.dle.backends.common.BlockingArg">
-<em class="property">class </em><code class="descclassname">devito.dle.backends.common.</code><code class="descname">BlockingArg</code><span class="sig-paren">(</span><em>blocked_dim</em>, <em>iteration</em>, <em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/common.html#BlockingArg"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.common.BlockingArg" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.common.Arg" title="devito.dle.backends.common.Arg"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dle.backends.common.Arg</span></code></a></p>
-<dl class="attribute">
-<dt id="devito.dle.backends.common.BlockingArg.original_dim">
-<code class="descname">original_dim</code><a class="headerlink" href="#devito.dle.backends.common.BlockingArg.original_dim" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dle.backends.common.BlockingArg.tunable">
-<code class="descname">tunable</code><a class="headerlink" href="#devito.dle.backends.common.BlockingArg.tunable" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="class">
 <dt id="devito.dle.backends.common.State">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.common.</code><code class="descname">State</code><span class="sig-paren">(</span><em>nodes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/common.html#State"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.common.State" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
@@ -304,6 +281,17 @@ abstract method <code class="docutils literal notranslate"><span class="pre">_pi
 <div class="section" id="module-devito.dle.backends.parallelizer">
 <span id="devito-dle-backends-parallelizer-module"></span><h2>devito.dle.backends.parallelizer module<a class="headerlink" href="#module-devito.dle.backends.parallelizer" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
+<dt id="devito.dle.backends.parallelizer.NThreads">
+<em class="property">class </em><code class="descclassname">devito.dle.backends.parallelizer.</code><code class="descname">NThreads</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/parallelizer.html#NThreads"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.parallelizer.NThreads" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.function.Constant" title="devito.function.Constant"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.function.Constant</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.dle.backends.parallelizer.NThreads.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dle.backends.parallelizer.NThreads.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
 <dt id="devito.dle.backends.parallelizer.Ompizer">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.parallelizer.</code><code class="descname">Ompizer</code><span class="sig-paren">(</span><em>key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/parallelizer.html#Ompizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.parallelizer.Ompizer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
@@ -316,7 +304,7 @@ greater than this threshold.</p>
 
 <dl class="attribute">
 <dt id="devito.dle.backends.parallelizer.Ompizer.lang">
-<code class="descname">lang</code><em class="property"> = {'atomic': &lt;cgen.Pragma object&gt;, 'collapse': &lt;function Ompizer.&lt;lambda&gt;&gt;, 'for': &lt;cgen.Pragma object&gt;, 'par-for': &lt;cgen.Pragma object&gt;, 'par-region': &lt;function Ompizer.&lt;lambda&gt;&gt;, 'simd-for': &lt;cgen.Pragma object&gt;, 'simd-for-aligned': &lt;function Ompizer.&lt;lambda&gt;&gt;}</em><a class="headerlink" href="#devito.dle.backends.parallelizer.Ompizer.lang" title="Permalink to this definition">¶</a></dt>
+<code class="descname">lang</code><em class="property"> = {'atomic': &lt;cgen.Pragma object&gt;, 'for': &lt;function Ompizer.&lt;lambda&gt;&gt;, 'par-region': &lt;function Ompizer.&lt;lambda&gt;&gt;, 'simd-for': &lt;cgen.Pragma object&gt;, 'simd-for-aligned': &lt;function Ompizer.&lt;lambda&gt;&gt;}</em><a class="headerlink" href="#devito.dle.backends.parallelizer.Ompizer.lang" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shortcuts for the OpenMP language.</p>
 </dd></dl>
 
@@ -324,10 +312,15 @@ greater than this threshold.</p>
 <dt id="devito.dle.backends.parallelizer.Ompizer.make_parallel">
 <code class="descname">make_parallel</code><span class="sig-paren">(</span><em>iet</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/parallelizer.html#Ompizer.make_parallel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.parallelizer.Ompizer.make_parallel" title="Permalink to this definition">¶</a></dt>
 <dd><p>Transform <code class="docutils literal notranslate"><span class="pre">iet</span></code> by decorating its parallel <code class="xref py py-class docutils literal notranslate"><span class="pre">Iteration`s</span> <span class="pre">with</span>
-<span class="pre">suitable</span> <span class="pre">``#pragma</span> <span class="pre">omp</span> <span class="pre">...`</span></code> triggering thread-level parallelism.</p>
+<span class="pre">suitable</span> <span class="pre">``#pragma</span> <span class="pre">omp</span> <span class="pre">...`</span></code> for thread-level parallelism.</p>
 </dd></dl>
 
 </dd></dl>
+
+<dl class="function">
+<dt id="devito.dle.backends.parallelizer.ncores">
+<code class="descclassname">devito.dle.backends.parallelizer.</code><code class="descname">ncores</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/parallelizer.html#ncores"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.parallelizer.ncores" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </div>
 <div class="section" id="module-devito.dle.backends.utils">

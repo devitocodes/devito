@@ -151,17 +151,18 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.core.autotuning</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
-
-<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
-<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">combinations</span>
-<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
-<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">chain</span><span class="p">,</span> <span class="n">combinations</span><span class="p">,</span> <span class="n">product</span>
 <span class="kn">import</span> <span class="nn">resource</span>
+<span class="kn">import</span> <span class="nn">psutil</span>
 
-<span class="kn">from</span> <span class="nn">devito.ir</span> <span class="k">import</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">BlockDimension</span><span class="p">,</span> <span class="n">NThreads</span>
+<span class="kn">from</span> <span class="nn">devito.ir</span> <span class="k">import</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span> <span class="k">as</span> <span class="n">_warning</span>
+<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">MPI</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">evaluate</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">prod</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;autotune&#39;</span><span class="p">]</span>
 
@@ -191,11 +192,16 @@
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The accepted `(level, mode)` combinations are `</span><span class="si">%s</span><span class="s2">`; &quot;</span>
                          <span class="s2">&quot;provided `</span><span class="si">%s</span><span class="s2">` instead&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">accepted</span><span class="p">,</span> <span class="n">key</span><span class="p">))</span>
 
-    <span class="n">parameters</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">parameters</span>
-    <span class="n">tunable</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">_dle_args</span>
+    <span class="c1"># Tunable objects</span>
+    <span class="n">blockable</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">operator</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">BlockDimension</span><span class="p">)]</span>
+    <span class="n">nthreads</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">operator</span><span class="o">.</span><span class="n">input</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">NThreads</span><span class="p">)]</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nthreads</span> <span class="o">+</span> <span class="n">blockable</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># Nothing to tune for</span>
+        <span class="k">return</span> <span class="n">args</span><span class="p">,</span> <span class="p">{}</span>
 
     <span class="c1"># We get passed all the arguments, but the cfunction only requires a subset</span>
-    <span class="n">at_args</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">])</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">])</span>
+    <span class="n">at_args</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">])</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">operator</span><span class="o">.</span><span class="n">parameters</span><span class="p">])</span>
 
     <span class="c1"># User-provided output data won&#39;t be altered in `preemptive` mode</span>
     <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;preemptive&#39;</span><span class="p">:</span>
@@ -204,105 +210,92 @@
             <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">output</span><span class="p">:</span>
                 <span class="n">at_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
 
-    <span class="n">iterations</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Iteration</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
-    <span class="n">dim_mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span><span class="p">}</span>
+    <span class="c1"># Disable halo exchanges as the number of autotuning steps performed on each</span>
+    <span class="c1"># rank may be different. Also, this makes the autotuning runtimes reliable</span>
+    <span class="c1"># regardless of whether the timed regions include the halo exchanges or not,</span>
+    <span class="c1"># as now the halo exchanges become a no-op.</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">nb</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">!=</span> <span class="s1">&#39;runtime&#39;</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">at_args</span><span class="p">[</span><span class="s1">&#39;nb&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">_fields_</span><span class="p">:</span>
+                <span class="n">nb</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">at_args</span><span class="p">[</span><span class="s1">&#39;nb&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">i</span><span class="p">)))</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">at_args</span><span class="p">[</span><span class="s1">&#39;nb&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">MPI</span><span class="o">.</span><span class="n">PROC_NULL</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="ow">not</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span>
 
-    <span class="c1"># Shrink the iteration space of time-stepping dimension so that auto-tuner</span>
-    <span class="c1"># runs will finish quickly</span>
-    <span class="n">steppers</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">]</span>
+    <span class="n">trees</span> <span class="o">=</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+
+    <span class="c1"># Shrink the time dimension&#39;s iteration range for quick autotuning</span>
+    <span class="n">steppers</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">trees</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Time</span><span class="p">}</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">steppers</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">stepper</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">timesteps</span> <span class="o">=</span> <span class="mi">1</span>
     <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">steppers</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="n">stepper</span> <span class="o">=</span> <span class="n">steppers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">stepper</span> <span class="o">=</span> <span class="n">steppers</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
         <span class="n">timesteps</span> <span class="o">=</span> <span class="n">init_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">timesteps</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">args</span>
+            <span class="k">return</span> <span class="n">args</span><span class="p">,</span> <span class="p">{}</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AutoTuner: Couldn&#39;t understand loop structure; giving up&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">args</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;cannot perform autotuning unless there is one time loop; skipping&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">args</span><span class="p">,</span> <span class="p">{}</span>
 
-    <span class="c1"># Attempted block sizes ...</span>
-    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">tunable</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tunable</span><span class="p">])</span>
-    <span class="c1"># ... Defaults (basic mode)</span>
-    <span class="n">blocksizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">])</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_blocksize&#39;</span><span class="p">]]</span>
-    <span class="c1"># ... Always try the entire iteration space (degenerate block)</span>
-    <span class="n">itershape</span> <span class="o">=</span> <span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">iteration</span><span class="o">.</span><span class="n">symbolic_extent</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">]</span>
-    <span class="n">blocksizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">iteration</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">j</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
-                      <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">itershape</span><span class="p">)]))</span>
-    <span class="c1"># ... More attempts if auto-tuning in aggressive mode</span>
-    <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">:</span>
-        <span class="n">blocksizes</span> <span class="o">=</span> <span class="n">more_heuristic_attempts</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">)</span>
+    <span class="c1"># Formula to calculate the number of parallel blocks given block shape,</span>
+    <span class="c1"># number of threads, and extent of the parallel iteration space</span>
+    <span class="n">calculate_parblocks</span> <span class="o">=</span> <span class="n">make_calculate_parblocks</span><span class="p">(</span><span class="n">trees</span><span class="p">,</span> <span class="n">blockable</span><span class="p">,</span> <span class="n">nthreads</span><span class="p">)</span>
 
-    <span class="c1"># How many temporaries are allocated on the stack?</span>
-    <span class="c1"># Will drop block sizes that might lead to a stack overflow</span>
-    <span class="n">functions</span> <span class="o">=</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">body</span> <span class="o">+</span>
-                                               <span class="n">operator</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">)</span>
-    <span class="n">stack_shapes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">symbolic_shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Array</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">]</span>
-    <span class="n">stack_space</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">stack_shapes</span><span class="p">)</span><span class="o">*</span><span class="n">operator</span><span class="o">.</span><span class="n">_dtype</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span>
+    <span class="c1"># Generated loop-blocking attempts</span>
+    <span class="n">block_shapes</span> <span class="o">=</span> <span class="n">generate_block_shapes</span><span class="p">(</span><span class="n">blockable</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">level</span><span class="p">)</span>
 
-    <span class="c1"># Note: there is only a single loop over &#39;blocksize&#39; because only</span>
-    <span class="c1"># square blocks are tested</span>
+    <span class="c1"># Generate nthreads attempts</span>
+    <span class="n">nthreads</span> <span class="o">=</span> <span class="n">generate_nthreads</span><span class="p">(</span><span class="n">nthreads</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">level</span><span class="p">)</span>
+
+    <span class="n">generators</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">block_shapes</span><span class="p">,</span> <span class="n">nthreads</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span><span class="p">]</span>
+
     <span class="n">timings</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-    <span class="k">for</span> <span class="n">bs</span> <span class="ow">in</span> <span class="n">blocksizes</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">product</span><span class="p">(</span><span class="o">*</span><span class="n">generators</span><span class="p">):</span>
+        <span class="n">run</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="p">))</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="n">run</span><span class="p">)</span>
+
         <span class="c1"># Can we safely autotune over the given time range?</span>
-        <span class="n">check_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">check_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+            <span class="k">break</span>
 
-        <span class="n">illegal</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">at_args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">bs</span><span class="p">:</span>
-                <span class="n">val</span> <span class="o">=</span> <span class="n">bs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
-                <span class="n">start</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_start</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
-                <span class="n">end</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">symbolic_end</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+        <span class="c1"># Update `at_args` to use the new tunable values</span>
+        <span class="n">at_args</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">at_args</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
 
-                <span class="k">if</span> <span class="n">val</span> <span class="o">&lt;=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">iteration</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
-                    <span class="n">at_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="c1"># Block size cannot be larger than actual dimension</span>
-                    <span class="n">illegal</span> <span class="o">=</span> <span class="kc">True</span>
-                    <span class="k">break</span>
-        <span class="k">if</span> <span class="n">illegal</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">heuristically_discard_run</span><span class="p">(</span><span class="n">calculate_parblocks</span><span class="p">,</span> <span class="n">at_args</span><span class="p">):</span>
             <span class="k">continue</span>
 
-        <span class="c1"># Make sure we remain within stack bounds, otherwise skip block size</span>
-        <span class="n">dim_sizes</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">at_args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">bs</span><span class="p">:</span>
-                <span class="n">dim_sizes</span><span class="p">[</span><span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">symbolic_size</span><span class="p">]</span> <span class="o">=</span> <span class="n">bs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
-            <span class="k">elif</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">dim_mapper</span><span class="p">:</span>
-                <span class="n">dim_sizes</span><span class="p">[</span><span class="n">dim_mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">symbolic_size</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+        <span class="c1"># Make sure we remain within stack bounds, otherwise skip run</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">bs_stack_space</span> <span class="o">=</span> <span class="n">stack_space</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">dim_sizes</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="n">bs_stack_space</span> <span class="o">=</span> <span class="n">stack_space</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">bs_stack_space</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_stack_limit&#39;</span><span class="p">]:</span>
+            <span class="n">stack_footprint</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">_mem_summary</span><span class="p">[</span><span class="s1">&#39;stack&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">evaluate</span><span class="p">(</span><span class="n">stack_footprint</span><span class="p">,</span> <span class="o">**</span><span class="n">at_args</span><span class="p">))</span> <span class="o">&gt;</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;stack_limit&#39;</span><span class="p">]:</span>
                 <span class="k">continue</span>
         <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-            <span class="c1"># We should never get here</span>
-            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AutoTuner: Couldn&#39;t determine stack size; skipping block shape </span><span class="si">%s</span><span class="s2">&quot;</span>
-                    <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">bs</span><span class="p">))</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;couldn&#39;t determine stack size; skipping run </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
             <span class="k">continue</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">stack_footprint</span> <span class="o">==</span> <span class="mi">0</span>
 
-        <span class="c1"># Use AutoTuner-specific profiler structs</span>
-        <span class="n">timer</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">timer</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-        <span class="n">at_args</span><span class="p">[</span><span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timer</span>
+        <span class="c1"># Use fresh profiling data</span>
+        <span class="n">timer</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">timer</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">operator</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">timer</span>
 
         <span class="n">operator</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">at_args</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
-        <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">timer</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">timer</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">_fields_</span><span class="p">)</span>
-        <span class="n">timings</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">bs</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span> <span class="o">=</span> <span class="n">elapsed</span>
-        <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;AutoTuner: Block shape &lt;</span><span class="si">%s</span><span class="s2">&gt; took </span><span class="si">%f</span><span class="s2"> (s) in </span><span class="si">%d</span><span class="s2"> timesteps&quot;</span> <span class="o">%</span>
-             <span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bs</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">elapsed</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">))</span>
+        <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">timer</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">timer</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">_fields_</span><span class="p">)</span>
+        <span class="n">timings</span><span class="p">[</span><span class="n">run</span><span class="p">]</span> <span class="o">=</span> <span class="n">elapsed</span>
+        <span class="n">log</span><span class="p">(</span><span class="s2">&quot;run &lt;</span><span class="si">%s</span><span class="s2">&gt; took </span><span class="si">%f</span><span class="s2"> (s) in </span><span class="si">%d</span><span class="s2"> timesteps&quot;</span> <span class="o">%</span>
+            <span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">=</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span> <span class="n">elapsed</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">))</span>
 
         <span class="c1"># Prepare for the next autotuning run</span>
         <span class="n">update_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">best</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">timings</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">timings</span><span class="o">.</span><span class="n">get</span><span class="p">))</span>
-        <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;AutoTuner: Selected block shape </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">best</span><span class="p">)</span>
+        <span class="n">log</span><span class="p">(</span><span class="s2">&quot;selected best: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">best</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AutoTuner: Couldn&#39;t find legal block shapes&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">args</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;couldn&#39;t perform any runs&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">args</span><span class="p">,</span> <span class="p">{}</span>
 
     <span class="c1"># Build the new argument list</span>
     <span class="n">args</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">best</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
@@ -312,10 +305,20 @@
     <span class="n">finalize_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
 
     <span class="c1"># Reset profiling data</span>
-    <span class="k">assert</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">args</span>
-    <span class="n">args</span><span class="p">[</span><span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">timer</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">operator</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">args</span>
+    <span class="n">args</span><span class="p">[</span><span class="n">operator</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">timer</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
 
-    <span class="k">return</span> <span class="n">args</span></div>
+    <span class="c1"># Reinstate MPI neighbourhood</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">nb</span><span class="p">:</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;nb&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_obj</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+
+    <span class="c1"># Autotuning summary</span>
+    <span class="n">summary</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;runs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">timings</span><span class="p">)</span>
+    <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;tpr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">timesteps</span>  <span class="c1"># tpr -&gt; timesteps per run</span>
+    <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;tuned&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">best</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">args</span><span class="p">,</span> <span class="n">summary</span></div>
 
 
 <span class="k">def</span> <span class="nf">init_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">):</span>
@@ -323,32 +326,32 @@
         <span class="k">return</span>
     <span class="n">dim</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">root</span>
     <span class="k">if</span> <span class="n">stepper</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Backward</span><span class="p">:</span>
-        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span>
-        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">-</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">]</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">-</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;squeezer&#39;</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]:</span>
-            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AutoTuner: too few time iterations; giving up&quot;</span><span class="p">)</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;too few time iterations; skipping&quot;</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">False</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span>
-        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">+</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">]</span>
+        <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">+</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;squeezer&#39;</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]:</span>
-            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;AutoTuner: too few time iterations; giving up&quot;</span><span class="p">)</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;too few time iterations; skipping&quot;</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">False</span>
 
     <span class="k">return</span> <span class="n">stepper</span><span class="o">.</span><span class="n">extent</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">],</span> <span class="n">finish</span><span class="o">=</span><span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">])</span>
 
 
-<span class="k">def</span> <span class="nf">check_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
-    <span class="k">if</span> <span class="n">stepper</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span>
+<span class="k">def</span> <span class="nf">check_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">!=</span> <span class="s1">&#39;runtime&#39;</span> <span class="ow">or</span> <span class="n">stepper</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
     <span class="n">dim</span> <span class="o">=</span> <span class="n">stepper</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">root</span>
     <span class="k">if</span> <span class="n">stepper</span><span class="o">.</span><span class="n">direction</span> <span class="ow">is</span> <span class="n">Backward</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">min_name</span><span class="p">]:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Too few time iterations&quot;</span><span class="p">)</span>
-
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;too few time iterations; stopping&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">at_args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Too few time iterations&quot;</span><span class="p">)</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;too few time iterations; stopping&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span>
 
 
 <span class="k">def</span> <span class="nf">update_time_bounds</span><span class="p">(</span><span class="n">stepper</span><span class="p">,</span> <span class="n">at_args</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
@@ -375,41 +378,91 @@
         <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span>
 
 
-<span class="k">def</span> <span class="nf">more_heuristic_attempts</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">):</span>
-    <span class="c1"># Ramp up to higher block sizes</span>
-    <span class="n">handle</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_blocksize&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">blocksizes</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
-        <span class="n">new_bs</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">*</span><span class="mi">2</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">handle</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
-        <span class="n">blocksizes</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">blocksizes</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">new_bs</span><span class="p">)</span>
-        <span class="n">handle</span> <span class="o">=</span> <span class="n">new_bs</span>
+<span class="k">def</span> <span class="nf">make_calculate_parblocks</span><span class="p">(</span><span class="n">trees</span><span class="p">,</span> <span class="n">blockable</span><span class="p">,</span> <span class="n">nthreads</span><span class="p">):</span>
+    <span class="n">blocks_per_threads</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">main_block_trees</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">trees</span> <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">blockable</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">tree</span><span class="p">,</span> <span class="n">nt</span> <span class="ow">in</span> <span class="n">product</span><span class="p">(</span><span class="n">main_block_trees</span><span class="p">,</span> <span class="n">nthreads</span><span class="p">):</span>
+        <span class="n">block_iters</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="ow">in</span> <span class="n">blockable</span><span class="p">]</span>
+        <span class="n">par_block_iters</span> <span class="o">=</span> <span class="n">block_iters</span><span class="p">[:</span><span class="n">block_iters</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ncollapsed</span><span class="p">]</span>
+        <span class="n">niterations</span> <span class="o">=</span> <span class="n">prod</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">extent</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">par_block_iters</span><span class="p">)</span>
+        <span class="n">block_size</span> <span class="o">=</span> <span class="n">prod</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">step</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">par_block_iters</span><span class="p">)</span>
+        <span class="n">blocks_per_threads</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">niterations</span> <span class="o">/</span> <span class="n">block_size</span><span class="p">)</span> <span class="o">/</span> <span class="n">nt</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">blocks_per_threads</span>
 
-    <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="c1"># Extended shuffling for the smaller block sizes</span>
-    <span class="k">for</span> <span class="n">bs</span> <span class="ow">in</span> <span class="n">blocksizes</span><span class="p">[:</span><span class="mi">4</span><span class="p">]:</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">blocksizes</span><span class="p">:</span>
-            <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">bs</span><span class="o">.</span><span class="n">items</span><span class="p">())[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">items</span><span class="p">())[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]))</span>
-    <span class="c1"># Some more shuffling for all block sizes</span>
-    <span class="k">for</span> <span class="n">bs</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">):</span>
-        <span class="n">ncombs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">bs</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ncombs</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">(</span><span class="n">bs</span><span class="p">,</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
-                <span class="n">item</span> <span class="o">=</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">bs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">*</span><span class="mi">2</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">j</span> <span class="k">else</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">bs</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
-                <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">(</span><span class="n">item</span><span class="p">))</span>
 
-    <span class="n">unique</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">blocksizes</span> <span class="o">+</span> <span class="n">handle</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">unique</span><span class="p">:</span>
-            <span class="n">unique</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">generate_block_shapes</span><span class="p">(</span><span class="n">blockable</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">level</span><span class="p">):</span>
+    <span class="c1"># Max attemptable block shape</span>
+    <span class="n">max_bs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">((</span><span class="n">d</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">max_step</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">))</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">blockable</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">unique</span>
+    <span class="c1"># Attempted block shapes:</span>
+    <span class="c1"># 1) Defaults (basic mode)</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">((</span><span class="n">d</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">blockable</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;blocksize&#39;</span><span class="p">]]</span>
+    <span class="c1"># 2) Always try the entire iteration space (degenerate block)</span>
+    <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">max_bs</span><span class="p">)</span>
+    <span class="c1"># 3) More attempts if auto-tuning in aggressive mode</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">:</span>
+        <span class="c1"># Ramp up to larger block shapes</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;blocksize&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">ret</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+            <span class="n">new_bs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">((</span><span class="n">b</span><span class="p">,</span> <span class="n">v</span><span class="o">*</span><span class="mi">2</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">)</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">ret</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">new_bs</span><span class="p">)</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">new_bs</span>
+
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Extended shuffling for the smaller block shapes</span>
+        <span class="k">for</span> <span class="n">bs</span> <span class="ow">in</span> <span class="n">ret</span><span class="p">[:</span><span class="mi">4</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ret</span><span class="p">:</span>
+                <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bs</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],))</span>
+        <span class="c1"># Some more shuffling for all block shapes</span>
+        <span class="k">for</span> <span class="n">bs</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">ret</span><span class="p">):</span>
+            <span class="n">ncombs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">bs</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ncombs</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">bs</span><span class="p">),</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                    <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">((</span><span class="n">b</span><span class="p">,</span> <span class="n">v</span><span class="o">*</span><span class="mi">2</span> <span class="k">if</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">j</span> <span class="k">else</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">bs</span><span class="p">))</span>
+        <span class="n">ret</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+
+    <span class="c1"># Drop unnecessary attempts:</span>
+    <span class="c1"># 1) Block shapes exceeding the iteration space extent</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ret</span> <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">i</span><span class="p">)[</span><span class="n">k</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">max_bs</span><span class="p">)]</span>
+    <span class="c1"># 2) Redundant block shapes</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ret</span>
+
+
+<span class="k">def</span> <span class="nf">generate_nthreads</span><span class="p">(</span><span class="n">nthreads</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">level</span><span class="p">):</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="p">[((</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">]),)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nthreads</span><span class="p">]</span>
+
+    <span class="c1"># On the KNL, also try running with a different number of hyperthreads</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="s1">&#39;aggressive&#39;</span> <span class="ow">and</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;knl&#39;</span><span class="p">:</span>
+        <span class="n">ret</span><span class="o">.</span><span class="n">extend</span><span class="p">([((</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()),)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nthreads</span><span class="p">])</span>
+        <span class="n">ret</span><span class="o">.</span><span class="n">extend</span><span class="p">([((</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span> <span class="o">//</span> <span class="mi">2</span><span class="p">),)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nthreads</span><span class="p">])</span>
+        <span class="n">ret</span><span class="o">.</span><span class="n">extend</span><span class="p">([((</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span> <span class="o">//</span> <span class="mi">4</span><span class="p">),)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nthreads</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">heuristically_discard_run</span><span class="p">(</span><span class="n">calculate_parblocks</span><span class="p">,</span> <span class="n">at_args</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;develop-mode&#39;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="c1"># Drop run if not at least one block per thread</span>
+    <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">at_args</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">calculate_parblocks</span><span class="p">)</span>
 
 
 <span class="n">options</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;at_squeezer&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
-    <span class="s1">&#39;at_blocksize&#39;</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">({</span><span class="mi">8</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">24</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">}),</span>
-    <span class="s1">&#39;at_stack_limit&#39;</span><span class="p">:</span> <span class="n">resource</span><span class="o">.</span><span class="n">getrlimit</span><span class="p">(</span><span class="n">resource</span><span class="o">.</span><span class="n">RLIMIT_STACK</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="mi">4</span>
+    <span class="s1">&#39;squeezer&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+    <span class="s1">&#39;blocksize&#39;</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">({</span><span class="mi">8</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">24</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">}),</span>
+    <span class="s1">&#39;stack_limit&#39;</span><span class="p">:</span> <span class="n">resource</span><span class="o">.</span><span class="n">getrlimit</span><span class="p">(</span><span class="n">resource</span><span class="o">.</span><span class="n">RLIMIT_STACK</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="mi">4</span>
 <span class="p">}</span>
 <span class="sd">&quot;&quot;&quot;Autotuning options.&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">log</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+    <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;AutoTuner: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">warning</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+    <span class="n">_warning</span><span class="p">(</span><span class="s2">&quot;AutoTuner: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">)</span>
 </pre></div>
 
            </div>

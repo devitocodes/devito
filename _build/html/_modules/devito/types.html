@@ -164,6 +164,7 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sympy</span>
 
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">Add</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">EnrichedTuple</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">ctypes_to_C</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;Indexed&#39;</span><span class="p">]</span>
@@ -333,6 +334,18 @@
     <span class="k">def</span> <span class="nf">indexify</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span>
 
+    <span class="k">def</span> <span class="nf">_subs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;This stub allows sympy.Basic.subs to operate on an expression</span>
+<span class="sd">        involving devito Scalars.  Ordinarily the comparisons between</span>
+<span class="sd">        devito subclasses of sympy types are quite strict.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">old</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">new</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">return</span> <span class="bp">self</span>
+
 
 <span class="k">class</span> <span class="nc">AbstractCachedSymbol</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">Cached</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -418,18 +431,6 @@
 
     <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
-
-    <span class="k">def</span> <span class="nf">_subs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;This stub allows sympy.Basic.subs to operate on an expression</span>
-<span class="sd">        involving devito Scalars.  Ordinarily the comparisons between</span>
-<span class="sd">        devito subclasses of sympy types are quite strict.&quot;&quot;&quot;</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">old</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">new</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="k">pass</span>
-
-        <span class="k">return</span> <span class="bp">self</span>
 
 
 <span class="k">class</span> <span class="nc">AbstractFunction</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Function</span><span class="p">,</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">):</span>
@@ -582,11 +583,10 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">symbolic_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the symbolic shape of the object. This includes the padding,</span>
-<span class="sd">        halo, and domain regions. While halo and padding are known quantities</span>
-<span class="sd">        (integers), the domain size is represented by a symbol.</span>
+<span class="sd">        The symbolic shape of the object. This includes the domain, halo, and</span>
+<span class="sd">        padding regions. While halo and padding are known quantities (integers),</span>
+<span class="sd">        the domain size is represented by a symbol.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span> <span class="nn">devito.symbolics.extended_sympy</span> <span class="k">import</span> <span class="n">Add</span>
         <span class="n">halo_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">]</span>
         <span class="n">pad_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_extent_padding</span><span class="p">]</span>
         <span class="n">domain_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">]</span>

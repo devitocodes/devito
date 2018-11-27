@@ -177,6 +177,9 @@
 <span class="sd">&quot;&quot;&quot;The Iteration can be executed in parallel as long as all increments are</span>
 <span class="sd">guaranteed to be atomic.&quot;&quot;&quot;</span>
 
+<span class="n">COLLAPSED</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;collapsed&#39;</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The Iteration is the root of a nest of ``i`` collapsed Iterations.&quot;&quot;&quot;</span>
+
 <span class="n">VECTOR</span> <span class="o">=</span> <span class="n">IterationProperty</span><span class="p">(</span><span class="s1">&#39;vector-dim&#39;</span><span class="p">)</span>
 <span class="sd">&quot;&quot;&quot;The Iteration can be SIMD-vectorized.&quot;&quot;&quot;</span>
 

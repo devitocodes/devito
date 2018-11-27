@@ -179,6 +179,8 @@
     <span class="n">is_Sub</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Conditional</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Modulo</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Incr</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A Dimension is a symbol representing a problem dimension and thus defining a</span>
@@ -763,6 +765,8 @@
 <span class="sd">    :param name: (Optional) force a name for this Dimension.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">is_Modulo</span> <span class="o">=</span> <span class="kc">True</span>
+
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">modulo</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">ModuloDimension</span><span class="o">.</span><span class="n">__xnew_cached_</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">modulo</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
 
@@ -826,12 +830,16 @@
 <span class="sd">    start + 2*k, ...``.</span>
 
 <span class="sd">    :param parent: Parent dimension from which the IncrDimension is created.</span>
-<span class="sd">    :param start: An integer representing the starting point of the sequence.</span>
-<span class="sd">    :param step: The distance between two consecutive points.</span>
+<span class="sd">    :param start: (Optional) an integer representing the starting point of the</span>
+<span class="sd">                  sequence. Defaults to the parent&#39;s symbolic start.</span>
+<span class="sd">    :param step: (Optional) the distance between two consecutive points.</span>
+<span class="sd">                 Defaults to the symbolic size.</span>
 <span class="sd">    :param name: (Optional) force a name for this Dimension.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">is_Incr</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">IncrDimension</span><span class="o">.</span><span class="n">__xnew_cached_</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__new_stage2__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
@@ -844,13 +852,17 @@
 
     <span class="n">__xnew_cached_</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">cacheit</span><span class="p">(</span><span class="n">__new_stage2__</span><span class="p">))</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_step</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_step</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_step</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_size</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">max_step</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_end</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_start</span> <span class="o">+</span> <span class="mi">1</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_start</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_start</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_start</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">symbolic_incr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

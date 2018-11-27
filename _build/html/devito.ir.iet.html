@@ -702,6 +702,11 @@ if a limit is unknown.</p>
 <code class="descname">is_Wrappable</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.is_Wrappable" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="attribute">
+<dt id="devito.ir.iet.nodes.Iteration.ncollapsed">
+<code class="descname">ncollapsed</code><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.ncollapsed" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="method">
 <dt id="devito.ir.iet.nodes.Iteration.retag">
 <code class="descname">retag</code><span class="sig-paren">(</span><em>tag_value=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/nodes.html#Iteration.retag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.nodes.Iteration.retag" title="Permalink to this definition">¶</a></dt>
@@ -961,6 +966,11 @@ computation unit).</p>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
 <p>Represent a sequence of nested :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Iteration`s.</p>
 <dl class="attribute">
+<dt id="devito.ir.iet.nodes.IterationTree.dimensions">
+<code class="descname">dimensions</code><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree.dimensions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.ir.iet.nodes.IterationTree.inner">
 <code class="descname">inner</code><a class="headerlink" href="#devito.ir.iet.nodes.IterationTree.inner" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -1010,6 +1020,12 @@ computation unit).</p>
 <dd><p>All <code class="xref py py-class docutils literal notranslate"><span class="pre">Indexed`s'</span> <span class="pre">access</span> <span class="pre">functions</span> <span class="pre">using</span> <span class="pre">the</span> <span class="pre">Iteration</span> <span class="pre">dimension</span> <span class="pre">``d`</span></code> are
 affine in <code class="docutils literal notranslate"><span class="pre">d</span></code>. Further, the Iteration does not contain any Indexed varying in
 <code class="docutils literal notranslate"><span class="pre">d</span></code> used to indirectly access some other Indexed.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.ir.iet.properties.COLLAPSED">
+<code class="descclassname">devito.ir.iet.properties.</code><code class="descname">COLLAPSED</code><span class="sig-paren">(</span><em>i</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.ir.iet.properties.COLLAPSED" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Iteration is the root of a nest of <code class="docutils literal notranslate"><span class="pre">i</span></code> collapsed Iterations.</p>
 </dd></dl>
 
 <dl class="data">

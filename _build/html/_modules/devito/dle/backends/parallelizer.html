@@ -153,12 +153,31 @@
   <h1>Source code for devito.dle.backends.parallelizer</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
 <span class="kn">import</span> <span class="nn">psutil</span>
 
+<span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Constant</span>
+<span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">DummyEq</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindSymbols</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">Block</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span>
-                           <span class="n">List</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">,</span>
-                           <span class="n">IsPerfectIteration</span><span class="p">)</span>
+                           <span class="n">LocalExpression</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">,</span>
+                           <span class="n">filter_iterations</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">COLLAPSED</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Symbol</span>
+
+
+<div class="viewcode-block" id="ncores"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.parallelizer.ncores">[docs]</a><span class="k">def</span> <span class="nf">ncores</span><span class="p">():</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;cross-compile&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(</span><span class="n">logical</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="NThreads"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.parallelizer.NThreads">[docs]</a><span class="k">class</span> <span class="nc">NThreads</span><span class="p">(</span><span class="n">Constant</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">NThreads</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;nthreads&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+                                            <span class="n">value</span><span class="o">=</span><span class="n">ncores</span><span class="p">())</span></div>
 
 
 <div class="viewcode-block" id="Ompizer"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.parallelizer.Ompizer">[docs]</a><span class="k">class</span> <span class="nc">Ompizer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -168,10 +187,8 @@
 <span class="sd">    greater than this threshold.&quot;&quot;&quot;</span>
 
     <span class="n">lang</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp for schedule(static)&#39;</span><span class="p">),</span>
-        <span class="s1">&#39;collapse&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp for collapse(</span><span class="si">%d</span><span class="s1">) schedule(static)&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">),</span>
-        <span class="s1">&#39;par-region&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp parallel </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">),</span>
-        <span class="s1">&#39;par-for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp parallel for schedule(static)&#39;</span><span class="p">),</span>
+        <span class="s1">&#39;for&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp for collapse(</span><span class="si">%d</span><span class="s1">) schedule(static)&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">),</span>
+        <span class="s1">&#39;par-region&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp parallel num_threads(nt) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">),</span>
         <span class="s1">&#39;simd-for&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp simd&#39;</span><span class="p">),</span>
         <span class="s1">&#39;simd-for-aligned&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp simd aligned(</span><span class="si">%s</span><span class="s1">:</span><span class="si">%d</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)),</span>
         <span class="s1">&#39;atomic&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;omp atomic update&#39;</span><span class="p">)</span>
@@ -182,27 +199,32 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        :param key: A function returning True if ``v`` can be parallelized,</span>
-<span class="sd">                    False otherwise.</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        key : callable</span>
+<span class="sd">            Return True if an Iteration can be parallelized, False otherwise.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="n">key</span>
 
-    <span class="k">def</span> <span class="nf">_pragma_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">candidates</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_ncollapse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">candidates</span><span class="p">):</span>
         <span class="c1"># Heuristic: if at least two parallel loops are available and the</span>
         <span class="c1"># physical core count is greater than COLLAPSE, then omp-collapse them</span>
         <span class="n">nparallel</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(</span><span class="n">logical</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">Ompizer</span><span class="o">.</span><span class="n">COLLAPSE</span>
-                <span class="ow">or</span> <span class="n">nparallel</span> <span class="o">&lt;</span> <span class="mi">2</span>
-                <span class="ow">or</span> <span class="ow">not</span> <span class="n">IsPerfectIteration</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)):</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;for&#39;</span><span class="p">]</span>
+        <span class="n">isperfect</span> <span class="o">=</span> <span class="n">IsPerfectIteration</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ncores</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">Ompizer</span><span class="o">.</span><span class="n">COLLAPSE</span> <span class="ow">or</span> <span class="n">nparallel</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">isperfect</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;collapse&#39;</span><span class="p">](</span><span class="n">nparallel</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">nparallel</span>
 
     <span class="k">def</span> <span class="nf">_make_parallel_tree</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">candidates</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a mapper to parallelize the :class:`Iteration`s within /root/.</span>
+<span class="sd">        Return a mapper to parallelize the :class:`Iteration`s within ``root``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">parallel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pragma_for</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">candidates</span><span class="p">)</span>
+        <span class="n">ncollapse</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ncollapse</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">candidates</span><span class="p">)</span>
+        <span class="n">parallel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;for&#39;</span><span class="p">](</span><span class="n">ncollapse</span><span class="p">)</span>
+
+        <span class="n">pragmas</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,)</span>
+        <span class="n">properties</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">properties</span> <span class="o">+</span> <span class="p">(</span><span class="n">COLLAPSED</span><span class="p">(</span><span class="n">ncollapse</span><span class="p">),)</span>
 
         <span class="c1"># Introduce the `omp for` pragma</span>
         <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
@@ -212,16 +234,16 @@
             <span class="n">subs</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">List</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lang</span><span class="p">[</span><span class="s1">&#39;atomic&#39;</span><span class="p">],</span> <span class="n">body</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
                     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">exprs</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Increment</span><span class="p">}</span>
             <span class="n">handle</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-            <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,))</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">pragmas</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="n">properties</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,))</span>
+            <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">pragmas</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="n">properties</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">mapper</span>
 
 <div class="viewcode-block" id="Ompizer.make_parallel"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.parallelizer.Ompizer.make_parallel">[docs]</a>    <span class="k">def</span> <span class="nf">make_parallel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iet</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Transform ``iet`` by decorating its parallel :class:`Iteration`s with</span>
-<span class="sd">        suitable ``#pragma omp ...`` triggering thread-level parallelism.</span>
+<span class="sd">        suitable ``#pragma omp ...`` for thread-level parallelism.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Group sequences of loops that should go within the same parallel region</span>
         <span class="n">was_tagged</span> <span class="o">=</span> <span class="kc">False</span>
@@ -257,8 +279,17 @@
             <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">):</span>
                     <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Remainder</span> <span class="k">else</span> <span class="n">par_region</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span></div></div>
+        <span class="c1"># Hack/workaround to the fact that the OpenMP pragmas are not true</span>
+        <span class="c1"># IET nodes, so the `nthreads` variables won&#39;t be detected as a</span>
+        <span class="c1"># Callable parameter unless inserted in a mock Expression</span>
+        <span class="k">if</span> <span class="n">mapper</span><span class="p">:</span>
+            <span class="n">nt</span> <span class="o">=</span> <span class="n">NThreads</span><span class="p">()</span>
+            <span class="n">eq</span> <span class="o">=</span> <span class="n">LocalExpression</span><span class="p">(</span><span class="n">DummyEq</span><span class="p">(</span><span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;nt&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">nt</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="p">[</span><span class="n">eq</span><span class="p">,</span> <span class="n">processed</span><span class="p">]),</span> <span class="p">{</span><span class="s1">&#39;input&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">nt</span><span class="p">]}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">processed</span><span class="p">),</span> <span class="p">{}</span></div></div>
 </pre></div>
 
            </div>

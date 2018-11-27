@@ -163,6 +163,7 @@
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Denormals</span><span class="p">,</span> <span class="n">Call</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">ArrayCast</span><span class="p">,</span>
                            <span class="n">Transformer</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span><span class="p">,</span>
                            <span class="n">filter_iterations</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">as_symbol</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
@@ -172,7 +173,7 @@
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_create_efuncs</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
 
     <span class="nd">@dle_pass</span>
     <span class="k">def</span> <span class="nf">_avoid_denormals</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
@@ -186,7 +187,7 @@
                 <span class="p">{</span><span class="s1">&#39;includes&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;xmmintrin.h&#39;</span><span class="p">,</span> <span class="s1">&#39;pmmintrin.h&#39;</span><span class="p">)})</span>
 
     <span class="nd">@dle_pass</span>
-    <span class="k">def</span> <span class="nf">_create_elemental_functions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_create_efuncs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Extract :class:`Iteration` sub-trees and move them into :class:`Callable`s.</span>
 
@@ -263,10 +264,10 @@
         <span class="c1"># Transform the main tree</span>
         <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;elemental_functions&#39;</span><span class="p">:</span> <span class="n">functions</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span>
+        <span class="k">return</span> <span class="n">processed</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;efuncs&#39;</span><span class="p">:</span> <span class="n">functions</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span>
 
     <span class="k">def</span> <span class="nf">_compiler_decoration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
         <span class="n">complang</span> <span class="o">=</span> <span class="n">complang_ALL</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">{})</span>
         <span class="k">return</span> <span class="n">complang</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">default</span><span class="p">)</span></div>
 </pre></div>

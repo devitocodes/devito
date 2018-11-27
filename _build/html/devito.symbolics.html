@@ -709,10 +709,24 @@ functions (eg, sin, cos).</li>
 <div class="section" id="module-devito.symbolics.manipulation">
 <span id="devito-symbolics-manipulation-module"></span><h2>devito.symbolics.manipulation module<a class="headerlink" href="#module-devito.symbolics.manipulation" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
-<dt id="devito.symbolics.manipulation.freeze_expression">
-<code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">freeze_expression</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#freeze_expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.freeze_expression" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.symbolics.manipulation.freeze">
+<code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">freeze</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#freeze"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.freeze" title="Permalink to this definition">¶</a></dt>
 <dd><p>Reconstruct <code class="docutils literal notranslate"><span class="pre">expr</span></code> turning all <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Mul</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.Add</span></code>
-into, respectively, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.Mul</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.Add</span></code>.</p>
+into <code class="xref py py-class docutils literal notranslate"><span class="pre">FrozenExpr</span></code> equivalents.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.manipulation.unfreeze">
+<code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">unfreeze</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#unfreeze"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.unfreeze" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reconstruct <code class="docutils literal notranslate"><span class="pre">expr</span></code> turning all <code class="xref py py-class docutils literal notranslate"><span class="pre">FrozenExpr</span></code> subtrees into their
+SymPy equivalents.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.symbolics.manipulation.evaluate">
+<code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">evaluate</code><span class="sig-paren">(</span><em>expr</em>, <em>**subs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#evaluate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.evaluate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Numerically evaluate a SymPy expression. Subtrees of type <code class="xref py py-class docutils literal notranslate"><span class="pre">FrozenExpr</span></code>
+are forcibly evaluated.</p>
 </dd></dl>
 
 <dl class="function">
@@ -792,12 +806,6 @@ False are ruled out.</li>
 <dd><p>Given a SymPy expression, return a new SymPy expression in which all
 <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractFunction</span></code> objects have been converted into <code class="xref py py-class docutils literal notranslate"><span class="pre">Indexed</span></code>
 objects.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.symbolics.manipulation.makeit_ssa">
-<code class="descclassname">devito.symbolics.manipulation.</code><code class="descname">makeit_ssa</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/symbolics/manipulation.html#makeit_ssa"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.symbolics.manipulation.makeit_ssa" title="Permalink to this definition">¶</a></dt>
-<dd><p>Convert an iterable of :class:<a href="#id3"><span class="problematic" id="id4">`</span></a>Eq`s into Static Single Assignment (SSA) form.</p>
 </dd></dl>
 
 <dl class="function">
