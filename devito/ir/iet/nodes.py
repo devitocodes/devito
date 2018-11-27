@@ -351,6 +351,8 @@ class Iteration(Node):
         if isinstance(limits, Iterable):
             assert(len(limits) == 3)
             self.limits = tuple(limits)
+        elif self.dim.is_Incr:
+            self.limits = (self.dim.symbolic_start, limits, self.dim.step)
         else:
             self.limits = (0, limits, 1)
 
@@ -364,7 +366,7 @@ class Iteration(Node):
         self.properties = as_tuple(filter_sorted(properties))
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)
-        assert all(i.is_Derived and i.root is dimension for i in self.uindices)
+        assert all(i.is_Derived and i.root is self.dim for i in self.uindices)
 
     def __repr__(self):
         properties = ""
@@ -411,6 +413,13 @@ class Iteration(Node):
     @property
     def is_Remainder(self):
         return REMAINDER in self.properties
+
+    @property
+    def ncollapsed(self):
+        for i in self.properties:
+            if i.name == 'collapsed':
+                return i.val
+        return 0
 
     @property
     def tag(self):
@@ -860,6 +869,10 @@ class IterationTree(tuple):
     @property
     def inner(self):
         return self[-1] if self else None
+
+    @property
+    def dimensions(self):
+        return [i.dim for i in self]
 
     def __repr__(self):
         return "IterationTree%s" % super(IterationTree, self).__repr__()

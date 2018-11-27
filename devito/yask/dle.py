@@ -15,7 +15,8 @@ class YaskOmpizer(Ompizer):
         """
         Return a mapper to parallelize the :class:`Iteration`s within /root/.
         """
-        parallel = self._pragma_for(root, candidates)
+        ncollapse = self._ncollapse(root, candidates)
+        parallel = self.lang['for'](ncollapse)
 
         yask_add = namespace['code-grid-add']
 
