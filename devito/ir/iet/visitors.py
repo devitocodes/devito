@@ -166,10 +166,22 @@ class CGen(Visitor):
         Build cgen type casts for an :class:`AbstractFunction`.
         """
         f = o.function
-        align = "__attribute__((aligned(%d)))" % f._data_alignment
-        shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
-        lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
-        rvalue = '(%s (*)%s) %s->data' % (dtype_to_cstr(f.dtype), shape, f._C_name)
+        cstrtype = dtype_to_cstr(f.dtype)
+
+        # rvalue
+        if f.is_TensorFunction:
+            shape = ''.join("[%s->%s[%d]]" % (f._C_name, f._C_field_size, i)
+                            for i in range(1, f.ndim))
+            rvalue = '(%s (*)%s) %s->%s' % (cstrtype, shape, f._C_name, f._C_field_data)
+        else:
+            shape = ''.join("[%s]" % ccode(i) for i in f.symbolic_shape[1:])
+            rvalue = '(%s (*)%s) %s' % (cstrtype, shape, f._C_name)
+
+        # lvalue
+        lvalue = c.AlignedAttribute(f._data_alignment,
+                                    c.Value(cstrtype,
+                                            '(*restrict %s)%s' % (f.name, shape)))
+
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
