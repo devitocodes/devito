@@ -139,12 +139,8 @@ class CGen(Visitor):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if i.is_AbstractObject:
+            if i.is_AbstractObject or i.is_Tensor or i.is_Symbol:
                 ret.append(c.Value(i._C_typename, i._C_name))
-            elif i.is_Tensor:
-                ret.append(c.Value(i._C_typename, '*restrict %s' % i._C_name))
-            elif i.is_Symbol:
-                ret.append(c.Value('const %s' % i._C_typename, i._C_name))
             else:
                 ret.append(c.Value('void', '*_%s' % i._C_name))
         return ret
@@ -173,7 +169,7 @@ class CGen(Visitor):
         align = "__attribute__((aligned(%d)))" % f._data_alignment
         shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
         lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
-        rvalue = '(%s (*)%s) %s' % (f._C_typename, shape, f._C_name)
+        rvalue = '(%s (*)%s) %s->data' % (dtype_to_cstr(f.dtype), shape, f._C_name)
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):

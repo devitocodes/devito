@@ -1,6 +1,6 @@
 from collections import OrderedDict, namedtuple
 from itertools import product
-from ctypes import POINTER, c_void_p, c_int
+from ctypes import POINTER, Structure, c_void_p, c_int, byref
 
 import sympy
 import numpy as np
@@ -628,9 +628,23 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         ret = tuple(Add(i, -j) for i, j in zip(symbolic_shape, self.staggered))
         return EnrichedTuple(*ret, getters=self.dimensions)
 
-    _C_typedecl = Struct('function',
+    _C_structname = 'dataobj'
+    _C_typename = 'struct %s *' % _C_structname
+
+    _C_typedecl = Struct(_C_structname,
                          [Value('%srestrict' % ctypes_to_cstr(c_void_p), 'data'),
-                          Value(ctypes_to_cstr(POINTER(c_int*2)), 'pad')])
+                          Value(ctypes_to_cstr(POINTER(c_int)), 'size')])
+
+    _C_ctype = POINTER(type(_C_structname, (Structure,),
+                            {'_fields_': [('data', c_void_p),
+                                          ('size', POINTER(c_int))]}))
+
+    def _C_make_dataobj(self, data):
+        dataobj = byref(self._C_ctype._type_())
+        dataobj._obj.data = data.ctypes.data_as(c_void_p)
+        dataobj._obj.size = (c_int*self.ndim)(*self.shape_allocated)
+        # dataobj._obj.pad = (c_int*(self.ndim*2))(*flatten(self.padding))
+        return dataobj
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
@@ -731,8 +745,12 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         Check that ``args`` contains legal runtime values bound to ``self``.
 
-        :raises InvalidArgument: If, given the runtime arguments ``args``, an
-                                 out-of-bounds access will be performed.
+        Raises
+        ------
+        InvalidArgument
+            If, given the runtime values ``args``, an out-of-bounds array
+            access would be performed, or if shape/dtype don't match with
+            self's shape/dtype.
         """
         if self.name not in args:
             raise InvalidArgument("No runtime value for `%s`" % self.name)
@@ -745,6 +763,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                     "Function data type %s" % (key.dtype, self.name, self.dtype))
         for i, s in zip(self.indices, key.shape):
             i._arg_check(args, s, intervals[i])
+
+    def _arg_as_ctype(self, args):
+        assert self.name in args
+        return ReducerMap({self.name: self._C_make_dataobj(args[self.name])})
 
     # Pickling support
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\

@@ -148,6 +148,12 @@ class Operator(Callable):
         for p in self.input:
             p._arg_check(args, self._dspace[p])
 
+        # Turn arguments into a format suitable for the generated code
+        # E.g., instead of NumPy arrays for Functions, the generated code expects
+        # pointers to ctypes.Struct
+        for p in self.input:
+            args.update(p._arg_as_ctype(args))
+
         # Add in the profiler argument
         args[self._profiler.name] = self._profiler.timer.reset()
 
@@ -222,17 +228,7 @@ class Operator(Callable):
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
             # Associate a C type to each argument for runtime type check
-            argtypes = []
-            for i in self.parameters:
-                if i.is_Object:
-                    argtypes.append(i.dtype)
-                elif i.is_Scalar:
-                    argtypes.append(dtype_to_ctype(i.dtype))
-                elif i.is_Tensor:
-                    argtypes.append(np.ctypeslib.ndpointer(dtype=i.dtype, flags='C'))
-                else:
-                    argtypes.append(ctypes.c_void_p)
-            self._cfunction.argtypes = argtypes
+            self._cfunction.argtypes = [i._C_ctype for i in self.parameters]
 
         return self._cfunction
 

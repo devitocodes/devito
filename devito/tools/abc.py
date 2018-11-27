@@ -88,6 +88,14 @@ class ArgProvider(object):
         """
         pass  # no-op
 
+    def _arg_as_ctype(self, *args):
+        """
+        Cast the argument values into a format suitable for the dynamically
+        executed code.
+        """
+        # By default, this is a no-op
+        return {}
+
 
 class Signer(object):
 

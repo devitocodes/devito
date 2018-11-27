@@ -106,10 +106,22 @@ class Basic(object):
         """
         return
 
+    @abc.abstractproperty
+    def _C_ctype(self):
+        """
+        The C-level type of the object, as a ctypes object, suitable for type
+        checking when calling functions via ctypes.
+
+        Returns
+        -------
+        ctypes type
+        """
+        return
+
     @property
     def _C_typedecl(self):
         """
-        A C-level struct declaration representing the object.
+        The C-level struct declaration representing the object.
 
         Returns
         -------
@@ -282,7 +294,11 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
 
     @property
     def _C_typename(self):
-        return dtype_to_cstr(self.dtype)
+        return 'const %s' % dtype_to_cstr(self.dtype)
+
+    @property
+    def _C_ctype(self):
+        return dtype_to_ctype(self.dtype)
 
     # Pickling support
     _pickle_kwargs = ['name', 'dtype']
@@ -475,14 +491,6 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return len(self.indices)
 
     @property
-    def _C_name(self):
-        return "%s_vec" % self.name
-
-    @property
-    def _C_typename(self):
-        return dtype_to_cstr(self.dtype)
-
-    @property
     def symbolic_shape(self):
         """
         The symbolic shape of the object. This includes the domain, halo, and
@@ -533,6 +541,10 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     @property
     def padding(self):
         return self._padding
+
+    @property
+    def _C_name(self):
+        return "%s_vec" % self.name
 
     @cached_property
     def _offset_domain(self):
@@ -733,6 +745,10 @@ class Array(AbstractCachedFunction):
         return kwargs.get('dtype', np.float32)
 
     @property
+    def shape(self):
+        return self.symbolic_shape
+
+    @property
     def _mem_external(self):
         return self._scope == 'external'
 
@@ -745,8 +761,8 @@ class Array(AbstractCachedFunction):
         return self._scope == 'heap'
 
     @property
-    def shape(self):
-        return self.symbolic_shape
+    def _C_typename(self):
+        return dtype_to_cstr(self.dtype)
 
     def update(self, **kwargs):
         self._shape = kwargs.get('shape', self.shape)
@@ -800,6 +816,10 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
     @property
     def _C_typename(self):
         return ctypes_to_cstr(self.dtype)
+
+    @property
+    def _C_ctype(self):
+        return self.dtype
 
     # Pickling support
     _pickle_args = ['name', 'dtype']
