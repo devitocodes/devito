@@ -923,7 +923,7 @@ class Function(TensorFunction, Differentiable):
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding', 0)
         if isinstance(padding, int):
-            return tuple((padding,)*2 for i in range(self.ndim))
+            return tuple((padding,)*2 if i.is_Space else (0, 0) for i in self.indices)
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             return tuple((i,)*2 if isinstance(i, int) else i for i in padding)
         else:
