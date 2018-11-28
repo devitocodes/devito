@@ -648,6 +648,14 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         # dataobj._obj.pad = (c_int*(self.ndim*2))(*flatten(self.padding))
         return dataobj
 
+    def _C_as_ndarray(self, dataobj):
+        """Cast the data carried by a TensorFunction dataobj to an ndarray."""
+        shape = tuple(dataobj._obj.size[i] for i in range(self.ndim))
+        ndp = np.ctypeslib.ndpointer(dtype=self.dtype, shape=shape)
+        data = cast(dataobj._obj.data, ndp)
+        data = np.ctypeslib.as_array(data, shape=shape)
+        return data
+
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
         if not MPI.Is_initialized() or MPI.COMM_WORLD.size == 1:
@@ -1471,13 +1479,8 @@ class AbstractSparseFunction(TensorFunction):
     def _arg_apply(self, dataobj, alias=None):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
-            # Convert from ctypes pointer to ndarray
-            shape = tuple(dataobj._obj.size[i] for i in range(self.ndim))
-            ndp = np.ctypeslib.ndpointer(dtype=self.dtype, shape=shape)
-            data = cast(dataobj._obj.data, ndp)
-            data = np.ctypeslib.as_array(data, shape=shape)
             # Gather into `self.data`
-            key._dist_gather(data)
+            key._dist_gather(self._C_as_ndarray(dataobj))
         elif self.grid.distributor.nprocs > 1:
             raise NotImplementedError("Don't know how to gather data from an "
                                       "object of type `%s`" % type(key))
