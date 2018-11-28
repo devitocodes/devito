@@ -10,6 +10,7 @@ from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
 from devito.ir.iet import (Denormals, Call, Callable, List, ArrayCast,
                            Transformer, FindSymbols, retrieve_iteration_tree,
                            filter_iterations, derive_parameters)
+from devito.parameters import configuration
 from devito.symbolics import as_symbol
 from devito.tools import flatten
 from devito.types import Scalar
@@ -19,7 +20,7 @@ class BasicRewriter(AbstractRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
-        self._create_elemental_functions(state)
+        self._create_efuncs(state)
 
     @dle_pass
     def _avoid_denormals(self, nodes, state):
@@ -33,7 +34,7 @@ class BasicRewriter(AbstractRewriter):
                 {'includes': ('xmmintrin.h', 'pmmintrin.h')})
 
     @dle_pass
-    def _create_elemental_functions(self, nodes, state):
+    def _create_efuncs(self, nodes, state):
         """
         Extract :class:`Iteration` sub-trees and move them into :class:`Callable`s.
 
@@ -110,9 +111,9 @@ class BasicRewriter(AbstractRewriter):
         # Transform the main tree
         processed = Transformer(mapper).visit(nodes)
 
-        return processed, {'elemental_functions': functions.values()}
+        return processed, {'efuncs': functions.values()}
 
     def _compiler_decoration(self, name, default=None):
-        key = self.params['compiler'].__class__.__name__
+        key = configuration['compiler'].__class__.__name__
         complang = complang_ALL.get(key, {})
         return complang.get(name, default)

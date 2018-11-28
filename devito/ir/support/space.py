@@ -6,7 +6,8 @@ from cached_property import cached_property
 
 from frozendict import frozendict
 
-from devito.tools import PartialOrderTuple, as_tuple, filter_ordered, toposort
+from devito.tools import PartialOrderTuple, as_tuple, filter_ordered, toposort, is_integer
+
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
            'Forward', 'Backward', 'Any']
@@ -112,8 +113,8 @@ class Interval(AbstractInterval):
     is_Defined = True
 
     def __init__(self, dim, lower, upper):
-        assert isinstance(lower, int)
-        assert isinstance(upper, int)
+        assert is_integer(lower)
+        assert is_integer(upper)
         super(Interval, self).__init__(dim)
         self.lower = lower
         self.upper = upper
@@ -290,7 +291,7 @@ class IntervalGroup(PartialOrderTuple):
                              relations=self.relations)
 
     def __getitem__(self, key):
-        if isinstance(key, (slice, int)):
+        if isinstance(key, slice) or is_integer(key):
             return super(IntervalGroup, self).__getitem__(key)
         if not self.is_well_defined:
             raise ValueError("Cannot fetch Interval from ill defined Space")

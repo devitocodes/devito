@@ -15,7 +15,7 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI, SparseDistributor
 from devito.parameters import configuration
-from devito.symbolics import indexify, retrieve_function_carriers
+from devito.symbolics import Add, indexify, retrieve_function_carriers
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
                           OWNED, HALO, LEFT, RIGHT)
@@ -610,18 +610,17 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         else:
             return self._initializer
 
-    @property
+    @cached_property
     def symbolic_shape(self):
         """
-        Return the symbolic shape of the object. This includes: ::
+        The symbolic shape of the object. This includes: ::
 
-            * the padding, halo, and domain regions. While halo and padding are
+            * the domain, halo, and padding regions. While halo and padding are
               known quantities (integers), the domain size is represented by a symbol.
-            * the shifting induced by the ``staggered`` mask
+            * the shifting induced by the ``staggered`` mask.
         """
         symbolic_shape = super(TensorFunction, self).symbolic_shape
-        ret = tuple(sympy.Add(i, -j, evaluate=False)
-                    for i, j in zip(symbolic_shape, self.staggered))
+        ret = tuple(Add(i, -j) for i, j in zip(symbolic_shape, self.staggered))
         return EnrichedTuple(*ret, getters=self.dimensions)
 
     def _halo_exchange(self):

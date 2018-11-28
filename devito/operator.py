@@ -1,6 +1,6 @@
-from __future__ import absolute_import
-
 from collections import OrderedDict
+from functools import reduce
+from operator import mul
 
 from cached_property import cached_property
 import ctypes
@@ -8,7 +8,6 @@ import numpy as np
 import sympy
 
 from devito.compiler import jit_compile, load, save
-from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
@@ -97,7 +96,7 @@ class Operator(Callable):
         iet = iet_build(stree)
 
         # Insert code for C-level performance profiling
-        iet, self.profiler = self._profile_sections(iet)
+        iet, self._profiler = self._profile_sections(iet)
 
         # Translate into backend-specific representation
         iet = self._specialize_iet(iet, **kwargs)
@@ -149,23 +148,8 @@ class Operator(Callable):
         for p in self.input:
             p._arg_check(args, self._dspace[p])
 
-        # Derive additional values for DLE arguments
-        # TODO: This is not pretty, but it works for now. Ideally, the
-        # DLE arguments would be massaged into the IET so as to comply
-        # with the rest of the argument derivation procedure.
-        for arg in self._dle_args:
-            dim = arg.argument
-            osize = (1 + arg.original_dim.symbolic_end
-                     - arg.original_dim.symbolic_start).subs(args)
-            if arg.value is None:
-                args[dim.symbolic_size.name] = osize
-            elif isinstance(arg.value, int):
-                args[dim.symbolic_size.name] = arg.value
-            else:
-                args[dim.symbolic_size.name] = arg.value(osize)
-
         # Add in the profiler argument
-        args[self.profiler.name] = self.profiler.timer.reset()
+        args[self._profiler.name] = self._profiler.timer.reset()
 
         # Add in any backend-specific argument
         args.update(kwargs.pop('backend', {}))
@@ -177,8 +161,7 @@ class Operator(Callable):
         if not configuration['ignore-unknowns']:
             for k, v in kwargs.items():
                 if k not in self._known_arguments:
-                    raise ValueError("Unrecognized argument %s=%s passed to `apply`"
-                                     % (k, v))
+                    raise ValueError("Unrecognized argument %s=%s" % (k, v))
 
         return args
 
@@ -205,7 +188,7 @@ class Operator(Callable):
         return args
 
     @property
-    def elemental_functions(self):
+    def _efuncs(self):
         return tuple(i.root for i in self._func_table.values())
 
     @cached_property
@@ -286,20 +269,18 @@ class Operator(Callable):
         """Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
-        # Apply the Devito Loop Engine (DLE) for loop optimization
         dle = kwargs.get("dle", configuration['dle'])
 
-        dle_state = transform(iet, *set_dle_mode(dle))
+        # Apply the Devito Loop Engine (DLE) for loop optimization
+        state = transform(iet, *set_dle_mode(dle))
 
-        self._dle_args = dle_state.arguments
-        self._dle_flags = dle_state.flags
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                             for i in dle_state.elemental_functions]))
-        self.dimensions.extend([i.argument for i in self._dle_args
-                                if isinstance(i.argument, Dimension)])
-        self._includes.extend(list(dle_state.includes))
+                                             for i in state.efuncs]))
+        self.dimensions.extend(state.dimensions)
+        self.input.extend(state.input)
+        self._includes.extend(state.includes)
 
-        return dle_state.nodes
+        return state.nodes
 
     def _generate_mpi(self, iet, **kwargs):
         """Transform the Iteration/Expression tree adding nodes performing halo
@@ -317,6 +298,31 @@ class Operator(Callable):
         tree ``iet``."""
         casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
         return List(body=casts + [iet])
+
+    @cached_property
+    def _mem_summary(self):
+        """The amount of data, in bytes, used by the Operator. This is provided as
+        symbolic expressions, one symbolic expression for each memory scope (external,
+        stack, heap)."""
+        tensors = [i for i in derive_parameters(self) if i.is_Tensor]
+
+        summary = {}
+
+        external = [i.symbolic_shape for i in tensors if i._mem_external]
+        external = sum(reduce(mul, i, 1) for i in external)*self._dtype().itemsize
+        summary['external'] = external
+
+        heap = [i.symbolic_shape for i in tensors if i._mem_heap]
+        heap = sum(reduce(mul, i, 1) for i in heap)*self._dtype().itemsize
+        summary['heap'] = heap
+
+        stack = [i.symbolic_shape for i in tensors if i._mem_stack]
+        stack = sum(reduce(mul, i, 1) for i in stack)*self._dtype().itemsize
+        summary['stack'] = stack
+
+        summary['total'] = external + heap + stack
+
+        return summary
 
     def __getstate__(self):
         if self._lib:
@@ -439,7 +445,18 @@ class OperatorRunnable(Operator):
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
-        self.cfunction(*arg_values)
+        try:
+            self.cfunction(*arg_values)
+        except ctypes.ArgumentError as e:
+            if e.args[0].startswith("argument "):
+                argnum = int(e.args[0][9:].split(':')[0]) - 1
+                newmsg = "error in argument '%s' with value '%s': %s" % (
+                    self.parameters[argnum].name,
+                    arg_values[argnum],
+                    e.args[0])
+                raise ctypes.ArgumentError(newmsg) from e
+            else:
+                raise
 
         # Post-process runtime arguments
         self._postprocess_arguments(args, **kwargs)
@@ -449,7 +466,7 @@ class OperatorRunnable(Operator):
 
     def _profile_output(self, args):
         """Return a performance summary of the profiled sections."""
-        summary = self.profiler.summary(args, self._dtype)
+        summary = self._profiler.summary(args, self._dtype)
         info("Operator `%s` run in %.2f s" % (self.name, sum(summary.timings.values())))
         for k, v in summary.items():
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
@@ -478,9 +495,6 @@ class OperatorRunnable(Operator):
 
 
 def set_dse_mode(mode):
-    """
-    Transform :class:`Operator` input in a format understandable by the DLE.
-    """
     if not mode:
         return 'noop'
     elif isinstance(mode, str):
@@ -493,9 +507,6 @@ def set_dse_mode(mode):
 
 
 def set_dle_mode(mode):
-    """
-    Transform :class:`Operator` input in a format understandable by the DLE.
-    """
     if not mode:
         return mode, {}
     elif isinstance(mode, str):
@@ -504,7 +515,10 @@ def set_dle_mode(mode):
         if len(mode) == 0:
             return 'noop', {}
         elif isinstance(mode[-1], dict):
-            return tuple(flatten(i.split(',') for i in mode[:-1])), mode[-1]
+            if len(mode) == 2:
+                return mode
+            else:
+                return tuple(flatten(i.split(',') for i in mode[:-1])), mode[-1]
         else:
             return tuple(flatten(i.split(',') for i in mode)), {}
     raise TypeError("Illegal DLE mode %s." % str(mode))
