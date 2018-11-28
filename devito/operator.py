@@ -328,6 +328,13 @@ class Operator(Callable):
             # given to ctypes must be performed again
             state['_lib'] = None
             state['_cfunction'] = None
+            # Do not pickle the `args` used to construct the Operator. Not only
+            # would this be completely useless, but it might also lead to
+            # allocating additional memory upon unpickling, as the user-provided
+            # equations typically carry different instances of the same Function
+            # (e.g., f(t, x-1), f(t, x), f(t, x+1)), which are different objects
+            # with distinct `.data` fields
+            state['_args'] = None
             with open(self._lib._name, 'rb') as f:
                 state['binary'] = f.read()
             return state
