@@ -52,10 +52,14 @@ def autotune(operator, args, level, mode):
 
     # User-provided output data won't be altered in `preemptive` mode
     if mode == 'preemptive':
-        output = [i.name for i in operator.output]
+        output = {i.name: i for i in operator.output}
         for k, v in args.items():
             if k in output:
-                at_args[k] = v.copy()
+                # WARNING: Do not squash these two lines into a single line
+                # w/o `copy = ...`, the garbage collector may kick in during autotuning
+                # and free the memory handed over to C-land
+                copy = output[k]._C_as_ndarray(v).copy()  # noqa
+                at_args[k] = output[k]._C_make_dataobj(copy)
 
     # Disable halo exchanges as the number of autotuning steps performed on each
     # rank may be different. Also, this makes the autotuning runtimes reliable
