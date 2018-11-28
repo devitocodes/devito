@@ -1,6 +1,6 @@
 from collections import OrderedDict, namedtuple
 from itertools import product
-from ctypes import POINTER, Structure, c_void_p, c_int, byref
+from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
 
 import sympy
 import numpy as np
@@ -644,7 +644,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     def _C_make_dataobj(self, data):
         dataobj = byref(self._C_ctype._type_())
         dataobj._obj.data = data.ctypes.data_as(c_void_p)
-        dataobj._obj.size = (c_int*self.ndim)(*self.shape_allocated)
+        dataobj._obj.size = (c_int*self.ndim)(*data.shape)
         # dataobj._obj.pad = (c_int*(self.ndim*2))(*flatten(self.padding))
         return dataobj
 
@@ -1468,9 +1468,15 @@ class AbstractSparseFunction(TensorFunction):
 
         return values
 
-    def _arg_apply(self, data, alias=None):
+    def _arg_apply(self, dataobj, alias=None):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
+            # Convert from ctypes pointer to ndarray
+            shape = tuple(dataobj._obj.size[i] for i in range(self.ndim))
+            ndp = np.ctypeslib.ndpointer(dtype=self.dtype, shape=shape)
+            data = cast(dataobj._obj.data, ndp)
+            data = np.ctypeslib.as_array(data, shape=self.shape_allocated)
+            # Gather into `self.data`
             key._dist_gather(data)
         elif self.grid.distributor.nprocs > 1:
             raise NotImplementedError("Don't know how to gather data from an "
