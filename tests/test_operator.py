@@ -5,7 +5,7 @@ import pytest
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, configuration)
-from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
+from devito.ir.iet import (Expression, Iteration, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
@@ -74,28 +74,6 @@ class TestCodeGen(object):
         expr = eval(expr)
         expr = Operator(expr)._specialize_exprs([indexify(expr)])[0]
         assert str(expr).replace(' ', '') == expected
-
-    @pytest.mark.parametrize('so, to, padding, expected', [
-        (0, 1, 0, '(float(*)[x_size][y_size][z_size])u_vec'),
-        (2, 1, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec'),
-        (4, 1, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec'),
-        (4, 3, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec'),
-        (4, 1, 3, '(float(*)[x_size+3+3+4+4][y_size+3+3+4+4][z_size+3+3+4+4])u_vec'),
-        ((2, 5, 2), 1, 0, '(float(*)[x_size+2+5][y_size+2+5][z_size+2+5])u_vec'),
-        ((2, 5, 4), 1, 3,
-         '(float(*)[x_size+3+3+4+5][y_size+3+3+4+5][z_size+3+3+4+5])u_vec'),
-    ])
-    def test_array_casts(self, so, to, padding, expected):
-        """Tests that data casts are generated correctly."""
-        grid = Grid(shape=(4, 4, 4))
-        u = TimeFunction(name='u', grid=grid,
-                         space_order=so, time_order=to, padding=padding)
-
-        op = Operator(Eq(u, 1), dse='noop', dle='noop')
-        casts = FindNodes(ArrayCast).visit(op)
-        assert len(casts) == 1
-        cast = casts[0]
-        assert cast.ccode.data.replace(' ', '') == expected
 
     @pytest.mark.parametrize('expr,exp_uindices,exp_mods', [
         ('Eq(v.forward, u[0, x, y, z] + v + 1)', [(0, 5), (2, 5)], {'v': 5}),
@@ -807,6 +785,29 @@ class TestArguments(object):
             assert False
         finally:
             configuration['ignore-unknowns'] = configuration._defaults['ignore-unknowns']
+
+    @pytest.mark.parametrize('so,to,pad,expected', [
+        (0, 1, 0, (2, 4, 4, 4)),
+        (2, 1, 0, (2, 8, 8, 8)),
+        (4, 1, 0, (2, 12, 12, 12)),
+        (4, 3, 0, (4, 12, 12, 12)),
+        (4, 1, 3, (2, 18, 18, 18)),
+        ((2, 5, 2), 1, 0, (2, 11, 11, 11)),
+        ((2, 5, 4), 1, 3, (2, 19, 19, 19)),
+    ])
+    def test_function_dataobj(self, so, to, pad, expected):
+        """Tests that the C-level structs from TensorFunctions are properly
+        populated upon application of an Operator."""
+        grid = Grid(shape=(4, 4, 4))
+
+        u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to, padding=pad)
+
+        op = Operator(Eq(u, 1), dse='noop', dle='noop')
+
+        u_arg = op.arguments(time=0)['u']
+        u_arg_shape = tuple(u_arg._obj.size[i] for i in range(u.ndim))
+
+        assert u_arg_shape == expected
 
 
 class TestDeclarator(object):
