@@ -40,8 +40,8 @@ def copy(f, fixed, swap=False):
 
     # Use `dummy_f`, instead of the actual `f`, so that we don't regenerate
     # code for Functions that only differ from `f` in the name
-    dummy_f = f.__class__.__base__(name='f', shape=f.shape, dimensions=f.dimensions,
-                                   dtype=f.dtype)
+    dummy_f = f.__class__.__base__(name='f', grid=f.grid, shape=f.shape_global,
+                                   dimensions=f.dimensions)
 
     if swap is False:
         eq = DummyEq(buf[buf_indices], dummy_f[f_indices])
@@ -72,8 +72,8 @@ def sendrecv(f, fixed):
 
     # Use `dummy_f`, instead of the actual `f`, so that we don't regenerate
     # code for Functions that only differ from `f` in the name
-    dummy_f = f.__class__.__base__(name='f', shape=f.shape, dimensions=f.dimensions,
-                                   dtype=f.dtype)
+    dummy_f = f.__class__.__base__(name='f', grid=f.grid, shape=f.shape_global,
+                                   dimensions=f.dimensions)
 
     ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
     ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
