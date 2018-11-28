@@ -353,15 +353,15 @@ class TestArguments(object):
         Utility function to verify an argument dictionary against
         expected values.
         """
-        for name, value in expected.items():
-            if isinstance(value, np.ndarray):
-                condition = (arguments[name] == value).all()
+        for name, v in expected.items():
+            if isinstance(v, (Function, SparseFunction)):
+                condition = (v._C_as_ndarray(arguments[name]) == v.data_with_halo).all()
             else:
-                condition = arguments[name] == value
+                condition = arguments[name] == v
 
             if not condition:
                 error('Wrong argument %s: expected %s, got %s' %
-                      (name, value, arguments[name]))
+                      (name, v, arguments[name]))
             assert condition
 
     def verify_parameters(self, parameters, expected):
@@ -393,7 +393,7 @@ class TestArguments(object):
             'x_size': 5, 'x_m': 0, 'x_M': 4,
             'y_size': 6, 'y_m': 0, 'y_M': 5,
             'z_size': 7, 'z_m': 0, 'z_M': 6,
-            'f': f.data_with_halo, 'g': g.data_with_halo,
+            'f': f, 'g': g,
         }
         self.verify_arguments(op.arguments(time=4), expected)
         exp_parameters = ['f', 'g', 'x_m', 'x_M', 'x_size', 'y_m',
@@ -414,7 +414,7 @@ class TestArguments(object):
         op = Operator(s.interpolate(f))
 
         expected = {
-            's': s.data, 's_coords': s.coordinates.data,
+            's': s, 's_coords': s.coordinates,
             # Default dimensions of the sparse data
             'p_s_size': 3, 'p_s_m': 0, 'p_s_M': 2,
             'd_size': 3, 'd_m': 0, 'd_M': 2,
@@ -445,7 +445,7 @@ class TestArguments(object):
             'x_size': 5, 'x_m': 0, 'x_M': 3,
             'y_size': 6, 'y_m': 0, 'y_M': 4,
             'z_size': 7, 'z_m': 0, 'z_M': 5,
-            'g': g.data_with_halo
+            'g': g
         }
         self.verify_arguments(arguments, expected)
         # Verify execution
@@ -469,7 +469,7 @@ class TestArguments(object):
             'x_size': 5, 'x_m': 1, 'x_M': 3,
             'y_size': 6, 'y_m': 2, 'y_M': 4,
             'z_size': 7, 'z_m': 3, 'z_M': 5,
-            'g': g.data_with_halo
+            'g': g
         }
         self.verify_arguments(arguments, expected)
         # Verify execution
@@ -500,7 +500,7 @@ class TestArguments(object):
             'y_size': 6, 'y_m': 2, 'y_M': 4,
             'z_size': 7, 'z_m': 3, 'z_M': 5,
             'time_m': 1, 'time_M': 4,
-            'f': f.data_with_halo
+            'f': f
         }
         self.verify_arguments(arguments, expected)
         # Verify execution
@@ -643,8 +643,9 @@ class TestArguments(object):
         # whether the override picks up the original coordinates or the changed ones
 
         args = op.arguments(src1=src2, time=0)
-        arg_name = src1.name + "_coords"
-        assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
+        arg_name = src1.coordinates._arg_names[0]
+        assert(np.array_equal(src2.coordinates._C_as_ndarray(args[arg_name]),
+                              np.asarray((new_coords,))))
 
     def test_override_sparse_data_default_dim(self):
         """
@@ -666,8 +667,9 @@ class TestArguments(object):
         # whether the override picks up the original coordinates or the changed ones
 
         args = op.arguments(src1=src2, t=0)
-        arg_name = src1.name + "_coords"
-        assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
+        arg_name = src1.coordinates._arg_names[0]
+        assert(np.array_equal(src2.coordinates._C_as_ndarray(args[arg_name]),
+                              np.asarray((new_coords,))))
 
     def test_argument_derivation_order(self, nt=100):
         """ Ensure the precedence order of arguments is respected
