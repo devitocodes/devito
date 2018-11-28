@@ -107,6 +107,17 @@ class Basic(object):
         return
 
     @abc.abstractproperty
+    def _C_typedata(self):
+        """
+        The C-level type of the data values.
+
+        Returns
+        -------
+        str
+        """
+        return
+
+    @abc.abstractproperty
     def _C_ctype(self):
         """
         The C-level type of the object, as a ctypes object, suitable for type
@@ -295,6 +306,10 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
     @property
     def _C_typename(self):
         return 'const %s' % dtype_to_cstr(self.dtype)
+
+    @property
+    def _C_typedata(self):
+        return dtype_to_cstr(self.dtype)
 
     @property
     def _C_ctype(self):
@@ -545,6 +560,10 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     @property
     def _C_name(self):
         return "%s_vec" % self.name
+
+    @property
+    def _C_typedata(self):
+        return dtype_to_cstr(self.dtype)
 
     @cached_property
     def _offset_domain(self):
