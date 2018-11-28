@@ -136,7 +136,7 @@ def make_yask_ast(expr, yc_soln, mapper):
             if function not in mapper:
                 mapper[function] = yc_soln.new_grid(function.name, [])
                 # Allow number of time-steps to be set in YASK kernel.
-                mapper[function].set_dynamic_step_alloc(True) 
+                mapper[function].set_dynamic_step_alloc(True)
             return mapper[function].new_grid_point([])
         elif function.is_Dimension:
             if expr.is_Time:
