@@ -1475,7 +1475,7 @@ class AbstractSparseFunction(TensorFunction):
             shape = tuple(dataobj._obj.size[i] for i in range(self.ndim))
             ndp = np.ctypeslib.ndpointer(dtype=self.dtype, shape=shape)
             data = cast(dataobj._obj.data, ndp)
-            data = np.ctypeslib.as_array(data, shape=self.shape_allocated)
+            data = np.ctypeslib.as_array(data, shape=shape)
             # Gather into `self.data`
             key._dist_gather(data)
         elif self.grid.distributor.nprocs > 1:
