@@ -24,6 +24,9 @@ PARALLEL_IF_ATOMIC = IterationProperty('parallel_if_atomic')
 """The Iteration can be executed in parallel as long as all increments are
 guaranteed to be atomic."""
 
+COLLAPSED = lambda i: IterationProperty('collapsed', i)
+"""The Iteration is the root of a nest of ``i`` collapsed Iterations."""
+
 VECTOR = IterationProperty('vector-dim')
 """The Iteration can be SIMD-vectorized."""
 

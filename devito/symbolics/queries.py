@@ -1,6 +1,5 @@
 from sympy import Eq, diff, cos, sin, nan
 
-from devito.dimension import Dimension
 from devito.tools import as_tuple
 
 
@@ -85,6 +84,7 @@ def q_indirect(expr):
 
 
 def q_timedimension(expr):
+    from devito.dimension import Dimension
     return isinstance(expr, Dimension) and expr.is_Time
 
 

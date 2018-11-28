@@ -6,8 +6,9 @@ from cached_property import cached_property
 from devito.dimension import Dimension
 from devito.ir.equations import ClusterizedEq
 from devito.symbolics import (as_symbol, retrieve_indexed, retrieve_terminals,
-                              makeit_ssa, q_indirect, q_timedimension)
+                              q_indirect, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten, filter_ordered
+from devito.types import Symbol
 
 __all__ = ['FlowGraph']
 
@@ -280,3 +281,36 @@ class FlowGraph(OrderedDict):
                     # Not using sets to preserve order
                     found.append(i)
         return mapper
+
+
+def makeit_ssa(exprs):
+    """
+    Convert an iterable of :class:`Eq`s into Static Single Assignment (SSA) form.
+    """
+    # Identify recurring LHSs
+    seen = {}
+    for i, e in enumerate(exprs):
+        seen.setdefault(e.lhs, []).append(i)
+    # Optimization: don't waste time reconstructing stuff if already in SSA form
+    if all(len(i) == 1 for i in seen.values()):
+        return exprs
+    # SSA conversion
+    c = 0
+    mapper = {}
+    processed = []
+    for i, e in enumerate(exprs):
+        where = seen[e.lhs]
+        rhs = e.rhs.xreplace(mapper)
+        if len(where) > 1:
+            needssa = e.is_Scalar or where[-1] != i
+            lhs = Symbol(name='ssa%d' % c, dtype=e.dtype) if needssa else e.lhs
+            if e.is_Increment:
+                # Turn AugmentedAssignment into Assignment
+                processed.append(e.func(lhs, mapper[e.lhs] + rhs, is_Increment=False))
+            else:
+                processed.append(e.func(lhs, rhs))
+            mapper[e.lhs] = lhs
+            c += 1
+        else:
+            processed.append(e.func(e.lhs, rhs))
+    return processed
