@@ -19,16 +19,6 @@ pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
                                 reason="testing is currently restricted")
 
 
-@pytest.fixture
-def enable_mpi_codegen(request):
-    configuration['mpi'] = True
-
-    def fin():
-        configuration['mpi'] = False
-
-    request.addfinalizer(fin)
-
-
 def test_constant():
     c = Constant(name='c')
     assert c.data == 0.
@@ -262,7 +252,7 @@ def test_operator_timefunction_w_preallocation():
 
 @skipif_backend(['yask'])
 @pytest.mark.parallel(nprocs=[1])
-def test_mpi_objects(enable_mpi_codegen):
+def test_mpi_objects():
     # Neighbours
     grid = Grid(shape=(4, 4, 4))
     obj = grid.distributor._obj_neighbours
@@ -296,7 +286,7 @@ def test_mpi_objects(enable_mpi_codegen):
 
 @skipif_backend(['yask'])
 @pytest.mark.parallel(nprocs=[1])
-def test_mpi_operator(enable_mpi_codegen):
+def test_mpi_operator():
     grid = Grid(shape=(4,))
     f = TimeFunction(name='f', grid=grid)
     g = TimeFunction(name='g', grid=grid)
@@ -313,7 +303,7 @@ def test_mpi_operator(enable_mpi_codegen):
 
     new_op.apply(time=2, f=g)
     assert np.all(f.data[0] == [2., 3., 3., 3.])
-    assert np.all(f.data[0] == [2., 3., 3., 3.])
+    assert np.all(f.data[1] == [3., 6., 7., 7.])
     assert np.all(g.data[0] == f.data[0])
     assert np.all(g.data[1] == f.data[1])
 
