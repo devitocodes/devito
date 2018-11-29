@@ -144,7 +144,7 @@ def derive_parameters(nodes, drop_locals=False):
 
 
 def find_offloadable_trees(iet):
-    """ 
+    """
     Find offloadable trees. A tree is offloadable when all of the array accesses are
     constant/affine functions of the Iteration variables and the Iteration bounds
     are fixed (but possibly symbolic).
@@ -166,7 +166,7 @@ def find_offloadable_trees(iet):
         for section in sections:
             for tree in retrieve_iteration_tree(section):
                 if not all(i.is_Affine for i in tree):
-                    # Non-affine array accesses unsupported by YASK
+                    # Non-affine array accesses unsupported
                     break
                 exprs = [i.expr for i in FindNodes(Expression).visit(tree.root)]
                 grid = ReducerMap([('', i.grid) for i in exprs if i.grid]).unique('')
