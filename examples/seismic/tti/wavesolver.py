@@ -18,10 +18,9 @@ class AnisotropicWaveSolver(object):
 
     Note: space_order must always be greater than time_order
     """
-    def __init__(self, model, source, receiver, space_order=2, **kwargs):
+    def __init__(self, model, geometry, space_order=2, **kwargs):
         self.model = model
-        self.source = source
-        self.receiver = receiver
+        self.geometry = geometry
 
         self.space_order = space_order
         self.dt = self.model.critical_dt
@@ -32,8 +31,7 @@ class AnisotropicWaveSolver(object):
     @memoized_meth
     def op_fwd(self, kernel='shifted', save=False):
         """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperator(self.model, save=save, source=self.source,
-                               receiver=self.receiver,
+        return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order,
                                kernel=kernel, **self._kwargs)
 
@@ -73,21 +71,21 @@ class AnisotropicWaveSolver(object):
             time_order = 2
             stagg_u = stagg_v = None
         # Source term is read-only, so re-use the default
-        src = src or self.source
+        src = src or self.geometry.src
         # Create a new receiver object to store the result
         rec = rec or Receiver(name='rec', grid=self.model.grid,
-                              time_range=self.receiver.time_range,
-                              coordinates=self.receiver.coordinates.data)
+                              time_range=self.geometry.time_axis,
+                              coordinates=self.geometry.rec_positions)
 
         # Create the forward wavefield if not provided
         if u is None:
             u = TimeFunction(name='u', grid=self.model.grid, staggered=stagg_u,
-                             save=self.source.nt if save else None,
+                             save=self.geometry.nt if save else None,
                              time_order=time_order, space_order=self.space_order)
         # Create the forward wavefield if not provided
         if v is None:
             v = TimeFunction(name='v', grid=self.model.grid, staggered=stagg_v,
-                             save=self.source.nt if save else None,
+                             save=self.geometry.nt if save else None,
                              time_order=time_order, space_order=self.space_order)
 
         if kernel == 'staggered':

@@ -2,11 +2,12 @@
 
 from collections import OrderedDict
 from os import environ
+from functools import wraps
 
 from devito.tools import Signer, filter_ordered
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
-           'add_sub_configuration']
+           'add_sub_configuration', 'switchconfig']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -184,6 +185,29 @@ def add_sub_configuration(sub_configuration, sub_env_vars_mapper=None):
     # For use in user code, when the backend is a runtime choice and some
     # options are in common between the supported backends
     setattr(configuration, 'backend', sub_configuration)
+
+
+class switchconfig(object):
+
+    """
+    Decorator to temporarily change `configuration` parameters.
+    """
+
+    def __init__(self, **params):
+        self.params = {k.replace('_', '-'): v for k, v in params.items()}
+
+    def __call__(self, func, *args, **kwargs):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            previous = {}
+            for k, v in self.params.items():
+                previous[k] = configuration[k]
+                configuration[k] = v
+            result = func(*args, **kwargs)
+            for k, v in self.params.items():
+                configuration[k] = previous[k]
+            return result
+        return wrapper
 
 
 def print_defaults():

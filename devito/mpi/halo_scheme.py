@@ -108,6 +108,10 @@ class HaloScheme(object):
         return self._mapper.__hash__()
 
     @cached_property
+    def components(self):
+        return tuple(HaloScheme(fmapper={k: v}) for k, v in self.fmapper.items())
+
+    @cached_property
     def fmapper(self):
         return OrderedDict([(i, self._mapper[i]) for i in
                             sorted(self._mapper, key=attrgetter('name'))])

@@ -135,6 +135,8 @@ def make_yask_ast(expr, yc_soln, mapper):
             # Create a YASK grid if it's the first time we encounter the embedded Function
             if function not in mapper:
                 mapper[function] = yc_soln.new_grid(function.name, [])
+                # Allow number of time-steps to be set in YASK kernel.
+                mapper[function].set_dynamic_step_alloc(True)
             return mapper[function].new_grid_point([])
         elif function.is_Dimension:
             if expr.is_Time:
@@ -158,6 +160,8 @@ def make_yask_ast(expr, yc_soln, mapper):
             dimensions = [make_yask_ast(i.root, yc_soln, mapper)
                           for i in function.indices]
             mapper[function] = yc_soln.new_grid(function.name, dimensions)
+            # Allow number of time-steps to be set in YASK kernel.
+            mapper[function].set_dynamic_step_alloc(True)
         indices = [make_yask_ast(i, yc_soln, mapper) for i in expr.indices]
         return mapper[function].new_grid_point(indices)
     elif expr.is_Add:

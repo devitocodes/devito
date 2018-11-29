@@ -9,8 +9,7 @@ from devito.ir.iet import Call, Conditional, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
 from devito.types import LEFT, RIGHT
 
-from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
-from examples.seismic.acoustic import AcousticWaveSolver
+from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
                                 configuration['backend'] == 'ops',
@@ -1103,7 +1102,7 @@ class TestIsotropicAcoustic(object):
     """
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, ), 'OT2', 4, 10, False, 976.825, 9372.604, 18851836.075, 47002871.882),
+        ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
         ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
@@ -1115,67 +1114,32 @@ class TestIsotropicAcoustic(object):
         of all Operator-evaluated Functions. The numbers we check against are derived
         "manually" from sequential runs of test_adjoint::test_adjoint_F
         """
-        t0 = 0.0  # Start time
         tn = 500.  # Final time
         nrec = 130  # Number of receivers
-        spacing = 15.  # Grid spacing
 
-        # Create model from preset
-        model = demo_model(spacing=[spacing for _ in shape], dtype=np.float64,
-                           space_order=space_order, shape=shape, nbpml=nbpml,
-                           preset='layers-isotropic', ratio=3)
-
-        # Derive timestepping from model spacing
-        dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-        time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-        # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-        src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-        src.coordinates.data[0, -1] = 30.
-
-        # Define receiver geometry (same as source, but spread across x)
-        rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
-        rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-        if len(shape) > 1:
-            rec.coordinates.data[:, 1] = np.array(model.domain_size)[1] * .5
-            rec.coordinates.data[:, -1] = 30.
-
-        # Create solver object to provide relevant operators
-        solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                    kernel=kernel, space_order=space_order)
-
-        # Create adjoint receiver symbol
-        srca = Receiver(name='srca', grid=model.grid, time_range=solver.source.time_range,
-                        coordinates=solver.source.coordinates.data)
-
+        # Create solver from preset
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+                                nbpml=nbpml, tn=tn, space_order=space_order, nrec=nrec,
+                                preset='layers-isotropic', dtype=np.float64)
         # Run forward operator
-        rec, u, _ = solver.forward(save=save, rec=rec)
+        rec, u, _ = solver.forward(save=save)
 
         assert np.isclose(norm(u), Eu, rtol=Eu*1.e-8)
         assert np.isclose(norm(rec), Erec, rtol=Erec*1.e-8)
 
         # Run adjoint operator
-        srca, v, _ = solver.adjoint(rec=rec, srca=srca)
+        srca, v, _ = solver.adjoint(rec=rec)
 
         assert np.isclose(norm(v), Ev, rtol=Eu*1.e-8)
         assert np.isclose(norm(srca), Esrca, rtol=Erec*1.e-8)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
-        term1 = inner(srca, solver.source)
+        term1 = inner(srca, solver.geometry.src)
         term2 = norm(rec)**2
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
 
 if __name__ == "__main__":
     configuration['mpi'] = True
-    # TestDecomposition().test_reshape_left_right()
-    # TestOperatorSimple().test_trivial_eq_2d()
-    # TestFunction().test_halo_exchange_bilateral()
-    # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
-    # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
-    # TestSparseFunction().test_scatter_gather()
-    # TestOperatorAdvanced().test_nontrivial_operator()
-    # TestOperatorAdvanced().test_interpolation_dup()
     TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
                                            153.122, 205.902, 27484.635, 11736.917)

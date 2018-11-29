@@ -5,15 +5,16 @@ import pytest
 from conftest import x, y, z, skipif_backend  # noqa
 
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseFunction,  # noqa
-                    Grid, Operator, ruido, configuration)
-from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
+                    Grid, Operator, switchconfig, configuration)
+from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree
+from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
 from devito.types import Scalar
 from devito.tools import generator
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, TimeAxis, RickerSource, GaborSource, Receiver
+from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
@@ -35,21 +36,19 @@ def run_acoustic_forward(dse=None):
     model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
                        spacing=spacing, shape=shape, nbpml=nbpml)
 
-    # Derive timestepping from model spacing
-    dt = model.critical_dt
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = 20.
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
 
-    # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='nrec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Ricker', f0=0.010)
 
-    solver = AcousticWaveSolver(model, source=src, receiver=rec, dse=dse, dle='basic')
+    solver = AcousticWaveSolver(model, geometry, dse=dse, dle='basic')
     rec, u, _ = solver.forward(save=False)
 
     return u, rec
@@ -65,7 +64,7 @@ def test_acoustic_rewrite_basic():
 
 # TTI
 
-def tti_operator(dse=False, space_order=4):
+def tti_operator(dse=False, dle='advanced', space_order=4):
     nrec = 101
     t0 = 0.0
     tn = 250.
@@ -77,23 +76,19 @@ def tti_operator(dse=False, space_order=4):
     model = demo_model('layers-tti', ratio=3, nbpml=nbpml, space_order=space_order,
                        shape=shape, spacing=spacing)
 
-    # Derive timestepping from model spacing
-    # Derive timestepping from model spacing
-    dt = model.critical_dt
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    # Define source geometry (center of domain, just below surface)
-    src = GaborSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
 
-    # Define receiver geometry (spread across x, lust below surface)
-    rec = Receiver(name='nrec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Gabor', f0=0.010)
 
-    return AnisotropicWaveSolver(model, source=src, receiver=rec,
-                                 space_order=space_order, dse=dse)
+    return AnisotropicWaveSolver(model, geometry, space_order=space_order, dse=dse)
 
 
 @pytest.fixture(scope="session")
@@ -129,13 +124,28 @@ def test_tti_rewrite_speculative(tti_nodse):
 
 def test_tti_rewrite_aggressive(tti_nodse):
     operator = tti_operator(dse='aggressive')
-    rec, u, v, _ = operator.forward()
+    rec, u, v, _ = operator.forward(kernel='centered', save=False)
 
     assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
+    # Also check that DLE's loop blocking with DSE=aggressive does the right thing
+    # There should be exactly two BlockDimensions; bugs in the past were generating
+    # either code with no blocking (zero BlockDimensions) or code with four
+    # BlockDimensions (i.e., Iteration folding was somewhat broken)
+    op = operator.op_fwd(kernel='centered', save=False)
+    block_dims = [i for i in op.dimensions if isinstance(i, BlockDimension)]
+    assert len(block_dims) == 2
 
-@ruido(profiling='advanced')
+    # Also, in this operator, we expect six temporary Arrays, two on the stack and
+    # four on the heap
+    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+    assert len([i for i in arrays if i._mem_stack]) == 2
+    assert len([i for i in arrays if i._mem_heap]) == 4
+    assert len([i for i in arrays if i._mem_external]) == 0
+
+
+@switchconfig(profiling='advanced')
 @skipif_backend(['yask', 'ops'])
 @pytest.mark.parametrize('kernel,space_order,expected', [
     ('shifted', 8, 355), ('shifted', 16, 622),

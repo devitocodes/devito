@@ -5,39 +5,57 @@ from sympy import Number, Indexed, Symbol, LM, LC
 
 from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
-from devito.dimension import Dimension
 from devito.tools import as_tuple, flatten
-from devito.types import Symbol as dSymbol
 
-__all__ = ['freeze_expression', 'xreplace_constrained', 'xreplace_indices',
-           'pow_to_mul', 'as_symbol', 'indexify', 'makeit_ssa', 'split_affine']
+__all__ = ['freeze', 'unfreeze', 'evaluate', 'xreplace_constrained', 'xreplace_indices',
+           'pow_to_mul', 'as_symbol', 'indexify', 'split_affine']
 
 
-def freeze_expression(expr):
+def freeze(expr):
     """
     Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
-    into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
+    into :class:`FrozenExpr` equivalents.
     """
     if expr.is_Atom or expr.is_Indexed:
         return expr
     elif expr.is_Add:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
+        rebuilt_args = [freeze(e) for e in expr.args]
         return Add(*rebuilt_args, evaluate=False)
     elif expr.is_Mul:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
+        rebuilt_args = [freeze(e) for e in expr.args]
         return Mul(*rebuilt_args, evaluate=False)
     elif expr.is_Pow:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
+        rebuilt_args = [freeze(e) for e in expr.args]
         return Pow(*rebuilt_args, evaluate=False)
     elif expr.is_Equality:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
+        rebuilt_args = [freeze(e) for e in expr.args]
         if isinstance(expr, FrozenExpr):
             # Avoid dropping metadata associated with /expr/
             return expr.func(*rebuilt_args)
         else:
             return Eq(*rebuilt_args, evaluate=False)
     else:
-        return expr.func(*[freeze_expression(e) for e in expr.args])
+        return expr.func(*[freeze(e) for e in expr.args])
+
+
+def unfreeze(expr):
+    """
+    Reconstruct ``expr`` turning all :class:`FrozenExpr` subtrees into their
+    SymPy equivalents.
+    """
+    if expr.is_Atom or expr.is_Indexed:
+        return expr
+    func = expr.func.__base__ if isinstance(expr, FrozenExpr) else expr.func
+    return func(*[unfreeze(e) for e in expr.args])
+
+
+def evaluate(expr, **subs):
+    """
+    Numerically evaluate a SymPy expression. Subtrees of type :class:`FrozenExpr`
+    are forcibly evaluated.
+    """
+    expr = unfreeze(expr)
+    return expr.subs(subs)
 
 
 def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repeat=False):
@@ -180,6 +198,7 @@ def as_symbol(expr):
     """
     Extract the "main" symbol from a SymPy object.
     """
+    from devito.dimension import Dimension
     try:
         return Number(expr)
     except (TypeError, ValueError):
@@ -230,36 +249,3 @@ def indexify(expr):
         except AttributeError:
             pass
     return expr.xreplace(mapper)
-
-
-def makeit_ssa(exprs):
-    """
-    Convert an iterable of :class:`Eq`s into Static Single Assignment (SSA) form.
-    """
-    # Identify recurring LHSs
-    seen = {}
-    for i, e in enumerate(exprs):
-        seen.setdefault(e.lhs, []).append(i)
-    # Optimization: don't waste time reconstructing stuff if already in SSA form
-    if all(len(i) == 1 for i in seen.values()):
-        return exprs
-    # SSA conversion
-    c = 0
-    mapper = {}
-    processed = []
-    for i, e in enumerate(exprs):
-        where = seen[e.lhs]
-        rhs = e.rhs.xreplace(mapper)
-        if len(where) > 1:
-            needssa = e.is_Scalar or where[-1] != i
-            lhs = dSymbol(name='ssa%d' % c, dtype=e.dtype) if needssa else e.lhs
-            if e.is_Increment:
-                # Turn AugmentedAssignment into Assignment
-                processed.append(e.func(lhs, mapper[e.lhs] + rhs, is_Increment=False))
-            else:
-                processed.append(e.func(lhs, rhs))
-            mapper[e.lhs] = lhs
-            c += 1
-        else:
-            processed.append(e.func(e.lhs, rhs))
-    return processed
