@@ -4,8 +4,8 @@ from conftest import skipif_backend
 import numpy as np
 from sympy import Symbol
 
-from examples.seismic import demo_model
-from examples.seismic.source import TimeAxis, RickerSource, Receiver
+from examples.seismic import (demo_model, AcquisitionGeometry,
+                              TimeAxis, RickerSource, Receiver)
 
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     TimeDimension, SteppingDimension, Operator, configuration)
@@ -94,6 +94,43 @@ def test_receiver():
 
     assert np.all(new_rec.data == 1)
     assert np.all(new_rec.coordinates.data == [[0.], [1.], [2.]])
+
+
+def test_geometry():
+
+    shape = (50, 50, 50)
+    spacing = [10. for _ in shape]
+    nbpml = 10
+    nrec = 10
+    tn = 150.
+
+    # Create two-layer model from preset
+    model = demo_model(preset='layers-isotropic', vp_top=1., vp_bottom=2.,
+                       spacing=spacing, shape=shape, nbpml=nbpml)
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    if len(shape) > 1:
+        src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
+
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    if len(shape) > 1:
+        rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
+        rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+
+    pkl_geom = pickle.dumps(geometry)
+    new_geom = pickle.loads(pkl_geom)
+
+    assert np.all(new_geom.src_positions == geometry.src_positions)
+    assert np.all(new_geom.rec_positions == geometry.rec_positions)
+    assert new_geom.f0 == geometry.f0
+    assert np.all(new_geom.src_type == geometry.src_type)
+    assert np.all(new_geom.src.data == geometry.src.data)
+    assert new_geom.t0 == geometry.t0
+    assert new_geom.tn == geometry.tn
 
 
 def test_symbolics():
