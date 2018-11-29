@@ -774,9 +774,9 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         for i, s in zip(self.indices, key.shape):
             i._arg_check(args, s, intervals[i])
 
-    def _arg_as_ctype(self, args):
-        assert self.name in args
-        return ReducerMap({self.name: self._C_make_dataobj(args[self.name])})
+    def _arg_as_ctype(self, args, alias=None):
+        key = alias or self
+        return ReducerMap({key.name: self._C_make_dataobj(args[key.name])})
 
     # Pickling support
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\

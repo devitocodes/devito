@@ -150,7 +150,11 @@ class Operator(Callable):
         # E.g., instead of NumPy arrays for Functions, the generated code expects
         # pointers to ctypes.Struct
         for p in self.input:
-            args.update(p._arg_as_ctype(args))
+            try:
+                args.update(kwargs.get(p.name, p)._arg_as_ctype(args, alias=p))
+            except AttributeError:
+                # User-provided flots/ndarray obviously do not have `_arg_as_ctype`
+                args.update(p._arg_as_ctype(args, alias=p))
 
         # Add in the profiler argument
         args[self._profiler.name] = self._profiler.timer.reset()

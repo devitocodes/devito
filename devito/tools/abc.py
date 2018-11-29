@@ -88,7 +88,7 @@ class ArgProvider(object):
         """
         pass  # no-op
 
-    def _arg_as_ctype(self, *args):
+    def _arg_as_ctype(self, *args, **kwargs):
         """
         Cast the argument values into a format suitable for the dynamically
         executed code.
