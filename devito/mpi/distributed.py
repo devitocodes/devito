@@ -31,6 +31,9 @@ except ImportError:
         def Is_initialized():
             return False
 
+        def _sizeof(self, comm):
+            return None
+
 
 __all__ = ['Distributor', 'SparseDistributor', 'MPI']
 

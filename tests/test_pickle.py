@@ -1,5 +1,5 @@
 import pytest
-from conftest import skipif_backend
+from conftest import skipif_backend, skipif_nompi
 
 import numpy as np
 from sympy import Symbol
@@ -261,6 +261,7 @@ def test_operator_timefunction_w_preallocation():
 
 
 @skipif_backend(['yask'])
+@skipif_nompi
 @pytest.mark.parallel(nprocs=[1])
 def test_mpi_objects(enable_mpi_codegen):
     # Neighbours
@@ -296,6 +297,7 @@ def test_mpi_objects(enable_mpi_codegen):
 
 
 @skipif_backend(['yask'])
+@skipif_nompi
 @pytest.mark.parallel(nprocs=[1])
 def test_mpi_operator(enable_mpi_codegen):
     grid = Grid(shape=(4,))
