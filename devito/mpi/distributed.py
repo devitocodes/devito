@@ -28,12 +28,15 @@ except ImportError:
         COMM_NULL = None
 
         @classmethod
-        def Is_initialized():
+        def Is_initialized(cls):
             return False
 
-        def _sizeof(self, comm):
+        def _sizeof(comm):
             return None
 
+        @property
+        def Comm(self):
+            return None
 
 __all__ = ['Distributor', 'SparseDistributor', 'MPI']
 

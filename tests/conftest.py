@@ -20,7 +20,7 @@ from devito.tools import as_tuple
 try:
     from mpi4py import MPI  # noqa
 except ImportError:
-    pass
+    MPI = None
 
 
 def skipif_backend(backends):
