@@ -750,6 +750,92 @@ num is None: num = ceil((stop - start + step)/step);</p>
 <dd><p>Smooth the input with scipy ndimage utility</p>
 </dd></dl>
 
+<dl class="class">
+<dt id="examples.seismic.utils.AcquisitionGeometry">
+<em class="property">class </em><code class="descclassname">examples.seismic.utils.</code><code class="descname">AcquisitionGeometry</code><span class="sig-paren">(</span><em>model</em>, <em>rec_positions</em>, <em>src_positions</em>, <em>t0</em>, <em>tn</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/utils.html#AcquisitionGeometry"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="devito.tools.html#devito.tools.abc.Pickable" title="devito.tools.abc.Pickable"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.Pickable</span></code></a></p>
+<p>Encapsulate the geometry of an acquisition:
+- receiver positions and number
+- source positions and number</p>
+<p>In practice this would only point to a segy file with the
+necessary information</p>
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.dt">
+<code class="descname">dt</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.dt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.dtype">
+<code class="descname">dtype</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.dtype" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.f0">
+<code class="descname">f0</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.f0" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.grid">
+<code class="descname">grid</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.grid" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.model">
+<code class="descname">model</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.model" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.nrec">
+<code class="descname">nrec</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.nrec" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.nsrc">
+<code class="descname">nsrc</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.nsrc" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.nt">
+<code class="descname">nt</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.nt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.rec">
+<code class="descname">rec</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.rec" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.utils.AcquisitionGeometry.resample">
+<code class="descname">resample</code><span class="sig-paren">(</span><em>dt</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/utils.html#AcquisitionGeometry.resample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.resample" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.src">
+<code class="descname">src</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.src" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.src_type">
+<code class="descname">src_type</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.src_type" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.t0">
+<code class="descname">t0</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.t0" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.time_axis">
+<code class="descname">time_axis</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.time_axis" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.utils.AcquisitionGeometry.tn">
+<code class="descname">tn</code><a class="headerlink" href="#examples.seismic.utils.AcquisitionGeometry.tn" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
 <div class="section" id="module-examples.seismic">
 <span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-examples.seismic" title="Permalink to this headline">¶</a></h2>

@@ -197,7 +197,7 @@
 <span id="examples-seismic-elastic-operators-module"></span><h2>examples.seismic.elastic.operators module<a class="headerlink" href="#module-examples.seismic.elastic.operators" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="examples.seismic.elastic.operators.ForwardOperator">
-<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">ForwardOperator</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>space_order=4</em>, <em>save=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#ForwardOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.ForwardOperator" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">ForwardOperator</code><span class="sig-paren">(</span><em>model</em>, <em>geometry</em>, <em>space_order=4</em>, <em>save=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#ForwardOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.ForwardOperator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Constructor method for the forward modelling operator in an elastic media</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -219,13 +219,13 @@ indices (last three time steps)</li>
 
 <dl class="function">
 <dt id="examples.seismic.elastic.operators.elastic_2d">
-<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">elastic_2d</code><span class="sig-paren">(</span><em>model</em>, <em>space_order</em>, <em>save</em>, <em>source</em>, <em>receiver</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#elastic_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.elastic_2d" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">elastic_2d</code><span class="sig-paren">(</span><em>model</em>, <em>space_order</em>, <em>save</em>, <em>geometry</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#elastic_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.elastic_2d" title="Permalink to this definition">¶</a></dt>
 <dd><p>2D elastic wave equation FD kernel</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="examples.seismic.elastic.operators.elastic_3d">
-<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">elastic_3d</code><span class="sig-paren">(</span><em>model</em>, <em>space_order</em>, <em>save</em>, <em>source</em>, <em>receiver</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#elastic_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.elastic_3d" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">elastic_3d</code><span class="sig-paren">(</span><em>model</em>, <em>space_order</em>, <em>save</em>, <em>geometry</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#elastic_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.elastic_3d" title="Permalink to this definition">¶</a></dt>
 <dd><p>3D elastic wave equation FD kernel</p>
 </dd></dl>
 
@@ -237,7 +237,7 @@ indices (last three time steps)</li>
 
 <dl class="function">
 <dt id="examples.seismic.elastic.operators.src_rec">
-<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">src_rec</code><span class="sig-paren">(</span><em>vx</em>, <em>vy</em>, <em>vz</em>, <em>txx</em>, <em>tyy</em>, <em>tzz</em>, <em>model</em>, <em>source</em>, <em>receiver</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#src_rec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.src_rec" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.elastic.operators.</code><code class="descname">src_rec</code><span class="sig-paren">(</span><em>vx</em>, <em>vy</em>, <em>vz</em>, <em>txx</em>, <em>tyy</em>, <em>tzz</em>, <em>model</em>, <em>geometry</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/operators.html#src_rec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.operators.src_rec" title="Permalink to this definition">¶</a></dt>
 <dd><p>Source injection and receiver interpolation</p>
 </dd></dl>
 
@@ -252,7 +252,7 @@ indices (last three time steps)</li>
 <span id="examples-seismic-elastic-wavesolver-module"></span><h2>examples.seismic.elastic.wavesolver module<a class="headerlink" href="#module-examples.seismic.elastic.wavesolver" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="examples.seismic.elastic.wavesolver.ElasticWaveSolver">
-<em class="property">class </em><code class="descclassname">examples.seismic.elastic.wavesolver.</code><code class="descname">ElasticWaveSolver</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>space_order=4</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/wavesolver.html#ElasticWaveSolver"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.wavesolver.ElasticWaveSolver" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">examples.seismic.elastic.wavesolver.</code><code class="descname">ElasticWaveSolver</code><span class="sig-paren">(</span><em>model</em>, <em>geometry</em>, <em>space_order=4</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/elastic/wavesolver.html#ElasticWaveSolver"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.elastic.wavesolver.ElasticWaveSolver" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Solver object that provides operators for seismic inversion problems
 and encapsulates the time and space discretization for a given problem
