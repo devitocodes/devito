@@ -339,25 +339,27 @@ free(bufg);"""
 
         iet = update_halo(f, [t])
         assert str(iet.parameters) == """\
-(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime, t_size, x_size, y_size)"""
+(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime)"""
         assert str(iet.body[0]) == """\
 if (mxl)
 {
-  sendrecv_f(f_vec,1,y_size + 1 + 1,otime,1,0,otime,x_size + 1,0,\
-nb->xright,nb->xleft,comm);
+  sendrecv_f(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
+f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->xright,nb->xleft,comm);
 }
 if (mxr)
 {
-  sendrecv_f(f_vec,1,y_size + 1 + 1,otime,x_size,0,otime,0,0,nb->xleft,nb->xright,comm);
+  sendrecv_f(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
+f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->xleft,nb->xright,comm);
 }
 if (myl)
 {
-  sendrecv_f(f_vec,x_size + 1 + 1,1,otime,0,1,otime,0,y_size + 1,\
-nb->yright,nb->yleft,comm);
+  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
+f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->yright,nb->yleft,comm);
 }
 if (myr)
 {
-  sendrecv_f(f_vec,x_size + 1 + 1,1,otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
+  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
+f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->yleft,nb->yright,comm);
 }"""
 
 
@@ -1180,7 +1182,7 @@ if __name__ == "__main__":
     # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
     # TestSparseFunction().test_scatter_gather()
     # TestOperatorAdvanced().test_nontrivial_operator()
-    TestOperatorAdvanced().test_interior_w_stencil()
     # TestOperatorAdvanced().test_interpolation_dup()
+    TestOperatorAdvanced().test_injection_wodup()
     # TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
     #                                        153.122, 205.902, 27484.635, 11736.917)

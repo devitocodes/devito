@@ -11,10 +11,10 @@ import sympy
 from cached_property import cached_property
 from cgen import Struct, Value
 
-from devito.data import OWNED, HALO, LEFT, RIGHT, default_allocator
+from devito.data import DOMAIN, OWNED, HALO, LEFT, default_allocator
 from devito.symbolics import Add
 from devito.tools import (ArgProvider, EnrichedTuple, Pickable, ctypes_to_cstr,
-                          dtype_to_cstr, dtype_to_ctype)
+                          dtype_to_cstr, dtype_to_ctype, memoized_meth)
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -594,6 +594,13 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
     @cached_property
+    def _extent_domain(self):
+        """
+        The number of points in the domain region.
+        """
+        return EnrichedTuple(*self.shape, getters=self.dimensions)
+
+    @cached_property
     def _extent_halo(self):
         """
         The number of points in the halo region.
@@ -619,73 +626,42 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
         return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
-    def _get_region(self, region, dimension, side, symbolic=False):
+    @memoized_meth
+    def _region_meta(self, region, dim, side=None):
         """
-        Return the offset and the extent of a given region in ``self.data``.
+        Offset, relative to the origin, and extent of a given data region.
 
-        :param region: The :class:`DataRegion` whose offset and extent are retrieved.
-        :param dimension: The region :class:`Dimension`.
-        :param side: The region side.
-        :param symbolic: (Optional) if True, a symbolic offset is returned in place
-                         of negative values representing the distance from the end.
-                         Defaults to False.
+        Parameters
+        ----------
+        region : DataRegion
+            The data region of interest (e.g., OWNED, HALO).
+        dim : Dimension
+            The dimension of interest.
+        side : DataSide, optional
+            The side of interest (LEFT, RIGHT). Irrelevant for certain regions.
         """
-        assert side in [LEFT, RIGHT]
-        assert region in [OWNED, HALO]
-
-        if region is OWNED:
+        if region is DOMAIN:
+            offset = self._offset_domain[dim].left
+            extent = self._extent_domain[dim]
+        elif region is OWNED:
             if side is LEFT:
-                offset = self._offset_domain[dimension].left
-                extent = self._extent_halo[dimension].right
+                offset = self._offset_domain[dim].left
+                extent = self._extent_halo[dim].right
             else:
-                if symbolic is False:
-                    offset = -self._offset_domain[dimension].right -\
-                        self._extent_halo[dimension].left
-                else:
-                    offset = self._offset_domain[dimension].left +\
-                        dimension.symbolic_size - self._extent_halo[dimension].left
-                extent = self._extent_halo[dimension].left
+                offset = self._offset_halo[dim].left + self._extent_domain[dim]
+                extent = self._extent_halo[dim].left
+        elif region is HALO:
+            if side is LEFT:
+                offset = self._offset_halo[dim].left
+                extent = self._extent_halo[dim].left
+            else:
+                offset = self._offset_domain[dim].left + self._extent_domain[dim]
+                extent = self._extent_halo[dim].right
         else:
-            if side is LEFT:
-                offset = self._offset_halo[dimension].left
-                extent = self._extent_halo[dimension].left
-            else:
-                if symbolic is False:
-                    offset = -self._offset_domain[dimension].right
-                else:
-                    offset = self._offset_domain[dimension].left + dimension.symbolic_size
-                extent = self._extent_halo[dimension].right
+            raise ValueError("Unknown region `%s`" % str(region))
 
-        return offset, extent
-
-    def _get_view(self, region, dimension, side):
-        """
-        Return a special view of ``self.data``.
-
-        :param region: A :class:`DataRegion` representing the region of ``self.data``
-                       for which a view is produced.
-        :param dimension: The region :class:`Dimension`.
-        :param side: The region side.
-        """
-        index_array = []
-        for i in self.dimensions:
-            if i == dimension:
-                offset, extent = self._get_region(region, dimension, side)
-                if side is LEFT:
-                    end = offset + extent
-                else:
-                    if extent == 0:
-                        # The region is empty
-                        assert offset == 0
-                        end = 0
-                    else:
-                        # The region is non-empty (e.g., offset=-1, extent=1), so
-                        # to reach the end point we must use None, not 0
-                        end = (offset + extent) or None
-                index_array.append(slice(offset, end))
-            else:
-                index_array.append(slice(None))
-        return self._data[index_array]
+        RegionMeta = namedtuple('RegionMeta', 'offset extent')
+        return RegionMeta(offset, extent)
 
     @property
     def _data_alignment(self):

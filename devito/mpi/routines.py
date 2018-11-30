@@ -1,10 +1,10 @@
 from functools import reduce
 from operator import mul
 from ctypes import c_void_p
+from itertools import product
 
-from devito.data import OWNED, HALO, LEFT, RIGHT
+from devito.data import OWNED, HALO, NOPAD, LEFT, RIGHT
 from devito.dimension import Dimension
-from devito.mpi.utils import get_views
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls)
@@ -123,7 +123,23 @@ def update_halo(f, fixed):
 
     fixed = {d: Symbol(name="o%s" % d.root) for d in fixed}
 
-    mapper = get_views(f, fixed)
+    # Build a mapper `(dim, side, region) -> (size, ofs)` for `f`. `size` and
+    # `ofs` are symbolic objects. This mapper tells what data values should be
+    # sent (OWNED) or received (HALO) given dimension and side
+    mapper = {}
+    for d0, side, region in product(f.dimensions, (LEFT, RIGHT), (OWNED, HALO)):
+        if d0 in fixed:
+            continue
+        sizes = []
+        offsets = []
+        for d1 in f.dimensions:
+            if d1 in fixed:
+                offsets.append(fixed[d1])
+            else:
+                meta = f._region_meta(region if d0 is d1 else NOPAD, d1, side, True)
+                offsets.append(meta.offset)
+                sizes.append(meta.extent)
+        mapper[(d0, side, region)] = (sizes, offsets)
 
     body = []
     masks = []
@@ -137,7 +153,6 @@ def update_halo(f, fixed):
         # Sending to left, receiving from right
         lsizes, loffsets = mapper[(d, LEFT, OWNED)]
         rsizes, roffsets = mapper[(d, RIGHT, HALO)]
-        assert lsizes == rsizes
         sizes = lsizes
         parameters = ([f] + sizes + loffsets + roffsets + [rpeer, lpeer, comm])
         call = Call('sendrecv_%s' % f.name, parameters)
@@ -148,7 +163,6 @@ def update_halo(f, fixed):
         # Sending to right, receiving from left
         rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
         lsizes, loffsets = mapper[(d, LEFT, HALO)]
-        assert rsizes == lsizes
         sizes = rsizes
         parameters = ([f] + sizes + roffsets + loffsets + [lpeer, rpeer, comm])
         call = Call('sendrecv_%s' % f.name, parameters)
@@ -157,8 +171,7 @@ def update_halo(f, fixed):
         masks.append(mask)
 
     iet = List(body=body)
-    parameters = ([f] + masks + [comm, nb] + list(fixed.values()) +
-                  [d.symbolic_size for d in f.dimensions])
+    parameters = [f] + masks + [comm, nb] + list(fixed.values())
     return Callable('halo_exchange_%s' % f.name, iet, 'void', parameters, ('static',))
 
 

@@ -46,8 +46,7 @@ class OperatorCore(OperatorRunnable):
                 comm = f.grid.distributor._obj_comm
                 nb = f.grid.distributor._obj_neighbours
                 loc_indices = list(v.loc_indices.values())
-                dsizes = [d.symbolic_size for d in f.dimensions]
-                parameters = [f] + stencil + [comm, nb] + loc_indices + dsizes
+                parameters = [f] + stencil + [comm, nb] + loc_indices
                 call = Call('halo_exchange_%s' % f.name, parameters)
                 mapper.setdefault(hs, []).append(call)
 

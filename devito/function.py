@@ -10,14 +10,14 @@ from cgen import Struct, Value
 
 from devito.builtins import assign
 from devito.cgen_utils import INT, cast_mapper
-from devito.data import OWNED, HALO, LEFT, RIGHT, Data, default_allocator
+from devito.data import DOMAIN, OWNED, HALO, NOPAD, LEFT, RIGHT, Data, default_allocator
 from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI, SparseDistributor
 from devito.parameters import configuration
-from devito.symbolics import Add, indexify, retrieve_function_carriers
+from devito.symbolics import Add, FieldFromPointer, indexify, retrieve_function_carriers
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.types import AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar
 from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_tuple,
@@ -527,6 +527,48 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         self._halo_exchange()
         return np.asarray(self._data)
 
+    def _data_in_region(self, region, dim, side):
+        """
+        The data values in a given region.
+
+        Parameters
+        ----------
+        region : DataRegion
+            The data region of interest (e.g., OWNED, HALO) for which a view is produced.
+        dim : Dimension
+            The dimension of interest.
+        side : DataSide
+            The side of interest (LEFT, RIGHT).
+
+        Notes
+        -----
+        This accessor does *not* support global indexing.
+
+        With this accessor you are claiming that you will modify the values you
+        get back.
+
+        Typically, this accessor won't be used in user code to set or read data values.
+        """
+        self._is_halo_dirty = True
+        index_array = []
+        for i in self.dimensions:
+            if i == dim:
+                offset, extent = self._region_meta(region, dim, side)
+                if side is LEFT:
+                    end = offset + extent
+                else:
+                    if extent == 0:
+                        # The region is empty
+                        end = 0
+                    else:
+                        # The region is non-empty (e.g., offset=-1, extent=1), so
+                        # to reach the end point we must use None, not 0
+                        end = (offset + extent) or None
+                index_array.append(slice(offset, end))
+            else:
+                index_array.append(slice(None))
+        return np.asarray(self._data[index_array])
+
     @property
     @_allocate_memory
     def data_ro_domain(self):
@@ -632,21 +674,50 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     _C_typename = 'struct %s *' % _C_structname
     _C_field_data = 'data'
     _C_field_size = 'size'
+    _C_field_nopad_size = 'npsize'
+    _C_field_halo_size = 'hsize'
+    _C_field_halo_ofs = 'hofs'
+    _C_field_owned_ofs = 'oofs'
 
     _C_typedecl = Struct(_C_structname,
                          [Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_size)])
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_size),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_nopad_size),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_size),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_ofs),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_owned_ofs)])
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_void_p),
-                                          (_C_field_size, POINTER(c_int))]}))
+                                          (_C_field_size, POINTER(c_int)),
+                                          (_C_field_nopad_size, POINTER(c_int)),
+                                          (_C_field_halo_size, POINTER(c_int)),
+                                          (_C_field_halo_ofs, POINTER(c_int)),
+                                          (_C_field_owned_ofs, POINTER(c_int))]}))
 
     def _C_make_dataobj(self, data):
         dataobj = byref(self._C_ctype._type_())
         dataobj._obj.data = data.ctypes.data_as(c_void_p)
         dataobj._obj.size = (c_int*self.ndim)(*data.shape)
-        # dataobj._obj.pad = (c_int*(self.ndim*2))(*flatten(self.padding))
+        # MPI-related fields
+        dataobj._obj.npsize = (c_int*self.ndim)(*[i - sum(j) for i, j in
+                                                  zip(data.shape, self._extent_padding)])
+        dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._extent_halo))
+        hofs = [self._region_meta(HALO, i, j).offset for i, j in
+                product(self.dimensions, (LEFT, RIGHT))]
+        dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(hofs))
+        oofs = [self._region_meta(OWNED, i, j).offset for i, j in
+                product(self.dimensions, (LEFT, RIGHT))]
+        dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(oofs))
         return dataobj
+
+    @memoized_meth
+    def _C_make_index(self, dim, side=None):
+        # Depends on how fields are populated in `_C_make_dataobj`
+        idx = self.dimensions.index(dim)
+        if side is not None:
+            idx = idx*2 + (0 if side is LEFT else 1)
+        return idx
 
     def _C_as_ndarray(self, dataobj):
         """Cast the data carried by a TensorFunction dataobj to an ndarray."""
@@ -655,6 +726,38 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         data = cast(dataobj._obj.data, ndp)
         data = np.ctypeslib.as_array(data, shape=shape)
         return data
+
+    @memoized_meth
+    def _region_meta(self, region, dim, side=None, symbolic=False):
+        if symbolic is False:
+            return super(TensorFunction, self)._region_meta(region, dim, side)
+        else:
+            ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_name)
+            if region is DOMAIN:
+                offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
+                extent = dim.symbolic_size
+            elif region is OWNED:
+                if side is LEFT:
+                    offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
+                    extent = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
+                else:
+                    offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, RIGHT))
+                    extent = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
+            elif region is HALO:
+                if side is LEFT:
+                    offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
+                    extent = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
+                else:
+                    offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, RIGHT))
+                    extent = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
+            elif region is NOPAD:
+                offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
+                extent = ffp(self._C_field_nopad_size, self._C_make_index(dim))
+            else:
+                raise ValueError("Unknown region `%s`" % str(region))
+
+        RegionMeta = namedtuple('RegionMeta', 'offset extent')
+        return RegionMeta(offset, extent)
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
@@ -679,8 +782,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         comm = self._distributor.comm
         for i in [LEFT, RIGHT]:
             neighbour = neighbours[dim][i]
-            owned_region = self._get_view(OWNED, dim, i)
-            halo_region = self._get_view(HALO, dim, i)
+            owned_region = self._data_in_region(OWNED, dim, i)
+            halo_region = self._data_in_region(HALO, dim, i)
             sendbuf = np.ascontiguousarray(owned_region)
             recvbuf = np.ndarray(shape=halo_region.shape, dtype=self.dtype)
             self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
@@ -695,7 +798,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                 if payload is not None and status.source != MPI.PROC_NULL:
                     # The MPI.Request `req` originated from a `comm.Irecv`
                     # Now need to scatter the data to the right place
-                    self._get_view(HALO, d, i)[:] = payload
+                    self._data_in_region(HALO, d, i)[:] = payload
             self._in_flight.remove((d, i, payload, req))
 
     @property
