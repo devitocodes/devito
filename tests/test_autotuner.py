@@ -3,6 +3,7 @@ from operator import mul
 
 import pytest
 import numpy as np
+from conftest import skipif_nompi
 from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
                     switchconfig)
 from devito.types import LEFT
@@ -210,6 +211,7 @@ def test_discarding_runs():
     assert op._state['autotuning'][1]['tuned']['nthreads'] == 1
 
 
+@skipif_nompi
 @pytest.mark.parallel(nprocs=2)
 def test_at_w_mpi():
     """Make sure autotuning works in presence of MPI. MPI ranks work

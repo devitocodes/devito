@@ -1144,6 +1144,7 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[1] == 3)
 
 
+@skipif_nompi
 @skipif_backend(['yask', 'ops'])
 class TestIsotropicAcoustic(object):
 
