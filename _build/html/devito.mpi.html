@@ -362,7 +362,7 @@ arbitrarily spread over a cartesian grid.</p>
 <dt id="devito.mpi.halo_scheme.HaloScheme">
 <em class="property">class </em><code class="descclassname">devito.mpi.halo_scheme.</code><code class="descname">HaloScheme</code><span class="sig-paren">(</span><em>exprs=None</em>, <em>ispace=None</em>, <em>dspace=None</em>, <em>fmapper=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/mpi/halo_scheme.html#HaloScheme"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.mpi.halo_scheme.HaloScheme" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>A HaloScheme describes a halo exchange pattern through a mapper:</p>
+<p>A HaloScheme describes a set of halo exchanges through a mapper:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">M</span> <span class="p">:</span> <span class="n">Function</span> <span class="o">-&gt;</span> <span class="n">HaloSchemeEntry</span>
 </pre></div>
 </div>
@@ -382,26 +382,19 @@ offset in <code class="docutils literal notranslate"><span class="pre">t</span><
 as non-halo dimensions, and each entry provides symbolic information about
 how to access the corresponding non-halo dimension. Thus, in this example
 <code class="docutils literal notranslate"><span class="pre">loc_indices</span></code> could be, for instance, <code class="docutils literal notranslate"><span class="pre">{t:</span> <span class="pre">0}</span></code> or <code class="docutils literal notranslate"><span class="pre">{t:</span> <span class="pre">t-1}</span></code>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>exprs</strong> – The :class:<a href="#id7"><span class="problematic" id="id8">`</span></a>IREq`s for which the HaloScheme is built.</li>
-<li><strong>ispace</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code> describing the iteration
-directions and the sub-iterators used by the <code class="docutils literal notranslate"><span class="pre">exprs</span></code>.</li>
-<li><strong>dspace</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code> describing the <code class="docutils literal notranslate"><span class="pre">exprs</span></code> data
-access pattern.</li>
-<li><strong>fmapper</strong> – (Optional) Alternatively, a HaloScheme can be built from a
-set of known HaloSchemeEntry. If <code class="docutils literal notranslate"><span class="pre">fmapper</span></code> is provided,
-then <code class="docutils literal notranslate"><span class="pre">exprs</span></code>, <code class="docutils literal notranslate"><span class="pre">ispace</span></code>, and <code class="docutils literal notranslate"><span class="pre">dspace</span></code> are ignored.
-<code class="docutils literal notranslate"><span class="pre">fmapper</span></code> is a dictionary having same format as <code class="docutils literal notranslate"><span class="pre">M</span></code>, the
-HaloScheme mapper defined at the top of this docstring.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
+<dl class="docutils">
+<dt>exprs <span class="classifier-delimiter">:</span> <span class="classifier">tuple of <code class="xref py py-class docutils literal notranslate"><span class="pre">IREq</span></code></span></dt>
+<dd>The expressions for which the HaloScheme is built</dd>
+<dt>ispace <span class="classifier-delimiter">:</span> <span class="classifier"><code class="xref py py-class docutils literal notranslate"><span class="pre">IterationSpace</span></code></span></dt>
+<dd>Description of iteration directions and sub-iterators used in <code class="docutils literal notranslate"><span class="pre">exprs</span></code>.</dd>
+<dt>dspace <span class="classifier-delimiter">:</span> <span class="classifier"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataSpace</span></code></span></dt>
+<dd>Description of the data access pattern in <code class="docutils literal notranslate"><span class="pre">exprs</span></code>.</dd>
+<dt>fmapper <span class="classifier-delimiter">:</span> <span class="classifier">dict, optional</span></dt>
+<dd>The format is the same as <code class="docutils literal notranslate"><span class="pre">M</span></code>. When provided, <code class="docutils literal notranslate"><span class="pre">exprs</span></code>, <code class="docutils literal notranslate"><span class="pre">ispace</span></code> and
+<code class="docutils literal notranslate"><span class="pre">dspace</span></code> are ignored. It should be used to aggregate several existing
+HaloSchemes into a single, “bigger” HaloScheme, without performing any
+additional analysis.</dd>
+</dl>
 <dl class="attribute">
 <dt id="devito.mpi.halo_scheme.HaloScheme.components">
 <code class="descname">components</code><a class="headerlink" href="#devito.mpi.halo_scheme.HaloScheme.components" title="Permalink to this definition">¶</a></dt>

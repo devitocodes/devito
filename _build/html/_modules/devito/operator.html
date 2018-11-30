@@ -582,16 +582,14 @@
 <span class="sd">        Now, the operator will run with a different set of arguments, namely</span>
 <span class="sd">        ``u=u2, x_m=1, x_M=2, y_m=0, y_M=1, time_m=0, time_M=3``.</span>
 
-<span class="sd">        .. note::</span>
+<span class="sd">        To run an operator that only uses buffered :class:`TimeFunction`s,</span>
+<span class="sd">        the maximum iteration point along the time dimension must be explicitly</span>
+<span class="sd">        specified (otherwise, the operator wouldn&#39;t know how many iterations</span>
+<span class="sd">        to run).</span>
 
-<span class="sd">            To run an operator that only uses buffered :class:`TimeFunction`s,</span>
-<span class="sd">            the maximum iteration point along the time dimension must be explicitly</span>
-<span class="sd">            specified (otherwise, the operator wouldn&#39;t know how many iterations</span>
-<span class="sd">            to run).</span>
-
-<span class="sd">            &gt;&gt;&gt; u3 = TimeFunction(name=&#39;u&#39;, grid=grid)</span>
-<span class="sd">            &gt;&gt;&gt; op = Operator(Eq(u3.forward, u3 + 1))</span>
-<span class="sd">            &gt;&gt;&gt; op.apply(time_M=10)</span>
+<span class="sd">        &gt;&gt;&gt; u3 = TimeFunction(name=&#39;u&#39;, grid=grid)</span>
+<span class="sd">        &gt;&gt;&gt; op = Operator(Eq(u3.forward, u3 + 1))</span>
+<span class="sd">        &gt;&gt;&gt; op.apply(time_M=10)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Build the arguments list to invoke the kernel function</span>
         <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>

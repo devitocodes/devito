@@ -710,15 +710,15 @@
     <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="p">)</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_defined_findices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_defines</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_defines</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">))</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">distance_mapper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span><span class="p">)}</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">cause</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the findex causing the dependence.&quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">findices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span><span class="p">):</span>
@@ -728,20 +728,51 @@
             <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
                 <span class="c1"># Conservatively assume this is an offending dimension</span>
                 <span class="k">return</span> <span class="n">i</span><span class="o">.</span><span class="n">_defines</span>
-        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">()</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_flow</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_anti</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_flow</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_anti</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">is_flow</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_write</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_read</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">is_anti</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_read</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_write</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">is_waw</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_write</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_write</span>
+
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">is_regular</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_regular</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_regular</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">is_increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">is_increment</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="o">.</span><span class="n">is_increment</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">is_irregular</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_regular</span>
 
+    <span class="nd">@memoized_meth</span>
     <span class="k">def</span> <span class="nf">is_carried</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return True if definitely a dimension-carried dependence,</span>
 <span class="sd">        False otherwise.&quot;&quot;&quot;</span>
@@ -754,6 +785,7 @@
             <span class="c1"># Conservatively assume this is a carried dependence</span>
             <span class="k">return</span> <span class="kc">True</span>
 
+    <span class="nd">@memoized_meth</span>
     <span class="k">def</span> <span class="nf">is_reduce</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return True if ``dim`` may represent a reduction dimension for</span>
 <span class="sd">        ``self``, False otherwise.&quot;&quot;&quot;</span>
@@ -762,6 +794,7 @@
         <span class="n">test2</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_defined_findices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dim</span><span class="o">.</span><span class="n">_defines</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">test0</span> <span class="ow">and</span> <span class="n">test1</span> <span class="ow">and</span> <span class="n">test2</span>
 
+    <span class="nd">@memoized_meth</span>
     <span class="k">def</span> <span class="nf">is_reduce_atmost</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;More relaxed than :meth:`is_reduce`. Return True  if ``dim`` may</span>
 <span class="sd">        represent a reduction dimension for ``self`` or if `self`` is definitely</span>
@@ -794,6 +827,7 @@
             <span class="c1"># Conservatively assume this is not dimension-independent</span>
             <span class="k">return</span> <span class="kc">False</span>
 
+    <span class="nd">@memoized_meth</span>
     <span class="k">def</span> <span class="nf">is_inplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Stronger than ``is_indep()``, as it also compares the timestamps.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">lex_eq</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sink</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_indep</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span>
@@ -804,20 +838,20 @@
 
 <span class="k">class</span> <span class="nc">DependenceGroup</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">cause</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">()</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">cause</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">functions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the :class:`TensorFunction`s inducing a dependence.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">}</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">({</span><span class="n">i</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">})</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">none</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">increment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the increment-induced dependences.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_increment</span><span class="p">)</span>
@@ -916,32 +950,6 @@
         <span class="k">return</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">group</span><span class="p">]</span>
 
     <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">has_dep</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return True if at least a dependency is detected, False otherwise.&quot;&quot;&quot;</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">for</span> <span class="n">w1</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[]):</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="n">is_flow</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span> <span class="o">&lt;</span> <span class="n">w1</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">r</span> <span class="o">==</span> <span class="n">w1</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">lex_ge</span><span class="p">(</span><span class="n">w1</span><span class="p">))</span>
-                        <span class="n">is_anti</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span> <span class="o">&gt;</span> <span class="n">w1</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">r</span> <span class="o">==</span> <span class="n">w1</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">lex_lt</span><span class="p">(</span><span class="n">w1</span><span class="p">))</span>
-                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-                        <span class="c1"># Non-integer vectors are not comparable.</span>
-                        <span class="c1"># Conservatively, we assume it is a dependence</span>
-                        <span class="n">is_flow</span> <span class="o">=</span> <span class="n">is_anti</span> <span class="o">=</span> <span class="kc">True</span>
-                    <span class="k">if</span> <span class="n">is_flow</span> <span class="ow">or</span> <span class="n">is_anti</span><span class="p">:</span>
-                        <span class="k">return</span> <span class="kc">True</span>
-                <span class="k">for</span> <span class="n">w2</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[]):</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="n">is_output</span> <span class="o">=</span> <span class="p">(</span><span class="n">w2</span> <span class="o">&gt;</span> <span class="n">w1</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">w2</span> <span class="o">==</span> <span class="n">w1</span> <span class="ow">and</span> <span class="n">w2</span><span class="o">.</span><span class="n">lex_gt</span><span class="p">(</span><span class="n">w1</span><span class="p">))</span>
-                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-                        <span class="c1"># Non-integer vectors are not comparable.</span>
-                        <span class="c1"># Conservatively, we assume it is a dependence</span>
-                        <span class="n">is_output</span> <span class="o">=</span> <span class="kc">True</span>
-                    <span class="k">if</span> <span class="n">is_output</span><span class="p">:</span>
-                        <span class="k">return</span> <span class="kc">True</span>
-        <span class="k">return</span> <span class="kc">False</span>
-
-    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">d_flow</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Retrieve the flow dependencies, or true dependencies, or read-after-write.&quot;&quot;&quot;</span>
         <span class="n">found</span> <span class="o">=</span> <span class="n">DependenceGroup</span><span class="p">()</span>
@@ -995,7 +1003,13 @@
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">d_all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Retrieve all flow, anti, and output dependences.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_flow</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_anti</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_output</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_flow</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_anti</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_output</span>
+
+<div class="viewcode-block" id="Scope.d_from_access"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.Scope.d_from_access">[docs]</a>    <span class="nd">@memoized_meth</span>
+    <span class="k">def</span> <span class="nf">d_from_access</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">access</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Retrieve all dependences involving a given :class:`TimedAccess`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DependenceGroup</span><span class="p">(</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">d_all</span>
+                               <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">source</span> <span class="ow">is</span> <span class="n">access</span> <span class="ow">or</span> <span class="n">d</span><span class="o">.</span><span class="n">sink</span> <span class="ow">is</span> <span class="n">access</span><span class="p">)</span></div></div>
 </pre></div>
 
            </div>

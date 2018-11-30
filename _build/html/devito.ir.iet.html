@@ -199,16 +199,12 @@
 </div>
 <div class="section" id="module-devito.ir.iet.analysis">
 <span id="devito-ir-iet-analysis-module"></span><h2>devito.ir.iet.analysis module<a class="headerlink" href="#module-devito.ir.iet.analysis" title="Permalink to this headline">¶</a></h2>
-<p>A collection of algorithms to analyze and decorate <code class="xref py py-class docutils literal notranslate"><span class="pre">Iteration</span></code> in an
-Iteration/Expression tree. Decoration comes in the form of <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationProperty</span></code>
-objects, attached to Iterations in the Iteration/Expression tree. The algorithms
-perform actual data dependence analysis.</p>
 <dl class="function">
 <dt id="devito.ir.iet.analysis.iet_analyze">
 <code class="descclassname">devito.ir.iet.analysis.</code><code class="descname">iet_analyze</code><span class="sig-paren">(</span><em>iet</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/ir/iet/analysis.html#iet_analyze"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.ir.iet.analysis.iet_analyze" title="Permalink to this definition">¶</a></dt>
-<dd><p>Attach <code class="xref py py-class docutils literal notranslate"><span class="pre">IterationProperty</span></code> to <code class="xref py py-class docutils literal notranslate"><span class="pre">Iteration</span></code> objects within
-<code class="docutils literal notranslate"><span class="pre">nodes</span></code>. The recognized IterationProperty decorators are listed in
-<code class="docutils literal notranslate"><span class="pre">nodes.IterationProperty._KNOWN</span></code>.</p>
+<dd><p>Analyze an Iteration/Expression tree and decorate it with metadata describing
+relevant computational properties (e.g., if an Iteration is parallelizable or not).
+This function performs actual data dependence analysis.</p>
 </dd></dl>
 
 </div>

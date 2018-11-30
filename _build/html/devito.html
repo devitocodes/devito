@@ -3228,17 +3228,14 @@ run, for example</p>
 </div>
 <p>Now, the operator will run with a different set of arguments, namely
 <code class="docutils literal notranslate"><span class="pre">u=u2,</span> <span class="pre">x_m=1,</span> <span class="pre">x_M=2,</span> <span class="pre">y_m=0,</span> <span class="pre">y_M=1,</span> <span class="pre">time_m=0,</span> <span class="pre">time_M=3</span></code>.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
 <p>To run an operator that only uses buffered :class:<a href="#id15"><span class="problematic" id="id16">`</span></a>TimeFunction`s,
 the maximum iteration point along the time dimension must be explicitly
 specified (otherwise, the operator wouldn’t know how many iterations
 to run).</p>
-<div class="last highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">u3</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">u3</span> <span class="o">=</span> <span class="n">TimeFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">u3</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">u3</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">time_M</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
 </pre></div>
-</div>
 </div>
 </dd></dl>
 

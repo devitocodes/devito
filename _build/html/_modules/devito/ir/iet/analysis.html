@@ -151,14 +151,7 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.ir.iet.analysis</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">A collection of algorithms to analyze and decorate :class:`Iteration` in an</span>
-<span class="sd">Iteration/Expression tree. Decoration comes in the form of :class:`IterationProperty`</span>
-<span class="sd">objects, attached to Iterations in the Iteration/Expression tree. The algorithms</span>
-<span class="sd">perform actual data dependence analysis.</span>
-<span class="sd">&quot;&quot;&quot;</span>
-
-<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">cmp_to_key</span>
 
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">HaloSpot</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">PARALLEL_IF_ATOMIC</span><span class="p">,</span>
@@ -195,9 +188,9 @@
 
 <div class="viewcode-block" id="iet_analyze"><a class="viewcode-back" href="../../../../devito.ir.iet.html#devito.ir.iet.analysis.iet_analyze">[docs]</a><span class="k">def</span> <span class="nf">iet_analyze</span><span class="p">(</span><span class="n">iet</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Attach :class:`IterationProperty` to :class:`Iteration` objects within</span>
-<span class="sd">    ``nodes``. The recognized IterationProperty decorators are listed in</span>
-<span class="sd">    ``nodes.IterationProperty._KNOWN``.</span>
+<span class="sd">    Analyze an Iteration/Expression tree and decorate it with metadata describing</span>
+<span class="sd">    relevant computational properties (e.g., if an Iteration is parallelizable or not).</span>
+<span class="sd">    This function performs actual data dependence analysis.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">analysis</span> <span class="o">=</span> <span class="n">mark_parallel</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
     <span class="n">analysis</span> <span class="o">=</span> <span class="n">mark_vectorizable</span><span class="p">(</span><span class="n">analysis</span><span class="p">)</span>

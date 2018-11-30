@@ -151,7 +151,7 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.mpi.halo_scheme</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span><span class="p">,</span> <span class="n">defaultdict</span>
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span>
 
@@ -177,6 +177,7 @@
 
 <span class="n">NONE</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;none&#39;</span><span class="p">)</span>
 <span class="n">UNSUPPORTED</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;unsupported&#39;</span><span class="p">)</span>
+<span class="n">POINTLESS</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;pointless&#39;</span><span class="p">)</span>
 <span class="n">IDENTITY</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;identity&#39;</span><span class="p">)</span>
 <span class="n">STENCIL</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;stencil&#39;</span><span class="p">)</span>
 <span class="n">FULL</span> <span class="o">=</span> <span class="n">HaloLabel</span><span class="p">(</span><span class="s1">&#39;full&#39;</span><span class="p">)</span>
@@ -187,10 +188,17 @@
 <span class="n">Halo</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Halo&#39;</span><span class="p">,</span> <span class="s1">&#39;dim side amount&#39;</span><span class="p">)</span>
 
 
+<span class="k">class</span> <span class="nc">HaloMask</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">need_halo_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">d</span> <span class="k">for</span> <span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span><span class="p">}</span>
+
+
 <div class="viewcode-block" id="HaloScheme"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.halo_scheme.HaloScheme">[docs]</a><span class="k">class</span> <span class="nc">HaloScheme</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A HaloScheme describes a halo exchange pattern through a mapper: ::</span>
+<span class="sd">    A HaloScheme describes a set of halo exchanges through a mapper: ::</span>
 
 <span class="sd">        M : Function -&gt; HaloSchemeEntry</span>
 
@@ -212,16 +220,19 @@
 <span class="sd">    how to access the corresponding non-halo dimension. Thus, in this example</span>
 <span class="sd">    ``loc_indices`` could be, for instance, ``{t: 0}`` or ``{t: t-1}``.</span>
 
-<span class="sd">    :param exprs: The :class:`IREq`s for which the HaloScheme is built.</span>
-<span class="sd">    :param ispace: A :class:`IterationSpace` describing the iteration</span>
-<span class="sd">                   directions and the sub-iterators used by the ``exprs``.</span>
-<span class="sd">    :param dspace: A :class:`DataSpace` describing the ``exprs`` data</span>
-<span class="sd">                   access pattern.</span>
-<span class="sd">    :param fmapper: (Optional) Alternatively, a HaloScheme can be built from a</span>
-<span class="sd">                   set of known HaloSchemeEntry. If ``fmapper`` is provided,</span>
-<span class="sd">                   then ``exprs``, ``ispace``, and ``dspace`` are ignored.</span>
-<span class="sd">                   ``fmapper`` is a dictionary having same format as ``M``, the</span>
-<span class="sd">                   HaloScheme mapper defined at the top of this docstring.</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    exprs : tuple of :class:`IREq`</span>
+<span class="sd">        The expressions for which the HaloScheme is built</span>
+<span class="sd">    ispace : :class:`IterationSpace`</span>
+<span class="sd">        Description of iteration directions and sub-iterators used in ``exprs``.</span>
+<span class="sd">    dspace : :class:`DataSpace`</span>
+<span class="sd">        Description of the data access pattern in ``exprs``.</span>
+<span class="sd">    fmapper : dict, optional</span>
+<span class="sd">        The format is the same as ``M``. When provided, ``exprs``, ``ispace`` and</span>
+<span class="sd">        ``dspace`` are ignored. It should be used to aggregate several existing</span>
+<span class="sd">        HaloSchemes into a single, &quot;bigger&quot; HaloScheme, without performing any</span>
+<span class="sd">        additional analysis.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ispace</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dspace</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fmapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -277,15 +288,15 @@
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">product</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="p">[</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">]):</span>
                 <span class="k">if</span> <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">loc_indices</span><span class="p">:</span>
                     <span class="k">continue</span>
-                <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">())[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">needed</span>
+                <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">HaloMask</span><span class="p">())[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">needed</span>
         <span class="k">return</span> <span class="n">mapper</span></div>
 
 
 <span class="k">def</span> <span class="nf">hs_classify</span><span class="p">(</span><span class="n">scope</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Return a mapper ``Function -&gt; (Dimension -&gt; [HaloLabel]`` describing what</span>
-<span class="sd">    type of halo exchange is expected by the various :class:`TensorFunction`s</span>
-<span class="sd">    in a :class:`Scope`.</span>
+<span class="sd">    A mapper ``Function -&gt; (Dimension -&gt; [HaloLabel]`` describing what type of</span>
+<span class="sd">    halo exchange is expected by the various :class:`TensorFunction`s in a</span>
+<span class="sd">    :class:`Scope`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">scope</span><span class="o">.</span><span class="n">reads</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -294,24 +305,35 @@
         <span class="k">elif</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># TODO: improve me</span>
             <span class="k">continue</span>
-        <span class="n">v</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">))</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">r</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">findices</span><span class="p">:</span>
+                <span class="c1"># Note: if `i` makes use of SubDimensions, we might end up adding useless</span>
+                <span class="c1"># (yet harmless) halo exchanges.  This depends on the extent of a</span>
+                <span class="c1"># SubDimension; e.g., in rare circumstances, a SubDimension might span a</span>
+                <span class="c1"># region that falls completely within a single MPI rank, thus requiring</span>
+                <span class="c1"># no communication whatsoever. However, the SubDimension extent is only</span>
+                <span class="c1"># known at runtime (op.apply time), so unless one starts messing up with</span>
+                <span class="c1"># the generated code (by adding explicit `if-then-else`s to dynamically</span>
+                <span class="c1"># prevent a halo exchange), there is no escape from conservatively</span>
+                <span class="c1"># assuming that some halo exchanges will be required</span>
                 <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">affine</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
                     <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">is_distributed</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
-                        <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">touch_halo</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
-                            <span class="n">v</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">STENCIL</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">scope</span><span class="o">.</span><span class="n">d_from_access</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">cause</span><span class="p">:</span>
+                            <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">POINTLESS</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">touch_halo</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+                            <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">STENCIL</span><span class="p">)</span>
                         <span class="k">else</span><span class="p">:</span>
-                            <span class="n">v</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IDENTITY</span><span class="p">)</span>
+                            <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IDENTITY</span><span class="p">)</span>
                     <span class="k">else</span><span class="p">:</span>
-                        <span class="n">v</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">NONE</span><span class="p">)</span>
+                        <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">NONE</span><span class="p">)</span>
                 <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">is_increment</span><span class="p">:</span>
                     <span class="c1"># A read used for a distributed local-reduction. Users are expected</span>
                     <span class="c1"># to deal with this data access pattern by themselves, for example</span>
                     <span class="c1"># by resorting to common techniques such as redundant computation</span>
-                    <span class="n">v</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">UNSUPPORTED</span><span class="p">)</span>
+                    <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">UNSUPPORTED</span><span class="p">)</span>
                 <span class="k">elif</span> <span class="n">i</span><span class="o">.</span><span class="n">irregular</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">is_distributed</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
-                    <span class="n">v</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">FULL</span><span class="p">)</span>
+                    <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">FULL</span><span class="p">)</span>
 
     <span class="c1"># Sanity check and reductions</span>
     <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -319,6 +341,10 @@
             <span class="n">unique_hl</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">hl</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">unique_hl</span> <span class="o">==</span> <span class="p">{</span><span class="n">STENCIL</span><span class="p">,</span> <span class="n">IDENTITY</span><span class="p">}:</span>
                 <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">STENCIL</span>
+            <span class="k">elif</span> <span class="n">POINTLESS</span> <span class="ow">in</span> <span class="n">unique_hl</span><span class="p">:</span>
+                <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">POINTLESS</span>
+            <span class="k">elif</span> <span class="n">UNSUPPORTED</span> <span class="ow">in</span> <span class="n">unique_hl</span><span class="p">:</span>
+                <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">UNSUPPORTED</span>
             <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">unique_hl</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="n">v</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">unique_hl</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
             <span class="k">else</span><span class="p">:</span>
@@ -341,9 +367,9 @@
 
 <span class="k">def</span> <span class="nf">hs_comp_halos</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">dims</span><span class="p">,</span> <span class="n">dspace</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Return an iterable of 3-tuples ``[(Dimension, DataSide, amount), ...]``</span>
-<span class="sd">    describing the amount of halo that should be exchange along the two sides of</span>
-<span class="sd">    a set of :class:`Dimension`s.</span>
+<span class="sd">    An iterable of 3-tuples ``[(Dimension, DataSide, amount), ...]`` describing</span>
+<span class="sd">    the amount of halo that should be exchange along the two sides of a set of</span>
+<span class="sd">    :class:`Dimension`s.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">halos</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dims</span><span class="p">:</span>
@@ -355,7 +381,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># We can limit the amount of halo exchanged based on the stencil</span>
             <span class="c1"># radius, which is dictated by `dspace`</span>
-            <span class="n">v</span> <span class="o">=</span> <span class="n">dspace</span><span class="p">[</span><span class="n">f</span><span class="p">][</span><span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">]</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">dspace</span><span class="p">[</span><span class="n">f</span><span class="p">]</span><span class="o">.</span><span class="n">relaxed</span><span class="p">[</span><span class="n">d</span><span class="p">]</span>
             <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">limits</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Null</span> <span class="k">else</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
             <span class="n">lsize</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="o">-</span> <span class="n">lower</span>
             <span class="n">rsize</span> <span class="o">=</span> <span class="n">upper</span> <span class="o">-</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
