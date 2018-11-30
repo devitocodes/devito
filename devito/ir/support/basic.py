@@ -557,15 +557,15 @@ class Dependence(object):
     def distance(self):
         return self.source.distance(self.sink)
 
-    @property
+    @cached_property
     def _defined_findices(self):
-        return set(flatten(i._defines for i in self.findices))
+        return frozenset(flatten(i._defines for i in self.findices))
 
-    @property
+    @cached_property
     def distance_mapper(self):
         return {i: j for i, j in zip(self.findices, self.distance)}
 
-    @property
+    @cached_property
     def cause(self):
         """Return the findex causing the dependence."""
         for i, j in zip(self.findices, self.distance):
@@ -575,20 +575,51 @@ class Dependence(object):
             except TypeError:
                 # Conservatively assume this is an offending dimension
                 return i._defines
-        return set()
+        return frozenset()
 
-    @property
+    @cached_property
+    def read(self):
+        if self.is_flow:
+            return self.sink
+        elif self.is_anti:
+            return self.source
+        else:
+            return None
+
+    @cached_property
+    def write(self):
+        if self.is_flow:
+            return self.source
+        elif self.is_anti:
+            return self.sink
+        else:
+            return None
+
+    @cached_property
+    def is_flow(self):
+        return self.source.is_write and self.sink.is_read
+
+    @cached_property
+    def is_anti(self):
+        return self.source.is_read and self.sink.is_write
+
+    @cached_property
+    def is_waw(self):
+        return self.source.is_write and self.sink.is_write
+
+    @cached_property
     def is_regular(self):
         return self.source.is_regular and self.sink.is_regular
 
-    @property
+    @cached_property
     def is_increment(self):
         return self.source.is_increment and self.sink.is_increment
 
-    @property
+    @cached_property
     def is_irregular(self):
         return not self.is_regular
 
+    @memoized_meth
     def is_carried(self, dim=None):
         """Return True if definitely a dimension-carried dependence,
         False otherwise."""
@@ -601,6 +632,7 @@ class Dependence(object):
             # Conservatively assume this is a carried dependence
             return True
 
+    @memoized_meth
     def is_reduce(self, dim):
         """Return True if ``dim`` may represent a reduction dimension for
         ``self``, False otherwise."""
@@ -609,6 +641,7 @@ class Dependence(object):
         test2 = all(i not in self._defined_findices for i in dim._defines)
         return test0 and test1 and test2
 
+    @memoized_meth
     def is_reduce_atmost(self, dim=None):
         """More relaxed than :meth:`is_reduce`. Return True  if ``dim`` may
         represent a reduction dimension for ``self`` or if `self`` is definitely
@@ -641,6 +674,7 @@ class Dependence(object):
             # Conservatively assume this is not dimension-independent
             return False
 
+    @memoized_meth
     def is_inplace(self, dim=None):
         """Stronger than ``is_indep()``, as it also compares the timestamps."""
         return self.source.lex_eq(self.sink) and self.is_indep(dim)
@@ -651,20 +685,20 @@ class Dependence(object):
 
 class DependenceGroup(list):
 
-    @property
+    @cached_property
     def cause(self):
-        return set().union(*[i.cause for i in self])
+        return frozenset().union(*[i.cause for i in self])
 
-    @property
+    @cached_property
     def functions(self):
         """Return the :class:`TensorFunction`s inducing a dependence."""
-        return {i.function for i in self}
+        return frozenset({i.function for i in self})
 
-    @property
+    @cached_property
     def none(self):
         return len(self) == 0
 
-    @property
+    @cached_property
     def increment(self):
         """Return the increment-induced dependences."""
         return DependenceGroup(i for i in self if i.is_increment)
@@ -763,32 +797,6 @@ class Scope(object):
         return [i for group in groups for i in group]
 
     @cached_property
-    def has_dep(self):
-        """Return True if at least a dependency is detected, False otherwise."""
-        for k, v in self.writes.items():
-            for w1 in v:
-                for r in self.reads.get(k, []):
-                    try:
-                        is_flow = (r < w1) or (r == w1 and r.lex_ge(w1))
-                        is_anti = (r > w1) or (r == w1 and r.lex_lt(w1))
-                    except TypeError:
-                        # Non-integer vectors are not comparable.
-                        # Conservatively, we assume it is a dependence
-                        is_flow = is_anti = True
-                    if is_flow or is_anti:
-                        return True
-                for w2 in self.writes.get(k, []):
-                    try:
-                        is_output = (w2 > w1) or (w2 == w1 and w2.lex_gt(w1))
-                    except TypeError:
-                        # Non-integer vectors are not comparable.
-                        # Conservatively, we assume it is a dependence
-                        is_output = True
-                    if is_output:
-                        return True
-        return False
-
-    @cached_property
     def d_flow(self):
         """Retrieve the flow dependencies, or true dependencies, or read-after-write."""
         found = DependenceGroup()
@@ -843,3 +851,9 @@ class Scope(object):
     def d_all(self):
         """Retrieve all flow, anti, and output dependences."""
         return self.d_flow + self.d_anti + self.d_output
+
+    @memoized_meth
+    def d_from_access(self, access):
+        """Retrieve all dependences involving a given :class:`TimedAccess`."""
+        return DependenceGroup(d for d in self.d_all
+                               if d.source is access or d.sink is access)
