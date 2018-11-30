@@ -429,16 +429,14 @@ class OperatorRunnable(Operator):
         Now, the operator will run with a different set of arguments, namely
         ``u=u2, x_m=1, x_M=2, y_m=0, y_M=1, time_m=0, time_M=3``.
 
-        .. note::
+        To run an operator that only uses buffered :class:`TimeFunction`s,
+        the maximum iteration point along the time dimension must be explicitly
+        specified (otherwise, the operator wouldn't know how many iterations
+        to run).
 
-            To run an operator that only uses buffered :class:`TimeFunction`s,
-            the maximum iteration point along the time dimension must be explicitly
-            specified (otherwise, the operator wouldn't know how many iterations
-            to run).
-
-            >>> u3 = TimeFunction(name='u', grid=grid)
-            >>> op = Operator(Eq(u3.forward, u3 + 1))
-            >>> op.apply(time_M=10)
+        >>> u3 = TimeFunction(name='u', grid=grid)
+        >>> op = Operator(Eq(u3.forward, u3 + 1))
+        >>> op.apply(time_M=10)
         """
         # Build the arguments list to invoke the kernel function
         args = self.arguments(**kwargs)
