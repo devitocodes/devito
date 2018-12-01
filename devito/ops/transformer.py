@@ -44,9 +44,12 @@ def opsit(trees):
             processed[namespace['ops-kernel'](index)].append(ops_expr)
 
     # Each tree generates a new OPS kernel function.
-    for k, v in processed.items():
-        # FIXME : get the arguments
-        new_functions.append(create_new_ops_kernel(k, v, []))
+    for name, expressions in processed.items():
+        # FIXME : Arguments are empty
+        new_functions.append(Callable(name,
+                                      Expression(ClusterizedEq(*expressions)),
+                                      namespace['ops-kernel-retval'],
+                                      []))
 
     return new_functions
 
@@ -75,28 +78,3 @@ def make_ops_ast(expr, nfops):
         return nfops.new_grid(expr)
     else:
         return expr.func(*[make_ops_ast(i, nfops) for i in expr.args])
-
-
-def create_new_ops_kernel(name, expressions, arguments):
-    """
-     Creates a Callable responsable for defining the OPS kernel method.
-
-    Parameters
-    ----------
-    name : str
-        OPS kernel name being created.
-    expressions : list of :class:`Node`
-        OPS expression inside the kernel.
-    arguments : list of :class:`Array`
-        OPS method arguments.
-
-    Returns
-    -------
-    :class:`Callable`
-        Function created.
-    """
-
-    return Callable(name,
-                    Expression(ClusterizedEq(*expressions)),
-                    namespace['ops-kernel-retval'],
-                    arguments)

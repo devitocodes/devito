@@ -8,6 +8,7 @@ from devito.ir.iet.visitors import FindNodes
 from devito.ir.iet import Transformer, List, MetaCall
 from devito.types import Array
 from devito.symbolics import Macro
+from devito.logger import warning
 
 from devito.ops.utils import namespace
 from devito.ops.transformer import opsit
@@ -24,6 +25,8 @@ class Operator(OperatorRunnable):
         ['ops_seq.h', 'ops_lib_cpp.h']
 
     def _specialize_iet(self, iet, **kwargs):
+
+        warning("The OPS backend is still work-in-progress")
 
         # Define ops_init call.
         ops_init_Object = Call(name=namespace['call-ops_init'],
