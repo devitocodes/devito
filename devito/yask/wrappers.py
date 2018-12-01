@@ -81,6 +81,8 @@ class YaskKernel(object):
                 '-j', 'YK_CXX=%s' % compiler.cc, 'YK_CXXOPT=-O%d' % opt_level,
                 # No MPI support at the moment
                 'mpi=0',
+                # No NUMA support by default
+                'numa=0',
                 # To locate the YASK compiler
                 'YC_EXEC=%s' % os.path.join(namespace['path'], 'bin'),
                 # Error out if a grid not explicitly defined in the compiler is created
