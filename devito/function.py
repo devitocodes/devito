@@ -10,7 +10,8 @@ from cgen import Struct, Value
 
 from devito.builtins import assign
 from devito.cgen_utils import INT, cast_mapper
-from devito.data import DOMAIN, OWNED, HALO, NOPAD, LEFT, RIGHT, Data, default_allocator
+from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, RIGHT,
+                         Data, default_allocator)
 from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
@@ -753,6 +754,9 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             elif region is NOPAD:
                 offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
                 extent = ffp(self._C_field_nopad_size, self._C_make_index(dim))
+            elif region is FULL:
+                offset = 0
+                extent = ffp(self._C_field_size, self._C_make_index(dim))
             else:
                 raise ValueError("Unknown region `%s`" % str(region))
 

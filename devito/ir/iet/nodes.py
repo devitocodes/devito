@@ -1,7 +1,5 @@
 """The Iteration/Expression Tree (IET) hierarchy."""
 
-from __future__ import absolute_import
-
 import abc
 import inspect
 import numbers
@@ -11,20 +9,21 @@ from collections import Iterable, OrderedDict, namedtuple
 import cgen as c
 
 from devito.cgen_utils import ccode
+from devito.data import FULL
+from devito.dimension import Dimension
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
                            REDUNDANT)
 from devito.ir.support import Forward, detect_io
-from devito.dimension import Dimension
 from devito.symbolics import FunctionFromPointer, as_symbol
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
 from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
-           'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression',
-           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression', 'Section',
+           'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'Section',
+           'TimedList', 'MetaCall', 'ArrayCast', 'ArrayCastMPI', 'ForeignExpression',
            'HaloSpot', 'IterationTree', 'ExpressionBundle', 'Increment']
 
 # First-class IET nodes
@@ -698,6 +697,13 @@ class ArrayCast(Node):
         self.function = function
 
     @property
+    def castshape(self):
+        """
+        The shape used in the left-hand side and right-hand side of the ArrayCast.
+        """
+        return self.function.symbolic_shape[1:]
+
+    @property
     def functions(self):
         """
         Return all :class:`Function` objects used by this :class:`ArrayCast`
@@ -721,6 +727,20 @@ class ArrayCast(Node):
         """
         sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
         return (self.function, ) + as_tuple(sizes)
+
+
+class ArrayCastMPI(ArrayCast):
+
+    """
+    An ArrayCast suitable for MPI-aware code generation.
+    """
+
+    @property
+    def castshape(self):
+        if self.function.is_TensorFunction:
+            return tuple(self.function._region_meta(FULL, d, symbolic=True).extent
+                         for d in self.function.dimensions[1:])
+        return super(ArrayCastMPI, self).castshape
 
 
 class LocalExpression(Expression):
