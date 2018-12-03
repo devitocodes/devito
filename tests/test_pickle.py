@@ -176,10 +176,6 @@ def test_unjitted_operator():
     assert str(op) == str(new_op)
 
 
-# With yask, broken padding in the generated code upon pickling, since
-# in this test the data is allocated after generating the code.
-# This is a symptom we need parametric padding
-@skipif_backend(['yask'])
 def test_operator_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -213,10 +209,6 @@ def test_operator_function_w_preallocation():
     assert np.all(f.data == 2)
 
 
-# With yask, broken padding in the generated code upon pickling, since
-# in this test the data is allocated after generating the code.
-# This is a symptom we need parametric padding
-@skipif_backend(['yask'])
 def test_operator_timefunction():
     grid = Grid(shape=(3, 3, 3))
     f = TimeFunction(name='f', grid=grid, save=3)
