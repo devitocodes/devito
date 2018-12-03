@@ -399,7 +399,7 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
     :param pad_mode: A string or a suitable padding function as explained in
                      :func:`numpy.pad`.
     """
-    pad_widths = [(nbpml + i.left, nbpml + i.right) for i in function._offset_domain]
+    pad_widths = [(nbpml + i.left, nbpml + i.right) for i in function._extent_halo]
     data = np.pad(data, pad_widths, pad_mode)
     function.data_with_halo[:] = data
 
