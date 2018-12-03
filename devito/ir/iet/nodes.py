@@ -23,7 +23,7 @@ from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'Section',
-           'TimedList', 'MetaCall', 'ArrayCast', 'ArrayCastMPI', 'ForeignExpression',
+           'TimedList', 'MetaCall', 'ArrayCast', 'ArrayCastSymbolic', 'ForeignExpression',
            'HaloSpot', 'IterationTree', 'ExpressionBundle', 'Increment']
 
 # First-class IET nodes
@@ -729,7 +729,7 @@ class ArrayCast(Node):
         return (self.function, ) + as_tuple(sizes)
 
 
-class ArrayCastMPI(ArrayCast):
+class ArrayCastSymbolic(ArrayCast):
 
     """
     An ArrayCast suitable for MPI-aware code generation.
@@ -740,7 +740,7 @@ class ArrayCastMPI(ArrayCast):
         if self.function.is_TensorFunction:
             return tuple(self.function._region_meta(FULL, d, symbolic=True).extent
                          for d in self.function.dimensions[1:])
-        return super(ArrayCastMPI, self).castshape
+        return super(ArrayCastSymbolic, self).castshape
 
 
 class LocalExpression(Expression):

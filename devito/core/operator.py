@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
-from devito.ir.iet import (Call, List, HaloSpot, ArrayCastMPI, MetaCall, FindNodes,
+from devito.ir.iet import (Call, List, HaloSpot, ArrayCastSymbolic, MetaCall, FindNodes,
                            Transformer, filter_iterations, retrieve_iteration_tree)
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
@@ -62,7 +62,7 @@ class OperatorCore(OperatorRunnable):
         return iet
 
     def _build_casts(self, iet):
-        make_cast = ArrayCastMPI if configuration['mpi'] else None
+        make_cast = ArrayCastSymbolic if configuration['mpi'] else None
         return super(OperatorCore, self)._build_casts(iet, make_cast)
 
     def _autotune(self, args, setup):
