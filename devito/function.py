@@ -551,23 +551,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         Typically, this accessor won't be used in user code to set or read data values.
         """
         self._is_halo_dirty = True
-        index_array = []
-        for i in self.dimensions:
-            if i == dim:
-                offset, extent = self._region_meta(region, dim, side)
-                if side is LEFT:
-                    end = offset + extent
-                else:
-                    if extent == 0:
-                        # The region is empty
-                        end = 0
-                    else:
-                        # The region is non-empty (e.g., offset=-1, extent=1), so
-                        # to reach the end point we must use None, not 0
-                        end = (offset + extent) or None
-                index_array.append(slice(offset, end))
-            else:
-                index_array.append(slice(None))
+        offset = getattr(getattr(self, '_offset_%s' % region.name)[dim], side.name)
+        extent = getattr(getattr(self, '_extent_%s' % region.name)[dim], side.name)
+        index_array = [slice(offset, offset+extent) if d is dim else slice(None)
+                       for d in self.dimensions]
         return np.asarray(self._data[index_array])
 
     @property
@@ -704,21 +691,9 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         dataobj._obj.npsize = (c_int*self.ndim)(*[i - sum(j) for i, j in
                                                   zip(data.shape, self._extent_padding)])
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._extent_halo))
-        hofs = [self._region_meta(HALO, i, j).offset for i, j in
-                product(self.dimensions, (LEFT, RIGHT))]
-        dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(hofs))
-        oofs = [self._region_meta(OWNED, i, j).offset for i, j in
-                product(self.dimensions, (LEFT, RIGHT))]
-        dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(oofs))
+        dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
+        dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
         return dataobj
-
-    @memoized_meth
-    def _C_make_index(self, dim, side=None):
-        # Depends on how fields are populated in `_C_make_dataobj`
-        idx = self.dimensions.index(dim)
-        if side is not None:
-            idx = idx*2 + (0 if side is LEFT else 1)
-        return idx
 
     def _C_as_ndarray(self, dataobj):
         """Cast the data carried by a TensorFunction dataobj to an ndarray."""
@@ -729,36 +704,41 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return data
 
     @memoized_meth
-    def _region_meta(self, region, dim, side=None, symbolic=False):
-        if symbolic is False:
-            return super(TensorFunction, self)._region_meta(region, dim, side)
-        else:
-            ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_name)
-            if region is DOMAIN:
+    def _C_make_index(self, dim, side=None):
+        # Depends on how fields are populated in `_C_make_dataobj`
+        idx = self.dimensions.index(dim)
+        if side is not None:
+            idx = idx*2 + (0 if side is LEFT else 1)
+        return idx
+
+    @memoized_meth
+    def _C_get_field(self, region, dim, side=None):
+        ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_name)
+        if region is DOMAIN:
+            offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
+            extent = dim.symbolic_size
+        elif region is OWNED:
+            if side is LEFT:
                 offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
-                extent = dim.symbolic_size
-            elif region is OWNED:
-                if side is LEFT:
-                    offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
-                    extent = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
-                else:
-                    offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, RIGHT))
-                    extent = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
-            elif region is HALO:
-                if side is LEFT:
-                    offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
-                    extent = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
-                else:
-                    offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, RIGHT))
-                    extent = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
-            elif region is NOPAD:
-                offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
-                extent = ffp(self._C_field_nopad_size, self._C_make_index(dim))
-            elif region is FULL:
-                offset = 0
-                extent = ffp(self._C_field_size, self._C_make_index(dim))
+                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
             else:
-                raise ValueError("Unknown region `%s`" % str(region))
+                offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, RIGHT))
+                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
+        elif region is HALO:
+            if side is LEFT:
+                offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
+                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
+            else:
+                offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, RIGHT))
+                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
+        elif region is NOPAD:
+            offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
+            extent = ffp(self._C_field_nopad_size, self._C_make_index(dim))
+        elif region is FULL:
+            offset = 0
+            extent = ffp(self._C_field_size, self._C_make_index(dim))
+        else:
+            raise ValueError("Unknown region `%s`" % str(region))
 
         RegionMeta = namedtuple('RegionMeta', 'offset extent')
         return RegionMeta(offset, extent)

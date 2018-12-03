@@ -666,43 +666,6 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
         return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
-    @memoized_meth
-    def _region_meta(self, region, dim, side=None):
-        """
-        Offset, relative to the origin, and extent of a given data region.
-
-        Parameters
-        ----------
-        region : DataRegion
-            The data region of interest (e.g., OWNED, HALO).
-        dim : Dimension
-            The dimension of interest.
-        side : DataSide, optional
-            The side of interest (LEFT, RIGHT). Irrelevant for certain regions.
-        """
-        if region is DOMAIN:
-            offset = self._offset_domain[dim]
-            extent = self._extent_domain[dim]
-        elif region is OWNED:
-            if side is LEFT:
-                offset = self._offset_owned[dim].left
-                extent = self._extent_owned[dim].left
-            else:
-                offset = self._offset_owned[dim].right
-                extent = self._extent_owned[dim].right
-        elif region is HALO:
-            if side is LEFT:
-                offset = self._offset_halo[dim].left
-                extent = self._extent_halo[dim].left
-            else:
-                offset = self._offset_halo[dim].right
-                extent = self._extent_halo[dim].right
-        else:
-            raise ValueError("Unknown region `%s`" % str(region))
-
-        RegionMeta = namedtuple('RegionMeta', 'offset extent')
-        return RegionMeta(offset, extent)
-
     @property
     def _data_alignment(self):
         """The address of any allocated memory is a multiple of the alignment."""

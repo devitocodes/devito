@@ -738,7 +738,7 @@ class ArrayCastSymbolic(ArrayCast):
     @property
     def castshape(self):
         if self.function.is_TensorFunction:
-            return tuple(self.function._region_meta(FULL, d, symbolic=True).extent
+            return tuple(self.function._C_get_field(FULL, d).extent
                          for d in self.function.dimensions[1:])
         return super(ArrayCastSymbolic, self).castshape
 

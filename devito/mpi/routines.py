@@ -136,7 +136,7 @@ def update_halo(f, fixed):
             if d1 in fixed:
                 offsets.append(fixed[d1])
             else:
-                meta = f._region_meta(region if d0 is d1 else NOPAD, d1, side, True)
+                meta = f._C_get_field(region if d0 is d1 else NOPAD, d1, side)
                 offsets.append(meta.offset)
                 sizes.append(meta.extent)
         mapper[(d0, side, region)] = (sizes, offsets)
