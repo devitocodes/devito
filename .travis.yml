@@ -59,7 +59,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=ops YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False
+      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=ops YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False MPLBACKEND=Agg
   allow_failures:
     - os: linux
       python: "2.7"
