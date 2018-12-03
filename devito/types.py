@@ -11,10 +11,10 @@ import sympy
 from cached_property import cached_property
 from cgen import Struct, Value
 
-from devito.data import DOMAIN, OWNED, HALO, LEFT, default_allocator
+from devito.data import default_allocator
 from devito.symbolics import Add
 from devito.tools import (ArgProvider, EnrichedTuple, Pickable, ctypes_to_cstr,
-                          dtype_to_cstr, dtype_to_ctype, memoized_meth)
+                          dtype_to_cstr, dtype_to_ctype)
 
 __all__ = ['Symbol', 'Indexed']
 
