@@ -539,7 +539,7 @@ class TestArguments(object):
         a3 = np.zeros_like(a.data_with_halo)
         a3[:] = 4.
         op(a=a3)
-        assert (a3[[slice(i.left, -i.right) for i in a._offset_domain]] == 7.).all()
+        assert (a3[a._mask_domain] == 7.).all()
 
     def test_override_timefunction_data(self):
         """
@@ -572,7 +572,7 @@ class TestArguments(object):
         a3 = np.zeros_like(a.data_with_halo)
         a3[:] = 4.
         op(time_m=0, time=1, a=a3)
-        assert (a3[[slice(i.left, -i.right) for i in a._offset_domain]] == 7.).all()
+        assert (a3[a._mask_domain] == 7.).all()
 
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""

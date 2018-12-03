@@ -161,41 +161,61 @@ class TestDataBasic(object):
         assert np.all(v_mod.data[-1] == v_mod.data[1])
         assert np.all(v_mod.data[-2] == v_mod.data[0])
 
-    def test_domain_vs_halo(self):
+    def test_data_regions_metadata(self):
         """
-        Tests access to domain and halo data.
+        Test correctness of metadata describing extent and offset of the various
+        data regions, such as DOMAIN, HALO, etc.
         """
         grid = Grid(shape=(4, 4, 4))
 
-        # Without padding
+        # Without halo and withouth padding
         u0 = Function(name='u0', grid=grid, space_order=0)
-        u2 = Function(name='u2', grid=grid, space_order=2)
 
         assert u0.shape == u0._shape_with_inhalo == u0.shape_allocated
         assert u0.shape_with_halo == u0._shape_with_inhalo  # W/o MPI, these two coincide
-        assert len(u2.shape) == len(u2._extent_halo.left)
-        assert tuple(i + j*2 for i, j in zip(u2.shape, u2._extent_halo.left)) ==\
-            u2.shape_with_halo
+        assert u0._extent_halo == u0._extent_owned == u0._extent_padding ==\
+            ((0, 0), (0, 0), (0, 0))
+        assert u0._offset_domain == (0, 0, 0)
+        assert u0._offset_halo == u0._offset_owned == ((0, 4), (0, 4), (0, 4))
 
-        assert all(i == (0, 0) for i in u0._offset_domain)
-        assert all(i == 0 for i in u0._offset_domain.left)
-        assert all(i == 0 for i in u0._offset_domain.right)
+        # With halo but without padding
+        u1 = Function(name='u1', grid=grid, space_order=2)
+        assert len(u1.shape) == len(u1._extent_halo.left)
+        assert u1._extent_halo == u1._extent_owned == ((2, 2), (2, 2), (2, 2))
+        assert u1._offset_domain == (2, 2, 2)
+        assert u1._offset_halo == ((0, 6), (0, 6), (0, 6))
+        assert u1._offset_owned == ((2, 4), (2, 4), (2, 4))
+        assert tuple(i + j*2 for i, j in zip(u1.shape, u1._extent_halo.left)) ==\
+            u1.shape_with_halo
 
-        assert all(i == (2, 2) for i in u2._offset_domain)
-        assert all(i == 2 for i in u2._offset_domain.left)
-        assert all(i == 2 for i in u2._offset_domain.right)
+        # Without halo but with padding
+        u2 = Function(name='u2', grid=grid, space_order=2, padding=(1, 3, 4))
+        assert len(u2.shape_allocated) == len(u1._extent_padding.left)
+        assert tuple(i + j + k for i, (j, k) in zip(u2.shape_with_halo, u2._padding)) ==\
+            u2.shape_allocated
+        assert u2._halo == ((2, 2), (2, 2), (2, 2))
+        assert u2._extent_padding == ((1, 1), (3, 3), (4, 4))
+        assert u2._extent_padding.left == u2._extent_padding.right == (1, 3, 4)
+        assert u2._extent_nodomain == ((3, 3), (5, 5), (6, 6))
+        assert u2._extent_nodomain.left == u2._extent_nodomain.right == (3, 5, 6)
+        assert u2._extent_nopad == (8, 8, 8)
+        assert u2._offset_domain == (3, 5, 6)
+        assert u2._offset_halo == ((1, 7), (3, 9), (4, 10))
+        assert u2._offset_halo.left == (1, 3, 4)
+        assert u2._offset_halo.right == (7, 9, 10)
+        assert u2._offset_owned == ((3, 5), (5, 7), (6, 8))
 
-        # With some random padding
-        v = Function(name='v', grid=grid, space_order=2, padding=(1, 3, 4))
-        assert len(v.shape_allocated) == len(u2._extent_padding.left)
-        assert tuple(i + j + k for i, (j, k) in zip(v.shape_with_halo, v._padding)) ==\
-            v.shape_allocated
-
-        assert all(i == (2, 2) for i in v._halo)
-        assert v._offset_domain == ((3, 3), (5, 5), (6, 6))
-        assert v._offset_domain.left == v._offset_domain.right == (3, 5, 6)
-        assert v._extent_padding == ((1, 1), (3, 3), (4, 4))
-        assert v._extent_padding.left == v._extent_padding.right == (1, 3, 4)
+        # With halo and with padding
+        u3 = Function(name='u3', grid=grid, space_order=(2, 1, 4), padding=(1, 2, 3))
+        assert u3._extent_halo == ((1, 4), (1, 4), (1, 4))
+        assert u3._extent_owned == ((4, 1), (4, 1), (4, 1))
+        assert u3._extent_nodomain == ((2, 5), (3, 6), (4, 7))
+        assert u3._extent_nodomain.left == (2, 3, 4)
+        assert u3._extent_nodomain.right == (5, 6, 7)
+        assert u3._extent_nopad == (9, 9, 9)
+        assert u3._offset_domain == (2, 3, 4)
+        assert u3._offset_halo == ((1, 6), (2, 7), (3, 8))
+        assert u3._offset_owned == ((2, 5), (3, 6), (4, 7))
 
     def test_indexing_into_sparse(self):
         """
