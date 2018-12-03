@@ -384,16 +384,16 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         A mask to access the domain region of the allocated data.
         """
-        return tuple(slice(i, -j) if j != 0 else slice(i, None)
-                     for i, j in self._offset_domain)
+        return tuple(slice(i, j) for i, j in
+                     zip(self._offset_domain, self._offset_halo.right))
 
     @cached_property
     def _mask_inhalo(self):
         """
         A mask to access the domain+inhalo region of the allocated data.
         """
-        return tuple(slice(i, -j) if j != 0 else slice(i, None)
-                     for i, j in self._offset_inhalo)
+        return tuple(slice(i.left, i.right + j.right) for i, j in
+                     zip(self._offset_inhalo, self._extent_inhalo))
 
     @cached_property
     def _mask_outhalo(self):
@@ -849,7 +849,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                 values = {self.name: new}
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
-                    values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
+                    size = s + o - sum(self._extent_nodomain[i])
+                    values.update(i._arg_defaults(size=size))
                 # Add MPI-related data structures
                 if self.grid is not None:
                     values.update(self.grid._arg_defaults())
@@ -1575,7 +1576,8 @@ class AbstractSparseFunction(TensorFunction):
                 for k, v in self._dist_scatter(new).items():
                     values[k.name] = v
                     for i, s, o in zip(k.indices, v.shape, k.staggered):
-                        values.update(i._arg_defaults(size=s+o-sum(k._offset_domain[i])))
+                        size = s + o - sum(k._extent_nodomain[i])
+                        values.update(i._arg_defaults(size=size))
                 # Add MPI-related data structures
                 values.update(self.grid._arg_defaults())
         else:

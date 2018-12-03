@@ -566,34 +566,6 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return dtype_to_cstr(self.dtype)
 
     @cached_property
-    def _offset_domain(self):
-        """
-        The number of points between the first (last) allocated element
-        and the first (last) domain element, for each dimension.
-        """
-        left = tuple(np.add(self._extent_halo.left, self._extent_padding.left))
-        right = tuple(np.add(self._extent_halo.right, self._extent_padding.right))
-
-        Offset = namedtuple('Offset', 'left right')
-        offsets = tuple(Offset(i, j) for i, j in np.add(self._halo, self._padding))
-
-        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
-
-    @cached_property
-    def _offset_halo(self):
-        """
-        The number of points between the first (last) allocated element
-        and the first (last) halo element, for each dimension.
-        """
-        left = self._extent_padding.left
-        right = self._extent_padding.right
-
-        Offset = namedtuple('Offset', 'left right')
-        offsets = tuple(Offset(i, j) for i, j in self._padding)
-
-        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
-
-    @cached_property
     def _extent_domain(self):
         """
         The number of points in the domain region.
@@ -614,6 +586,19 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
     @cached_property
+    def _extent_owned(self):
+        """
+        The number of points in the owned region.
+        """
+        left = tuple(self._extent_halo.right)
+        right = tuple(self._extent_halo.left)
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i.right, i.left) for i in self._extent_halo)
+
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
     def _extent_padding(self):
         """
         The number of points in the padding region.
@@ -625,6 +610,61 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         extents = tuple(Extent(i, j) for i, j in self._padding)
 
         return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _extent_nopad(self):
+        """
+        The number of points in the domain+halo region.
+        """
+        extents = tuple(i+sum(j) for i, j in zip(self._extent_domain, self._extent_halo))
+        return EnrichedTuple(*extents, getters=self.dimensions)
+
+    @cached_property
+    def _extent_nodomain(self):
+        """
+        The number of points in the padding+halo region.
+        """
+        left = tuple(i for i, _ in np.add(self._halo, self._padding))
+        right = tuple(i for _, i in np.add(self._halo, self._padding))
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in np.add(self._halo, self._padding))
+
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _offset_domain(self):
+        """
+        The number of points before the first domain element.
+        """
+        offsets = tuple(np.add(self._extent_padding.left, self._extent_halo.left))
+        return EnrichedTuple(*offsets, getters=self.dimensions)
+
+    @cached_property
+    def _offset_halo(self):
+        """
+        The number of points before the first and last halo element.
+        """
+        left = tuple(self._extent_padding.left)
+        right = tuple(np.add(np.add(left, self._extent_halo.left), self._extent_domain))
+
+        Offset = namedtuple('Offset', 'left right')
+        offsets = tuple(Offset(i, j) for i, j in zip(left, right))
+
+        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _offset_owned(self):
+        """
+        The number of points before the first and last owned element.
+        """
+        left = tuple(self._offset_domain)
+        right = tuple(np.add(self._offset_halo.left, self._extent_domain))
+
+        Offset = namedtuple('Offset', 'left right')
+        offsets = tuple(Offset(i, j) for i, j in zip(left, right))
+
+        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
     @memoized_meth
     def _region_meta(self, region, dim, side=None):
@@ -641,21 +681,21 @@ class AbstractCachedFunction(AbstractFunction, Cached):
             The side of interest (LEFT, RIGHT). Irrelevant for certain regions.
         """
         if region is DOMAIN:
-            offset = self._offset_domain[dim].left
+            offset = self._offset_domain[dim]
             extent = self._extent_domain[dim]
         elif region is OWNED:
             if side is LEFT:
-                offset = self._offset_domain[dim].left
-                extent = self._extent_halo[dim].right
+                offset = self._offset_owned[dim].left
+                extent = self._extent_owned[dim].left
             else:
-                offset = self._offset_halo[dim].left + self._extent_domain[dim]
-                extent = self._extent_halo[dim].left
+                offset = self._offset_owned[dim].right
+                extent = self._extent_owned[dim].right
         elif region is HALO:
             if side is LEFT:
                 offset = self._offset_halo[dim].left
                 extent = self._extent_halo[dim].left
             else:
-                offset = self._offset_domain[dim].left + self._extent_domain[dim]
+                offset = self._offset_halo[dim].right
                 extent = self._extent_halo[dim].right
         else:
             raise ValueError("Unknown region `%s`" % str(region))

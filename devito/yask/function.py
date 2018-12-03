@@ -145,7 +145,7 @@ class Function(function.Function, Signer):
             Alias to ``self.data``.
         """
         return Data(self._data.grid, self.shape, self.indices, self.dtype,
-                    offset=self._offset_domain.left)
+                    offset=self._offset_domain)
 
     @cached_property
     @_allocate_memory

@@ -230,8 +230,8 @@ def hs_comp_halos(f, dims, dspace=None):
             # radius, which is dictated by `dspace`
             v = dspace[f].relaxed[d]
             lower, upper = v.limits if not v.is_Null else (0, 0)
-            lsize = f._offset_domain[d].left - lower
-            rsize = upper - f._offset_domain[d].right
+            lsize = f._extent_halo[d].left - lower
+            rsize = upper - f._extent_halo[d].right
         if lsize > 0:
             halos.append(Halo(d, LEFT, lsize))
         if rsize > 0:
