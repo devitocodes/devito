@@ -1,4 +1,4 @@
-from devito import Dimension
+from devito import Dimension, TimeFunction
 from devito.symbolics import Macro
 from devito.types import Indexed, Array
 
@@ -25,11 +25,6 @@ class OPSNodeFactory():
         If the pair grid name and time dimension were alredy created, it will return
         the stored value associated with this pair.
 
-        Notes
-        -----
-        Its expected the first item in the list `indexed.indices` to be the time
-        dimension, and then the spaces dimensions.
-
         Parameters
         ----------
         indexed : :class:`Indexed`
@@ -53,7 +48,7 @@ class OPSNodeFactory():
                 return getDimensionsDisplacement(lhs) + getDimensionsDisplacement(rhs)
 
         # Builds the grid identifier.
-        grid_id = '%s%s' % (indexed.name, indexed.indices[0])
+        grid_id = '%s%s' % (indexed.name, indexed.indices[TimeFunction._time_position])
 
         if grid_id not in self.ops_grids:
             # Creates the indexed object.
@@ -65,11 +60,13 @@ class OPSNodeFactory():
         else:
             grid = self.ops_grids[grid_id]
 
+        space_dim = [e for i, e in enumerate(
+            indexed.indices) if i != TimeFunction._time_position]
         # Defines the Macro used in this grid indice.
         access_macro = Macro('OPS_ACC%d(%s)' %
                              (len(self.ops_grids) - 1,
                               ','.join(str(getDimensionsDisplacement(i))
-                                       for i in indexed.indices[1:])))
+                                       for i in space_dim)))
 
         # Creates Indexed object representing the grid access.
         new_indexed = Indexed(grid.indexed, access_macro)
