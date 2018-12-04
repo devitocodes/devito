@@ -71,7 +71,7 @@ def particle_velocity_fields(model, save, space_order):
     return vx, vy, vz
 
 
-def elastic_2d(model, space_order, save, source, receiver):
+def elastic_2d(model, space_order, save, geometry):
     """
     2D elastic wave equation FD kernel
     """
@@ -98,11 +98,11 @@ def elastic_2d(model, space_order, save, source, receiver):
                                        - damp * l * s * vx.forward.dx)
     u_txz = Eq(txz.forward, damp * txz - damp * mu*s * (vx.forward.dy + vz.forward.dx))
 
-    src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver)
+    src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry)
     return [u_vx, u_vz, u_txx, u_tzz, u_txz] + src_rec_expr
 
 
-def elastic_3d(model, space_order, save, source, receiver):
+def elastic_3d(model, space_order, save, geometry):
     """
     3D elastic wave equation FD kernel
     """
@@ -134,22 +134,22 @@ def elastic_3d(model, space_order, save, source, receiver):
     u_txy = Eq(txy.forward, damp * txy - damp * mu * s * (vy.forward.dx + vx.forward.dy))
     u_tyz = Eq(tyz.forward, damp * tyz - damp * mu * s * (vy.forward.dz + vz.forward.dy))
 
-    src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver)
+    src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry)
     return [u_vx, u_vy, u_vz, u_txx, u_tyy, u_tzz, u_txz, u_txy, u_tyz] + src_rec_expr
 
 
-def src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver):
+def src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry):
     """
     Source injection and receiver interpolation
     """
     s = model.grid.time_dim.spacing
     # Source symbol with input wavelet
-    src = PointSource(name='src', grid=model.grid, time_range=source.time_range,
-                      npoint=source.npoint)
-    rec1 = Receiver(name='rec1', grid=model.grid, time_range=receiver.time_range,
-                    npoint=receiver.npoint)
-    rec2 = Receiver(name='rec2', grid=model.grid, time_range=receiver.time_range,
-                    npoint=receiver.npoint)
+    src = PointSource(name='src', grid=model.grid, time_range=geometry.time_axis,
+                      npoint=geometry.nsrc)
+    rec1 = Receiver(name='rec1', grid=model.grid, time_range=geometry.time_axis,
+                    npoint=geometry.nrec)
+    rec2 = Receiver(name='rec2', grid=model.grid, time_range=geometry.time_axis,
+                    npoint=geometry.nrec)
 
     # The source injection term
     src_xx = src.inject(field=txx.forward, expr=src * s)
@@ -170,8 +170,7 @@ def src_rec(vx, vy, vz, txx, tyy, tzz, model, source, receiver):
     return src_expr + rec_term1 + rec_term2
 
 
-def ForwardOperator(model, source, receiver, space_order=4,
-                    save=False, **kwargs):
+def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     """
     Constructor method for the forward modelling operator in an elastic media
 
@@ -182,9 +181,8 @@ def ForwardOperator(model, source, receiver, space_order=4,
     :param save: Saving flag, True saves all time steps, False only the three buffered
                  indices (last three time steps)
     """
-
-    pde = kernels[model.grid.dim](model, space_order, source.nt if save else None,
-                                  source, receiver)
+    wave = kernels[model.grid.dim]
+    pde = wave(model, space_order, geometry.nt if save else None, geometry)
 
     # Substitute spacing terms to reduce flops
     return Operator(pde, subs=model.spacing_map,

@@ -110,9 +110,9 @@ class Dimension(AbstractSymbol, ArgProvider):
     def _hashable_content(self):
         return super(Dimension, self)._hashable_content() + self._properties
 
-    @property
+    @cached_property
     def _defines(self):
-        return {self}
+        return frozenset({self})
 
     @property
     def _arg_names(self):
@@ -323,9 +323,9 @@ class DerivedDimension(Dimension):
     def _hashable_content(self):
         return (self.name, self.parent._hashable_content()) + self._properties
 
-    @property
+    @cached_property
     def _defines(self):
-        return {self} | self.parent._defines
+        return frozenset({self}) | self.parent._defines
 
     @property
     def _arg_names(self):

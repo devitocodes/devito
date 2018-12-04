@@ -4,12 +4,11 @@ from conftest import skipif_backend  # noqa
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
                     SubDimension, Eq, Inc, Operator, norm, inner, configuration)
-from devito.ir.iet import Call, Conditional, FindNodes
+from devito.ir.iet import Call, Conditional, Iteration, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
 from devito.types import LEFT, RIGHT
 
-from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
-from examples.seismic.acoustic import AcousticWaveSolver
+from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
                                 configuration['backend'] == 'ops',
@@ -315,9 +314,11 @@ class TestCodeGeneration(object):
         assert str(iet.body[0]) == """\
 float (*restrict dat)[dat_x_size][dat_y_size] __attribute__((aligned(64))) =\
  (float (*)[dat_x_size][dat_y_size]) dat_vec;
-float bufs[buf_x_size][buf_y_size] __attribute__((aligned(64)));
+float (*bufs)[buf_y_size];
+float (*bufg)[buf_y_size];
+posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
+posix_memalign((void**)&bufg, 64, sizeof(float[buf_x_size][buf_y_size]));
 MPI_Request rrecv;
-float bufg[buf_x_size][buf_y_size] __attribute__((aligned(64)));
 MPI_Request rsend;
 MPI_Status srecv;
 MPI_Irecv((float*)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
@@ -330,7 +331,9 @@ if (fromrank != MPI_PROC_NULL)
 {
   scatter_f((float*)bufs,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
 dat_y_size,ostime,osx,osy);
-}"""
+}
+free(bufs);
+free(bufg);"""
 
     @pytest.mark.parallel(nprocs=1)
     def test_iet_update_halo(self):
@@ -579,20 +582,6 @@ class TestOperatorSimple(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(nprocs=1)
-    def test_stencil_nowrite_implies_haloupdate(self):
-        grid = Grid(shape=(12,))
-        x = grid.dimensions[0]
-        t = grid.stepping_dim
-
-        f = TimeFunction(name='f', grid=grid)
-        g = Function(name='g', grid=grid)
-
-        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
-
-        calls = FindNodes(Call).visit(op)
-        assert len(calls) == 1
-
-    @pytest.mark.parallel(nprocs=1)
     def test_avoid_redundant_haloupdate(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -607,6 +596,47 @@ class TestOperatorSimple(object):
         op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
                        Inc(f[t+1, i], 1.),  # no halo update as it's an Inc
                        Eq(g, f[t, j] + 1)])  # access `f` at `t`, not `t+1`!
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.parallel(nprocs=1)
+    def test_avoid_haloupdate_if_distr_but_sequential(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+
+        # There is an anti-dependence between the first and second Eqs, so
+        # the compiler places them in different x-loops. However, none of the
+        # two loops should be preceded by a halo exchange, though for different
+        # reasons:
+        # * the equation in the first loop has no stencil
+        # * the equation in the second loop is inherently sequential, so the
+        #   compiler should be sufficiently smart to see that there is no point
+        #   in adding a halo exchange
+        op = Operator([Eq(f, f + 1),
+                       Eq(f, f[t, x-1] + f[t, x+1] + 1.)])
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert len(iterations) == 3
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
+
+    @pytest.mark.parallel(nprocs=1)
+    def test_stencil_nowrite_implies_haloupdate_anyway(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        # It does a halo update, even though there's no data dependence,
+        # because when the halo updates are placed, the compiler conservatively
+        # assumes there might have been another equation writing to `f` before.
+        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
@@ -961,6 +991,25 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[0, :-thickness] == 1.)
             assert np.all(u.data_ro_domain[0, -thickness:] == range(2, thickness+2))
 
+    @pytest.mark.parallel(nprocs=2)
+    def test_interior_w_stencil(self):
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u[t, x-1] + u[t, x+1] + 1, subdomain=grid.interior))
+        op.apply(time=1)
+
+        glb_pos_map = u.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(u.data_ro_domain[0, 1] == 2.)
+            assert np.all(u.data_ro_domain[0, 2:] == 3.)
+        else:
+            assert np.all(u.data_ro_domain[0, -2] == 2.)
+            assert np.all(u.data_ro_domain[0, :-2] == 3.)
+
     @pytest.mark.parallel(nprocs=4)
     def test_misc_dims(self):
         """
@@ -1094,7 +1143,7 @@ class TestIsotropicAcoustic(object):
     """
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, ), 'OT2', 4, 10, False, 976.825, 9372.604, 18851836.075, 47002871.882),
+        ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
         ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
@@ -1106,54 +1155,27 @@ class TestIsotropicAcoustic(object):
         of all Operator-evaluated Functions. The numbers we check against are derived
         "manually" from sequential runs of test_adjoint::test_adjoint_F
         """
-        t0 = 0.0  # Start time
         tn = 500.  # Final time
         nrec = 130  # Number of receivers
-        spacing = 15.  # Grid spacing
 
-        # Create model from preset
-        model = demo_model(spacing=[spacing for _ in shape], dtype=np.float64,
-                           space_order=space_order, shape=shape, nbpml=nbpml,
-                           preset='layers-isotropic', ratio=3)
-
-        # Derive timestepping from model spacing
-        dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-        time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-        # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-        src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-        src.coordinates.data[0, -1] = 30.
-
-        # Define receiver geometry (same as source, but spread across x)
-        rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
-        rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-        if len(shape) > 1:
-            rec.coordinates.data[:, 1] = np.array(model.domain_size)[1] * .5
-            rec.coordinates.data[:, -1] = 30.
-
-        # Create solver object to provide relevant operators
-        solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                    kernel=kernel, space_order=space_order)
-
-        # Create adjoint receiver symbol
-        srca = Receiver(name='srca', grid=model.grid, time_range=solver.source.time_range,
-                        coordinates=solver.source.coordinates.data)
-
+        # Create solver from preset
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+                                nbpml=nbpml, tn=tn, space_order=space_order, nrec=nrec,
+                                preset='layers-isotropic', dtype=np.float64)
         # Run forward operator
-        rec, u, _ = solver.forward(save=save, rec=rec)
+        rec, u, _ = solver.forward(save=save)
 
         assert np.isclose(norm(u), Eu, rtol=Eu*1.e-8)
         assert np.isclose(norm(rec), Erec, rtol=Erec*1.e-8)
 
         # Run adjoint operator
-        srca, v, _ = solver.adjoint(rec=rec, srca=srca)
+        srca, v, _ = solver.adjoint(rec=rec)
 
         assert np.isclose(norm(v), Ev, rtol=Eu*1.e-8)
         assert np.isclose(norm(srca), Esrca, rtol=Erec*1.e-8)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
-        term1 = inner(srca, solver.source)
+        term1 = inner(srca, solver.geometry.src)
         term2 = norm(rec)**2
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
@@ -1167,6 +1189,7 @@ if __name__ == "__main__":
     # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
     # TestSparseFunction().test_scatter_gather()
     # TestOperatorAdvanced().test_nontrivial_operator()
+    TestOperatorAdvanced().test_interior_w_stencil()
     # TestOperatorAdvanced().test_interpolation_dup()
-    TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
-                                           153.122, 205.902, 27484.635, 11736.917)
+    # TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
+    #                                        153.122, 205.902, 27484.635, 11736.917)
