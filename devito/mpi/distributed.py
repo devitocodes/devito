@@ -24,6 +24,7 @@ try:
     mpi4py.rc(initialize=False, finalize=False)
     from mpi4py import MPI  # noqa
 except ImportError:
+    # Dummy fallback in case mpi4py/MPI aren't available
     class MPI(object):
         COMM_NULL = None
 
@@ -37,6 +38,7 @@ except ImportError:
         @property
         def Comm(self):
             return None
+
 
 __all__ = ['Distributor', 'SparseDistributor', 'MPI']
 
