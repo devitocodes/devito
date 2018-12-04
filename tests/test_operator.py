@@ -5,7 +5,7 @@ import pytest
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, configuration)
-from devito.ir.iet import (Expression, Iteration, FindNodes,
+from devito.ir.iet import (ArrayCast, Expression, Iteration, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
@@ -74,6 +74,28 @@ class TestCodeGen(object):
         expr = eval(expr)
         expr = Operator(expr)._specialize_exprs([indexify(expr)])[0]
         assert str(expr).replace(' ', '') == expected
+
+    @pytest.mark.parametrize('so, to, padding, expected', [
+        (0, 1, 0, '(float(*)[x_size][y_size][z_size])u_vec->data'),
+        (2, 1, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec->data'),
+        (4, 1, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec->data'),
+        (4, 3, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec->data'),
+        (4, 1, 3,
+         '(float(*)[x_size+3+3+4+4][y_size+3+3+4+4][z_size+3+3+4+4])u_vec->data'),
+        ((2, 5, 2), 1, 0, '(float(*)[x_size+2+5][y_size+2+5][z_size+2+5])u_vec->data'),
+        ((2, 5, 4), 1, 3,
+         '(float(*)[x_size+3+3+4+5][y_size+3+3+4+5][z_size+3+3+4+5])u_vec->data'),
+    ])
+    def test_array_casts(self, so, to, padding, expected):
+        """Tests that data casts are generated correctly."""
+        grid = Grid(shape=(4, 4, 4))
+        u = TimeFunction(name='u', grid=grid,
+                         space_order=so, time_order=to, padding=padding)
+        op = Operator(Eq(u, 1), dse='noop', dle='noop')
+        casts = FindNodes(ArrayCast).visit(op)
+        assert len(casts) == 1
+        cast = casts[0]
+        assert cast.ccode.data.replace(' ', '') == expected
 
     @pytest.mark.parametrize('expr,exp_uindices,exp_mods', [
         ('Eq(v.forward, u[0, x, y, z] + v + 1)', [(0, 5), (2, 5)], {'v': 5}),
