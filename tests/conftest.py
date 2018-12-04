@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import pytest
 
 import os
@@ -23,15 +21,29 @@ except ImportError:
     MPI = None
 
 
-def skipif_backend(backends):
-    conditions = []
-    for b in backends:
-        conditions.append(b == configuration['backend'])
-    return pytest.mark.skipif(any(conditions),
-                              reason="{} testing is currently restricted".format(b))
-
-
-skipif_nompi = pytest.mark.skipif(MPI is None, reason="mpi not installed")
+def skipif(items):
+    items = as_tuple(items)
+    # Sanity check
+    accepted = set(configuration._accepted['backend'])
+    accepted.update({'no%s' % i for i in configuration._accepted['backend']})
+    accepted.update({'nompi'})
+    unknown = sorted(set(items) - accepted)
+    if unknown:
+        raise ValueError("Illegal skipif argument(s) `%s`" % unknown)
+    for i in items:
+        # Skip if an unsupported backend
+        if i == configuration['backend']:
+            return pytest.mark.skipif(True, reason="`%s` backend unsupported" % i)
+        try:
+            _, noi = i.split('no')
+            if noi != configuration['backend']:
+                return pytest.mark.skipif(True, reason="`%s` backend unsupported" % i)
+        except ValueError:
+            pass
+        # Skip if no MPI
+        if i == 'nompi' and MPI is None:
+            return pytest.mark.skipif(True, reason="mpi4py/MPI not installed")
+    return pytest.mark.skipif(False, reason="")
 
 
 # Testing dimensions for space and time

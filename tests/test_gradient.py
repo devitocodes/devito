@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 from numpy import linalg
-from devito import Function, info, clear_cache, configuration
+
+from conftest import skipif
+from devito import Function, info, clear_cache
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
 from examples.seismic import Receiver
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 class TestGradient(object):

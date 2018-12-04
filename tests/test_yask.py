@@ -6,16 +6,14 @@ import pytest  # noqa
 
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
+from conftest import skipif  # noqa
 from devito import (Eq, Grid, Dimension, ConditionalDimension, Operator, Constant,
                     Function, TimeFunction,  SparseTimeFunction, configuration, clear_cache)  # noqa
 from devito.ir.iet import FindNodes, ForeignExpression, retrieve_iteration_tree  # noqa
+from examples.seismic.acoustic import iso_stencil  # noqa
+from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver  # noqa
 
-# For the acoustic wave test
-from examples.seismic.acoustic import AcousticWaveSolver, iso_stencil  # noqa
-from examples.seismic import demo_model, TimeAxis, PointSource, RickerSource, Receiver  # noqa
-
-pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
-                                reason="'yask' wasn't selected as backend on startup")
+pytestmark = skipif('noyask')
 
 
 def setup_module(module):

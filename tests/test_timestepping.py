@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
-from devito import Grid, Eq, Operator, TimeFunction, configuration
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+from conftest import skipif
+from devito import Grid, Eq, Operator, TimeFunction
+
+pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.fixture

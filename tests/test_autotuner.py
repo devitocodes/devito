@@ -3,15 +3,14 @@ from operator import mul
 
 import pytest
 import numpy as np
-from conftest import skipif_nompi
+from unittest.mock import patch
+
+from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
                     switchconfig)
 from devito.types import LEFT
-from unittest.mock import patch
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 # To enforce cross-compilation for a 4-core architecture
@@ -211,7 +210,7 @@ def test_discarding_runs():
     assert op._state['autotuning'][1]['tuned']['nthreads'] == 1
 
 
-@skipif_nompi
+@skipif('nompi')
 @pytest.mark.parallel(nprocs=2)
 def test_at_w_mpi():
     """Make sure autotuning works in presence of MPI. MPI ranks work
