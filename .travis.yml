@@ -100,7 +100,7 @@ install:
       conda list;
     fi
   - if [[ "$MPI_INSTALL" == '1' ]]; then
-      pip install -r mpi_requirements.txt;
+      pip install -r requirements-optional.txt;
     fi
 
   # Install devito with pip
