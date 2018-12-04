@@ -168,7 +168,7 @@ class TestDataBasic(object):
         """
         grid = Grid(shape=(4, 4, 4))
 
-        # Without halo and withouth padding
+        # Without halo and without padding
         u0 = Function(name='u0', grid=grid, space_order=0)
 
         assert u0.shape == u0._shape_with_inhalo == u0.shape_allocated
