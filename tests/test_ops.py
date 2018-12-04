@@ -1,7 +1,10 @@
 import pytest
 
 from devito import Eq, Grid, Operator, TimeFunction, configuration  # noqa
+from devito.ir.equations import DummyEq
 from devito.ir.iet import FindNodes, Expression
+from devito.ops.transformer import make_ops_ast
+from devito.ops.node_factory import OPSNodeFactory
 
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'ops',
                                 reason="'ops' wasn't selected as backend on startup")
@@ -10,13 +13,7 @@ pytestmark = pytest.mark.skipif(configuration['backend'] != 'ops',
 class TestOpsExpression(object):
 
     @pytest.mark.parametrize('equation, expected', [
-        ('Eq(u.forward,u+1)', 'Eq(ut1[OPS_ACC0(0,0)], ut0[OPS_ACC1(0,0)] + 1)'),
-        ('Eq(u.forward,2*u+4)',
-         'Eq(ut1[OPS_ACC0(0,0)], 2*ut0[OPS_ACC1(0,0)] + 4)'),
-        ('Eq(u.forward, a*u.dxl + 1 + c*u.dyr)',
-         'Eq(ut1[OPS_ACC0(0,0)], 2.3*(-ut0[OPS_ACC1(-1,0)]/h_x + '
-            'ut0[OPS_ACC1(0,0)]/h_x) + 0.00024*(-ut0[OPS_ACC1(0,0)]/h_y'
-            ' + ut0[OPS_ACC1(0,1)]/h_y) + 1)'),
+        ('Expression(DummyEq(u,1))', 'Eq(ut1[OPS_ACC0(0,0)], ut0[OPS_ACC1(0,0)] + 1)'),
     ])
     def test_ops_expression_convertion(self, equation, expected):
         """
@@ -33,15 +30,10 @@ class TestOpsExpression(object):
 
         grid = Grid(shape=(4, 4))  # noqa
         u = TimeFunction(name='u', grid=grid)  # noqa
-        a = 2.3  # noqa
-        c = 0.00024  # noqa
 
-        eq_input = eval(equation)
-        op = Operator(eq_input)
+        test = eval(equation)
 
-        for _, func in op._func_table.items():
+        nfops = OPSNodeFactory()
+        result = make_ops_ast(test, nfops)
 
-            eq_input_calculated = [i.expr for i in FindNodes(Expression).visit(func)]
-
-            for expr in eq_input_calculated:
-                assert str(expr) == expected
+        assert str(result) == expected
