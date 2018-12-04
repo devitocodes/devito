@@ -122,6 +122,7 @@ def detect_flow_directions(exprs):
     directions to evaluate ``exprs`` so that the information "naturally
     flows" from an iteration to another.
     """
+    # from IPython import embed; embed()  
     exprs = as_tuple(exprs)
 
     writes = [Access(i.lhs, 'W') for i in exprs]

@@ -235,6 +235,7 @@ def clusterize(exprs):
     """
     clusters = ClusterGroup()
     flowmap = detect_flow_directions(exprs)
+    # from IPython import embed; embed()
     prev = None
     for idx, e in enumerate(exprs):
         if e.is_Tensor:
