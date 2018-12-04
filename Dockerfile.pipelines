@@ -17,12 +17,18 @@ ENV LANG=C.UTF-8
 RUN apt-get update
 RUN apt-get -y dist-upgrade
 
+# Use bash, not dash, or later conditionals fail
+RUN echo "dash dash/sh boolean false" | debconf-set-selections
+RUN DEBIAN_FRONTEND=noninteractive dpkg-reconfigure dash
+
 # Needed for the conda and devito installs later
 RUN apt-get -y install wget bzip2 git make
 
 # Default gcc version to install
 ARG gccVersion=8
 ENV DEVITO_ARCH=gcc-$gccVersion
+# Set Yask variables in case they are needed
+ENV YC_CXX=g++-$gccVersion
 
 # Default devito install method
 ARG installWithPip=false
@@ -36,6 +42,14 @@ ENV DEVITO_BACKEND=$DEVITO_BACKEND
 ARG DEVITO_OPENMP=0
 ENV DEVITO_OPENMP=$DEVITO_OPENMP
 ENV OMP_NUM_THREADS=2
+
+# Use MPI?
+ARG DEVITO_MPI=1
+ENV DEVITO_MPI=$DEVITO_MPI
+
+# Run examples?
+ARG RUN_EXAMPLES='false'
+ENV RUN_EXAPLES=$RUN_EXAMPLES
 
 # Ensure a non-interactive matplotlib backend
 ENV MPLBACKEND=agg
@@ -59,7 +73,9 @@ RUN if [ -f /usr/bin/gcov-tool-$gccVersion ] ; then \
     fi
 
 # Install MPI
-RUN apt-get install -y -q mpich libmpich-dev
+RUN if [ "$DEVITO_MPI" == "1" ] ; then \
+      apt-get install -y -q mpich libmpich-dev ; \
+    fi
 
 # Set up conda
 RUN wget --no-verbose https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O /tmp/miniconda.sh
@@ -67,9 +83,6 @@ RUN bash /tmp/miniconda.sh -b -p /usr/local/miniconda
 ENV PATH=/usr/local/miniconda/bin:$PATH
 RUN conda config --set always_yes yes --set changeps1 no
 RUN conda update -q conda
-
-RUN echo "dash dash/sh boolean false" | debconf-set-selections
-RUN DEBIAN_FRONTEND=noninteractive dpkg-reconfigure dash
 
 RUN adduser --disabled-password --gecos "" devito
 
@@ -82,11 +95,17 @@ WORKDIR /home/devito
 
 RUN if [ $installWithPip == "true" ] ; then \ 
       python setup.py install --user ; \
+      if [ $DEVITO_MPI == '1' ] ; then \
+        pip install --user -e .[extras] ; \
+      fi ; \
     else \
       conda env create -q -f environment.yml ; \
       source activate devito ; \
       echo $PATH ; \
       pip install -e . ; \
+      if [ $DEVITO_MPI == '1' ] ; then \
+        pip install -r requirements-optional.txt ; \
+      fi ; \
       pip install pytest-xdist ; \
       if [ $DEVITO_BACKEND == "yask" ] ; then \
         conda install swig ; \ 

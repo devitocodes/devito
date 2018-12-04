@@ -10,7 +10,7 @@ if os.environ.get('testWithPip') == 'true':
 
 if os.environ.get('testWithPip') != 'true':
     err.append(subprocess.run("source activate devito; py.test --cov devito tests/", shell=True).returncode)
-    if os.environ.get('DEVITO_BACKEND') == 'core':
+    if os.environ.get('RUN_EXAMPLES') == 'true' :
         err.append(subprocess.run("source activate devito; python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5", shell=True).returncode)
         err.append(subprocess.run("source activate devito; python examples/seismic/benchmark.py test -P acoustic -a", shell=True).returncode)
         err.append(subprocess.run("source activate devito; python examples/seismic/acoustic/acoustic_example.py --full", shell=True).returncode)
