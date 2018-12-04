@@ -22,7 +22,7 @@ class OPSNodeFactory():
     def new_grid(self, indexed):
         """
         Creates an :class:`Indexed` node using OPS representation.
-        If the pair grid name and time dimension was alredy created, it will return
+        If the pair grid name and time dimension were alredy created, it will return
         the stored value associated with this pair.
 
         Notes
