@@ -220,7 +220,7 @@ class DummyEq(ClusterizedEq):
     A special :class:`ClusterizedEq` that tracks no iteration or data spaces.
     """
 
-    def __new__(cls, *args):
+    def __new__(cls, *args, **kwargs):
         if len(args) == 1:
             input_expr = args[0]
             assert isinstance(input_expr, Eq)
