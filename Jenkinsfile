@@ -151,7 +151,7 @@ def pipInstallDevito () {
 def installYask () {
     sh "mkdir -p $HOME/.ssh/"
     sh """echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> $HOME/.ssh/config"""
-    sh "source activate devito ; conda install swig"
+    sh "source activate devito ; conda install -c conda-forge swig"
     sh "mkdir ${WORKSPACE}/scratch"
     dir ("${WORKSPACE}/scratch") { sh 'git clone https://github.com/opesci/yask.git' }
     dir ("${WORKSPACE}/scratch/yask") {
