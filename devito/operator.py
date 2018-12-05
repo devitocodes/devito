@@ -291,11 +291,10 @@ class Operator(Callable):
         tree ``iet``."""
         return derive_parameters(iet, True)
 
-    def _build_casts(self, iet, make_cast=None):
+    def _build_casts(self, iet):
         """Introduce array and pointer casts at the top of the Iteration/Expression
         tree ``iet``."""
-        make_cast = make_cast or ArrayCast
-        casts = [make_cast(f) for f in self.input if f.is_Tensor and f._mem_external]
+        casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
         return List(body=casts + [iet])
 
     @cached_property

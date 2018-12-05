@@ -16,6 +16,7 @@ from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
                            REDUNDANT)
 from devito.ir.support import Forward, detect_io
+from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
@@ -23,8 +24,8 @@ from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'Section',
-           'TimedList', 'MetaCall', 'ArrayCast', 'ArrayCastSymbolic', 'ForeignExpression',
-           'HaloSpot', 'IterationTree', 'ExpressionBundle', 'Increment']
+           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot',
+           'IterationTree', 'ExpressionBundle', 'Increment']
 
 # First-class IET nodes
 
@@ -689,8 +690,7 @@ class Denormals(List):
 class ArrayCast(Node):
 
     """
-    A node encapsulating a cast of a raw C pointer to a
-    multi-dimensional array.
+    A node encapsulating a cast of a raw C pointer to a multi-dimensional array.
     """
 
     def __init__(self, function):
@@ -701,7 +701,13 @@ class ArrayCast(Node):
         """
         The shape used in the left-hand side and right-hand side of the ArrayCast.
         """
-        return self.function.symbolic_shape[1:]
+        if configuration['codegen'] == 'explicit':
+            return self.function.symbolic_shape[1:]
+        if self.function.is_TensorFunction:
+            return tuple(self.function._C_get_field(FULL, d).extent
+                         for d in self.function.dimensions[1:])
+        else:
+            return self.function.symbolic_shape[1:]
 
     @property
     def functions(self):
@@ -727,20 +733,6 @@ class ArrayCast(Node):
         """
         sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
         return (self.function, ) + as_tuple(sizes)
-
-
-class ArrayCastSymbolic(ArrayCast):
-
-    """
-    An ArrayCast suitable for MPI-aware code generation.
-    """
-
-    @property
-    def castshape(self):
-        if self.function.is_TensorFunction:
-            return tuple(self.function._C_get_field(FULL, d).extent
-                         for d in self.function.dimensions[1:])
-        return super(ArrayCastSymbolic, self).castshape
 
 
 class LocalExpression(Expression):

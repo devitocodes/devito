@@ -6,7 +6,7 @@ from itertools import product
 from devito.data import OWNED, HALO, NOPAD, LEFT, RIGHT
 from devito.dimension import Dimension
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (ArrayCastSymbolic, Call, Callable, Conditional, Expression,
+from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls)
 from devito.symbolics import CondNe, FieldFromPointer, Macro
 from devito.types import Array, Symbol, LocalObject
@@ -53,7 +53,7 @@ def copy(f, fixed, swap=False):
     iet = Expression(eq)
     for i, d in reversed(list(zip(buf_indices, buf_dims))):
         iet = Iteration(iet, i, d.symbolic_size - 1)  # -1 as Iteration generates <=
-    iet = List(body=[ArrayCastSymbolic(dummy_f), ArrayCastSymbolic(buf), iet])
+    iet = List(body=[ArrayCast(dummy_f), ArrayCast(buf), iet])
     parameters = [buf] + list(buf.shape) + [dummy_f] + f_offsets
     return Callable(name, iet, 'void', parameters, ('static',))
 

@@ -6,9 +6,8 @@ import numpy as np
 
 from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
-from devito.ir.iet import (ArrayCastSymbolic, Iteration, Expression, ForeignExpression,
-                           Section, MetaCall, FindNodes, Transformer,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (Iteration, Expression, ForeignExpression, Section, MetaCall,
+                           FindNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
 from devito.tools import ReducerMap, Signer, filter_ordered, flatten
@@ -122,9 +121,6 @@ class Operator(OperatorRunnable):
         # Add parameters "disappeared" due to offloading
         parameters += tuple(i for i in self.input if i not in parameters)
         return parameters
-
-    def _build_casts(self, iet):
-        return super(Operator, self)._build_casts(iet, ArrayCastSymbolic)
 
     @property
     def _local_grids(self):
