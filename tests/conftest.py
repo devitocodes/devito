@@ -31,6 +31,11 @@ def skipif(items):
     if unknown:
         raise ValueError("Illegal skipif argument(s) `%s`" % unknown)
     for i in items:
+        # Skip if no MPI
+        if i == 'nompi':
+            if MPI is None:
+                return pytest.mark.skipif(True, reason="mpi4py/MPI not installed")
+            continue
         # Skip if an unsupported backend
         if i == configuration['backend']:
             return pytest.mark.skipif(True, reason="`%s` backend unsupported" % i)
@@ -40,9 +45,6 @@ def skipif(items):
                 return pytest.mark.skipif(True, reason="`%s` backend unsupported" % i)
         except ValueError:
             pass
-        # Skip if no MPI
-        if i == 'nompi' and MPI is None:
-            return pytest.mark.skipif(True, reason="mpi4py/MPI not installed")
     return pytest.mark.skipif(False, reason="")
 
 
