@@ -1,10 +1,10 @@
 import pytest
 
 from devito import Eq, Grid, Operator, TimeFunction, configuration  # noqa
-from devito.ir.equations import DummyEq
-from devito.ir.iet import FindNodes
 from devito.ops.transformer import make_ops_ast
 from devito.ops.node_factory import OPSNodeFactory
+from devito.symbolics import indexify
+
 
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'ops',
                                 reason="'ops' wasn't selected as backend on startup")
@@ -13,12 +13,26 @@ pytestmark = pytest.mark.skipif(configuration['backend'] != 'ops',
 class TestOPSExpression(object):
 
     @pytest.mark.parametrize('equation, expected', [
-        ('DummyEq(u[t,x,y],1)', 'Eq(ut1[OPS_ACC0(0,0)], ut0[OPS_ACC1(0,0)] + 1)'),
+        ('Eq(u,3*a - 4**a)', 'Eq(ut[OPS_ACC0(0)], -2.97015324253729)'),
+        ('Eq(u, u.dxl)',
+         'Eq(ut[OPS_ACC0(0)], -ut[OPS_ACC0(-1)]/h_x + ut[OPS_ACC0(0)]/h_x)'),
+        ('Eq(v,1)', 'Eq(vt[OPS_ACC0(0,0)], 1)'),
+        ('Eq(v,v.dxl + v.dxr - v.dyr - v.dyl)',
+         'Eq(vt[OPS_ACC0(0,0)], vt[OPS_ACC0(0,-1)]/h_y - vt[OPS_ACC0(0,1)]/h_y'
+            ' - vt[OPS_ACC0(-1,0)]/h_x + vt[OPS_ACC0(1,0)]/h_x)'),
+        ('Eq(v,v**2 - 3*v)',
+         'Eq(vt[OPS_ACC0(0,0)], vt[OPS_ACC0(0,0)]**2 - 3*vt[OPS_ACC0(0,0)])'),
+        ('Eq(v,a*v + b)',
+         'Eq(vt[OPS_ACC0(0,0)], 1.43*vt[OPS_ACC0(0,0)] + 9.87e-7)'),
+        ('Eq(v.dt,1/v + v**-1)',
+         'Eq(-vt[OPS_ACC1(0,0)]/dt + vt + 1[OPS_ACC0(0,0)]/dt, 2/vt[OPS_ACC1(0,0)])'),
+        ('Eq(w,c*w**2)',
+         'Eq(wt[OPS_ACC0(0,0,0)], 999999999999999*wt[OPS_ACC0(0,0,0)]**2)'),
+        ('Eq(w,u + v )', 'Eq(wt[OPS_ACC0(0,0,0)], ut[OPS_ACC1(0)] + vt[OPS_ACC2(0,0)])'),
     ])
     def test_ast_convertion(self, equation, expected):
         """
-        Tests OPS generated expressions.
-        Some basic tests for the generated expression with ops.
+        Tests OPS generated expressions for 1, 2 and 3 space dimensions.
 
         Parameters
         ----------
@@ -28,15 +42,19 @@ class TestOPSExpression(object):
             Expected expression to be generated from devito.
         """
 
-        grid = Grid(shape=(4, 4))  # noqa
-        t = grid.stepping_dim
-        x, y = grid.dimensions
+        grid_1d = Grid(shape=(4))
+        grid_2d = Grid(shape=(4, 4))
+        grid_3d = Grid(shape=(4, 4, 4))
 
-        u = TimeFunction(name='u', grid=grid)  # noqa
+        a = 1.43  # noqa
+        b = 0.000000987  # noqa
+        c = 999999999999999  # noqa
 
-        test = eval(equation)
+        u = TimeFunction(name='u', grid=grid_1d)  # noqa
+        v = TimeFunction(name='v', grid=grid_2d)  # noqa
+        w = TimeFunction(name='w', grid=grid_3d)  # noqa
 
         nfops = OPSNodeFactory()
-        result = make_ops_ast(test, nfops)
+        result = make_ops_ast(indexify(eval(equation)), nfops)
 
         assert str(result) == expected
