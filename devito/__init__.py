@@ -32,12 +32,19 @@ configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
 configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
 
-# Should Devito run a first-touch Operator upon allocating data?
+# Should Devito run a first-touch Operator upon data allocation?
 configuration.add('first-touch', 0, [0, 1], lambda i: bool(i), False)
 
 # Should Devito ignore any unknown runtime arguments supplied to Operator.apply(),
 # or rather raise an exception (the default behaviour)?
 configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i), False)
+
+# By default, the Devito compiler generates parameters, rather than numbers, for
+# things such as array casts, loop bounds, etc. This maximises Operator reusability,
+# as the same Operator can be applied to Functions that only different in the shape.
+# It is also the only viable way when using MPI. One can change this behaviour
+# (e.g., for educational purposes) by playing with the `codegen` configuration knob
+configuration.add('codegen', 'parametric', ['parametric', 'explicit'])
 
 # Execution mode setup
 def _reinit_compiler(val):  # noqa
