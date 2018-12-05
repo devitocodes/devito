@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, configuration)
+                    NODE, CELL, configuration, switchconfig)
 from devito.ir.iet import (ArrayCast, Expression, Iteration, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -75,6 +75,7 @@ class TestCodeGen(object):
         expr = Operator(expr)._specialize_exprs([indexify(expr)])[0]
         assert str(expr).replace(' ', '') == expected
 
+    @switchconfig(codegen='explicit')
     @pytest.mark.parametrize('so, to, padding, expected', [
         (0, 1, 0, '(float(*)[x_size][y_size][z_size])u_vec->data'),
         (2, 1, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec->data'),
