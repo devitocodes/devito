@@ -172,9 +172,26 @@
 <span class="c1"># Do not prematurely initialize MPI</span>
 <span class="c1"># This allows launching a Devito program from within another Python program</span>
 <span class="c1"># that has *already* initialized MPI</span>
-<span class="kn">import</span> <span class="nn">mpi4py</span>
-<span class="n">mpi4py</span><span class="o">.</span><span class="n">rc</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">finalize</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">mpi4py</span> <span class="k">import</span> <span class="n">MPI</span>  <span class="c1"># noqa</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">mpi4py</span>
+    <span class="n">mpi4py</span><span class="o">.</span><span class="n">rc</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">finalize</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="kn">from</span> <span class="nn">mpi4py</span> <span class="k">import</span> <span class="n">MPI</span>  <span class="c1"># noqa</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="c1"># Dummy fallback in case mpi4py/MPI aren&#39;t available</span>
+<div class="viewcode-block" id="MPI"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.distributed.MPI">[docs]</a>    <span class="k">class</span> <span class="nc">MPI</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+        <span class="n">COMM_NULL</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="MPI.Is_initialized"><a class="viewcode-back" href="../../../devito.mpi.html#devito.mpi.distributed.MPI.Is_initialized">[docs]</a>        <span class="nd">@classmethod</span>
+        <span class="k">def</span> <span class="nf">Is_initialized</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+
+        <span class="k">def</span> <span class="nf">_sizeof</span><span class="p">(</span><span class="n">comm</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="nd">@property</span>
+        <span class="k">def</span> <span class="nf">Comm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">None</span></div>
+
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Distributor&#39;</span><span class="p">,</span> <span class="s1">&#39;SparseDistributor&#39;</span><span class="p">,</span> <span class="s1">&#39;MPI&#39;</span><span class="p">]</span>
 
