@@ -19,6 +19,7 @@ pipeline {
                      environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=0
+                         INSTALL_MPI=1
                          PYTHONPATH="${WORKSPACE}/lib/python3.6/site-packages/"
                      }
                      steps {
@@ -27,13 +28,14 @@ pipeline {
                          runPipTests()
                      }
                 }
-                stage('Build and test gcc-4.9 OpenMP container') {
+                stage('Build and test gcc-4.9 OpenMP container no MPI') {
                      agent { dockerfile { label 'azure-linux-8core'
                                           filename 'Dockerfile.jenkins'
                                           additionalBuildArgs "--build-arg gccvers=4.9" } }
                      environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=1
+                         INSTALL_MPI=0
                          OMP_NUM_THREADS=2
                      }
                      steps {
@@ -52,10 +54,12 @@ pipeline {
                      environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=0
+                         INSTALL_MPI=1
                      }
                      steps {
                          cleanWorkspace()
                          condaInstallDevito()
+                         condaInstallMPI()
                          runCondaTests()
                          runExamples()
                          runCodecov()
@@ -70,11 +74,13 @@ pipeline {
                          HOME="${WORKSPACE}"
                          DEVITO_BACKEND="yask"
                          DEVITO_OPENMP="0"
+                         INSTALL_MPI="1"
                          YC_CXX="g++-7"
                      }
                      steps {
                          cleanWorkspace()
                          condaInstallDevito()
+                         condaInstallMPI()
                          installYask()
                          runCondaTests()
                          runCodecov()
@@ -104,10 +110,12 @@ pipeline {
                      environment {
                          HOME="${WORKSPACE}"
                          DEVITO_OPENMP=0
+                         INSTALL_MPI=1
                      }
                      steps {
                          cleanWorkspace()
                          condaInstallDevito()
+                         condaInstallMPI()
                          runCondaTests()
                          runExamples()
                          runCodecov()
@@ -128,6 +136,10 @@ def condaInstallDevito () {
     sh 'conda env create -q -f environment.yml'
     sh 'source activate devito ; pip install -e . ; pip install pytest-xdist ; conda list'
     sh 'source activate devito ; flake8 --exclude .conda,.git --builtins=ArgumentError .'
+}
+
+def condaInstallMPI () {
+    sh 'source activate devito ; pip install -r requirements-optional.txt'
 }
 
 def pipInstallDevito () {

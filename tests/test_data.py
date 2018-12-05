@@ -1,13 +1,12 @@
-from conftest import skipif_backend
 import pytest
 import numpy as np
 
+from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
-                    Eq, Operator, configuration, ALLOC_GUARD, ALLOC_FLAT)
+                    Eq, Operator, ALLOC_GUARD, ALLOC_FLAT)
 from devito.data import LEFT, RIGHT, Decomposition
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif('ops')
 
 
 class TestDataBasic(object):
@@ -123,7 +122,7 @@ class TestDataBasic(object):
         arr.fill(2.)
         assert np.all(arr - u.data == 1.)
 
-    @skipif_backend(['yask'])  # YASK and OPS backends do not support MPI yet
+    @skipif('yask')
     def test_illegal_indexing(self):
         """
         Tests that indexing into illegal entries throws an exception.
@@ -230,7 +229,7 @@ class TestDataBasic(object):
         assert np.all(sf.data[1:-1, 0] == np.arange(8))
 
 
-@skipif_backend(['yask'])
+@skipif('yask')
 class TestDecomposition(object):
 
     """
@@ -346,7 +345,7 @@ class TestDecomposition(object):
         assert d.reshape((1, 3, 10, 11, 14)) == Decomposition([[0], [1], [], [2, 3]], 2)
 
 
-@skipif_backend(['yask'])  # YASK and OPS backends do not support MPI yet
+@skipif(['yask', 'nompi'])
 class TestDataDistributed(object):
 
     """

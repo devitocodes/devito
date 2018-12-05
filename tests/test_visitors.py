@@ -1,15 +1,14 @@
 import cgen as c
+from sympy import Mod, Eq
 import pytest
+
+from conftest import skipif
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
                            Conditional, printAST)
-from sympy import Mod, Eq
-from devito import configuration
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.fixture(scope="module")

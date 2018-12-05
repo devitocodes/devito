@@ -1,9 +1,8 @@
-from conftest import EVAL
 from sympy import sin  # noqa
 import numpy as np
 import pytest
-from conftest import x, y, z, skipif_backend  # noqa
 
+from conftest import skipif, EVAL, x, y, z  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseFunction,  # noqa
                     Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree
@@ -11,15 +10,13 @@ from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
-from devito.types import Scalar
 from devito.tools import generator
+from devito.types import Scalar
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 # Acoustic
@@ -146,7 +143,6 @@ def test_tti_rewrite_aggressive(tti_nodse):
 
 
 @switchconfig(profiling='advanced')
-@skipif_backend(['yask', 'ops'])
 @pytest.mark.parametrize('kernel,space_order,expected', [
     ('shifted', 8, 355), ('shifted', 16, 622),
     ('centered', 8, 168), ('centered', 16, 300)

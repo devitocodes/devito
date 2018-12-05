@@ -1,19 +1,17 @@
+from math import sin, floor
+
 import numpy as np
 import pytest
-from conftest import unit_box, points, unit_box_time, time_points
-from math import sin, floor
+
+from conftest import skipif, unit_box, points, unit_box_time, time_points
 from devito.cgen_utils import FLOAT
-from devito import (Grid, Operator, Function, SparseFunction, Dimension,
-                    TimeFunction, PrecomputedSparseFunction,
-                    PrecomputedSparseTimeFunction, configuration)
+from devito import (Grid, Operator, Function, SparseFunction, Dimension, TimeFunction,
+                    PrecomputedSparseFunction, PrecomputedSparseTimeFunction)
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
                               AcquisitionGeometry)
-
 from examples.seismic.acoustic import AcousticWaveSolver
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 def a(shape=(11, 11)):

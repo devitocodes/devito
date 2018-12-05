@@ -1,11 +1,11 @@
 from functools import reduce
 from operator import mul
+
 import numpy as np
-
 import pytest
-from conftest import EVAL
 
-from devito import Grid, Function, TimeFunction, Eq, Operator, solve, configuration
+from conftest import EVAL, skipif
+from devito import Grid, Function, TimeFunction, Eq, Operator, solve
 from devito.dle import transform
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
@@ -13,9 +13,7 @@ from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tag
 from devito.tools import as_tuple
 from unittest.mock import patch
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.fixture(scope="module")

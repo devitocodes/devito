@@ -1,22 +1,18 @@
 import pytest
-from conftest import skipif_backend
-
 import numpy as np
 from sympy import Symbol
+import cloudpickle as pickle
 
-from examples.seismic import (demo_model, AcquisitionGeometry,
-                              TimeAxis, RickerSource, Receiver)
-
+from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
-                    TimeDimension, SteppingDimension, Operator, configuration)
+                    TimeDimension, SteppingDimension, Operator)
 from devito.mpi.routines import MPIStatusObject, MPIRequestObject
 from devito.profiling import Timer
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
+from examples.seismic import (demo_model, AcquisitionGeometry,
+                              TimeAxis, RickerSource, Receiver)
 
-import cloudpickle as pickle
-
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif('ops')
 
 
 def test_constant():
@@ -242,7 +238,7 @@ def test_operator_timefunction_w_preallocation():
     assert np.all(f.data[2] == 2)
 
 
-@skipif_backend(['yask'])
+@skipif(['yask', 'nompi'])
 @pytest.mark.parallel(nprocs=[1])
 def test_mpi_objects():
     # Neighbours
@@ -276,7 +272,7 @@ def test_mpi_objects():
     assert obj.dtype == new_obj.dtype
 
 
-@skipif_backend(['yask'])
+@skipif(['yask', 'nompi'])
 @pytest.mark.parallel(nprocs=[1])
 def test_mpi_operator():
     grid = Grid(shape=(4,))
