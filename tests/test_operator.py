@@ -81,11 +81,10 @@ class TestCodeGen(object):
         (2, 1, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec->data'),
         (4, 1, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec->data'),
         (4, 3, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec->data'),
-        (4, 1, 3,
-         '(float(*)[x_size+3+3+4+4][y_size+3+3+4+4][z_size+3+3+4+4])u_vec->data'),
+        (4, 1, 3, '(float(*)[x_size+4+4+3][y_size+4+4+3][z_size+4+4+3])u_vec->data'),
         ((2, 5, 2), 1, 0, '(float(*)[x_size+2+5][y_size+2+5][z_size+2+5])u_vec->data'),
         ((2, 5, 4), 1, 3,
-         '(float(*)[x_size+3+3+4+5][y_size+3+3+4+5][z_size+3+3+4+5])u_vec->data'),
+         '(float(*)[x_size+4+5+3][y_size+4+5+3][z_size+4+5+3])u_vec->data'),
     ])
     def test_array_casts(self, so, to, padding, expected):
         """Tests that data casts are generated correctly."""
@@ -816,9 +815,9 @@ class TestArguments(object):
         (2, 1, 0, (2, 8, 8, 8)),
         (4, 1, 0, (2, 12, 12, 12)),
         (4, 3, 0, (4, 12, 12, 12)),
-        (4, 1, 3, (2, 18, 18, 18)),
+        (4, 1, 3, (2, 15, 15, 15)),
         ((2, 5, 2), 1, 0, (2, 11, 11, 11)),
-        ((2, 5, 4), 1, 3, (2, 19, 19, 19)),
+        ((2, 5, 4), 1, 3, (2, 16, 16, 16)),
     ])
     def test_function_dataobj(self, so, to, pad, expected):
         """Tests that the C-level structs from TensorFunctions are properly

@@ -189,7 +189,8 @@ class TestDataBasic(object):
             u1.shape_with_halo
 
         # Without halo but with padding
-        u2 = Function(name='u2', grid=grid, space_order=2, padding=(1, 3, 4))
+        u2 = Function(name='u2', grid=grid, space_order=2,
+                      padding=((1, 1), (3, 3), (4, 4)))
         assert len(u2.shape_allocated) == len(u1._extent_padding.left)
         assert tuple(i + j + k for i, (j, k) in zip(u2.shape_with_halo, u2._padding)) ==\
             u2.shape_allocated
@@ -206,7 +207,8 @@ class TestDataBasic(object):
         assert u2._offset_owned == ((3, 5), (5, 7), (6, 8))
 
         # With halo and with padding
-        u3 = Function(name='u3', grid=grid, space_order=(2, 1, 4), padding=(1, 2, 3))
+        u3 = Function(name='u3', grid=grid, space_order=(2, 1, 4),
+                      padding=((1, 1), (2, 2), (3, 3)))
         assert u3._extent_halo == ((1, 4), (1, 4), (1, 4))
         assert u3._extent_owned == ((4, 1), (4, 1), (4, 1))
         assert u3._extent_nodomain == ((2, 5), (3, 6), (4, 7))
