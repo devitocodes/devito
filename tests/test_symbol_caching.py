@@ -1,13 +1,14 @@
 import weakref
+
 import numpy as np
 import pytest
+
+from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
-                    Constant, Operator, Eq, Dimension, clear_cache, configuration)
+                    Constant, Operator, Eq, Dimension, clear_cache)
 from devito.types import _SymbolCache, Scalar
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])

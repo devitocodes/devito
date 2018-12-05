@@ -1,7 +1,7 @@
-from __future__ import absolute_import
-from conftest import EVAL, time, x, y, z
 import numpy as np
 import pytest
+
+from conftest import skipif, EVAL, time, x, y, z
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, configuration)
@@ -11,9 +11,7 @@ from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
 from devito.tools import flatten
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 def dimify(dimensions):

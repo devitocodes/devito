@@ -19,9 +19,26 @@ from devito.tools import EnrichedTuple, as_tuple, is_integer
 # Do not prematurely initialize MPI
 # This allows launching a Devito program from within another Python program
 # that has *already* initialized MPI
-import mpi4py
-mpi4py.rc(initialize=False, finalize=False)
-from mpi4py import MPI  # noqa
+try:
+    import mpi4py
+    mpi4py.rc(initialize=False, finalize=False)
+    from mpi4py import MPI  # noqa
+except ImportError:
+    # Dummy fallback in case mpi4py/MPI aren't available
+    class MPI(object):
+        COMM_NULL = None
+
+        @classmethod
+        def Is_initialized(cls):
+            return False
+
+        def _sizeof(comm):
+            return None
+
+        @property
+        def Comm(self):
+            return None
+
 
 __all__ = ['Distributor', 'SparseDistributor', 'MPI']
 

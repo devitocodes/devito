@@ -1,15 +1,14 @@
 import numpy as np
 import pytest
 from numpy import linalg
-from conftest import unit_box, points
-from devito import clear_cache, Operator, configuration
+
+from conftest import unit_box, points, skipif
+from devito import clear_cache, Operator
 from devito.logger import info
 from examples.seismic import demo_model, Receiver
 from examples.seismic.acoustic import acoustic_setup
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 presets = {
     'constant': {'preset': 'constant-isotropic'},
