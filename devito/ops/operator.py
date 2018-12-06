@@ -1,5 +1,5 @@
-from devito.operator import OperatorRunnable
 from devito.logger import warning
+from devito.operator import OperatorRunnable
 
 __all__ = ['Operator']
 

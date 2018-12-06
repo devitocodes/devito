@@ -1,13 +1,14 @@
 import pytest
 
+from conftest import skipif
+
 from devito import Eq, Grid, Operator, TimeFunction, configuration  # noqa
-from devito.ops.transformer import make_ops_ast
 from devito.ops.node_factory import OPSNodeFactory
+from devito.ops.transformer import make_ops_ast
 from devito.symbolics import indexify
 
 
-pytestmark = pytest.mark.skipif(configuration['backend'] != 'ops',
-                                reason="'ops' wasn't selected as backend on startup")
+pytestmark = skipif('noops')
 
 
 class TestOPSExpression(object):
@@ -32,12 +33,12 @@ class TestOPSExpression(object):
     ])
     def test_ast_convertion(self, equation, expected):
         """
-        Tests OPS generated expressions for 1, 2 and 3 space dimensions.
+        Test OPS generated expressions for 1, 2 and 3 space dimensions.
 
         Parameters
         ----------
         equation : str
-            An string with a :class:`Eq`to be evalueted.
+            A string with a :class:`Eq`to be evaluated.
         expected : str
             Expected expression to be generated from devito.
         """

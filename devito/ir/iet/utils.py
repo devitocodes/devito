@@ -2,7 +2,6 @@ from collections import OrderedDict
 
 from devito.ir.iet import (Iteration, List, IterationTree, FindSections, FindSymbols,
                            FindNodes, Section, Expression)
-
 from devito.symbolics import Macro
 from devito.tools import flatten, ReducerMap
 from devito.types import Array, LocalObject
@@ -166,7 +165,7 @@ def find_offloadable_trees(iet):
         for section in sections:
             for tree in retrieve_iteration_tree(section):
                 if not all(i.is_Affine for i in tree):
-                    # Non-affine array accesses unsupported
+                    # Non-affine array accesses not supported
                     break
                 exprs = [i.expr for i in FindNodes(Expression).visit(tree.root)]
                 grid = ReducerMap([('', i.grid) for i in exprs if i.grid]).unique('')

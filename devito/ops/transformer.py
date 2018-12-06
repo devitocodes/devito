@@ -1,7 +1,7 @@
 def make_ops_ast(expr, nfops):
     """
-    Transform an devito expression into an OPS expression.
-    Only the interested nodes are changed.
+    Transform a devito expression into an OPS expression.
+    Only the interested nodes are rebuilt.
 
     Parameters
     ----------

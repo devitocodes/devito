@@ -1,13 +1,12 @@
 from devito import Dimension, TimeFunction
+from devito.ops.utils import namespace
 from devito.symbolics import Macro
 from devito.types import Indexed, Array
-
-from devito.ops.utils import namespace
 
 
 class OPSNodeFactory():
     """
-    Generates OPS nodes for building an OPS expression.
+    Generate OPS nodes for building an OPS expression.
 
     Examples
     --------
@@ -21,7 +20,7 @@ class OPSNodeFactory():
 
     def new_grid(self, indexed):
         """
-        Creates an :class:`Indexed` node using OPS representation.
+        Create a :class:`Indexed` node using OPS representation.
         If the pair grid name and time dimension were alredy created, it will return
         the stored value associated with this pair.
 
