@@ -300,7 +300,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         on the rank position in the decomposed grid (corner, side, ...).
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_domain,
-                                                    self._extent_outhalo))
+                                                    self._size_outhalo))
 
     _shape_with_outhalo = shape_with_halo
 
@@ -352,25 +352,25 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         return tuple(retval)
 
     _offset_inhalo = AbstractCachedFunction._offset_halo
-    _extent_inhalo = AbstractCachedFunction._extent_halo
+    _size_inhalo = AbstractCachedFunction._size_halo
 
     @cached_property
-    def _extent_outhalo(self):
+    def _size_outhalo(self):
         """
         The number of points in the outer halo region.
         """
         if self._distributor is None:
-            return self._extent_inhalo
+            return self._size_inhalo
 
         left = [self._distributor.glb_to_loc(d, i, LEFT, strict=False)
-                for d, i in zip(self.dimensions, self._extent_inhalo.left)]
+                for d, i in zip(self.dimensions, self._size_inhalo.left)]
         right = [self._distributor.glb_to_loc(d, i, RIGHT, strict=False)
-                 for d, i in zip(self.dimensions, self._extent_inhalo.right)]
+                 for d, i in zip(self.dimensions, self._size_inhalo.right)]
 
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in zip(left, right))
+        Size = namedtuple('Size', 'left right')
+        sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
-        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @cached_property
     def _mask_modulo(self):
@@ -393,7 +393,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         A mask to access the domain+inhalo region of the allocated data.
         """
         return tuple(slice(i.left, i.right + j.right) for i, j in
-                     zip(self._offset_inhalo, self._extent_inhalo))
+                     zip(self._offset_inhalo, self._size_inhalo))
 
     @cached_property
     def _mask_outhalo(self):
@@ -401,7 +401,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         A mask to access the domain+outhalo region of the allocated data.
         """
         return tuple(slice(i.start - j.left, i.stop and i.stop + j.right or None)
-                     for i, j in zip(self._mask_domain, self._extent_outhalo))
+                     for i, j in zip(self._mask_domain, self._size_outhalo))
 
     @cached_property
     def _decomposition(self):
@@ -424,7 +424,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         if self._distributor is None:
             return (None,)*self.ndim
-        return tuple(v.reshape(*self._extent_inhalo[d]) if v is not None else v
+        return tuple(v.reshape(*self._size_inhalo[d]) if v is not None else v
                      for d, v in zip(self.dimensions, self._decomposition))
 
     @property
@@ -552,8 +552,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         self._is_halo_dirty = True
         offset = getattr(getattr(self, '_offset_%s' % region.name)[dim], side.name)
-        extent = getattr(getattr(self, '_extent_%s' % region.name)[dim], side.name)
-        index_array = [slice(offset, offset+extent) if d is dim else slice(None)
+        size = getattr(getattr(self, '_size_%s' % region.name)[dim], side.name)
+        index_array = [slice(offset, offset+size) if d is dim else slice(None)
                        for d in self.dimensions]
         return np.asarray(self._data[index_array])
 
@@ -689,8 +689,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         dataobj._obj.size = (c_int*self.ndim)(*data.shape)
         # MPI-related fields
         dataobj._obj.npsize = (c_int*self.ndim)(*[i - sum(j) for i, j in
-                                                  zip(data.shape, self._extent_padding)])
-        dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._extent_halo))
+                                                  zip(data.shape, self._size_padding)])
+        dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
         dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
         return dataobj
@@ -716,32 +716,32 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_name)
         if region is DOMAIN:
             offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
-            extent = dim.symbolic_size
+            size = dim.symbolic_size
         elif region is OWNED:
             if side is LEFT:
                 offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
-                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
+                size = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
             else:
                 offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, RIGHT))
-                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
+                size = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
         elif region is HALO:
             if side is LEFT:
                 offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
-                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
+                size = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
             else:
                 offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, RIGHT))
-                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
+                size = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
         elif region is NOPAD:
             offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
-            extent = ffp(self._C_field_nopad_size, self._C_make_index(dim))
+            size = ffp(self._C_field_nopad_size, self._C_make_index(dim))
         elif region is FULL:
             offset = 0
-            extent = ffp(self._C_field_size, self._C_make_index(dim))
+            size = ffp(self._C_field_size, self._C_make_index(dim))
         else:
             raise ValueError("Unknown region `%s`" % str(region))
 
-        RegionMeta = namedtuple('RegionMeta', 'offset extent')
-        return RegionMeta(offset, extent)
+        RegionMeta = namedtuple('RegionMeta', 'offset size')
+        return RegionMeta(offset, size)
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
@@ -829,7 +829,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                 values = {self.name: new}
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
-                    size = s + o - sum(self._extent_nodomain[i])
+                    size = s + o - sum(self._size_nodomain[i])
                     values.update(i._arg_defaults(size=size))
                 # Add MPI-related data structures
                 if self.grid is not None:
@@ -1035,7 +1035,7 @@ class Function(TensorFunction, Differentiable):
         along the spatial dimensions ``dims``.
 
         :param p: (Optional) the number of summands. Defaults to the
-                  halo extent.
+                  halo size.
         :param dims: (Optional) the :class:`Dimension`s along which the
                      sum is computed. Defaults to ``self``'s spatial
                      dimensions.
@@ -1043,8 +1043,8 @@ class Function(TensorFunction, Differentiable):
         points = []
         for d in (as_tuple(dims) or self.space_dimensions):
             if p is None:
-                lp = self._extent_inhalo[d].left
-                rp = self._extent_inhalo[d].right
+                lp = self._size_inhalo[d].left
+                rp = self._size_inhalo[d].right
             else:
                 lp = p // 2 + p % 2
                 rp = p // 2
@@ -1059,7 +1059,7 @@ class Function(TensorFunction, Differentiable):
         along the spatial dimensions ``dims``.
 
         :param p: (Optional) the number of summands. Defaults to the
-                  halo extent.
+                  halo size.
         :param dims: (Optional) the :class:`Dimension`s along which the
                      sum is computed. Defaults to ``self``'s spatial
                      dimensions.
@@ -1556,7 +1556,7 @@ class AbstractSparseFunction(TensorFunction):
                 for k, v in self._dist_scatter(new).items():
                     values[k.name] = v
                     for i, s, o in zip(k.indices, v.shape, k.staggered):
-                        size = s + o - sum(k._extent_nodomain[i])
+                        size = s + o - sum(k._size_nodomain[i])
                         values.update(i._arg_defaults(size=size))
                 # Add MPI-related data structures
                 values.update(self.grid._arg_defaults())

@@ -704,7 +704,7 @@ class ArrayCast(Node):
         if configuration['codegen'] == 'explicit' or self.function.is_Array:
             return self.function.symbolic_shape[1:]
         else:
-            return tuple(self.function._C_get_field(FULL, d).extent
+            return tuple(self.function._C_get_field(FULL, d).size
                          for d in self.function.dimensions[1:])
 
     @property
