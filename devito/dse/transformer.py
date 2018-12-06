@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from devito.ir.clusters import ClusterGroup, groupby
 from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRewriter,
                                  AggressiveRewriter)
