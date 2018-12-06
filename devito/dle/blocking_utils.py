@@ -260,10 +260,10 @@ class IterationFold(Iteration):
         args.pop('nodes')
         ofs = args.pop('offsets')
         try:
-            start, end, incr = args.pop('limits')
+            _min, _max, incr = args.pop('limits')
         except TypeError:
-            start, end, incr = self.limits
-        folds = tuple(Iteration(nodes, limits=(start, end, incr),
+            _min, _max, incr = self.limits
+        folds = tuple(Iteration(nodes, limits=(_min, _max, incr),
                                 offsets=tuple(i-j for i, j in zip(ofs, shift)), **args)
                       for shift, nodes in self.folds)
 

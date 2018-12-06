@@ -90,7 +90,7 @@ def autotune(operator, args, level, mode):
         return args, {}
 
     # Formula to calculate the number of parallel blocks given block shape,
-    # number of threads, and extent of the parallel iteration space
+    # number of threads, and size of the parallel iteration space
     calculate_parblocks = make_calculate_parblocks(trees, blockable, nthreads)
 
     # Generated loop-blocking attempts
@@ -186,7 +186,7 @@ def init_time_bounds(stepper, at_args):
             warning("too few time iterations; skipping")
             return False
 
-    return stepper.extent(start=at_args[dim.min_name], finish=at_args[dim.max_name])
+    return stepper.size(at_args[dim.min_name], at_args[dim.max_name])
 
 
 def check_time_bounds(stepper, at_args, args, mode):
@@ -234,7 +234,7 @@ def make_calculate_parblocks(trees, blockable, nthreads):
     for tree, nt in product(main_block_trees, nthreads):
         block_iters = [i for i in tree if i.dim in blockable]
         par_block_iters = block_iters[:block_iters[0].ncollapsed]
-        niterations = prod(i.extent() for i in par_block_iters)
+        niterations = prod(i.size() for i in par_block_iters)
         block_size = prod(i.dim.step for i in par_block_iters)
         blocks_per_threads.append((niterations / block_size) / nt)
     return blocks_per_threads

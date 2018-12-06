@@ -228,37 +228,37 @@ class CGen(Visitor):
 
         # Start
         if o.offsets[0] != 0:
-            start = str(o.limits[0] + o.offsets[0])
+            _min = str(o.limits[0] + o.offsets[0])
             try:
-                start = eval(start)
+                _min = eval(_min)
             except (NameError, TypeError):
                 pass
         else:
-            start = o.limits[0]
+            _min = o.limits[0]
 
         # Bound
         if o.offsets[1] != 0:
-            end = str(o.limits[1] + o.offsets[1])
+            _max = str(o.limits[1] + o.offsets[1])
             try:
-                end = eval(end)
+                _max = eval(_max)
             except (NameError, TypeError):
                 pass
         else:
-            end = o.limits[1]
+            _max = o.limits[1]
 
         # For backward direction flip loop bounds
         if o.direction == Backward:
-            loop_init = 'int %s = %s' % (o.index, ccode(end))
-            loop_cond = '%s >= %s' % (o.index, ccode(start))
+            loop_init = 'int %s = %s' % (o.index, ccode(_max))
+            loop_cond = '%s >= %s' % (o.index, ccode(_min))
             loop_inc = '%s -= %s' % (o.index, o.limits[2])
         else:
-            loop_init = 'int %s = %s' % (o.index, ccode(start))
-            loop_cond = '%s <= %s' % (o.index, ccode(end))
+            loop_init = 'int %s = %s' % (o.index, ccode(_min))
+            loop_cond = '%s <= %s' % (o.index, ccode(_max))
             loop_inc = '%s += %s' % (o.index, o.limits[2])
 
         # Append unbounded indices, if any
         if o.uindices:
-            uinit = ['%s = %s' % (i.name, ccode(i.symbolic_start)) for i in o.uindices]
+            uinit = ['%s = %s' % (i.name, ccode(i.symbolic_min)) for i in o.uindices]
             loop_init = c.Line(', '.join([loop_init] + uinit))
             ustep = ['%s = %s' % (i.name, ccode(i.symbolic_incr)) for i in o.uindices]
             loop_inc = c.Line(', '.join([loop_inc] + ustep))
