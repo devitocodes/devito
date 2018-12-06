@@ -19,6 +19,6 @@ def make_ops_ast(expr, nfops):
     if expr.is_Symbol or expr.is_Number:
         return expr
     elif expr.is_Indexed:
-        return nfops.new_grid(expr)
+        return nfops.new_ops_arg(expr)
     else:
         return expr.func(*[make_ops_ast(i, nfops) for i in expr.args])
