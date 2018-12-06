@@ -63,8 +63,8 @@ class BasicRewriter(AbstractRewriter):
             for i in target:
                 name, bounds = i.dim.name, i.symbolic_bounds
                 # Iteration bounds
-                start = Scalar(name='%s_start' % name, dtype=np.int32)
-                finish = Scalar(name='%s_finish' % name, dtype=np.int32)
+                start = Scalar(name='%sf_m' % name, dtype=np.int32)
+                finish = Scalar(name='%sf_M' % name, dtype=np.int32)
                 defined_args[start.name] = bounds[0]
                 defined_args[finish.name] = bounds[1]
 
