@@ -512,10 +512,10 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         padding regions. While halo and padding are known quantities (integers),
         the domain size is represented by a symbol.
         """
-        halo_sizes = [Add(*i) for i in self._extent_halo]
-        pad_sizes = [Add(*i) for i in self._extent_padding]
-        domain_sizes = [i.symbolic_size for i in self.indices]
-        ret = tuple(Add(i, j, k) for i, j, k in zip(domain_sizes, halo_sizes, pad_sizes))
+        halo = [Add(*i) for i in self._size_halo]
+        padding = [Add(*i) for i in self._size_padding]
+        domain = [i.symbolic_size for i in self.indices]
+        ret = tuple(Add(i, j, k) for i, j, k in zip(domain, halo, padding))
         return EnrichedTuple(*ret, getters=self.dimensions)
 
     @property
@@ -566,78 +566,78 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return dtype_to_cstr(self.dtype)
 
     @cached_property
-    def _extent_domain(self):
+    def _size_domain(self):
         """
         The number of points in the domain region.
         """
         return EnrichedTuple(*self.shape, getters=self.dimensions)
 
     @cached_property
-    def _extent_halo(self):
+    def _size_halo(self):
         """
         The number of points in the halo region.
         """
         left = tuple(zip(*self._halo))[0]
         right = tuple(zip(*self._halo))[1]
 
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in self._halo)
+        Size = namedtuple('Size', 'left right')
+        sizes = tuple(Size(i, j) for i, j in self._halo)
 
-        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @cached_property
-    def _extent_owned(self):
+    def _size_owned(self):
         """
         The number of points in the owned region.
         """
-        left = tuple(self._extent_halo.right)
-        right = tuple(self._extent_halo.left)
+        left = tuple(self._size_halo.right)
+        right = tuple(self._size_halo.left)
 
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i.right, i.left) for i in self._extent_halo)
+        Size = namedtuple('Size', 'left right')
+        sizes = tuple(Size(i.right, i.left) for i in self._size_halo)
 
-        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @cached_property
-    def _extent_padding(self):
+    def _size_padding(self):
         """
         The number of points in the padding region.
         """
         left = tuple(zip(*self._padding))[0]
         right = tuple(zip(*self._padding))[1]
 
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in self._padding)
+        Size = namedtuple('Size', 'left right')
+        sizes = tuple(Size(i, j) for i, j in self._padding)
 
-        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @cached_property
-    def _extent_nopad(self):
+    def _size_nopad(self):
         """
         The number of points in the domain+halo region.
         """
-        extents = tuple(i+sum(j) for i, j in zip(self._extent_domain, self._extent_halo))
-        return EnrichedTuple(*extents, getters=self.dimensions)
+        sizes = tuple(i+sum(j) for i, j in zip(self._size_domain, self._size_halo))
+        return EnrichedTuple(*sizes, getters=self.dimensions)
 
     @cached_property
-    def _extent_nodomain(self):
+    def _size_nodomain(self):
         """
         The number of points in the padding+halo region.
         """
         left = tuple(i for i, _ in np.add(self._halo, self._padding))
         right = tuple(i for _, i in np.add(self._halo, self._padding))
 
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in np.add(self._halo, self._padding))
+        Size = namedtuple('Size', 'left right')
+        sizes = tuple(Size(i, j) for i, j in np.add(self._halo, self._padding))
 
-        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+        return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @cached_property
     def _offset_domain(self):
         """
         The number of points before the first domain element.
         """
-        offsets = tuple(np.add(self._extent_padding.left, self._extent_halo.left))
+        offsets = tuple(np.add(self._size_padding.left, self._size_halo.left))
         return EnrichedTuple(*offsets, getters=self.dimensions)
 
     @cached_property
@@ -645,8 +645,8 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """
         The number of points before the first and last halo element.
         """
-        left = tuple(self._extent_padding.left)
-        right = tuple(np.add(np.add(left, self._extent_halo.left), self._extent_domain))
+        left = tuple(self._size_padding.left)
+        right = tuple(np.add(np.add(left, self._size_halo.left), self._size_domain))
 
         Offset = namedtuple('Offset', 'left right')
         offsets = tuple(Offset(i, j) for i, j in zip(left, right))
@@ -659,7 +659,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         The number of points before the first and last owned element.
         """
         left = tuple(self._offset_domain)
-        right = tuple(np.add(self._offset_halo.left, self._extent_domain))
+        right = tuple(np.add(self._offset_halo.left, self._size_domain))
 
         Offset = namedtuple('Offset', 'left right')
         offsets = tuple(Offset(i, j) for i, j in zip(left, right))

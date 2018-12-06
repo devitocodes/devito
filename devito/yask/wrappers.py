@@ -309,7 +309,7 @@ class YaskContext(Signer):
             elif alloc.put_local:
                 grid.set_numa_preferred(namespace['numa-put-local'])
 
-        for i, s, h in zip(obj.indices, obj.shape_allocated, obj._extent_halo):
+        for i, s, h in zip(obj.indices, obj.shape_allocated, obj._size_halo):
             if i.is_Space:
                 # Note:
                 # From the YASK docs: "If the halo is set to a value larger than
