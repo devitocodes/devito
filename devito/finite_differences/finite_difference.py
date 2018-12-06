@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from functools import partial
 
 from sympy import S, finite_diff_weights

@@ -1,7 +1,5 @@
 """Metaclasses used to construct classes of proper backend type at runtime."""
 
-from __future__ import absolute_import
-
 from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
