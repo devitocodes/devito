@@ -27,10 +27,11 @@ class AcousticWaveSolver(object):
 
     Note: space_order must always be greater than time_order
     """
-    def __init__(self, model, source, receiver, kernel='OT2', space_order=2, **kwargs):
+    def __init__(self, model, geometry, kernel='OT2', space_order=2, **kwargs):
         self.model = model
-        self.source = source
-        self.receiver = receiver
+        self.geometry = geometry
+
+        assert self.model == geometry.model
 
         self.space_order = space_order
         self.kernel = kernel
@@ -46,30 +47,30 @@ class AcousticWaveSolver(object):
     @memoized_meth
     def op_fwd(self, save=None):
         """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperator(self.model, save=save, source=self.source,
-                               receiver=self.receiver, kernel=self.kernel,
-                               space_order=self.space_order, **self._kwargs)
+        return ForwardOperator(self.model, save=save, geometry=self.geometry,
+                               kernel=self.kernel, space_order=self.space_order,
+                               **self._kwargs)
 
     @memoized_meth
     def op_adj(self):
         """Cached operator for adjoint runs"""
-        return AdjointOperator(self.model, save=None, source=self.source,
-                               receiver=self.receiver, kernel=self.kernel,
-                               space_order=self.space_order, **self._kwargs)
+        return AdjointOperator(self.model, save=None, geometry=self.geometry,
+                               kernel=self.kernel, space_order=self.space_order,
+                               **self._kwargs)
 
     @memoized_meth
     def op_grad(self, save=True):
         """Cached operator for gradient runs"""
-        return GradientOperator(self.model, save=save, source=self.source,
-                                receiver=self.receiver, kernel=self.kernel,
-                                space_order=self.space_order, **self._kwargs)
+        return GradientOperator(self.model, save=save, geometry=self.geometry,
+                                kernel=self.kernel, space_order=self.space_order,
+                                **self._kwargs)
 
     @memoized_meth
     def op_born(self):
         """Cached operator for born runs"""
-        return BornOperator(self.model, save=None, source=self.source,
-                            receiver=self.receiver, kernel=self.kernel,
-                            space_order=self.space_order, **self._kwargs)
+        return BornOperator(self.model, save=None, geometry=self.geometry,
+                            kernel=self.kernel, space_order=self.space_order,
+                            **self._kwargs)
 
     def forward(self, src=None, rec=None, u=None, m=None, save=None, **kwargs):
         """
@@ -85,15 +86,15 @@ class AcousticWaveSolver(object):
         :returns: Receiver, wavefield and performance summary
         """
         # Source term is read-only, so re-use the default
-        src = src or self.source
+        src = src or self.geometry.src
         # Create a new receiver object to store the result
         rec = rec or Receiver(name='rec', grid=self.model.grid,
-                              time_range=self.receiver.time_range,
-                              coordinates=self.receiver.coordinates.data)
+                              time_range=self.geometry.time_axis,
+                              coordinates=self.geometry.rec_positions)
 
         # Create the forward wavefield if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,
-                              save=self.source.nt if save else None,
+                              save=self.geometry.nt if save else None,
                               time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
@@ -120,8 +121,8 @@ class AcousticWaveSolver(object):
         """
         # Create a new adjoint source and receiver symbol
         srca = srca or PointSource(name='srca', grid=self.model.grid,
-                                   time_range=self.source.time_range,
-                                   coordinates=self.source.coordinates.data)
+                                   time_range=self.geometry.time_axis,
+                                   coordinates=self.geometry.src_positions)
 
         # Create the adjoint wavefield if not provided
         v = v or TimeFunction(name='v', grid=self.model.grid,
@@ -164,7 +165,7 @@ class AcousticWaveSolver(object):
                              time_order=2, space_order=self.space_order)
             cp = DevitoCheckpoint([u])
             n_checkpoints = None
-            wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.source,
+            wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.geometry.src,
                                          u=u, m=m, dt=dt)
             wrap_rev = CheckpointOperator(self.op_grad(save=False), u=u, v=v,
                                           m=m, rec=rec, dt=dt, grad=grad)
@@ -190,11 +191,11 @@ class AcousticWaveSolver(object):
         :param m: (Optional) Symbol for the time-constant square slowness
         """
         # Source term is read-only, so re-use the default
-        src = src or self.source
+        src = src or self.geometry.src
         # Create a new receiver object to store the result
         rec = rec or Receiver(name='rec', grid=self.model.grid,
-                              time_range=self.receiver.time_range,
-                              coordinates=self.receiver.coordinates.data)
+                              time_range=self.geometry.time_axis,
+                              coordinates=self.geometry.rec_positions)
 
         # Create the forward wavefields u and U if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,

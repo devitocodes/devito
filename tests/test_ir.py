@@ -371,7 +371,7 @@ class TestDependenceAnalysis(object):
             return
         else:
             assert len(dep.cause) == 1
-            cause = dep.cause.pop()
+            cause = set(dep.cause).pop()
             assert cause.name == exp_cause
 
         # Check mode restricted to the cause
@@ -444,7 +444,7 @@ class TestDependenceAnalysis(object):
 
         for i in ['flow', 'anti', 'output']:
             for dep in getattr(scope, 'd_%s' % i):
-                item = (dep.function.name, i, str(dep.cause))
+                item = (dep.function.name, i, str(set(dep.cause)))
                 assert item in expected
                 expected.remove(item)
 

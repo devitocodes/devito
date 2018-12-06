@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict, namedtuple
 from ctypes import Structure, c_double
-from functools import wraps, reduce
+from functools import reduce
 from operator import mul
 from pathlib import Path
 import os
@@ -19,7 +19,7 @@ from devito.symbolics import estimate_cost
 from devito.tools import flatten
 from devito.types import CompositeObject
 
-__all__ = ['Timer', 'create_profile', 'ruido']
+__all__ = ['Timer', 'create_profile']
 
 
 class Profiler(object):
@@ -107,10 +107,6 @@ class Profiler(object):
 
 
 class AdvancedProfiler(Profiler):
-
-    def __init__(self, name):
-
-        super(AdvancedProfiler, self).__init__(name)
 
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, arguments, dtype):
@@ -288,23 +284,3 @@ def locate_intel_advisor():
     except KeyError:
         warning("Requested `advisor` profiler, but ADVISOR_HOME isn't set")
         return None
-
-
-class ruido(object):
-
-    """
-    Decorator to temporarily change (increase) profiling levels.
-    """
-
-    def __init__(self, profiling='advanced'):
-        self.profiling = profiling
-
-    def __call__(self, func, *args, **kwargs):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            previous = configuration['profiling']
-            configuration['profiling'] = self.profiling
-            result = func(*args, **kwargs)
-            configuration['profiling'] = previous
-            return result
-        return wrapper

@@ -2,8 +2,8 @@ import abc
 from collections import OrderedDict
 from functools import reduce
 from operator import mul
-from cached_property import cached_property
 
+from cached_property import cached_property
 from frozendict import frozendict
 
 from devito.tools import PartialOrderTuple, as_tuple, filter_ordered, toposort, is_integer
@@ -30,7 +30,7 @@ class AbstractInterval(object):
     @classmethod
     def _apply_op(cls, intervals, key):
         """
-        Return a new :class:`Interval` resulting from the iterative application
+        Create a new :class:`Interval` resulting from the iterative application
         of the method ``key`` over the :class:`Interval`s in ``intervals``, i.e.:
         ``intervals[0].key(intervals[1]).key(intervals[2])...``.
         """
@@ -42,6 +42,10 @@ class AbstractInterval(object):
 
     @abc.abstractmethod
     def _rebuild(self):
+        return
+
+    @abc.abstractproperty
+    def relaxed(self):
         return
 
     def intersection(self, o):
@@ -88,6 +92,10 @@ class NullInterval(AbstractInterval):
     def _rebuild(self):
         return NullInterval(self.dim)
 
+    @property
+    def relaxed(self):
+        return NullInterval(self.dim.root)
+
     def union(self, o):
         if self.dim == o.dim:
             return o._rebuild()
@@ -129,6 +137,10 @@ class Interval(AbstractInterval):
 
     def _rebuild(self):
         return Interval(self.dim, self.lower, self.upper)
+
+    @property
+    def relaxed(self):
+        return Interval(self.dim.root, self.lower, self.upper)
 
     @property
     def limits(self):
@@ -195,8 +207,8 @@ class Interval(AbstractInterval):
 class IntervalGroup(PartialOrderTuple):
 
     """
-    A partially-ordered sequence of :class:`Interval`s with set-like
-    operations exposed.
+    A partially-ordered sequence of :class:`Interval`s equipped with set-like
+    operations.
     """
 
     @classmethod
@@ -229,7 +241,7 @@ class IntervalGroup(PartialOrderTuple):
     @cached_property
     def is_well_defined(self):
         """
-        Return True if all :class:`Interval`s are over different :class:`Dimension`s,
+        True if all :class:`Interval`s are over different :class:`Dimension`s,
         False otherwise.
         """
         return len(self.dimensions) == len(set(self.dimensions))
@@ -237,23 +249,26 @@ class IntervalGroup(PartialOrderTuple):
     @classmethod
     def generate(self, op, *interval_groups):
         """
-        generate(op, *interval_groups)
+        Create a new :class:`IntervalGroup` from the iterative application of an
+        operation to some :class:`IntervalGroup`s.
 
-        Create a new :class:`IntervalGroup` from the iterative application of the
-        operation ``op`` to the :class:`IntervalGroup`s in ``interval_groups``.
+        Parameters
+        ----------
+        op : str
+            Any legal :class:`Interval` operation, such as 'intersection' or
+            or 'union'.
+        *interval_groups
+            Input :class:`IntervalGroup`s.
 
-        :param op: Any legal :class:`Interval` operation, such as ``intersection``
-                   or ``union``. This should be provided as a string.
-        :param interval_groups: An iterable of :class:`IntervalGroup`s.
+        Examples
+        --------
+        >>> x, y, z = dimensions('x y z')
+        >>> ig0 = IntervalGroup([Interval(x, 1, -1)])
+        >>> ig1 = IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3)])
+        >>> ig2 = IntervalGroup([Interval(y, 2, -2), Interval(z, 1, -1)])
 
-        Example
-        -------
-        ig0 = IntervalGroup([Interval(x, 1, -1)])
-        ig1 = IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3)])
-        ig2 = IntervalGroup([Interval(y, 2, -2), Interval(z, 1, -1)])
-
-        ret = IntervalGroup.generate('intersection', ig0, ig1, ig2)
-        ret -> IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3), Interval(z, 1, -1)])
+        >>> IntervalGroup.generate('intersection', ig0, ig1, ig2)
+        IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3), Interval(z, 1, -1)])
         """
         mapper = {}
         for ig in interval_groups:
@@ -262,6 +277,10 @@ class IntervalGroup(PartialOrderTuple):
         intervals = [Interval._apply_op(v, op) for v in mapper.values()]
         relations = set().union(*[ig.relations for ig in interval_groups])
         return IntervalGroup(intervals, relations=relations)
+
+    @cached_property
+    def relaxed(self):
+        return IntervalGroup.generate('union', IntervalGroup(i.relaxed for i in self))
 
     def intersection(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
@@ -362,10 +381,12 @@ class IterationInterval(object):
 class Space(object):
 
     """
-    A representation of a compact N-dimensional space as a sequence of
-    :class:`Interval`s along N :class:`Dimension`s.
+    A compact N-dimensional space, represented as a sequence of N :class:`Interval`s.
 
-    :param intervals: A sequence of :class:`Interval`s describing the space.
+    Parameters
+    ----------
+    intervals : tuple of :class:`Interval`s
+        Space description.
     """
 
     def __init__(self, intervals):
@@ -394,7 +415,7 @@ class Space(object):
 
     @property
     def empty(self):
-        """Return True if this space has no intervals (no matter whether they
+        """True if this space has no intervals (no matter whether they
         are defined or null intervals), False otherwise."""
         return self.size == 0
 
@@ -414,11 +435,15 @@ class Space(object):
 class DataSpace(Space):
 
     """
-    A representation of a data space.
+    A compact N-dimensional data space.
 
-    :param intervals: A sequence of :class:`Interval`s describing the data space.
-    :param parts: A mapper from :class:`Function`s to iterables of :class:`Interval`
-                  describing the individual components of the data space.
+    Parameters
+    ----------
+    intervals : tuple of :class:`Interval`s
+        Data space description.
+    parts : dict
+        A mapper from :class:`Function`s to :class:`IntervalGroup`,
+        describing the individual components of the data space.
     """
 
     def __init__(self, intervals, parts):
@@ -448,6 +473,13 @@ class DataSpace(Space):
     def parts(self):
         return self._parts
 
+    @cached_property
+    def relaxed(self):
+        """A view of the DataSpace assuming that any SubDimensions entirely span
+        their root Dimension."""
+        return DataSpace(self.intervals.relaxed,
+                         {k: v.relaxed for k, v in self.parts.items()})
+
     def __getitem__(self, key):
         ret = self.intervals[key]
         if ret.is_Null:
@@ -466,18 +498,18 @@ class DataSpace(Space):
 class IterationSpace(Space):
 
     """
-    A representation of an iteration space and its traversal through
-    :class:`Interval`s and :class:`IterationDirection`s. For each interval,
-    an arbitrary number of (sub-)iterators may be specified (see below).
+    A compact N-dimensional iteration space.
 
-    :param intervals: An ordered sequence of :class:`Interval`s defining the
-                      iteration space.
-    :param sub_iterators: (Optional) a mapper from :class:`Dimension`s in
-                          ``intervals`` to iterables of :class:`DerivedDimension`,
-                          which represent sub-dimensions along which the iteration
-                          space is traversed.
-    :param directions: (Optional) a mapper from :class:`Dimension`s in
-                       ``intervals`` to :class:`IterationDirection`s.
+    Parameters
+    ----------
+    intervals : :class:`IntervalGroup`
+        Iteration space description.
+    sub_iterators : dict, optional
+        A mapper from :class:`Dimension`s in ``intervals`` to iterables of
+        :class:`DerivedDimension`s defining sub-regions of iteration.
+    directions : dict, optional
+        A mapper from :class:`Dimension`s in ``intervals`` to
+        :class:`IterationDirection`s.
     """
 
     def __init__(self, intervals, sub_iterators=None, directions=None):
@@ -523,9 +555,9 @@ class IterationSpace(Space):
         return IterationSpace(intervals, sub_iterators, directions)
 
     def project(self, cond):
-        """Return a new ``IterationSpace`` in which only some :class:`Dimension`s
+        """Create a new ``IterationSpace`` in which only some :class:`Dimension`s
         in ``self`` are retained. In particular, a dimension ``d`` in ``self`` is
-        retained if: ::
+        retained if:
 
             * either ``cond(d)`` is true (``cond`` is a callable),
             * or ``d in cond`` is true (``cond`` is an iterable)

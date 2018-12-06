@@ -15,8 +15,7 @@ from devito.equation import *  # noqa
 from devito.grid import *  # noqa
 from devito.finite_differences import *  # noqa
 from devito.function import Buffer, NODE, CELL  # noqa
-from devito.logger import error, warning, info, set_log_level, silencio  # noqa
-from devito.profiling import ruido  # noqa
+from devito.logger import error, warning, info, set_log_level  # noqa
 from devito.parameters import *  # noqa
 from devito.tools import *  # noqa
 
@@ -51,7 +50,7 @@ configuration.add('mpi', 0, [0, 1], callback=_reinit_compiler)
 
 # Autotuning setup
 AT_LEVELs = ['off', 'basic', 'aggressive']
-AT_MODEs = ['preemptive', 'runtime']
+AT_MODEs = ['preemptive', 'destructive', 'runtime']
 at_default_mode = {'core': 'preemptive', 'yask': 'runtime', 'ops': 'runtime'}
 at_setup = namedtuple('at_setup', 'level mode')
 at_accepted = AT_LEVELs + [list(i) for i in product(AT_LEVELs, AT_MODEs)]
@@ -76,6 +75,9 @@ configuration.add('isa', 'cpp', ISAs)
 # Set the CPU architecture (only codename)
 PLATFORMs = ['intel64', 'snb', 'ivb', 'hsw', 'bdw', 'skx', 'knl']
 configuration.add('platform', 'intel64', PLATFORMs)
+
+# (Undocumented) escape hatch for cross-compilation
+configuration.add('cross-compile', None)
 
 
 def infer_cpu():

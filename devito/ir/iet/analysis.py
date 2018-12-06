@@ -1,10 +1,3 @@
-"""
-A collection of algorithms to analyze and decorate :class:`Iteration` in an
-Iteration/Expression tree. Decoration comes in the form of :class:`IterationProperty`
-objects, attached to Iterations in the Iteration/Expression tree. The algorithms
-perform actual data dependence analysis.
-"""
-
 from collections import OrderedDict
 from functools import cmp_to_key
 
@@ -42,9 +35,9 @@ def propertizer(func):
 
 def iet_analyze(iet):
     """
-    Attach :class:`IterationProperty` to :class:`Iteration` objects within
-    ``nodes``. The recognized IterationProperty decorators are listed in
-    ``nodes.IterationProperty._KNOWN``.
+    Analyze an Iteration/Expression tree and decorate it with metadata describing
+    relevant computational properties (e.g., if an Iteration is parallelizable or not).
+    This function performs actual data dependence analysis.
     """
     analysis = mark_parallel(iet)
     analysis = mark_vectorizable(analysis)

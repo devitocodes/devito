@@ -1,4 +1,4 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, namedtuple, defaultdict
 from itertools import product
 from operator import attrgetter
 
@@ -24,6 +24,7 @@ class HaloLabel(Tag):
 
 NONE = HaloLabel('none')
 UNSUPPORTED = HaloLabel('unsupported')
+POINTLESS = HaloLabel('pointless')
 IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
 FULL = HaloLabel('full')
@@ -34,10 +35,17 @@ HaloSchemeEntry = namedtuple('HaloSchemeEntry', 'loc_indices halos')
 Halo = namedtuple('Halo', 'dim side amount')
 
 
+class HaloMask(OrderedDict):
+
+    @cached_property
+    def need_halo_exchange(self):
+        return {d for (d, _), v in self.items() if v}
+
+
 class HaloScheme(object):
 
     """
-    A HaloScheme describes a halo exchange pattern through a mapper: ::
+    A HaloScheme describes a set of halo exchanges through a mapper: ::
 
         M : Function -> HaloSchemeEntry
 
@@ -59,16 +67,19 @@ class HaloScheme(object):
     how to access the corresponding non-halo dimension. Thus, in this example
     ``loc_indices`` could be, for instance, ``{t: 0}`` or ``{t: t-1}``.
 
-    :param exprs: The :class:`IREq`s for which the HaloScheme is built.
-    :param ispace: A :class:`IterationSpace` describing the iteration
-                   directions and the sub-iterators used by the ``exprs``.
-    :param dspace: A :class:`DataSpace` describing the ``exprs`` data
-                   access pattern.
-    :param fmapper: (Optional) Alternatively, a HaloScheme can be built from a
-                   set of known HaloSchemeEntry. If ``fmapper`` is provided,
-                   then ``exprs``, ``ispace``, and ``dspace`` are ignored.
-                   ``fmapper`` is a dictionary having same format as ``M``, the
-                   HaloScheme mapper defined at the top of this docstring.
+    Parameters
+    ----------
+    exprs : tuple of :class:`IREq`
+        The expressions for which the HaloScheme is built
+    ispace : :class:`IterationSpace`
+        Description of iteration directions and sub-iterators used in ``exprs``.
+    dspace : :class:`DataSpace`
+        Description of the data access pattern in ``exprs``.
+    fmapper : dict, optional
+        The format is the same as ``M``. When provided, ``exprs``, ``ispace`` and
+        ``dspace`` are ignored. It should be used to aggregate several existing
+        HaloSchemes into a single, "bigger" HaloScheme, without performing any
+        additional analysis.
     """
 
     def __init__(self, exprs=None, ispace=None, dspace=None, fmapper=None):
@@ -108,6 +119,10 @@ class HaloScheme(object):
         return self._mapper.__hash__()
 
     @cached_property
+    def components(self):
+        return tuple(HaloScheme(fmapper={k: v}) for k, v in self.fmapper.items())
+
+    @cached_property
     def fmapper(self):
         return OrderedDict([(i, self._mapper[i]) for i in
                             sorted(self._mapper, key=attrgetter('name'))])
@@ -120,15 +135,15 @@ class HaloScheme(object):
             for i in product(f.dimensions, [LEFT, RIGHT]):
                 if i[0] in v.loc_indices:
                     continue
-                mapper.setdefault(f, OrderedDict())[i] = i in needed
+                mapper.setdefault(f, HaloMask())[i] = i in needed
         return mapper
 
 
 def hs_classify(scope):
     """
-    Return a mapper ``Function -> (Dimension -> [HaloLabel]`` describing what
-    type of halo exchange is expected by the various :class:`TensorFunction`s
-    in a :class:`Scope`.
+    A mapper ``Function -> (Dimension -> [HaloLabel]`` describing what type of
+    halo exchange is expected by the various :class:`TensorFunction`s in a
+    :class:`Scope`.
     """
     mapper = {}
     for f, r in scope.reads.items():
@@ -137,24 +152,35 @@ def hs_classify(scope):
         elif f.grid is None:
             # TODO: improve me
             continue
-        v = mapper.setdefault(f, {})
+        v = mapper.setdefault(f, defaultdict(list))
         for i in r:
             for d in i.findices:
+                # Note: if `i` makes use of SubDimensions, we might end up adding useless
+                # (yet harmless) halo exchanges.  This depends on the extent of a
+                # SubDimension; e.g., in rare circumstances, a SubDimension might span a
+                # region that falls completely within a single MPI rank, thus requiring
+                # no communication whatsoever. However, the SubDimension extent is only
+                # known at runtime (op.apply time), so unless one starts messing up with
+                # the generated code (by adding explicit `if-then-else`s to dynamically
+                # prevent a halo exchange), there is no escape from conservatively
+                # assuming that some halo exchanges will be required
                 if i.affine(d):
                     if f.grid.is_distributed(d):
-                        if i.touch_halo(d):
-                            v.setdefault(d, []).append(STENCIL)
+                        if d in scope.d_from_access(i).cause:
+                            v[d].append(POINTLESS)
+                        elif i.touch_halo(d):
+                            v[d].append(STENCIL)
                         else:
-                            v.setdefault(d, []).append(IDENTITY)
+                            v[d].append(IDENTITY)
                     else:
-                        v.setdefault(d, []).append(NONE)
+                        v[d].append(NONE)
                 elif i.is_increment:
                     # A read used for a distributed local-reduction. Users are expected
                     # to deal with this data access pattern by themselves, for example
                     # by resorting to common techniques such as redundant computation
-                    v.setdefault(d, []).append(UNSUPPORTED)
+                    v[d].append(UNSUPPORTED)
                 elif i.irregular(d) and f.grid.is_distributed(d):
-                    v.setdefault(d, []).append(FULL)
+                    v[d].append(FULL)
 
     # Sanity check and reductions
     for f, v in mapper.items():
@@ -162,6 +188,10 @@ def hs_classify(scope):
             unique_hl = set(hl)
             if unique_hl == {STENCIL, IDENTITY}:
                 v[d] = STENCIL
+            elif POINTLESS in unique_hl:
+                v[d] = POINTLESS
+            elif UNSUPPORTED in unique_hl:
+                v[d] = UNSUPPORTED
             elif len(unique_hl) == 1:
                 v[d] = unique_hl.pop()
             else:
@@ -184,9 +214,9 @@ def hs_classify(scope):
 
 def hs_comp_halos(f, dims, dspace=None):
     """
-    Return an iterable of 3-tuples ``[(Dimension, DataSide, amount), ...]``
-    describing the amount of halo that should be exchange along the two sides of
-    a set of :class:`Dimension`s.
+    An iterable of 3-tuples ``[(Dimension, DataSide, amount), ...]`` describing
+    the amount of halo that should be exchange along the two sides of a set of
+    :class:`Dimension`s.
     """
     halos = []
     for d in dims:
@@ -198,7 +228,7 @@ def hs_comp_halos(f, dims, dspace=None):
         else:
             # We can limit the amount of halo exchanged based on the stencil
             # radius, which is dictated by `dspace`
-            v = dspace[f][d.root]
+            v = dspace[f].relaxed[d]
             lower, upper = v.limits if not v.is_Null else (0, 0)
             lsize = f._offset_domain[d].left - lower
             rsize = upper - f._offset_domain[d].right

@@ -37,15 +37,12 @@ class TestCodeGen(object):
         clear_cache()
 
     def test_parameters(self):
-        """
-        Tests that we can actually generate code for a trivial operator
-        using constant and array data objects.
-        """
+        """Tests code generation for Operator parameters."""
         grid = Grid(shape=(3,))
         a_dense = Function(name='a_dense', grid=grid)
         const = Constant(name='constant')
         eqn = Eq(a_dense, a_dense + 2.*const)
-        op = Operator(eqn)
+        op = Operator(eqn, dle=('advanced', {'openmp': False}))
         assert len(op.parameters) == 5
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_Tensor
