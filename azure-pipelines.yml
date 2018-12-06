@@ -1,0 +1,70 @@
+jobs:
+
+- job: build_and_test
+  displayName:  'Test using '
+  pool:
+    vmImage: 'Ubuntu 16.04'
+  strategy:
+    matrix:
+      pip-gcc4:
+        gccVersion: '4.9'
+        DEVITO_OPENMP: '0'
+        DEVITO_MPI: '1'
+        installWithPip: 'true'
+        DEVITO_BACKEND: 'core'
+        RUN_EXAMPLES: 'false'
+      openmp-conda-gcc4:
+        gccVersion: '4.9'
+        DEVITO_OPENMP: '1'
+        DEVITO_MPI: '0'
+        installWithPip: 'false'
+        DEVITO_BACKEND: 'core'
+        RUN_EXAMPLES: 'true'
+      nompi-conda-gcc5:
+        gccVersion: '5'
+        DEVITO_OPENMP: '0'
+        DEVITO_MPI: '0'
+        installWithPip: 'false'
+        DEVITO_BACKEND: 'core'
+        RUN_EXAMPLES: 'false'
+      ops-conda-gcc7:
+        gccVersion: '7'
+        DEVITO_OPENMP: '0'
+        DEVITO_MPI: '1'
+        installWithPip: 'false'
+        DEVITO_BACKEND: 'ops'
+        RUN_EXAMPLES: 'false'
+      yask-conda-gcc7:
+        gccVersion: '7'
+        DEVITO_OPENMP: '0'
+        DEVITO_MPI: '1'
+        installWithPip: 'false'
+        DEVITO_BACKEND: 'yask'
+        RUN_EXAMPLES: 'false'
+      conda-gcc8:
+        gccVersion: '8'
+        DEVITO_OPENMP: '0'
+        DEVITO_MPI: '1'
+        installWithPip: 'false'
+        DEVITO_BACKEND: 'core'
+        RUN_EXAMPLES: 'true'
+
+  timeoutInMinutes: 120
+  steps:
+  - task: Docker@1
+    displayName: "Build container"
+    inputs:
+      command: 'build'
+      dockerFile: Dockerfile.pipelines
+      arguments:
+        --build-arg gccVersion=$(gccVersion)
+        --build-arg installWithPip=$(installWithPip)
+        --build-arg DEVITO_BACKEND=$(DEVITO_BACKEND)
+        --build-arg DEVITO_OPENMP=$(DEVITO_OPENMP)
+        --build-arg DEVITO_MPI=$(DEVITO_MPI)
+        --build-arg RUN_EXAMPLES=$(RUN_EXAMPLES)
+  - task: Docker@1
+    displayName: "Run tests"
+    inputs:
+      command: 'run'
+      runInBackground: false
