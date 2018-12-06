@@ -1,15 +1,15 @@
 import numpy as np
 import pytest
 from numpy import linalg
+
+from conftest import skipif
 from devito import TimeFunction, configuration
 from devito.logger import log
 from examples.seismic import Model, demo_model, AcquisitionGeometry
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.mark.parametrize('shape', [(120, 140), (120, 140, 150)])

@@ -1,21 +1,18 @@
 import numpy as np
 import pytest
-from conftest import skipif_backend  # noqa
+
+from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator, norm, inner, configuration)
+                    SubDimension, Eq, Inc, Operator, norm, inner)
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
 from devito.types import LEFT, RIGHT
-
 from examples.seismic.acoustic import acoustic_setup
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops', 'nompi'])
 
 
-@skipif_backend(['yask', 'ops'])
 class TestDistributor(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
@@ -48,7 +45,6 @@ class TestDistributor(object):
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
-    @skipif_backend(['yask', 'ops'])
     @pytest.mark.parallel(nprocs=[2, 4])
     def test_ctypes_neighbours(self):
         grid = Grid(shape=(4, 4))
@@ -66,7 +62,6 @@ class TestDistributor(object):
         assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
 
 
-@skipif_backend(['yask', 'ops'])
 class TestFunction(object):
 
     @pytest.mark.parallel(nprocs=9)
@@ -266,7 +261,6 @@ class TestFunction(object):
             assert np.all(f._data_ro_with_inhalo[0, 1:-1] == 2.)
             assert f._data_ro_with_inhalo[0, 0] == 1.
 
-    @skipif_backend(['yask', 'ops'])
     @pytest.mark.parallel(nprocs=4)
     @pytest.mark.parametrize('shape,expected', [
         ((15, 15), [((0, 8), (0, 8)), ((0, 8), (8, 15)),
@@ -389,7 +383,6 @@ class TestSparseFunction(object):
         assert all(grid.distributor.glb_to_rank(i) == grid.distributor.myrank
                    for i in sf.gridpoints)
 
-    @skipif_backend(['yask', 'ops'])
     @pytest.mark.parallel(nprocs=4)
     @pytest.mark.parametrize('coords,expected', [
         ([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]]),
@@ -1135,7 +1128,6 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[1] == 3)
 
 
-@skipif_backend(['yask'])
 class TestIsotropicAcoustic(object):
 
     """
@@ -1181,6 +1173,7 @@ class TestIsotropicAcoustic(object):
 
 
 if __name__ == "__main__":
+    from devito import configuration
     configuration['mpi'] = True
     # TestDecomposition().test_reshape_left_right()
     # TestOperatorSimple().test_trivial_eq_2d()

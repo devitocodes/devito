@@ -1,16 +1,16 @@
+from functools import reduce
+
+import pytest
+from pyrevolve import Revolver
+import numpy as np
+
+from conftest import skipif
+from devito import Grid, TimeFunction, Operator, Function, Eq, switchconfig
 from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
 from examples.seismic import Receiver
-from pyrevolve import Revolver
-import numpy as np
-import pytest
-from functools import reduce
 
-from devito import Grid, TimeFunction, Operator, Function, Eq, configuration, switchconfig
-
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 @switchconfig(log_level='WARNING')
