@@ -326,7 +326,9 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
 
 class Symbol(AbstractCachedSymbol):
 
-    """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
+    """
+    A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`.
+    """
 
     is_Symbol = True
 
@@ -336,10 +338,16 @@ class Symbol(AbstractCachedSymbol):
 
 
 class Scalar(Symbol):
-    """Symbolic object representing a scalar.
+    """
+    Symbol representing a scalar.
 
-    :param name: Name of the symbol.
-    :param dtype: (Optional) data type of the object. Defaults to float32.
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    dtype : data-type, optional
+        Any object that can be interpreted as a numpy data type. Defaults
+        to ``np.float32``.
     """
 
     is_Scalar = True
@@ -350,8 +358,9 @@ class Scalar(Symbol):
 
     @property
     def _mem_stack(self):
-        """Return True if the associated data should be allocated on the stack
-        in a C module, False otherwise."""
+        """
+        True if the associated data should be allocated on the stack, False otherwise.
+        """
         return True
 
     def update(self, dtype=None, **kwargs):
@@ -477,12 +486,12 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @property
     def name(self):
-        """Return the name of the object."""
+        """The name of the object."""
         return self._name
 
     @property
     def indices(self):
-        """Return the indices (aka dimensions) of the object."""
+        """The indices (aka dimensions) of the object."""
         return self._indices
 
     @property
@@ -492,17 +501,17 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @property
     def shape(self):
-        """Return the shape of the object."""
+        """The shape of the object."""
         return self._shape
 
     @property
     def dtype(self):
-        """Return the data type of the object."""
+        """The data type of the object."""
         return self._dtype
 
     @property
     def ndim(self):
-        """Return the rank of the function."""
+        """The rank of the object."""
         return len(self.indices)
 
     @property
@@ -510,7 +519,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         """
         The symbolic shape of the object. This includes the domain, halo, and
         padding regions. While halo and padding are known quantities (integers),
-        the domain size is represented by a symbol.
+        the domain size is given as a symbol.
         """
         halo = [Add(*i) for i in self._size_halo]
         padding = [Add(*i) for i in self._size_padding]
@@ -525,27 +534,33 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @property
     def _mem_external(self):
-        """Return True if the associated data was/is/will be allocated directly
-        from Python (e.g., via NumPy arrays), False otherwise."""
+        """
+        True if the associated data was/is/will be allocated directly
+        from Python (e.g., via NumPy arrays), False otherwise.
+        """
         return False
 
     @property
     def _mem_stack(self):
-        """Return True if the associated data was/is/will be allocated on the stack
-        in a C module, False otherwise."""
+        """
+        True if the associated data should be allocated on the stack, False otherwise.
+        """
         return False
 
     @property
     def _mem_heap(self):
-        """Return True if the associated data was/is/will be allocated on the heap
-        in a C module, False otherwise."""
+        """
+        True if the associated data was/is/will be allocated on the heap,
+        False otherwise.
+        """
         return False
 
     @property
     def size(self):
-        """Return the number of elements this function is expected to store in memory.
-           Note that this would need to be combined with self.dtype to give the actual
-           size in bytes
+        """
+        The number of elements this object is expected to store in memory.
+        Note that this would need to be combined with self.dtype to give the actual
+        size in bytes.
         """
         return reduce(mul, self.shape)
 
@@ -567,16 +582,12 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @cached_property
     def _size_domain(self):
-        """
-        The number of points in the domain region.
-        """
+        """Number of points in the domain region."""
         return EnrichedTuple(*self.shape, getters=self.dimensions)
 
     @cached_property
     def _size_halo(self):
-        """
-        The number of points in the halo region.
-        """
+        """Number of points in the halo region."""
         left = tuple(zip(*self._halo))[0]
         right = tuple(zip(*self._halo))[1]
 
@@ -587,9 +598,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @cached_property
     def _size_owned(self):
-        """
-        The number of points in the owned region.
-        """
+        """Number of points in the owned region."""
         left = tuple(self._size_halo.right)
         right = tuple(self._size_halo.left)
 
@@ -600,9 +609,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @cached_property
     def _size_padding(self):
-        """
-        The number of points in the padding region.
-        """
+        """Number of points in the padding region."""
         left = tuple(zip(*self._padding))[0]
         right = tuple(zip(*self._padding))[1]
 
@@ -613,17 +620,13 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @cached_property
     def _size_nopad(self):
-        """
-        The number of points in the domain+halo region.
-        """
+        """Number of points in the domain+halo region."""
         sizes = tuple(i+sum(j) for i, j in zip(self._size_domain, self._size_halo))
         return EnrichedTuple(*sizes, getters=self.dimensions)
 
     @cached_property
     def _size_nodomain(self):
-        """
-        The number of points in the padding+halo region.
-        """
+        """Number of points in the padding+halo region."""
         left = tuple(i for i, _ in np.add(self._halo, self._padding))
         right = tuple(i for _, i in np.add(self._halo, self._padding))
 
@@ -634,17 +637,13 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @cached_property
     def _offset_domain(self):
-        """
-        The number of points before the first domain element.
-        """
+        """Number of points before the first domain element."""
         offsets = tuple(np.add(self._size_padding.left, self._size_halo.left))
         return EnrichedTuple(*offsets, getters=self.dimensions)
 
     @cached_property
     def _offset_halo(self):
-        """
-        The number of points before the first and last halo element.
-        """
+        """Number of points before the first and last halo elements."""
         left = tuple(self._size_padding.left)
         right = tuple(np.add(np.add(left, self._size_halo.left), self._size_domain))
 
@@ -655,9 +654,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @cached_property
     def _offset_owned(self):
-        """
-        The number of points before the first and last owned element.
-        """
+        """Number of points before the first and last owned elements."""
         left = tuple(self._offset_domain)
         right = tuple(np.add(self._offset_halo.left, self._size_domain))
 
@@ -668,11 +665,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @property
     def _data_alignment(self):
-        """The address of any allocated memory is a multiple of the alignment."""
+        """
+        The base virtual address of the data carried by the object is a multiple
+        of the alignment.
+        """
         return default_allocator().guaranteed_alignment
 
     def indexify(self, indices=None):
-        """Create a :class:`sympy.Indexed` object from the current object."""
+        """Create a :class:`types.Indexed` object from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
 
@@ -705,19 +705,29 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
 
 class Array(AbstractCachedFunction):
-    """A symbolic function object, created and managed directly by Devito..
+    """
+    Tensor symbol representing an array in symbolic equations.
 
-    :param name: Name of the object.
-    :param dtype: Data type of the object.
-    :param dimensions: The symbolic dimensions of the object.
-    :param halo: The halo region of the object, expressed as an iterable
-                 ``[(dim1_left_halo, dim1_right_halo), (dim2_left_halo, ...)]``
-    :param padding: The padding region of the object, expressed as an iterable
-                    ``[(dim1_left_pad, dim1_right_pad), (dim2_left_pad, ...)]``
-    :param scope: (Optional) Control memory allocation. Allowed values are
-                  ['heap', 'stack', 'external']. Defaults to 'heap'.
-                  'external' implies that no storage needs to be allocated
-                  for the Array.
+    An Array is created and managed directly by Devito; that is, it is not
+    expected to be needed in user code.
+
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    dimensions : tuple of Dimension
+        Dimensions associated with the object.
+    dtype : data-type, optional
+        Any object that can be interpreted as a numpy data type. Defaults
+        to ``np.float32``.
+    halo : iterable of 2-tuples, optional
+        The halo region of the object.
+    padding : iterable of 2-tuples, optional
+        The padding region of the object.
+    scope : str, optional
+        Control memory allocation. Allowed values: 'heap', 'stack', 'external'.
+        Defaults to 'heap'. 'external' implies that no storage needs to be
+        allocated within a certain scope.
     """
 
     is_Array = True
@@ -781,7 +791,7 @@ class Array(AbstractCachedFunction):
 class AbstractObject(Basic, sympy.Basic, Pickable):
 
     """
-    Represent a generic pointer object.
+    Symbol representing a generic pointer object.
     """
 
     is_AbstractObject = True
@@ -827,7 +837,7 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
 class Object(AbstractObject, ArgProvider):
 
     """
-    Represent a generic pointer object, provided by the outside world.
+    Symbol representing a generic pointer object, provided by an outer scope.
     """
 
     is_Object = True
@@ -852,8 +862,8 @@ class Object(AbstractObject, ArgProvider):
 class CompositeObject(Object):
 
     """
-    Represent a pointer object to a composite type (i.e., a C struct),
-    provided by the outside world.
+    Symbol representing a pointer to a composite type (e.g., a C struct),
+    provided by an outer scope.
     """
 
     _dtype_cache = {}
@@ -896,7 +906,7 @@ class CompositeObject(Object):
 class LocalObject(AbstractObject):
 
     """
-    Represent a generic, yet locally defined, pointer object.
+    Symbol representing a generic pointer object, defined in the local scope.
     """
 
     is_LocalObject = True
@@ -908,7 +918,10 @@ class LocalObject(AbstractObject):
 
 
 class IndexedData(sympy.IndexedBase, Pickable):
-    """Wrapper class that inserts a pointer to the symbolic data object"""
+
+    """
+    Wrapper class that inserts a pointer to the symbolic data object.
+    """
 
     def __new__(cls, label, shape=None, function=None):
         obj = sympy.IndexedBase.__new__(cls, label, shape)
@@ -922,7 +935,7 @@ class IndexedData(sympy.IndexedBase, Pickable):
 
     def __getitem__(self, indices, **kwargs):
         """
-        Return :class:`Indexed`, rather than :class:`sympy.Indexed`.
+        Produce a :class:`types.Indexed`, rather than a :class:`sympy.Indexed`.
         """
         indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
         return Indexed(*indexed.args)
