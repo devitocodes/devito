@@ -286,7 +286,7 @@ def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
     diff = dim.spacing
     idx = list(set([(dim + int(i+.5+off)*diff)
                     for i in range(-int(fd_order / 2), int(fd_order / 2))]))
-    if fd_order//2 == 1:
+    if fd_order <= 2:
         idx = [dim + diff, dim] if stagger == right else [dim - diff, dim]
     c = finite_diff_weights(deriv_order, idx, dim + off*dim.spacing)[-1][-1]
     deriv = 0
