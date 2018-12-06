@@ -54,8 +54,8 @@ class PartialCluster(object):
         return self._ispace.itintervals
 
     @property
-    def extent(self):
-        return self.ispace.extent
+    def size(self):
+        return self.ispace.size
 
     @property
     def shape(self):
@@ -114,7 +114,7 @@ class PartialCluster(object):
         """
         Return the floating point operations performed by this Cluster.
         """
-        return self.extent*sum(estimate_cost(i) for i in self.exprs)
+        return self.size*sum(estimate_cost(i) for i in self.exprs)
 
     @property
     def traffic(self):
