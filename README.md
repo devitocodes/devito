@@ -2,8 +2,6 @@
 
 ![Build Status](https://travis-ci.org/opesci/devito.svg?branch=master)
 ![Code Coverage](https://codecov.io/gh/opesci/devito/branch/master/graph/badge.svg)
-![Azure pipelines](https://dev.azure.com/tmb1/Devito/_build?latest%3FdefinitionId=1&definitionId=1)
-[![Build Status](https://dev.azure.com/tmb1/Devito/_build?latest%3FdefinitionId=1&definitionId=1](https://dev.azure.com/tmb1/Devito/_build?latest%3FdefinitionId=1&definitionId=1)
 
 [Devito](http://www.devitoproject.org) is a software to
 implement optimised finite difference (FD) computation from
