@@ -120,17 +120,22 @@ class Dimension(AbstractSymbol, ArgProvider):
         """Return a tuple of argument names introduced by this dimension."""
         return (self.name, self.size_name, self.max_name, self.min_name)
 
-    def _arg_defaults(self, start=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None):
         """
-        Returns a map of default argument values defined by this dimension.
+        A map of default argument values defined by this dimension.
 
-        :param start: (Optional) known starting point as provided by
-                      data-carrying symbols.
-        :param size: (Optional) known size as provided by data-carrying symbols.
-        :param alias: (Optional) name under which to store values.
+        Parameters
+        ----------
+        _min : int, optional
+            Minimum point as provided by data-carrying objects.
+        size : int, optional
+            Size as provided by data-carrying symbols.
+        alias : Dimension, optional
+            To get the min/max/size names under which to store values. Use
+            self's if None.
         """
         dim = alias or self
-        return {dim.min_name: start or 0, dim.size_name: size,
+        return {dim.min_name: _min or 0, dim.size_name: size,
                 dim.max_name: size if size is None else size-1}
 
     def _arg_values(self, args, interval, grid, **kwargs):
@@ -260,10 +265,10 @@ class DefaultDimension(Dimension):
     def symbolic_size(self):
         return sympy.Number(self._default_value)
 
-    def _arg_defaults(self, start=None, size=None, alias=None):
+    def _arg_defaults(self, _min=None, size=None, alias=None):
         dim = alias or self
         size = size or dim._default_value
-        return {dim.min_name: start or 0, dim.size_name: size,
+        return {dim.min_name: _min or 0, dim.size_name: size,
                 dim.max_name: size if size is None else size-1}
 
 
@@ -566,19 +571,22 @@ class SteppingDimension(DerivedDimension):
     def _arg_names(self):
         return (self.min_name, self.max_name, self.name) + self.parent._arg_names
 
-    def _arg_defaults(self, start=None, size=None, **kwargs):
+    def _arg_defaults(self, _min=None, size=None, **kwargs):
         """
-        Returns a map of default argument values defined by this dimension.
+        A map of default argument values defined by this dimension.
 
-        :param start: (Optional) known starting point as provided by
-                      data-carrying symbols.
-        :param size: (Optional) known size as provided by data-carrying symbols.
+        Parameters
+        ----------
+        _min : int, optional
+            Minimum point as provided by data-carrying objects.
+        size : int, optional
+            Size as provided by data-carrying symbols.
 
-        .. note ::
-
-            A :class:`SteppingDimension` does not know its max point.
+        Notes
+        -----
+        A SteppingDimension does not know its max point.
         """
-        return {self.parent.min_name: start, self.size_name: size}
+        return {self.parent.min_name: _min, self.size_name: size}
 
     def _arg_values(self, *args, **kwargs):
         """
@@ -674,27 +682,33 @@ class IncrDimension(DerivedDimension):
     """
     Dimension symbol representing a non-contiguous sub-region of a given
     ``parent`` Dimension, with one point every ``step`` points. Thus, if
-    ``step == k``, the dimension represents the sequence ``start, start + k,
-    start + 2*k, ...``.
+    ``step == k``, the dimension represents the sequence ``min, min + k,
+    min + 2*k, ...``.
 
-    :param parent: Parent dimension from which the IncrDimension is created.
-    :param start: (Optional) an integer representing the starting point of the
-                  sequence. Defaults to the parent's symbolic minimum.
-    :param step: (Optional) the distance between two consecutive points.
-                 Defaults to the symbolic size.
-    :param name: (Optional) force a name for this Dimension.
+    Parameters
+    ----------
+    parent : Dimension
+        The Dimension from which the IncrDimension is derived.
+    _min : int, optional
+        The minimum point of the sequence. Defaults to the parent's
+        symbolic minimum.
+    step : int, optional
+        The distance between two consecutive points. Defaults to the
+        symbolic size.
+    name : str, optional
+        To force a different Dimension name.
     """
 
     is_Incr = True
 
-    def __new__(cls, parent, start=None, step=None, name=None):
-        return IncrDimension.__xnew_cached_(cls, parent, start, step, name)
+    def __new__(cls, parent, _min=None, step=None, name=None):
+        return IncrDimension.__xnew_cached_(cls, parent, _min, step, name)
 
-    def __new_stage2__(cls, parent, start, step, name):
+    def __new_stage2__(cls, parent, _min, step, name):
         if name is None:
-            name = cls._genname(parent.name, (start, step))
+            name = cls._genname(parent.name, (_min, step))
         newobj = DerivedDimension.__xnew__(cls, name, parent)
-        newobj._start = start
+        newobj._min = _min
         newobj._step = step
         return newobj
 
@@ -710,7 +724,7 @@ class IncrDimension(DerivedDimension):
 
     @cached_property
     def symbolic_min(self):
-        return self._start if self._start is not None else self.parent.symbolic_min
+        return self._min if self._min is not None else self.parent.symbolic_min
 
     @property
     def symbolic_incr(self):
@@ -718,7 +732,7 @@ class IncrDimension(DerivedDimension):
 
     @property
     def _properties(self):
-        return (self._start, self._step)
+        return (self._min, self._step)
 
     def _arg_defaults(self, **kwargs):
         """

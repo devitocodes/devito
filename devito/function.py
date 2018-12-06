@@ -802,7 +802,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
         # Collect default dimension arguments from all indices
         for i, s, o in zip(key.indices, self.shape, self.staggered):
-            args.update(i._arg_defaults(start=0, size=s+o))
+            args.update(i._arg_defaults(_min=0, size=s+o))
 
         # Add MPI-related data structures
         if self.grid is not None:
@@ -1535,7 +1535,7 @@ class AbstractSparseFunction(TensorFunction):
         for k, v in self._dist_scatter().items():
             args[mapper[k].name] = v
             for i, s, o in zip(mapper[k].indices, v.shape, k.staggered):
-                args.update(i._arg_defaults(start=0, size=s+o))
+                args.update(i._arg_defaults(_min=0, size=s+o))
 
         # Add MPI-related data structures
         args.update(self.grid._arg_defaults())
