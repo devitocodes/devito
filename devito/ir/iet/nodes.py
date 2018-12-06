@@ -701,38 +701,39 @@ class ArrayCast(Node):
         """
         The shape used in the left-hand side and right-hand side of the ArrayCast.
         """
-        if configuration['codegen'] == 'explicit':
+        if configuration['codegen'] == 'explicit' or self.function.is_Array:
             return self.function.symbolic_shape[1:]
-        if self.function.is_TensorFunction:
+        else:
             return tuple(self.function._C_get_field(FULL, d).extent
                          for d in self.function.dimensions[1:])
-        else:
-            return self.function.symbolic_shape[1:]
 
     @property
     def functions(self):
         """
-        Return all :class:`Function` objects used by this :class:`ArrayCast`
+        All :class:`Function`s used by this :class:`ArrayCast`.
         """
         return (self.function,)
 
     @property
     def defines(self):
         """
-        Return the base symbol an :class:`ArrayCast` defines.
+        The base symbol an :class:`ArrayCast` defines.
         """
         return ()
 
     @property
     def free_symbols(self):
         """
-        Return the symbols required to perform an :class:`ArrayCast`.
+        The symbols required to perform an :class:`ArrayCast`.
 
-        This includes the :class:`AbstractFunction` object that
-        defines the data, as well as the dimension sizes.
+        This may include the :class:`TensorFunction` object that carries
+        the data as well as the dimension sizes.
         """
-        sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
-        return (self.function, ) + as_tuple(sizes)
+        if configuration['codegen'] == 'explicit' or self.function.is_Array:
+            sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
+            return (self.function, ) + as_tuple(sizes)
+        else:
+            return (self.function,)
 
 
 class LocalExpression(Expression):
