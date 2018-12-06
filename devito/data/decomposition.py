@@ -261,12 +261,12 @@ class Decomposition(tuple):
             rel_ofs, side = args
             if side is LEFT:
                 abs_ofs = self.glb_min + rel_ofs
-                extent = self.loc_abs_max - base + 1
-                return min(abs_ofs - base, extent) if abs_ofs > base else 0
+                size = self.loc_abs_max - base + 1
+                return min(abs_ofs - base, size) if abs_ofs > base else 0
             else:
                 abs_ofs = self.glb_max - rel_ofs
-                extent = top - self.loc_abs_min + 1
-                return min(top - abs_ofs, extent) if abs_ofs < top else 0
+                size = top - self.loc_abs_min + 1
+                return min(top - abs_ofs, size) if abs_ofs < top else 0
         else:
             raise TypeError("Expected 1 or 2 arguments, found %d" % len(args))
 
