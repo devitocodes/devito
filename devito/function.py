@@ -1839,8 +1839,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
             mapper = {}
             for j, d in zip(idx, self.grid.dimensions):
                 p = points[j]
-                lb = sympy.And(p >= d.symbolic_start - self._radius, evaluate=False)
-                ub = sympy.And(p <= d.symbolic_end + self._radius, evaluate=False)
+                lb = sympy.And(p >= d.symbolic_min - self._radius, evaluate=False)
+                ub = sympy.And(p <= d.symbolic_max + self._radius, evaluate=False)
                 condition = sympy.And(lb, ub, evaluate=False)
                 mapper[d] = ConditionalDimension(p.name, self._sparse_dim,
                                                  condition=condition, indirect=True)
@@ -1944,8 +1944,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         conditions = {}
         for d, idx in zip(self.grid.dimensions, self._coordinate_indices):
             p = points[idx]
-            lb = sympy.And(p >= d.symbolic_start - offset, evaluate=False)
-            ub = sympy.And(p <= d.symbolic_end + offset, evaluate=False)
+            lb = sympy.And(p >= d.symbolic_min - offset, evaluate=False)
+            ub = sympy.And(p <= d.symbolic_max + offset, evaluate=False)
             conditions[p] = sympy.And(lb, ub, evaluate=False)
         condition = sympy.And(*conditions.values(), evaluate=False)
         cd = ConditionalDimension("%s_g" % self._sparse_dim, self._sparse_dim,

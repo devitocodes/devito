@@ -98,9 +98,9 @@ class AdvancedRewriter(BasicRewriter):
                 # Build Iteration over blocks
                 name = "%s%d_block" % (i.dim.name, len(mapper))
                 dim = blocked.setdefault(i, BlockDimension(i.dim, name=name))
-                binnersize = i.symbolic_extent + (i.offsets[1] - i.offsets[0])
-                bfinish = i.dim.symbolic_end - (binnersize % dim.step)
-                inter_block = Iteration([], dim, bfinish, offsets=i.offsets,
+                binnersize = i.symbolic_size + (i.offsets[1] - i.offsets[0])
+                bmax = i.dim.symbolic_max - (binnersize % dim.step)
+                inter_block = Iteration([], dim, bmax, offsets=i.offsets,
                                         properties=PARALLEL)
                 inter_blocks.append(inter_block)
 
@@ -113,7 +113,7 @@ class AdvancedRewriter(BasicRewriter):
                 # Build unitary-increment Iteration over the 'leftover' region.
                 # This will be used for remainder loops, executed when any
                 # dimension size is not a multiple of the block size.
-                remainder = i._rebuild([], limits=[bfinish + 1, i.dim.symbolic_end, 1],
+                remainder = i._rebuild([], limits=[bmax + 1, i.dim.symbolic_max, 1],
                                        offsets=(i.offsets[1], i.offsets[1]))
                 remainders.append(remainder)
 
@@ -225,7 +225,7 @@ class AdvancedRewriter(BasicRewriter):
                 continue
 
             # Dynamic trip count adjustment
-            endpoint = root.symbolic_end
+            endpoint = root.symbolic_max
             if not endpoint.is_Symbol:
                 continue
             condition = []
@@ -233,7 +233,7 @@ class AdvancedRewriter(BasicRewriter):
                             if i.is_Tensor)
             for i in root.uindices:
                 for j in externals:
-                    condition.append(root.symbolic_end + padding < j)
+                    condition.append(root.symbolic_max + padding < j)
             condition = ' && '.join(ccode(i) for i in condition)
             endpoint_padded = endpoint.func('_%s' % endpoint.name)
             init = cgen.Initializer(

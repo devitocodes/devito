@@ -63,22 +63,22 @@ class Dimension(AbstractSymbol, ArgProvider):
         return Scalar(name=self.size_name, dtype=np.int32)
 
     @cached_property
-    def symbolic_start(self):
+    def symbolic_min(self):
         """
-        The symbol defining the iteration start for this dimension.
+        The symbol defining the minimum point of this dimension.
         """
         return Scalar(name=self.min_name, dtype=np.int32)
 
     @cached_property
-    def symbolic_end(self):
+    def symbolic_max(self):
         """
-        The symbol defining the iteration end for this dimension.
+        The symbol defining the maximum point of this dimension.
         """
         return Scalar(name=self.max_name, dtype=np.int32)
 
     @property
     def limits(self):
-        return (self.symbolic_start, self.symbolic_end, 1)
+        return (self.symbolic_min, self.symbolic_max, 1)
 
     @cached_property
     def size_name(self):
@@ -377,24 +377,24 @@ class SubDimension(DerivedDimension):
     def left(cls, name, parent, thickness):
         lst, rst = cls.symbolic_thickness(name)
         return cls(name, parent,
-                   left=parent.symbolic_start,
-                   right=parent.symbolic_start+lst-1,
+                   left=parent.symbolic_min,
+                   right=parent.symbolic_min+lst-1,
                    thickness=((lst, thickness), (rst, 0)))
 
     @classmethod
     def right(cls, name, parent, thickness):
         lst, rst = cls.symbolic_thickness(name)
         return cls(name, parent,
-                   left=parent.symbolic_end-rst+1,
-                   right=parent.symbolic_end,
+                   left=parent.symbolic_max-rst+1,
+                   right=parent.symbolic_max,
                    thickness=((lst, 0), (rst, thickness)))
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right):
         lst, rst = cls.symbolic_thickness(name)
         return cls(name, parent,
-                   left=parent.symbolic_start+lst,
-                   right=parent.symbolic_end-rst,
+                   left=parent.symbolic_min+lst,
+                   right=parent.symbolic_max-rst,
                    thickness=((lst, thickness_left), (rst, thickness_right)))
 
     @classmethod
@@ -403,11 +403,11 @@ class SubDimension(DerivedDimension):
                 Scalar(name="%s_rtkn" % name, dtype=np.int32))
 
     @property
-    def symbolic_start(self):
+    def symbolic_min(self):
         return self._interval.left
 
     @property
-    def symbolic_end(self):
+    def symbolic_max(self):
         return self._interval.right
 
     @cached_property
@@ -420,27 +420,27 @@ class SubDimension(DerivedDimension):
 
     def offset_left(self):
         # The left extreme of the SubDimension can be related to either the
-        # start or end of the parent dimension
+        # min or max of the parent dimension
         try:
-            symbolic_thickness = self.symbolic_start - self.parent.symbolic_start
+            symbolic_thickness = self.symbolic_min - self.parent.symbolic_min
             val = symbolic_thickness.subs(self.thickness_map)
-            return int(val), self.parent.symbolic_start
+            return int(val), self.parent.symbolic_min
         except TypeError:
-            symbolic_thickness = self.symbolic_start - self.parent.symbolic_end
+            symbolic_thickness = self.symbolic_min - self.parent.symbolic_max
             val = symbolic_thickness.subs(self.thickness_map)
-            return int(val), self.parent.symbolic_end
+            return int(val), self.parent.symbolic_max
 
     def offset_right(self):
         # The right extreme of the SubDimension can be related to either the
-        # start or end of the parent dimension
+        # min or max of the parent dimension
         try:
-            symbolic_thickness = self.symbolic_end - self.parent.symbolic_start
+            symbolic_thickness = self.symbolic_max - self.parent.symbolic_min
             val = symbolic_thickness.subs(self.thickness_map)
-            return int(val), self.parent.symbolic_start
+            return int(val), self.parent.symbolic_min
         except TypeError:
-            symbolic_thickness = self.symbolic_end - self.parent.symbolic_end
+            symbolic_thickness = self.symbolic_max - self.parent.symbolic_max
             val = symbolic_thickness.subs(self.thickness_map)
-            return int(val), self.parent.symbolic_end
+            return int(val), self.parent.symbolic_max
 
     @property
     def _properties(self):
@@ -460,7 +460,7 @@ class SubDimension(DerivedDimension):
 
     # Pickling support
     _pickle_args = DerivedDimension._pickle_args +\
-        ['symbolic_start', 'symbolic_end', 'thickness']
+        ['symbolic_min', 'symbolic_max', 'thickness']
     _pickle_kwargs = []
 
 
@@ -555,12 +555,12 @@ class SteppingDimension(DerivedDimension):
     """
 
     @property
-    def symbolic_start(self):
-        return self.parent.symbolic_start
+    def symbolic_min(self):
+        return self.parent.symbolic_min
 
     @property
-    def symbolic_end(self):
-        return self.parent.symbolic_end
+    def symbolic_max(self):
+        return self.parent.symbolic_max
 
     @property
     def _arg_names(self):
@@ -576,7 +576,7 @@ class SteppingDimension(DerivedDimension):
 
         .. note ::
 
-            A :class:`SteppingDimension` does not know its end point.
+            A :class:`SteppingDimension` does not know its max point.
         """
         return {self.parent.min_name: start, self.size_name: size}
 
@@ -641,10 +641,10 @@ class ModuloDimension(DerivedDimension):
         return self.parent + self.offset
 
     @cached_property
-    def symbolic_start(self):
+    def symbolic_min(self):
         return (self.root + self.offset) % self.modulo
 
-    symbolic_incr = symbolic_start
+    symbolic_incr = symbolic_min
 
     @property
     def _properties(self):
@@ -679,7 +679,7 @@ class IncrDimension(DerivedDimension):
 
     :param parent: Parent dimension from which the IncrDimension is created.
     :param start: (Optional) an integer representing the starting point of the
-                  sequence. Defaults to the parent's symbolic start.
+                  sequence. Defaults to the parent's symbolic minimum.
     :param step: (Optional) the distance between two consecutive points.
                  Defaults to the symbolic size.
     :param name: (Optional) force a name for this Dimension.
@@ -706,11 +706,11 @@ class IncrDimension(DerivedDimension):
 
     @cached_property
     def max_step(self):
-        return self.parent.symbolic_end - self.parent.symbolic_start + 1
+        return self.parent.symbolic_max - self.parent.symbolic_min + 1
 
     @cached_property
-    def symbolic_start(self):
-        return self._start if self._start is not None else self.parent.symbolic_start
+    def symbolic_min(self):
+        return self._start if self._start is not None else self.parent.symbolic_min
 
     @property
     def symbolic_incr(self):
@@ -735,7 +735,7 @@ class IncrDimension(DerivedDimension):
         return {}
 
     # Pickling support
-    _pickle_args = ['parent', 'symbolic_start', 'step']
+    _pickle_args = ['parent', 'symbolic_min', 'step']
     _pickle_kwargs = ['name']
 
 

@@ -322,9 +322,9 @@ class Iteration(Node):
     :param nodes: Single or list of :class:`Node` objects defining the loop body.
     :param dimension: :class:`Dimension` object over which to iterate.
     :param limits: Limits for the iteration space, either the loop size or a
-                   tuple of the form (start, finish, stepping).
+                   tuple of the form (min, max, stepping).
     :param index: Symbol to be used as iteration variable.
-    :param offsets: A 2-tuple of start and end offsets to honour in the loop.
+    :param offsets: A 2-tuple ``(min_ofs, max_ofs)`` to honour in the loop.
     :param direction: The :class:`IterationDirection` of the Iteration. Defaults
                       to ``Forward``.
     :param properties: A bag of :class:`IterationProperty` objects, decorating
@@ -352,7 +352,7 @@ class Iteration(Node):
             assert(len(limits) == 3)
             self.limits = tuple(limits)
         elif self.dim.is_Incr:
-            self.limits = (self.dim.symbolic_start, limits, self.dim.step)
+            self.limits = (self.dim.symbolic_min, limits, self.dim.step)
         else:
             self.limits = (0, limits, 1)
 
@@ -442,80 +442,70 @@ class Iteration(Node):
 
     @property
     def symbolic_bounds(self):
-        """Return a 2-tuple representing the symbolic bounds of the object."""
-        start = self.limits[0]
-        end = self.limits[1]
+        """
+        A 2-tuple representing the symbolic bounds [min, max] of the Iteration.
+        """
+        _min = self.limits[0]
+        _max = self.limits[1]
         try:
-            start = as_symbol(start)
+            _min = as_symbol(_min)
         except TypeError:
-            # Already a symbolic expression
+            # A symbolic expression
             pass
         try:
-            end = as_symbol(end)
+            _max = as_symbol(_max)
         except TypeError:
-            # Already a symbolic expression
+            # A symbolic expression
             pass
-        return (start + as_symbol(self.offsets[0]), end + as_symbol(self.offsets[1]))
+        return (_min + as_symbol(self.offsets[0]), _max + as_symbol(self.offsets[1]))
 
     @property
-    def symbolic_extent(self):
+    def symbolic_size(self):
         """
-        Return the symbolic extent of the Iteration.
+        The symbolic size of the Iteration.
         """
         return self.symbolic_bounds[1] - self.symbolic_bounds[0] + 1
 
     @property
-    def symbolic_start(self):
+    def symbolic_min(self):
         """
-        Return the symbolic start of the Iteration.
+        The symbolic min of the Iteration.
         """
         return self.symbolic_bounds[0]
 
     @property
-    def symbolic_end(self):
+    def symbolic_max(self):
         """
-        Return the symbolic end of the Iteration.
+        The symbolic max of the Iteration.
         """
         return self.symbolic_bounds[1]
 
     @property
     def symbolic_incr(self):
         """
-        Return the symbolic increment of the Iteration.
+        The symbolic increment of the Iteration.
         """
         return self.limits[2]
 
-    def bounds(self, start=None, finish=None):
-        """Return the start and end points of the Iteration if the limits are
-        available (either statically known or provided through ``start``/
-        ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
-        if a limit is unknown."""
-        lower = start if start is not None else self.limits[0]
-        upper = finish if finish is not None else self.limits[1]
+    def bounds(self, _min=None, _max=None):
+        """
+        The bounds [min, max] of the Iteration, as numbers if min/max are supplied,
+        as symbols otherwise.
+        """
+        _min = _min if _min is not None else self.limits[0]
+        _max = _max if _max is not None else self.limits[1]
 
-        lower = lower + self.offsets[0]
-        upper = upper + self.offsets[1]
+        _min = _min + self.offsets[0]
+        _max = _max + self.offsets[1]
 
-        return (lower, upper)
+        return (_min, _max)
 
-    def extent(self, start=None, finish=None):
-        """Return the number of iterations executed if the limits are known,
-        ``None`` otherwise."""
-        start, finish = self.bounds(start, finish)
-        try:
-            return finish - start + 1
-        except TypeError:
-            return None
-
-    def start(self, start=None):
-        """Return the start point of the Iteration if the lower limit is known,
-        ``None`` otherwise."""
-        return self.bounds(start)[0]
-
-    def end(self, finish=None):
-        """Return the end point of the Iteration if the upper limit is known,
-        ``None`` otherwise."""
-        return self.bounds(finish=finish)[1]
+    def size(self, _min=None, _max=None):
+        """
+        The size of the iteration space if _min/_max are supplied, None otherwise.
+        """
+        _min, _max = self.bounds(_min, _max)
+        return _max - _min + 1
 
     @property
     def dimensions(self):
@@ -549,10 +539,10 @@ class Iteration(Node):
         Return all :class:`Symbol` objects used in the header of this
         :class:`Iteration`.
         """
-        return tuple(self.symbolic_start.free_symbols) \
-            + tuple(self.symbolic_end.free_symbols) \
+        return tuple(self.symbolic_min.free_symbols) \
+            + tuple(self.symbolic_max.free_symbols) \
             + self.uindices \
-            + tuple(flatten(i.symbolic_start.free_symbols for i in self.uindices)) \
+            + tuple(flatten(i.symbolic_min.free_symbols for i in self.uindices)) \
             + tuple(flatten(i.symbolic_incr.free_symbols for i in self.uindices))
 
 

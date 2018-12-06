@@ -48,7 +48,7 @@ def yaskit(trees, yc_soln):
                 ydim = nfac.new_domain_index(i.dim.parent.name)
 
                 # Handle lower extreme
-                if lower_sym == i.dim.parent.symbolic_start:
+                if lower_sym == i.dim.parent.symbolic_min:
                     node = nfac.new_first_domain_index(ydim)
                 else:
                     node = nfac.new_last_domain_index(ydim)
@@ -57,7 +57,7 @@ def yaskit(trees, yc_soln):
                     v.append(nfac.new_not_less_than_node(ydim, expr))
 
                 # Handle upper extreme
-                if upper_sym == i.dim.parent.symbolic_start:
+                if upper_sym == i.dim.parent.symbolic_min:
                     node = nfac.new_first_domain_index(ydim)
                 else:
                     node = nfac.new_last_domain_index(ydim)
@@ -69,7 +69,7 @@ def yaskit(trees, yc_soln):
                 # For sequential Iterations, the extent *must* be statically known,
                 # otherwise we don't know how to handle this
                 try:
-                    int(i.extent())
+                    int(i.size())
                 except TypeError:
                     raise NotImplementedError("Found sequential Iteration with "
                                               "statically unknown extent")
@@ -77,7 +77,7 @@ def yaskit(trees, yc_soln):
                 n = lower_sym
 
                 ydim = nfac.new_domain_index(i.dim.parent.name)
-                if n == i.dim.parent.symbolic_start:
+                if n == i.dim.parent.symbolic_min:
                     node = nfac.new_first_domain_index(ydim)
                 else:
                     node = nfac.new_last_domain_index(ydim)
