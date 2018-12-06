@@ -410,14 +410,13 @@ class TestArguments(object):
         op = Operator(Eq(g, g + f))
 
         expected = {
-            'x_size': 5, 'x_m': 0, 'x_M': 4,
-            'y_size': 6, 'y_m': 0, 'y_M': 5,
-            'z_size': 7, 'z_m': 0, 'z_M': 6,
+            'x_m': 0, 'x_M': 4,
+            'y_m': 0, 'y_M': 5,
+            'z_m': 0, 'z_M': 6,
             'f': f, 'g': g,
         }
         self.verify_arguments(op.arguments(time=4), expected)
-        exp_parameters = ['f', 'g', 'x_m', 'x_M', 'x_size', 'y_m',
-                          'y_M', 'y_size', 'z_m', 'z_M', 'z_size',
+        exp_parameters = ['f', 'g', 'x_m', 'x_M', 'y_m', 'y_M', 'z_m', 'z_M',
                           'time_m', 'time_M']
         self.verify_parameters(op.parameters, exp_parameters)
 
@@ -462,9 +461,9 @@ class TestArguments(object):
         args = {'x': 3, 'y': 4, 'z': 5}
         arguments = op.arguments(**args)
         expected = {
-            'x_size': 5, 'x_m': 0, 'x_M': 3,
-            'y_size': 6, 'y_m': 0, 'y_M': 4,
-            'z_size': 7, 'z_m': 0, 'z_M': 5,
+            'x_m': 0, 'x_M': 3,
+            'y_m': 0, 'y_M': 4,
+            'z_m': 0, 'z_M': 5,
             'g': g
         }
         self.verify_arguments(arguments, expected)
@@ -486,9 +485,9 @@ class TestArguments(object):
         args = {'x_m': 1, 'x_M': 3, 'y_m': 2, 'y_M': 4, 'z_m': 3, 'z_M': 5}
         arguments = op.arguments(**args)
         expected = {
-            'x_size': 5, 'x_m': 1, 'x_M': 3,
-            'y_size': 6, 'y_m': 2, 'y_M': 4,
-            'z_size': 7, 'z_m': 3, 'z_M': 5,
+            'x_m': 1, 'x_M': 3,
+            'y_m': 2, 'y_M': 4,
+            'z_m': 3, 'z_M': 5,
             'g': g
         }
         self.verify_arguments(arguments, expected)
@@ -516,9 +515,9 @@ class TestArguments(object):
                 'z_m': 3, 'z_M': 5, 't_m': 1, 't_M': 4}
         arguments = op.arguments(**args)
         expected = {
-            'x_size': 5, 'x_m': 1, 'x_M': 3,
-            'y_size': 6, 'y_m': 2, 'y_M': 4,
-            'z_size': 7, 'z_m': 3, 'z_M': 5,
+            'x_m': 1, 'x_M': 3,
+            'y_m': 2, 'y_M': 4,
+            'z_m': 3, 'z_M': 5,
             'time_m': 1, 'time_M': 4,
             'f': f
         }
