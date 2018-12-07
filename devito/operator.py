@@ -24,10 +24,6 @@ from devito.tools import Signer, ReducerMap, as_tuple, flatten, filter_sorted, s
 
 class Operator(Callable):
 
-    _default_headers = ['#define _POSIX_C_SOURCE 200809L']
-    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
-    _default_globals = []
-
     """
     Generate, jit-compile and run C code starting from an ordered sequence
     of expressions.
@@ -118,6 +114,10 @@ class Operator(Callable):
     automatically discovered and handled by the Devito compiler. For more information,
     refer to the relevant documentation.
     """
+
+    _default_headers = ['#define _POSIX_C_SOURCE 200809L']
+    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
+    _default_globals = []
 
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
