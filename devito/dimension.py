@@ -17,6 +17,59 @@ __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
 
 class Dimension(AbstractSymbol, ArgProvider):
 
+    """
+    Symbol defining an iteration space.
+
+    A Dimension represents a problem dimension. It is typically used to index
+    into :class:`Function`s , but it can also appear in the middle of a
+    symbolic expression just like any other symbol.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    spacing : symbol, optional
+        A symbol to represent the physical spacing along this Dimension.
+
+    Examples
+    --------
+    Dimensions are automatically created when a Grid is instantiated.
+
+    >>> from devito import Grid
+    >>> grid = Grid(shape=(4, 4))
+    >>> x, y = grid.dimensions
+    >>> type(x)
+    devito.dimension.SpaceDimension
+    >>> time = grid.time_dim
+    >>> type(time)
+    devito.dimension.TimeDimension
+    >>> t = grid.stepping_dim
+    >>> type(t)
+    devito.dimension.SteppingDimension
+
+    Alternatively, one can create Dimensions explicitly
+
+    >>> from devito import Dimension
+    >>> i = Dimension(name='i')
+
+    Or, when many "free" Dimensions are needed, with the shortcut
+
+    >>> from devito import dimensions
+    >>> i, j, k = dimensions('i j k')
+
+    A Dimension can be used to build a Function as well as within symbolic
+    expressions, as both array index ("indexed notation") and free symbol.
+
+    >>> from devito import Function
+    >>> f = Function(name='f', shape=(4, 4), dimensions=(i, j))
+    >>> f + f
+    2*f(i, j)
+    >>> f[i + 1, j] + f[i, j + 1]
+    f[i, j + 1] + f[i + 1, j]
+    >>> f*i
+    i*f(i, j)
+    """
+
     is_Dimension = True
     is_Space = False
     is_Time = False
@@ -35,14 +88,6 @@ class Dimension(AbstractSymbol, ArgProvider):
     _C_typename = dtype_to_cstr(dtype)
     _C_typedata = _C_typename
 
-    """
-    A Dimension is a symbol representing a problem dimension and thus defining a
-    potential iteration space.
-
-    :param name: Name of the dimension symbol.
-    :param spacing: Optional, symbol for the spacing along this dimension.
-    """
-
     def __new__(cls, name, spacing=None):
         return Dimension.__xnew_cached_(cls, name, spacing)
 
@@ -59,21 +104,17 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     @cached_property
     def symbolic_size(self):
-        """The symbolic size of this dimension."""
+        """Symbolic size of the Dimension."""
         return Scalar(name=self.size_name, dtype=np.int32)
 
     @cached_property
     def symbolic_min(self):
-        """
-        The symbol defining the minimum point of this dimension.
-        """
+        """Symbol defining the minimum point of the Dimension."""
         return Scalar(name=self.min_name, dtype=np.int32)
 
     @cached_property
     def symbolic_max(self):
-        """
-        The symbol defining the maximum point of this dimension.
-        """
+        """Symbol defining the maximum point of the Dimension."""
         return Scalar(name=self.max_name, dtype=np.int32)
 
     @property
@@ -117,12 +158,12 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     @property
     def _arg_names(self):
-        """Return a tuple of argument names introduced by this dimension."""
+        """Tuple of argument names introduced by the Dimension."""
         return (self.name, self.size_name, self.max_name, self.min_name)
 
     def _arg_defaults(self, _min=None, size=None, alias=None):
         """
-        A map of default argument values defined by this dimension.
+        A map of default argument values defined by the Dimension.
 
         Parameters
         ----------
@@ -140,19 +181,25 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     def _arg_values(self, args, interval, grid, **kwargs):
         """
-        Returns a map of argument values after evaluating user input. If no
-        user input is provided, get a known value in ``args`` and adjust it
-        so that no out-of-bounds memory accesses will be performeed. The
-        adjustment exploits the information in ``interval``, a :class:`Interval`
-        describing the data space of this dimension. If there is no known value
-        in ``args``, use a default value.
+        Produce a map of argument values after evaluating user input. If no
+        user input is provided, get a known value in ``args`` and adjust it so
+        that no out-of-bounds memory accesses will be performeed. The
+        adjustment exploits the information in ``interval``, an
+        :class:`Interval` describing the Dimension data space. If no value is
+        available in ``args``, use a default value.
 
-        :param args: Dictionary of known argument values.
-        :param interval: A :class:`Interval` for ``self``.
-        :param grid: A :class:`Grid`; if ``self`` is a distributed Dimension in
-                     ``grid``, then the user input is translated into rank-local
-                     indices.
-        :param kwargs: Dictionary of user-provided argument overrides.
+        Parameters
+        ----------
+        args : dict
+            Known argument values.
+        interval : Interval
+            Description of the Dimension data space.
+        grid : Grid
+            Only relevant in case of MPI execution; if ``self`` is a distributed
+            Dimension, then ``grid`` is used to translate user input into rank-local
+            indices.
+        **kwargs
+            Dictionary of user-provided argument overrides.
         """
         # Fetch user input and convert into rank-local values
         glb_minv = kwargs.pop(self.min_name, None)
@@ -216,45 +263,69 @@ class Dimension(AbstractSymbol, ArgProvider):
 
 class SpaceDimension(Dimension):
 
+    """
+    Symbol defining an iteration space.
+
+    This symbol represents a space dimension that defines the extent of
+    physical grid.
+
+    A :class:`SpaceDimension` creates dedicated shortcut notations for spatial
+    derivatives on :class:`Function` symbols.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    spacing : symbol, optional
+        A symbol to represent the physical spacing along this Dimension.
+    """
+
     is_Space = True
-
-    """
-    Dimension symbol to represent a space dimension that defines the
-    extent of physical grid. :class:`SpaceDimensions` create dedicated
-    shortcut notations for spatial derivatives on :class:`Function`
-    symbols.
-
-    :param name: Name of the dimension symbol.
-    :param spacing: Optional, symbol for the spacing along this dimension.
-    """
 
 
 class TimeDimension(Dimension):
 
+    """
+    Symbol defining an iteration space.
+
+    This symbol represents a time dimension that defines the extent of
+    time.
+
+    A :class:`TimeDimension` create dedicated shortcut notations for time
+    derivatives on :class:`Function` symbols.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    spacing : symbol, optional
+        A symbol to represent the physical spacing along this Dimension.
+    """
+
     is_Time = True
-
-    """
-    Dimension symbol to represent a dimension that defines the extent
-    of time. As time might be used in different contexts, all derived
-    time dimensions should inherit from :class:`TimeDimension`.
-
-    :param name: Name of the dimension symbol.
-    :param spacing: Optional, symbol for the spacing along this dimension.
-    """
 
 
 class DefaultDimension(Dimension):
 
+    """
+    Symbol defining an iteration space with statically-known size.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    spacing : symbol, optional
+        A symbol to represent the physical spacing along this Dimension.
+    default_value : float, optional
+        Default value associated with the Dimension.
+
+    Notes
+    -----
+    A DefaultDimension carries a value, so it has a mutable state. Hence, it is
+    not cached.
+    """
+
     is_Default = True
-
-    """
-    Dimension symbol to represent a dimension that has a statically-known size.
-
-    .. note::
-
-        A DefaultDimension carries a value, so it has a mutable state. Hence, it
-        is not cached.
-    """
 
     def __new__(cls, name, spacing=None, default_value=None):
         newobj = Dimension.__xnew__(cls, name)
@@ -274,18 +345,22 @@ class DefaultDimension(Dimension):
 
 class DerivedDimension(Dimension):
 
+    """
+    Symbol defining an iteration space derived from a "parent" Dimension.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    parent : Dimension
+        The parent Dimension.
+    """
+
     is_Derived = True
 
     _keymap = {}
     """Map all seen instance `_properties` to a unique number. This is used
     to create unique Dimension names."""
-
-    """
-    Dimension symbol derived from a ``parent`` Dimension.
-
-    :param name: Name of the dimension symbol.
-    :param parent: The parent Dimension.
-    """
 
     def __new__(cls, name, parent):
         return DerivedDimension.__xnew_cached_(cls, name, parent)
@@ -338,9 +413,7 @@ class DerivedDimension(Dimension):
         return self.parent._arg_names
 
     def _arg_check(self, *args):
-        """
-        A :class:`DerivedDimension` performs no runtime checks.
-        """
+        """A :class:`DerivedDimension` performs no runtime checks."""
         return
 
     # Pickling support
@@ -350,20 +423,46 @@ class DerivedDimension(Dimension):
 
 class SubDimension(DerivedDimension):
 
+    """
+    Symbol defining a contiguous iteration sub-space derived from a "parent"
+    Dimension.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    parent : Dimension
+        The parent Dimension.
+    left : expr
+        Symbolic expression providing the left (lower) bound of the
+        SubDimension.
+    right : expr
+        Symbolic expression providing the right (upper) bound of the
+        SubDimension.
+    thickness : 2-tuple of 2-tuples
+        The thickness of the left and right regions, respectively.
+
+    Examples
+    --------
+    Apart from rare circumstances, SubDimensions should *not* be created
+    directly in user code; SubDomains should be used instead.
+
+    To create a SubDimension, one typically uses the shortcut methods ``left``,
+    ``right``, ``middle``. For example, to create a SubDimension that spans
+    the entire space of the parent Dimension except for the two extremes, one
+    could proceed as follows
+
+    >>> from devito import Dimension, SubDimension
+    >>> x = Dimension('x')
+    >>> xi = SubDimension.middle('xi', x, 1, 1)
+
+    For a SubDimension that only spans the three leftmost points of its
+    parent Dimension, instead
+
+    >>> xl = SubDimension.left('xl', x, 3)
+    """
+
     is_Sub = True
-
-    """
-    Dimension symbol representing a contiguous sub-region of a given
-    ``parent`` Dimension.
-
-    :param name: Name of the dimension symbol.
-    :param parent: Parent dimension from which the SubDimension is created.
-    :param left: Symbolic expression to provide the left bound.
-    :param right: Symbolic expression to provide the right bound.
-    :param thickness: A 2-tuple of 2-tuples, ``((symbol, int), (symbol, int))``,
-                      representing the thickness of the left and right regions,
-                      respectively.
-    """
 
     def __new__(cls, name, parent, left, right, thickness):
         return SubDimension.__xnew_cached_(cls, name, parent, left, right, thickness)
@@ -471,9 +570,6 @@ class SubDimension(DerivedDimension):
 
 class ConditionalDimension(DerivedDimension):
 
-    is_NonlinearDerived = True
-    is_Conditional = True
-
     """
     Dimension symbol representing a sub-region of a given ``parent`` Dimension.
     Unlike a :class:`SubDimension`, a ConditionalDimension does not represent
@@ -503,6 +599,9 @@ class ConditionalDimension(DerivedDimension):
         doesn't define an affine iteration space. In such a case, one should
         create the ConditionalDimension with the flag ``indirect=True``.
     """
+
+    is_NonlinearDerived = True
+    is_Conditional = True
 
     def __new__(cls, name, parent, factor=None, condition=None, indirect=False):
         return ConditionalDimension.__xnew_cached_(cls, name, parent, factor,
@@ -547,9 +646,6 @@ class ConditionalDimension(DerivedDimension):
 
 class SteppingDimension(DerivedDimension):
 
-    is_NonlinearDerived = True
-    is_Stepping = True
-
     """
     Dimension symbol that defines the stepping direction of an
     :class:`Operator` and implies modulo buffered iteration. This is most
@@ -558,6 +654,9 @@ class SteppingDimension(DerivedDimension):
     :param name: Name of the dimension symbol.
     :param parent: Parent dimension over which to loop in modulo fashion.
     """
+
+    is_NonlinearDerived = True
+    is_Stepping = True
 
     @property
     def symbolic_min(self):
@@ -754,10 +853,5 @@ class IncrDimension(DerivedDimension):
 
 
 def dimensions(names):
-    """
-    Shortcut for: ::
-
-        dimensions('i j k') -> [Dimension('i'), Dimension('j'), Dimension('k')]
-    """
     assert type(names) == str
     return tuple(Dimension(i) for i in names.split())
