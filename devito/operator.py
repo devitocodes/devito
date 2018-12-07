@@ -4,11 +4,11 @@ from operator import mul
 
 from cached_property import cached_property
 import ctypes
-import sympy
 
 from devito.compiler import jit_compile, load, save
 from devito.dle import transform
 from devito.dse import rewrite
+from devito.equation import Eq
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning
 from devito.ir.equations import LoweredEq
@@ -28,27 +28,103 @@ class Operator(Callable):
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
 
-    """A special :class:`Callable` to generate and compile C code evaluating
-    an ordered sequence of stencil expressions.
-
-    :param expressions: SymPy equation or list of equations that define the
-                        the kernel of this Operator.
-    :param kwargs: Accept the following entries: ::
-
-        * name : Name of the kernel function - defaults to "Kernel".
-        * subs : Dict or list of dicts containing SymPy symbol substitutions
-                 for each expression respectively.
-        * dse : Use the Devito Symbolic Engine to optimize the expressions -
-                defaults to ``configuration['dse']``.
-        * dle : Use the Devito Loop Engine to optimize the loops -
-                defaults to ``configuration['dle']``.
     """
+    Generate, jit-compile and run C code starting from an ordered sequence
+    of expressions.
+
+    Parameters
+    ----------
+    expressions : expr or list or exprs
+        The (list of) expression(s) defining the Operator computation.
+    **kwargs
+        - ``name``: Name of the Operator, defaults to "Kernel" (`str`).
+        - ``subs``: Symbolic substitutions to be applied to ``expressions`` (`dict`).
+        - ``dse`` : Aggressiveness of the Devito Symbolic Engine for flop
+                    optimization. Defaults to ``configuration['dse']`` (`str`).
+        - ``dle`` : Aggressiveness of the Devito Loop Engine for loop-level
+                    optimization. Defaults to ``configuration['dle']`` (`str`).
+
+    Examples
+    --------
+    The following Operator implements a trivial time-marching method that
+    adds 1 to every grid point in ``u`` at every timestep.
+
+    >>> from devito import Eq, Grid, TimeFunction, Operator
+    >>> grid = Grid(shape=(4, 4))
+    >>> u = TimeFunction(name='u', grid=grid)
+    >>> op = Operator(Eq(u.forward, u + 1))
+
+    Multiple expressions can be supplied, and there is no limit to the number of
+    expressions in an Operator.
+
+    >>> v = TimeFunction(name='v', grid=grid)
+    >>> op = Operator([Eq(u.forward, u + 1),
+                       Eq(v.forward, v + 1)])
+
+    Simple boundary conditions can be imposed easily exploiting the "indexed
+    notation" for Functions/TimeFunctions.
+
+    >>> t = grid.stepping_dim
+    >>> x, y = grid.dimensions
+    >>> op = Operator([Eq(u.forward, u + 1),
+                       Eq(u[t+1, x, 0], 0),
+                       Eq(u[t+1, x, 2], 0),
+                       Eq(u[t+1, 0, y], 0),
+                       Eq(u[t+1, 2, y], 0)])
+
+    A semantically equivalent computation can be expressed exploiting `SubDomain`s.
+
+    >>> u.data[:] = 0
+    >>> op = Operator(Eq(u.forward, u + 1, subdomain=grid.interior))
+
+    By specifying a SubDomain, the Operator constrains the execution of an expression to
+    a certain sub-region within the computational domain. Ad-hoc `SubDomain`s can also be
+    created in application code -- refer to the SubDomain documentation for more info.
+
+    Advanced boundary conditions can be expressed leveraging `SubDomain` and
+    `SubDimension`.
+
+    Tensor contractions are supported, but with one caveat: in case of MPI execution, any
+    global reductions along an MPI-distributed Dimension should be handled explicitly in
+    user code. The following example shows how to implement the matrix-vector
+    multiplication ``Av = b`` (inducing a reduction along ``y``).
+
+    >>> from devito import Inc, Function
+    >>> A = Function(name='A', grid=grid)
+    >>> v = Function(name='v', shape=(3,), dimensions=(y,))
+    >>> b = Function(name='b', shape=(3,), dimensions=(x,))
+    >>> op = Operator(Inc(b, A*v))
+
+    Dense and sparse computation may be present within the same Operator. In the
+    following example, interpolation is used to approximate the value of four
+    sparse points placed at the center of the four quadrants at the grid corners.
+
+    >>> from devito import SparseFunction
+    >>> grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+    >>> f = Function(name='f', grid=grid)
+    >>> coordinates = np.array([(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)])
+    >>> sf = SparseFunction(name='sf', grid=grid, npoint=4, coordinates=coordinates)
+    >>> op = Operator([Eq(f, f + 1)] + sf.interpolate(f))
+
+    The iteration direction is automatically detected by the Devito compiler. Below,
+    the Operator runs from ``time_M`` (maximum point in the time dimension) down to
+    ``time_m`` (minimum point in the time dimension), as opposed to all of the examples
+    seen so far, in which the execution along time proceeds from ``time_m`` to ``time_M``
+    through unit-step increments.
+
+    >>> op = Operator(Eq(u.backward, u + 1))
+
+    Loop-level optimisations, including SIMD vectorisation and OpenMP parallelism, are
+    automatically discovered and handled by the Devito compiler. For more information,
+    refer to the relevant documentation.
+    """
+
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
 
         # Input check
-        if any(not isinstance(i, sympy.Eq) for i in expressions):
-            raise InvalidOperator("Only SymPy expressions are allowed.")
+        if any(not isinstance(i, Eq) for i in expressions):
+            raise InvalidOperator("Only `devito.Eq` expressions are allowed.")
 
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
@@ -182,8 +258,7 @@ class Operator(Callable):
 
     @cached_property
     def _known_arguments(self):
-        """Return an iterable of arguments that can be passed to ``apply``
-        when running the operator."""
+        """The arguments that can be passed to ``apply`` when running the Operator."""
         ret = set.union(*[set(i._arg_names) for i in self.input + self.dimensions])
         return tuple(sorted(ret))
 
@@ -213,15 +288,13 @@ class Operator(Callable):
 
         It is ensured that JIT compilation will only be performed once per
         :class:`Operator`, reagardless of how many times this method is invoked.
-
-        :returns: The file name of the JIT-compiled function.
         """
         if self._lib is None:
             jit_compile(self._soname, str(self.ccode), self._compiler)
 
     @property
     def cfunction(self):
-        """Returns the JIT-compiled C function as a ctypes.FuncPtr object."""
+        """The JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
             self._compile()
             self._lib = load(self._soname)
@@ -239,8 +312,10 @@ class Operator(Callable):
         return List(body=iet), None
 
     def _autotune(self, args, setup):
-        """Use auto-tuning on this Operator to determine empirically the
-        best block sizes when loop blocking is in use."""
+        """
+        Use auto-tuning on this Operator to determine empirically the
+        best block sizes when loop blocking is in use.
+        """
         return args
 
     def _apply_substitutions(self, expressions, subs):
@@ -264,9 +339,11 @@ class Operator(Callable):
         return [LoweredEq(i) for i in expressions]
 
     def _specialize_iet(self, iet, **kwargs):
-        """Transform the Iteration/Expression tree into a backend-specific
+        """
+        Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
-        lower-level tool."""
+        lower-level system (e.g., YASK).
+        """
         dle = kwargs.get("dle", configuration['dle'])
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
@@ -281,27 +358,33 @@ class Operator(Callable):
         return state.nodes
 
     def _generate_mpi(self, iet, **kwargs):
-        """Transform the Iteration/Expression tree adding nodes performing halo
+        """
+        Transform the Iteration/Expression tree adding nodes performing halo
         exchanges right before :class:`Iteration`s accessing distributed
-        :class:`TensorFunction`s."""
+        :class:`TensorFunction`s.
+        """
         return iet
 
     def _build_parameters(self, iet):
-        """Determine the Operator parameters based on the Iteration/Expression
-        tree ``iet``."""
+        """
+        Determine the Operator parameters based on the Iteration/Expression tree ``iet``.
+        """
         return derive_parameters(iet, True)
 
     def _build_casts(self, iet):
-        """Introduce array and pointer casts at the top of the Iteration/Expression
-        tree ``iet``."""
+        """
+        Introduce array and pointer casts in the Iteration/Expression tree ``iet``.
+        """
         casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
         return List(body=casts + [iet])
 
     @cached_property
     def _mem_summary(self):
-        """The amount of data, in bytes, used by the Operator. This is provided as
+        """
+        The amount of data, in bytes, used by the Operator. This is provided as
         symbolic expressions, one symbolic expression for each memory scope (external,
-        stack, heap)."""
+        stack, heap).
+        """
         tensors = [i for i in derive_parameters(self) if i.is_Tensor]
 
         summary = {}
@@ -369,74 +452,64 @@ class Operator(Callable):
 
 
 class OperatorRunnable(Operator):
-    """
-    A special :class:`Operator` that, besides generation and compilation of
-    C code evaluating stencil expressions, can also execute the computation.
-    """
 
     def __call__(self, **kwargs):
         self.apply(**kwargs)
 
     def apply(self, **kwargs):
         """
-        Run the operator.
+        Execute the Operator.
 
-        Without additional parameters specified, the operator runs on the same
-        data objects used to build it -- the so called ``default arguments``.
+        With no arguments provided, the Operator runs using the data carried by the
+        objects appearing in the input expressions -- these are referred to as the
+        "default arguments".
 
-        Optionally, any of the operator default arguments may be replaced by
-        passing suitable key-value parameters. Given ``apply(k=v, ...)``,
-        ``(k, v)`` may be used to: ::
+        Optionally, any of the Operator default arguments may be replaced by passing
+        suitable key-value arguments. Given ``apply(k=v, ...)``, ``(k, v)`` may be
+        used to: ::
 
-            * replace a constant (scalar) used by the operator. In this case,
-                ``k`` is the name of the constant; ``v`` is either an object
-                of type :class:`Constant` or an actual scalar value.
-            * replace a function (tensor) used by the operator. In this case,
-                ``k`` is the name of the function; ``v`` is either an object
-                of type :class:`TensorFunction` or a :class:`numpy.ndarray`.
-            * alter the iteration interval along a given :class:`Dimension`
-                ``d``, which represents a subset of the operator iteration space.
-                By default, the operator runs over all iterations within the
-                compact interval ``[d_m, d_M]``, in which ``d_m`` and ``d_M``
-                are, respectively, the smallest and largest integers not causing
-                out-of-bounds memory accesses. In this case, ``k`` can be any
-                of ``(d_m, d_M, d_n)``; ``d_n`` can be used to indicate to run
-                for exactly ``n`` iterations starting at ``d_m``. ``d_n`` is
-                ignored (raising a warning) if ``d_M`` is also provided. ``v`` is
-                an integer value.
+            * replace a constant (scalar) used by the Operator. In this case,
+                ``k`` is the name of the constant; ``v`` is either an object of type
+                :class:`Constant` or an actual scalar value.
+            * replace a function (tensor) used by the Operator. In this case,
+                ``k`` is the name of the function; ``v`` is either an object of type
+                :class:`TensorFunction` or a :class:`numpy.ndarray`.
+            * alter the iteration interval along a given :class:`Dimension` ``d``.
+                By default, the Operator runs over all iterations within the compact
+                interval ``[d_m, d_M]``, in which ``d_m`` and ``d_M`` are, respectively,
+                the smallest and largest integers not causing out-of-bounds memory
+                accesses (the whole domain for space dimensions). In this case,
+                ``k`` can be either ``d_m`` or ``d_M``; ``v`` is an integer value.
 
         Examples
         --------
-        The following operator implements a trivial time-marching method which
-        adds 1 to every grid point at every time iteration.
+        Consider the following Operator
 
         >>> from devito import Eq, Grid, TimeFunction, Operator
         >>> grid = Grid(shape=(3, 3))
         >>> u = TimeFunction(name='u', grid=grid, save=3)
         >>> op = Operator(Eq(u.forward, u + 1))
 
-        The operator is run by calling
+        The Operator is run by calling
 
         >>> op.apply()
 
-        As no key-value parameters are specified, the operator runs with its
+        As no key-value parameters are specified, the Operator runs with its
         default arguments, namely ``u=u, x_m=0, x_M=2, y_m=0, y_M=2, time_m=0,
-        time_M=1``. Note that one can access the operator dimensions via the
-        ``grid`` object (e.g., ``grid.dimensions`` for the ``x`` and ``y``
-        space dimensions).
+        time_M=1``.
 
-        At this point, the same operator can be used for a completely different
+        At this point, the same Operator can be used for a completely different
         run, for example
 
         >>> u2 = TimeFunction(name='u', grid=grid, save=5)
         >>> op.apply(u=u2, x_m=1, y_M=1)
 
-        Now, the operator will run with a different set of arguments, namely
+        Now, the Operator will run with a different set of arguments, namely
         ``u=u2, x_m=1, x_M=2, y_m=0, y_M=1, time_m=0, time_M=3``.
 
-        To run an operator that only uses buffered :class:`TimeFunction`s,
+        To run an Operator that only uses buffered :class:`TimeFunction`s,
         the maximum iteration point along the time dimension must be explicitly
-        specified (otherwise, the operator wouldn't know how many iterations
+        specified (otherwise, the Operator wouldn't know how many iterations
         to run).
 
         >>> u3 = TimeFunction(name='u', grid=grid)
@@ -468,7 +541,7 @@ class OperatorRunnable(Operator):
         return self._profile_output(args)
 
     def _profile_output(self, args):
-        """Return a performance summary of the profiled sections."""
+        """Produce a performance summary of the profiled sections."""
         summary = self._profiler.summary(args, self._dtype)
         info("Operator `%s` run in %.2f s" % (self.name, sum(summary.timings.values())))
         for k, v in summary.items():
