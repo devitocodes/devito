@@ -906,15 +906,15 @@ class Function(TensorFunction, Differentiable):
         Carries shape, dimensions, and dtype of the Function. When grid is not
         provided, shape and dimensions must be given. For MPI execution, a
         Grid is compulsory.
-    space_order : int or 3-tuple of int, optional
-        Discretisation order for space derivatives. By default, `space_order` points are
-        available on both sides of a generic point of interest, including those on the
-        grid border. Sometimes, fewer points may be necessary; in other cases, for
-        example depending on the PDE being approximated, more points may be necessary. In
-        such cases, one can pass a 3-tuple ``(o, lp, rp)``, instead of an integer,
-        indicating the discretization order (``o``) and the number of points on the two
-        sides of a generic point of interest (respectively ``lp`` and ``rp``) along each
-        Dimension.
+    space_order : int or 3-tuple of ints, optional
+        Discretisation order for space derivatives. Defaults to 1. ``space_order`` also
+        impacts the number of points available around a generic point of interest.  By
+        default, ``space_order`` points are available on both sides of a generic point of
+        interest, including those nearby the grid boundary. Sometimes, fewer points
+        suffice; in other scenarios, more points are necessary. In such cases, instead of
+        an integer, one can pass a 3-tuple ``(o, lp, rp)`` indicating the discretization
+        order (``o``) as well as the number of points on the left (``lp``) and right
+        (``rp``) sides of a generic point of interest.
     shape : tuple of ints, optional
         Shape of the domain region in grid points. Only necessary if ``grid`` isn't given.
     dimensions : tuple of Dimension, optional
@@ -1122,23 +1122,25 @@ class TimeFunction(Function):
     A TimeFunction carries multi-dimensional data and provides operations to create
     finite-differences approximations, in both space and time.
 
+    Parameters
+    ----------
     name : str
         Name of the symbol.
     grid : Grid, optional
         Carries shape, dimensions, and dtype of the Function. When grid is not
         provided, shape and dimensions must be given. For MPI execution, a
         Grid is compulsory.
-    space_order : int or 3-tuple of int, optional
-        Discretisation order for space derivatives. By default, `space_order` points are
-        available on both sides of a generic point of interest, including those on the
-        grid border. Sometimes, fewer points may be necessary; in other cases, for
-        example depending on the PDE being approximated, more points may be necessary. In
-        such cases, one can pass a 3-tuple ``(o, lp, rp)``, instead of an integer,
-        indicating the discretization order (``o``) and the number of points on the two
-        sides of a generic point of interest (respectively ``lp`` and ``rp``) along each
-        Dimension.
+    space_order : int or 3-tuple of ints, optional
+        Discretisation order for space derivatives. Defaults to 1. ``space_order`` also
+        impacts the number of points available around a generic point of interest.  By
+        default, ``space_order`` points are available on both sides of a generic point of
+        interest, including those nearby the grid boundary. Sometimes, fewer points
+        suffice; in other scenarios, more points are necessary. In such cases, instead of
+        an integer, one can pass a 3-tuple ``(o, lp, rp)`` indicating the discretization
+        order (``o``) as well as the number of points on the left (``lp``) and right
+        (``rp``) sides of a generic point of interest.
     time_order : int, optional
-        Discretization order for time derivatives.
+        Discretization order for time derivatives. Defaults to 1.
     shape : tuple of ints, optional
         Shape of the domain region in grid points. Only necessary if `grid` isn't given.
     dimensions : tuple of Dimension, optional
@@ -1706,10 +1708,10 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         Number of sparse points.
     grid : Grid
         The computational domain from which the sparse points are sampled.
-    coordinates : np.ndarray, optiona;
+    coordinates : np.ndarray, optional
         The coordinates of each sparse point.
     space_order : int, optional
-        Discretisation order for space derivatives.
+        Discretisation order for space derivatives. Defaults to 0.
     shape : tuple of ints, optional
         Shape of the object. Defaults to ``(npoint,)``.
     dimensions : tuple of Dimension, optional
@@ -1744,6 +1746,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
            [0., 0.]], dtype=float32)
 
     Symbolic interpolation routines
+    >>> from devito import Function
     >>> f = Function(name='f', grid=grid)
     >>> exprs0 = sf.interpolate(f)
     >>> exprs1 = sf.inject(f, sf)
@@ -1913,8 +1916,10 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return index_matrix, points
 
     def _interpolation_indices(self, variables, offset=0):
-        """Generate interpolation indices for the :class:`TensorFunction`s
-        in ``variables``."""
+        """
+        Generate interpolation indices for the :class:`TensorFunction`s
+        in ``variables``.
+        """
         index_matrix, points = self._index_matrix(offset)
 
         idx_subs = []
@@ -1952,7 +1957,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return ret
 
     def interpolate(self, expr, offset=0, increment=False, self_subs={}):
-        """Generate equations interpolating an arbitrary expression into ``self``.
+        """
+        Generate equations interpolating an arbitrary expression into ``self``.
 
         Parameters
         ----------
@@ -1983,7 +1989,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return eqns + summands + last
 
     def inject(self, field, expr, offset=0):
-        """Generate equations injecting an arbitrary expression into a field.
+        """
+        Generate equations injecting an arbitrary expression into a field.
 
         Parameters
         ----------
@@ -2147,52 +2154,98 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     """
-    A time-dependent :class:`SparseFunction`.
+    Tensor symbol representing a space- and time-varying sparse array in symbolic
+    equations.
 
-    :param name: Name of the function.
-    :param nt: Size of the time dimension for point data.
-    :param npoint: Number of points to sample.
-    :param grid: :class:`Grid` object defining the computational domain.
-    :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: (Optional) discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) discretisation order for time derivatives.
-                       Default to 1.
-    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.
-    :param dimensions: (Optional) symbolic dimensions that define the
-                       data layout and function indices of this symbol.
-    :param dtype: (Optional) Data type of the buffered data.
-    :param initializer: (Optional) a callable or an object exposing buffer interface
-                        used to initialize the data. If a callable is provided,
-                        initialization is deferred until the first access to
-                        ``data``.
-    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
-                      specify where to allocate the function data when running
-                      on a NUMA architecture. Refer to ``default_allocator()``'s
-                      __doc__ for more information about possible allocators.
+    Like SparseFunction, SparseTimeFunction carries multi-dimensional data that
+    are not aligned with the computational grid. As such, each data value is
+    associated some coordinates.
 
-    .. note::
+    A SparseFunction provides symbolic interpolation routines to convert between
+    :class:`Function`s and sparse data points. These are based upon standard
+    [bi,tri]linear interpolation.
 
-        The parameters must always be given as keyword arguments, since
-        SymPy uses `*args` to (re-)create the dimension arguments of the
-        symbolic function.
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    npoint : int
+        Number of sparse points.
+    nt : int
+        Number of timesteps along the time dimension.
+    grid : Grid
+        The computational domain from which the sparse points are sampled.
+    coordinates : np.ndarray, optional
+        The coordinates of each sparse point.
+    space_order : int, optional
+        Discretisation order for space derivatives. Defaults to 0.
+    time_order : int, optional
+        Discretisation order for time derivatives. Defaults to 1.
+    shape : tuple of ints, optional
+        Shape of the object. Defaults to ``(nt, npoint)``.
+    dimensions : tuple of Dimension, optional
+        Dimensions associated with the object. Only necessary if the SparseFunction
+        defines a multi-dimensional tensor.
+    dtype : data-type, optional
+        Any object that can be interpreted as a numpy data type. Defaults
+        to ``np.float32``.
+    initializer : callable or any object exposing the buffer interface, optional
+        Data initializer. If a callable is provided, data is allocated lazily.
+    allocator : MemoryAllocator, optional
+        Controller for memory allocation. To be used, for example, when one wants
+        to take advantage of the memory hierarchy in a NUMA architecture. Refer to
+        `default_allocator.__doc__` for more information.
+
+    Examples
+    --------
+    Creation
+
+    >>> from devito import Grid, SparseTimeFunction
+    >>> grid = Grid(shape=(4, 4))
+    >>> sf = SparseTimeFunction(name='sf', grid=grid, npoint=2, nt=3)
+    >>> sf(time, p_sf)
+
+    Inspection
+    >>> sf.data
+    Data([[0., 0.],
+          [0., 0.],
+          [0., 0.]], dtype=float32)
+    >>> sf.coordinates
+    sf_coords(p_sf, d)
+    >>> sf.coordinates_data
+    array([[0., 0.],
+           [0., 0.]], dtype=float32)
+
+    Symbolic interpolation routines
+    >>> from devito import TimeFunction
+    >>> f = TimeFunction(name='f', grid=grid)
+    >>> exprs0 = sf.interpolate(f)
+    >>> exprs1 = sf.inject(f, sf)
+
+    Notes
+    -----
+    The parameters must always be given as keyword arguments, since SymPy
+    uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     """
 
     is_SparseTimeFunction = True
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
-        """Creates a :class:`sympy.Eq` equation for the interpolation
-        of an expression onto this sparse point collection.
+        """
+        Generate equations interpolating an arbitrary expression into ``self``.
 
-        :param expr: The expression to interpolate.
-        :param offset: Additional offset from the boundary for
-                       absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into
-                    field data in `expr`.
-        :param p_t: (Optional) time index to use for indexing into
-                    the sparse point data.
-        :param increment: (Optional) if True, perform an increment rather
-                          than an assignment. Defaults to False.
+        Parameters
+        ----------
+        expr : sympy.Expr
+            Input expression to interpolate.
+        offset : int, optional
+            Additional offset from the boundary.
+        u_t : expr, optional
+            Time index at which the interpolation is performed.
+        p_t : expr, optional
+            Time index at which the result of the interpolation is stored.
+        increment: bool, optional
+            If True, generate increments (Inc) rather than assignments (Eq).
         """
         # Apply optional time symbol substitutions to expr
         subs = {}
@@ -2209,14 +2262,21 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
                                                            self_subs=subs)
 
     def inject(self, field, expr, offset=0, u_t=None, p_t=None):
-        """Symbol for injection of an expression onto a grid
+        """
+        Generate equations injecting an arbitrary expression into a field.
 
-        :param field: The grid field into which we inject.
-        :param expr: The expression to inject.
-        :param offset: Additional offset from the boundary for
-                       absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into `field`.
-        :param p_t: (Optional) time index to use for indexing into `expr`.
+        Parameters
+        ----------
+        field : Function
+            Input field into which the injection is performed.
+        expr : sympy.Expr
+            Injected expression.
+        offset : int, optional
+            Additional offset from the boundary.
+        u_t : expr, optional
+            Time index at which the interpolation is performed.
+        p_t : expr, optional
+            Time index at which the result of the interpolation is stored.
         """
         # Apply optional time symbol substitutions to field and expr
         if u_t is not None:
@@ -2233,45 +2293,56 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
     """
-    A specialised type of SparseFunction where the interpolation is externally defined.
-    Currently, this means that the grid points and associated coefficients for each
-    sparse point is precomputed at the time this object is being created.
+    Tensor symbol representing a sparse array in symbolic equations; unlike
+    SparseFunction, PrecomputedSparseFunction uses externally-defined data
+    for interpolation.
 
-    :param name: Name of the function.
-    :param npoint: Number of points to sample.
-    :param grid: :class:`Grid` object defining the computational domain.
-    :param r: The number of gridpoints in each dimension to interpolate a single sparse
-              point to. e.g. 2 for linear interpolation.
-    :param gridpoints: The *reference* grid point corresponding to each sparse point.
-                       Of all the gridpoints that one sparse point would be interpolated
-                       to, this is the grid point closest to the origin, i.e. the one
-                       with the lowest value of each coordinate dimension. Must be a
-                       two-dimensional array of shape [npoint][grid.ndim].
-    :param coefficients: An array containing the coefficient for each of the r^2 (2D) or
-                         r^3 (3D) gridpoints that each sparsefunction will be interpolated
-                         to. The coefficient is split across the n dimensions such that
-                         the contribution of the point (i, j, k) will be multiplied by
-                         coefficients[..., i]*coefficients[..., j]*coefficients[...,k]. So
-                         for r=6, we will store 18 coefficients per sparse point (instead
-                         of potentially 216). Shape must be [npoint][grid.ndim][r].
-    :param space_order: (Optional) discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) discretisation order for time derivatives.
-                       Default to 1.
-    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.
-    :param dimensions: (Optional) symbolic dimensions that define the
-                       data layout and function indices of this symbol.
-    :param dtype: (Optional) data type of the buffered data.
-    :param initializer: (Optional) a callable or an object exposing buffer interface
-                        used to initialize the data. If a callable is provided,
-                        initialization is deferred until the first access to
-                        ``data``.
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    npoint : int
+        Number of sparse points.
+    grid : Grid
+        The computational domain from which the sparse points are sampled.
+    r : int
+        Number of gridpoints in each dimension to interpolate a single sparse
+        point to. E.g. ``r=2`` for linear interpolation.
+    gridpoints : np.ndarray, optional
+        An array carrying the *reference* grid point corresponding to each sparse point.
+        Of all the gridpoints that one sparse point would be interpolated to, this is the
+        grid point closest to the origin, i.e. the one with the lowest value of each
+        coordinate dimension. Must be a two-dimensional array of shape
+        ``(npoint, grid.ndim)``.
+    coefficients : np.ndarray, optional
+        An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
+        gridpoints that each sparse point will be interpolated to. The coefficient is
+        split across the n dimensions such that the contribution of the point (i, j, k)
+        will be multiplied by ``coefficients[..., i]*coefficients[...,
+        j]*coefficients[...,k]``. So for ``r=6``, we will store 18 coefficients per
+        sparse point (instead of potentially 216). Must be a three-dimensional array of
+        shape ``(npoint, grid.ndim, r)``.
+    space_order : int, optional
+        Discretisation order for space derivatives. Defaults to 0.
+    shape : tuple of ints, optional
+        Shape of the object. Defaults to ``(npoint,)``.
+    dimensions : tuple of Dimension, optional
+        Dimensions associated with the object. Only necessary if the SparseFunction
+        defines a multi-dimensional tensor.
+    dtype : data-type, optional
+        Any object that can be interpreted as a numpy data type. Defaults
+        to ``np.float32``.
+    initializer : callable or any object exposing the buffer interface, optional
+        Data initializer. If a callable is provided, data is allocated lazily.
+    allocator : MemoryAllocator, optional
+        Controller for memory allocation. To be used, for example, when one wants
+        to take advantage of the memory hierarchy in a NUMA architecture. Refer to
+        `default_allocator.__doc__` for more information.
 
-    .. note::
-
-        The parameters must always be given as keyword arguments, since
-        SymPy uses `*args` to (re-)create the dimension arguments of the
-        symbolic function.
+    Notes
+    -----
+    The parameters must always be given as keyword arguments, since SymPy
+    uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     """
 
     is_PrecomputedSparseFunction = True
@@ -2313,27 +2384,20 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                     "computed on the final grid that will be used for other " +
                     "computations.")
 
-    def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
-        """Creates a :class:`sympy.Eq` equation for the interpolation
-        of an expression onto this sparse point collection.
+    def interpolate(self, expr, offset=0, increment=False, self_subs={}):
+        """
+        Generate equations interpolating an arbitrary expression into ``self``.
 
-        :param expr: The expression to interpolate.
-        :param offset: Additional offset from the boundary for
-                       absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into
-                    field data in `expr`.
-        :param p_t: (Optional) time index to use for indexing into
-                    the sparse point data.
-        :param increment: (Optional) if True, perform an increment rather
-                          than an assignment. Defaults to False.
+        Parameters
+        ----------
+        expr : sympy.Expr
+            Input expression to interpolate.
+        offset : int, optional
+            Additional offset from the boundary.
+        increment: bool, optional
+            If True, generate increments (Inc) rather than assignments (Eq).
         """
         expr = indexify(expr)
-
-        # Apply optional time symbol substitutions to expr
-        if u_t is not None:
-            time = self.grid.time_dim
-            t = self.grid.stepping_dim
-            expr = expr.subs(t, u_t).subs(time, u_t)
 
         p, _, _ = self.coefficients.indices
         dim_subs = []
@@ -2343,29 +2407,26 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
             coeffs.append(self.coefficients[p, i, rd])
         # Apply optional time symbol substitutions to lhs of assignment
-        lhs = self if p_t is None else self.subs(self.indices[0], p_t)
+        lhs = self.subs(self_subs)
         rhs = prod(coeffs) * expr.subs(dim_subs)
 
         return [Eq(lhs, lhs + rhs)]
 
-    def inject(self, field, expr, offset=0, u_t=None, p_t=None):
-        """Symbol for injection of an expression onto a grid
+    def inject(self, field, expr, offset=0):
+        """
+        Generate equations injecting an arbitrary expression into a field.
 
-        :param field: The grid field into which we inject.
-        :param expr: The expression to inject.
-        :param offset: Additional offset from the boundary for
-                       absorbing boundary conditions.
-        :param u_t: (Optional) time index to use for indexing into `field`.
-        :param p_t: (Optional) time index to use for indexing into `expr`.
+        Parameters
+        ----------
+        field : Function
+            Input field into which the injection is performed.
+        expr : sympy.Expr
+            Injected expression.
+        offset : int, optional
+            Additional offset from the boundary.
         """
         expr = indexify(expr)
         field = indexify(field)
-
-        # Apply optional time symbol substitutions to field and expr
-        if u_t is not None:
-            field = field.subs(field.indices[0], u_t)
-        if p_t is not None:
-            expr = expr.subs(self.indices[0], p_t)
 
         p, _ = self.gridpoints.indices
         dim_subs = []
@@ -2410,48 +2471,91 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
                                     PrecomputedSparseFunction):
     """
-    A specialised type of SparseFunction where the interpolation is externally defined.
-    Currently, this means that the grid points and associated coefficients for each
-    sparse point is precomputed at the time this object is being created.
+    Tensor symbol representing a space- and time-varying sparse array in symbolic
+    equations; unlike SparseTimeFunction, PrecomputedSparseTimeFunction uses
+    externally-defined data for interpolation.
 
-    :param name: Name of the function.
-    :param npoint: Number of points to sample.
-    :param grid: :class:`Grid` object defining the computational domain.
-    :param r: The number of gridpoints in each dimension to interpolate a single sparse
-              point to. e.g. 2 for linear interpolation.
-    :param gridpoints: The *reference* grid point corresponding to each sparse point.
-                       Of all the gridpoints that one sparse point would be interpolated
-                       to, this is the grid point closest to the origin, i.e. the one
-                       with the lowest value of each coordinate dimension. Must be a
-                       two-dimensional array of shape [npoint][grid.ndim].
-    :param coefficients: An array containing the coefficient for each of the r^2 (2D) or
-                         r^3 (3D) gridpoints that each sparsefunction will be interpolated
-                         to. The coefficient is split across the n dimensions such that
-                         the contribution of the point (i, j, k) will be multiplied by
-                         coefficients[..., i]*coefficients[..., j]*coefficients[...,k]. So
-                         for r=6, we will store 18 coefficients per sparse point (instead
-                         of potentially 216). Shape must be [npoint][grid.ndim][r].
-    :param space_order: (Optional) discretisation order for space derivatives.
-                        Default to 0.
-    :param time_order: (Optional) discretisation order for time derivatives.
-                       Default to 1.
-    :param shape: (Optional) shape of the function. Defaults to ``(nt, npoint,)``.
-    :param dimensions: (Optional) symbolic dimensions that define the
-                       data layout and function indices of this symbol.
-    :param dtype: (Optional) data type of the buffered data.
-    :param initializer: (Optional) a callable or an object exposing buffer interface
-                        used to initialize the data. If a callable is provided,
-                        initialization is deferred until the first access to
-                        ``data``.
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    npoint : int
+        Number of sparse points.
+    grid : Grid
+        The computational domain from which the sparse points are sampled.
+    r : int
+        Number of gridpoints in each dimension to interpolate a single sparse
+        point to. E.g. ``r=2`` for linear interpolation.
+    gridpoints : np.ndarray, optional
+        An array carrying the *reference* grid point corresponding to each sparse point.
+        Of all the gridpoints that one sparse point would be interpolated to, this is the
+        grid point closest to the origin, i.e. the one with the lowest value of each
+        coordinate dimension. Must be a two-dimensional array of shape
+        ``(npoint, grid.ndim)``.
+    coefficients : np.ndarray, optional
+        An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
+        gridpoints that each sparse point will be interpolated to. The coefficient is
+        split across the n dimensions such that the contribution of the point (i, j, k)
+        will be multiplied by ``coefficients[..., i]*coefficients[...,
+        j]*coefficients[...,k]``. So for ``r=6``, we will store 18 coefficients per
+        sparse point (instead of potentially 216). Must be a three-dimensional array of
+        shape ``(npoint, grid.ndim, r)``.
+    space_order : int, optional
+        Discretisation order for space derivatives. Defaults to 0.
+    time_order : int, optional
+        Discretisation order for time derivatives. Default to 1.
+    shape : tuple of ints, optional
+        Shape of the object. Defaults to ``(npoint,)``.
+    dimensions : tuple of Dimension, optional
+        Dimensions associated with the object. Only necessary if the SparseFunction
+        defines a multi-dimensional tensor.
+    dtype : data-type, optional
+        Any object that can be interpreted as a numpy data type. Defaults
+        to ``np.float32``.
+    initializer : callable or any object exposing the buffer interface, optional
+        Data initializer. If a callable is provided, data is allocated lazily.
+    allocator : MemoryAllocator, optional
+        Controller for memory allocation. To be used, for example, when one wants
+        to take advantage of the memory hierarchy in a NUMA architecture. Refer to
+        `default_allocator.__doc__` for more information.
 
-    .. note::
-
-        The parameters must always be given as keyword arguments, since
-        SymPy uses `*args` to (re-)create the dimension arguments of the
-        symbolic function.
+    Notes
+    -----
+    The parameters must always be given as keyword arguments, since SymPy
+    uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     """
 
     is_PrecomputedSparseTimeFunction = True
+
+    def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
+        """
+        Generate equations interpolating an arbitrary expression into ``self``.
+
+        Parameters
+        ----------
+        expr : sympy.Expr
+            Input expression to interpolate.
+        offset : int, optional
+            Additional offset from the boundary.
+        u_t : expr, optional
+            Time index at which the interpolation is performed.
+        p_t : expr, optional
+            Time index at which the result of the interpolation is stored.
+        increment: bool, optional
+            If True, generate increments (Inc) rather than assignments (Eq).
+        """
+        subs = {}
+        if u_t is not None:
+            time = self.grid.time_dim
+            t = self.grid.stepping_dim
+            expr = expr.subs({time: u_t, t: u_t})
+
+        if p_t is not None:
+            subs = {self.time_dim: p_t}
+
+        return super(PrecomputedSparseTimeFunction, self).interpolate(
+            expr, offset=offset, increment=increment, self_subs=subs
+        )
 
 
 # Additional Function-related APIs
