@@ -19,50 +19,76 @@ class Grid(ArgProvider):
     A cartesian grid that encapsulates a computational domain over which
     to discretize :class:`Function`s.
 
-    :param shape: Shape of the computational domain in grid points.
-    :param extent: (Optional) physical extent of the domain in m; defaults
-                   to a unit box of extent 1m in all dimensions.
-    :param origin: (Optional) physical coordinate of the origin of the
-                   domain; defaults to 0.0 in all dimensions.
-    :param dimensions: (Optional) list of :class:`SpaceDimension`s
-                       defining the spatial dimensions of the computational
-                       domain encapsulated by this Grid.
-    :param time_dimension: (Optional) a :class:`TimeDimension`, used to
-                           define the time dimension for all
-                           :class:`TimeFunction`s created from this Grid.
-    :param dtype: (Optional) default data type to be inherited by all
-                  :class:`Function`s created from this Grid. Defaults
-                  to ``numpy.float32``.
-    :param subdomains: (Optional) an iterable of :class:`SubDomain`s.
-                       If None (as by default), then the Grid only has two
-                       subdomains, ``'interior'`` and ``'domain'``.
-    :param comm: (Optional) an MPI communicator defining the set of
-                 processes among which the grid is distributed.
+    Parameters
+    ----------
+    shape : tuple of ints
+        Shape of the computational domain in grid points.
+    extent : tuple of ints, optional
+        Physical extent of the domain in m; defaults to a unit box of extent 1m
+        in all dimensions.
+    origin : tuple of ints, optional
+        Physical coordinate of the origin of the domain; defaults to 0.0 in all
+        dimensions.
+    dimensions : tuple of SpaceDimensions, optional
+        The dimensions of the computational domain encapsulated by this Grid.
+    time_dimension : TimeDimension, optional
+        The dimension used to define time in the :class:`TimeFunction`s created
+        from this Grid.
+    dtype : data-type, optional
+        Any object that can be interpreted as a numpy data type, used as default
+        data type to be inherited by all :class:`Function`s created from this
+        Grid. Defaults to ``np.float32``.
+    subdomains : tuple of SubDomains, optional
+        If no subdomains are specified, the Grid only defines the two default
+        subdomains ``interior`` and ``domain``.
+    comm : MPI communicator, optional
+        The set of processes over which the grid is distributed. Only relevant in
+        case of MPI execution.
 
+    Examples
+    --------
+    >>> from devito import Grid, Function
+    >>> grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+    >>> f = Function(name='f', grid=grid)
+    >>> f.shape
+    (4, 4)
+    >>> f.dimensions
+    (x, y)
+    >>> f.dtype
+    numpy.float32
+
+    In a Function, the domain defined by a Grid is often surrounded by a "halo
+    region", which guarantees the correctness of stencil updates nearby the
+    domain boundary. However, the size of the halo region does *not* depend on
+    the Grid; for more information, refer to ``Function.__doc__``.
+
+    >>> f.shape_with_halo
+    (6, 6)
+
+    Notes
+    -----
     A Grid encapsulates the topology and geometry information of the
     computational domain that :class:`Function`s can be discretized on.
     As such, it defines and provides the physical coordinate information of
     the logical cartesian grid underlying the discretized :class:`Function`s.
     For example, the conventions for defining the coordinate space in 2D are:
 
-    .. note::
+        .. code-block:: python
 
-       .. code-block:: python
-
-                      x
-            |----------------------->
-            |  origin
-            |     o------------o
-            |     |            |
-            |     |            |
-            |     |   DOMAIN   | extent[1]
-        y   |     |            |
-            |     |            |
-            |     |  extent[0] |
-            |     o------------o
-            |             origin + extent
-            |
-            v
+                       x
+             |----------------------->
+             |  origin
+             |     o------------o
+             |     |            |
+             |     |            |
+             |     |   DOMAIN   | extent[1]
+         y   |     |            |
+             |     |            |
+             |     |  extent[0] |
+             |     o------------o
+             |             origin + extent
+             |
+             v
     """
 
     _default_dimensions = ('x', 'y', 'z')
@@ -163,9 +189,7 @@ class Grid(ArgProvider):
 
     @property
     def volume_cell(self):
-        """
-        Volume of a single cell e.g  h_x*h_y*h_z in 3D
-        """
+        """Volume of a single cell e.g  h_x*h_y*h_z in 3D."""
         return prod(d.spacing for d in self.dimensions).subs(self.spacing_map)
 
     @property
@@ -182,15 +206,14 @@ class Grid(ArgProvider):
     @property
     def spacing_map(self):
         """
-        Map between spacing symbols and their values for each :class:`SpaceDimension`
+        Map between spacing symbols and their values for each
+        :class:`SpaceDimension`.
         """
         return dict(zip(self.spacing_symbols, self.spacing))
 
     @property
     def origin_offset(self):
-        """
-        Offset of the local (per-process) origin from the domain origin.
-        """
+        """Offset of the local (per-process) origin from the domain origin."""
         grid_origin = [min(i) for i in self.distributor.glb_numb]
         assert len(grid_origin) == len(self.spacing)
         return tuple(i*h for i, h in zip(grid_origin, self.spacing))
@@ -207,10 +230,7 @@ class Grid(ArgProvider):
 
     @property
     def dimension_map(self):
-        """
-        Map between ``self``'s :class:`SpaceDimension` and their global and
-        local size.
-        """
+        """Map from :class:`SpaceDimension` to their global and local size."""
         return {d: namedtuple('Size', 'glb loc')(g, l)
                 for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
 
@@ -221,12 +241,11 @@ class Grid(ArgProvider):
 
     @property
     def _const(self):
-        """Return the type to create constant symbols."""
+        """The type to be used to create constant symbols."""
         return Constant
 
     def is_distributed(self, dim):
-        """Return True if ``dim`` is a distributed :class:`Dimension`,
-        False otherwise."""
+        """True if ``dim`` is a distributed :class:`Dimension`, False otherwise."""
         return any(dim is d for d in self.distributor.dimensions)
 
     def _make_stepping_dim(self, time_dim, name=None):
@@ -236,9 +255,7 @@ class Grid(ArgProvider):
         return SteppingDimension(name=name, parent=time_dim)
 
     def _arg_defaults(self):
-        """
-        Returns a map of default argument values defined by this Grid.
-        """
+        """A map of default argument values defined by this Grid."""
         args = ReducerMap()
 
         for k, v in self.dimension_map.items():
