@@ -346,7 +346,7 @@ class DefaultDimension(Dimension):
 class DerivedDimension(Dimension):
 
     """
-    Symbol defining an iteration space derived from a "parent" Dimension.
+    Symbol defining an iteration space derived from a ``parent`` Dimension.
 
     Parameters
     ----------
@@ -424,7 +424,7 @@ class DerivedDimension(Dimension):
 class SubDimension(DerivedDimension):
 
     """
-    Symbol defining a contiguous iteration sub-space derived from a "parent"
+    Symbol defining a convex iteration sub-space derived from a ``parent``
     Dimension.
 
     Parameters
@@ -571,33 +571,71 @@ class SubDimension(DerivedDimension):
 class ConditionalDimension(DerivedDimension):
 
     """
-    Dimension symbol representing a sub-region of a given ``parent`` Dimension.
-    Unlike a :class:`SubDimension`, a ConditionalDimension does not represent
-    a contiguous region. The iterations touched by a ConditionalDimension
-    are expressible in two different ways: ::
+    Symbol defining a non-convex iteration sub-space derived from a ``parent``
+    Dimension, implemented by the compiler generating conditional "if-then" code
+    within the parent Dimension's iteration space. 
 
-        * ``factor``: an integer indicating the size of the increment.
-        * ``condition``: an arbitrary SymPy expression depending on ``parent``.
-                         All iterations for which the expression evaluates to
-                         True are part of the ``ConditionalDimension`` region.
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    parent : Dimension
+        The parent Dimension.
+    factor : int, optional
+        The number of iterations between two executions of the if-branch. If None
+        (default), ``condition`` must be provided.
+    condition : expr, optional
+        An arbitrary SymPy expression, typically involving the ``parent``
+        Dimension. When it evaluates to True, the if-branch is executed. If None
+        (default), ``factor`` must be provided.
+    indirect : bool, optional
+        If True, use ``condition``, rather than the parent Dimension, to
+        index into arrays. A typical use case is when arrays are accessed
+        indirectly via the ``condition`` expression. Defaults to False.
 
-    ConditionalDimension needs runtime arguments. The generated C code will require
-    the size of the dimension to initialize the arrays as e.g:
+    Examples
+    --------
+    Among the other things, ConditionalDimensions are indicated to implement
+    Function subsampling. In the following example, an Operator evaluates the
+    Function ``g`` and saves its content into ``f`` every ``factor=4`` iterations.
 
-        .. code-block:: python
-           x = grid.dimension[0]
-           x1 = ConditionalDimension(name='x1', parent=x, factor=2)
-           u1 = TimeFunction(name='u1', dimensions=(x1,), size=grid.shape[0]/factor)
-           # The generated code will look like
-           float (*restrict u1)[x1_size + 1] =
+    >>> from devito import Dimension, ConditionalDimension, Function, Eq, Operator
+    >>> size, factor = 16, 4
+    >>> i = Dimension(name='i')
+    >>> ci = ConditionalDimension(name='ci', parent=i, factor=factor)
+    >>> g = Function(name='g', shape=(size,), dimensions=(i,))
+    >>> f = Function(name='f', shape=(size/factor,), dimensions=(ci,))
+    >>> op = Operator([Eq(g, 1), Eq(f, g)])
 
-    .. note::
+    The Operator generates the following for-loop (pseudocode)
 
-        Sometimes the ConditionalDimension itself, rather than its parent, needs
-        to be used to index into an array. For example, this may happen when an
-        array is indirectly addressed and the ConditionalDimension's parent
-        doesn't define an affine iteration space. In such a case, one should
-        create the ConditionalDimension with the flag ``indirect=True``.
+    .. code-block:: python
+      for (int i = i_m; i <= i_M; i += 1) {
+        g[i] = 1;
+        if (i%4 == 0) {
+          f[i / 4] = g[i];
+        }
+      }
+
+    Another typical use case is when one needs to constrain the execution of
+    loop iterations to make sure certain conditions are honoured. The following
+    artificial example employs indirect array accesses and uses ConditionalDimension
+    to guard against out-of-bounds accesses.
+
+    >>> from sympy import And
+    >>> ci = ConditionalDimension(name='ci', parent=i,
+                                  condition=And(g[i] > 0, g[i] < 4, evaluate=False))
+    >>> f = Function(name='f', shape=(size/factor,), dimensions=(ci,))
+    >>> op = Operator(Eq(f[g[i]], f[g[i]] + 1))
+
+    The Operator generates the following for-loop (pseudocode)
+
+    .. code-block:: python
+      for (int i = i_m; i <= i_M; i += 1) {
+        if (g[i] > 0 && g[i] < 4) {
+          f[g[i]] = f[g[i]] + 1;
+        }
+      }
     """
 
     is_NonlinearDerived = True
@@ -647,12 +685,19 @@ class ConditionalDimension(DerivedDimension):
 class SteppingDimension(DerivedDimension):
 
     """
-    Dimension symbol that defines the stepping direction of an
-    :class:`Operator` and implies modulo buffered iteration. This is most
-    commonly use to represent a timestepping dimension.
+    Symbol defining a convex iteration sub-space derived from a ``parent``
+    Dimension, which cyclically produces a finite range of values, such
+    as ``0, 1, 2, 0, 1, 2, 0, ...`` (also referred to as "modulo buffered
+    iteration").
 
-    :param name: Name of the dimension symbol.
-    :param parent: Parent dimension over which to loop in modulo fashion.
+    SteppingDimension is most commonly used to represent a time-stepping Dimension.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    parent : Dimension
+        The parent Dimension.
     """
 
     is_NonlinearDerived = True
@@ -714,10 +759,21 @@ class ModuloDimension(DerivedDimension):
     ``parent`` Dimension, which cyclically produces a finite range of values,
     such as ``0, 1, 2, 0, 1, 2, 0, ...``.
 
-    :param parent: Parent dimension from which the ModuloDimension is created.
-    :param offset: An integer representing an offset from the parent dimension.
-    :param modulo: The extent of the range.
-    :param name: (Optional) force a name for this Dimension.
+    Parameters
+    ----------
+    parent : Dimension
+        The Dimension from which the ModuloDimension is derived.
+    offset : int
+        The offset from the parent dimension
+    modulo : int
+        The divisor value.
+    name : str, optional
+        To force a different Dimension name.
+
+    Notes
+    -----
+    This type should not be instantiated directly in user code; if in need for
+    modulo buffered iteration, use :class:`SteppingDimension` instead.
     """
 
     is_Modulo = True
@@ -796,6 +852,10 @@ class IncrDimension(DerivedDimension):
         symbolic size.
     name : str, optional
         To force a different Dimension name.
+
+    Notes
+    -----
+    This type should not be instantiated directly in user code.
     """
 
     is_Incr = True
