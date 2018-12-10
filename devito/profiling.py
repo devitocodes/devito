@@ -102,11 +102,14 @@ class AdvancedProfiler(Profiler):
         """
         Return a :class:`PerformanceSummary` of the profiled sections.
 
-        :param arguments: A mapper from argument names to run-time values from which
-                          the Profiler infers iteration space and execution times
-                          of a run.
-        :param dtype: The data type of the objects in the profiled sections. Used
-                      to compute the operational intensity.
+        Parameters
+        ----------
+        arguments : dict
+            A mapper from argument names to run-time values from which the Profiler
+            infers iteration space and execution times of a run.
+        dtype : data-type, optional
+            The data type of the objects in the profiled sections. Used to compute
+            the operational intensity.
         """
         summary = PerformanceSummary()
         for section, data in self._sections.items():
@@ -231,9 +234,7 @@ PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
 
 
 def create_profile(name):
-    """
-    Create a new :class:`Profiler`.
-    """
+    """Create a new :class:`Profiler`."""
     if configuration['log-level'] == 'DEBUG':
         # Enforce performance profiling in DEBUG mode
         level = 'advanced'
