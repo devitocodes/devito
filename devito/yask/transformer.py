@@ -14,9 +14,12 @@ def yaskit(trees, yc_soln):
 
     The necessary YASK grids are instantiated.
 
-    :param trees: A sequence of offloadable :class:`IterationTree`s, in which the
-                  Expressions are searched.
-    :param yc_soln: The YASK compiler solution to be populated.
+    Parameters
+    ----------
+    trees : list of IterationTree
+        One or more Iteration trees within which the convertible Expressions are searched.
+    yc_soln
+        The YASK compiler solution to be populated.
     """
     # Track all created YASK grids
     mapper = {}

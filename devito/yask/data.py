@@ -35,18 +35,22 @@ class Data(object):
     |                                   allocation                                     |
     ------------------------------------------------------------------------------------
 
-    :param grid: The viewed YASK grid.
-    :param shape: Shape of the data view in grid points.
-    :param dimensions: A tuple of :class:`Dimension`s, representing the
-                       dimensions of the grid.
-    :param dtype: The ``numpy.dtype`` of the raw data.
-    :param offset: (Optional) a tuple of integers representing the offset of
-                   the data view from the first allocated grid item (one item
-                   for each dimension).
+    Parameters
+    ----------
+    grid : YASK.grid
+        The YASK grid for which a view is produced.
+    shape : tuple of ints
+        Shape of the data view in grid points.
+    dimensions : tuple of Dimension
+        The Dimensions of `grid`` along which the view is produced.
+    dtype : data-type, optional
+        The data type of the raw data.
+    offset : tuple of ints, optional
+        The offset of the data view from the first allocated item in each Dimension.
 
-    .. note::
-
-        This type supports logical indexing over modulo buffered dimensions.
+    Notes
+    -----
+    This type supports logical indexing over modulo buffered dimensions.
     """
 
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
