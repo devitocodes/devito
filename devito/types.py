@@ -168,7 +168,10 @@ class Cached(object):
     def _cache_put(cls, obj):
         """Store given object instance in symbol cache.
 
-        :param obj: Object to be cached.
+        Parameters
+        ----------
+        obj : object
+            Object to be cached.
         """
         _SymbolCache[cls] = weakref.ref(obj)
 

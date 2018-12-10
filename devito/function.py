@@ -1077,11 +1077,13 @@ class Function(TensorFunction, Differentiable):
         Generate a symbolic expression computing the sum of ``p`` points
         along the spatial dimensions ``dims``.
 
-        :param p: (Optional) the number of summands. Defaults to the
-                  halo size.
-        :param dims: (Optional) the :class:`Dimension`s along which the
-                     sum is computed. Defaults to ``self``'s spatial
-                     dimensions.
+        Parameters
+        ----------
+        p : int, optional
+            The number of summands. Defaults to the halo size.
+        dims : tuple of Dimension, optional
+            The Dimensions along which the sum is computed. Defaults to
+            ``self``'s spatial dimensions.
         """
         points = []
         for d in (as_tuple(dims) or self.space_dimensions):
@@ -1101,11 +1103,13 @@ class Function(TensorFunction, Differentiable):
         Generate a symbolic expression computing the average of ``p`` points
         along the spatial dimensions ``dims``.
 
-        :param p: (Optional) the number of summands. Defaults to the
-                  halo size.
-        :param dims: (Optional) the :class:`Dimension`s along which the
-                     sum is computed. Defaults to ``self``'s spatial
-                     dimensions.
+        Parameters
+        ----------
+        p : int, optional
+            The number of summands. Defaults to the halo size.
+        dims : tuple of Dimension, optional
+            The Dimensions along which the average is computed. Defaults to
+            ``self``'s spatial dimensions.
         """
         tot = self.sum(p, dims)
         return tot / len(tot.args)
