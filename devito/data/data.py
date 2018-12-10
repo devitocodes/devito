@@ -261,9 +261,7 @@ class Data(np.ndarray):
         return loc_idx[0] if len(loc_idx) == 1 else tuple(loc_idx)
 
     def reset(self):
-        """
-        Set all Data entries to 0.
-        """
+        """Set all Data entries to 0."""
         self[:] = 0.0
 
 
@@ -308,9 +306,7 @@ def index_apply_modulo(idx, modulo):
 
 
 def index_dist_to_repl(idx, decomposition):
-    """
-    Convert a distributed array index into a replicated array index.
-    """
+    """Convert a distributed array index into a replicated array index."""
     if decomposition is None:
         return PROJECTED if is_integer(idx) else slice(None)
 
@@ -339,9 +335,7 @@ def index_dist_to_repl(idx, decomposition):
 
 
 def index_glb_to_loc(idx, decomposition):
-    """
-    Convert a global index into a local index.
-    """
+    """Convert a global index into a local index."""
     if is_integer(idx) or isinstance(idx, slice):
         return decomposition(idx)
     elif isinstance(idx, (tuple, list)):
