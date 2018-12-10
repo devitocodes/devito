@@ -307,8 +307,6 @@ class Iteration(Node):
         If an expression, it represents the for-loop max point; in this case, the
         min point is 0 and the step increment is unitary. If a 3-tuple, the
         format is ``(min point, max point, stepping)``.
-    index : Symbol, optional
-        Symbol to be used as iteration variable, in alternative to ``dimension``.
     offsets : 2-tuple of ints, optional
         Additional offsets ``(min_ofs, max_ofs)`` to be honoured by the for-loop.
         Defaults to (0, 0).
@@ -330,11 +328,11 @@ class Iteration(Node):
 
     _traversable = ['nodes']
 
-    def __init__(self, nodes, dimension, limits, index=None, offsets=None,
-                 direction=None, properties=None, pragmas=None, uindices=None):
+    def __init__(self, nodes, dimension, limits, offsets=None, direction=None,
+                 properties=None, pragmas=None, uindices=None):
         self.nodes = as_tuple(nodes)
         self.dim = dimension
-        self.index = index or self.dim.name
+        self.index = self.dim.name
         self.direction = direction or Forward
 
         # Generate loop limits
