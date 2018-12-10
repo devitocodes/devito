@@ -74,15 +74,21 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
     all of ``a``, ``b``, and ``a + b`` satisfy the matching rule, but only
     ``a + b`` satisfies the cost model.
 
-    :param exprs: The target SymPy expression, or a collection of SymPy expressions.
-    :param make: Either a mapper M: K -> V, indicating how to replace an expression
-                 in K with a symbol in V, or a function with internal state that,
-                 when called, returns unique symbols.
-    :param rule: The matching rule (a lambda function). May be left unspecified if
-                 ``make`` is a mapper.
-    :param costmodel: The cost model (a lambda function, optional).
-    :param repeat: Repeatedly apply ``xreplace`` until no more replacements are
-                   possible (optional, defaults to False).
+    Parameters
+    ----------
+    exprs : expr-like or list of expr-like
+        One or more expressions to which the replacement is applied.
+    make : dict or callable
+        Either a mapper M: K -> V, indicating how to replace an expression in K
+        with a symbol in V, or a callable with internal state that, when
+        called, returns unique symbols.
+    rule : callable, optional
+        The matching rule (see above). Unnecessary if ``make`` is a dict.
+    costmodel : callable, optional
+        The cost model (see above).
+    repeat : bool, optional
+        If True, repeatedly apply ``xreplace`` until no more replacements are
+        possible. Defaults to False.
     """
     found = OrderedDict()
     rebuilt = []
@@ -155,15 +161,21 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
 
 def xreplace_indices(exprs, mapper, key=None, only_rhs=False):
     """
-    Replace indices in SymPy equations.
+    Replace array indices in expressions.
 
-    :param exprs: The target SymPy expression, or a collection of SymPy expressions.
-    :param mapper: A dictionary containing the index substitution rules.
-    :param key: (Optional) either an iterable or a function. In the former case,
-                all objects whose name does not appear in ``key`` are ruled out.
-                Likewise, if a function, all objects for which ``key(obj)`` gives
-                False are ruled out.
-    :param only_rhs: (Optional) apply the substitution rules to right-hand sides only.
+    Parameters
+    ----------
+    exprs : expr-like or list of expr-like
+        One or more expressions to which the replacement is applied.
+    mapper : dict
+        The substitution rules.
+    key : list of symbols or callable
+        An escape hatch to rule out some objects from the replacement.
+        If a list, apply the replacement to the symbols in ``key`` only. If a
+        callable, apply the replacement to a symbol S if and only if ``key(S)``
+        gives True.
+    only_rhs : bool, optional
+        If True, apply the replacement to Eq right-hand sides only.
     """
     get = lambda i: i.rhs if only_rhs is True else i
     handle = flatten(retrieve_indexed(get(i)) for i in as_tuple(exprs))
@@ -195,9 +207,7 @@ def pow_to_mul(expr):
 
 
 def as_symbol(expr):
-    """
-    Extract the "main" symbol from a SymPy object.
-    """
+    """Cast composite SymPy objects to :class:`sympy.Symbol`."""
     from devito.dimension import Dimension
     try:
         return Number(expr)
@@ -220,12 +230,13 @@ AffineFunction = namedtuple("AffineFunction", "var, coeff, shift")
 
 def split_affine(expr):
     """
-    split_affine(expr)
-
     Split an affine scalar function into its three components, namely variable,
     coefficient, and translation from origin.
 
-    :raises ValueError: If ``expr`` is non affine.
+    Raises
+    ------
+    ValueError
+        If ``expr`` is non affine.
     """
     if expr.is_Number:
         return AffineFunction(None, None, expr)
