@@ -26,9 +26,7 @@ class Bunch(object):
 
 
 class EnrichedTuple(tuple):
-    """
-    A tuple with an arbitrary number of additional attributes.
-    """
+    """A tuple with an arbitrary number of additional attributes."""
     def __new__(cls, *items, getters=None, **kwargs):
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
@@ -66,7 +64,10 @@ class ReducerMap(MultiDict):
         Returns a unique value for a given key, if such a value
         exists, and raises a ``ValueError`` if it does not.
 
-        :param key: Key for which to retrieve a unique value
+        Parameters
+        ----------
+        key : str
+            Key for which to retrieve a unique value.
         """
         candidates = self.getall(key)
 
@@ -89,10 +90,18 @@ class ReducerMap(MultiDict):
         """
         Returns a reduction of all candidate values for a given key.
 
-        :param key: Key for which to retrieve candidate values
-        :param op: Operator for reduction among candidate values.
-                   If not provided, a unique value will be returned,
-                   or a ``ValueError`` raised if no unique value exists.
+        Parameters
+        ----------
+        key : str
+            Key for which to retrieve candidate values.
+        op : callable, optional
+            Operator for reduction among candidate values.  If not provided, a
+            unique value will be returned.
+
+        Raises
+        ------
+        ValueError
+            If op is None and no unique value exists.
         """
         if op is None:
             # Return a unique value if it exists
@@ -101,9 +110,7 @@ class ReducerMap(MultiDict):
             return reduce(op, self.getall(key))
 
     def reduce_all(self):
-        """
-        Returns a dictionary with reduced/unique values for all keys.
-        """
+        """Returns a dictionary with reduced/unique values for all keys."""
         return {k: self.reduce(key=k) for k in self}
 
 
@@ -146,12 +153,15 @@ class PartialOrderTuple(tuple):
     """
     A tuple whose elements are ordered according to a set of relations.
 
-    :param items: The elements of the tuple.
-    :param relations: (Optional) an iterable of binary relations between elements
-                      in ``items``. If not provided, then ``items`` is interpreted
-                      as a totally ordered sequence. If provided, then a (partial)
-                      ordering is computed and all elements in ``items`` for which
-                      a relation is not provided are appended.
+    Parameters
+    ----------
+    items : object or iterable of objects
+        The elements of the tuple.
+    relations : iterable of tuples, optional
+        One or more binary relations between elements in ``items``. If not
+        provided, then ``items`` is interpreted as a totally ordered sequence.
+        If provided, then a (partial) ordering is computed and all elements in
+        ``items`` for which a relation is not provided are appended.
     """
     def __new__(cls, items=None, relations=None):
         items = as_tuple(items)
