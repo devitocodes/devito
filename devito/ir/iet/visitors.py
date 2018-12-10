@@ -164,9 +164,6 @@ class CGen(Visitor):
         return ret
 
     def visit_ArrayCast(self, o):
-        """
-        Build cgen type casts for an :class:`AbstractFunction`.
-        """
         f = o.function
         # rvalue
         shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
@@ -316,7 +313,8 @@ class FindSections(Visitor):
     def default_retval(cls):
         return OrderedDict()
 
-    """Find all sections in an Iteration/Expression tree. A section is a map
+    """
+    Find all sections in an Iteration/Expression tree. A section is a map
     from an iteration space (ie, a sequence of :class:`Iteration` obects) to
     a set of expressions (ie, the :class:`Expression` objects enclosed by the
     iteration space).
@@ -398,12 +396,16 @@ class FindSymbols(Visitor):
     def default_retval(cls):
         return []
 
-    """Find symbols in an Iteration/Expression tree.
+    """
+    Find symbols in an Iteration/Expression tree.
 
-    :param mode: Drive the search. Accepted values are: ::
-
-        * 'symbolics': Collect :class:`AbstractSymbol` objects.
-        * 'free-symbols': Collect all free symbols.
+    Parameters
+    ----------
+    mode : str, optional
+        Drive the search. Accepted:
+        - ``symbolics``: Collect :class:`AbstractSymbol` objects, default.
+        - ``free-symbols``: Collect all free symbols.
+        - ``defines``: Collect all defined (bound) objects.
     """
 
     rules = {
@@ -442,13 +444,17 @@ class FindNodes(Visitor):
         return []
 
     """
-    Find :class:`Node` instances.
+    Find all :class:`Node` instances of given type.
 
-    :param match: Pattern to look for.
-    :param mode: Drive the search. Accepted values are: ::
-
-        * 'type' (default): Collect all instances of type ``match``.
-        * 'scope': Return the scope in which the object ``match`` appears.
+    Parameters
+    ----------
+    match : type
+        Searched type.
+    mode : str, optional
+        Drive the search. Accepted:
+        - ``type``: Collect all instances of type ``match``, default.
+        - ``scope``: Collect the scope in which the object of type ``match``
+                     appears.
     """
 
     rules = {
@@ -623,9 +629,12 @@ class XSubs(Transformer):
     :class:`Transformer` that performs substitutions on :class:`Expression`s
     in a given tree, akin to SymPy's ``subs``.
 
-    :param mapper: (Optional) dictionary defining the substitutions.
-    :param replacer: (Optional) a function to perform the substitution. Defaults
-                     to SymPy's ``subs``.
+    Parameters
+    ----------
+    mapper : dict, optional
+        The substitution rules.
+    replacer : callable, optional
+        An ad-hoc function to perform the substitution. Defaults to SymPy's ``subs``.
     """
 
     def __init__(self, mapper=None, replacer=None):

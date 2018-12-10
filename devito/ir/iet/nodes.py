@@ -49,12 +49,12 @@ class Node(Signer):
     is_HaloSpot = False
     is_ExpressionBundle = False
 
+    _traversable = []
     """
     :attr:`_traversable`. The traversable fields of the Node; that is, fields
     walked over by a :class:`Visitor`. All arguments in __init__ whose name
     appears in this list are treated as traversable fields.
     """
-    _traversable = []
 
     def __new__(cls, *args, **kwargs):
         obj = super(Node, cls).__new__(cls)
@@ -74,7 +74,8 @@ class Node(Signer):
 
     @property
     def ccode(self):
-        """Generate C code.
+        """
+        Generate C code.
 
         This is a shorthand for
 
@@ -88,9 +89,7 @@ class Node(Signer):
 
     @property
     def view(self):
-        """
-        Generate a representation of the Iteration/Expression tree rooted in ``self``.
-        """
+        """A representation of the IET rooted in ``self``."""
         from devito.ir.iet.visitors import printAST
         return printAST(self)
 
@@ -114,23 +113,17 @@ class Node(Signer):
 
     @abc.abstractproperty
     def functions(self):
-        """
-        Return all :class:`AbstractFunction` objects used by this :class:`Node`.
-        """
+        """All :class:`AbstractFunction` objects used by this node."""
         raise NotImplementedError()
 
     @abc.abstractproperty
     def free_symbols(self):
-        """
-        Return all :class:`Symbol` objects used by this :class:`Node`.
-        """
+        """All :class:`Symbol` objects used by this node."""
         raise NotImplementedError()
 
     @abc.abstractproperty
     def defines(self):
-        """
-        Return all :class:`Symbol` objects defined by this :class:`Node`.
-        """
+        """All :class:`Symbol` objects defined by this node."""
         raise NotImplementedError()
 
     def _signature_items(self):
@@ -176,8 +169,10 @@ class List(Block):
 
 class Element(Node):
 
-    """A generic node in an Iteration/Expression tree. Can be a comment,
-    a statement, ..."""
+    """
+    A generic node. Can be a comment, a statement, ... or anything that cannot
+    be expressed through an IET type.
+    """
 
     is_Element = True
 
@@ -205,12 +200,10 @@ class Call(Node):
 
     @property
     def functions(self):
-        """Return all :class:`Symbol` objects used by this :class:`Call`."""
         return tuple(p for p in self.params if isinstance(p, AbstractFunction))
 
     @cached_property
     def free_symbols(self):
-        """Return all :class:`Symbol` objects used by this :class:`Call`."""
         free = set()
         for p in self.params:
             if isinstance(p, numbers.Number):
@@ -222,13 +215,12 @@ class Call(Node):
 
     @property
     def defines(self):
-        """Return all :class:`Symbol` objects defined by this :class:`Call`."""
         return ()
 
 
 class Expression(Node):
 
-    """A node encapsulating a SymPy equation."""
+    """A node encapsulating a :class:`ClusterizedEq`."""
 
     is_Expression = True
 
@@ -238,9 +230,7 @@ class Expression(Node):
         self.__expr_finalize__()
 
     def __expr_finalize__(self):
-        """
-        Finalize the Expression initialization.
-        """
+        """Finalize the Expression initialization."""
         self._functions = tuple(filter_ordered(flatten(detect_io(self.expr, relax=True))))
         self._dimensions = flatten(i.indices for i in self.functions if i.is_Indexed)
         self._dimensions = tuple(filter_ordered(self._dimensions))
@@ -255,58 +245,44 @@ class Expression(Node):
 
     @property
     def output(self):
-        """
-        Return the symbol written by this Expression.
-        """
+        """The symbol this Expression writes to."""
         return self.expr.lhs
+
+    @property
+    def write(self):
+        """The :class:`Function` this Expression writes to."""
+        return self.expr.lhs.function
 
     @property
     def dimensions(self):
         return self._dimensions
 
     @property
-    def functions(self):
-        return self._functions
-
-    @property
-    def defines(self):
-        """
-        Return any symbols an :class:`Expression` may define.
-        """
-        return (self.write, ) if self.is_scalar else ()
-
-    @property
-    def write(self):
-        """
-        Return the function written by this Expression.
-        """
-        return self.expr.lhs.base.function
-
-    @property
     def is_scalar(self):
-        """
-        Return True if a scalar expression, False otherwise.
-        """
+        """True if a scalar expression, False otherwise."""
         return self.expr.lhs.is_Symbol
 
     @property
     def is_tensor(self):
-        """
-        Return True if a tensor expression, False otherwise.
-        """
+        """True if a tensor expression, False otherwise."""
         return not self.is_scalar
 
     @property
     def is_scalar_assign(self):
-        """
-        Return True if a scalar, non-increment expression
-        """
+        """True if a scalar, non-increment expression."""
         return self.is_scalar and not self.is_Increment
 
     @property
+    def defines(self):
+        return (self.write,) if self.is_scalar else ()
+
+    @property
     def free_symbols(self):
-        """Return all :class:`Symbol` objects used by this :class:`Expression`."""
         return tuple(self.expr.free_symbols)
+
+    @property
+    def functions(self):
+        return self._functions
 
 
 class Increment(Expression):
@@ -317,23 +293,37 @@ class Increment(Expression):
 
 
 class Iteration(Node):
-    """Implement a for-loop over nodes.
 
-    :param nodes: Single or list of :class:`Node` objects defining the loop body.
-    :param dimension: :class:`Dimension` object over which to iterate.
-    :param limits: Limits for the iteration space, either the loop size or a
-                   tuple of the form (min, max, stepping).
-    :param index: Symbol to be used as iteration variable.
-    :param offsets: A 2-tuple ``(min_ofs, max_ofs)`` to honour in the loop.
-    :param direction: The :class:`IterationDirection` of the Iteration. Defaults
-                      to ``Forward``.
-    :param properties: A bag of :class:`IterationProperty` objects, decorating
-                       the Iteration (sequential, parallel, vectorizable, ...).
-    :param pragmas: A bag of pragmas attached to this Iteration.
-    :param uindices: a bag of :class:`DerivedDimension`s with ``dimension`` as root
-                     parent, representing additional Iteration variables with
-                     unbounded extreme (hence the "unbounded indices", shortened
-                     as "uindices").
+    """
+    Implement a for-loop over nodes.
+
+    Parameters
+    ----------
+    nodes : Node or list of Node
+        The for-loop body.
+    dimension : Dimension
+        The Dimension over which the for-loop iterates.
+    limits : expr or 3-tuple
+        If an expression, it represents the for-loop max point; in this case, the
+        min point is 0 and the step increment is unitary. If a 3-tuple, the
+        format is ``(min point, max point, stepping)``.
+    index : Symbol, optional
+        Symbol to be used as iteration variable, in alternative to ``dimension``.
+    offsets : 2-tuple of ints, optional
+        Additional offsets ``(min_ofs, max_ofs)`` to be honoured by the for-loop.
+        Defaults to (0, 0).
+    direction: IterationDirection, optional
+        The for-loop direction. Accepted:
+        - ``Forward``: i += stepping (defaults)
+        - ``Backward``: i -= stepping
+    properties : IterationProperty or list of IterationProperty, optional
+        Iteration decorators, denoting properties such as parallelism.
+    pragmas : cgen.Pragma or list of cgen.Pragma, optional
+        A bag of pragmas attached to this Iteration.
+    uindices : DerivedDimension or list of DerivedDimension, optional
+        An uindex is an additional iteration variable defined by the for-loop. The
+        for-loop bounds are independent of all ``uindices`` (hence the name uindex,
+        or "unbounded index"). An uindex must have ``dimension`` as its parent.
     """
 
     is_Iteration = True
@@ -442,9 +432,7 @@ class Iteration(Node):
 
     @property
     def symbolic_bounds(self):
-        """
-        A 2-tuple representing the symbolic bounds [min, max] of the Iteration.
-        """
+        """A 2-tuple representing the symbolic bounds [min, max] of the Iteration."""
         _min = self.limits[0]
         _max = self.limits[1]
         try:
@@ -461,30 +449,22 @@ class Iteration(Node):
 
     @property
     def symbolic_size(self):
-        """
-        The symbolic size of the Iteration.
-        """
+        """The symbolic size of the Iteration."""
         return self.symbolic_bounds[1] - self.symbolic_bounds[0] + 1
 
     @property
     def symbolic_min(self):
-        """
-        The symbolic min of the Iteration.
-        """
+        """The symbolic min of the Iteration."""
         return self.symbolic_bounds[0]
 
     @property
     def symbolic_max(self):
-        """
-        The symbolic max of the Iteration.
-        """
+        """The symbolic max of the Iteration."""
         return self.symbolic_bounds[1]
 
     @property
     def symbolic_incr(self):
-        """
-        The symbolic increment of the Iteration.
-        """
+        """The symbolic increment of the Iteration."""
         return self.limits[2]
 
     def bounds(self, _min=None, _max=None):
@@ -501,63 +481,58 @@ class Iteration(Node):
         return (_min, _max)
 
     def size(self, _min=None, _max=None):
-        """
-        The size of the iteration space if _min/_max are supplied, None otherwise.
-        """
+        """The size of the iteration space if _min/_max are supplied, None otherwise."""
         _min, _max = self.bounds(_min, _max)
         return _max - _min + 1
 
     @property
-    def dimensions(self):
-        """
-        Return all :class:`Dimension` objects used in the Iteration header.
-        """
-        return tuple(self.dim._defines) + self.uindices
-
-    @property
     def functions(self):
-        """
-        Return all :class:`Function` objects used in the Iteration header.
-        """
+        """All :class:`Function`s appearing in the Iteration header."""
         return ()
 
     @property
-    def write(self):
-        """Return all :class:`Function` objects written to in this :class:`Iteration`"""
-        return []
-
-    @property
-    def defines(self):
-        """
-        Return any symbols defined in the :class:`Iteration` header.
-        """
-        return self.dimensions
-
-    @property
     def free_symbols(self):
-        """
-        Return all :class:`Symbol` objects used in the header of this
-        :class:`Iteration`.
-        """
+        """All :class:`Symbol`s appearing in the Iteration header."""
         return tuple(self.symbolic_min.free_symbols) \
             + tuple(self.symbolic_max.free_symbols) \
             + self.uindices \
             + tuple(flatten(i.symbolic_min.free_symbols for i in self.uindices)) \
             + tuple(flatten(i.symbolic_incr.free_symbols for i in self.uindices))
 
+    @property
+    def defines(self):
+        """All :class:`Symbol`s defined in the Iteration header."""
+        return self.dimensions
+
+    @property
+    def dimensions(self):
+        """All :class:`Dimension`s appearing in the Iteration header."""
+        return tuple(self.dim._defines) + self.uindices
+
+    @property
+    def write(self):
+        """All :class:`Function`s written to in this :class:`Iteration`"""
+        return []
+
 
 class Callable(Node):
 
-    """A node representing a callable function.
+    """
+    A callable function.
 
-    :param name: The name of the callable.
-    :param body: A :class:`Node` or an iterable of :class:`Node` objects representing
-                 the body of the callable.
-    :param retval: The type of the value returned by the callable.
-    :param parameters: An iterable of :class:`AbstractFunction`s in input to the
-                       callable, or ``None`` if the callable takes no parameter.
-    :param prefix: An iterable of qualifiers to prepend to the callable declaration.
-                   The default value is ('static', 'inline').
+    Parameters
+    ----------
+    name : str
+        The name of the callable.
+    body : Node or list of Node
+        The Callable body.
+    retval : str
+        The return type of Callable.
+    parameters : list of :class:`Basic`, optional
+        The objects in input to the Callable.
+    prefix : list of str, optional
+        Qualifiers to prepend to the Callable signature. Defaults to ``('static',
+        'inline')``.
     """
 
     is_Callable = True
@@ -583,11 +558,14 @@ class Conditional(Node):
     """
     A node to express if-then-else blocks.
 
-    :param condition: A SymPy expression representing the if condition.
-    :param then_body: Single or iterable of :class:`Node` objects defining the
-                      body of the 'then' part of the if-then-else.
-    :param else_body: (Optional) Single or iterable of :class:`Node` objects
-                      defining the body of the 'else' part of the if-then-else.
+    Parameters
+    ----------
+    condition : expr-like
+        The if condition.
+    then_body : Node or list of Node
+        The then body.
+    else_body : Node or list of Node
+        The else body.
     """
 
     is_Conditional = True
@@ -629,16 +607,20 @@ class Conditional(Node):
 
 class TimedList(List):
 
-    """Wrap a Node with C-level timers."""
+    """
+    Wrap a Node with C-level timers.
+
+    Parameters
+    ----------
+    timer : Timer
+        The Timer used by the TimedList.
+    lname : str
+        A unique name for the timed code block.
+    body : Node or list of Node
+        The TimedList body.
+    """
 
     def __init__(self, timer, lname, body):
-        """
-        Initialize a TimedList.
-
-        :param timer: A :class:`Timer` object.
-        :param lname: Name of the timed code block.
-        :param body: Timed code block.
-        """
         self._name = lname
         self._timer = timer
         header = [c.Statement("struct timeval start_%s, end_%s" % (lname, lname)),
@@ -688,9 +670,7 @@ class ArrayCast(Node):
 
     @property
     def castshape(self):
-        """
-        The shape used in the left-hand side and right-hand side of the ArrayCast.
-        """
+        """The shape used in the left-hand side and right-hand side of the ArrayCast."""
         if configuration['codegen'] == 'explicit' or self.function.is_Array:
             return self.function.symbolic_shape[1:]
         else:
@@ -699,17 +679,7 @@ class ArrayCast(Node):
 
     @property
     def functions(self):
-        """
-        All :class:`Function`s used by this :class:`ArrayCast`.
-        """
         return (self.function,)
-
-    @property
-    def defines(self):
-        """
-        The base symbol an :class:`ArrayCast` defines.
-        """
-        return ()
 
     @property
     def free_symbols(self):
@@ -725,6 +695,10 @@ class ArrayCast(Node):
         else:
             return (self.function,)
 
+    @property
+    def defines(self):
+        return ()
+
 
 class LocalExpression(Expression):
 
@@ -734,9 +708,6 @@ class LocalExpression(Expression):
 
     @property
     def defines(self):
-        """
-        Return any symbols an :class:`LocalExpression` may define.
-        """
         return (self.write, )
 
 
@@ -809,6 +780,10 @@ class Section(List):
 
 
 class HaloSpot(List):
+
+    """
+    A node representing an MPI halo exchange.
+    """
 
     is_HaloSpot = True
 

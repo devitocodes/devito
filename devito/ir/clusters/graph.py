@@ -215,7 +215,7 @@ class FlowGraph(OrderedDict):
         ``key.readby``, in program order.
 
         Examples
-        ========
+        --------
         Given the following sequence of operations: ::
 
             t1 = ...
