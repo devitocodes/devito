@@ -4,9 +4,9 @@ import numpy as np
 from sympy import And
 import pytest
 
-from conftest import skipif, configuration_override
+from conftest import skipif
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
-                    Eq, Operator, Constant, SubDimension)
+                    Eq, Operator, Constant, SubDimension, switchconfig)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 
 
@@ -497,7 +497,7 @@ class TestConditionalDimension(object):
         assert np.all(u2.data[1, 1:4, 1:4] == 0.)
 
     # This test generates an openmp loop form which makes older gccs upset
-    @configuration_override("openmp", False)
+    @switchconfig(openmp=False)
     def test_nothing_in_negative(self):
         """Test the case where when the condition is false, there is nothing to do."""
         nt = 4
