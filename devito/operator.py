@@ -4,7 +4,6 @@ from operator import mul
 
 from cached_property import cached_property
 import ctypes
-import numpy as np
 import sympy
 
 from devito.compiler import jit_compile, load, save
@@ -20,8 +19,7 @@ from devito.ir.stree import st_build
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
-from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_sorted,
-                          numpy_to_ctypes, split)
+from devito.tools import Signer, ReducerMap, as_tuple, flatten, filter_sorted, split
 
 
 class Operator(Callable):
@@ -148,6 +146,16 @@ class Operator(Callable):
         for p in self.input:
             p._arg_check(args, self._dspace[p])
 
+        # Turn arguments into a format suitable for the generated code
+        # E.g., instead of NumPy arrays for Functions, the generated code expects
+        # pointers to ctypes.Struct
+        for p in self.input:
+            try:
+                args.update(kwargs.get(p.name, p)._arg_as_ctype(args, alias=p))
+            except AttributeError:
+                # User-provided floats/ndarray obviously do not have `_arg_as_ctype`
+                args.update(p._arg_as_ctype(args, alias=p))
+
         # Add in the profiler argument
         args[self._profiler.name] = self._profiler.timer.reset()
 
@@ -222,17 +230,7 @@ class Operator(Callable):
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
             # Associate a C type to each argument for runtime type check
-            argtypes = []
-            for i in self.parameters:
-                if i.is_Object:
-                    argtypes.append(i.dtype)
-                elif i.is_Scalar:
-                    argtypes.append(numpy_to_ctypes(i.dtype))
-                elif i.is_Tensor:
-                    argtypes.append(np.ctypeslib.ndpointer(dtype=i.dtype, flags='C'))
-                else:
-                    argtypes.append(ctypes.c_void_p)
-            self._cfunction.argtypes = argtypes
+            self._cfunction.argtypes = [i._C_ctype for i in self.parameters]
 
         return self._cfunction
 
@@ -334,6 +332,13 @@ class Operator(Callable):
             # given to ctypes must be performed again
             state['_lib'] = None
             state['_cfunction'] = None
+            # Do not pickle the `args` used to construct the Operator. Not only
+            # would this be completely useless, but it might also lead to
+            # allocating additional memory upon unpickling, as the user-provided
+            # equations typically carry different instances of the same Function
+            # (e.g., f(t, x-1), f(t, x), f(t, x+1)), which are different objects
+            # with distinct `.data` fields
+            state['_args'] = None
             with open(self._lib._name, 'rb') as f:
                 state['binary'] = f.read()
             return state
@@ -483,7 +488,6 @@ class OperatorRunnable(Operator):
         """Instrument the Iteration/Expression tree for C-level profiling."""
         profiler = create_profile('timers')
         iet = profiler.instrument(iet)
-        self._globals.append(profiler.cdef)
         self._includes.extend(profiler._default_includes)
         self._func_table.update({i: MetaCall(None, False) for i in profiler._ext_calls})
         return iet, profiler

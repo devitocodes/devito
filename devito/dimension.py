@@ -5,10 +5,11 @@ from sympy.core.cache import cacheit
 import numpy as np
 from cached_property import cached_property
 
+from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
-from devito.types import LEFT, RIGHT, AbstractSymbol, Scalar
 from devito.logger import debug
-from devito.tools import ArgProvider, Pickable
+from devito.tools import ArgProvider, Pickable, dtype_to_cstr
+from devito.types import AbstractSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
@@ -28,6 +29,11 @@ class Dimension(AbstractSymbol, ArgProvider):
     is_Stepping = False
     is_Modulo = False
     is_Incr = False
+
+    # Unlike other Symbols, Dimensions can only be integers
+    dtype = np.int32
+    _C_typename = dtype_to_cstr(dtype)
+    _C_typedata = _C_typename
 
     """
     A Dimension is a symbol representing a problem dimension and thus defining a
@@ -50,11 +56,6 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     def __str__(self):
         return self.name
-
-    @property
-    def dtype(self):
-        # TODO: Do dimensions really need a dtype?
-        return np.int32
 
     @cached_property
     def symbolic_size(self):
@@ -92,12 +93,12 @@ class Dimension(AbstractSymbol, ArgProvider):
         return "%s_M" % self.name
 
     @property
-    def spacing(self):
-        return self._spacing
+    def _C_name(self):
+        return self.name
 
     @property
-    def base(self):
-        return self
+    def spacing(self):
+        return self._spacing
 
     @property
     def root(self):

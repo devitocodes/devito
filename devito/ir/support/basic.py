@@ -300,15 +300,15 @@ class IterationInstance(Vector):
         """Return True if self accesses the halo along any of the provided findices,
         False otherwise."""
         # Given `d` \in findices, iterating over [0, size_d):
-        # * if self[d] - d < self.function._offset_domain[d].left, then `self` will
+        # * if self[d] - d < self.function._extent_halo[d].left, then `self` will
         #   definitely touch the left-halo when d=0
-        # * if self[d] - d > self.function._offset_domain[d].left, then `self` will
+        # * if self[d] - d > self.function._extent_halo[d].left, then `self` will
         #   definitely touch the right-halo when d=size_d-1
         # TODO: the underlying assumption here is that `d` iterates in [0, size_d],
         # which is the typical case. If that's not the case, we have to generalise
         # this method. For this, we will have to attach more iteration space
         # information to IterationInstance, such as start/end point, increment, etc.
-        return all(self[d] - d != self.function._offset_domain[d].left
+        return all(self[d] - d != self.function._extent_halo[d].left
                    for d in as_tuple(findices))
 
     def irregular(self, findices):

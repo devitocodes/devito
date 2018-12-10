@@ -5,9 +5,9 @@ from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
                     SubDimension, Eq, Inc, Operator, norm, inner)
+from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
-from devito.types import LEFT, RIGHT
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['yask', 'ops', 'nompi'])
@@ -58,7 +58,7 @@ class TestDistributor(object):
         }
 
         mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
-        _, _, obj = distributor._C_neighbours
+        obj = distributor._obj_neighbours
         assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
 
 
@@ -284,14 +284,13 @@ class TestCodeGeneration(object):
 
         iet = copy(f, [t])
         assert str(iet.parameters) == """\
-(buf(buf_x, buf_y), buf_x_size, buf_y_size, dat(dat_time, dat_x, dat_y),\
- dat_time_size, dat_x_size, dat_y_size, otime, ox, oy)"""
+(buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
   for (int x = 0; x <= buf_x_size - 1; x += 1)
   {
     for (int y = 0; y <= buf_y_size - 1; y += 1)
     {
-      buf[x][y] = dat[otime][x + ox][y + oy];
+      buf[x][y] = f[otime][x + ox][y + oy];
     }
   }""" in str(iet)
 
@@ -303,11 +302,9 @@ class TestCodeGeneration(object):
 
         iet = sendrecv(f, [t])
         assert str(iet.parameters) == """\
-(dat(dat_time, dat_x, dat_y), dat_time_size, dat_x_size, dat_y_size,\
- buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy, fromrank, torank, comm)"""
+(f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
+ fromrank, torank, comm)"""
         assert str(iet.body[0]) == """\
-float (*restrict dat)[dat_x_size][dat_y_size] __attribute__((aligned(64))) =\
- (float (*)[dat_x_size][dat_y_size]) dat_vec;
 float (*bufs)[buf_y_size];
 float (*bufg)[buf_y_size];
 posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
@@ -315,16 +312,14 @@ posix_memalign((void**)&bufg, 64, sizeof(float[buf_x_size][buf_y_size]));
 MPI_Request rrecv;
 MPI_Request rsend;
 MPI_Status srecv;
-MPI_Irecv((float*)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
-gather_f((float*)bufg,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
-dat_y_size,ogtime,ogx,ogy);
-MPI_Isend((float*)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
+MPI_Irecv((float *)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
+gather_f((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
+MPI_Isend((float *)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
 MPI_Wait(&rsend,MPI_STATUS_IGNORE);
 MPI_Wait(&rrecv,&srecv);
 if (fromrank != MPI_PROC_NULL)
 {
-  scatter_f((float*)bufs,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
-dat_y_size,ostime,osx,osy);
+  scatter_f((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
 }
 free(bufs);
 free(bufg);"""
@@ -338,29 +333,27 @@ free(bufg);"""
 
         iet = update_halo(f, [t])
         assert str(iet.parameters) == """\
-(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime, t_size, x_size, y_size)"""
-        assert """\
-MPI_Comm *comm = (MPI_Comm*) _comm;
-struct neighbours *nb = (struct neighbours*) _nb;
+(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime)"""
+        assert str(iet.body[0]) == """\
 if (mxl)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,\
-otime,1,0,otime,x_size + 1,0,nb->xright,nb->xleft,comm);
+  sendrecv_f(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
+f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->xright,nb->xleft,comm);
 }
 if (mxr)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,\
-otime,x_size,0,otime,0,0,nb->xleft,nb->xright,comm);
+  sendrecv_f(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
+f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->xleft,nb->xright,comm);
 }
 if (myl)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
-otime,0,1,otime,0,y_size + 1,nb->yright,nb->yleft,comm);
+  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
+f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->yright,nb->yleft,comm);
 }
 if (myr)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
-otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
+  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
+f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->yleft,nb->yright,comm);
 }"""
 
 
@@ -1182,7 +1175,7 @@ if __name__ == "__main__":
     # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
     # TestSparseFunction().test_scatter_gather()
     # TestOperatorAdvanced().test_nontrivial_operator()
-    TestOperatorAdvanced().test_interior_w_stencil()
     # TestOperatorAdvanced().test_interpolation_dup()
+    TestOperatorAdvanced().test_injection_wodup()
     # TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
     #                                        153.122, 205.902, 27484.635, 11736.917)

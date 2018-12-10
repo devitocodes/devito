@@ -1,13 +1,10 @@
-from __future__ import absolute_import
-
 from collections import OrderedDict, namedtuple
-from ctypes import Structure, c_double
+from ctypes import c_double
 from functools import reduce
 from operator import mul
 from pathlib import Path
 import os
 
-from cgen import Struct, Value
 from cached_property import cached_property
 
 from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
@@ -96,14 +93,6 @@ class Profiler(object):
     @cached_property
     def timer(self):
         return Timer(self.name, [i.name for i in self._sections])
-
-    @cached_property
-    def cdef(self):
-        """
-        Return a :class:`cgen.Struct` representing the profiler data structure in C
-        (a ``struct``).
-        """
-        return Struct('profiler', [Value('double', i.name) for i in self._sections])
 
 
 class AdvancedProfiler(Profiler):
@@ -196,8 +185,7 @@ class AdvisorProfiler(AdvancedProfiler):
 class Timer(CompositeObject):
 
     def __init__(self, name, sections):
-        super(Timer, self).__init__(name, 'profiler', Structure,
-                                    [(i, c_double) for i in sections])
+        super(Timer, self).__init__(name, 'profiler', [(i, c_double) for i in sections])
 
     def reset(self):
         for i, _ in self.pfields:
@@ -206,11 +194,10 @@ class Timer(CompositeObject):
 
     @property
     def sections(self):
-        return [i for i, _ in self.pfields]
+        return self.fields
 
     # Pickling support
     _pickle_args = ['name', 'sections']
-    _pickle_kwargs = []
 
 
 class PerformanceSummary(OrderedDict):

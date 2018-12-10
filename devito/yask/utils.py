@@ -1,5 +1,4 @@
 from collections import OrderedDict
-import ctypes
 
 from devito.cgen_utils import INT
 from devito.ir.iet import Expression, ForeignExpression, FindNodes, Transformer
@@ -92,6 +91,6 @@ namespace['code-grid-name'] = lambda i: "grid_%s" % str(i)
 namespace['code-grid-get'] = 'get_element'
 namespace['code-grid-put'] = 'set_element'
 namespace['code-grid-add'] = 'add_to_element'
-namespace['type-solution'] = ctypes.POINTER(ctypes_pointer('yask::yk_solution_ptr'))
-namespace['type-grid'] = ctypes.POINTER(ctypes_pointer('yask::yk_grid_ptr'))
+namespace['type-solution'] = ctypes_pointer('yask::yk_solution_ptr')
+namespace['type-grid'] = ctypes_pointer('yask::yk_grid_ptr')
 namespace['numa-put-local'] = -1

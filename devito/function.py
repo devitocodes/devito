@@ -1,27 +1,29 @@
 from collections import OrderedDict, namedtuple
 from itertools import product
+from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
 
 import sympy
 import numpy as np
 from psutil import virtual_memory
 from cached_property import cached_property
+from cgen import Struct, Value
 
 from devito.builtins import assign
 from devito.cgen_utils import INT, cast_mapper
-from devito.data import Data, default_allocator
+from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, RIGHT,
+                         Data, default_allocator)
 from devito.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI, SparseDistributor
 from devito.parameters import configuration
-from devito.symbolics import Add, indexify, retrieve_function_carriers
+from devito.symbolics import Add, FieldFromPointer, indexify, retrieve_function_carriers
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.types import (AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar,
-                          OWNED, HALO, LEFT, RIGHT)
+from devito.types import AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar
 from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_tuple,
                           flatten, is_integer, prod, powerset, filter_ordered,
-                          memoized_meth)
+                          ctypes_to_cstr, memoized_meth)
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -114,10 +116,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     Utility class to encapsulate all symbolic types that represent
     tensor (array) data.
 
-    .. note::
-
-        Users should not instantiate this class. Use :class:`Function` or
-        :class:`SparseFunction` (or their subclasses) instead.
+    Notes
+    -----
+    Users should not instantiate this class. Use :class:`Function` or
+    :class:`SparseFunction` (or their subclasses) instead.
     """
 
     # Required by SymPy, otherwise the presence of __getitem__ will make SymPy
@@ -240,6 +242,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """Reference to the data. Unlike :attr:`data` and :attr:`data_with_halo`,
         this *never* returns a view of the data. This method is for internal use only."""
         return self._data_allocated
+
+    @property
+    def _data_alignment(self):
+        return self._allocator.guaranteed_alignment
 
     @property
     def _mem_external(self):
@@ -378,16 +384,16 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         A mask to access the domain region of the allocated data.
         """
-        return tuple(slice(i, -j) if j != 0 else slice(i, None)
-                     for i, j in self._offset_domain)
+        return tuple(slice(i, j) for i, j in
+                     zip(self._offset_domain, self._offset_halo.right))
 
     @cached_property
     def _mask_inhalo(self):
         """
         A mask to access the domain+inhalo region of the allocated data.
         """
-        return tuple(slice(i, -j) if j != 0 else slice(i, None)
-                     for i, j in self._offset_inhalo)
+        return tuple(slice(i.left, i.right + j.right) for i, j in
+                     zip(self._offset_inhalo, self._extent_inhalo))
 
     @cached_property
     def _mask_outhalo(self):
@@ -522,6 +528,35 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         self._halo_exchange()
         return np.asarray(self._data)
 
+    def _data_in_region(self, region, dim, side):
+        """
+        The data values in a given region.
+
+        Parameters
+        ----------
+        region : DataRegion
+            The data region of interest (e.g., OWNED, HALO) for which a view is produced.
+        dim : Dimension
+            The dimension of interest.
+        side : DataSide
+            The side of interest (LEFT, RIGHT).
+
+        Notes
+        -----
+        This accessor does *not* support global indexing.
+
+        With this accessor you are claiming that you will modify the values you
+        get back.
+
+        Typically, this accessor won't be used in user code to set or read data values.
+        """
+        self._is_halo_dirty = True
+        offset = getattr(getattr(self, '_offset_%s' % region.name)[dim], side.name)
+        extent = getattr(getattr(self, '_extent_%s' % region.name)[dim], side.name)
+        index_array = [slice(offset, offset+extent) if d is dim else slice(None)
+                       for d in self.dimensions]
+        return np.asarray(self._data[index_array])
+
     @property
     @_allocate_memory
     def data_ro_domain(self):
@@ -623,6 +658,91 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         ret = tuple(Add(i, -j) for i, j in zip(symbolic_shape, self.staggered))
         return EnrichedTuple(*ret, getters=self.dimensions)
 
+    _C_structname = 'dataobj'
+    _C_typename = 'struct %s *' % _C_structname
+    _C_field_data = 'data'
+    _C_field_size = 'size'
+    _C_field_nopad_size = 'npsize'
+    _C_field_halo_size = 'hsize'
+    _C_field_halo_ofs = 'hofs'
+    _C_field_owned_ofs = 'oofs'
+
+    _C_typedecl = Struct(_C_structname,
+                         [Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_size),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_nopad_size),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_size),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_ofs),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_owned_ofs)])
+
+    _C_ctype = POINTER(type(_C_structname, (Structure,),
+                            {'_fields_': [(_C_field_data, c_void_p),
+                                          (_C_field_size, POINTER(c_int)),
+                                          (_C_field_nopad_size, POINTER(c_int)),
+                                          (_C_field_halo_size, POINTER(c_int)),
+                                          (_C_field_halo_ofs, POINTER(c_int)),
+                                          (_C_field_owned_ofs, POINTER(c_int))]}))
+
+    def _C_make_dataobj(self, data):
+        dataobj = byref(self._C_ctype._type_())
+        dataobj._obj.data = data.ctypes.data_as(c_void_p)
+        dataobj._obj.size = (c_int*self.ndim)(*data.shape)
+        # MPI-related fields
+        dataobj._obj.npsize = (c_int*self.ndim)(*[i - sum(j) for i, j in
+                                                  zip(data.shape, self._extent_padding)])
+        dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._extent_halo))
+        dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
+        dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
+        return dataobj
+
+    def _C_as_ndarray(self, dataobj):
+        """Cast the data carried by a TensorFunction dataobj to an ndarray."""
+        shape = tuple(dataobj._obj.size[i] for i in range(self.ndim))
+        ndp = np.ctypeslib.ndpointer(dtype=self.dtype, shape=shape)
+        data = cast(dataobj._obj.data, ndp)
+        data = np.ctypeslib.as_array(data, shape=shape)
+        return data
+
+    @memoized_meth
+    def _C_make_index(self, dim, side=None):
+        # Depends on how fields are populated in `_C_make_dataobj`
+        idx = self.dimensions.index(dim)
+        if side is not None:
+            idx = idx*2 + (0 if side is LEFT else 1)
+        return idx
+
+    @memoized_meth
+    def _C_get_field(self, region, dim, side=None):
+        ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_name)
+        if region is DOMAIN:
+            offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
+            extent = dim.symbolic_size
+        elif region is OWNED:
+            if side is LEFT:
+                offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
+                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
+            else:
+                offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, RIGHT))
+                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
+        elif region is HALO:
+            if side is LEFT:
+                offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
+                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
+            else:
+                offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, RIGHT))
+                extent = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
+        elif region is NOPAD:
+            offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
+            extent = ffp(self._C_field_nopad_size, self._C_make_index(dim))
+        elif region is FULL:
+            offset = 0
+            extent = ffp(self._C_field_size, self._C_make_index(dim))
+        else:
+            raise ValueError("Unknown region `%s`" % str(region))
+
+        RegionMeta = namedtuple('RegionMeta', 'offset extent')
+        return RegionMeta(offset, extent)
+
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
         if not MPI.Is_initialized() or MPI.COMM_WORLD.size == 1:
@@ -646,8 +766,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         comm = self._distributor.comm
         for i in [LEFT, RIGHT]:
             neighbour = neighbours[dim][i]
-            owned_region = self._get_view(OWNED, dim, i)
-            halo_region = self._get_view(HALO, dim, i)
+            owned_region = self._data_in_region(OWNED, dim, i)
+            halo_region = self._data_in_region(HALO, dim, i)
             sendbuf = np.ascontiguousarray(owned_region)
             recvbuf = np.ndarray(shape=halo_region.shape, dtype=self.dtype)
             self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
@@ -662,7 +782,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                 if payload is not None and status.source != MPI.PROC_NULL:
                     # The MPI.Request `req` originated from a `comm.Irecv`
                     # Now need to scatter the data to the right place
-                    self._get_view(HALO, d, i)[:] = payload
+                    self._data_in_region(HALO, d, i)[:] = payload
             self._in_flight.remove((d, i, payload, req))
 
     @property
@@ -709,7 +829,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                 values = {self.name: new}
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
-                    values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
+                    size = s + o - sum(self._extent_nodomain[i])
+                    values.update(i._arg_defaults(size=size))
                 # Add MPI-related data structures
                 if self.grid is not None:
                     values.update(self.grid._arg_defaults())
@@ -722,8 +843,12 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         Check that ``args`` contains legal runtime values bound to ``self``.
 
-        :raises InvalidArgument: If, given the runtime arguments ``args``, an
-                                 out-of-bounds access will be performed.
+        Raises
+        ------
+        InvalidArgument
+            If, given the runtime values ``args``, an out-of-bounds array
+            access would be performed, or if shape/dtype don't match with
+            self's shape/dtype.
         """
         if self.name not in args:
             raise InvalidArgument("No runtime value for `%s`" % self.name)
@@ -736,6 +861,10 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                     "Function data type %s" % (key.dtype, self.name, self.dtype))
         for i, s in zip(self.indices, key.shape):
             i._arg_check(args, s, intervals[i])
+
+    def _arg_as_ctype(self, args, alias=None):
+        key = alias or self
+        return ReducerMap({key.name: self._C_make_dataobj(args[key.name])})
 
     # Pickling support
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
@@ -890,9 +1019,9 @@ class Function(TensorFunction, Differentiable):
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding', 0)
         if isinstance(padding, int):
-            return tuple((padding,)*2 for i in range(self.ndim))
+            return tuple((0, padding) if i.is_Space else (0, 0) for i in self.indices)
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
-            return tuple((i,)*2 if isinstance(i, int) else i for i in padding)
+            return tuple((0, i) if isinstance(i, int) else i for i in padding)
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
 
@@ -1427,7 +1556,8 @@ class AbstractSparseFunction(TensorFunction):
                 for k, v in self._dist_scatter(new).items():
                     values[k.name] = v
                     for i, s, o in zip(k.indices, v.shape, k.staggered):
-                        values.update(i._arg_defaults(size=s+o-sum(k._offset_domain[i])))
+                        size = s + o - sum(k._extent_nodomain[i])
+                        values.update(i._arg_defaults(size=size))
                 # Add MPI-related data structures
                 values.update(self.grid._arg_defaults())
         else:
@@ -1435,10 +1565,11 @@ class AbstractSparseFunction(TensorFunction):
 
         return values
 
-    def _arg_apply(self, data, alias=None):
+    def _arg_apply(self, dataobj, alias=None):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
-            key._dist_gather(data)
+            # Gather into `self.data`
+            key._dist_gather(self._C_as_ndarray(dataobj))
         elif self.grid.distributor.nprocs > 1:
             raise NotImplementedError("Don't know how to gather data from an "
                                       "object of type `%s`" % type(key))

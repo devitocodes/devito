@@ -4,8 +4,6 @@ Visitor hierarchy to inspect and/or create IETs.
 The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 """
 
-from __future__ import absolute_import
-
 from collections import Iterable, OrderedDict
 from operator import attrgetter
 
@@ -14,7 +12,7 @@ import cgen as c
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
 from devito.ir.support.space import Backward
-from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
+from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype_to_cstr
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
@@ -141,17 +139,12 @@ class CGen(Visitor):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if i.is_AbstractObject:
-                ret.append(c.Value(i.ctype, i.name))
-            elif i.is_Symbol:
-                ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
-            elif i.is_Tensor:
-                ret.append(c.Value(c.dtype_to_ctype(i.dtype),
-                                   '*restrict %s_vec' % i.name))
-            elif i.is_Dimension:
-                ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
+            if i.is_Tensor:
+                ret.append(c.Value('%srestrict' % i._C_typename, i._C_name))
+            elif i.is_AbstractObject or i.is_Symbol:
+                ret.append(c.Value(i._C_typename, i._C_name))
             else:
-                ret.append(c.Value('void', '*_%s' % i.name))
+                ret.append(c.Value('void', '*_%s' % i._C_name))
         return ret
 
     def _args_call(self, args):
@@ -160,16 +153,12 @@ class CGen(Visitor):
         ret = []
         for i in args:
             try:
-                if i.is_Object:
-                    ret.append(i.name)
-                elif i.is_LocalObject:
-                    ret.append('&%s' % i.name)
+                if i.is_LocalObject:
+                    ret.append('&%s' % i._C_name)
                 elif i.is_Array:
-                    ret.append("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name))
-                elif i.is_Symbol:
-                    ret.append(i.name)
-                elif i.is_TensorFunction:
-                    ret.append('%s_vec' % i.name)
+                    ret.append("(%s)%s" % (i._C_typename, i.name))
+                else:
+                    ret.append(i._C_name)
             except AttributeError:
                 ret.append(ccode(i))
         return ret
@@ -179,10 +168,17 @@ class CGen(Visitor):
         Build cgen type casts for an :class:`AbstractFunction`.
         """
         f = o.function
-        align = "__attribute__((aligned(64)))"
-        shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
-        lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
-        rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(f.dtype), shape, '%s_vec' % f.name)
+        # rvalue
+        shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
+        if f.is_TensorFunction:
+            rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, f._C_name,
+                                            f._C_field_data)
+        else:
+            rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, f._C_name)
+        # lvalue
+        lvalue = c.AlignedAttribute(f._data_alignment,
+                                    c.Value(f._C_typedata,
+                                            '(*restrict %s)%s' % (f.name, shape)))
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
@@ -208,7 +204,7 @@ class CGen(Visitor):
                                          ccode(o.expr.rhs, dtype=o.dtype)))
 
     def visit_LocalExpression(self, o):
-        return c.Initializer(c.Value(c.dtype_to_ctype(o.dtype),
+        return c.Initializer(c.Value(dtype_to_cstr(o.dtype),
                              ccode(o.expr.lhs, dtype=o.dtype)),
                              ccode(o.expr.rhs, dtype=o.dtype))
 
@@ -304,12 +300,13 @@ class CGen(Visitor):
         header = [c.Line(i) for i in o._headers]
         includes = [c.Include(i, system=False) for i in o._includes]
         includes += [blankline]
-        cglobals = list(o._globals)
+        cdefs = [i._C_typedecl for i in o.parameters if i._C_typedecl is not None]
+        cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
         if o._compiler.src_ext == 'cpp':
-            cglobals += [c.Extern('C', signature)]
-        cglobals = [i for j in cglobals for i in (j, blankline)]
+            cdefs += [c.Extern('C', signature)]
+        cdefs = [i for j in cdefs for i in (j, blankline)]
 
-        return c.Module(header + includes + cglobals +
+        return c.Module(header + includes + cdefs +
                         esigns + [blankline, kernel] + efuncs)
 
 

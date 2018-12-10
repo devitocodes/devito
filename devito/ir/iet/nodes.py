@@ -1,7 +1,5 @@
 """The Iteration/Expression Tree (IET) hierarchy."""
 
-from __future__ import absolute_import
-
 import abc
 import inspect
 import numbers
@@ -11,21 +9,23 @@ from collections import Iterable, OrderedDict, namedtuple
 import cgen as c
 
 from devito.cgen_utils import ccode
+from devito.data import FULL
+from devito.dimension import Dimension
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
                            REDUNDANT)
 from devito.ir.support import Forward, detect_io
-from devito.dimension import Dimension
+from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          validate_type)
+                          validate_type, dtype_to_cstr)
 from devito.types import AbstractFunction, Symbol, Indexed
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
-           'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression',
-           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression', 'Section',
-           'HaloSpot', 'IterationTree', 'ExpressionBundle', 'Increment']
+           'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'Section',
+           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot',
+           'IterationTree', 'ExpressionBundle', 'Increment']
 
 # First-class IET nodes
 
@@ -582,7 +582,7 @@ class Callable(Node):
         self.parameters = as_tuple(parameters)
 
     def __repr__(self):
-        parameters = ",".join(['void*' if i.is_Object else c.dtype_to_ctype(i.dtype)
+        parameters = ",".join(['void*' if i.is_Object else dtype_to_cstr(i.dtype)
                                for i in self.parameters])
         return "%s[%s]<%s; %s>" % (self.__class__.__name__, self.name, self.retval,
                                    parameters)
@@ -690,37 +690,50 @@ class Denormals(List):
 class ArrayCast(Node):
 
     """
-    A node encapsulating a cast of a raw C pointer to a
-    multi-dimensional array.
+    A node encapsulating a cast of a raw C pointer to a multi-dimensional array.
     """
 
     def __init__(self, function):
         self.function = function
 
     @property
+    def castshape(self):
+        """
+        The shape used in the left-hand side and right-hand side of the ArrayCast.
+        """
+        if configuration['codegen'] == 'explicit' or self.function.is_Array:
+            return self.function.symbolic_shape[1:]
+        else:
+            return tuple(self.function._C_get_field(FULL, d).extent
+                         for d in self.function.dimensions[1:])
+
+    @property
     def functions(self):
         """
-        Return all :class:`Function` objects used by this :class:`ArrayCast`
+        All :class:`Function`s used by this :class:`ArrayCast`.
         """
         return (self.function,)
 
     @property
     def defines(self):
         """
-        Return the base symbol an :class:`ArrayCast` defines.
+        The base symbol an :class:`ArrayCast` defines.
         """
         return ()
 
     @property
     def free_symbols(self):
         """
-        Return the symbols required to perform an :class:`ArrayCast`.
+        The symbols required to perform an :class:`ArrayCast`.
 
-        This includes the :class:`AbstractFunction` object that
-        defines the data, as well as the dimension sizes.
+        This may include the :class:`TensorFunction` object that carries
+        the data as well as the dimension sizes.
         """
-        sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
-        return (self.function, ) + as_tuple(sizes)
+        if configuration['codegen'] == 'explicit' or self.function.is_Array:
+            sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
+            return (self.function, ) + as_tuple(sizes)
+        else:
+            return (self.function,)
 
 
 class LocalExpression(Expression):

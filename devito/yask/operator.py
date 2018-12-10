@@ -6,8 +6,8 @@ import numpy as np
 
 from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
-from devito.ir.iet import (Iteration, Expression, ForeignExpression, Section,
-                           MetaCall, FindNodes, Transformer, retrieve_iteration_tree)
+from devito.ir.iet import (Iteration, Expression, ForeignExpression, Section, MetaCall,
+                           FindNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
 from devito.tools import ReducerMap, Signer, filter_ordered, flatten

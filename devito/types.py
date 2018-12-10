@@ -1,18 +1,20 @@
-from __future__ import absolute_import
-from cached_property import cached_property
 import weakref
 import abc
 import gc
 from collections import namedtuple
 from operator import mul
 from functools import reduce
-from ctypes import POINTER, byref
+from ctypes import POINTER, Structure, byref
 
 import numpy as np
 import sympy
+from cached_property import cached_property
+from cgen import Struct, Value
 
+from devito.data import default_allocator
 from devito.symbolics import Add
-from devito.tools import ArgProvider, EnrichedTuple, Pickable, Tag, ctypes_to_C
+from devito.tools import (ArgProvider, EnrichedTuple, Pickable, ctypes_to_cstr,
+                          dtype_to_cstr, dtype_to_ctype)
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -24,13 +26,11 @@ _SymbolCache = {}
 
 class Basic(object):
     """
-    Base class for API objects, mainly used to build equations.
-
-    There are three relevant sub-types of :class:`Basic`: ::
+    Three relevant types inherit from this class: ::
 
         * AbstractSymbol: represents a scalar; may carry data; may be used
                           to build equations.
-        * AbstractFunction: represents a discrete function as a tensor; may
+        * AbstractFunction: represents a discrete R^n -> R function; may
                             carry data; may be used to build equations.
         * AbstractObject: represents a generic object, for example a (pointer
                           to) data structure.
@@ -41,10 +41,14 @@ class Basic(object):
                     |                     |                  |
              AbstractSymbol       AbstractFunction     AbstractObject
 
-    .. note::
+    Subtypes must implement a number of methods/properties to enable code
+    generation via the Devito compiler. These methods/properties are easily
+    recognizable as their name starts with _C_.
 
-        The :class:`AbstractFunction` sub-hierarchy is mainly implemented in
-        :mod:`function.py`.
+    Notes
+    -----
+    Part of the :class:`AbstractFunction` sub-hierarchy is implemented in
+    :mod:`function.py`.
     """
 
     # Top hierarchy
@@ -78,6 +82,64 @@ class Basic(object):
 
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
+        return
+
+    @abc.abstractproperty
+    def _C_name(self):
+        """
+        The C-level name of the object.
+
+        Returns
+        -------
+        str
+        """
+        return
+
+    @abc.abstractproperty
+    def _C_typename(self):
+        """
+        The C-level type of the object.
+
+        Returns
+        -------
+        str
+        """
+        return
+
+    @abc.abstractproperty
+    def _C_typedata(self):
+        """
+        The C-level type of the data values.
+
+        Returns
+        -------
+        str
+        """
+        return
+
+    @abc.abstractproperty
+    def _C_ctype(self):
+        """
+        The C-level type of the object, as a ctypes object, suitable for type
+        checking when calling functions via ctypes.
+
+        Returns
+        -------
+        ctypes type
+        """
+        return
+
+    @property
+    def _C_typedecl(self):
+        """
+        The C-level struct declaration representing the object.
+
+        Returns
+        -------
+        :class:`cgen.Struct` or None
+            None if the object C type can be expressed with a basic C type,
+            such as float or int.
+        """
         return
 
 
@@ -175,6 +237,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
         return ()
 
     @property
+    def base(self):
+        return self
+
+    @property
     def function(self):
         return self
 
@@ -229,13 +295,25 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
         return None
 
     @property
-    def base(self):
-        return self
+    def dtype(self):
+        """The data type of the object."""
+        return self._dtype
 
     @property
-    def dtype(self):
-        """Return the data type of the object."""
-        return self._dtype
+    def _C_name(self):
+        return self.name
+
+    @property
+    def _C_typename(self):
+        return 'const %s' % dtype_to_cstr(self.dtype)
+
+    @property
+    def _C_typedata(self):
+        return dtype_to_cstr(self.dtype)
+
+    @property
+    def _C_ctype(self):
+        return dtype_to_ctype(self.dtype)
 
     # Pickling support
     _pickle_kwargs = ['name', 'dtype']
@@ -479,33 +557,20 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     def padding(self):
         return self._padding
 
-    @cached_property
-    def _offset_domain(self):
-        """
-        The number of points between the first (last) allocated element
-        and the first (last) domain element, for each dimension.
-        """
-        left = tuple(np.add(self._extent_halo.left, self._extent_padding.left))
-        right = tuple(np.add(self._extent_halo.right, self._extent_padding.right))
+    @property
+    def _C_name(self):
+        return "%s_vec" % self.name
 
-        Offset = namedtuple('Offset', 'left right')
-        offsets = tuple(Offset(i, j) for i, j in np.add(self._halo, self._padding))
-
-        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
+    @property
+    def _C_typedata(self):
+        return dtype_to_cstr(self.dtype)
 
     @cached_property
-    def _offset_halo(self):
+    def _extent_domain(self):
         """
-        The number of points between the first (last) allocated element
-        and the first (last) halo element, for each dimension.
+        The number of points in the domain region.
         """
-        left = self._extent_padding.left
-        right = self._extent_padding.right
-
-        Offset = namedtuple('Offset', 'left right')
-        offsets = tuple(Offset(i, j) for i, j in self._padding)
-
-        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
+        return EnrichedTuple(*self.shape, getters=self.dimensions)
 
     @cached_property
     def _extent_halo(self):
@@ -517,6 +582,19 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
         Extent = namedtuple('Extent', 'left right')
         extents = tuple(Extent(i, j) for i, j in self._halo)
+
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _extent_owned(self):
+        """
+        The number of points in the owned region.
+        """
+        left = tuple(self._extent_halo.right)
+        right = tuple(self._extent_halo.left)
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i.right, i.left) for i in self._extent_halo)
 
         return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
@@ -533,73 +611,65 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
         return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
-    def _get_region(self, region, dimension, side, symbolic=False):
+    @cached_property
+    def _extent_nopad(self):
         """
-        Return the offset and the extent of a given region in ``self.data``.
-
-        :param region: The :class:`DataRegion` whose offset and extent are retrieved.
-        :param dimension: The region :class:`Dimension`.
-        :param side: The region side.
-        :param symbolic: (Optional) if True, a symbolic offset is returned in place
-                         of negative values representing the distance from the end.
-                         Defaults to False.
+        The number of points in the domain+halo region.
         """
-        assert side in [LEFT, RIGHT]
-        assert region in [OWNED, HALO]
+        extents = tuple(i+sum(j) for i, j in zip(self._extent_domain, self._extent_halo))
+        return EnrichedTuple(*extents, getters=self.dimensions)
 
-        if region is OWNED:
-            if side is LEFT:
-                offset = self._offset_domain[dimension].left
-                extent = self._extent_halo[dimension].right
-            else:
-                if symbolic is False:
-                    offset = -self._offset_domain[dimension].right -\
-                        self._extent_halo[dimension].left
-                else:
-                    offset = self._offset_domain[dimension].left +\
-                        dimension.symbolic_size - self._extent_halo[dimension].left
-                extent = self._extent_halo[dimension].left
-        else:
-            if side is LEFT:
-                offset = self._offset_halo[dimension].left
-                extent = self._extent_halo[dimension].left
-            else:
-                if symbolic is False:
-                    offset = -self._offset_domain[dimension].right
-                else:
-                    offset = self._offset_domain[dimension].left + dimension.symbolic_size
-                extent = self._extent_halo[dimension].right
-
-        return offset, extent
-
-    def _get_view(self, region, dimension, side):
+    @cached_property
+    def _extent_nodomain(self):
         """
-        Return a special view of ``self.data``.
-
-        :param region: A :class:`DataRegion` representing the region of ``self.data``
-                       for which a view is produced.
-        :param dimension: The region :class:`Dimension`.
-        :param side: The region side.
+        The number of points in the padding+halo region.
         """
-        index_array = []
-        for i in self.dimensions:
-            if i == dimension:
-                offset, extent = self._get_region(region, dimension, side)
-                if side is LEFT:
-                    end = offset + extent
-                else:
-                    if extent == 0:
-                        # The region is empty
-                        assert offset == 0
-                        end = 0
-                    else:
-                        # The region is non-empty (e.g., offset=-1, extent=1), so
-                        # to reach the end point we must use None, not 0
-                        end = (offset + extent) or None
-                index_array.append(slice(offset, end))
-            else:
-                index_array.append(slice(None))
-        return self._data[index_array]
+        left = tuple(i for i, _ in np.add(self._halo, self._padding))
+        right = tuple(i for _, i in np.add(self._halo, self._padding))
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in np.add(self._halo, self._padding))
+
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _offset_domain(self):
+        """
+        The number of points before the first domain element.
+        """
+        offsets = tuple(np.add(self._extent_padding.left, self._extent_halo.left))
+        return EnrichedTuple(*offsets, getters=self.dimensions)
+
+    @cached_property
+    def _offset_halo(self):
+        """
+        The number of points before the first and last halo element.
+        """
+        left = tuple(self._extent_padding.left)
+        right = tuple(np.add(np.add(left, self._extent_halo.left), self._extent_domain))
+
+        Offset = namedtuple('Offset', 'left right')
+        offsets = tuple(Offset(i, j) for i, j in zip(left, right))
+
+        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _offset_owned(self):
+        """
+        The number of points before the first and last owned element.
+        """
+        left = tuple(self._offset_domain)
+        right = tuple(np.add(self._offset_halo.left, self._extent_domain))
+
+        Offset = namedtuple('Offset', 'left right')
+        offsets = tuple(Offset(i, j) for i, j in zip(left, right))
+
+        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
+
+    @property
+    def _data_alignment(self):
+        """The address of any allocated memory is a multiple of the alignment."""
+        return default_allocator().guaranteed_alignment
 
     def indexify(self, indices=None):
         """Create a :class:`sympy.Indexed` object from the current object."""
@@ -673,6 +743,10 @@ class Array(AbstractCachedFunction):
         return kwargs.get('dtype', np.float32)
 
     @property
+    def shape(self):
+        return self.symbolic_shape
+
+    @property
     def _mem_external(self):
         return self._scope == 'external'
 
@@ -685,8 +759,8 @@ class Array(AbstractCachedFunction):
         return self._scope == 'heap'
 
     @property
-    def shape(self):
-        return self.symbolic_shape
+    def _C_typename(self):
+        return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
 
     def update(self, **kwargs):
         self._shape = kwargs.get('shape', self.shape)
@@ -734,8 +808,16 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
         return {self}
 
     @property
-    def ctype(self):
-        return ctypes_to_C(self.dtype)
+    def _C_name(self):
+        return self.name
+
+    @property
+    def _C_typename(self):
+        return ctypes_to_cstr(self.dtype)
+
+    @property
+    def _C_ctype(self):
+        return self.dtype
 
     # Pickling support
     _pickle_args = ['name', 'dtype']
@@ -770,20 +852,20 @@ class Object(AbstractObject, ArgProvider):
 class CompositeObject(Object):
 
     """
-    Represent a pointer object to a composite type (e.g., struct, union),
+    Represent a pointer object to a composite type (i.e., a C struct),
     provided by the outside world.
     """
 
     _dtype_cache = {}
 
     @classmethod
-    def _generate_unique_dtype(cls, pname, ptype, pfields):
-        dtype = POINTER(type(pname, (ptype,), {'_fields_': pfields}))
-        key = (pname, ptype, tuple(pfields))
+    def _generate_unique_dtype(cls, pname, pfields):
+        dtype = POINTER(type(pname, (Structure,), {'_fields_': pfields}))
+        key = (pname, tuple(pfields))
         return cls._dtype_cache.setdefault(key, dtype)
 
-    def __init__(self, name, pname, ptype, pfields, value=None):
-        dtype = CompositeObject._generate_unique_dtype(pname, ptype, pfields)
+    def __init__(self, name, pname, pfields, value=None):
+        dtype = CompositeObject._generate_unique_dtype(pname, pfields)
         value = value or byref(dtype._type_())
         super(CompositeObject, self).__init__(name, dtype, value)
 
@@ -792,18 +874,22 @@ class CompositeObject(Object):
         return tuple(self.dtype._type_._fields_)
 
     @property
-    def ptype(self):
-        return self.dtype._type_.__base__
-
-    @property
     def pname(self):
         return self.dtype._type_.__name__
+
+    @property
+    def fields(self):
+        return [i for i, _ in self.pfields]
 
     def _hashable_content(self):
         return (self.name, self.pfields)
 
+    @cached_property
+    def _C_typedecl(self):
+        return Struct(self.pname, [Value(ctypes_to_cstr(j), i) for i, j in self.pfields])
+
     # Pickling support
-    _pickle_args = ['name', 'pname', 'ptype', 'pfields']
+    _pickle_args = ['name', 'pname', 'pfields']
     _pickle_kwargs = []
 
 
@@ -888,21 +974,3 @@ class CacheManager(object):
         for key, val in list(_SymbolCache.items()):
             if val() is None:
                 del _SymbolCache[key]
-
-
-class DataRegion(Tag):
-    pass
-
-
-DOMAIN = DataRegion('domain')
-OWNED = DataRegion('owned')
-HALO = DataRegion('halo')
-
-
-class DataSide(Tag):
-    pass
-
-
-LEFT = DataSide('left')
-RIGHT = DataSide('right')
-CENTER = DataSide('center')
