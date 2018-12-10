@@ -103,7 +103,6 @@
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.algorithms">devito.tools.algorithms module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.data_structures">devito.tools.data_structures module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.memoization">devito.tools.memoization module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.numpy_helper">devito.tools.numpy_helper module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.os_helper">devito.tools.os_helper module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.utils">devito.tools.utils module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-devito.tools.validators">devito.tools.validators module</a></li>
@@ -459,42 +458,6 @@ be cached. Instead the method will be invoked like a static method:</p>
 </dd></dl>
 
 </div>
-<div class="section" id="module-devito.tools.numpy_helper">
-<span id="devito-tools-numpy-helper-module"></span><h2>devito.tools.numpy_helper module<a class="headerlink" href="#module-devito.tools.numpy_helper" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="devito.tools.numpy_helper.numpy_to_ctypes">
-<code class="descclassname">devito.tools.numpy_helper.</code><code class="descname">numpy_to_ctypes</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/numpy_helper.html#numpy_to_ctypes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.numpy_helper.numpy_to_ctypes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map numpy types to ctypes types.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.numpy_helper.numpy_to_mpitypes">
-<code class="descclassname">devito.tools.numpy_helper.</code><code class="descname">numpy_to_mpitypes</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/numpy_helper.html#numpy_to_mpitypes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.numpy_helper.numpy_to_mpitypes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map numpy types to MPI datatypes.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.numpy_helper.numpy_view_offsets">
-<code class="descclassname">devito.tools.numpy_helper.</code><code class="descname">numpy_view_offsets</code><span class="sig-paren">(</span><em>array</em>, <em>base=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/numpy_helper.html#numpy_view_offsets"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.numpy_helper.numpy_view_offsets" title="Permalink to this definition">¶</a></dt>
-<dd><p>Retrieve the offset of a view from its base array along each dimension and side.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>array</strong> – A <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code>.</li>
-<li><strong>base</strong> – The base of <code class="docutils literal notranslate"><span class="pre">array</span></code>. Most of the times the <code class="docutils literal notranslate"><span class="pre">base</span></code> is available
-through <code class="docutils literal notranslate"><span class="pre">array.base</span></code>. However, if this function is to be called
-within <code class="docutils literal notranslate"><span class="pre">__array_finalize__</span></code>, where <code class="docutils literal notranslate"><span class="pre">base</span></code> hasn’t been set yet,
-the <code class="docutils literal notranslate"><span class="pre">base</span></code> has to be provided explicitly</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</div>
 <div class="section" id="module-devito.tools.os_helper">
 <span id="devito-tools-os-helper-module"></span><h2>devito.tools.os_helper module<a class="headerlink" href="#module-devito.tools.os_helper" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
@@ -617,9 +580,27 @@ produced by the function <code class="docutils literal notranslate"><span class=
 </dd></dl>
 
 <dl class="function">
-<dt id="devito.tools.utils.ctypes_to_C">
-<code class="descclassname">devito.tools.utils.</code><code class="descname">ctypes_to_C</code><span class="sig-paren">(</span><em>ctype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#ctypes_to_C"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.ctypes_to_C" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map ctypes types to C types.</p>
+<dt id="devito.tools.utils.dtype_to_cstr">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">dtype_to_cstr</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#dtype_to_cstr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.dtype_to_cstr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Translate numpy.dtype into C string.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.dtype_to_ctype">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">dtype_to_ctype</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#dtype_to_ctype"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.dtype_to_ctype" title="Permalink to this definition">¶</a></dt>
+<dd><p>Translate numpy.dtype into a ctypes type.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.dtype_to_mpitype">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">dtype_to_mpitype</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#dtype_to_mpitype"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.dtype_to_mpitype" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map numpy types to MPI datatypes.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.utils.ctypes_to_cstr">
+<code class="descclassname">devito.tools.utils.</code><code class="descname">ctypes_to_cstr</code><span class="sig-paren">(</span><em>ctype</em>, <em>toarray=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools/utils.html#ctypes_to_cstr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.utils.ctypes_to_cstr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Translate ctypes types into C strings.</p>
 </dd></dl>
 
 <dl class="function">

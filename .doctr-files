@@ -86,7 +86,6 @@
 ./_build/html/_modules/devito/mpi/distributed.html
 ./_build/html/_modules/devito/mpi/halo_scheme.html
 ./_build/html/_modules/devito/mpi/routines.html
-./_build/html/_modules/devito/mpi/utils.html
 ./_build/html/_modules/devito/operator.html
 ./_build/html/_modules/devito/ops/operator.html
 ./_build/html/_modules/devito/parameters.html
@@ -100,7 +99,6 @@
 ./_build/html/_modules/devito/tools/algorithms.html
 ./_build/html/_modules/devito/tools/data_structures.html
 ./_build/html/_modules/devito/tools/memoization.html
-./_build/html/_modules/devito/tools/numpy_helper.html
 ./_build/html/_modules/devito/tools/os_helper.html
 ./_build/html/_modules/devito/tools/utils.html
 ./_build/html/_modules/devito/tools/validators.html
@@ -124,6 +122,7 @@
 ./_build/html/_modules/examples/seismic/tti/wavesolver.html
 ./_build/html/_modules/examples/seismic/utils.html
 ./_build/html/_modules/index.html
+./_build/html/_modules/numpy.html
 ./_build/html/_modules/sympy/core/assumptions.html
 ./_build/html/_sources/developer.rst.txt
 ./_build/html/_sources/devito.core.rst.txt

@@ -162,7 +162,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">logger</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">numpy_to_ctypes</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">dtype_to_ctype</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ALLOC_FLAT&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_NUMA_LOCAL&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_NUMA_ANY&#39;</span><span class="p">,</span>
            <span class="s1">&#39;ALLOC_KNL_MCDRAM&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_KNL_DRAM&#39;</span><span class="p">,</span> <span class="s1">&#39;ALLOC_GUARD&#39;</span><span class="p">,</span>
@@ -180,6 +180,9 @@
 
     <span class="n">_attempted_init</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">lib</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">guaranteed_alignment</span> <span class="o">=</span> <span class="mi">64</span>
+    <span class="sd">&quot;&quot;&quot;Guaranteed data alignment.&quot;&quot;&quot;</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">available</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
@@ -212,7 +215,7 @@
 <span class="sd">                                         that is needed only for the call to free.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">shape</span><span class="p">))</span>
-        <span class="n">ctype</span> <span class="o">=</span> <span class="n">numpy_to_ctypes</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">ctype</span> <span class="o">=</span> <span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
 
         <span class="n">c_pointer</span><span class="p">,</span> <span class="n">memfree_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_alloc_C_libcall</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">ctype</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">c_pointer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>

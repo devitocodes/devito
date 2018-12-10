@@ -36,14 +36,6 @@ devito.tools.memoization module
     :undoc-members:
     :show-inheritance:
 
-devito.tools.numpy\_helper module
----------------------------------
-
-.. automodule:: devito.tools.numpy_helper
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 devito.tools.os\_helper module
 ------------------------------
 

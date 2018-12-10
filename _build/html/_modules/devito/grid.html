@@ -399,8 +399,8 @@
 
         <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]:</span>
             <span class="n">distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distributor</span>
-            <span class="n">args</span><span class="p">[</span><span class="n">distributor</span><span class="o">.</span><span class="n">_C_comm</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">_C_comm</span><span class="o">.</span><span class="n">value</span>
-            <span class="n">args</span><span class="p">[</span><span class="n">distributor</span><span class="o">.</span><span class="n">_C_neighbours</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">_C_neighbours</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">args</span><span class="p">[</span><span class="n">distributor</span><span class="o">.</span><span class="n">_obj_comm</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">_obj_comm</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">args</span><span class="p">[</span><span class="n">distributor</span><span class="o">.</span><span class="n">_obj_neighbours</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">distributor</span><span class="o">.</span><span class="n">_obj_neighbours</span><span class="o">.</span><span class="n">value</span>
 
         <span class="k">return</span> <span class="n">args</span>
 

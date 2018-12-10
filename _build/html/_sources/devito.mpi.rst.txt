@@ -28,14 +28,6 @@ devito.mpi.routines module
     :undoc-members:
     :show-inheritance:
 
-devito.mpi.utils module
------------------------
-
-.. automodule:: devito.mpi.utils
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 
 Module contents
 ---------------

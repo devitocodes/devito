@@ -28,6 +28,14 @@ devito.data.decomposition module
     :undoc-members:
     :show-inheritance:
 
+devito.data.meta module
+-----------------------
+
+.. automodule:: devito.data.meta
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------

@@ -181,12 +181,19 @@
                   <span class="n">callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">i</span><span class="p">]())</span>
 <span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;backend&#39;</span><span class="p">,</span> <span class="s1">&#39;core&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">backends_registry</span><span class="p">),</span> <span class="n">callback</span><span class="o">=</span><span class="n">init_backend</span><span class="p">)</span>
 
-<span class="c1"># Should Devito run a first-touch Operator upon allocating data?</span>
+<span class="c1"># Should Devito run a first-touch Operator upon data allocation?</span>
 <span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;first-touch&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="kc">False</span><span class="p">)</span>
 
 <span class="c1"># Should Devito ignore any unknown runtime arguments supplied to Operator.apply(),</span>
 <span class="c1"># or rather raise an exception (the default behaviour)?</span>
 <span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;ignore-unknowns&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="kc">False</span><span class="p">)</span>
+
+<span class="c1"># By default, the Devito compiler generates parameters, rather than numbers, for</span>
+<span class="c1"># things such as array casts, loop bounds, etc. This maximises Operator reusability,</span>
+<span class="c1"># as the same Operator can be applied to Functions that only different in the shape.</span>
+<span class="c1"># It is also the only viable way when using MPI. One can change this behaviour</span>
+<span class="c1"># (e.g., for educational purposes) by playing with the `codegen` configuration knob</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;codegen&#39;</span><span class="p">,</span> <span class="s1">&#39;parametric&#39;</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;parametric&#39;</span><span class="p">,</span> <span class="s1">&#39;explicit&#39;</span><span class="p">])</span>
 
 <span class="c1"># Execution mode setup</span>
 <span class="k">def</span> <span class="nf">_reinit_compiler</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>  <span class="c1"># noqa</span>

@@ -453,15 +453,15 @@
         <span class="sd">&quot;&quot;&quot;Return True if self accesses the halo along any of the provided findices,</span>
 <span class="sd">        False otherwise.&quot;&quot;&quot;</span>
         <span class="c1"># Given `d` \in findices, iterating over [0, size_d):</span>
-        <span class="c1"># * if self[d] - d &lt; self.function._offset_domain[d].left, then `self` will</span>
+        <span class="c1"># * if self[d] - d &lt; self.function._extent_halo[d].left, then `self` will</span>
         <span class="c1">#   definitely touch the left-halo when d=0</span>
-        <span class="c1"># * if self[d] - d &gt; self.function._offset_domain[d].left, then `self` will</span>
+        <span class="c1"># * if self[d] - d &gt; self.function._extent_halo[d].left, then `self` will</span>
         <span class="c1">#   definitely touch the right-halo when d=size_d-1</span>
         <span class="c1"># TODO: the underlying assumption here is that `d` iterates in [0, size_d],</span>
         <span class="c1"># which is the typical case. If that&#39;s not the case, we have to generalise</span>
         <span class="c1"># this method. For this, we will have to attach more iteration space</span>
         <span class="c1"># information to IterationInstance, such as start/end point, increment, etc.</span>
-        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">-</span> <span class="n">d</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">-</span> <span class="n">d</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">left</span>
                    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">findices</span><span class="p">))</span></div>
 
 <div class="viewcode-block" id="IterationInstance.irregular"><a class="viewcode-back" href="../../../../devito.ir.support.html#devito.ir.support.basic.IterationInstance.irregular">[docs]</a>    <span class="k">def</span> <span class="nf">irregular</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">findices</span><span class="p">):</span>

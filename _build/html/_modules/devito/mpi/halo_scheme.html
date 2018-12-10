@@ -158,10 +158,10 @@
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 <span class="kn">from</span> <span class="nn">frozendict</span> <span class="k">import</span> <span class="n">frozendict</span>
 
+<span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
 <span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="k">import</span> <span class="n">Scope</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span><span class="p">,</span> <span class="n">as_mapper</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;HaloScheme&#39;</span><span class="p">,</span> <span class="s1">&#39;HaloSchemeException&#39;</span><span class="p">]</span>
@@ -383,8 +383,8 @@
             <span class="c1"># radius, which is dictated by `dspace`</span>
             <span class="n">v</span> <span class="o">=</span> <span class="n">dspace</span><span class="p">[</span><span class="n">f</span><span class="p">]</span><span class="o">.</span><span class="n">relaxed</span><span class="p">[</span><span class="n">d</span><span class="p">]</span>
             <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">limits</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Null</span> <span class="k">else</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-            <span class="n">lsize</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="o">-</span> <span class="n">lower</span>
-            <span class="n">rsize</span> <span class="o">=</span> <span class="n">upper</span> <span class="o">-</span> <span class="n">f</span><span class="o">.</span><span class="n">_offset_domain</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
+            <span class="n">lsize</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="o">-</span> <span class="n">lower</span>
+            <span class="n">rsize</span> <span class="o">=</span> <span class="n">upper</span> <span class="o">-</span> <span class="n">f</span><span class="o">.</span><span class="n">_extent_halo</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">right</span>
         <span class="k">if</span> <span class="n">lsize</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">halos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Halo</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">lsize</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">rsize</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>

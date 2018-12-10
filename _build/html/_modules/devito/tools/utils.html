@@ -159,10 +159,12 @@
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sympy</span>
+<span class="kn">from</span> <span class="nn">cgen</span> <span class="k">import</span> <span class="n">dtype_to_ctype</span> <span class="k">as</span> <span class="n">cgen_dtype_to_ctype</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;prod&#39;</span><span class="p">,</span> <span class="s1">&#39;as_tuple&#39;</span><span class="p">,</span> <span class="s1">&#39;is_integer&#39;</span><span class="p">,</span> <span class="s1">&#39;generator&#39;</span><span class="p">,</span> <span class="s1">&#39;grouper&#39;</span><span class="p">,</span> <span class="s1">&#39;split&#39;</span><span class="p">,</span> <span class="s1">&#39;roundm&#39;</span><span class="p">,</span>
            <span class="s1">&#39;powerset&#39;</span><span class="p">,</span> <span class="s1">&#39;invert&#39;</span><span class="p">,</span> <span class="s1">&#39;flatten&#39;</span><span class="p">,</span> <span class="s1">&#39;single_or&#39;</span><span class="p">,</span> <span class="s1">&#39;filter_ordered&#39;</span><span class="p">,</span> <span class="s1">&#39;as_mapper&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;filter_sorted&#39;</span><span class="p">,</span> <span class="s1">&#39;ctypes_to_C&#39;</span><span class="p">,</span> <span class="s1">&#39;ctypes_pointer&#39;</span><span class="p">,</span> <span class="s1">&#39;pprint&#39;</span><span class="p">,</span> <span class="s1">&#39;sweep&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;filter_sorted&#39;</span><span class="p">,</span> <span class="s1">&#39;dtype_to_cstr&#39;</span><span class="p">,</span> <span class="s1">&#39;dtype_to_ctype&#39;</span><span class="p">,</span> <span class="s1">&#39;dtype_to_mpitype&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ctypes_to_cstr&#39;</span><span class="p">,</span> <span class="s1">&#39;ctypes_pointer&#39;</span><span class="p">,</span> <span class="s1">&#39;pprint&#39;</span><span class="p">,</span> <span class="s1">&#39;sweep&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="prod"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.prod">[docs]</a><span class="k">def</span> <span class="nf">prod</span><span class="p">(</span><span class="n">iterable</span><span class="p">):</span>
@@ -302,20 +304,52 @@
     <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">filter_ordered</span><span class="p">(</span><span class="n">elements</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="ctypes_to_C"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.ctypes_to_C">[docs]</a><span class="k">def</span> <span class="nf">ctypes_to_C</span><span class="p">(</span><span class="n">ctype</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Map ctypes types to C types.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="dtype_to_cstr"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.dtype_to_cstr">[docs]</a><span class="k">def</span> <span class="nf">dtype_to_cstr</span><span class="p">(</span><span class="n">dtype</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Translate numpy.dtype into C string.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">cgen_dtype_to_ctype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="dtype_to_ctype"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.dtype_to_ctype">[docs]</a><span class="k">def</span> <span class="nf">dtype_to_ctype</span><span class="p">(</span><span class="n">dtype</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Translate numpy.dtype into a ctypes type.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_float</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int64</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_double</span><span class="p">}[</span><span class="n">dtype</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="dtype_to_mpitype"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.dtype_to_mpitype">[docs]</a><span class="k">def</span> <span class="nf">dtype_to_mpitype</span><span class="p">(</span><span class="n">dtype</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Map numpy types to MPI datatypes.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">:</span> <span class="s1">&#39;MPI_INT&#39;</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">:</span> <span class="s1">&#39;MPI_FLOAT&#39;</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">:</span> <span class="s1">&#39;MPI_LONG&#39;</span><span class="p">,</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">:</span> <span class="s1">&#39;MPI_DOUBLE&#39;</span><span class="p">}[</span><span class="n">dtype</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="ctypes_to_cstr"><a class="viewcode-back" href="../../../devito.tools.html#devito.tools.utils.ctypes_to_cstr">[docs]</a><span class="k">def</span> <span class="nf">ctypes_to_cstr</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">toarray</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Translate ctypes types into C strings.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">Structure</span><span class="p">):</span>
         <span class="k">return</span> <span class="s1">&#39;struct </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span>
     <span class="k">elif</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">Union</span><span class="p">):</span>
         <span class="k">return</span> <span class="s1">&#39;union </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span>
     <span class="k">elif</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">_Pointer</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">*&#39;</span> <span class="o">%</span> <span class="n">ctypes_to_C</span><span class="p">(</span><span class="n">ctype</span><span class="o">.</span><span class="n">_type_</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">toarray</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">ctype</span><span class="o">.</span><span class="n">_type_</span><span class="p">,</span> <span class="s1">&#39;(* </span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="n">toarray</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> *&#39;</span> <span class="o">%</span> <span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">ctype</span><span class="o">.</span><span class="n">_type_</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">Array</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">[</span><span class="si">%d</span><span class="s1">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">ctype</span><span class="o">.</span><span class="n">_type_</span><span class="p">,</span> <span class="n">toarray</span><span class="p">),</span> <span class="n">ctype</span><span class="o">.</span><span class="n">_length_</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;c_&#39;</span><span class="p">):</span>
         <span class="c1"># A primitive datatype</span>
         <span class="c1"># FIXME: Is there a better way of extracting the C typename ?</span>
         <span class="c1"># Here, we&#39;re following the ctypes convention that each basic type has</span>
-        <span class="c1"># the format c_X_p, where X is the C typename, for instance `int` or `float`.</span>
-        <span class="k">return</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+        <span class="c1"># either the format c_X_p or c_X, where X is the C typename, for instance</span>
+        <span class="c1"># `int` or `float`.</span>
+        <span class="k">if</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;_p&#39;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> *&#39;</span> <span class="o">%</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">toarray</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span><span class="p">[</span><span class="mi">2</span><span class="p">:],</span> <span class="n">toarray</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># A custom datatype (e.g., a typedef-ed pointer to struct)</span>
         <span class="k">return</span> <span class="n">ctype</span><span class="o">.</span><span class="vm">__name__</span></div>
