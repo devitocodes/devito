@@ -12,13 +12,13 @@ __all__ = ['clusterize', 'groupby']
 
 def groupby(clusters):
     """
-    Attempt grouping :class:`PartialCluster`s together to create bigger
-    :class:`PartialCluster`s (i.e., containing more expressions).
+    Group :class:`PartialCluster`s together to create "fatter" PartialClusters
+    (i.e., containing more expressions).
 
-    .. note::
-
-        This function relies on advanced data dependency analysis tools
-        based upon classic Lamport theory.
+    Notes
+    -----
+    This function relies on advanced data dependency analysis tools based upon
+    classic Lamport theory.
     """
     clusters = clusters.unfreeze()
 
@@ -156,14 +156,18 @@ def bump_and_contract(targets, source, sink):
     :class:`Array`s in ``targets`` into :class:`Scalar`. This is implemented
     through index bumping and array contraction.
 
-    :param targets: The :class:`Array` objects that will be contracted.
-    :param source: The source :class:`PartialCluster`.
-    :param sink: The sink :class:`PartialCluster`.
+    Parameters
+    ----------
+    targets : list of Array
+        The Arrays that will be contracted.
+    source : PartialCluster
+        The PartialCluster in which the Arrays are initialized.
+    sink : PartialCluster
+        The PartialCluster that consumes (i.e., reads) the Arrays.
 
     Examples
-    ========
-    Index bumping
-    -------------
+    --------
+    1) Index bumping
     Given: ::
 
         r[x,y,z] = b[x,y,z]*2
@@ -173,8 +177,7 @@ def bump_and_contract(targets, source, sink):
         r[x,y,z] = b[x,y,z]*2
         r[x,y,z+1] = b[x,y,z+1]*2
 
-    Array contraction
-    -----------------
+    2) Array contraction
     Given: ::
 
         r[x,y,z] = b[x,y,z]*2
@@ -185,8 +188,7 @@ def bump_and_contract(targets, source, sink):
         tmp0 = b[x,y,z]*2
         tmp1 = b[x,y,z+1]*2
 
-    Full example (bump+contraction)
-    -------------------------------
+    3) Full example (bump+contraction)
     Given: ::
 
         source: [r[x,y,z] = b[x,y,z]*2]
@@ -230,9 +232,7 @@ def bump_and_contract(targets, source, sink):
 
 
 def clusterize(exprs):
-    """
-    Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s.
-    """
+    """Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s."""
     clusters = ClusterGroup()
     flowmap = detect_flow_directions(exprs)
     prev = None

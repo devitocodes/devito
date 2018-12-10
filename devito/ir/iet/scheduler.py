@@ -31,9 +31,7 @@ def iet_build(stree):
 
 
 def iet_make(stree):
-    """
-    Create an Iteration/Expression tree (IET) from a :class:`ScheduleTree`.
-    """
+    """Create an IET from a :class:`ScheduleTree`."""
     nsections = 0
     queues = OrderedDict()
     for i in stree.visit():
@@ -107,13 +105,15 @@ def iet_lower_dimensions(iet):
 
 def iet_insert_C_decls(iet, func_table=None):
     """
-    Given an Iteration/Expression tree ``iet``, build a new tree with the
-    necessary symbol declarations. Declarations are placed as close as
-    possible to the first symbol use.
+    Given an IET, build a new tree with the necessary symbol declarations.
+    Declarations are placed as close as possible to the first symbol occurrence.
 
-    :param iet: The input Iteration/Expression tree.
-    :param func_table: (Optional) a mapper from callable names within ``iet``
-                       to :class:`Callable`s.
+    Parameters
+    ----------
+    iet : Node
+        The input Iteration/Expression tree.
+    func_table : dict, optional
+        A mapper from Callable names within ``iet`` to :class:`Callable`s.
     """
     func_table = func_table or {}
     allocator = Allocator()

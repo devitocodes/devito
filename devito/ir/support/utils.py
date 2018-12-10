@@ -217,12 +217,16 @@ def force_directions(mapper, key):
 
 
 def detect_io(exprs, relax=False):
-    """``{exprs} -> ({reads}, {writes})
+    """
+    ``{exprs} -> ({reads}, {writes})
 
-    :param exprs: The expressions inspected.
-    :param relax: (Optional) if False, as by default, collect only
-                  :class:`Constant`s and :class:`Function`s. Otherwise,
-                  collect any :class:`Basic`s.
+    Parameters
+    ----------
+    exprs : expr-like or list of expr-like
+        The searched expressions.
+    relax : bool, optional
+        If False, as by default, collect only :class:`Constant`s and
+        :class:`Function`s. Otherwise, collect any :class:`types.Basic`s.
     """
     exprs = as_tuple(exprs)
     if relax is False:
