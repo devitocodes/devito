@@ -67,7 +67,8 @@ def unfold_blocked_tree(node):
     """
     Unfold nested :class:`IterationFold`.
 
-    :Example:
+    Examples
+    --------
 
     Given a section of Iteration/Expression tree as below: ::
 
@@ -128,7 +129,7 @@ def optimize_unfolded_tree(unfolded, root):
     Transform folded trees to reduce the memory footprint.
 
     Examples
-    ========
+    --------
     Given:
 
         .. code-block::
