@@ -573,7 +573,7 @@ class ConditionalDimension(DerivedDimension):
     """
     Symbol defining a non-convex iteration sub-space derived from a ``parent``
     Dimension, implemented by the compiler generating conditional "if-then" code
-    within the parent Dimension's iteration space. 
+    within the parent Dimension's iteration space.
 
     Parameters
     ----------
