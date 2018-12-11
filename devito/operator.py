@@ -21,6 +21,8 @@ from devito.profiling import create_profile
 from devito.symbolics import indexify
 from devito.tools import Signer, ReducerMap, as_tuple, flatten, filter_sorted, split
 
+__all__ = ['Operator']
+
 
 class Operator(Callable):
 
@@ -30,15 +32,19 @@ class Operator(Callable):
 
     Parameters
     ----------
-    expressions : expr or list or exprs
+    expressions : expr-like or list or expr-like
         The (list of) expression(s) defining the Operator computation.
     **kwargs
-        - ``name``: Name of the Operator, defaults to "Kernel" (`str`).
-        - ``subs``: Symbolic substitutions to be applied to ``expressions`` (`dict`).
-        - ``dse`` : Aggressiveness of the Devito Symbolic Engine for flop
-                    optimization. Defaults to ``configuration['dse']`` (`str`).
-        - ``dle`` : Aggressiveness of the Devito Loop Engine for loop-level
-                    optimization. Defaults to ``configuration['dle']`` (`str`).
+        * name : str
+            Name of the Operator, defaults to "Kernel".
+        * subs : dict
+            Symbolic substitutions to be applied to ``expressions``.
+        * dse : str
+            Aggressiveness of the Devito Symbolic Engine for flop
+            optimization. Defaults to ``configuration['dse']``.
+        * dle : str
+            Aggressiveness of the Devito Loop Engine for loop-level
+            optimization. Defaults to ``configuration['dle']``.
 
     Examples
     --------
@@ -68,13 +74,13 @@ class Operator(Callable):
                        Eq(u[t+1, 0, y], 0),
                        Eq(u[t+1, 2, y], 0)])
 
-    A semantically equivalent computation can be expressed exploiting `SubDomain`s.
+    A semantically equivalent computation can be expressed exploiting SubDomains.
 
     >>> u.data[:] = 0
     >>> op = Operator(Eq(u.forward, u + 1, subdomain=grid.interior))
 
     By specifying a SubDomain, the Operator constrains the execution of an expression to
-    a certain sub-region within the computational domain. Ad-hoc `SubDomain`s can also be
+    a certain sub-region within the computational domain. Ad-hoc SubDomains can also be
     created in application code -- refer to the SubDomain documentation for more info.
 
     Advanced boundary conditions can be expressed leveraging `SubDomain` and

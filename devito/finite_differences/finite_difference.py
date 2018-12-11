@@ -1,4 +1,4 @@
-from functools import partial
+from functools import partial, wraps
 
 from sympy import S, finite_diff_weights
 
@@ -52,6 +52,7 @@ centered = Side('centered', 0)
 
 
 def check_input(func):
+    @wraps(func)
     def wrapper(expr, *args, **kwargs):
         if expr.is_Number:
             return S.Zero

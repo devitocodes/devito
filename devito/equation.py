@@ -11,8 +11,8 @@ class Eq(sympy.Eq):
     An equal relation between two objects, the left-hand side and the right-hand side.
 
     The left-hand side may be a :class:`Function` or a :class:`SparseFunction`. The
-    right-hand side may be any arbitrary expressions with numbers, :class:`Dimension`s,
-    :class:`Constant`s, :class:`Function`s and :class:`SparseFunction`s as operands.
+    right-hand side may be any arbitrary expressions with numbers, :class:`Dimension`,
+    :class:`Constant`, :class:`Function` and :class:`SparseFunction` as operands.
 
     Parameters
     ----------
