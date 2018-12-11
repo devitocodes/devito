@@ -12,6 +12,8 @@ class Coefficients(object):
     Devito class for users to define custom finite difference weights.
     """
 
-    def __init__(self, coeffs, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
             
-        print(coeffs)
+        Coefficients.data = args
+        
+        print(Coefficients.data)

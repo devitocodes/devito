@@ -39,11 +39,11 @@ u.data[:] = 0.0
 v.data[:] = 0.0
 
 # Modified coefficients
-coeffs = (1, u, x[0], np.array([1.0, -2.0, 1.0]))
-u_x_coeffs = Coefficients(coeffs)
+u_x_coeffs = (1, u, x[0], np.array([1.0, -2.0, 1.0]))
+u_t_coeffs = (1, u, time, np.array([1.0, -2.0, 1.0]))
 
 # Main equations
-eq = Eq(u.dt+u.dx+v.dx, coefficients=u_x_coeffs)
+eq = Eq(u.dt+u.dx+v.dx, coefficients=Coefficients(u_x_coeffs,u_t_coeffs))
 
 #print(eq._coefficients)
 
