@@ -56,7 +56,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Devito'
-copyright = u'2016, Opesci'
+copyright = u'2016, Devito'
 author = u'Devito'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -267,7 +267,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'Devito.tex', u'Devito Documentation',
-     u'Opesci', 'manual'),
+     u'Devito', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of

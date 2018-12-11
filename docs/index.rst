@@ -31,3 +31,4 @@ You can find the API Documentation :doc:`here </userdoc>`.
    Download <download>
    Tutorials <tutorials>
    User Documentation <userdoc>
+   The Devito Compiler <compiler>
