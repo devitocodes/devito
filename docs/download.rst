@@ -1,5 +1,5 @@
-Download Devito
-===============
+Obtain Devito
+=============
 
 The recommended way to install Devito uses the Conda package manager
 for installation of the necessary software dependencies. Please
