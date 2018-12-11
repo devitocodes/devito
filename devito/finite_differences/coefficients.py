@@ -18,10 +18,14 @@ class Coefficients(object):
 
         Coefficients.data = args
 
-        # Figure out when these coefficients can be 'pushed'.
-
-        # Now generate the replacement rules
-        Coefficients.rules = None
+        # Figure out when symbolic coefficients can be replaced
+        # with user provided coefficients and, if possible, generate
+        # replacement rules
+        for d in Coefficients.data:
+            if isinstance(d, tuple):
+                Coefficients.rules = None
+            else:
+                Coefficients.rules = None
 
 
     #def _apply_fd_coefficients(self, expressions, args):
