@@ -140,7 +140,6 @@ script:
   # Code coverage and documentation generation
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       codecov;
-      sphinx-apidoc -f -o docs/ devito;
       cd docs;
       make html;
       cd ..;

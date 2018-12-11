@@ -20,7 +20,7 @@ Lorena A. Barba Group and focuses on the implementation with Devito rather than
 pure CFD or finite difference theory.
 
 The tutorial, structured as a series of Jupyter notebooks, is available `here
-<http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/cfd/>`_.
+<http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/cfd/>`__.
 The following topics are covered:
 
 * Simple linear and nonlinear operators.
@@ -31,11 +31,11 @@ The following topics are covered:
 Seismic Modelling and Inversion
 -------------------------------
 
-A set of tutorials that introduces some basic concepts of seismic modelling and
+A tutorial series that introduces some basic concepts of seismic modelling and
 highlights how to use Devito operators to solve seismic inversion problems.
 
 The tutorial, structured as a series of Jupyter notebooks, is available `here
-<http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/>`_.
+<http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/>`__.
 The following topis are covered:
 
 * Quick introduction to seismic modelling
