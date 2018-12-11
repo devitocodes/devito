@@ -34,14 +34,17 @@ v = TimeFunction(name='v', grid=grid, time_order=2, space_order=2, save=ns, coef
 u.data[:] = 0.0
 v.data[:] = 0.0
 
+# Modified coefficients
+u_x_coeffs = (1, u, x[0], np.array([1.0, -2.0, 1.0]))
+
 # Main equations
-eq = Eq(u.dt+(u*v).dx)
+eq = Eq(u.dt+u.dx+v.dx, coefficients=u_x_coeffs)
 
-#print(eq)
+#print(eq._coefficients)
 
-stencil = solve(eq, u.forward)
+#stencil = solve(eq, u.forward)
 
-print(stencil)
+#print(stencil)
 
 ## bc's
 #bc = [Eq(u[time+1,0], 0.0)]
