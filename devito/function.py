@@ -1741,6 +1741,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     >>> sf(p_sf)
 
     Inspection
+
     >>> sf.data
     Data([0., 0.], dtype=float32)
     >>> sf.coordinates
@@ -1750,6 +1751,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
            [0., 0.]], dtype=float32)
 
     Symbolic interpolation routines
+
     >>> from devito import Function
     >>> f = Function(name='f', grid=grid)
     >>> exprs0 = sf.interpolate(f)
@@ -2210,6 +2212,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     >>> sf(time, p_sf)
 
     Inspection
+
     >>> sf.data
     Data([[0., 0.],
           [0., 0.],
@@ -2221,6 +2224,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
            [0., 0.]], dtype=float32)
 
     Symbolic interpolation routines
+
     >>> from devito import TimeFunction
     >>> f = TimeFunction(name='f', grid=grid)
     >>> exprs0 = sf.interpolate(f)
