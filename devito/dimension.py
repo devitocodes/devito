@@ -21,7 +21,7 @@ class Dimension(AbstractSymbol, ArgProvider):
     Symbol defining an iteration space.
 
     A Dimension represents a problem dimension. It is typically used to index
-    into :class:`Function`s , but it can also appear in the middle of a
+    into a :class:`Function`, but it can also appear in the middle of a
     symbolic expression just like any other symbol.
 
     Parameters
@@ -609,13 +609,14 @@ class ConditionalDimension(DerivedDimension):
 
     The Operator generates the following for-loop (pseudocode)
 
-    .. code-block:: python
-      for (int i = i_m; i <= i_M; i += 1) {
-        g[i] = 1;
-        if (i%4 == 0) {
-          f[i / 4] = g[i];
+    .. code-block:: C
+
+        for (int i = i_m; i <= i_M; i += 1) {
+          g[i] = 1;
+          if (i%4 == 0) {
+            f[i / 4] = g[i];
+          }
         }
-      }
 
     Another typical use case is when one needs to constrain the execution of
     loop iterations to make sure certain conditions are honoured. The following
@@ -630,12 +631,13 @@ class ConditionalDimension(DerivedDimension):
 
     The Operator generates the following for-loop (pseudocode)
 
-    .. code-block:: python
-      for (int i = i_m; i <= i_M; i += 1) {
-        if (g[i] > 0 && g[i] < 4) {
-          f[g[i]] = f[g[i]] + 1;
+    .. code-block:: C
+
+        for (int i = i_m; i <= i_M; i += 1) {
+          if (g[i] > 0 && g[i] < 4) {
+            f[g[i]] = f[g[i]] + 1;
+          }
         }
-      }
     """
 
     is_NonlinearDerived = True

@@ -1701,7 +1701,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     the computational grid. As such, each data value is associated some coordinates.
 
     A SparseFunction provides symbolic interpolation routines to convert between
-    :class:`Function`s and sparse data points. These are based upon standard
+    :class:`Function`\s and sparse data points. These are based upon standard
     [bi,tri]linear interpolation.
 
     Parameters
@@ -2167,9 +2167,9 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     are not aligned with the computational grid. As such, each data value is
     associated some coordinates.
 
-    A SparseFunction provides symbolic interpolation routines to convert between
-    :class:`Function`s and sparse data points. These are based upon standard
-    [bi,tri]linear interpolation.
+    A SparseTimeFunction provides symbolic interpolation routines to convert
+    between :class:`TimeFunction`\s and sparse data points. These are based upon
+    standard [bi,tri]linear interpolation.
 
     Parameters
     ----------

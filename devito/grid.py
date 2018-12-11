@@ -10,14 +10,14 @@ from devito.tools import ArgProvider, ReducerMap, as_tuple
 from sympy import prod
 import numpy as np
 
-__all__ = ['SubDomain']
+__all__ = ['Grid', 'SubDomain']
 
 
 class Grid(ArgProvider):
 
     """
     A cartesian grid that encapsulates a computational domain over which
-    to discretize :class:`Function`s.
+    to discretize a :class:`Function`.
 
     Parameters
     ----------
@@ -29,16 +29,16 @@ class Grid(ArgProvider):
     origin : tuple of ints, optional
         Physical coordinate of the origin of the domain; defaults to 0.0 in all
         dimensions.
-    dimensions : tuple of SpaceDimensions, optional
+    dimensions : tuple of SpaceDimension, optional
         The dimensions of the computational domain encapsulated by this Grid.
     time_dimension : TimeDimension, optional
-        The dimension used to define time in the :class:`TimeFunction`s created
-        from this Grid.
+        The dimension used to define time in a `TimeFunction` created from
+        this Grid.
     dtype : data-type, optional
         Any object that can be interpreted as a numpy data type, used as default
-        data type to be inherited by all :class:`Function`s created from this
+        data type to be inherited by all :class:`Function`\s created from this
         Grid. Defaults to ``np.float32``.
-    subdomains : tuple of SubDomains, optional
+    subdomains : tuple of SubDomain, optional
         If no subdomains are specified, the Grid only defines the two default
         subdomains ``interior`` and ``domain``.
     comm : MPI communicator, optional
@@ -68,10 +68,10 @@ class Grid(ArgProvider):
     Notes
     -----
     A Grid encapsulates the topology and geometry information of the
-    computational domain that :class:`Function`s can be discretized on.
-    As such, it defines and provides the physical coordinate information of
-    the logical cartesian grid underlying the discretized :class:`Function`s.
-    For example, the conventions for defining the coordinate space in 2D are:
+    computational domain that a Function can be discretized on.  As such, it
+    defines and provides the physical coordinate information of the logical
+    cartesian grid underlying the discretized Functions.  For example, the
+    conventions for defining the coordinate space in 2D are:
 
         .. code-block:: python
 
@@ -149,7 +149,7 @@ class Grid(ArgProvider):
 
     @property
     def dtype(self):
-        """Data type inherited by all :class:`Function`s defined on this Grid."""
+        """Data type inherited by all Functions defined on this Grid."""
         return self._dtype
 
     @property
@@ -179,7 +179,7 @@ class Grid(ArgProvider):
 
     @property
     def subdomains(self):
-        """The :class:`SubDomain`s defined in this Grid."""
+        """The SubDomains defined in this Grid."""
         return {i.name: i for i in self._subdomains}
 
     @property
@@ -285,6 +285,7 @@ class SubDomain(object):
     """A :class:`Grid` subdomain."""
 
     name = None
+    """A unique name for the SubDomain."""
 
     def __init__(self):
         if self.name is None:
@@ -336,10 +337,6 @@ class SubDomain(object):
     __repr__ = __str__
 
     @property
-    def finalized(self):
-        return self._dimensions is not None
-
-    @property
     def dimensions(self):
         return self._dimensions
 
@@ -353,20 +350,20 @@ class SubDomain(object):
 
     def define(self, dimensions):
         """
-        Return a dictionary ``M : D -> V``, where: ::
+        Return a dictionary ``M : D -> V``, where:
 
-            * D are the Grid dimensions
-            * M(d) = {d, ('left', int), ('middle', int, int), ('right', int, int)}.
-              If ``M(d) = d``, the SubDomain spans the entire domain along the
-              :class:`Dimension` ``d``. In all other cases, the SubDomain spans
-              a contiguous subregion of the domain. For example, if
-              ``M(d) = ('left', 4)``, The SubDomain has thickness 4 near ``d``'s
-              left extreme.
+        * ``D`` is the sef of Grid dimensions
+        * ``M(d) = {d, ('left', int), ('middle', int, int), ('right', int, int)}``.
+          If ``M(d) = d``, the SubDomain spans the entire domain along the
+          :class:`Dimension` ``d``. In all other cases, the SubDomain spans
+          a contiguous subregion of the domain. For example, if
+          ``M(d) = ('left', 4)``, The SubDomain has thickness 4 near ``d``'s
+          left extreme.
 
-        .. note::
-
-            This method should be overridden by each subclass of SubDomain that
-            wants to define a new type of subdomain.
+        Notes
+        -----
+        This method should be overridden by each subclass of SubDomain that
+        wants to define a new type of subdomain.
         """
         raise NotImplementedError
 
