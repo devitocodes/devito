@@ -1,9 +1,10 @@
 from functools import partial, wraps
 
-from sympy import S, finite_diff_weights
+from sympy import S, finite_diff_weights, Function
 
 from devito.finite_differences import Differentiable
 from devito.tools import Tag
+from devito.logger import debug, warning
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'left', 'right', 'centered', 'transpose']
@@ -366,3 +367,16 @@ def generate_fd_shortcuts(function):
             derivatives[name_fd] = (deriv, desciption)
 
     return derivatives
+
+def symbolic_weights(function, deriv_order, indices, dim):
+
+    n_weights = len(indices)
+
+    # This 'function' should be centralised
+    W = Function('W')
+
+    weights = []
+    for j in range(n_weights):
+        weights += [W(indices[j], deriv_order, function, dim),]
+
+    return weights
