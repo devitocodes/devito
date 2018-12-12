@@ -1,0 +1,42 @@
+/* Width of the main tab
+.wy-nav-content {
+    max-width: none;
+}
+*/
+
+/* Sidebar header (and topbar for mobile) */
+.wy-side-nav-search, .wy-nav-top {
+  background: #54c6a4;
+}
+
+/* Sidebar
+.wy-nav-side {
+  background: #ff0000;
+}
+*/
+
+/* Link colors */
+a:link {
+  color: #54c6a4;
+}
+
+a:hover, a:visited, a:active {
+  color: #1ea47d;
+}
+
+a.icon {
+  color: #343131;
+}
+
+.wy-side-nav-search > div.version {
+  color: #343131;
+}
+
+.rst-content dl:not(.docutils) dt {
+  color: #404040;
+}
+
+.rst-content dl:not(.docutils) dt {
+  border-top: solid 3px #54c6a4;
+  background: #dff1ec;
+}
