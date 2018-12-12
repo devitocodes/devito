@@ -1,5 +1,5 @@
-User API
-========
+User Documentation
+==================
 
 .. toctree::
 
