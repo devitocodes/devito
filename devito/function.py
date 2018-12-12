@@ -275,6 +275,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     @property
     def grid(self):
+        """The Grid on which the discretization occurred."""
         return self._grid
 
     @property
@@ -634,7 +635,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     @cached_property
     def space_dimensions(self):
-        """Tuple of :class:`Dimension`s that define physical space."""
+        """Tuple of :class:`Dimension`\s defining the physical space."""
         return tuple(d for d in self.indices if d.is_Space)
 
     @cached_property
@@ -1070,6 +1071,7 @@ class Function(TensorFunction, Differentiable):
 
     @property
     def space_order(self):
+        """The space order."""
         return self._space_order
 
     def sum(self, p=None, dims=None):
@@ -1292,11 +1294,12 @@ class TimeFunction(Function):
 
     @property
     def time_order(self):
+        """The time order."""
         return self._time_order
 
     @property
     def forward(self):
-        """Symbol for the time-forward state of the function"""
+        """Symbol for the time-forward state of the TimeFunction."""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.indices[self._time_position]
 
@@ -1304,7 +1307,7 @@ class TimeFunction(Function):
 
     @property
     def backward(self):
-        """Symbol for the time-backward state of the function"""
+        """Symbol for the time-backward state of the TimeFunction."""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.indices[self._time_position]
 
@@ -1412,6 +1415,7 @@ class AbstractSparseFunction(TensorFunction):
 
     @property
     def space_order(self):
+        """The space order."""
         return self._space_order
 
     @property
@@ -1683,6 +1687,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
     @property
     def time_order(self):
+        """The time order."""
         return self._time_order
 
     @property
@@ -1819,6 +1824,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
     @property
     def coordinates(self):
+        """The SparseFunction coordinates."""
         return self._coordinates
 
     @property

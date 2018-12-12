@@ -499,7 +499,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @property
     def dimensions(self):
-        """Tuple of :class:`Dimension`s representing the object indices."""
+        """Tuple of :class:`Dimension`\s representing the object indices."""
         return self.indices
 
     @property
