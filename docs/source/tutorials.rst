@@ -36,7 +36,7 @@ highlights how to use Devito operators to solve seismic inversion problems.
 
 The tutorial, structured as a series of Jupyter notebooks, is available `here
 <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/>`__.
-The following topis are covered:
+The following topics are covered:
 
 * Quick introduction to seismic modelling
 * Reverse Time Migration

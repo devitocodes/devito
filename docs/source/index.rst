@@ -3,8 +3,10 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Devito: Fast Finite Difference Computation from Symbolic Specification
-======================================================================
+Devito
+======
+
+Welcome to the Devito documentation!
 
 `Devito <http://www.devitoproject.org>`_ is a software to
 implement optimised finite difference (FD) computation from
@@ -21,7 +23,10 @@ You can get instructions on how to download and install Devito
 
 To learn how to use Devito, check our :doc:`tutorials and examples </tutorials>`.
 
-You can find the API Documentation :doc:`here </userapi>`.
+You can find the User Documentation :doc:`here </userapi>`.
+
+If you want to know more about how the Devito compiler works,
+you can find some material :doc:`here </compiler>`.
 
 .. title:: The Devito project
 
