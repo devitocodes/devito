@@ -2,7 +2,7 @@ from functools import partial, wraps
 
 from sympy import S, finite_diff_weights
 
-from devito.finite_differences import Differentiable, Coefficients
+from devito.finite_differences import Differentiable
 from devito.tools import Tag
 from devito.symbolics import retrieve_functions
 from devito.tools import filter_ordered

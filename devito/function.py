@@ -951,8 +951,8 @@ class Function(TensorFunction, Differentiable):
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
 
             # Symbolic (finite difference) coefficients
-            self._symbolic_coefficients = kwargs.get('coefficients', 'standard')
-            if not self._symbolic_coefficients in ('standard', 'symbolic'):
+            self._coefficients = kwargs.get('coefficients', 'standard')
+            if not self._coefficients in ('standard', 'symbolic'):
                 raise ValueError("coefficients must be `standard` or `symbolic`")
 
             # Dynamically add derivative short-cuts
