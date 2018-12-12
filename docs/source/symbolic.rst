@@ -2,6 +2,13 @@
 Symbolic Objects
 ================
 
-.. automodule:: devito.function
-    :members:
-    :undoc-members:
+.. toctree::
+
+    dimension
+    constant
+    function
+    timefunction
+    sparsefunction
+    sparsetimefunction
+    precsparsefunction
+    precsparsetimefunction
