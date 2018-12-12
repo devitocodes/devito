@@ -4,4 +4,4 @@ Dimension
 
 .. automodule:: devito.dimension
     :members:
-    :undoc-members:
+    :show-inheritance:

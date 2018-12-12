@@ -1,7 +1,7 @@
 ========
-Equation
+Constant
 ========
 
-.. automodule:: devito.equation
+.. autoclass:: devito.function.Constant
     :members:
     :show-inheritance:

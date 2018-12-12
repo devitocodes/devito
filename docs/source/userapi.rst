@@ -7,5 +7,4 @@ User Documentation
     symbolic
     finite-difference
     equation
-    dimension
     operator
