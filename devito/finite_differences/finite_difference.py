@@ -7,8 +7,7 @@ from devito.tools import Tag
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative', 'staggered_diff',
-           'staggered_cross_diff', 'generate_fd_shortcuts', 'left', 'right',
-           'centered', 'transpose']
+           'staggered_cross_diff', 'left', 'right', 'centered', 'transpose']
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deeterministic
 # code generation

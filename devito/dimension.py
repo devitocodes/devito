@@ -102,6 +102,11 @@ class Dimension(AbstractSymbol, ArgProvider):
     def __str__(self):
         return self.name
 
+    @property
+    def spacing(self):
+        """Symbol representing the physical spacing along the Dimension."""
+        return self._spacing
+
     @cached_property
     def symbolic_size(self):
         """Symbolic size of the Dimension."""
@@ -136,10 +141,6 @@ class Dimension(AbstractSymbol, ArgProvider):
     @property
     def _C_name(self):
         return self.name
-
-    @property
-    def spacing(self):
-        return self._spacing
 
     @property
     def root(self):
@@ -470,12 +471,12 @@ class SubDimension(DerivedDimension):
     def __new_stage2__(cls, name, parent, left, right, thickness):
         newobj = DerivedDimension.__xnew__(cls, name, parent)
         newobj._interval = sympy.Interval(left, right)
-        newobj._thickness = cls.Thickness(*thickness)
+        newobj._thickness = cls._Thickness(*thickness)
         return newobj
 
     __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
-    Thickness = namedtuple('Thickness', 'left right')
+    _Thickness = namedtuple('Thickness', 'left right')
 
     @classmethod
     def left(cls, name, parent, thickness):
@@ -662,6 +663,7 @@ class ConditionalDimension(DerivedDimension):
 
     @property
     def factor(self):
+        """"""
         return self._factor if self._factor is not None else 1
 
     @property
