@@ -121,6 +121,7 @@ script:
   - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py test; fi
   # Run test with py.tests
   - if [[ $INSTALL_TYPE == 'conda' ]]; then py.test --cov devito tests/; fi
+  - if [[ $INSTALL_TYPE == 'conda' ]]; then py.test --doctest-modules devito/; fi
   # Run remaining specialized examples and tests
   # Additional seismic operator tests
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5; fi

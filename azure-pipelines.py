@@ -20,6 +20,7 @@ if os.environ.get('testWithPip') == 'true':
 if os.environ.get('testWithPip') != 'true':
     runStep("flake8 --exclude .conda,.git --builtins=ArgumentError .")
     runStep("py.test --cov devito tests/")
+    runStep("py.test --doctest-modules devito/")
     if os.environ.get('RUN_EXAMPLES') == 'true':
         runStep(("python examples/seismic/benchmark.py test " +
                  "-P tti -so 4 -a -d 20 20 20 -n 5"))
