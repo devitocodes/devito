@@ -40,11 +40,12 @@ a.icon {
   background: #dff1ec;
 }
 
-/* To get rid of a colored boxes around methods */
+/* To get rid of colored boxes around methods
 .rst-content dl:not(.docutils) dl dt {
   border-left: none;
   background: none;
 }
+*/
 
 /* Make sure the colored box around classes takes up the whole page width */
 .rst-content dl:not(.docutils) dt {
