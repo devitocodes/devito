@@ -12,23 +12,59 @@ class Coefficients(object):
     Devito class for users to define custom finite difference weights.
     """
 
+    # FIX ME: Instead use __new__ and create specialised classes
+    # depending on format of coefficients.
     def __init__(self, *args, **kwargs):
 
-        # Need to check args are valid here.    
+        # FIXME: Add args check.    
 
-        Coefficients.data = args
+        self.data = args
+        self.rules = self.rules()
 
+    def rules(self):
+        
+        # FIXME: Move this
+        def generate_rules(d):
+            
+            deriv_order = d[0]
+            function = d[1]
+            dim = d[2]
+            coeffs = d[-1]
+            
+            fd_order = len(coeffs)-1
+            
+            subs = {}
+            
+            if fd_order == 1:
+                indices = [dim, dim + dim.spacing]
+            else:
+                indices = [(dim + i * dim.spacing) for i in range(-fd_order//2, fd_order//2 + 1)]
+            
+            for j in range(len(coeffs)):
+                W = sympy.Function('W')
+                W = W(indices[j], deriv_order, function, dim)
+                subs.update({W: coeffs[j]})
+        
+            return subs
+        
         # Figure out when symbolic coefficients can be replaced
         # with user provided coefficients and, if possible, generate
         # replacement rules
-        for d in Coefficients.data:
+        rules = {}
+        for d in self.data:
             if isinstance(d, tuple):
-                Coefficients.rules = None
-            else:
-                Coefficients.rules = None
-
-
-    #def _apply_fd_coefficients(self, expressions, args):
+                rules.update(generate_rules(d))
+                
+        print(rules)
+                
+        return rules
+    
+    
+############################################################################
+        
+        #print(self)
+        #print(d)
+        
         #"""
         #Test stuff
         #"""

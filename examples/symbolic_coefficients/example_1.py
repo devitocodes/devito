@@ -43,11 +43,9 @@ u_x_coeffs = (1, u, x[0], np.array([1.0, -2.0, 1.0]))
 u_t_coeffs = (1, u, time, np.array([1.0, -2.0, 1.0]))
 
 # Main equations
-#eq = Eq(u.dt+(v*u).dx+(u*v+u).dx)
-eq = Eq(u.dt+(u*u).dx)
-#eq = Eq(u.dt+v*u.dx+(u*v+u).dx, coefficients=Coefficients(u_x_coeffs,u_t_coeffs))
+eq = Eq(u.dt+u.dx+v.dx, coefficients=Coefficients(u_x_coeffs,u_t_coeffs))
 
-print(eq)
+#print(eq)
 
 #stencil = solve(eq, u.forward)
 
