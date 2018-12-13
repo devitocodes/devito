@@ -279,7 +279,49 @@ class Grid(ArgProvider):
 
 class SubDomain(object):
 
-    """A :class:`Grid` subdomain."""
+    """
+    Base class to define Grid subdomains.
+
+    To create a new SubDomain, all one needs to do is overriding :meth:`define`.
+    This method takes as input a set of Dimensions and produce a mapper
+
+        M : Dimensions -> {d, ('left', N), ('middle', N, M), ('right', N)}
+
+    so that:
+
+        * If ``M(d) = d``, then the SubDomain spans the entire Dimension ``d``.
+        * If ``M(d) = ('left', N)``, then the SubDomain spans a contiguous
+          region of ``N`` points starting at ``d``\'s left extreme.
+        * ``M(d) = ('right', N)`` is analogous to the case above.
+        * If ``M(d) = ('middle', N, M)``, then the SubDomain spans a contiguous
+          region of ``d_size - (N + M)`` points starting at ``N`` and finishing
+          at ``d_sizeM - M``.
+
+    Examples
+    --------
+    An "Inner" SubDomain, which spans the entire domain except for an exterior
+    boundary region of ``thickness=3``, can be implemented as follows
+
+    >>> from devito import SubDomain
+    >>> class Inner(SubDomain):
+            name = 'inner'
+            def define(self, dimensions):
+                return {d: ('middle', 3, 3) for d in dimensions}
+
+    Like before, but now spanning the entire ``y`` Dimension of a three-dimensional
+    grid
+
+    >>> class InnerY(SubDomain):
+            name = 'inner_y'
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('middle', 3, 3), y: y, z: ('middle', 3, 3)}
+
+    See Also
+    --------
+    Domain : An example of preset SubDomain.
+    Interior : An example of preset Subdomain.
+    """
 
     name = None
     """A unique name for the SubDomain."""
@@ -347,20 +389,12 @@ class SubDomain(object):
 
     def define(self, dimensions):
         """
-        Return a dictionary ``M : D -> V``, where:
-
-        * ``D`` is the sef of Grid dimensions
-        * ``M(d) = {d, ('left', int), ('middle', int, int), ('right', int, int)}``.
-          If ``M(d) = d``, the SubDomain spans the entire domain along the
-          :class:`Dimension` ``d``. In all other cases, the SubDomain spans
-          a contiguous subregion of the domain. For example, if
-          ``M(d) = ('left', 4)``, The SubDomain has thickness 4 near ``d``'s
-          left extreme.
+        Parametrically describe the SubDomain w.r.t. a generic Grid.
 
         Notes
         -----
-        This method should be overridden by each subclass of SubDomain that
-        wants to define a new type of subdomain.
+        This method should be overridden by each SubDomain subclass. For more
+        information, refer to SubDomain.__doc__.
         """
         raise NotImplementedError
 
