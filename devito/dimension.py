@@ -39,13 +39,13 @@ class Dimension(AbstractSymbol, ArgProvider):
     >>> grid = Grid(shape=(4, 4))
     >>> x, y = grid.dimensions
     >>> type(x)
-    devito.dimension.SpaceDimension
+    <class 'devito.dimension.SpaceDimension'>
     >>> time = grid.time_dim
     >>> type(time)
-    devito.dimension.TimeDimension
+    <class 'devito.dimension.TimeDimension'>
     >>> t = grid.stepping_dim
     >>> type(t)
-    devito.dimension.SteppingDimension
+    <class 'devito.dimension.SteppingDimension'>
 
     Alternatively, one can create Dimensions explicitly
 
@@ -626,7 +626,7 @@ class ConditionalDimension(DerivedDimension):
 
     >>> from sympy import And
     >>> ci = ConditionalDimension(name='ci', parent=i,
-                                  condition=And(g[i] > 0, g[i] < 4, evaluate=False))
+    ...                           condition=And(g[i] > 0, g[i] < 4, evaluate=False))
     >>> f = Function(name='f', shape=(size/factor,), dimensions=(ci,))
     >>> op = Operator(Eq(f[g[i]], f[g[i]] + 1))
 

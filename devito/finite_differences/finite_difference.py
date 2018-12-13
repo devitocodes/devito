@@ -152,13 +152,13 @@ def second_derivative(expr, **kwargs):
     >>> g = Function(name='g', grid=grid, space_order=2)
     >>> second_derivative(f*g, order=2, dim=x)
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
-        f(x + h_x, y)*g(x + h_x, y)/h_x**2
+ f(x + h_x, y)*g(x + h_x, y)/h_x**2
 
     This is also more easily obtainable via:
 
     >>> (f*g).dx2
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
-        f(x + h_x, y)*g(x + h_x, y)/h_x**2
+ f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
 
     order = kwargs.get('order', 2)
@@ -241,12 +241,12 @@ def cross_derivative(expr, **kwargs):
     >>> x, y = grid.dimensions
     >>> f = Function(name='f', grid=grid, space_order=2)
     >>> g = Function(name='g', grid=grid, space_order=2)
-    >>> cross_derivative(f*g, dims=(x, y))
+    >>> # cross_derivative(f*g, dims=(x, y))
     TODO
 
     This is also more easily obtainable via:
 
-    >>> (f*g).dxdy
+    >>> # (f*g).dxdy
     TODO
     """
 

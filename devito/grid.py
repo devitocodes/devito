@@ -55,7 +55,7 @@ class Grid(ArgProvider):
     >>> f.dimensions
     (x, y)
     >>> f.dtype
-    numpy.float32
+    <class 'numpy.float32'>
 
     In a Function, the domain defined by a Grid is often surrounded by a "halo
     region", which guarantees the correctness of stencil updates nearby the
@@ -304,18 +304,18 @@ class SubDomain(object):
 
     >>> from devito import SubDomain
     >>> class Inner(SubDomain):
-            name = 'inner'
-            def define(self, dimensions):
-                return {d: ('middle', 3, 3) for d in dimensions}
+    ...     name = 'inner'
+    ...     def define(self, dimensions):
+    ...         return {d: ('middle', 3, 3) for d in dimensions}
 
     Like before, but now spanning the entire ``y`` Dimension of a three-dimensional
     grid
 
     >>> class InnerY(SubDomain):
-            name = 'inner_y'
-            def define(self, dimensions):
-                x, y, z = dimensions
-                return {x: ('middle', 3, 3), y: y, z: ('middle', 3, 3)}
+    ...     name = 'inner_y'
+    ...     def define(self, dimensions):
+    ...         x, y, z = dimensions
+    ...         return {x: ('middle', 3, 3), y: y, z: ('middle', 3, 3)}
 
     See Also
     --------

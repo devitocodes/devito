@@ -173,7 +173,7 @@ class Decomposition(tuple):
         >>> d.convert_index(7)
         2
         >>> d.convert_index(3)
-        None
+
 
         Retrieve relative local min/man given global min/max
 
@@ -191,7 +191,7 @@ class Decomposition(tuple):
         Retrieve absolute local min/max given global min/max
 
         >>> d.convert_index((5, 9), rel=False)
-        (5, 9)
+        (5, 7)
         >>> d.convert_index((1, 6), rel=False)
         (5, 6)
         """

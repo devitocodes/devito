@@ -61,7 +61,7 @@ class Operator(Callable):
 
     >>> v = TimeFunction(name='v', grid=grid)
     >>> op = Operator([Eq(u.forward, u + 1),
-                       Eq(v.forward, v + 1)])
+    ...                Eq(v.forward, v + 1)])
 
     Simple boundary conditions can be imposed easily exploiting the "indexed
     notation" for Functions/TimeFunctions.
@@ -69,10 +69,10 @@ class Operator(Callable):
     >>> t = grid.stepping_dim
     >>> x, y = grid.dimensions
     >>> op = Operator([Eq(u.forward, u + 1),
-                       Eq(u[t+1, x, 0], 0),
-                       Eq(u[t+1, x, 2], 0),
-                       Eq(u[t+1, 0, y], 0),
-                       Eq(u[t+1, 2, y], 0)])
+    ...                Eq(u[t+1, x, 0], 0),
+    ...                Eq(u[t+1, x, 2], 0),
+    ...                Eq(u[t+1, 0, y], 0),
+    ...                Eq(u[t+1, 2, y], 0)])
 
     A semantically equivalent computation can be expressed exploiting SubDomains.
 
@@ -101,6 +101,7 @@ class Operator(Callable):
     following example, interpolation is used to approximate the value of four
     sparse points placed at the center of the four quadrants at the grid corners.
 
+    >>> import numpy as np
     >>> from devito import SparseFunction
     >>> grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
     >>> f = Function(name='f', grid=grid)
@@ -411,10 +412,11 @@ class Operator(Callable):
         >>> u = TimeFunction(name='u', grid=grid, save=3)
         >>> op = Operator(Eq(u.forward, u + 1))
 
-        The Operator is run by calling
+        The Operator is run by calling ``apply``
 
-        >>> op.apply()
+        >>> summary = op.apply()
 
+        The variable ``summary`` contains information about runtime performance.
         As no key-value parameters are specified, the Operator runs with its
         default arguments, namely ``u=u, x_m=0, x_M=2, y_m=0, y_M=2, time_m=0,
         time_M=1``.
@@ -423,7 +425,7 @@ class Operator(Callable):
         run, for example
 
         >>> u2 = TimeFunction(name='u', grid=grid, save=5)
-        >>> op.apply(u=u2, x_m=1, y_M=1)
+        >>> summary = op.apply(u=u2, x_m=1, y_M=1)
 
         Now, the Operator will run with a different set of arguments, namely
         ``u=u2, x_m=1, x_M=2, y_m=0, y_M=1, time_m=0, time_M=3``.
@@ -434,7 +436,7 @@ class Operator(Callable):
 
         >>> u3 = TimeFunction(name='u', grid=grid)
         >>> op = Operator(Eq(u3.forward, u3 + 1))
-        >>> op.apply(time_M=10)
+        >>> summary = op.apply(time_M=10)
         """
         # Build the arguments list to invoke the kernel function
         args = self.arguments(**kwargs)

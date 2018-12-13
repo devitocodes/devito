@@ -1190,9 +1190,9 @@ class TimeFunction(Function):
     >>> f = TimeFunction(name='f', grid=grid)
     >>> f
     f(t, x, y)
-    >>> g = Function(name='g', grid=grid, time_order=2)
+    >>> g = TimeFunction(name='g', grid=grid, time_order=2)
     >>> g
-    g(x, y)
+    g(t, x, y)
 
     First-order derivatives through centered finite-difference approximations
 
@@ -1215,7 +1215,7 @@ class TimeFunction(Function):
 
     >>> h = TimeFunction(name='h', grid=grid, save=20)
     >>> h
-    (time, x, y)
+    h(time, x, y)
     >>> h.shape
     (20, 4, 4)
 
@@ -1745,7 +1745,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     >>> from devito import Grid, SparseFunction
     >>> grid = Grid(shape=(4, 4))
     >>> sf = SparseFunction(name='sf', grid=grid, npoint=2)
-    >>> sf(p_sf)
+    >>> sf
+    sf(p_sf)
 
     Inspection
 
@@ -2217,7 +2218,8 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     >>> from devito import Grid, SparseTimeFunction
     >>> grid = Grid(shape=(4, 4))
     >>> sf = SparseTimeFunction(name='sf', grid=grid, npoint=2, nt=3)
-    >>> sf(time, p_sf)
+    >>> sf
+    sf(time, p_sf)
 
     Inspection
 

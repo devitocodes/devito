@@ -262,13 +262,14 @@ class IntervalGroup(PartialOrderTuple):
 
         Examples
         --------
+        >>> from devito import dimensions
         >>> x, y, z = dimensions('x y z')
         >>> ig0 = IntervalGroup([Interval(x, 1, -1)])
         >>> ig1 = IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3)])
         >>> ig2 = IntervalGroup([Interval(y, 2, -2), Interval(z, 1, -1)])
 
         >>> IntervalGroup.generate('intersection', ig0, ig1, ig2)
-        IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3), Interval(z, 1, -1)])
+        IntervalGroup[x[2, -2], y[3, -3], z[1, -1]]
         """
         mapper = {}
         for ig in interval_groups:
