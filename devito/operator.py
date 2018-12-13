@@ -27,7 +27,7 @@ __all__ = ['Operator']
 class Operator(Callable):
 
     """
-    Generate, jit-compile and run C code starting from an ordered sequence
+    Generate, JIT-compile and run C code starting from an ordered sequence
     of symbolic expressions.
 
     Parameters

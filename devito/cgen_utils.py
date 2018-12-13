@@ -29,10 +29,7 @@ class Allocator(object):
             handle[obj] = c.POD(obj.dtype, "%s%s %s" % (obj.name, shape, alignment))
 
     def push_heap(self, obj):
-        """
-        Generate cgen objects to declare, allocate memory, and free memory for
-        the :class:`Array` ``obj``.
-        """
+        """Generate cgen objects to declare an Array and allocate/free its memory."""
         if obj in self.heap:
             return
 

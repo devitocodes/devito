@@ -56,7 +56,7 @@ class Eq(sympy.Eq):
 
     @property
     def subdomain(self):
-        """The Eq SubDomain."""
+        """The SubDomain in which the Eq is defined."""
         return self._subdomain
 
     def xreplace(self, rules):

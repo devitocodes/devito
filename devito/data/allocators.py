@@ -308,8 +308,8 @@ ALLOC_NUMA_LOCAL = NumaAllocator('local')
 
 def default_allocator():
     """
-    Return a :class:`MemoryAllocator` for the architecture on which the
-    process is running. Possible allocators are: ::
+    Return a suitable MemoryAllocator for the architecture on which the process
+    is running. Possible allocators are: ::
 
         * ALLOC_FLAT: Align memory to page boundaries using the posix function
                       ``posix_memalign``

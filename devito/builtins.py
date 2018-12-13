@@ -1,5 +1,5 @@
 """
-Built-in :class:`Operator`s provided by Devito.
+Built-in Operators provided by Devito.
 """
 
 from sympy import Abs, Pow
@@ -12,7 +12,7 @@ __all__ = ['assign', 'smooth', 'norm', 'sumall', 'inner']
 
 def assign(f, v=0):
     """
-    Assign a value to a :class:`Function`.
+    Assign a value to a Function.
 
     Parameters
     ----------
@@ -26,7 +26,7 @@ def assign(f, v=0):
 
 def smooth(f, g, axis=None):
     """
-    Smooth a :class:`Function` through simple moving average.
+    Smooth a Function through simple moving average.
 
     Parameters
     ----------
@@ -35,8 +35,8 @@ def smooth(f, g, axis=None):
     g : Function
         The right-hand side of the smoothing kernel, that is the Function being smoothed.
     axis : Dimension or list of Dimensions, optional
-        The :class:`Dimension` along which the smoothing operation is performed.
-        Defaults to ``f``'s innermost Dimension.
+        The Dimension along which the smoothing operation is performed. Defaults
+        to ``f``'s innermost Dimension.
 
     Notes
     -----
@@ -93,7 +93,7 @@ class MPIReduction(object):
 
 def norm(f, order=2):
     """
-    Compute the norm of a :class:`Function`.
+    Compute the norm of a Function.
 
     Parameters
     ----------
@@ -122,7 +122,7 @@ def norm(f, order=2):
 
 def sumall(f):
     """
-    Compute the sum of the values in a :class:`Function`.
+    Compute the sum of all Function data.
 
     Parameters
     ----------
@@ -146,7 +146,7 @@ def sumall(f):
 
 def inner(f, g):
     """
-    Inner product of two :class:`Function`s.
+    Inner product of two Functions.
 
     Parameters
     ----------

@@ -137,12 +137,12 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     """
     Tensor symbol representing an array in symbolic equations. Unlike an
-    :class:`Array`, a TensorFunction carries data.
+    Array, a TensorFunction carries data.
 
     Notes
     -----
-    Users should not instantiate this class directly. Use :class:`Function`
-    or :class:`SparseFunction` (or their subclasses) instead.
+    Users should not instantiate this class directly. Use Function or
+    SparseFunction (or their subclasses) instead.
     """
 
     # Required by SymPy, otherwise the presence of __getitem__ will make SymPy
@@ -192,7 +192,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                                  % type(initializer))
 
     def _allocate_memory(func):
-        """Allocate memory as a :class:`Data`."""
+        """Allocate memory as a Data."""
         @wraps(func)
         def wrapper(self):
             if self._data is None:
@@ -288,7 +288,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     def shape(self):
         """
         Shape of the domain region. The domain constitutes the area of the
-        data written to by an :class:`Operator`.
+        data written to by an Operator.
 
         Notes
         -----
@@ -300,7 +300,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     def shape_domain(self):
         """
         Shape of the domain region. The domain constitutes the area of the
-        data written to by an :class:`Operator`.
+        data written to by an Operator.
 
         Notes
         -----
@@ -314,7 +314,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     def shape_with_halo(self):
         """
         Shape of the domain+outhalo region. The outhalo is the region
-        surrounding the domain that may be read by an :class:`Operator`.
+        surrounding the domain that may be read by an Operator.
 
         Notes
         -----
@@ -335,7 +335,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         Shape of the domain+inhalo region. The inhalo region comprises the
         outhalo as well as any additional "ghost" layers for MPI halo
         exchanges. Data in the inhalo region are exchanged when running
-        :class:`Operator`s to maintain consistent values as in sequential runs.
+        Operators to maintain consistent values as in sequential runs.
 
         Notes
         -----
@@ -361,7 +361,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     def shape_global(self):
         """
         Global shape of the domain region. The domain constitutes the area of
-        the data written to by an :class:`Operator`.
+        the data written to by an Operator.
 
         Notes
         -----
@@ -397,7 +397,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     @cached_property
     def _mask_modulo(self):
-        """Boolean mask telling which :class:`Dimension`s support modulo-indexing."""
+        """Boolean mask telling which Dimensions support modulo-indexing."""
         return tuple(True if i.is_Stepping else False for i in self.dimensions)
 
     @cached_property
@@ -421,8 +421,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @cached_property
     def _decomposition(self):
         """
-        Tuple of :class:`Decomposition` objects, representing the domain
-        decomposition. None is used as a placeholder for non-decomposed Dimensions.
+        Tuple of Decomposition objects, representing the domain decomposition.
+        None is used as a placeholder for non-decomposed Dimensions.
         """
         if self._distributor is None:
             return (None,)*self.ndim
@@ -432,7 +432,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @cached_property
     def _decomposition_outhalo(self):
         """
-        Tuple of :class:`Decomposition` objects, representing the domain+outhalo
+        Tuple of Decomposition objects, representing the domain+outhalo
         decomposition. None is used as a placeholder for non-decomposed Dimensions.
         """
         if self._distributor is None:
@@ -443,7 +443,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @property
     def data(self):
         """
-        The domain data values, as a :class:`numpy.ndarray`.
+        The domain data values, as a numpy.ndarray.
 
         Elements are stored in row-major format.
 
@@ -637,12 +637,12 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     @cached_property
     def space_dimensions(self):
-        """Tuple of :class:`Dimension`\s defining the physical space."""
+        """Tuple of Dimensions defining the physical space."""
         return tuple(d for d in self.indices if d.is_Space)
 
     @cached_property
     def _dist_dimensions(self):
-        """Tuple of MPI-distributed :class:`Dimension`s."""
+        """Tuple of MPI-distributed Dimensions."""
         if self._distributor is None:
             return ()
         return tuple(d for d in self.indices if d in self._distributor.dimensions)
@@ -775,7 +775,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         assert not self._in_flight
 
     def __halo_begin_exchange(self, dim):
-        """Begin a halo exchange along a given :class:`Dimension`."""
+        """Begin a halo exchange along a given Dimension."""
         neighbours = self._distributor.neighbours
         comm = self._distributor.comm
         for i in [LEFT, RIGHT]:
@@ -788,7 +788,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
 
     def __halo_end_exchange(self, dim):
-        """End a halo exchange along a given :class:`Dimension`."""
+        """End a halo exchange along a given Dimension."""
         for d, i, payload, req in list(self._in_flight):
             if d == dim:
                 status = MPI.Status()
@@ -899,7 +899,7 @@ class Function(TensorFunction, Differentiable):
     finite-differences approximations.
 
     A Function encapsulates space-varying data; for data that also varies in time,
-    use :class:`TimeFunction` instead.
+    use TimeFunction instead.
 
     Parameters
     ----------
@@ -1159,8 +1159,8 @@ class TimeFunction(Function):
     save : int or Buffer, optional
         By default, ``save=None``, which indicates the use of alternating buffers. This
         enables cyclic writes to the TimeFunction. For example, if the TimeFunction
-        ``u(t, x)`` has shape (3, 100), then, in an :class:`Operator`, ``t`` will assume
-        the values ``1, 2, 0, 1, 2, 0, 1, ...`` (note that the very first value depends
+        ``u(t, x)`` has shape (3, 100), then, in an Operator, ``t`` will assume the
+        values ``1, 2, 0, 1, 2, 0, 1, ...`` (note that the very first value depends
         on the stencil equation in which ``u`` is written.). The default size of the time
         buffer when ``save=None`` is ``time_order + 1``.  To specify a different size for
         the time buffer, one should use the syntax ``save=Buffer(mysize)``.
@@ -1341,7 +1341,7 @@ class TimeFunction(Function):
 
 class SubFunction(Function):
     """
-    A :class:`Function` bound to a "parent" TensorFunction.
+    A Function bound to a "parent" TensorFunction.
 
     A SubFunction hands control of argument binding and halo exchange to its
     parent TensorFunction.
@@ -1382,7 +1382,7 @@ class AbstractSparseFunction(TensorFunction):
     """The radius of the stencil operators provided by the SparseFunction."""
 
     _sub_functions = ()
-    """:class:`SubFunction`s encapsulated within this AbstractSparseFunction."""
+    """SubFunctions encapsulated within this AbstractSparseFunction."""
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -1708,8 +1708,8 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     the computational grid. As such, each data value is associated some coordinates.
 
     A SparseFunction provides symbolic interpolation routines to convert between
-    :class:`Function`\s and sparse data points. These are based upon standard
-    [bi,tri]linear interpolation.
+    Functions and sparse data points. These are based upon standard [bi,tri]linear
+    interpolation.
 
     Parameters
     ----------
@@ -1931,10 +1931,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return index_matrix, points
 
     def _interpolation_indices(self, variables, offset=0):
-        """
-        Generate interpolation indices for the :class:`TensorFunction`s
-        in ``variables``.
-        """
+        """Generate interpolation indices for the TensorFunctions in ``variables``."""
         index_matrix, points = self._index_matrix(offset)
 
         idx_subs = []
@@ -2177,8 +2174,8 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     associated some coordinates.
 
     A SparseTimeFunction provides symbolic interpolation routines to convert
-    between :class:`TimeFunction`\s and sparse data points. These are based upon
-    standard [bi,tri]linear interpolation.
+    between TimeFunctions and sparse data points. These are based upon standard
+    [bi,tri]linear interpolation.
 
     Parameters
     ----------

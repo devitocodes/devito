@@ -17,7 +17,7 @@ class Grid(ArgProvider):
 
     """
     A cartesian grid that encapsulates a computational domain over which
-    to discretize a :class:`Function`.
+    to discretize a Function.
 
     Parameters
     ----------
@@ -36,8 +36,8 @@ class Grid(ArgProvider):
         this Grid.
     dtype : data-type, optional
         Any object that can be interpreted as a numpy data type, used as default
-        data type to be inherited by all :class:`Function`\s created from this
-        Grid. Defaults to ``np.float32``.
+        data type to be inherited by all Functions created from this Grid.
+        Defaults to ``np.float32``.
     subdomains : tuple of SubDomain, optional
         If no subdomains are specified, the Grid only defines the two default
         subdomains ``interior`` and ``domain``.
@@ -394,7 +394,7 @@ class SubDomain(object):
         Notes
         -----
         This method should be overridden by each SubDomain subclass. For more
-        information, refer to SubDomain.__doc__.
+        information, refer to ``SubDomain.__doc__``.
         """
         raise NotImplementedError
 

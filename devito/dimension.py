@@ -21,8 +21,8 @@ class Dimension(AbstractSymbol, ArgProvider):
     Symbol defining an iteration space.
 
     A Dimension represents a problem dimension. It is typically used to index
-    into a :class:`Function`, but it can also appear in the middle of a
-    symbolic expression just like any other symbol.
+    into Functions, but it can also appear in the middle of a symbolic expression
+    just like any other symbol.
 
     Parameters
     ----------
@@ -268,10 +268,10 @@ class SpaceDimension(Dimension):
     Symbol defining an iteration space.
 
     This symbol represents a space dimension that defines the extent of
-    physical grid.
+    a physical grid.
 
-    A :class:`SpaceDimension` creates dedicated shortcut notations for spatial
-    derivatives on :class:`Function` symbols.
+    A SpaceDimension creates dedicated shortcut notations for spatial
+    derivatives on Functions.
 
     Parameters
     ----------
@@ -289,11 +289,10 @@ class TimeDimension(Dimension):
     """
     Symbol defining an iteration space.
 
-    This symbol represents a time dimension that defines the extent of
-    time.
+    This symbol represents a time dimension that defines the extent of time.
 
-    A :class:`TimeDimension` create dedicated shortcut notations for time
-    derivatives on :class:`Function` symbols.
+    A TimeDimension create dedicated shortcut notations for time derivatives
+    on Functions.
 
     Parameters
     ----------
@@ -738,7 +737,7 @@ class SteppingDimension(DerivedDimension):
 
     def _arg_values(self, *args, **kwargs):
         """
-        The argument values provided by a :class:`SteppingDimension` are those
+        The argument values provided by a SteppingDimension are those
         of its parent, as it acts as an alias.
         """
         values = {}
@@ -777,7 +776,7 @@ class ModuloDimension(DerivedDimension):
     Notes
     -----
     This type should not be instantiated directly in user code; if in need for
-    modulo buffered iteration, use :class:`SteppingDimension` instead.
+    modulo buffered iteration, use SteppingDimension instead.
     """
 
     is_Modulo = True
@@ -819,15 +818,14 @@ class ModuloDimension(DerivedDimension):
 
     def _arg_defaults(self, **kwargs):
         """
-        A :class:`ModuloDimension` provides no arguments, so this method
-        returns an empty dict.
+        A ModuloDimension provides no arguments, so this method returns an empty dict.
         """
         return {}
 
     def _arg_values(self, *args, **kwargs):
         """
-        A :class:`ModuloDimension` provides no arguments, so there are
-        no argument values to be derived.
+        A ModuloDimension provides no arguments, so there are no argument values
+        to be derived.
         """
         return {}
 
@@ -899,15 +897,14 @@ class IncrDimension(DerivedDimension):
 
     def _arg_defaults(self, **kwargs):
         """
-        A :class:`IncrDimension` provides no arguments, so this method
-        returns an empty dict.
+        An IncrDimension provides no arguments, so this method returns an empty dict.
         """
         return {}
 
     def _arg_values(self, *args, **kwargs):
         """
-        A :class:`IncrDimension` provides no arguments, so there are
-        no argument values to be derived.
+        An IncrDimension provides no arguments, so there are no argument values to
+        be derived.
         """
         return {}
 
