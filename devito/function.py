@@ -1,6 +1,7 @@
 from collections import OrderedDict, namedtuple
-from itertools import product
 from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
+from functools import wraps
+from itertools import product
 
 import sympy
 import numpy as np
@@ -192,6 +193,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
 
     def _allocate_memory(func):
         """Allocate memory as a :class:`Data`."""
+        @wraps(func)
         def wrapper(self):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
