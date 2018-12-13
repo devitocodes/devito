@@ -1,9 +1,10 @@
-User Documentation
-==================
+=============
+API Reference
+=============
 
 .. toctree::
 
-    grid
+    grids
     symbolic
     finite-difference
     equation

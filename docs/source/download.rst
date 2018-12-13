@@ -1,8 +1,9 @@
+=============
 Obtain Devito
 =============
 
 The recommended way to install Devito uses the Conda package manager
-for installation of the necessary software dependencies. Please
+for installation of the necessary software dependencies. First,
 install either Anaconda_ or Miniconda_ using the instructions
 provided at the download links.
 
@@ -10,8 +11,8 @@ provided at the download links.
 
 .. _Miniconda: https://conda.io/miniconda.html
 
-To install the editable development version Devito, including examples,
-tests and tutorial notebooks, please run the following commands:
+Then, to install the editable development version Devito, which includes
+examples, tests and tutorial notebooks, simply run the following commands:
 
 .. code-block:: shell
 

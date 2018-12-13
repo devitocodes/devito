@@ -23,10 +23,11 @@ You can get instructions on how to download and install Devito
 
 To learn how to use Devito, check our :doc:`tutorials and examples </tutorials>`.
 
-You can find the User Documentation :doc:`here </userapi>`.
+You can find the API Reference, which includes detailed explanations and
+inline examples, :doc:`here </userapi>`.
 
 If you want to know more about how the Devito compiler works,
-you can find some material :doc:`here </compiler>`.
+have a look at this :doc:`material </compiler>`.
 
 .. title:: The Devito project
 
@@ -35,5 +36,5 @@ you can find some material :doc:`here </compiler>`.
 
    Download <download>
    Tutorials <tutorials>
-   User Documentation <userapi>
+   API Reference <userapi>
    The Devito Compiler <compiler>
