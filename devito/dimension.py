@@ -122,10 +122,6 @@ class Dimension(AbstractSymbol, ArgProvider):
         """Symbol defining the maximum point of the Dimension."""
         return Scalar(name=self.max_name, dtype=np.int32)
 
-    @property
-    def limits(self):
-        return (self.symbolic_min, self.symbolic_max, 1)
-
     @cached_property
     def size_name(self):
         return "%s_size" % self.name
@@ -139,12 +135,16 @@ class Dimension(AbstractSymbol, ArgProvider):
         return "%s_M" % self.name
 
     @property
-    def _C_name(self):
-        return self.name
-
-    @property
     def root(self):
         return self
+
+    @property
+    def _limits(self):
+        return (self.symbolic_min, self.symbolic_max, 1)
+
+    @property
+    def _C_name(self):
+        return self.name
 
     @property
     def _properties(self):
@@ -480,7 +480,7 @@ class SubDimension(DerivedDimension):
 
     @classmethod
     def left(cls, name, parent, thickness):
-        lst, rst = cls.symbolic_thickness(name)
+        lst, rst = cls._symbolic_thickness(name)
         return cls(name, parent,
                    left=parent.symbolic_min,
                    right=parent.symbolic_min+lst-1,
@@ -488,7 +488,7 @@ class SubDimension(DerivedDimension):
 
     @classmethod
     def right(cls, name, parent, thickness):
-        lst, rst = cls.symbolic_thickness(name)
+        lst, rst = cls._symbolic_thickness(name)
         return cls(name, parent,
                    left=parent.symbolic_max-rst+1,
                    right=parent.symbolic_max,
@@ -496,16 +496,11 @@ class SubDimension(DerivedDimension):
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right):
-        lst, rst = cls.symbolic_thickness(name)
+        lst, rst = cls._symbolic_thickness(name)
         return cls(name, parent,
                    left=parent.symbolic_min+lst,
                    right=parent.symbolic_max-rst,
                    thickness=((lst, thickness_left), (rst, thickness_right)))
-
-    @classmethod
-    def symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32))
 
     @property
     def symbolic_min(self):
@@ -515,48 +510,53 @@ class SubDimension(DerivedDimension):
     def symbolic_max(self):
         return self._interval.right
 
-    @cached_property
-    def thickness_map(self):
-        return dict(self._thickness)
-
     @property
     def thickness(self):
         return self._thickness
 
-    def offset_left(self):
+    @classmethod
+    def _symbolic_thickness(cls, name):
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32))
+
+    @cached_property
+    def _thickness_map(self):
+        return dict(self.thickness)
+
+    def _offset_left(self):
         # The left extreme of the SubDimension can be related to either the
         # min or max of the parent dimension
         try:
             symbolic_thickness = self.symbolic_min - self.parent.symbolic_min
-            val = symbolic_thickness.subs(self.thickness_map)
+            val = symbolic_thickness.subs(self._thickness_map)
             return int(val), self.parent.symbolic_min
         except TypeError:
             symbolic_thickness = self.symbolic_min - self.parent.symbolic_max
-            val = symbolic_thickness.subs(self.thickness_map)
+            val = symbolic_thickness.subs(self._thickness_map)
             return int(val), self.parent.symbolic_max
 
-    def offset_right(self):
+    def _offset_right(self):
         # The right extreme of the SubDimension can be related to either the
         # min or max of the parent dimension
         try:
             symbolic_thickness = self.symbolic_max - self.parent.symbolic_min
-            val = symbolic_thickness.subs(self.thickness_map)
+            val = symbolic_thickness.subs(self._thickness_map)
             return int(val), self.parent.symbolic_min
         except TypeError:
             symbolic_thickness = self.symbolic_max - self.parent.symbolic_max
-            val = symbolic_thickness.subs(self.thickness_map)
+            val = symbolic_thickness.subs(self._thickness_map)
             return int(val), self.parent.symbolic_max
 
     @property
     def _properties(self):
-        return (self._interval, self._thickness)
+        return (self._interval, self.thickness)
 
     def _arg_defaults(self, grid=None, **kwargs):
         if grid is not None and grid.is_distributed(self.root):
             # Get local thickness
             ltkn = grid.distributor.glb_to_loc(self.root, self.thickness.left[1], LEFT)
             rtkn = grid.distributor.glb_to_loc(self.root, self.thickness.right[1], RIGHT)
-            return {i.name: v for i, v in zip(self.thickness_map, (ltkn, rtkn))}
+            return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
         else:
             return {k.name: v for k, v in self.thickness}
 

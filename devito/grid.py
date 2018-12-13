@@ -184,7 +184,7 @@ class Grid(ArgProvider):
 
     @property
     def interior(self):
-        """The interior :class:`SubDomain` of the Grid."""
+        """The interior SubDomain of the Grid."""
         return self.subdomains['interior']
 
     @property
@@ -200,15 +200,12 @@ class Grid(ArgProvider):
 
     @property
     def spacing_symbols(self):
-        """Symbols representing the grid spacing in each :class:`SpaceDimension`"""
+        """Symbols representing the grid spacing in each SpaceDimension"""
         return as_tuple(d.spacing for d in self.dimensions)
 
     @property
     def spacing_map(self):
-        """
-        Map between spacing symbols and their values for each
-        :class:`SpaceDimension`.
-        """
+        """Map between spacing symbols and their values for each SpaceDimension."""
         return dict(zip(self.spacing_symbols, self.spacing))
 
     @property
@@ -230,23 +227,23 @@ class Grid(ArgProvider):
 
     @property
     def dimension_map(self):
-        """Map from :class:`SpaceDimension` to their global and local size."""
+        """Map between SpaceDimensions and their global/local size."""
         return {d: namedtuple('Size', 'glb loc')(g, l)
                 for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
 
     @property
     def distributor(self):
-        """The :class:`Distributor` used for domain decomposition."""
+        """The Distributor used for domain decomposition."""
         return self._distributor
+
+    def is_distributed(self, dim):
+        """True if ``dim`` is a distributed Dimension, False otherwise."""
+        return any(dim is d for d in self.distributor.dimensions)
 
     @property
     def _const(self):
         """The type to be used to create constant symbols."""
         return Constant
-
-    def is_distributed(self, dim):
-        """True if ``dim`` is a distributed :class:`Dimension`, False otherwise."""
-        return any(dim is d for d in self.distributor.dimensions)
 
     def _make_stepping_dim(self, time_dim, name=None):
         """Create a stepping dimension for this Grid."""
@@ -320,7 +317,7 @@ class SubDomain(object):
         self._dimensions = tuple(sub_dimensions)
 
         # Compute the SubDomain shape
-        self._shape = tuple(s - (sum(d.thickness_map.values()) if d.is_Sub else 0)
+        self._shape = tuple(s - (sum(d._thickness_map.values()) if d.is_Sub else 0)
                             for d, s in zip(self._dimensions, shape))
 
     def __eq__(self, other):
