@@ -385,20 +385,22 @@ class Operator(Callable):
 
         Optionally, any of the Operator default arguments may be replaced by passing
         suitable key-value arguments. Given ``apply(k=v, ...)``, ``(k, v)`` may be
-        used to: ::
+        used to:
 
-            * replace a constant (scalar) used by the Operator. In this case,
-                ``k`` is the name of the constant; ``v`` is either an object of type
-                :class:`Constant` or an actual scalar value.
-            * replace a function (tensor) used by the Operator. In this case,
-                ``k`` is the name of the function; ``v`` is either an object of type
-                :class:`TensorFunction` or a :class:`numpy.ndarray`.
-            * alter the iteration interval along a given :class:`Dimension` ``d``.
-                By default, the Operator runs over all iterations within the compact
-                interval ``[d_m, d_M]``, in which ``d_m`` and ``d_M`` are, respectively,
-                the smallest and largest integers not causing out-of-bounds memory
-                accesses (the whole domain for space dimensions). In this case,
-                ``k`` can be either ``d_m`` or ``d_M``; ``v`` is an integer value.
+        * replace a Constant. In this case, ``k`` is the name of the Constant,
+          ``v`` is either a Constant or a scalar value.
+
+        * replace a Function (SparseFunction). Here, ``k`` is the name of the
+          Function, ``v`` is either a Function or a numpy.ndarray.
+
+        * alter the iteration interval along a Dimension. Consider a generic
+          Dimension ``d`` iterated over by the Operator.  By default, the Operator
+          runs over all iterations within the compact interval ``[d_m, d_M]``,
+          where ``d_m`` and ``d_M`` are, respectively, the smallest and largest
+          integers not causing out-of-bounds memory accesses (for the Grid
+          Dimensions, this typically implies iterating over the entire physical
+          domain). So now ``k`` can be either ``d_m`` or ``d_M``, while ``v``
+          is an integer value.
 
         Examples
         --------
@@ -426,10 +428,9 @@ class Operator(Callable):
         Now, the Operator will run with a different set of arguments, namely
         ``u=u2, x_m=1, x_M=2, y_m=0, y_M=1, time_m=0, time_M=3``.
 
-        To run an Operator that only uses buffered :class:`TimeFunction`s,
-        the maximum iteration point along the time dimension must be explicitly
-        specified (otherwise, the Operator wouldn't know how many iterations
-        to run).
+        To run an Operator that only uses buffered TimeFunctions, the maximum
+        iteration point along the time dimension must be explicitly specified
+        (otherwise, the Operator wouldn't know how many iterations to run).
 
         >>> u3 = TimeFunction(name='u', grid=grid)
         >>> op = Operator(Eq(u3.forward, u3 + 1))
