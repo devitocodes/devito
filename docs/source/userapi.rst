@@ -9,3 +9,4 @@ API Reference
     finite-difference
     equation
     operator
+    builtins
