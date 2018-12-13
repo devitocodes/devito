@@ -14,7 +14,7 @@ __all__ = ["Cluster", "ClusterGroup"]
 class PartialCluster(object):
 
     """
-    A PartialCluster is an ordered sequence of scalar expressions that contribute
+    A PartialCluster is an ordered sequence of scalar expressions contributing
     to the computation of a tensor, plus the tensor expression itself.
 
     A PartialCluster is mutable.
@@ -125,7 +125,7 @@ class PartialCluster(object):
     def traffic(self):
         """
         The Cluster compulsary traffic (number of reads/writes), as a mapper
-        from :class:`Function`s to :class:`IntervalGroup`s.
+        from Functions to IntervalGroups.
 
         Notes
         -----
@@ -164,7 +164,7 @@ class PartialCluster(object):
         """
         Concatenate the expressions in ``other`` to those in ``self``.
         ``self`` and ``other`` must have same ``ispace``. Duplicate expressions
-        are dropped. The :class:`DataSpace` is updated accordingly.
+        are dropped. The DataSpace is updated accordingly.
         """
         assert self.ispace.is_compatible(other.ispace)
         self.exprs.extend([i for i in other.exprs
@@ -175,7 +175,7 @@ class PartialCluster(object):
 
 class Cluster(PartialCluster):
 
-    """A Cluster is an immutable :class:`PartialCluster`."""
+    """A Cluster is an immutable PartialCluster."""
 
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
         self._exprs = exprs
@@ -228,7 +228,7 @@ class Cluster(PartialCluster):
 
 class ClusterGroup(list):
 
-    """An iterable of :class:`PartialCluster`s."""
+    """An iterable of PartialClusters."""
 
     def unfreeze(self):
         """
@@ -254,7 +254,7 @@ class ClusterGroup(list):
 
     @property
     def dspace(self):
-        """Return the cumulative :class:`DataSpace` of this ClusterGroup."""
+        """Return the DataSpace of this ClusterGroup."""
         return DataSpace.merge(*[i.dspace for i in self])
 
     @property

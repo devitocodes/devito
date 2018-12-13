@@ -12,7 +12,7 @@ __all__ = ['clusterize', 'groupby']
 
 def groupby(clusters):
     """
-    Group :class:`PartialCluster`s together to create "fatter" PartialClusters
+    Group PartialClusters together to create "fatter" PartialClusters
     (i.e., containing more expressions).
 
     Notes
@@ -81,8 +81,8 @@ def groupby(clusters):
 
 def guard(clusters):
     """
-    Return a new :class:`ClusterGroup` with a new :class:`PartialCluster`
-    for each conditional expression encountered in ``clusters``.
+    Return a ClusterGroup containing a new PartialCluster for each conditional
+    expression encountered in ``clusters``.
     """
     processed = ClusterGroup()
     for c in clusters:
@@ -113,11 +113,11 @@ def is_local(array, source, sink, context):
     """
     Return True if ``array`` satisfies the following conditions: ::
 
-        * it's a temporary; that is, of type :class:`Array`;
-        * it's written once, within the ``source`` :class:`PartialCluster`, and
+        * it's a temporary; that is, of type Array;
+        * it's written once, within the ``source`` PartialCluster, and
           its value only depends on global data;
-        * it's read in the ``sink`` :class:`PartialCluster` only; in particular,
-          it doesn't appear in any other :class:`PartialCluster`s out of those
+        * it's read in the ``sink`` PartialCluster only; in particular,
+          it doesn't appear in any other PartialClusters out of those
           provided in ``context``.
 
     If any of these conditions do not hold, return False.
@@ -152,9 +152,9 @@ def is_local(array, source, sink, context):
 
 def bump_and_contract(targets, source, sink):
     """
-    Transform in-place the PartialClusters ``source`` and ``sink`` by turning the
-    :class:`Array`s in ``targets`` into :class:`Scalar`. This is implemented
-    through index bumping and array contraction.
+    Transform in-place the PartialClusters ``source`` and ``sink`` by turning
+    the Arrays in ``targets`` into Scalars. This is implemented through index
+    bumping and array contraction.
 
     Parameters
     ----------
@@ -204,7 +204,7 @@ def bump_and_contract(targets, source, sink):
         return
     mapper = {}
 
-    # source
+    # Source
     processed = []
     for e in source.exprs:
         function = e.lhs.base.function
@@ -226,13 +226,13 @@ def bump_and_contract(targets, source, sink):
                 processed.append(handle)
     source.exprs = processed
 
-    # sink
+    # Sink
     processed = [e.func(e.lhs, e.rhs.xreplace(mapper)) for e in sink.exprs]
     sink.exprs = processed
 
 
 def clusterize(exprs):
-    """Group a sequence of :class:`ir.Eq`s into one or more :class:`Cluster`s."""
+    """Group a sequence of LoweredEqs into one or more Clusters."""
     clusters = ClusterGroup()
     flowmap = detect_flow_directions(exprs)
     prev = None

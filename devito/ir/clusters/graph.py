@@ -16,10 +16,10 @@ __all__ = ['FlowGraph']
 class Node(ClusterizedEq):
 
     """
-    A special :class:`ClusterizedEq` which keeps track of: ::
+    A special ClusterizedEq which keeps track of: ::
 
-        - :class:`sympy.Eq` writing to ``self``
-        - :class:`sympy.Eq` reading from ``self``
+        - Equations writing to ``self``
+        - Equations reading from ``self``
     """
 
     _state = ClusterizedEq._state + ('reads', 'readby')
@@ -51,8 +51,8 @@ class Node(ClusterizedEq):
 class FlowGraph(OrderedDict):
 
     """
-    A FlowGraph represents an ordered sequence of operations. Operations,
-    of type :class:`Node`, are the nodes of the graph. An edge from ``n0`` to
+    A FlowGraph represents an ordered sequence of operations. The operations,
+    objects of type Node, are the nodes of the graph. An edge from ``n0`` to
     ``n1`` indicates that ``n1`` reads from ``n0``. For example, the sequence: ::
 
         temp0 = a*b
@@ -226,7 +226,7 @@ class FlowGraph(OrderedDict):
             t2 = ...
 
         Assuming ``key == v`` and ``readby is False`` (as by default), return
-        the following list of :class:`Node` objects: ::
+        the following list of Node objects: ::
 
             [t1, t0, u[i, j], u[3, j]]
 
@@ -284,9 +284,7 @@ class FlowGraph(OrderedDict):
 
 
 def makeit_ssa(exprs):
-    """
-    Convert an iterable of :class:`Eq`s into Static Single Assignment (SSA) form.
-    """
+    """Convert an iterable of Eqs into Static Single Assignment (SSA) form."""
     # Identify recurring LHSs
     seen = {}
     for i, e in enumerate(exprs):

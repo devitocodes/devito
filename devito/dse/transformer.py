@@ -22,8 +22,8 @@ configuration.add('dse', 'advanced', list(modes))
 
 def rewrite(clusters, mode='advanced'):
     """
-    Given N :class:`Cluster`s, produce M :class:`Cluster`s with overall reduced
-    operation count, and M >= N.
+    Given a sequence of N Clusters, produce a sequence of M Clusters with reduced
+    operation count, with M >= N.
 
     Parameters
     ----------

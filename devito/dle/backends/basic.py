@@ -34,7 +34,7 @@ class BasicRewriter(AbstractRewriter):
     @dle_pass
     def _create_efuncs(self, nodes, state):
         """
-        Extract :class:`Iteration` sub-trees and move them into :class:`Callable`s.
+        Extract Iteration sub-trees and turn them into Calls+Callables.
 
         Currently, only tagged, elementizable Iteration objects are targeted.
         """

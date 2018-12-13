@@ -182,12 +182,11 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     def _arg_values(self, args, interval, grid, **kwargs):
         """
-        Produce a map of argument values after evaluating user input. If no
-        user input is provided, get a known value in ``args`` and adjust it so
-        that no out-of-bounds memory accesses will be performeed. The
-        adjustment exploits the information in ``interval``, an
-        :class:`Interval` describing the Dimension data space. If no value is
-        available in ``args``, use a default value.
+        Produce a map of argument values after evaluating user input. If no user
+        input is provided, get a known value in ``args`` and adjust it so that no
+        out-of-bounds memory accesses will be performeed. The adjustment exploits
+        the information in ``interval``, an Interval describing the Dimension data
+        space. If no value is available in ``args``, use a default value.
 
         Parameters
         ----------
@@ -413,7 +412,7 @@ class DerivedDimension(Dimension):
         return self.parent._arg_names
 
     def _arg_check(self, *args):
-        """A :class:`DerivedDimension` performs no runtime checks."""
+        """A DerivedDimension performs no runtime checks."""
         return
 
     # Pickling support

@@ -12,7 +12,7 @@ __all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 
 def fold_blockable_tree(node, exclude_innermost=False):
     """
-    Create :class:`IterationFold`s from sequences of nested :class:`Iteration`.
+    Create IterationFolds from sequences of nested Iterations.
     """
     found = FindAdjacent(Iteration).visit(node)
 
@@ -65,7 +65,7 @@ def fold_blockable_tree(node, exclude_innermost=False):
 
 def unfold_blocked_tree(node):
     """
-    Unfold nested :class:`IterationFold`.
+    Unfold nested IterationFolds.
 
     Examples
     --------
@@ -113,7 +113,7 @@ def unfold_blocked_tree(node):
 
 def is_foldable(nodes):
     """
-    Return True if the iterable ``nodes`` consists of foldable :class:`Iteration`s,
+    Return True if the iterable ``nodes`` consists of foldable Iterations,
     False otherwise.
     """
     nodes = as_tuple(nodes)
@@ -215,13 +215,14 @@ def optimize_unfolded_tree(unfolded, root):
 class IterationFold(Iteration):
 
     """
-    An IterationFold is a special :class:`Iteration` object that represents
-    a sequence of consecutive (in program order) Iterations. In an IterationFold,
-    all Iterations of the sequence but the so called ``root`` are "hidden"; that is,
-    they cannot be visited by an Iteration/Expression tree visitor.
+    An IterationFold is a special Iteration object that represents a sequence of
+    consecutive (in program order) Iterations. In an IterationFold, all Iterations
+    of the sequence but the so called ``root`` are "hidden"; that is, they cannot
+    be visited by an Iteration/Expression tree visitor.
 
     The Iterations in the sequence represented by the IterationFold all have same
-    dimension and properties. However, their extent is relative to that of the ``root``.
+    dimension and properties. However, their extent is relative to that of the
+    ``root``.
     """
 
     is_IterationFold = True
@@ -248,9 +249,7 @@ class IterationFold(Iteration):
         return c.Module([comment, code])
 
     def unfold(self):
-        """
-        Return the corresponding :class:`Iteration` objects from each fold in ``self``.
-        """
+        """Return an unfolded sequence of Iterations."""
         args = self.args
         args.pop('folds')
 

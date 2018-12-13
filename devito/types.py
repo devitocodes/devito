@@ -47,8 +47,7 @@ class Basic(object):
 
     Notes
     -----
-    Part of the :class:`AbstractFunction` sub-hierarchy is implemented in
-    :mod:`function.py`.
+    Part of the AbstractFunction sub-hierarchy is implemented in :mod:`function.py`.
     """
 
     # Top hierarchy
@@ -136,7 +135,7 @@ class Basic(object):
 
         Returns
         -------
-        :class:`cgen.Struct` or None
+        cgen.Struct or None
             None if the object C type can be expressed with a basic C type,
             such as float or int.
         """
@@ -150,8 +149,8 @@ class Cached(object):
     In order to maintain meta information across the numerous
     re-instantiation SymPy performs during symbolic manipulation, we inject
     the symbol name as the class name and cache all created objects on that
-    name. This entails that a symbolic object inheriting from :class:`Cached`
-    should implement `__init__` in the following way:
+    name. This entails that a symbolic object inheriting from Cached should
+    implement `__init__` in the following way:
 
         .. code-block::
             def __init__(self, \*args, \*\*kwargs):
@@ -209,16 +208,16 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
         |
      Scalar
 
-    There are three relevant :class:`AbstractSymbol` sub-types: ::
+    There are three relevant AbstractSymbol sub-types: ::
 
         * Symbol: A generic scalar symbol that can be used to build an equation.
-                  It does not carry data. Typically, :class:`Symbol`s are
-                  created internally by Devito (e.g., for temporary variables)
+                  It does not carry data. Typically, Symbols are created internally
+                  by Devito (e.g., for temporary variables)
         * Constant: A generic scalar symbol that can be used to build an equation.
                     It carries data (a scalar value).
         * Dimension: A problem dimension, used to create an iteration space. It
                      may be used to build equations; typically, it is used as
-                     an index for a :class:`Indexed`.
+                     an index for an Indexed.
     """
 
     is_AbstractSymbol = True
@@ -267,7 +266,7 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
     """
     Base class for dimension-free symbols, cached by both Devito and SymPy.
 
-    For more information, refer to the documentation of :class:`AbstractSymbol`.
+    For more information, refer to the documentation of AbstractSymbol.
     """
 
     def __new__(cls, *args, **kwargs):
@@ -330,7 +329,7 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
 class Symbol(AbstractCachedSymbol):
 
     """
-    A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`.
+    Like a sympy.Symbol, but with an API mimicking that of a sympy.Indexed.
     """
 
     is_Symbol = True
@@ -373,7 +372,7 @@ class Scalar(Symbol):
 class AbstractFunction(sympy.Function, Basic, Pickable):
     """
     Base class for tensor symbols, only cached by SymPy. It inherits from and
-    mimick the behaviour of a :class:`sympy.Function`.
+    mimick the behaviour of a sympy.Function.
 
     The sub-hierarchy is structured as follows
 
@@ -397,7 +396,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
          |               |   |                                  |     |
     TimeFunction  SparseTimeFunction                 PrecomputedSparseTimeFunction
 
-    There are five relevant :class:`AbstractFunction` sub-types: ::
+    There are five relevant AbstractFunction sub-types: ::
 
         * Array: A function that does not carry data. Usually created by the DSE.
         * Function: A space-varying discrete function, which carries user data.
@@ -423,7 +422,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
     """
     Base class for tensor symbols, cached by both Devito and Sympy.
 
-    For more information, refer to the documentation of :class:`AbstractFunction`.
+    For more information, refer to ``AbstractFunction.__doc__``.
     """
 
     def __new__(cls, *args, **kwargs):
@@ -499,7 +498,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @property
     def dimensions(self):
-        """Tuple of :class:`Dimension`\s representing the object indices."""
+        """Tuple of Dimensions representing the object indices."""
         return self.indices
 
     @property
@@ -532,7 +531,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 
     @property
     def indexed(self):
-        """Extract a :class:`IndexedData` object from the current object."""
+        """The wrapped IndexedData object."""
         return IndexedData(self.name, shape=self.shape, function=self.function)
 
     @property
@@ -675,7 +674,7 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return default_allocator().guaranteed_alignment
 
     def indexify(self, indices=None):
-        """Create a :class:`types.Indexed` object from the current object."""
+        """Create a types.Indexed from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
 
@@ -937,9 +936,7 @@ class IndexedData(sympy.IndexedBase, Pickable):
         return obj
 
     def __getitem__(self, indices, **kwargs):
-        """
-        Produce a :class:`types.Indexed`, rather than a :class:`sympy.Indexed`.
-        """
+        """Produce a types.Indexed, rather than a sympy.Indexed."""
         indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
         return Indexed(*indexed.args)
 

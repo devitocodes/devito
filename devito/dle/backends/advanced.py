@@ -33,7 +33,7 @@ class AdvancedRewriter(BasicRewriter):
     @dle_pass
     def _loop_wrapping(self, iet, state):
         """
-        Emit a performance warning if WRAPPABLE :class:`Iteration`s are found,
+        Emit a performance warning if WRAPPABLE Iterations are found,
         as these are a symptom that unnecessary memory is being allocated.
         """
         for i in FindNodes(Iteration).visit(iet):
@@ -57,9 +57,7 @@ class AdvancedRewriter(BasicRewriter):
 
     @dle_pass
     def _loop_blocking(self, nodes, state):
-        """
-        Apply loop blocking to PARALLEL :class:`Iteration` trees.
-        """
+        """Apply loop blocking to PARALLEL Iteration trees."""
         exclude_innermost = not self.params.get('blockinner', False)
         ignore_heuristic = self.params.get('blockalways', False)
 
@@ -259,7 +257,7 @@ class AdvancedRewriter(BasicRewriter):
 class AdvancedRewriterSafeMath(AdvancedRewriter):
 
     """
-    This Rewriter is slightly less aggressive than :class:`AdvancedRewriter`, as it
+    This Rewriter is slightly less aggressive than AdvancedRewriter, as it
     doesn't drop denormal numbers, which may sometimes harm the numerical precision.
     """
 

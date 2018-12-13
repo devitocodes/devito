@@ -272,8 +272,8 @@ class Decomposition(tuple):
 
     def reshape(self, *args):
         """
-        Create a new :class:`Decomposition` with extended or reduced boundary
-        subdomains. This causes a new index enumeration.
+        Create a new Decomposition with extended or reduced boundary subdomains.
+        This causes a new index enumeration.
 
         Parameters
         ----------
