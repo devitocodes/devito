@@ -2254,9 +2254,9 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
             Input expression to interpolate.
         offset : int, optional
             Additional offset from the boundary.
-        u_t : expr, optional
+        u_t : expr-like, optional
             Time index at which the interpolation is performed.
-        p_t : expr, optional
+        p_t : expr-like, optional
             Time index at which the result of the interpolation is stored.
         increment: bool, optional
             If True, generate increments (Inc) rather than assignments (Eq).
@@ -2287,9 +2287,9 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
             Injected expression.
         offset : int, optional
             Additional offset from the boundary.
-        u_t : expr, optional
+        u_t : expr-like, optional
             Time index at which the interpolation is performed.
-        p_t : expr, optional
+        p_t : expr-like, optional
             Time index at which the result of the interpolation is stored.
         """
         # Apply optional time symbol substitutions to field and expr
@@ -2551,9 +2551,9 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
             Input expression to interpolate.
         offset : int, optional
             Additional offset from the boundary.
-        u_t : expr, optional
+        u_t : expr-like, optional
             Time index at which the interpolation is performed.
-        p_t : expr, optional
+        p_t : expr-like, optional
             Time index at which the result of the interpolation is stored.
         increment: bool, optional
             If True, generate increments (Inc) rather than assignments (Eq).

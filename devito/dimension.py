@@ -434,10 +434,10 @@ class SubDimension(DerivedDimension):
         Name of the dimension.
     parent : Dimension
         The parent Dimension.
-    left : expr
+    left : expr-like
         Symbolic expression providing the left (lower) bound of the
         SubDimension.
-    right : expr
+    right : expr-like
         Symbolic expression providing the right (upper) bound of the
         SubDimension.
     thickness : 2-tuple of 2-tuples
@@ -585,7 +585,7 @@ class ConditionalDimension(DerivedDimension):
     factor : int, optional
         The number of iterations between two executions of the if-branch. If None
         (default), ``condition`` must be provided.
-    condition : expr, optional
+    condition : expr-like, optional
         An arbitrary SymPy expression, typically involving the ``parent``
         Dimension. When it evaluates to True, the if-branch is executed. If None
         (default), ``factor`` must be provided.

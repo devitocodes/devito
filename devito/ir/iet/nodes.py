@@ -303,7 +303,7 @@ class Iteration(Node):
         The for-loop body.
     dimension : Dimension
         The Dimension over which the for-loop iterates.
-    limits : expr or 3-tuple
+    limits : expr-like or 3-tuple
         If an expression, it represents the for-loop max point; in this case, the
         min point is 0 and the step increment is unitary. If a 3-tuple, the
         format is ``(min point, max point, stepping)``.

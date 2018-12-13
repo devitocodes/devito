@@ -8,17 +8,18 @@ __all__ = ['Eq', 'Inc', 'solve']
 class Eq(sympy.Eq):
 
     """
-    An equal relation between two objects, the left-hand side and the right-hand side.
+    An equal relation between two objects, the left-hand side and the
+    right-hand side.
 
-    The left-hand side may be a :class:`Function` or a :class:`SparseFunction`. The
-    right-hand side may be any arbitrary expressions with numbers, :class:`Dimension`,
-    :class:`Constant`, :class:`Function` and :class:`SparseFunction` as operands.
+    The left-hand side may be a Function or a SparseFunction. The right-hand
+    side may be any arbitrary expressions with numbers, Dimensions, Constants,
+    Functions and SparseFunctions as operands.
 
     Parameters
     ----------
     lhs : Function or SparseFunction
         The left-hand side.
-    rhs : expr
+    rhs : expr-like
         The right-hand side.
     subdomain : SubDomain, optional
         To restrict the computation of the Eq to a particular sub-region in the
@@ -40,7 +41,7 @@ class Eq(sympy.Eq):
 
     Notes
     -----
-    An `Eq` can be thought of as an assignment in an imperative programming language
+    An Eq can be thought of as an assignment in an imperative programming language
     (e.g., ``a[i] = b[i]*c``).
     """
 
@@ -72,7 +73,7 @@ class Inc(Eq):
 
     Examples
     --------
-    `Inc` may be used to express tensor contractions. Below, a summation along
+    Inc may be used to express tensor contractions. Below, a summation along
     the user-defined Dimension ``i``.
 
     >>> from devito import Grid, Dimension, Function, Inc
@@ -86,7 +87,7 @@ class Inc(Eq):
 
     Notes
     -----
-    An `Inc` can be thought of as the augmented assignment '+=' in an imperative
+    An Inc can be thought of as the augmented assignment '+=' in an imperative
     programming language (e.g., ``a[i] += c``).
     """
 
@@ -100,13 +101,13 @@ class Inc(Eq):
 
 def solve(eq, target, **kwargs):
     """
-    Algebraically rearrange an :class:`Eq` w.r.t. a given symbol.
+    Algebraically rearrange an Eq w.r.t. a given symbol.
 
     This is a wrapper around ``sympy.solve``.
 
     Parameters
     ----------
-    eq : expr
+    eq : expr-like
         The equation to be rearranged.
     target : symbol
         The symbol w.r.t. which the equation is rearranged. May be a `Function`
