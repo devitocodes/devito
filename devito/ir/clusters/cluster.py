@@ -14,19 +14,24 @@ __all__ = ["Cluster", "ClusterGroup"]
 class PartialCluster(object):
 
     """
-    A PartialCluster is an ordered sequence of scalar expressions that contribute
+    A PartialCluster is an ordered sequence of scalar expressions contributing
     to the computation of a tensor, plus the tensor expression itself.
 
     A PartialCluster is mutable.
 
-    :param exprs: The ordered sequence of expressions computing a tensor.
-    :param ispace: An object of type :class:`IterationSpace`, which represents the
-                   iteration space of the cluster.
-    :param dspace: An object of type :class:`DataSpace`, which represents the
-                   data space (i.e., data items accessed) of the cluster.
-    :param atomics: (Optional) non-sharable :class:`Dimension`s in ``ispace``.
-    :param guards: (Optional) iterable of conditions, provided as SymPy expressions,
-                   under which ``exprs`` are evaluated.
+    Parameters
+    ----------
+    exprs : expr-like or list of expr-like
+        An ordered sequence of expressions computing a tensor.
+    ispace : IterationSpace
+        The cluster iteration space.
+    dspace : DataSpace
+        The cluster data space.
+    atomics : list, optional
+        Dimensions inducing a data dependence with other PartialClusters.
+    guards : dict
+        Mapper from Dimensions to expr-like, representing the conditions under
+        which the PartialCluster should be computed.
     """
 
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
@@ -54,8 +59,8 @@ class PartialCluster(object):
         return self._ispace.itintervals
 
     @property
-    def extent(self):
-        return self.ispace.extent
+    def size(self):
+        return self.ispace.size
 
     @property
     def shape(self):
@@ -91,12 +96,14 @@ class PartialCluster(object):
 
     @property
     def dtype(self):
-        """Return the arithmetic data type of this Cluster. If the Cluster is
-        performing floating point arithmetic, then any equation performing
-        integer arithmetic is ignored, assuming that they are only carrying
-        out array index calculations. If two equations are performing floating
-        point calculations with mixed precision, return the data type with
-        highest precision."""
+        """
+        The arithmetic data type of the Cluster. If the Cluster performs
+        floating point arithmetic, then the expressions performing integer
+        arithmetic are ignored, assuming that they are only carrying out array
+        index calculations. If two expressions perform floating point
+        calculations with mixed precision, the data type with highest precision
+        is returned.
+        """
         dtypes = {i.dtype for i in self.exprs}
         fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
         if len(fdtypes) > 1:
@@ -111,20 +118,18 @@ class PartialCluster(object):
 
     @property
     def ops(self):
-        """
-        Return the floating point operations performed by this Cluster.
-        """
-        return self.extent*sum(estimate_cost(i) for i in self.exprs)
+        """The Cluster operation count."""
+        return self.size*sum(estimate_cost(i) for i in self.exprs)
 
     @property
     def traffic(self):
         """
-        Return the compulsary traffic (number of reads/writes) generated
-        by this Cluster, as a mapper from tensor objects to :class:`IntervalGroup`s.
+        The Cluster compulsary traffic (number of reads/writes), as a mapper
+        from Functions to IntervalGroups.
 
-        .. note::
-
-            If a tensor object is both read and written, then it is counted twice.
+        Notes
+        -----
+        If a Function is both read and written, then it is counted twice.
         """
         reads, writes = detect_io(self.exprs, relax=True)
         accesses = [(i, 'r') for i in reads] + [(i, 'w') for i in writes]
@@ -156,10 +161,11 @@ class PartialCluster(object):
         self._dspace = val
 
     def squash(self, other):
-        """Concatenate the expressions in ``other`` to those in ``self``.
-        ``self`` and ``other`` must have same ``ispace``. Duplicate
-        expressions are dropped. The :class:`DataSpace` is updated
-        accordingly."""
+        """
+        Concatenate the expressions in ``other`` to those in ``self``.
+        ``self`` and ``other`` must have same ``ispace``. Duplicate expressions
+        are dropped. The DataSpace is updated accordingly.
+        """
         assert self.ispace.is_compatible(other.ispace)
         self.exprs.extend([i for i in other.exprs
                            if i not in self.exprs or i.is_Increment])
@@ -169,7 +175,7 @@ class PartialCluster(object):
 
 class Cluster(PartialCluster):
 
-    """A Cluster is an immutable :class:`PartialCluster`."""
+    """A Cluster is an immutable PartialCluster."""
 
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
         self._exprs = exprs
@@ -199,7 +205,7 @@ class Cluster(PartialCluster):
 
     def rebuild(self, exprs):
         """
-        Build a new cluster with expressions ``exprs`` having same iteration
+        Build a new Cluster with expressions ``exprs`` having same iteration
         space and atomics as ``self``.
         """
         return Cluster(exprs, self.ispace, self.dspace, self.atomics, self.guards)
@@ -222,7 +228,7 @@ class Cluster(PartialCluster):
 
 class ClusterGroup(list):
 
-    """An iterable of :class:`PartialCluster`s."""
+    """An iterable of PartialClusters."""
 
     def unfreeze(self):
         """
@@ -248,16 +254,18 @@ class ClusterGroup(list):
 
     @property
     def dspace(self):
-        """Return the cumulative :class:`DataSpace` of this ClusterGroup."""
+        """Return the DataSpace of this ClusterGroup."""
         return DataSpace.merge(*[i.dspace for i in self])
 
     @property
     def dtype(self):
-        """Return the arithmetic data type of this ClusterGroup. If at least one
-        Cluster is performing floating point arithmetic, then any Cluster performing
-        integer arithmetic is ignored. If two Clusters are performing floating
+        """
+        The arithmetic data type of this ClusterGroup. If at least one
+        Cluster performs floating point arithmetic, then Clusters performing
+        integer arithmetic are ignored. If two Clusters perform floating
         point calculations with different precision, return the data type with
-        highest precision."""
+        highest precision.
+        """
         dtypes = {i.dtype for i in self}
         fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
         if len(fdtypes) > 1:
@@ -272,6 +280,10 @@ class ClusterGroup(list):
 
     @property
     def meta(self):
-        """Return the metadata carried by this ClusterGroup, a 2-tuple consisting
-        of data type and data space."""
+        """
+        Returns
+        -------
+        dtype, DSpace
+            The data type and the data space of the ClusterGroup.
+        """
         return (self.dtype, self.dspace)

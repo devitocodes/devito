@@ -47,21 +47,21 @@ def transform(iet, mode='basic', options=None):
         The root of the IET to be transformed.
     mode : str, optional
         The transformation mode.
-        * 'noop': Do nothing.
-        * 'basic': Add instructions to avoid denormal numbers and create elemental
-                   functions for quicker JIT-compilation.
-        * 'advanced': 'basic', vectorization, loop blocking.
-        * 'speculative': Apply all of the 'advanced' transformations, plus other
-                         transformations that might increase (or possibly decrease)
-                         performance.
+        - ``noop``: Do nothing.
+        - ``basic``: Add instructions to avoid denormal numbers and create elemental
+                     functions for quicker JIT-compilation.
+        - ``advanced``: 'basic', vectorization, loop blocking.
+        - ``speculative``: Apply all of the 'advanced' transformations, plus other
+                           transformations that might increase (or possibly decrease)
+                           performance.
     options : dict, optional
-        * 'openmp': Enable/disable OpenMP. Defaults to `configuration['openmp']`.
-        * 'blockinner': Enable/disable blocking of innermost loops. By default,
-                        this is disabled to maximize SIMD vectorization. Pass True
-                        to override this heuristic.
-        * 'blockalways': Pass True to unconditionally apply loop blocking, even when
-                         the compiler heuristically thinks that it might not be
-                         profitable and/or dangerous for performance.
+        - ``openmp``: Enable/disable OpenMP. Defaults to `configuration['openmp']`.
+        - ``blockinner``: Enable/disable blocking of innermost loops. By default,
+                          this is disabled to maximize SIMD vectorization. Pass True
+                          to override this heuristic.
+        - ``blockalways``: Pass True to unconditionally apply loop blocking, even when
+                           the compiler heuristically thinks that it might not be
+                           profitable and/or dangerous for performance.
     """
     assert isinstance(iet, Node)
 

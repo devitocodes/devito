@@ -53,7 +53,7 @@ class Profiler(object):
                 for k, v in i.traffic.items():
                     mapper.setdefault(k, []).append(v)
             traffic = [IntervalGroup.generate('merge', *i) for i in mapper.values()]
-            traffic = sum(i.extent for i in traffic)
+            traffic = sum(i.size for i in traffic)
 
             # Each ExpressionBundle lives in its own iteration space
             itershapes = [i.shape for i in bundles]
@@ -102,11 +102,14 @@ class AdvancedProfiler(Profiler):
         """
         Return a :class:`PerformanceSummary` of the profiled sections.
 
-        :param arguments: A mapper from argument names to run-time values from which
-                          the Profiler infers iteration space and execution times
-                          of a run.
-        :param dtype: The data type of the objects in the profiled sections. Used
-                      to compute the operational intensity.
+        Parameters
+        ----------
+        arguments : dict
+            A mapper from argument names to run-time values from which the Profiler
+            infers iteration space and execution times of a run.
+        dtype : data-type, optional
+            The data type of the objects in the profiled sections. Used to compute
+            the operational intensity.
         """
         summary = PerformanceSummary()
         for section, data in self._sections.items():
@@ -231,9 +234,7 @@ PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
 
 
 def create_profile(name):
-    """
-    Create a new :class:`Profiler`.
-    """
+    """Create a new :class:`Profiler`."""
     if configuration['log-level'] == 'DEBUG':
         # Enforce performance profiling in DEBUG mode
         level = 'advanced'

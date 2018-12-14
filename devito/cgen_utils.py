@@ -19,9 +19,7 @@ class Allocator(object):
         self.stack = OrderedDict()
 
     def push_stack(self, scope, obj):
-        """
-        Generate a cgen statement that allocates ``obj`` on the stack.
-        """
+        """Generate a cgen object that allocates ``obj`` on the stack."""
         handle = self.stack.setdefault(scope, OrderedDict())
         if obj.is_LocalObject:
             handle[obj] = c.Value(obj._C_typename, obj.name)
@@ -31,10 +29,7 @@ class Allocator(object):
             handle[obj] = c.POD(obj.dtype, "%s%s %s" % (obj.name, shape, alignment))
 
     def push_heap(self, obj):
-        """
-        Generate cgen objects to declare, allocate memory, and free memory for
-        ``obj``, of type :class:`Array`.
-        """
+        """Generate cgen objects to declare an Array and allocate/free its memory."""
         if obj in self.heap:
             return
 
@@ -65,9 +60,13 @@ class CodePrinter(C99CodePrinter):
 
     custom_functions = {'INT': '(int)', 'FLOAT': '(float)', 'DOUBLE': '(double)'}
 
-    """Decorator for sympy.printing.ccode.CCodePrinter.
+    """
+    Decorator for sympy.printing.ccode.CCodePrinter.
 
-    :param settings: A dictionary containing relevant settings
+    Parameters
+    ----------
+    settings : dict
+        Options for code printing.
     """
     def __init__(self, dtype=np.float32, settings={}):
         self.dtype = dtype
@@ -78,13 +77,12 @@ class CodePrinter(C99CodePrinter):
         return "%s == %s" % (self._print(expr.lhs), self._print(expr.rhs))
 
     def _print_Indexed(self, expr):
-        """Print field as C style multidimensional array
+        """
+        Print an Indexed as a C-like multidimensional array.
 
-        :param expr: An indexed expression
-
-        e.g. U[t,x,y,z] -> U[t][x][y][z]
-
-        :returns: The resulting string
+        Examples
+        --------
+        U[t,x,y,z] -> U[t][x][y][z]
         """
         output = self._print(expr.base.label) \
             + ''.join(['[' + self._print(x) + ']' for x in expr.indices])
@@ -92,14 +90,7 @@ class CodePrinter(C99CodePrinter):
         return output
 
     def _print_Rational(self, expr):
-        """Print fractional number as float/float
-
-        :param expr: A rational number
-
-        (default was long double/long double)
-
-        :returns: The resulting code as a string
-        """
+        """Print a Rational as a C-like float/float division."""
         # This method and _print_Float below forcefully add a F to any
         # literals generated in code. This forces all float literals
         # to be 32-bit floats.
@@ -111,11 +102,7 @@ class CodePrinter(C99CodePrinter):
             return '%d.0F/%d.0F' % (p, q)
 
     def _print_Mod(self, expr):
-        """Print mod using % operator in C++
-
-        :param expr: The expression in which a C++ % operator is inserted
-        :returns: The resulting code as a string
-        """
+        """Print a Mod as a C-like %-based operation."""
         args = map(ccode, expr.args)
         args = ['('+x+')' for x in args]
 
@@ -123,11 +110,7 @@ class CodePrinter(C99CodePrinter):
         return result
 
     def _print_Float(self, expr):
-        """Always printing floating point numbers in scientific notation
-
-        :param expr: A floating point number
-        :returns: The resulting code as a string
-        """
+        """Print a Float in C-like scientific notation."""
         prec = expr._prec
 
         if prec < 5:
@@ -186,11 +169,20 @@ class CodePrinter(C99CodePrinter):
 
 
 def ccode(expr, dtype=np.float32, **settings):
-    """Generate C++ code from an expression calling CodePrinter class
+    """Generate C++ code from an expression.
 
-    :param expr: The expression
-    :param settings: A dictionary of settings for code printing
-    :returns: The resulting code as a string. If it fails, then it returns the expr
+    Parameters
+    ----------
+    expr : expr-like
+        The expression to be printed.
+    settings : dict
+        Options for code printing.
+
+    Returns
+    -------
+    str
+        The resulting code as a C++ string. If something went south, returns
+        the input ``expr`` itself.
     """
     return CodePrinter(dtype=dtype, settings=settings).doprint(expr, None)
 

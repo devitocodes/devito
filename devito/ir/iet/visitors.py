@@ -164,9 +164,6 @@ class CGen(Visitor):
         return ret
 
     def visit_ArrayCast(self, o):
-        """
-        Build cgen type casts for an :class:`AbstractFunction`.
-        """
         f = o.function
         # rvalue
         shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
@@ -228,37 +225,37 @@ class CGen(Visitor):
 
         # Start
         if o.offsets[0] != 0:
-            start = str(o.limits[0] + o.offsets[0])
+            _min = str(o.limits[0] + o.offsets[0])
             try:
-                start = eval(start)
+                _min = eval(_min)
             except (NameError, TypeError):
                 pass
         else:
-            start = o.limits[0]
+            _min = o.limits[0]
 
         # Bound
         if o.offsets[1] != 0:
-            end = str(o.limits[1] + o.offsets[1])
+            _max = str(o.limits[1] + o.offsets[1])
             try:
-                end = eval(end)
+                _max = eval(_max)
             except (NameError, TypeError):
                 pass
         else:
-            end = o.limits[1]
+            _max = o.limits[1]
 
         # For backward direction flip loop bounds
         if o.direction == Backward:
-            loop_init = 'int %s = %s' % (o.index, ccode(end))
-            loop_cond = '%s >= %s' % (o.index, ccode(start))
+            loop_init = 'int %s = %s' % (o.index, ccode(_max))
+            loop_cond = '%s >= %s' % (o.index, ccode(_min))
             loop_inc = '%s -= %s' % (o.index, o.limits[2])
         else:
-            loop_init = 'int %s = %s' % (o.index, ccode(start))
-            loop_cond = '%s <= %s' % (o.index, ccode(end))
+            loop_init = 'int %s = %s' % (o.index, ccode(_min))
+            loop_cond = '%s <= %s' % (o.index, ccode(_max))
             loop_inc = '%s += %s' % (o.index, o.limits[2])
 
         # Append unbounded indices, if any
         if o.uindices:
-            uinit = ['%s = %s' % (i.name, ccode(i.symbolic_start)) for i in o.uindices]
+            uinit = ['%s = %s' % (i.name, ccode(i.symbolic_min)) for i in o.uindices]
             loop_init = c.Line(', '.join([loop_init] + uinit))
             ustep = ['%s = %s' % (i.name, ccode(i.symbolic_incr)) for i in o.uindices]
             loop_inc = c.Line(', '.join([loop_inc] + ustep))
@@ -316,7 +313,8 @@ class FindSections(Visitor):
     def default_retval(cls):
         return OrderedDict()
 
-    """Find all sections in an Iteration/Expression tree. A section is a map
+    """
+    Find all sections in an Iteration/Expression tree. A section is a map
     from an iteration space (ie, a sequence of :class:`Iteration` obects) to
     a set of expressions (ie, the :class:`Expression` objects enclosed by the
     iteration space).
@@ -398,12 +396,16 @@ class FindSymbols(Visitor):
     def default_retval(cls):
         return []
 
-    """Find symbols in an Iteration/Expression tree.
+    """
+    Find symbols in an Iteration/Expression tree.
 
-    :param mode: Drive the search. Accepted values are: ::
-
-        * 'symbolics': Collect :class:`AbstractSymbol` objects.
-        * 'free-symbols': Collect all free symbols.
+    Parameters
+    ----------
+    mode : str, optional
+        Drive the search. Accepted:
+        - ``symbolics``: Collect :class:`AbstractSymbol` objects, default.
+        - ``free-symbols``: Collect all free symbols.
+        - ``defines``: Collect all defined (bound) objects.
     """
 
     rules = {
@@ -442,13 +444,17 @@ class FindNodes(Visitor):
         return []
 
     """
-    Find :class:`Node` instances.
+    Find all :class:`Node` instances of given type.
 
-    :param match: Pattern to look for.
-    :param mode: Drive the search. Accepted values are: ::
-
-        * 'type' (default): Collect all instances of type ``match``.
-        * 'scope': Return the scope in which the object ``match`` appears.
+    Parameters
+    ----------
+    match : type
+        Searched type.
+    mode : str, optional
+        Drive the search. Accepted:
+        - ``type``: Collect all instances of type ``match``, default.
+        - ``scope``: Collect the scope in which the object of type ``match``
+                     appears.
     """
 
     rules = {
@@ -623,9 +629,12 @@ class XSubs(Transformer):
     :class:`Transformer` that performs substitutions on :class:`Expression`s
     in a given tree, akin to SymPy's ``subs``.
 
-    :param mapper: (Optional) dictionary defining the substitutions.
-    :param replacer: (Optional) a function to perform the substitution. Defaults
-                     to SymPy's ``subs``.
+    Parameters
+    ----------
+    mapper : dict, optional
+        The substitution rules.
+    replacer : callable, optional
+        An ad-hoc function to perform the substitution. Defaults to SymPy's ``subs``.
     """
 
     def __init__(self, mapper=None, replacer=None):

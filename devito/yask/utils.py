@@ -64,8 +64,10 @@ def split_increment(expr):
     into its three main components, namely the target grid ``u``, the increment
     value ``v``, and the :class:`ListInitializer` ``indices``.
 
-    :raises ValueError: If ``expr`` is not an increment or does not appear in
-                        the normal form above.
+    Raises
+    ------
+    ValueError
+        If ``expr`` is not an increment or does not appear in the normal form above.
     """
     if not isinstance(expr, FunctionFromPointer) or len(expr.params) != 2:
         raise ValueError

@@ -10,7 +10,7 @@ from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
-from devito.grid import *  # noqa
+from devito.grid import SubDomain  # noqa
 from devito.finite_differences import *  # noqa
 from devito.function import Buffer, NODE, CELL  # noqa
 from devito.logger import error, warning, info, set_log_level  # noqa
@@ -148,15 +148,15 @@ clear_cache = CacheManager().clear  # noqa
 
 # Helper functions to switch on/off optimisation levels
 def mode_develop():
-    """Run all future :class:`Operator`s in develop mode. This is the default
-    configuration for Devito."""
+    """Run all future Operators in develop mode. This is the default mode."""
     configuration['develop-mode'] = True
 
 
 def mode_performance():
-    """Run all future :class:`Operator`s in performance mode. The performance
-    mode will also try to allocate any future :class:`TensorFunction` with
-    a suitable NUMA strategy."""
+    """
+    Run all future Operators in performance mode. The performance mode
+    also employs suitable NUMA strategies for memory allocation.
+    """
     configuration['develop-mode'] = False
     configuration['autotuning'] = ['aggressive',
                                    at_default_mode[configuration['backend']]]

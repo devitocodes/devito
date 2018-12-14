@@ -135,7 +135,10 @@ def single_or(l):
 def filter_ordered(elements, key=None):
     """Filter elements in a list while preserving order.
 
-    :param key: Optional conversion key used during equality comparison.
+    Parameters
+    ----------
+    key : callable, optional
+        Conversion key used during equality comparison.
     """
     seen = set()
     if key is None:

@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from collections import OrderedDict
 
 import cgen as c
@@ -36,7 +34,7 @@ class BasicRewriter(AbstractRewriter):
     @dle_pass
     def _create_efuncs(self, nodes, state):
         """
-        Extract :class:`Iteration` sub-trees and move them into :class:`Callable`s.
+        Extract Iteration sub-trees and turn them into Calls+Callables.
 
         Currently, only tagged, elementizable Iteration objects are targeted.
         """
@@ -63,18 +61,18 @@ class BasicRewriter(AbstractRewriter):
             for i in target:
                 name, bounds = i.dim.name, i.symbolic_bounds
                 # Iteration bounds
-                start = Scalar(name='%sf_m' % name, dtype=np.int32)
-                finish = Scalar(name='%sf_M' % name, dtype=np.int32)
-                defined_args[start.name] = bounds[0]
-                defined_args[finish.name] = bounds[1]
+                _min = Scalar(name='%sf_m' % name, dtype=np.int32)
+                _max = Scalar(name='%sf_M' % name, dtype=np.int32)
+                defined_args[_min.name] = bounds[0]
+                defined_args[_max.name] = bounds[1]
 
                 # Iteration unbounded indices
                 ufunc = [Scalar(name='%s_ub%d' % (name, j), dtype=np.int32)
                          for j in range(len(i.uindices))]
-                defined_args.update({uf.name: j.symbolic_start
+                defined_args.update({uf.name: j.symbolic_min
                                      for uf, j in zip(ufunc, i.uindices)})
-                limits = [Scalar(name=start.name, dtype=np.int32),
-                          Scalar(name=finish.name, dtype=np.int32), 1]
+                limits = [Scalar(name=_min.name, dtype=np.int32),
+                          Scalar(name=_max.name, dtype=np.int32), 1]
                 uindices = [IncrDimension(j.parent, i.dim + as_symbol(k), 1, j.name)
                             for j, k in zip(i.uindices, ufunc)]
                 free.append(i._rebuild(limits=limits, offsets=None, uindices=uindices))
