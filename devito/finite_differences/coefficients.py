@@ -55,7 +55,7 @@ class Coefficients(object):
             if isinstance(d, tuple):
                 rules.update(generate_rules(d))
                 
-        print(rules)
+        #print(rules)
                 
         return rules
     

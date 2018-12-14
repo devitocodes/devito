@@ -52,32 +52,7 @@ class Eq(sympy.Eq):
         obj._coefficients = coefficients
         # FIXME: MESS
         if bool(coefficients.rules):
-            
-            for key, value in coefficients.rules.items():
-                #print(key, value)
-                print(key)
-                print(value)
-                obj = obj.xreplace(key)
-            
-            #for entry in coefficients.rules:
-                #print(entry)
-            ##def fd_substitutions(expressions, subs):
-                ##print("now here")
-                ##processed = []
-                ##for e in expressions:
-                    ##print("now2 here")
-                    ##for entry in subs:
-                        ##mapper = entry.copy()
-                        ##print(mapper)
-                        ##processed.append(e.xreplace(mapper))
-                ##return processed
-                #def fd_substitutions(eq, subs):
-                    #for entry in subs:
-                        #print(entry)
-                    ##eq = (p*q**r).xreplace(e.match(p*q**r))4*x**2
-                    #return eq
-
-            #obj = fd_substitutions(obj, coefficients.rules)
+            obj.xreplace(coefficients.rules)
         return obj
 
     @property
@@ -93,7 +68,6 @@ class Eq(sympy.Eq):
         """"""
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
                          subdomain=self._subdomain)
-
 
 class Inc(Eq):
 
