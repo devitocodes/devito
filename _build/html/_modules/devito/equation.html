@@ -8,10 +8,12 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.equation &mdash; Devito 1 documentation</title>
+  <title>devito.equation &mdash; Devito v3.4</title>
   
 
   
+  
+    <link rel="shortcut icon" href="../../_static/devito_logo.png"/>
   
   
   
@@ -27,7 +29,9 @@
   <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" /> 
+    <link rel="search" title="Search" href="../../search.html" />
+    <link href="../../_static/devito_style.css" rel="stylesheet" type="text/css">
+
 
   
   <script src="../../_static/js/modernizr.min.js"></script>
@@ -46,18 +50,17 @@
           
 
           
-            <a href="../../index.html" class="icon icon-home"> Devito
+            <a href="../../index.html" class="icon icon-home"> Devito v3.4
           
 
+          
+            
+            <img src="../../_static/devito_logo.png" class="logo" alt="Logo"/>
           
           </a>
 
           
             
-            
-              <div class="version">
-                0
-              </div>
             
           
 
@@ -83,9 +86,8 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../userapi.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../compiler.html">The Devito Compiler</a></li>
 </ul>
 
             
@@ -100,7 +102,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../index.html">Devito</a>
+          <a href="../../index.html">Devito v3.4</a>
         
       </nav>
 
@@ -133,8 +135,6 @@
         
           <li><a href="../index.html">Module code</a> &raquo;</li>
         
-          <li><a href="../devito.html">devito</a> &raquo;</li>
-        
       <li>devito.equation</li>
     
     
@@ -158,13 +158,44 @@
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;solve&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../devito.html#devito.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">):</span>
+<div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../equation.html#devito.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A :class:`sympy.Eq` that accepts the additional keyword parameter ``subdomain``.</span>
+<span class="sd">    An equal relation between two objects, the left-hand side and the</span>
+<span class="sd">    right-hand side.</span>
 
-<span class="sd">    The ``subdomain``, an object of type :class:`SubDomain`, can be used to</span>
-<span class="sd">    restrict the execution of the equation to a particular subdomain.</span>
+<span class="sd">    The left-hand side may be a Function or a SparseFunction. The right-hand</span>
+<span class="sd">    side may be any arbitrary expressions with numbers, Dimensions, Constants,</span>
+<span class="sd">    Functions and SparseFunctions as operands.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lhs : Function or SparseFunction</span>
+<span class="sd">        The left-hand side.</span>
+<span class="sd">    rhs : expr-like</span>
+<span class="sd">        The right-hand side.</span>
+<span class="sd">    subdomain : SubDomain, optional</span>
+<span class="sd">        To restrict the computation of the Eq to a particular sub-region in the</span>
+<span class="sd">        computational domain.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from devito import Grid, Function, Eq</span>
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid)</span>
+<span class="sd">    &gt;&gt;&gt; Eq(f, f + 1)</span>
+<span class="sd">    Eq(f(x, y), f(x, y) + 1)</span>
+
+<span class="sd">    Any SymPy expressions may be used in the right-hand side.</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import sin</span>
+<span class="sd">    &gt;&gt;&gt; Eq(f, sin(f.dx)**2)</span>
+<span class="sd">    Eq(f(x, y), sin(f(x, y)/h_x - f(x + h_x, y)/h_x)**2)</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    An Eq can be thought of as an assignment in an imperative programming language</span>
+<span class="sd">    (e.g., ``a[i] = b[i]*c``).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">False</span>
@@ -178,17 +209,39 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">subdomain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The SubDomain in which the Eq is defined.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subdomain</span>
 
-<div class="viewcode-block" id="Eq.xreplace"><a class="viewcode-back" href="../../devito.html#devito.equation.Eq.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span>
-                         <span class="n">subdomain</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_subdomain</span><span class="p">)</span></div></div>
+                         <span class="n">subdomain</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_subdomain</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../devito.html#devito.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
+<div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../equation.html#devito.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A :class:`Eq` performing a linear increment.</span>
+<span class="sd">    An increment relation between two objects, the left-hand side and the</span>
+<span class="sd">    right-hand side.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Inc may be used to express tensor contractions. Below, a summation along</span>
+<span class="sd">    the user-defined Dimension ``i``.</span>
+
+<span class="sd">    &gt;&gt;&gt; from devito import Grid, Dimension, Function, Inc</span>
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
+<span class="sd">    &gt;&gt;&gt; x, y = grid.dimensions</span>
+<span class="sd">    &gt;&gt;&gt; i = Dimension(name=&#39;i&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid)</span>
+<span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, shape=(10, 4, 4), dimensions=(i, x, y))</span>
+<span class="sd">    &gt;&gt;&gt; Inc(f, g)</span>
+<span class="sd">    Inc(f(x, y), g(i, x, y))</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    An Inc can be thought of as the augmented assignment &#39;+=&#39; in an imperative</span>
+<span class="sd">    programming language (e.g., ``a[i] += c``).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span>
@@ -199,19 +252,22 @@
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
 
 
-<div class="viewcode-block" id="solve"><a class="viewcode-back" href="../../devito.html#devito.equation.solve">[docs]</a><span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="solve"><a class="viewcode-back" href="../../equation.html#devito.equation.solve">[docs]</a><span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    solve(expr, target, **kwargs)</span>
-
-<span class="sd">    Algebraically rearrange an equation w.r.t. a given symbol.</span>
+<span class="sd">    Algebraically rearrange an Eq w.r.t. a given symbol.</span>
 
 <span class="sd">    This is a wrapper around ``sympy.solve``.</span>
 
-<span class="sd">    :param eq: The :class:`sympy.Eq` to be rearranged.</span>
-<span class="sd">    :param target: The symbol w.r.t. which the equation is rearranged.</span>
-<span class="sd">    :param kwargs: (Optional) Symbolic optimizations applied while rearranging</span>
-<span class="sd">                   the equation. For more information. refer to</span>
-<span class="sd">                   ``sympy.solve.__doc__``.</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    eq : expr-like</span>
+<span class="sd">        The equation to be rearranged.</span>
+<span class="sd">    target : symbol</span>
+<span class="sd">        The symbol w.r.t. which the equation is rearranged. May be a `Function`</span>
+<span class="sd">        or any other symbolic object.</span>
+<span class="sd">    **kwargs</span>
+<span class="sd">        Symbolic optimizations applied while rearranging the equation. For more</span>
+<span class="sd">        information. refer to ``sympy.solve.__doc__``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Enforce certain parameters to values that are known to guarantee a quick</span>
     <span class="c1"># turnaround time</span>
@@ -230,11 +286,10 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2016, Opesci
+        &copy; Copyright 2016-2019, Devito
 
     </p>
-  </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  </div> 
 
 </footer>
 

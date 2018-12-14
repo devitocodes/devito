@@ -8,10 +8,12 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.finite_differences.finite_difference &mdash; Devito 1 documentation</title>
+  <title>devito.finite_differences.finite_difference &mdash; Devito v3.4</title>
   
 
   
+  
+    <link rel="shortcut icon" href="../../../_static/devito_logo.png"/>
   
   
   
@@ -27,7 +29,9 @@
   <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../../../genindex.html" />
-    <link rel="search" title="Search" href="../../../search.html" /> 
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link href="../../../_static/devito_style.css" rel="stylesheet" type="text/css">
+
 
   
   <script src="../../../_static/js/modernizr.min.js"></script>
@@ -46,18 +50,17 @@
           
 
           
-            <a href="../../../index.html" class="icon icon-home"> Devito
+            <a href="../../../index.html" class="icon icon-home"> Devito v3.4
           
 
+          
+            
+            <img src="../../../_static/devito_logo.png" class="logo" alt="Logo"/>
           
           </a>
 
           
             
-            
-              <div class="version">
-                0
-              </div>
             
           
 
@@ -83,9 +86,8 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../userapi.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../compiler.html">The Devito Compiler</a></li>
 </ul>
 
             
@@ -100,7 +102,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../../index.html">Devito</a>
+          <a href="../../../index.html">Devito v3.4</a>
         
       </nav>
 
@@ -133,8 +135,6 @@
         
           <li><a href="../../index.html">Module code</a> &raquo;</li>
         
-          <li><a href="../../devito.html">devito</a> &raquo;</li>
-        
       <li>devito.finite_differences.finite_difference</li>
     
     
@@ -151,9 +151,7 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.finite_differences.finite_difference</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
-
-<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span>
+<span></span><span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span><span class="p">,</span> <span class="n">wraps</span>
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">finite_diff_weights</span>
 
@@ -161,8 +159,8 @@
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Tag</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;first_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;second_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;cross_derivative&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;generic_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;second_cross_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;generate_fd_shortcuts&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;centered&#39;</span><span class="p">,</span> <span class="s1">&#39;staggered_diff&#39;</span><span class="p">,</span> <span class="s1">&#39;transpose&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;generic_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;second_cross_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;staggered_diff&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;staggered_cross_diff&#39;</span><span class="p">,</span> <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;centered&#39;</span><span class="p">,</span> <span class="s1">&#39;transpose&#39;</span><span class="p">]</span>
 
 <span class="c1"># Number of digits for FD coefficients to avoid roundup errors and non-deeterministic</span>
 <span class="c1"># code generation</span>
@@ -206,6 +204,7 @@
 
 
 <span class="k">def</span> <span class="nf">check_input</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
     <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
@@ -217,22 +216,102 @@
     <span class="k">return</span> <span class="n">wrapper</span>
 
 
-<div class="viewcode-block" id="second_derivative"><a class="viewcode-back" href="../../../devito.finite_differences.html#devito.finite_differences.finite_difference.second_derivative">[docs]</a><span class="nd">@check_input</span>
+<div class="viewcode-block" id="first_derivative"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.first_derivative">[docs]</a><span class="nd">@check_input</span>
+<span class="k">def</span> <span class="nf">first_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    First-order derivative of a given expression.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    expr : expr-like</span>
+<span class="sd">        Expression for which the first-order derivative is produced.</span>
+<span class="sd">    **kwargs</span>
+<span class="sd">        - ``dim``: Dimension w.r.t. which to differentiate.</span>
+<span class="sd">        - ``diff``: Finite-difference symbol, defaults to `h`.</span>
+<span class="sd">        - ``order``: Discretisation order of the derivative.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    expr-like</span>
+<span class="sd">        The first-order derivative of ``expr``</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from devito import Function, Grid, first_derivative</span>
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
+<span class="sd">    &gt;&gt;&gt; x, _ = grid.dimensions</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid)</span>
+<span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, grid=grid)</span>
+<span class="sd">    &gt;&gt;&gt; first_derivative(f*g, dim=x)</span>
+<span class="sd">    -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x</span>
+
+<span class="sd">    This is also more easily obtainable via:</span>
+
+<span class="sd">    &gt;&gt;&gt; (f*g).dx</span>
+<span class="sd">    -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dim&#39;</span><span class="p">)</span>
+    <span class="n">diff</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;diff&#39;</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">matvec</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;matvec&#39;</span><span class="p">,</span> <span class="n">direct</span><span class="p">)</span>
+    <span class="n">side</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;side&#39;</span><span class="p">,</span> <span class="n">centered</span><span class="p">)</span><span class="o">.</span><span class="n">adjoint</span><span class="p">(</span><span class="n">matvec</span><span class="p">)</span>
+    <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># Stencil positions for non-symmetric cross-derivatives with symmetric averaging</span>
+    <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="n">right</span><span class="p">:</span>
+        <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">),</span>
+                                               <span class="nb">int</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">))]</span>
+    <span class="k">elif</span> <span class="n">side</span> <span class="o">==</span> <span class="n">left</span><span class="p">:</span>
+        <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">),</span>
+                                               <span class="nb">int</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">))]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span>
+                                               <span class="nb">int</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="c1"># Finite difference weights from Taylor approximation with this positions</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">finite_diff_weights</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">all_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">((</span><span class="n">dim</span><span class="p">,)</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="o">==</span> <span class="n">dim</span><span class="p">])))</span>
+    <span class="c1"># Loop through positions</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">ind</span><span class="p">)):</span>
+            <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">d</span><span class="p">,</span> <span class="n">ind</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">d</span><span class="p">}))</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">all_dims</span><span class="p">])</span>
+            <span class="n">deriv</span> <span class="o">+=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">matvec</span><span class="o">.</span><span class="n">val</span><span class="o">*</span><span class="n">deriv</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="second_derivative"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.second_derivative">[docs]</a><span class="nd">@check_input</span>
 <span class="k">def</span> <span class="nf">second_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Derives second derivative for a product of given functions.</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Second-order derivative of a given expression.</span>
 
-<span class="sd">    :param \*args: All positional arguments must be fully qualified</span>
-<span class="sd">       function objects, eg. `f(x, y)` or `g(t, x, y, z)`.</span>
-<span class="sd">    :param dim: Symbol defininf the dimension wrt. which to</span>
-<span class="sd">       differentiate, eg. `x`, `y`, `z` or `t`.</span>
-<span class="sd">    :param diff: Finite Difference symbol to insert, default `h`.</span>
-<span class="sd">    :param order: Discretisation order of the stencil to create.</span>
-<span class="sd">    :returns: The second derivative</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    expr : expr-like</span>
+<span class="sd">        Expression for which the second derivative is produced.</span>
+<span class="sd">    **kwargs</span>
+<span class="sd">        - ``dim``: Dimension w.r.t. which to differentiate.</span>
+<span class="sd">        - ``diff``: Finite-difference symbol, defaults to `h`.</span>
+<span class="sd">        - ``order``: Discretisation order of the derivative.</span>
 
-<span class="sd">    Example: Deriving the second derivative of f(x, y)*g(x, y) wrt. x via</span>
-<span class="sd">       ``second_derivative(f(x, y), g(x, y), order=2, dim=x)``</span>
-<span class="sd">       results in ``(-2.0*f(x, y)*g(x, y) + 1.0*f(-h + x, y)*g(-h + x, y) +</span>
-<span class="sd">       1.0*f(h + x, y)*g(h + x, y)) / h**2``.</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    expr-like</span>
+<span class="sd">        The second-order derivative of ``expr``</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from devito import Function, Grid, second_derivative</span>
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
+<span class="sd">    &gt;&gt;&gt; x, _ = grid.dimensions</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid, space_order=2)</span>
+<span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, grid=grid, space_order=2)</span>
+<span class="sd">    &gt;&gt;&gt; second_derivative(f*g, order=2, dim=x)</span>
+<span class="sd">    -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\</span>
+<span class="sd"> f(x + h_x, y)*g(x + h_x, y)/h_x**2</span>
+
+<span class="sd">    This is also more easily obtainable via:</span>
+
+<span class="sd">    &gt;&gt;&gt; (f*g).dx2</span>
+<span class="sd">    -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\</span>
+<span class="sd"> f(x + h_x, y)*g(x + h_x, y)/h_x**2</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
@@ -252,24 +331,76 @@
     <span class="k">return</span> <span class="n">deriv</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="cross_derivative"><a class="viewcode-back" href="../../../devito.finite_differences.html#devito.finite_differences.finite_difference.cross_derivative">[docs]</a><span class="nd">@check_input</span>
+<div class="viewcode-block" id="generic_derivative"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.generic_derivative">[docs]</a><span class="nd">@check_input</span>
+<span class="k">def</span> <span class="nf">generic_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Arbitrary-order derivative of a given expression.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    expr : expr-like</span>
+<span class="sd">        Expression for which the derivative is produced.</span>
+<span class="sd">    deriv_order : int</span>
+<span class="sd">        Derivative order, e.g. 2 for a second-order derivative.</span>
+<span class="sd">    dim : Dimension</span>
+<span class="sd">        The Dimension w.r.t. which to differentiate.</span>
+<span class="sd">    fd_order : int</span>
+<span class="sd">        Coefficient discretization order. Note: this impacts the width of</span>
+<span class="sd">        the resulting stencil.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    expr-like</span>
+<span class="sd">        The derivative of ``expr`` of order ``deriv-order``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">fd_order</span><span class="o">//</span><span class="mi">2</span><span class="p">,</span> <span class="n">fd_order</span><span class="o">//</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">fd_order</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">dim</span><span class="p">,</span> <span class="n">dim</span> <span class="o">+</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span><span class="p">]</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">finite_diff_weights</span><span class="p">(</span><span class="n">deriv_order</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">dim</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">all_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">((</span><span class="n">dim</span><span class="p">,</span> <span class="p">)</span> <span class="o">+</span>
+                     <span class="nb">tuple</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="o">==</span> <span class="n">dim</span><span class="p">])))</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">indices</span><span class="p">)):</span>
+            <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">d</span><span class="p">,</span> <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">d</span><span class="p">}))</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">all_dims</span><span class="p">])</span>
+            <span class="n">deriv</span> <span class="o">+=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">deriv</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="cross_derivative"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.cross_derivative">[docs]</a><span class="nd">@check_input</span>
 <span class="k">def</span> <span class="nf">cross_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Derives cross derivative for a product of given functions.</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Cross derivative of a given expression.</span>
 
-<span class="sd">    :param \*args: All positional arguments must be fully qualified</span>
-<span class="sd">       function objects, eg. `f(x, y)` or `g(t, x, y, z)`.</span>
-<span class="sd">    :param dims: 2-tuple of symbols defining the dimension wrt. which</span>
-<span class="sd">       to differentiate, eg. `x`, `y`, `z` or `t`.</span>
-<span class="sd">    :param diff: Finite Difference symbol to insert, default `h`.</span>
-<span class="sd">    :returns: The cross derivative</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    expr : expr-like</span>
+<span class="sd">        Expression for which the cross derivative is produced.</span>
+<span class="sd">    **kwargs</span>
+<span class="sd">        - ``dims``: 2-tuple Dimensions w.r.t. which to differentiate.</span>
+<span class="sd">        - ``diff``: Finite-difference symbol, defaults to `h`.</span>
+<span class="sd">        - ``order``: 2-tuple representing the discretisation order of the</span>
+<span class="sd">                     derivative in the two Dimensions.</span>
 
-<span class="sd">    Example: Deriving the cross-derivative of f(x, y)*g(x, y) wrt. x and y via:</span>
-<span class="sd">       ``cross_derivative(f(x, y), g(x, y), dims=(x, y))``</span>
-<span class="sd">       results in:</span>
-<span class="sd">       ``0.5*(-2.0*f(x, y)*g(x, y) + f(x, -h + y)*g(x, -h + y) +``</span>
-<span class="sd">       ``f(x, h + y)*g(x, h + y) + f(-h + x, y)*g(-h + x, y) -``</span>
-<span class="sd">       ``f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y) -``</span>
-<span class="sd">       ``f(h + x, -h + y)*g(h + x, -h + y)) / h**2``</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    expr-like</span>
+<span class="sd">        The cross derivative of ``expr``</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from devito import Function, Grid, cross_derivative</span>
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
+<span class="sd">    &gt;&gt;&gt; x, y = grid.dimensions</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid, space_order=2)</span>
+<span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, grid=grid, space_order=2)</span>
+<span class="sd">    &gt;&gt;&gt; # cross_derivative(f*g, dims=(x, y))</span>
+<span class="sd">    TODO</span>
+
+<span class="sd">    This is also more easily obtainable via:</span>
+
+<span class="sd">    &gt;&gt;&gt; # (f*g).dxdy</span>
+<span class="sd">    TODO</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">dims</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dims&#39;</span><span class="p">)</span>
@@ -317,86 +448,18 @@
     <span class="k">return</span> <span class="o">-</span><span class="n">deriv</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="first_derivative"><a class="viewcode-back" href="../../../devito.finite_differences.html#devito.finite_differences.finite_difference.first_derivative">[docs]</a><span class="nd">@check_input</span>
-<span class="k">def</span> <span class="nf">first_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Derives first derivative for a product of given functions.</span>
-
-<span class="sd">    :param \*args: All positional arguments must be fully qualified</span>
-<span class="sd">       function objects, eg. `f(x, y)` or `g(t, x, y, z)`.</span>
-<span class="sd">    :param dims: symbol defining the dimension wrt. which</span>
-<span class="sd">       to differentiate, eg. `x`, `y`, `z` or `t`.</span>
-<span class="sd">    :param diff: Finite Difference symbol to insert, default `h`.</span>
-<span class="sd">    :param side: Side of the shift for the first derivatives.</span>
-<span class="sd">    :returns: The first derivative</span>
-
-<span class="sd">    Example: Deriving the first-derivative of f(x)*g(x) wrt. x via:</span>
-<span class="sd">       ``first_derivative(f(x) * g(x), dim=x, side=1, order=1)``</span>
-<span class="sd">       results in:</span>
-<span class="sd">       ``*(-f(x)*g(x) + f(x + h)*g(x + h) ) / h``</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dim&#39;</span><span class="p">)</span>
-    <span class="n">diff</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;diff&#39;</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
-    <span class="n">order</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
-    <span class="n">matvec</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;matvec&#39;</span><span class="p">,</span> <span class="n">direct</span><span class="p">)</span>
-    <span class="n">side</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;side&#39;</span><span class="p">,</span> <span class="n">centered</span><span class="p">)</span><span class="o">.</span><span class="n">adjoint</span><span class="p">(</span><span class="n">matvec</span><span class="p">)</span>
-    <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="c1"># Stencil positions for non-symmetric cross-derivatives with symmetric averaging</span>
-    <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="n">right</span><span class="p">:</span>
-        <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">),</span>
-                                               <span class="nb">int</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">))]</span>
-    <span class="k">elif</span> <span class="n">side</span> <span class="o">==</span> <span class="n">left</span><span class="p">:</span>
-        <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">),</span>
-                                               <span class="nb">int</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">))]</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span>
-                                               <span class="nb">int</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
-    <span class="c1"># Finite difference weights from Taylor approximation with this positions</span>
-    <span class="n">c</span> <span class="o">=</span> <span class="n">finite_diff_weights</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
-    <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-    <span class="n">all_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">((</span><span class="n">dim</span><span class="p">,)</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="o">==</span> <span class="n">dim</span><span class="p">])))</span>
-    <span class="c1"># Loop through positions</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">ind</span><span class="p">)):</span>
-            <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">d</span><span class="p">,</span> <span class="n">ind</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">d</span><span class="p">}))</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">all_dims</span><span class="p">])</span>
-            <span class="n">deriv</span> <span class="o">+=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-    <span class="k">return</span> <span class="p">(</span><span class="n">matvec</span><span class="o">.</span><span class="n">val</span><span class="o">*</span><span class="n">deriv</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="generic_derivative"><a class="viewcode-back" href="../../../devito.finite_differences.html#devito.finite_differences.finite_difference.generic_derivative">[docs]</a><span class="nd">@check_input</span>
-<span class="k">def</span> <span class="nf">generic_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Create generic arbitrary order derivative expression from a</span>
-<span class="sd">    single :class:`Function` object. This methods is essentially a</span>
-<span class="sd">    dedicated wrapper around SymPy&#39;s `as_finite_diff` utility for</span>
-<span class="sd">    :class:`devito.Function` objects.</span>
-
-<span class="sd">    :param function: The symbol representing a function.</span>
-<span class="sd">    :param deriv_order: Derivative order, eg. 2 for a second derivative.</span>
-<span class="sd">    :param dim: The dimension for which to take the derivative.</span>
-<span class="sd">    :param fd_order: Order of the coefficient discretization and thus</span>
-<span class="sd">                     the width of the resulting stencil expression.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">indices</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">fd_order</span><span class="o">//</span><span class="mi">2</span><span class="p">,</span> <span class="n">fd_order</span><span class="o">//</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
-    <span class="k">if</span> <span class="n">fd_order</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">dim</span><span class="p">,</span> <span class="n">dim</span> <span class="o">+</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span><span class="p">]</span>
-    <span class="n">c</span> <span class="o">=</span> <span class="n">finite_diff_weights</span><span class="p">(</span><span class="n">deriv_order</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">dim</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-    <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="n">all_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">((</span><span class="n">dim</span><span class="p">,</span> <span class="p">)</span> <span class="o">+</span>
-                     <span class="nb">tuple</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="o">==</span> <span class="n">dim</span><span class="p">])))</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">indices</span><span class="p">)):</span>
-            <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">d</span><span class="p">,</span> <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">d</span><span class="p">}))</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">all_dims</span><span class="p">])</span>
-            <span class="n">deriv</span> <span class="o">+=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-
-    <span class="k">return</span> <span class="n">deriv</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="second_cross_derivative"><a class="viewcode-back" href="../../../devito.finite_differences.html#devito.finite_differences.finite_difference.second_cross_derivative">[docs]</a><span class="nd">@check_input</span>
+<div class="viewcode-block" id="second_cross_derivative"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.second_cross_derivative">[docs]</a><span class="nd">@check_input</span>
 <span class="k">def</span> <span class="nf">second_cross_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dims</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Create a second order order cross derivative for a given function.</span>
+<span class="sd">    Second-order cross derivative of a given expression.</span>
 
-<span class="sd">    :param function: The symbol representing a function.</span>
-<span class="sd">    :param dims: Dimensions for which to take the derivative.</span>
-<span class="sd">    :param order: Discretisation order of the stencil to create.</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    expr : expr-like</span>
+<span class="sd">        Expression for which the second-order cross derivative is produced.</span>
+<span class="sd">    dims : tuple</span>
+<span class="sd">        2-tuple Dimensions w.r.t. which to differentiate.</span>
+<span class="sd">    order : Discretisation order of the derivative.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">first</span> <span class="o">=</span> <span class="n">first_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">width</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">first_derivative</span><span class="p">(</span><span class="n">first</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span></div>
@@ -405,12 +468,19 @@
 <span class="nd">@check_input</span>
 <span class="k">def</span> <span class="nf">generic_cross_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dims</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Create a generic cross derivative for a given function.</span>
+<span class="sd">    Arbitrary-order cross derivative of a given expression.</span>
 
-<span class="sd">    :param expr: A :class:`Function` object.</span>
-<span class="sd">    :param dims: The :class:`Dimension`s w.r.t. the derivative is computed.</span>
-<span class="sd">    :param order: Order of the discretization coefficient (note: this impacts</span>
-<span class="sd">                  the width of the resulting stencil expression).</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    expr : expr-like</span>
+<span class="sd">        Expression for which the cross derivative is produced.</span>
+<span class="sd">    dims : tuple</span>
+<span class="sd">        Dimensions w.r.t. which to differentiate.</span>
+<span class="sd">    fd_order : int</span>
+<span class="sd">        Coefficient discretization order. Note: this impacts the width of</span>
+<span class="sd">        the resulting stencil.</span>
+<span class="sd">    deriv_order : int</span>
+<span class="sd">        Derivative order, e.g. 2 for a second-order derivative.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">first</span> <span class="o">=</span> <span class="n">generic_derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deriv_order</span><span class="o">=</span><span class="n">deriv_order</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
                                <span class="n">fd_order</span><span class="o">=</span><span class="n">fd_order</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
@@ -418,16 +488,24 @@
                               <span class="n">fd_order</span><span class="o">=</span><span class="n">fd_order</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 
 
-<div class="viewcode-block" id="staggered_diff"><a class="viewcode-back" href="../../../devito.finite_differences.html#devito.finite_differences.finite_difference.staggered_diff">[docs]</a><span class="nd">@check_input</span>
+<div class="viewcode-block" id="staggered_diff"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.staggered_diff">[docs]</a><span class="nd">@check_input</span>
 <span class="k">def</span> <span class="nf">staggered_diff</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">stagger</span><span class="o">=</span><span class="n">centered</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Utility to generate staggered derivatives.</span>
+<span class="sd">    Arbitrary-order staggered derivative of a given expression.</span>
 
-<span class="sd">    :param expr: A :class:`Function` object.</span>
-<span class="sd">    :param dims: The :class:`Dimension`s w.r.t. the derivative is computed.</span>
-<span class="sd">    :param order: Order of the discretization coefficient (note: this impacts</span>
-<span class="sd">                  the width of the resulting stencil expression).</span>
-<span class="sd">    :param stagger: (Optional) shift for the FD, `left`, `right` or `centered`.</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    expr : expr-like</span>
+<span class="sd">        Expression for which the derivative is produced.</span>
+<span class="sd">    deriv_order : int</span>
+<span class="sd">        Derivative order, e.g. 2 for a second-order derivative.</span>
+<span class="sd">    dim : Dimension</span>
+<span class="sd">        The Dimension w.r.t. which to differentiate.</span>
+<span class="sd">    fd_order : int</span>
+<span class="sd">        Coefficient discretization order. Note: this impacts the width of</span>
+<span class="sd">        the resulting stencil.</span>
+<span class="sd">    stagger : Side, optional</span>
+<span class="sd">        Shift of the finite-difference approximation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">if</span> <span class="n">stagger</span> <span class="o">==</span> <span class="n">left</span><span class="p">:</span>
@@ -449,25 +527,33 @@
     <span class="k">return</span> <span class="n">deriv</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span></div>
 
 
-<span class="nd">@check_input</span>
+<div class="viewcode-block" id="staggered_cross_diff"><a class="viewcode-back" href="../../../finite-difference.html#devito.finite_differences.finite_difference.staggered_cross_diff">[docs]</a><span class="nd">@check_input</span>
 <span class="k">def</span> <span class="nf">staggered_cross_diff</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dims</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">stagger</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Create a generic cross derivative for a given staggered function.</span>
+<span class="sd">    Arbitrary-order cross staggered derivative of a given expression.</span>
 
-<span class="sd">    :param function: The symbol representing a function.</span>
-<span class="sd">    :param dims: Dimensions for which to take the derivative.</span>
-<span class="sd">    :param order: Discretisation order of the stencil to create.</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    expr : expr-like</span>
+<span class="sd">        Expression for which the derivative is produced.</span>
+<span class="sd">    dims : tuple</span>
+<span class="sd">        Dimensions w.r.t. which to differentiate.</span>
+<span class="sd">    deriv_order : int</span>
+<span class="sd">        Derivative order, e.g. 2 for a second-order derivative.</span>
+<span class="sd">    fd_order : int</span>
+<span class="sd">        Coefficient discretization order. Note: this impacts the width of</span>
+<span class="sd">        the resulting stencil.</span>
+<span class="sd">    stagger : Side, optional</span>
+<span class="sd">        Shift of the finite-difference approximation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">first</span> <span class="o">=</span> <span class="n">staggered_diff</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deriv_order</span><span class="o">=</span><span class="n">deriv_order</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
                            <span class="n">fd_order</span><span class="o">=</span><span class="n">fd_order</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">stagger</span><span class="o">=</span><span class="n">stagger</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
     <span class="k">return</span> <span class="n">staggered_diff</span><span class="p">(</span><span class="n">first</span><span class="p">,</span> <span class="n">deriv_order</span><span class="o">=</span><span class="n">deriv_order</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
-                          <span class="n">fd_order</span><span class="o">=</span><span class="n">fd_order</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">stagger</span><span class="o">=</span><span class="n">stagger</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                          <span class="n">fd_order</span><span class="o">=</span><span class="n">fd_order</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">stagger</span><span class="o">=</span><span class="n">stagger</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
 
 
-<div class="viewcode-block" id="generate_fd_shortcuts"><a class="viewcode-back" href="../../../devito.finite_differences.html#devito.finite_differences.finite_difference.generate_fd_shortcuts">[docs]</a><span class="k">def</span> <span class="nf">generate_fd_shortcuts</span><span class="p">(</span><span class="n">function</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Create all legal finite-difference derivatives for the given :class:`Function`.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="k">def</span> <span class="nf">generate_fd_shortcuts</span><span class="p">(</span><span class="n">function</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Create all legal finite-difference derivatives for the given Function.&quot;&quot;&quot;</span>
     <span class="n">dimensions</span> <span class="o">=</span> <span class="n">function</span><span class="o">.</span><span class="n">indices</span>
     <span class="n">space_fd_order</span> <span class="o">=</span> <span class="n">function</span><span class="o">.</span><span class="n">space_order</span>
     <span class="n">time_fd_order</span> <span class="o">=</span> <span class="n">function</span><span class="o">.</span><span class="n">time_order</span> <span class="k">if</span> <span class="n">function</span><span class="o">.</span><span class="n">is_TimeFunction</span> <span class="k">else</span> <span class="mi">0</span>
@@ -544,7 +630,7 @@
             <span class="n">desciption</span> <span class="o">=</span> <span class="s1">&#39;right first order derivative w.r.t dimension </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span>
             <span class="n">derivatives</span><span class="p">[</span><span class="n">name_fd</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">deriv</span><span class="p">,</span> <span class="n">desciption</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">derivatives</span></div>
+    <span class="k">return</span> <span class="n">derivatives</span>
 </pre></div>
 
            </div>
@@ -557,11 +643,10 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2016, Opesci
+        &copy; Copyright 2016-2019, Devito
 
     </p>
-  </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  </div> 
 
 </footer>
 

@@ -8,10 +8,12 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Overview: module code &mdash; Devito 1 documentation</title>
+  <title>Overview: module code &mdash; Devito v3.4</title>
   
 
   
+  
+    <link rel="shortcut icon" href="../_static/devito_logo.png"/>
   
   
   
@@ -27,7 +29,9 @@
   <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link href="../_static/devito_style.css" rel="stylesheet" type="text/css">
+
 
   
   <script src="../_static/js/modernizr.min.js"></script>
@@ -46,18 +50,17 @@
           
 
           
-            <a href="../index.html" class="icon icon-home"> Devito
+            <a href="../index.html" class="icon icon-home"> Devito v3.4
           
 
+          
+            
+            <img src="../_static/devito_logo.png" class="logo" alt="Logo"/>
           
           </a>
 
           
             
-            
-              <div class="version">
-                0
-              </div>
             
           
 
@@ -83,9 +86,8 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../developer.html">Developer Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../examples.html">Example Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../devito.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../userapi.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compiler.html">The Devito Compiler</a></li>
 </ul>
 
             
@@ -100,7 +102,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../index.html">Devito</a>
+          <a href="../index.html">Devito v3.4</a>
         
       </nav>
 
@@ -147,98 +149,15 @@
            <div itemprop="articleBody">
             
   <h1>All modules for which code is available</h1>
-<ul><li><a href="abc.html">abc</a></li>
-<li><a href="cached_property.html">cached_property</a></li>
-<li><a href="devito.html">devito</a></li>
-<ul><li><a href="devito/backends.html">devito.backends</a></li>
-<li><a href="devito/base.html">devito.base</a></li>
+<ul><li><a href="cached_property.html">cached_property</a></li>
 <li><a href="devito/builtins.html">devito.builtins</a></li>
-<li><a href="devito/cgen_utils.html">devito.cgen_utils</a></li>
-<li><a href="devito/compiler.html">devito.compiler</a></li>
-<li><a href="devito/core/autotuning.html">devito.core.autotuning</a></li>
-<li><a href="devito/core/operator.html">devito.core.operator</a></li>
-<li><a href="devito/data/allocators.html">devito.data.allocators</a></li>
-<li><a href="devito/data/data.html">devito.data.data</a></li>
-<li><a href="devito/data/decomposition.html">devito.data.decomposition</a></li>
 <li><a href="devito/dimension.html">devito.dimension</a></li>
-<li><a href="devito/dle/backends/advanced.html">devito.dle.backends.advanced</a></li>
-<li><a href="devito/dle/backends/basic.html">devito.dle.backends.basic</a></li>
-<li><a href="devito/dle/backends/common.html">devito.dle.backends.common</a></li>
-<li><a href="devito/dle/backends/parallelizer.html">devito.dle.backends.parallelizer</a></li>
-<li><a href="devito/dle/backends/utils.html">devito.dle.backends.utils</a></li>
-<li><a href="devito/dle/blocking_utils.html">devito.dle.blocking_utils</a></li>
-<li><a href="devito/dle/transformer.html">devito.dle.transformer</a></li>
-<li><a href="devito/dse/aliases.html">devito.dse.aliases</a></li>
-<li><a href="devito/dse/backends/advanced.html">devito.dse.backends.advanced</a></li>
-<li><a href="devito/dse/backends/basic.html">devito.dse.backends.basic</a></li>
-<li><a href="devito/dse/backends/common.html">devito.dse.backends.common</a></li>
-<li><a href="devito/dse/backends/speculative.html">devito.dse.backends.speculative</a></li>
-<li><a href="devito/dse/manipulation.html">devito.dse.manipulation</a></li>
-<li><a href="devito/dse/transformer.html">devito.dse.transformer</a></li>
 <li><a href="devito/equation.html">devito.equation</a></li>
-<li><a href="devito/exceptions.html">devito.exceptions</a></li>
-<li><a href="devito/finite_differences/differentiable.html">devito.finite_differences.differentiable</a></li>
 <li><a href="devito/finite_differences/finite_difference.html">devito.finite_differences.finite_difference</a></li>
 <li><a href="devito/function.html">devito.function</a></li>
 <li><a href="devito/grid.html">devito.grid</a></li>
-<li><a href="devito/ir/clusters/algorithms.html">devito.ir.clusters.algorithms</a></li>
-<li><a href="devito/ir/clusters/cluster.html">devito.ir.clusters.cluster</a></li>
-<li><a href="devito/ir/clusters/graph.html">devito.ir.clusters.graph</a></li>
-<li><a href="devito/ir/equations/algorithms.html">devito.ir.equations.algorithms</a></li>
-<li><a href="devito/ir/equations/equation.html">devito.ir.equations.equation</a></li>
-<li><a href="devito/ir/iet/analysis.html">devito.ir.iet.analysis</a></li>
-<li><a href="devito/ir/iet/nodes.html">devito.ir.iet.nodes</a></li>
-<li><a href="devito/ir/iet/properties.html">devito.ir.iet.properties</a></li>
-<li><a href="devito/ir/iet/scheduler.html">devito.ir.iet.scheduler</a></li>
-<li><a href="devito/ir/iet/utils.html">devito.ir.iet.utils</a></li>
-<li><a href="devito/ir/iet/visitors.html">devito.ir.iet.visitors</a></li>
-<li><a href="devito/ir/stree/algorithms.html">devito.ir.stree.algorithms</a></li>
-<li><a href="devito/ir/stree/tree.html">devito.ir.stree.tree</a></li>
-<li><a href="devito/ir/support/basic.html">devito.ir.support.basic</a></li>
-<li><a href="devito/ir/support/space.html">devito.ir.support.space</a></li>
-<li><a href="devito/ir/support/stencil.html">devito.ir.support.stencil</a></li>
-<li><a href="devito/ir/support/utils.html">devito.ir.support.utils</a></li>
-<li><a href="devito/logger.html">devito.logger</a></li>
-<li><a href="devito/mpi/distributed.html">devito.mpi.distributed</a></li>
-<li><a href="devito/mpi/halo_scheme.html">devito.mpi.halo_scheme</a></li>
-<li><a href="devito/mpi/routines.html">devito.mpi.routines</a></li>
 <li><a href="devito/operator.html">devito.operator</a></li>
-<li><a href="devito/ops/operator.html">devito.ops.operator</a></li>
-<li><a href="devito/parameters.html">devito.parameters</a></li>
-<li><a href="devito/profiling.html">devito.profiling</a></li>
-<li><a href="devito/symbolics/extended_sympy.html">devito.symbolics.extended_sympy</a></li>
-<li><a href="devito/symbolics/inspection.html">devito.symbolics.inspection</a></li>
-<li><a href="devito/symbolics/manipulation.html">devito.symbolics.manipulation</a></li>
-<li><a href="devito/symbolics/queries.html">devito.symbolics.queries</a></li>
-<li><a href="devito/symbolics/search.html">devito.symbolics.search</a></li>
-<li><a href="devito/tools/abc.html">devito.tools.abc</a></li>
-<li><a href="devito/tools/algorithms.html">devito.tools.algorithms</a></li>
-<li><a href="devito/tools/data_structures.html">devito.tools.data_structures</a></li>
-<li><a href="devito/tools/memoization.html">devito.tools.memoization</a></li>
-<li><a href="devito/tools/os_helper.html">devito.tools.os_helper</a></li>
-<li><a href="devito/tools/utils.html">devito.tools.utils</a></li>
-<li><a href="devito/tools/validators.html">devito.tools.validators</a></li>
-<li><a href="devito/tools/visitors.html">devito.tools.visitors</a></li>
-<li><a href="devito/types.html">devito.types</a></li>
-</ul><li><a href="examples/cfd/example_diffusion.html">examples.cfd.example_diffusion</a></li>
-<li><a href="examples/cfd/tools.html">examples.cfd.tools</a></li>
-<li><a href="examples/misc/linalg.html">examples.misc.linalg</a></li>
-<li><a href="examples/seismic/acoustic/acoustic_example.html">examples.seismic.acoustic.acoustic_example</a></li>
-<li><a href="examples/seismic/acoustic/operators.html">examples.seismic.acoustic.operators</a></li>
-<li><a href="examples/seismic/acoustic/wavesolver.html">examples.seismic.acoustic.wavesolver</a></li>
-<li><a href="examples/seismic/benchmark.html">examples.seismic.benchmark</a></li>
-<li><a href="examples/seismic/elastic/elastic_example.html">examples.seismic.elastic.elastic_example</a></li>
-<li><a href="examples/seismic/elastic/operators.html">examples.seismic.elastic.operators</a></li>
-<li><a href="examples/seismic/elastic/wavesolver.html">examples.seismic.elastic.wavesolver</a></li>
-<li><a href="examples/seismic/model.html">examples.seismic.model</a></li>
-<li><a href="examples/seismic/plotting.html">examples.seismic.plotting</a></li>
-<li><a href="examples/seismic/source.html">examples.seismic.source</a></li>
-<li><a href="examples/seismic/tti/operators.html">examples.seismic.tti.operators</a></li>
-<li><a href="examples/seismic/tti/tti_example.html">examples.seismic.tti.tti_example</a></li>
-<li><a href="examples/seismic/tti/wavesolver.html">examples.seismic.tti.wavesolver</a></li>
-<li><a href="examples/seismic/utils.html">examples.seismic.utils</a></li>
 <li><a href="numpy.html">numpy</a></li>
-<li><a href="sympy/core/assumptions.html">sympy.core.assumptions</a></li>
 </ul>
 
            </div>
@@ -251,11 +170,10 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2016, Opesci
+        &copy; Copyright 2016-2019, Devito
 
     </p>
-  </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  </div> 
 
 </footer>
 

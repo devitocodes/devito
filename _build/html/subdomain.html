@@ -1,0 +1,300 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>SubDomain &mdash; Devito v3.4</title>
+  
+
+  
+  
+    <link rel="shortcut icon" href="_static/devito_logo.png"/>
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Symbolic Objects" href="symbolic.html" />
+    <link rel="prev" title="Grid" href="grid.html" />
+    <link href="_static/devito_style.css" rel="stylesheet" type="text/css">
+
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito v3.4
+          
+
+          
+            
+            <img src="_static/devito_logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="userapi.html">API Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="grids.html">Grids</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="grid.html">Grid</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">SubDomain</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="symbolic.html">Symbolic Objects</a></li>
+<li class="toctree-l2"><a class="reference internal" href="finite-difference.html">Finite-difference approximations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="equation.html">Equation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="operator.html">Operator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="builtins.html">Built-in Operators</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="compiler.html">The Devito Compiler</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito v3.4</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="userapi.html">API Reference</a> &raquo;</li>
+        
+          <li><a href="grids.html">Grids</a> &raquo;</li>
+        
+      <li>SubDomain</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/subdomain.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="subdomain">
+<h1>SubDomain<a class="headerlink" href="#subdomain" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="devito.grid.SubDomain">
+<em class="property">class </em><code class="descclassname">devito.grid.</code><code class="descname">SubDomain</code><a class="reference internal" href="_modules/devito/grid.html#SubDomain"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.grid.SubDomain" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Base class to define Grid subdomains.</p>
+<p>To create a new SubDomain, all one needs to do is overriding <a class="reference internal" href="#devito.grid.SubDomain.define" title="devito.grid.SubDomain.define"><code class="xref py py-meth docutils literal notranslate"><span class="pre">define()</span></code></a>.
+This method takes as input a set of Dimensions and produce a mapper</p>
+<blockquote>
+<div>M : Dimensions -&gt; {d, (‘left’, N), (‘middle’, N, M), (‘right’, N)}</div></blockquote>
+<p>so that:</p>
+<blockquote>
+<div><ul class="simple">
+<li>If <code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">d</span></code>, then the SubDomain spans the entire Dimension <code class="docutils literal notranslate"><span class="pre">d</span></code>.</li>
+<li>If <code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">('left',</span> <span class="pre">N)</span></code>, then the SubDomain spans a contiguous
+region of <code class="docutils literal notranslate"><span class="pre">N</span></code> points starting at <code class="docutils literal notranslate"><span class="pre">d</span></code>’s left extreme.</li>
+<li><code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">('right',</span> <span class="pre">N)</span></code> is analogous to the case above.</li>
+<li>If <code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">('middle',</span> <span class="pre">N,</span> <span class="pre">M)</span></code>, then the SubDomain spans a contiguous
+region of <code class="docutils literal notranslate"><span class="pre">d_size</span> <span class="pre">-</span> <span class="pre">(N</span> <span class="pre">+</span> <span class="pre">M)</span></code> points starting at <code class="docutils literal notranslate"><span class="pre">N</span></code> and finishing
+at <code class="docutils literal notranslate"><span class="pre">d_sizeM</span> <span class="pre">-</span> <span class="pre">M</span></code>.</li>
+</ul>
+</div></blockquote>
+<p class="rubric">Examples</p>
+<p>An “Inner” SubDomain, which spans the entire domain except for an exterior
+boundary region of <code class="docutils literal notranslate"><span class="pre">thickness=3</span></code>, can be implemented as follows</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">SubDomain</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Inner</span><span class="p">(</span><span class="n">SubDomain</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;inner&#39;</span>
+<span class="gp">... </span>    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;middle&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>Like before, but now spanning the entire <code class="docutils literal notranslate"><span class="pre">y</span></code> Dimension of a three-dimensional
+grid</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">InnerY</span><span class="p">(</span><span class="n">SubDomain</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;inner_y&#39;</span>
+<span class="gp">... </span>    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">dimensions</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="p">{</span><span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;middle&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">y</span><span class="p">:</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;middle&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)}</span>
+</pre></div>
+</div>
+<div class="admonition seealso">
+<p class="first admonition-title">See also</p>
+<dl class="last docutils">
+<dt><code class="xref py py-class docutils literal notranslate"><span class="pre">Domain</span></code></dt>
+<dd>An example of preset SubDomain.</dd>
+<dt><code class="xref py py-class docutils literal notranslate"><span class="pre">Interior</span></code></dt>
+<dd>An example of preset Subdomain.</dd>
+</dl>
+</div>
+<dl class="method">
+<dt id="devito.grid.SubDomain.define">
+<code class="descname">define</code><span class="sig-paren">(</span><em>dimensions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/grid.html#SubDomain.define"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.grid.SubDomain.define" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parametrically describe the SubDomain w.r.t. a generic Grid.</p>
+<p class="rubric">Notes</p>
+<p>This method should be overridden by each SubDomain subclass. For more
+information, refer to <code class="docutils literal notranslate"><span class="pre">SubDomain.__doc__</span></code>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.grid.SubDomain.name">
+<code class="descname">name</code><em class="property"> = None</em><a class="headerlink" href="#devito.grid.SubDomain.name" title="Permalink to this definition">¶</a></dt>
+<dd><p>A unique name for the SubDomain.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="symbolic.html" class="btn btn-neutral float-right" title="Symbolic Objects" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="grid.html" class="btn btn-neutral" title="Grid" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016-2019, Devito
+
+    </p>
+  </div> 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

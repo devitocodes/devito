@@ -1,0 +1,334 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Built-in Operators &mdash; Devito v3.4</title>
+  
+
+  
+  
+    <link rel="shortcut icon" href="_static/devito_logo.png"/>
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="The Devito Compiler" href="compiler.html" />
+    <link rel="prev" title="Operator" href="operator.html" />
+    <link href="_static/devito_style.css" rel="stylesheet" type="text/css">
+
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito v3.4
+          
+
+          
+            
+            <img src="_static/devito_logo.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="userapi.html">API Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="grids.html">Grids</a></li>
+<li class="toctree-l2"><a class="reference internal" href="symbolic.html">Symbolic Objects</a></li>
+<li class="toctree-l2"><a class="reference internal" href="finite-difference.html">Finite-difference approximations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="equation.html">Equation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="operator.html">Operator</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Built-in Operators</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="compiler.html">The Devito Compiler</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito v3.4</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="userapi.html">API Reference</a> &raquo;</li>
+        
+      <li>Built-in Operators</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/builtins.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="built-in-operators">
+<h1>Built-in Operators<a class="headerlink" href="#built-in-operators" title="Permalink to this headline">¶</a></h1>
+<p>Devito provides a number of convenience Operators that can be imported and run
+in user code to facilitate development. These are exposed as free functions.</p>
+<p>All built-in Operators support MPI.</p>
+<span class="target" id="module-devito.builtins"></span><p>Built-in Operators provided by Devito.</p>
+<dl class="function">
+<dt id="devito.builtins.assign">
+<code class="descclassname">devito.builtins.</code><code class="descname">assign</code><span class="sig-paren">(</span><em>f</em>, <em>v=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#assign"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.assign" title="Permalink to this definition">¶</a></dt>
+<dd><p>Assign a value to a Function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>f</strong> (<a class="reference internal" href="function.html#devito.function.Function" title="devito.function.Function"><em>Function</em></a>) – The left-hand side of the assignment.</li>
+<li><strong>v</strong> (<em>scalar</em><em>, </em><em>optional</em>) – The right-hand side of the assignment.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.builtins.smooth">
+<code class="descclassname">devito.builtins.</code><code class="descname">smooth</code><span class="sig-paren">(</span><em>f</em>, <em>g</em>, <em>axis=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.smooth" title="Permalink to this definition">¶</a></dt>
+<dd><p>Smooth a Function through simple moving average.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>f</strong> (<a class="reference internal" href="function.html#devito.function.Function" title="devito.function.Function"><em>Function</em></a>) – The left-hand side of the smoothing kernel, that is the smoothed Function.</li>
+<li><strong>g</strong> (<a class="reference internal" href="function.html#devito.function.Function" title="devito.function.Function"><em>Function</em></a>) – The right-hand side of the smoothing kernel, that is the Function being smoothed.</li>
+<li><strong>axis</strong> (<a class="reference internal" href="dimension.html#devito.dimension.Dimension" title="devito.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimensions</em><em>, </em><em>optional</em>) – The Dimension along which the smoothing operation is performed. Defaults
+to <code class="docutils literal notranslate"><span class="pre">f</span></code>’s innermost Dimension.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>More info about simple moving average available at:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">en</span><span class="o">.</span><span class="n">wikipedia</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">wiki</span><span class="o">/</span><span class="n">Moving_average</span><span class="c1">#Simple_moving_average</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.builtins.norm">
+<code class="descclassname">devito.builtins.</code><code class="descname">norm</code><span class="sig-paren">(</span><em>f</em>, <em>order=2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#norm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.norm" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the norm of a Function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>f</strong> (<a class="reference internal" href="function.html#devito.function.Function" title="devito.function.Function"><em>Function</em></a>) – Input Function.</li>
+<li><strong>order</strong> (<em>int</em><em>, </em><em>optional</em>) – The order of the norm. Defaults to 2.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.builtins.sumall">
+<code class="descclassname">devito.builtins.</code><code class="descname">sumall</code><span class="sig-paren">(</span><em>f</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#sumall"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.sumall" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the sum of all Function data.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>f</strong> (<a class="reference internal" href="function.html#devito.function.Function" title="devito.function.Function"><em>Function</em></a>) – Input Function.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.builtins.inner">
+<code class="descclassname">devito.builtins.</code><code class="descname">inner</code><span class="sig-paren">(</span><em>f</em>, <em>g</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#inner"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.inner" title="Permalink to this definition">¶</a></dt>
+<dd><p>Inner product of two Functions.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>f</strong> (<a class="reference internal" href="function.html#devito.function.Function" title="devito.function.Function"><em>Function</em></a>) – First input operand</li>
+<li><strong>g</strong> (<a class="reference internal" href="function.html#devito.function.Function" title="devito.function.Function"><em>Function</em></a>) – Second input operand</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If the two input Functions are defined over different grids, or have
+different dimensionality, or their dimension-wise sizes don’t match.
+If in input are two SparseFunctions and their coordinates don’t match,
+the exception is raised.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>The inner product is the sum of all dimension-wise products. For 1D Functions,
+the inner product corresponds to the dot product.</p>
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="compiler.html" class="btn btn-neutral float-right" title="The Devito Compiler" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="operator.html" class="btn btn-neutral" title="Operator" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016-2019, Devito
+
+    </p>
+  </div> 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
