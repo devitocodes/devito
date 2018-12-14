@@ -1,8 +1,0 @@
-=====
-Grids
-=====
-
-.. toctree::
-
-    grid
-    subdomain

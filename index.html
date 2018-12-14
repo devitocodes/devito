@@ -8,10 +8,12 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Devito - Fast Finite Difference Computation &mdash; Devito 1 documentation</title>
+  <title>The Devito project &mdash; Devito v3.4</title>
   
 
   
+  
+    <link rel="shortcut icon" href="_static/devito_logo.png"/>
   
   
   
@@ -24,26 +26,20 @@
 
   
 
-  
-  
-    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Obtain Devito" href="download.html" />
+    <link href="_static/devito_style.css" rel="stylesheet" type="text/css">
 
-  
-
-  
-        <link rel="index" title="Index"
-              href="genindex.html"/>
-        <link rel="search" title="Search" href="search.html"/>
-    <link rel="top" title="Devito 1 documentation" href="#"/>
-        <link rel="next" title="Download Devito" href="download.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
 
 </head>
 
-<body class="wy-body-for-nav" role="document">
+<body class="wy-body-for-nav">
 
    
   <div class="wy-grid-for-nav">
@@ -55,18 +51,17 @@
           
 
           
-            <a href="#" class="icon icon-home"> Devito
+            <a href="#" class="icon icon-home"> Devito v3.4
           
 
+          
+            
+            <img src="_static/devito_logo.png" class="logo" alt="Logo"/>
           
           </a>
 
           
             
-            
-              <div class="version">
-                0
-              </div>
             
           
 
@@ -92,9 +87,8 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="examples.html">Example Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="devito.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="userapi.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compiler.html">The Devito Compiler</a></li>
 </ul>
 
             
@@ -106,17 +100,18 @@
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
       
-      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+      <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="#">Devito</a>
+          <a href="#">Devito v3.4</a>
         
       </nav>
 
 
-      
       <div class="wy-nav-content">
+        
         <div class="rst-content">
+        
           
 
 
@@ -139,7 +134,7 @@
     
       <li><a href="#">Docs</a> &raquo;</li>
         
-      <li>Devito - Fast Finite Difference Computation</li>
+      <li>The Devito project</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -158,47 +153,38 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="devito-fast-finite-difference-computation">
-<h1>Devito - Fast Finite Difference Computation<a class="headerlink" href="#devito-fast-finite-difference-computation" title="Permalink to this headline">¶</a></h1>
-<p>Devito is a new tool for performing optimised Finite Difference (FD)
-computation from high-level symbolic problem definitions. Devito performs
-automated code generation and Just-In-time (JIT) compilation based on symbolic
-equations defined in <a class="reference external" href="http://www.sympy.org/en/index.html">SymPy</a> to create
-and execute highly optimised Finite Difference kernels on multiple computer
-platforms.</p>
-<p>Devito is also intended to provide the driving operator kernels for a prototype
-Full Waveform Inversion (FWI) code that can be found
-<a class="reference external" href="https://github.com/opesci/inversion">here</a>.</p>
+  <div class="section" id="devito">
+<h1>Devito<a class="headerlink" href="#devito" title="Permalink to this headline">¶</a></h1>
+<p>Welcome to the Devito documentation!</p>
+<p><a class="reference external" href="http://www.devitoproject.org">Devito</a> is a software to
+implement optimised finite difference (FD) computation from
+high-level symbolic problem definitions. Starting from symbolic
+equations defined in <a class="reference external" href="http://www.sympy.org/en/index.html">SymPy</a>,
+Devito employs automated code generation and just-in-time (JIT)
+compilation to execute FD kernels on multiple computer platforms.</p>
 <div class="section" id="getting-started">
 <h2>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this headline">¶</a></h2>
 <p>You can get instructions on how to download and install Devito
 <a class="reference internal" href="download.html"><span class="doc">here</span></a>.</p>
 <p>To learn how to use Devito, check our <a class="reference internal" href="tutorials.html"><span class="doc">tutorials and examples</span></a>.</p>
-<p>You can find the API Documentation <a class="reference internal" href="devito.html"><span class="doc">here</span></a>.</p>
+<p>You can find the API Reference, which includes detailed explanations and
+inline examples, <a class="reference internal" href="userapi.html"><span class="doc">here</span></a>.</p>
+<p>If you want to know more about how the Devito compiler works,
+have a look at this <a class="reference internal" href="compiler.html"><span class="doc">material</span></a>.</p>
 <div class="toctree-wrapper compound">
 </div>
 </div>
 </div>
-<div class="section" id="indices-and-tables">
-<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
-<ul class="simple">
-<li><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></li>
-<li><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></li>
-<li><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></li>
-</ul>
-</div>
 
 
            </div>
-           <div class="articleComments">
-            
-           </div>
+           
           </div>
           <footer>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="download.html" class="btn btn-neutral float-right" title="Download Devito" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="download.html" class="btn btn-neutral float-right" title="Obtain Devito" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
     </div>
@@ -208,11 +194,10 @@ Full Waveform Inversion (FWI) code that can be found
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2016, Opesci.
+        &copy; Copyright 2016-2019, Devito
 
     </p>
-  </div>
-  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  </div> 
 
 </footer>
 
@@ -227,36 +212,23 @@ Full Waveform Inversion (FWI) code that can be found
 
   
 
-    <script type="text/javascript">
-        var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'./',
-            VERSION:'1',
-            COLLAPSE_INDEX:false,
-            FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true,
-            SOURCELINK_SUFFIX: '.txt'
-        };
-    </script>
-      <script type="text/javascript" src="_static/jquery.js"></script>
-      <script type="text/javascript" src="_static/underscore.js"></script>
-      <script type="text/javascript" src="_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+    
 
   
 
-  
-  
-    <script type="text/javascript" src="_static/js/theme.js"></script>
-  
+  <script type="text/javascript" src="_static/js/theme.js"></script>
 
-  
-  
   <script type="text/javascript">
       jQuery(function () {
-          SphinxRtdTheme.StickyNav.enable();
+          SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-   
+  </script> 
 
 </body>
 </html>
