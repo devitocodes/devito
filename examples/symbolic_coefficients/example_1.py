@@ -45,13 +45,9 @@ u_t_coeffs = (1, u, time, np.array([1.0, -2.0, 1.0]))
 # Main equations
 eq = Eq(u.dt+u.dx+v.dx, coefficients=Coefficients(u_x_coeffs,u_t_coeffs))
 
-#print((x[0]**2 + x[0]**4).xreplace({x[0]**2: 1, x[0]**4: 2}))
-
-#print(eq)
+print(eq)
 
 #stencil = solve(eq, u.forward)
-
-#print(stencil)
 
 ## bc's
 #bc = [Eq(u[time+1,0], 0.0)]
