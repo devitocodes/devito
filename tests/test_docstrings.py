@@ -10,23 +10,21 @@
 # * skipping tests when using a devito backend (where they would fail, for
 #   the most disparate reasons)
 
-from os.path import abspath, dirname
-from subprocess import check_call
+from importlib import import_module
 
 import pytest
-import devito
+import doctest
 
 from conftest import skipif
 
 pytestmark = skipif(['yask', 'ops'])
 
-root = dirname(abspath(devito.__file__))
 
-
-@pytest.mark.parametrize('module', [
+@pytest.mark.parametrize('modname', [
     'dimension', 'equation', 'function', 'grid', 'operator',
-    'data/decomposition', 'finite_differences/finite_difference',
-    'ir/support/space'
+    'data.decomposition', 'finite_differences.finite_difference',
+    'ir.support.space'
 ])
-def test_docstrings(module):
-    assert check_call(["py.test", "--doctest-modules", "%s/%s.py" % (root, module)]) == 0
+def test_docstrings(modname):
+    module = import_module('devito.%s' % modname)
+    assert doctest.testmod(module).failed == 0
