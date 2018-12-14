@@ -148,5 +148,5 @@ script:
   - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then
           set -e;
           pip install doctr;
-          doctr deploy . --built-docs docs --key-path .deploy_key.enc;
+          doctr deploy . --built-docs docs/_build/html --key-path .deploy_key.enc;
     fi
