@@ -140,8 +140,6 @@ script:
   # Code coverage and documentation generation
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       codecov;
-      sphinx-apidoc -f -o docs/ examples;
-      sphinx-apidoc -f -o docs/ devito devito/yask/*;
       cd docs;
       make html;
       cd ..;
@@ -150,5 +148,5 @@ script:
   - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then
           set -e;
           pip install doctr;
-          doctr deploy . --built-docs docs --key-path .deploy_key.enc;
+          doctr deploy . --built-docs docs/_build/html --key-path .deploy_key.enc;
     fi

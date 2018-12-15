@@ -29,14 +29,18 @@ class YaskKernel(object):
         import the corresponding SWIG-generated Python module, and finally
         create a YASK kernel solution object.
 
-        :param name: Unique name of this YaskKernel.
-        :param yc_soln: YaskCompiler solution.
-        :param local_grids: A local grid is necessary to run the YaskKernel,
-                            but its final content can be ditched. Indeed, local
-                            grids are hidden to users -- for example, they could
-                            represent temporary arrays introduced by the DSE.
-                            This parameter tells which of the ``yc_soln``'s grids
-                            are local.
+        Parameters
+        ----------
+        name : str
+            Unique name of this YaskKernel.
+        yc_soln
+            The YaskCompiler solution.
+        local_grids : list of Array, optional
+            A local grid is necessary to run the YaskKernel, but it can be
+            deallocated upon returning to Python-land.  For example, local
+            grids could be used to implement the temporary arrays introduced by
+            the DSE.  This parameter tells which of the ``yc_soln``'s grids are
+            local.
         """
         self.name = name
 
@@ -137,9 +141,7 @@ class YaskKernel(object):
         self.local_grids = {i.name: self.grids[i.name] for i in (local_grids or [])}
 
     def new_grid(self, obj):
-        """
-        Create a new YASK grid.
-        """
+        """Create a new YASK grid."""
         return self.soln.new_fixed_size_grid('%s_%d' % (obj.name, contexts.ngrids),
                                              [str(i.root) for i in obj.indices],
                                              [int(i) for i in obj.shape])  # cast np.int
@@ -148,8 +150,10 @@ class YaskKernel(object):
         """
         Set up the YaskKernel before it's called from within an Operator.
 
-        :param toshare: Mapper from functions to :class:`Data`s for sharing
-                        grid storage.
+        Parameters
+        ----------
+        toshare : dict
+            Mapper ``Function -> Data`` for grid-storage sharing.
         """
         # Sanity check
         grids = {i.grid for i in toshare if i.is_TensorFunction and i.grid is not None}
@@ -205,9 +209,7 @@ class YaskKernel(object):
             self.soln.run_auto_tuner_now()
 
     def post_apply(self):
-        """
-        Release temporary storage and dump performance data about the last run.
-        """
+        """Release temporary storage and dump performance data about the last run."""
         # Release grid storage. Note: this *will not* cause deallocation, as these
         # grids are actually shared with the hook solution
         for i in self.grids.values():
@@ -249,8 +251,12 @@ class YaskContext(Signer):
         A ``YaskContext`` contains N :class:`YaskKernel` and M :class:`Data`,
         which have common space and time dimensions.
 
-        :param name: Unique name of the context.
-        :param grid: A :class:`Grid` carrying the context dimensions.
+        Parameters
+        ----------
+        name : str
+            Unique name of the context.
+        grid : Grid
+            A :class:`Grid` carrying the context dimensions.
         """
         self.name = name
         self.space_dimensions = grid.dimensions
@@ -274,7 +280,10 @@ class YaskContext(Signer):
         Create and return a new :class:`Data`, a YASK grid wrapper. Memory
         is allocated.
 
-        :param obj: The :class:`Function` for which a YASK grid is allocated.
+        Parameters
+        ----------
+        obj : Function
+            The :class:`Function` for which a YASK grid is allocated.
         """
         # 'hook' compiler solution: describes the grid
         # 'hook' kernel solution: allocates memory
@@ -309,7 +318,7 @@ class YaskContext(Signer):
             elif alloc.put_local:
                 grid.set_numa_preferred(namespace['numa-put-local'])
 
-        for i, s, h in zip(obj.indices, obj.shape_allocated, obj._extent_halo):
+        for i, s, h in zip(obj.indices, obj.shape_allocated, obj._size_halo):
             if i.is_Space:
                 # Note:
                 # From the YASK docs: "If the halo is set to a value larger than
@@ -328,9 +337,7 @@ class YaskContext(Signer):
         return grid
 
     def make_yc_solution(self, name):
-        """
-        Create and return a YASK compiler solution object.
-        """
+        """Create and return a YASK compiler solution object."""
         yc_soln = cfac.new_solution(name)
 
         # Redirect stdout/strerr to a string or file
@@ -397,9 +404,7 @@ class ContextManager(OrderedDict):
             return base + ((),)
 
     def dump(self):
-        """
-        Drop all known contexts and clean up the relevant YASK directories.
-        """
+        """Drop all known contexts and clean up the relevant YASK directories."""
         self.clear()
         self._partial_map.clear()
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'yask', '*hook*')))

@@ -12,7 +12,7 @@ __all__ = ['Data']
 class Data(np.ndarray):
 
     """
-    A :class:`numpy.ndarray` supporting distributed dimensions.
+    A numpy.ndarray supporting distributed Dimensions.
 
     Parameters
     ----------
@@ -20,11 +20,11 @@ class Data(np.ndarray):
         Shape of created array.
     dtype : numpy.dtype
         The data type of the raw data.
-    decomposition : tuple of :class:`Decomposition`, optional
+    decomposition : tuple of Decomposition, optional
         The data decomposition, for each dimension.
     modulo : tuple of bool, optional
         If the i-th entry is True, then the i-th array dimension uses modulo indexing.
-    allocator : :class:`MemoryAllocator`, optional
+    allocator : MemoryAllocator, optional
         Used to allocate memory. Defaults to ``ALLOC_FLAT``.
 
     Notes
@@ -35,7 +35,7 @@ class Data(np.ndarray):
 
     Any view or copy created from ``self``, for instance via a slice operation
     or a universal function ("ufunc" in NumPy jargon), will still be of type
-    :class:`Data`.
+    Data.
     """
 
     def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=ALLOC_FLAT):
@@ -122,7 +122,7 @@ class Data(np.ndarray):
         return ret
 
     def _global(self, glb_idx, decomposition):
-        """A "global" view of ``self`` over a given :class:`Decomposition`."""
+        """A "global" view of ``self`` over a given Decomposition."""
         if self._is_distributed:
             raise ValueError("Cannot derive a decomposed view from a decomposed Data")
         if len(decomposition) != self.ndim:
@@ -261,9 +261,7 @@ class Data(np.ndarray):
         return loc_idx[0] if len(loc_idx) == 1 else tuple(loc_idx)
 
     def reset(self):
-        """
-        Set all Data entries to 0.
-        """
+        """Set all Data entries to 0."""
         self[:] = 0.0
 
 
@@ -308,9 +306,7 @@ def index_apply_modulo(idx, modulo):
 
 
 def index_dist_to_repl(idx, decomposition):
-    """
-    Convert a distributed array index into a replicated array index.
-    """
+    """Convert a distributed array index into a replicated array index."""
     if decomposition is None:
         return PROJECTED if is_integer(idx) else slice(None)
 
@@ -339,9 +335,7 @@ def index_dist_to_repl(idx, decomposition):
 
 
 def index_glb_to_loc(idx, decomposition):
-    """
-    Convert a global index into a local index.
-    """
+    """Convert a global index into a local index."""
     if is_integer(idx) or isinstance(idx, slice):
         return decomposition(idx)
     elif isinstance(idx, (tuple, list)):

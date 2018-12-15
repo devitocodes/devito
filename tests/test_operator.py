@@ -4,8 +4,8 @@ import pytest
 from conftest import skipif, EVAL, time, x, y, z
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, configuration)
-from devito.ir.iet import (Expression, Iteration, ArrayCast, FindNodes,
+                    NODE, CELL, configuration, switchconfig)
+from devito.ir.iet import (ArrayCast, Expression, Iteration, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
@@ -73,22 +73,22 @@ class TestCodeGen(object):
         expr = Operator(expr)._specialize_exprs([indexify(expr)])[0]
         assert str(expr).replace(' ', '') == expected
 
+    @switchconfig(codegen='explicit')
     @pytest.mark.parametrize('so, to, padding, expected', [
-        (0, 1, 0, '(float(*)[x_size][y_size][z_size])u_vec'),
-        (2, 1, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec'),
-        (4, 1, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec'),
-        (4, 3, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec'),
-        (4, 1, 3, '(float(*)[x_size+3+3+4+4][y_size+3+3+4+4][z_size+3+3+4+4])u_vec'),
-        ((2, 5, 2), 1, 0, '(float(*)[x_size+2+5][y_size+2+5][z_size+2+5])u_vec'),
+        (0, 1, 0, '(float(*)[x_size][y_size][z_size])u_vec->data'),
+        (2, 1, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec->data'),
+        (4, 1, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec->data'),
+        (4, 3, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec->data'),
+        (4, 1, 3, '(float(*)[x_size+4+4+3][y_size+4+4+3][z_size+4+4+3])u_vec->data'),
+        ((2, 5, 2), 1, 0, '(float(*)[x_size+2+5][y_size+2+5][z_size+2+5])u_vec->data'),
         ((2, 5, 4), 1, 3,
-         '(float(*)[x_size+3+3+4+5][y_size+3+3+4+5][z_size+3+3+4+5])u_vec'),
+         '(float(*)[x_size+4+5+3][y_size+4+5+3][z_size+4+5+3])u_vec->data'),
     ])
     def test_array_casts(self, so, to, padding, expected):
         """Tests that data casts are generated correctly."""
         grid = Grid(shape=(4, 4, 4))
         u = TimeFunction(name='u', grid=grid,
                          space_order=so, time_order=to, padding=padding)
-
         op = Operator(Eq(u, 1), dse='noop', dle='noop')
         casts = FindNodes(ArrayCast).visit(op)
         assert len(casts) == 1
@@ -373,15 +373,15 @@ class TestArguments(object):
         Utility function to verify an argument dictionary against
         expected values.
         """
-        for name, value in expected.items():
-            if isinstance(value, np.ndarray):
-                condition = (arguments[name] == value).all()
+        for name, v in expected.items():
+            if isinstance(v, (Function, SparseFunction)):
+                condition = (v._C_as_ndarray(arguments[name]) == v.data_with_halo).all()
             else:
-                condition = arguments[name] == value
+                condition = arguments[name] == v
 
             if not condition:
                 error('Wrong argument %s: expected %s, got %s' %
-                      (name, value, arguments[name]))
+                      (name, v, arguments[name]))
             assert condition
 
     def verify_parameters(self, parameters, expected):
@@ -410,14 +410,13 @@ class TestArguments(object):
         op = Operator(Eq(g, g + f))
 
         expected = {
-            'x_size': 5, 'x_m': 0, 'x_M': 4,
-            'y_size': 6, 'y_m': 0, 'y_M': 5,
-            'z_size': 7, 'z_m': 0, 'z_M': 6,
-            'f': f.data_with_halo, 'g': g.data_with_halo,
+            'x_m': 0, 'x_M': 4,
+            'y_m': 0, 'y_M': 5,
+            'z_m': 0, 'z_M': 6,
+            'f': f, 'g': g,
         }
         self.verify_arguments(op.arguments(time=4), expected)
-        exp_parameters = ['f', 'g', 'x_m', 'x_M', 'x_size', 'y_m',
-                          'y_M', 'y_size', 'z_m', 'z_M', 'z_size',
+        exp_parameters = ['f', 'g', 'x_m', 'x_M', 'y_m', 'y_M', 'z_m', 'z_M',
                           'time_m', 'time_M']
         self.verify_parameters(op.parameters, exp_parameters)
 
@@ -434,7 +433,7 @@ class TestArguments(object):
         op = Operator(s.interpolate(f))
 
         expected = {
-            's': s.data, 's_coords': s.coordinates.data,
+            's': s, 's_coords': s.coordinates,
             # Default dimensions of the sparse data
             'p_s_size': 3, 'p_s_m': 0, 'p_s_M': 2,
             'd_size': 3, 'd_m': 0, 'd_M': 2,
@@ -462,10 +461,10 @@ class TestArguments(object):
         args = {'x': 3, 'y': 4, 'z': 5}
         arguments = op.arguments(**args)
         expected = {
-            'x_size': 5, 'x_m': 0, 'x_M': 3,
-            'y_size': 6, 'y_m': 0, 'y_M': 4,
-            'z_size': 7, 'z_m': 0, 'z_M': 5,
-            'g': g.data_with_halo
+            'x_m': 0, 'x_M': 3,
+            'y_m': 0, 'y_M': 4,
+            'z_m': 0, 'z_M': 5,
+            'g': g
         }
         self.verify_arguments(arguments, expected)
         # Verify execution
@@ -486,10 +485,10 @@ class TestArguments(object):
         args = {'x_m': 1, 'x_M': 3, 'y_m': 2, 'y_M': 4, 'z_m': 3, 'z_M': 5}
         arguments = op.arguments(**args)
         expected = {
-            'x_size': 5, 'x_m': 1, 'x_M': 3,
-            'y_size': 6, 'y_m': 2, 'y_M': 4,
-            'z_size': 7, 'z_m': 3, 'z_M': 5,
-            'g': g.data_with_halo
+            'x_m': 1, 'x_M': 3,
+            'y_m': 2, 'y_M': 4,
+            'z_m': 3, 'z_M': 5,
+            'g': g
         }
         self.verify_arguments(arguments, expected)
         # Verify execution
@@ -516,11 +515,11 @@ class TestArguments(object):
                 'z_m': 3, 'z_M': 5, 't_m': 1, 't_M': 4}
         arguments = op.arguments(**args)
         expected = {
-            'x_size': 5, 'x_m': 1, 'x_M': 3,
-            'y_size': 6, 'y_m': 2, 'y_M': 4,
-            'z_size': 7, 'z_m': 3, 'z_M': 5,
+            'x_m': 1, 'x_M': 3,
+            'y_m': 2, 'y_M': 4,
+            'z_m': 3, 'z_M': 5,
             'time_m': 1, 'time_M': 4,
-            'f': f.data_with_halo
+            'f': f
         }
         self.verify_arguments(arguments, expected)
         # Verify execution
@@ -559,7 +558,7 @@ class TestArguments(object):
         a3 = np.zeros_like(a.data_with_halo)
         a3[:] = 4.
         op(a=a3)
-        assert (a3[[slice(i.left, -i.right) for i in a._offset_domain]] == 7.).all()
+        assert (a3[a._mask_domain] == 7.).all()
 
     def test_override_timefunction_data(self):
         """
@@ -592,7 +591,7 @@ class TestArguments(object):
         a3 = np.zeros_like(a.data_with_halo)
         a3[:] = 4.
         op(time_m=0, time=1, a=a3)
-        assert (a3[[slice(i.left, -i.right) for i in a._offset_domain]] == 7.).all()
+        assert (a3[a._mask_domain] == 7.).all()
 
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
@@ -663,8 +662,9 @@ class TestArguments(object):
         # whether the override picks up the original coordinates or the changed ones
 
         args = op.arguments(src1=src2, time=0)
-        arg_name = src1.name + "_coords"
-        assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
+        arg_name = src1.coordinates._arg_names[0]
+        assert(np.array_equal(src2.coordinates._C_as_ndarray(args[arg_name]),
+                              np.asarray((new_coords,))))
 
     def test_override_sparse_data_default_dim(self):
         """
@@ -686,8 +686,9 @@ class TestArguments(object):
         # whether the override picks up the original coordinates or the changed ones
 
         args = op.arguments(src1=src2, t=0)
-        arg_name = src1.name + "_coords"
-        assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
+        arg_name = src1.coordinates._arg_names[0]
+        assert(np.array_equal(src2.coordinates._C_as_ndarray(args[arg_name]),
+                              np.asarray((new_coords,))))
 
     def test_argument_derivation_order(self, nt=100):
         """ Ensure the precedence order of arguments is respected
@@ -805,6 +806,29 @@ class TestArguments(object):
             assert False
         finally:
             configuration['ignore-unknowns'] = configuration._defaults['ignore-unknowns']
+
+    @pytest.mark.parametrize('so,to,pad,expected', [
+        (0, 1, 0, (2, 4, 4, 4)),
+        (2, 1, 0, (2, 8, 8, 8)),
+        (4, 1, 0, (2, 12, 12, 12)),
+        (4, 3, 0, (4, 12, 12, 12)),
+        (4, 1, 3, (2, 15, 15, 15)),
+        ((2, 5, 2), 1, 0, (2, 11, 11, 11)),
+        ((2, 5, 4), 1, 3, (2, 16, 16, 16)),
+    ])
+    def test_function_dataobj(self, so, to, pad, expected):
+        """Tests that the C-level structs from TensorFunctions are properly
+        populated upon application of an Operator."""
+        grid = Grid(shape=(4, 4, 4))
+
+        u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to, padding=pad)
+
+        op = Operator(Eq(u, 1), dse='noop', dle='noop')
+
+        u_arg = op.arguments(time=0)['u']
+        u_arg_shape = tuple(u_arg._obj.size[i] for i in range(u.ndim))
+
+        assert u_arg_shape == expected
 
 
 class TestDeclarator(object):

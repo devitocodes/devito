@@ -20,26 +20,30 @@ def count(exprs, query):
     return dict(mapper)
 
 
-def estimate_cost(handle, estimate_functions=False):
-    """Estimate the operation count of ``handle``.
+def estimate_cost(expr, estimate_functions=False):
+    """
+    Estimate the operation count of an expression.
 
-    :param handle: a SymPy expression or an iterator of SymPy expressions.
-    :param estimate_functions: approximate the operation count of known
-                               functions (eg, sin, cos).
+    Parameters
+    ----------
+    expr : expr-like or list of expr-like
+        One or more expressions for which the operation count is calculated.
+    estimate_functions : dict, optional
+        A mapper from known functions (e.g., sin, cos) to (estimated) operation counts.
     """
     external_functions = {sin: 50, cos: 50}
     try:
         # Is it a plain SymPy object ?
-        iter(handle)
+        iter(expr)
     except TypeError:
-        handle = [handle]
+        expr = [expr]
     try:
         # Is it a dict ?
-        handle = handle.values()
+        expr = expr.values()
     except AttributeError:
         try:
             # Must be a list of dicts then
-            handle = flatten([i.values() for i in handle])
+            expr = flatten([i.values() for i in expr])
         except AttributeError:
             pass
     try:
@@ -47,8 +51,8 @@ def estimate_cost(handle, estimate_functions=False):
         # We don't use SymPy's count_ops because we do not count integer arithmetic
         # (e.g., array index functions such as i+1 in A[i+1])
         # Also, the routine below is *much* faster than count_ops
-        handle = [i.rhs if i.is_Equality else i for i in handle]
-        operations = flatten(retrieve_ops(i) for i in handle)
+        expr = [i.rhs if i.is_Equality else i for i in expr]
+        operations = flatten(retrieve_ops(i) for i in expr)
         flops = 0
         for op in operations:
             if op.is_Function:
@@ -60,4 +64,4 @@ def estimate_cost(handle, estimate_functions=False):
                 flops += len(op.args) - (1 + sum(True for i in op.args if i.is_Integer))
         return flops
     except:
-        warning("Cannot estimate cost of %s" % str(handle))
+        warning("Cannot estimate cost of %s" % str(expr))

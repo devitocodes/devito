@@ -9,7 +9,7 @@ from ctypes.util import find_library
 
 from devito.logger import logger
 from devito.parameters import configuration
-from devito.tools import numpy_to_ctypes
+from devito.tools import dtype_to_ctype
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
@@ -28,6 +28,9 @@ class MemoryAllocator(object):
     _attempted_init = False
     lib = None
 
+    guaranteed_alignment = 64
+    """Guaranteed data alignment."""
+
     @classmethod
     def available(cls):
         if cls._attempted_init is False:
@@ -40,9 +43,9 @@ class MemoryAllocator(object):
         """
         Initialize the MemoryAllocator.
 
-        .. note::
-
-            This must be implemented by all subclasses of MemoryAllocator.
+        Notes
+        -----
+        This method must be implemented by all subclasses of MemoryAllocator.
         """
         return
 
@@ -50,16 +53,22 @@ class MemoryAllocator(object):
         """
         Allocate memory.
 
-        :param shape: Shape of the array to allocate.
-        :param dtype: Numpy datatype to allocate.
+        Parameters
+        ----------
+        shape : tuple of ints
+            Shape of the allocated array.
+        dtype : numpy.dtype
+            The data type of the raw data.
 
-        :returns (pointer, free_handle): The first element of the tuple is the reference
-                                         that can be used to access the data as a ctypes
-                                         object. The second element is an opaque object
-                                         that is needed only for the call to free.
+        Returns
+        -------
+        pointer, memfree_args
+            The first element of the tuple is the reference that can be used to
+            access the data as a ctypes object. The second element is an opaque
+            object that is needed only for the "memfree" call.
         """
         size = int(reduce(mul, shape))
-        ctype = numpy_to_ctypes(dtype)
+        ctype = dtype_to_ctype(dtype)
 
         c_pointer, memfree_args = self._alloc_C_libcall(size, ctype)
         if c_pointer is None:
@@ -74,13 +83,13 @@ class MemoryAllocator(object):
     @abc.abstractmethod
     def _alloc_C_libcall(self, size, ctype):
         """
-        Perform the actual memory allocation by calling a C function.
-        Should return a 2-tuple (c_pointer, memfree_args), where the free args
-        are what is handed back to free() later to deallocate.
+        Perform the actual memory allocation by calling a C function.  Should
+        return a 2-tuple (c_pointer, memfree_args), where the free args are
+        what is handed back to free() later to deallocate.
 
-        .. note::
-
-            This method should be implemented by a subclass.
+        Notes
+        -----
+        This method must be implemented by all subclasses of MemoryAllocator.
         """
         return
 
@@ -89,12 +98,12 @@ class MemoryAllocator(object):
         """
         Free memory previously allocated with ``self.alloc``.
 
-        Arguments are provided exactly as returned in the second
-        element of the tuple returned by _alloc_C_libcall
+        Arguments are provided exactly as returned in the second element of the
+        tuple returned by _alloc_C_libcall
 
-        .. note::
-
-            This method should be implemented by a subclass.
+        Notes
+        -----
+        This method must be implemented by all subclasses of MemoryAllocator.
         """
         return
 
@@ -210,8 +219,12 @@ class NumaAllocator(MemoryAllocator):
     to specify a NUMA node in which memory allocation should be attempted first
     (will fall back to an arbitrary NUMA domain if not enough memory is available)
 
-    :param node: Either an integer, indicating a specific NUMA node, or the special
-                 keywords ``'local'`` or ``'any'``.
+    Parameters
+    ----------
+    node : int or str
+        If an integer, it indicates a specific NUMA node. Otherwise, the two
+        keywords ``local`` ("allocate on the local NUMA node") and ``any``
+        ("allocate on any NUMA node with sufficient free memory") are accepted.
     """
 
     is_Numa = True
@@ -295,8 +308,8 @@ ALLOC_NUMA_LOCAL = NumaAllocator('local')
 
 def default_allocator():
     """
-    Return a :class:`MemoryAllocator` for the architecture on which the
-    process is running. Possible allocators are: ::
+    Return a suitable MemoryAllocator for the architecture on which the process
+    is running. Possible allocators are: ::
 
         * ALLOC_FLAT: Align memory to page boundaries using the posix function
                       ``posix_memalign``

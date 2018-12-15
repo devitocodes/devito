@@ -1,11 +1,9 @@
 """Metaclasses used to construct classes of proper backend type at runtime."""
 
-from __future__ import absolute_import
-
 from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
-from devito.grid import Grid
+import devito.grid as grid
 import devito.types as types
 import devito.function as function
 import devito.operator as operator
@@ -47,7 +45,7 @@ class PrecomputedSparseTimeFunction(with_metaclass(_BackendSelector, function.Pr
     pass
 
 
-class Grid(with_metaclass(_BackendSelector, Grid)):
+class Grid(with_metaclass(_BackendSelector, grid.Grid)):
     pass
 
 

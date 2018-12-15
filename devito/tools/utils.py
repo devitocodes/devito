@@ -6,10 +6,12 @@ from operator import attrgetter, mul
 
 import numpy as np
 import sympy
+from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'roundm',
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
-           'filter_sorted', 'ctypes_to_C', 'ctypes_pointer', 'pprint', 'sweep']
+           'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
+           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep']
 
 
 def prod(iterable):
@@ -133,7 +135,10 @@ def single_or(l):
 def filter_ordered(elements, key=None):
     """Filter elements in a list while preserving order.
 
-    :param key: Optional conversion key used during equality comparison.
+    Parameters
+    ----------
+    key : callable, optional
+        Conversion key used during equality comparison.
     """
     seen = set()
     if key is None:
@@ -149,20 +154,52 @@ def filter_sorted(elements, key=None):
     return sorted(filter_ordered(elements, key=key), key=key)
 
 
-def ctypes_to_C(ctype):
-    """Map ctypes types to C types."""
+def dtype_to_cstr(dtype):
+    """Translate numpy.dtype into C string."""
+    return cgen_dtype_to_ctype(dtype)
+
+
+def dtype_to_ctype(dtype):
+    """Translate numpy.dtype into a ctypes type."""
+    return {np.int32: ctypes.c_int,
+            np.float32: ctypes.c_float,
+            np.int64: ctypes.c_int64,
+            np.float64: ctypes.c_double}[dtype]
+
+
+def dtype_to_mpitype(dtype):
+    """Map numpy types to MPI datatypes."""
+    return {np.int32: 'MPI_INT',
+            np.float32: 'MPI_FLOAT',
+            np.int64: 'MPI_LONG',
+            np.float64: 'MPI_DOUBLE'}[dtype]
+
+
+def ctypes_to_cstr(ctype, toarray=None):
+    """Translate ctypes types into C strings."""
     if issubclass(ctype, ctypes.Structure):
         return 'struct %s' % ctype.__name__
     elif issubclass(ctype, ctypes.Union):
         return 'union %s' % ctype.__name__
     elif issubclass(ctype, ctypes._Pointer):
-        return '%s*' % ctypes_to_C(ctype._type_)
+        if toarray:
+            return ctypes_to_cstr(ctype._type_, '(* %s)' % toarray)
+        else:
+            return '%s *' % ctypes_to_cstr(ctype._type_)
+    elif issubclass(ctype, ctypes.Array):
+        return '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
         # Here, we're following the ctypes convention that each basic type has
-        # the format c_X_p, where X is the C typename, for instance `int` or `float`.
-        return ctype.__name__[2:-2]
+        # either the format c_X_p or c_X, where X is the C typename, for instance
+        # `int` or `float`.
+        if ctype.__name__.endswith('_p'):
+            return '%s *' % ctype.__name__[2:-2]
+        elif toarray:
+            return '%s %s' % (ctype.__name__[2:], toarray)
+        else:
+            return ctype.__name__[2:]
     else:
         # A custom datatype (e.g., a typedef-ed pointer to struct)
         return ctype.__name__

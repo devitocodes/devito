@@ -10,7 +10,7 @@ from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
-from devito.grid import *  # noqa
+from devito.grid import SubDomain  # noqa
 from devito.finite_differences import *  # noqa
 from devito.function import Buffer, NODE, CELL  # noqa
 from devito.logger import error, warning, info, set_log_level  # noqa
@@ -30,12 +30,19 @@ configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
 configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
 
-# Should Devito run a first-touch Operator upon allocating data?
+# Should Devito run a first-touch Operator upon data allocation?
 configuration.add('first-touch', 0, [0, 1], lambda i: bool(i), False)
 
 # Should Devito ignore any unknown runtime arguments supplied to Operator.apply(),
 # or rather raise an exception (the default behaviour)?
 configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i), False)
+
+# By default, the Devito compiler generates parameters, rather than numbers, for
+# things such as array casts, loop bounds, etc. This maximises Operator reusability,
+# as the same Operator can be applied to Functions that only different in the shape.
+# It is also the only viable way when using MPI. One can change this behaviour
+# (e.g., for educational purposes) by playing with the `codegen` configuration knob
+configuration.add('codegen', 'parametric', ['parametric', 'explicit'])
 
 # Execution mode setup
 def _reinit_compiler(val):  # noqa
@@ -141,15 +148,15 @@ clear_cache = CacheManager().clear  # noqa
 
 # Helper functions to switch on/off optimisation levels
 def mode_develop():
-    """Run all future :class:`Operator`s in develop mode. This is the default
-    configuration for Devito."""
+    """Run all future Operators in develop mode. This is the default mode."""
     configuration['develop-mode'] = True
 
 
 def mode_performance():
-    """Run all future :class:`Operator`s in performance mode. The performance
-    mode will also try to allocate any future :class:`TensorFunction` with
-    a suitable NUMA strategy."""
+    """
+    Run all future Operators in performance mode. The performance mode
+    also employs suitable NUMA strategies for memory allocation.
+    """
     configuration['develop-mode'] = False
     configuration['autotuning'] = ['aggressive',
                                    at_default_mode[configuration['backend']]]

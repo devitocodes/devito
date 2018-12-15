@@ -1,13 +1,10 @@
-from __future__ import absolute_import
-
 from collections import OrderedDict, namedtuple
-from ctypes import Structure, c_double
+from ctypes import c_double
 from functools import reduce
 from operator import mul
 from pathlib import Path
 import os
 
-from cgen import Struct, Value
 from cached_property import cached_property
 
 from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
@@ -56,7 +53,7 @@ class Profiler(object):
                 for k, v in i.traffic.items():
                     mapper.setdefault(k, []).append(v)
             traffic = [IntervalGroup.generate('merge', *i) for i in mapper.values()]
-            traffic = sum(i.extent for i in traffic)
+            traffic = sum(i.size for i in traffic)
 
             # Each ExpressionBundle lives in its own iteration space
             itershapes = [i.shape for i in bundles]
@@ -97,14 +94,6 @@ class Profiler(object):
     def timer(self):
         return Timer(self.name, [i.name for i in self._sections])
 
-    @cached_property
-    def cdef(self):
-        """
-        Return a :class:`cgen.Struct` representing the profiler data structure in C
-        (a ``struct``).
-        """
-        return Struct('profiler', [Value('double', i.name) for i in self._sections])
-
 
 class AdvancedProfiler(Profiler):
 
@@ -113,11 +102,14 @@ class AdvancedProfiler(Profiler):
         """
         Return a :class:`PerformanceSummary` of the profiled sections.
 
-        :param arguments: A mapper from argument names to run-time values from which
-                          the Profiler infers iteration space and execution times
-                          of a run.
-        :param dtype: The data type of the objects in the profiled sections. Used
-                      to compute the operational intensity.
+        Parameters
+        ----------
+        arguments : dict
+            A mapper from argument names to run-time values from which the Profiler
+            infers iteration space and execution times of a run.
+        dtype : data-type, optional
+            The data type of the objects in the profiled sections. Used to compute
+            the operational intensity.
         """
         summary = PerformanceSummary()
         for section, data in self._sections.items():
@@ -196,8 +188,7 @@ class AdvisorProfiler(AdvancedProfiler):
 class Timer(CompositeObject):
 
     def __init__(self, name, sections):
-        super(Timer, self).__init__(name, 'profiler', Structure,
-                                    [(i, c_double) for i in sections])
+        super(Timer, self).__init__(name, 'profiler', [(i, c_double) for i in sections])
 
     def reset(self):
         for i, _ in self.pfields:
@@ -206,11 +197,10 @@ class Timer(CompositeObject):
 
     @property
     def sections(self):
-        return [i for i, _ in self.pfields]
+        return self.fields
 
     # Pickling support
     _pickle_args = ['name', 'sections']
-    _pickle_kwargs = []
 
 
 class PerformanceSummary(OrderedDict):
@@ -244,9 +234,7 @@ PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
 
 
 def create_profile(name):
-    """
-    Create a new :class:`Profiler`.
-    """
+    """Create a new :class:`Profiler`."""
     if configuration['log-level'] == 'DEBUG':
         # Enforce performance profiling in DEBUG mode
         level = 'advanced'

@@ -8,7 +8,7 @@ from unittest.mock import patch
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
                     switchconfig)
-from devito.types import LEFT
+from devito.data import LEFT
 
 pytestmark = skipif(['yask', 'ops'])
 

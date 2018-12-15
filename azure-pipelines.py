@@ -36,8 +36,6 @@ if os.environ.get('testWithPip') != 'true':
         runStep("py.test --nbval examples/seismic/tutorials/0[1-3]*")
         runStep("py.test --nbval examples/compiler")
         runStep("codecov")
-    runStep("sphinx-apidoc -f -o docs/ examples")
-    runStep("sphinx-apidoc -f -o docs/ devito devito/yask/*")
     runStep("pushd docs; make html; popd")
 
 exit(sum(err))
