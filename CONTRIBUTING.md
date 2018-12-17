@@ -29,7 +29,7 @@ Tip, especially for newcomers: prefer short, self-contained Pull Requests over l
 
 Some coding rules are "enforced" (and automatically checked by our Continuous Integration systems), some are "strongly recommended", others are "optional" but welcome.
 
-* We _enforce_ [PEP8](https://www.python.org/dev/peps/pep-0008/), with a few exceptions exceptions, listed [here](https://github.com/opesci/devito/blob/master/setup.cfg#L3)
+* We _enforce_ [PEP8](https://www.python.org/dev/peps/pep-0008/), with a few exceptions, listed [here](https://github.com/opesci/devito/blob/master/setup.cfg#L3)
 * We _enforce_ a maximum line length of 90 characters.
 * We _enforce_ indentation via 4 spaces.
 * We _suggest_ to use ``flake8`` to check the above points locally, before filing a Pull Request.
