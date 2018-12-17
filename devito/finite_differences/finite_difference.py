@@ -170,9 +170,8 @@ def second_derivative(expr, dim, fd_order, stagger=None):
 @check_input
 def cross_derivative(expr, **kwargs):
     """
-    Shifted cross derivative of a given expression.
-    This generates the cross derivatives shifted from the center point
-    to avoid odd-even coupling.
+    Shifted cross derivative of a given expression. This generates the cross derivatives
+    shifted from the center point to avoid odd-even coupling.
     For a conventional cross derivative use `generic_cross_derivative`
 
     Parameters
@@ -268,13 +267,11 @@ def generic_cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, N
     deriv_order : int
         Derivative order, e.g. 2 for a second-order derivative.
     """
-    first = generic_derivative(expr, deriv_order=deriv_order[0],
-                               fd_order=fd_order[0], dim=dims[0],
-                               stagger=stagger[0])
-    return generic_derivative(first, deriv_order=deriv_order[1],
-                              fd_order=fd_order[1], dim=dims[1],
-                              stagger=stagger[1])
+    
+    for d, fd, dim, s in zip(deriv_order, fd_order, dims, stagger):
+        first = generic_derivative(first, deriv_order=d, fd_order=fd, dim=dim, stagger=s)
 
+    return first
 
 @check_input
 def generic_derivative(expr, deriv_order, dim, fd_order, stagger=None):
