@@ -47,6 +47,10 @@ class Differentiable(sympy.Expr):
                                             for i in self._args_diff)))
 
     @cached_property
+    def is_Staggered(self):
+        return any([getattr(i, 'is_Staggered', False) for i in self._args_diff])
+
+    @cached_property
     def _fd(self):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
 

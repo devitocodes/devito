@@ -153,7 +153,7 @@ def second_derivative(expr, dim, fd_order, stagger=None):
     >>> x, _ = grid.dimensions
     >>> f = Function(name='f', grid=grid, space_order=2)
     >>> g = Function(name='g', grid=grid, space_order=2)
-    >>> second_derivative(f*g, order=2, dim=x)
+    >>> second_derivative(f*g, dim=x, fd_order=2)
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
 
@@ -267,11 +267,12 @@ def generic_cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, N
     deriv_order : int
         Derivative order, e.g. 2 for a second-order derivative.
     """
-    
+    first = expr
     for d, fd, dim, s in zip(deriv_order, fd_order, dims, stagger):
         first = generic_derivative(first, deriv_order=d, fd_order=fd, dim=dim, stagger=s)
 
     return first
+
 
 @check_input
 def generic_derivative(expr, deriv_order, dim, fd_order, stagger=None):
