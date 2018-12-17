@@ -67,31 +67,31 @@ class Differentiable(sympy.Expr):
 
     # Override SymPy arithmetic operators
     def __add__(self, other):
-        return Add(self, other)
+        return Add(self, other, evaluate=self is not other)
 
     def __iadd__(self, other):
-        return Add(self, other)
+        return Add(self, other, evaluate=self is not other)
 
     def __radd__(self, other):
-        return Add(other, self)
+        return Add(other, self, evaluate=self is not other)
 
     def __sub__(self, other):
-        return Add(self, -other)
+        return Add(self, -other, evaluate=self is not other)
 
     def __isub__(self, other):
-        return Add(self, -other)
+        return Add(self, -other, evaluate=self is not other)
 
     def __rsub__(self, other):
-        return Add(other, -self)
+        return Add(other, -self, evaluate=self is not other)
 
     def __mul__(self, other):
-        return Mul(self, other)
+        return Mul(self, other, evaluate=self is not other)
 
     def __imul__(self, other):
-        return Mul(self, other)
+        return Mul(self, other, evaluate=self is not other)
 
     def __rmul__(self, other):
-        return Mul(other, self)
+        return Mul(other, self, evaluate=self is not other)
 
     def __pow__(self, other):
         return Pow(self, other)
