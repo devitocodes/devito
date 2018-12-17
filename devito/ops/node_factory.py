@@ -11,8 +11,7 @@ class OPSNodeFactory():
     Examples
     --------
     >>> a = OPSNodeFactory()
-    >>> a.new_symbol('symbol_name')
-    symbol_name
+    >>> a.new_ops_arg()
     """
 
     def __init__(self):
@@ -21,8 +20,6 @@ class OPSNodeFactory():
     def new_ops_arg(self, indexed):
         """
         Create an :class:`Indexed` node using OPS representation.
-        If the pair ops argument name and time dimension were alredy created,
-        it will return the stored value associated with this pair.
 
         Parameters
         ----------
@@ -35,11 +32,12 @@ class OPSNodeFactory():
             Indexed node using OPS representation.
         """
 
-        # Build the ops argument identifier.
-        ops_arg_id = '%s%s' % (indexed.name, indexed.indices[TimeFunction._time_position])
+        # Build the ops argument identifier
+        time_index = split_affine(indexed.indices[TimeFunction._time_position])
+        ops_arg_id = '%s%s%s' % (indexed.name, time_index.var, time_index.shift)
 
         if ops_arg_id not in self.ops_args:
-            # Create the indexed object.
+            # Create the indexed object
             ops_arg = Array(name=ops_arg_id,
                             dimensions=[Dimension(name=namespace['ops_acc'])],
                             dtype=indexed.dtype)
@@ -48,16 +46,16 @@ class OPSNodeFactory():
         else:
             ops_arg = self.ops_args[ops_arg_id]
 
-        # Get the space indices.
+        # Get the space indices
         space_indices = [e for i, e in enumerate(
             indexed.indices) if i != TimeFunction._time_position]
 
-        # Define the Macro used in this ops argument indice.
+        # Define the Macro used in this ops argument indice
         access_macro = Macro('OPS_ACC%d(%s)' % (len(self.ops_args) - 1,
                                                 ','.join(str(split_affine(i).shift)
                                                          for i in space_indices)))
 
-        # Create Indexed object representing the ops argument access.
+        # Create Indexed object representing the ops argument access
         new_indexed = Indexed(ops_arg.indexed, access_macro)
 
         return new_indexed
