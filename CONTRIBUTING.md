@@ -6,14 +6,14 @@ We always welcome third-party contributions. And we would love you to become an 
 
 There are several options:
 * Talk to us. You can join our Slack team via this [link](https://opesci-slackin.now.sh/). Should you have installation issues, or should you bump into something that appears to be a Devito-related bug, do not hesitate to get in touch. We are always keen to help out.
-* File an issue on [our GitHub page](https://github.com/opesci/devito/issues)
+* File an issue on [our GitHub page](https://github.com/opesci/devito/issues).
 
 ### Making changes
 
 First of all, read of [code of conduct](https://github.com/opesci/devito/blob/master/CODE_OF_CONDUCT.md) and make sure you agree with it.
 
 The protocol to propose a patch is:
-* [Recommended, but not compulsory] First of all, talk to us on Slack about what you're trying to do. There is a great chance we can support you.
+* [Recommended, but not compulsory] Talk to us on Slack about what you're trying to do. There is a great chance we can support you.
 * As soon as you know what you need to do, [fork](https://help.github.com/articles/fork-a-repo/) Devito. 
 * Create a branch with a suitable name.
 * Write code following the guidelines below. Commit your changes as small logical units.
