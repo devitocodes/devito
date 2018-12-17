@@ -23,10 +23,10 @@ class Grid(ArgProvider):
     ----------
     shape : tuple of ints
         Shape of the computational domain in grid points.
-    extent : tuple of ints, optional
+    extent : tuple of float, optional
         Physical extent of the domain in m; defaults to a unit box of extent 1m
         in all dimensions.
-    origin : tuple of ints, optional
+    origin : tuple of float, optional
         Physical coordinate of the origin of the domain; defaults to 0.0 in all
         dimensions.
     dimensions : tuple of SpaceDimension, optional

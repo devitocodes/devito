@@ -313,7 +313,7 @@ def second_cross_derivative(expr, dims, order):
 
 
 @check_input
-def generic_cross_derivative(expr, dims, fd_order, deriv_order):
+def generic_cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -364,7 +364,7 @@ def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
     diff = dim.spacing
     idx = list(set([(dim + int(i+.5+off)*diff)
                     for i in range(-int(fd_order / 2), int(fd_order / 2))]))
-    if fd_order//2 == 1:
+    if fd_order <= 2:
         idx = [dim + diff, dim] if stagger == right else [dim - diff, dim]
     c = finite_diff_weights(deriv_order, idx, dim + off*dim.spacing)[-1][-1]
     deriv = 0
@@ -444,7 +444,7 @@ def generate_fd_shortcuts(function):
                 dim_order2 = time_fd_order if d2.is_Time else space_fd_order
                 name2 = 't' if d2.is_Time else d2.root.name
                 for o2 in range(1, dim_order2 + 1):
-                    deriv = partial(c_deriv_function, deriv_order=(o, o2), dim=(d, d2),
+                    deriv = partial(c_deriv_function, deriv_order=(o, o2), dims=(d, d2),
                                     fd_order=(dim_order, dim_order2),
                                     stagger=(side[d], side[d2]))
                     name_fd2 = 'd%s%d' % (name, o) if o > 1 else 'd%s' % name
