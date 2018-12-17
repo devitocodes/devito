@@ -311,14 +311,13 @@ def generic_derivative(expr, deriv_order, dim, fd_order, stagger=None):
         indices = list(set([(dim + int(i+.5+off) * dim.spacing)
                             for i in range(-fd_order//2, fd_order//2)]))
         x0 = (dim + off*diff)
-        if fd_order <= 2:
+        if fd_order < 2:
             indices = [dim + diff, dim] if stagger == right else [dim - diff, dim]
 
     else:
-        indices = [(dim + int(i+.5+off) * dim.spacing)
-                   for i in range(-fd_order//2, fd_order//2 + 1)]
+        indices = [(dim + i * dim.spacing) for i in range(-fd_order//2, fd_order//2 + 1)]
         x0 = dim
-        if fd_order <= 2:
+        if fd_order < 2:
             indices = [dim, dim + diff]
 
     c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
