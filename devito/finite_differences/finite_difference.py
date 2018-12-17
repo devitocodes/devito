@@ -125,23 +125,27 @@ def first_derivative(expr, **kwargs):
 
 
 @check_input
-def second_derivative(expr, **kwargs):
+def second_derivative(expr, dim, fd_order, stagger=None):
     """
     Second-order derivative of a given expression.
 
     Parameters
     ----------
     expr : expr-like
-        Expression for which the second derivative is produced.
-    **kwargs
-        - ``dim``: Dimension w.r.t. which to differentiate.
-        - ``diff``: Finite-difference symbol, defaults to `h`.
-        - ``order``: Discretisation order of the derivative.
+        Expression for which the derivative is produced.
+
+    dim : Dimension
+        The Dimension w.r.t. which to differentiate.
+    fd_order : int
+        Coefficient discretization order. Note: this impacts the width of
+        the resulting stencil.
+    stagger : Side, optional
+        Shift of the finite-difference approximation.
 
     Returns
     -------
     expr-like
-        The second-order derivative of ``expr``
+        The derivative of ``expr`` of order ``deriv-order``.
 
     Examples
     --------
@@ -161,63 +165,16 @@ def second_derivative(expr, **kwargs):
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
 
-    order = kwargs.get('order', 2)
-    dim = kwargs.get('dim')
-    diff = kwargs.get('diff', dim.spacing)
-
-    ind = [(dim + i * diff) for i in range(-int(order / 2),
-                                           int(order / 2) + 1)]
-
-    coeffs = finite_diff_weights(2, ind, dim)[-1][-1]
-    deriv = 0
-    all_dims = tuple(set((dim, ) +
-                     tuple([i for i in expr.indices if i.root == dim])))
-    for i in range(0, len(ind)):
-            subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
-            deriv += coeffs[i] * expr.subs(subs)
-    return deriv.evalf(_PRECISION)
-
-
-@check_input
-def generic_derivative(expr, deriv_order, dim, fd_order, **kwargs):
-    """
-    Arbitrary-order derivative of a given expression.
-
-    Parameters
-    ----------
-    expr : expr-like
-        Expression for which the derivative is produced.
-    deriv_order : int
-        Derivative order, e.g. 2 for a second-order derivative.
-    dim : Dimension
-        The Dimension w.r.t. which to differentiate.
-    fd_order : int
-        Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil.
-
-    Returns
-    -------
-    expr-like
-        The derivative of ``expr`` of order ``deriv-order``.
-    """
-    indices = [(dim + i * dim.spacing) for i in range(-fd_order//2, fd_order//2 + 1)]
-    if fd_order == 1:
-        indices = [dim, dim + dim.spacing]
-    c = finite_diff_weights(deriv_order, indices, dim)[-1][-1]
-    deriv = 0
-    all_dims = tuple(set((dim, ) +
-                     tuple([i for i in expr.indices if i.root == dim])))
-    for i in range(0, len(indices)):
-            subs = dict([(d, indices[i].subs({dim: d})) for d in all_dims])
-            deriv += expr.subs(subs) * c[i]
-
-    return deriv.evalf(_PRECISION)
+    return generic_derivative(expr, 2, dim, fd_order, stagger=None)
 
 
 @check_input
 def cross_derivative(expr, **kwargs):
     """
-    Cross derivative of a given expression.
+    Shifted cross derivative of a given expression.
+    This generates the cross derivatives shifted from the center point
+    to avoid odd-even coupling.
+    For a conventional cross derivative use `generic_cross_derivative`
 
     Parameters
     ----------
@@ -296,24 +253,7 @@ def cross_derivative(expr, **kwargs):
 
 
 @check_input
-def second_cross_derivative(expr, dims, order):
-    """
-    Second-order cross derivative of a given expression.
-
-    Parameters
-    ----------
-    expr : expr-like
-        Expression for which the second-order cross derivative is produced.
-    dims : tuple
-        2-tuple Dimensions w.r.t. which to differentiate.
-    order : Discretisation order of the derivative.
-    """
-    first = first_derivative(expr, dim=dims[0], width=order)
-    return first_derivative(first, dim=dims[1], order=order).evalf(_PRECISION)
-
-
-@check_input
-def generic_cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
+def generic_cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -330,15 +270,17 @@ def generic_cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
         Derivative order, e.g. 2 for a second-order derivative.
     """
     first = generic_derivative(expr, deriv_order=deriv_order[0],
-                               fd_order=fd_order[0], dim=dims[0])
+                               fd_order=fd_order[0], dim=dims[0],
+                               stagger=stagger[0])
     return generic_derivative(first, deriv_order=deriv_order[1],
-                              fd_order=fd_order[1], dim=dims[1])
+                              fd_order=fd_order[1], dim=dims[1],
+                               stagger=stagger[1])
 
 
 @check_input
-def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
+def generic_derivative(expr, deriv_order, dim, fd_order, stagger=None):
     """
-    Arbitrary-order staggered derivative of a given expression.
+    Arbitrary-order derivative of a given expression.
 
     Parameters
     ----------
@@ -353,50 +295,36 @@ def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
         the resulting stencil.
     stagger : Side, optional
         Shift of the finite-difference approximation.
+
+    Returns
+    -------
+    expr-like
+        The derivative of ``expr`` of order ``deriv-order``.
     """
 
-    if stagger == left:
+    if stagger == left or stagger is None:
         off = -.5
     elif stagger == right:
         off = .5
     else:
         off = 0
-    diff = dim.spacing
-    idx = list(set([(dim + int(i+.5+off)*diff)
-                    for i in range(-int(fd_order / 2), int(fd_order / 2))]))
-    if fd_order <= 2:
-        idx = [dim + diff, dim] if stagger == right else [dim - diff, dim]
-    c = finite_diff_weights(deriv_order, idx, dim + off*dim.spacing)[-1][-1]
+    
+    indices = [(dim + int(i+.5+off) * dim.spacing)
+               for i in range(-fd_order//2, fd_order//2 + 1)]
+
+    if fd_order == 1:
+        indices = [dim, dim + dim.spacing]
+    
+    x0 = dim is stagger is None else dim + off*dim.spacing
+    c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
     deriv = 0
-    for i in range(0, len(idx)):
-            deriv += expr.subs({dim: idx[i]}) * c[i]
+    all_dims = tuple(set((dim, ) +
+                     tuple([i for i in expr.indices if i.root == dim])))
+    for i in range(0, len(indices)):
+            subs = dict([(d, indices[i].subs({dim: d})) for d in all_dims])
+            deriv += expr.subs(subs) * c[i]
 
     return deriv.evalf(_PRECISION)
-
-
-@check_input
-def staggered_cross_diff(expr, dims, deriv_order, fd_order, stagger):
-    """
-    Arbitrary-order cross staggered derivative of a given expression.
-
-    Parameters
-    ----------
-    expr : expr-like
-        Expression for which the derivative is produced.
-    dims : tuple
-        Dimensions w.r.t. which to differentiate.
-    deriv_order : int
-        Derivative order, e.g. 2 for a second-order derivative.
-    fd_order : int
-        Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil.
-    stagger : Side, optional
-        Shift of the finite-difference approximation.
-    """
-    first = staggered_diff(expr, deriv_order=deriv_order[0],
-                           fd_order=fd_order[0], dim=dims[0], stagger=stagger[0])
-    return staggered_diff(first, deriv_order=deriv_order[1],
-                          fd_order=fd_order[1], dim=dims[1], stagger=stagger[1])
 
 
 def generate_fd_shortcuts(function):
@@ -405,12 +333,8 @@ def generate_fd_shortcuts(function):
     space_fd_order = function.space_order
     time_fd_order = function.time_order if function.is_TimeFunction else 0
 
-    if function.is_Staggered:
-        deriv_function = staggered_diff
-        c_deriv_function = staggered_cross_diff
-    else:
-        deriv_function = generic_derivative
-        c_deriv_function = generic_cross_derivative
+    deriv_function = generic_derivative
+    c_deriv_function = generic_cross_derivative
 
     side = dict()
     for (d, s) in zip(dimensions, function.staggered):
