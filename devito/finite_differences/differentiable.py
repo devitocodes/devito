@@ -67,31 +67,31 @@ class Differentiable(sympy.Expr):
 
     # Override SymPy arithmetic operators
     def __add__(self, other):
-        return Add(self, other, evaluate=self is not other)
+        return Add(self, other)
 
     def __iadd__(self, other):
-        return Add(self, other, evaluate=self is not other)
+        return Add(self, other)
 
     def __radd__(self, other):
-        return Add(other, self, evaluate=self is not other)
+        return Add(other, self)
 
     def __sub__(self, other):
-        return Add(self, -other, evaluate=self is not other)
+        return Add(self, -other)
 
     def __isub__(self, other):
-        return Add(self, -other, evaluate=self is not other)
+        return Add(self, -other)
 
     def __rsub__(self, other):
-        return Add(other, -self, evaluate=self is not other)
+        return Add(other, -self)
 
     def __mul__(self, other):
-        return Mul(self, other, evaluate=self is not other)
+        return Mul(self, other)
 
     def __imul__(self, other):
-        return Mul(self, other, evaluate=self is not other)
+        return Mul(self, other)
 
     def __rmul__(self, other):
-        return Mul(other, self, evaluate=self is not other)
+        return Mul(other, self)
 
     def __pow__(self, other):
         return Pow(self, other)
@@ -148,7 +148,16 @@ class Differentiable(sympy.Expr):
 
 
 class Add(sympy.Add, Differentiable):
-    pass
+
+    def __new__(cls, *args, **kwargs):
+        obj = sympy.Add.__new__(cls, *args, **kwargs)
+
+        # `(f + f)` is evaluated as `2*f`, with `*` being a sympy.Mul.
+        # Here we make sure to return our own Add.
+        if obj.is_Mul:
+            obj = Mul(*obj.args)
+
+        return obj
 
 
 class Mul(sympy.Mul, Differentiable):
@@ -160,6 +169,11 @@ class Mul(sympy.Mul, Differentiable):
         # Here we make sure to return our own Add.
         if obj.is_Add:
             obj = Add(*obj.args)
+        
+        # `(f * f)` is evaluated as `f**2`, with `**` being a sympy.Pow.
+        # Here we make sure to return our own Add.
+        if obj.is_Pow:
+            obj = Pow(*obj.args)
 
         return obj
 
