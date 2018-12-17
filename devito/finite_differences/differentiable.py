@@ -169,7 +169,7 @@ class Mul(sympy.Mul, Differentiable):
         # Here we make sure to return our own Add.
         if obj.is_Add:
             obj = Add(*obj.args)
-        
+
         # `(f * f)` is evaluated as `f**2`, with `**` being a sympy.Pow.
         # Here we make sure to return our own Add.
         if obj.is_Pow:

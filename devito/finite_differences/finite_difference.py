@@ -6,8 +6,7 @@ from devito.finite_differences import Differentiable
 from devito.tools import Tag
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
-           'generic_derivative', 'second_cross_derivative', 'staggered_diff',
-           'staggered_cross_diff', 'left', 'right', 'centered', 'transpose']
+           'generic_derivative', 'left', 'right', 'centered', 'transpose']
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deeterministic
 # code generation
@@ -274,7 +273,7 @@ def generic_cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, N
                                stagger=stagger[0])
     return generic_derivative(first, deriv_order=deriv_order[1],
                               fd_order=fd_order[1], dim=dims[1],
-                               stagger=stagger[1])
+                              stagger=stagger[1])
 
 
 @check_input
@@ -302,21 +301,31 @@ def generic_derivative(expr, deriv_order, dim, fd_order, stagger=None):
         The derivative of ``expr`` of order ``deriv-order``.
     """
 
-    if stagger == left or stagger is None:
+    diff = dim.spacing
+
+    if stagger == left or not expr.is_Staggered:
         off = -.5
     elif stagger == right:
         off = .5
     else:
         off = 0
-    
-    indices = [(dim + int(i+.5+off) * dim.spacing)
-               for i in range(-fd_order//2, fd_order//2 + 1)]
 
-    if fd_order == 1:
-        indices = [dim, dim + dim.spacing]
-    
-    x0 = dim is stagger is None else dim + off*dim.spacing
+    if expr.is_Staggered:
+        indices = list(set([(dim + int(i+.5+off) * dim.spacing)
+                            for i in range(-fd_order//2, fd_order//2)]))
+        x0 = (dim + off*diff)
+        if fd_order <= 2:
+            indices = [dim + diff, dim] if stagger == right else [dim - diff, dim]
+
+    else:
+        indices = [(dim + int(i+.5+off) * dim.spacing)
+                   for i in range(-fd_order//2, fd_order//2 + 1)]
+        x0 = dim
+        if fd_order <= 2:
+            indices = [dim, dim + diff]
+
     c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
+
     deriv = 0
     all_dims = tuple(set((dim, ) +
                      tuple([i for i in expr.indices if i.root == dim])))
