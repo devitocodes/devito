@@ -1033,6 +1033,14 @@ class Function(TensorFunction, Differentiable):
     @property
     def space_order(self):
         return self._space_order
+    
+    @memoized_meth
+    def symbol(self):
+        if self._coefficients is 'symbolic':
+            return sympy.Function('W')
+        else:
+            raise ValueError("Function was not declared with symbolic "
+                             "coefficients.")
 
     def fd_coeff_symbol(self):
         if self._coefficients is 'symbolic':

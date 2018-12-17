@@ -1,9 +1,7 @@
 import numpy as np
 from devito import Grid, Function, TimeFunction, Eq, Operator, solve
-from devito import ConditionalDimension, Constant, first_derivative, second_derivative
-
-# Modify so only need import Coefficients
-from devito.finite_differences.coefficients import Coefficients
+from devito import ConditionalDimension, Constant, Coefficients
+from devito import first_derivative, second_derivative
 
 from devito import left, right
 from math import exp
@@ -42,8 +40,10 @@ v.data[:] = 0.0
 u_x_coeffs = (1, u, x[0], np.array([1.0, -2.0, 1.0]))
 u_t_coeffs = (1, u, time, np.array([1.0, -2.0, 1.0]))
 
+coeffs=Coefficients(u_x_coeffs,u_t_coeffs)
+
 # Main equations
-eq = Eq(u.dt+u.dx+v.dx, coefficients=Coefficients(u_x_coeffs,u_t_coeffs))
+eq = Eq(u.dt+u.dx+v.dx, coefficients=coeffs)
 
 print(eq)
 

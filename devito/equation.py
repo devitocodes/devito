@@ -50,10 +50,12 @@ class Eq(sympy.Eq):
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         obj._subdomain = subdomain
         obj._coefficients = coefficients
-        # FIXME: Depending on how the coefficients object is modified
-        # the below test is not sufficient.
         if coefficients is not None:
-            obj = obj.xreplace(coefficients.rules)
+            # FIXME: Need to also replace (with default coeffs) instances in which
+            # coefficients have been declared as symbolic but no replacement rules
+            # have been provided.
+            if bool(coefficients.rules):
+                obj = obj.xreplace(coefficients.rules)
         return obj
 
     @property
