@@ -7,11 +7,9 @@ from devito.types import Indexed, Array
 class OPSNodeFactory():
     """
     Generate OPS nodes for building an OPS expression.
-
-    Examples
-    --------
-    >>> a = OPSNodeFactory()
-    >>> a.new_ops_arg()
+    A new OPS argument is created based on the indexed name and its time dimension,
+    this pair identify a unique argument in the OPS kernel, so  it will return the
+    stored argument associated with this pair if it was alredy created.
     """
 
     def __init__(self):
@@ -32,7 +30,7 @@ class OPSNodeFactory():
             Indexed node using OPS representation.
         """
 
-        # Build the ops argument identifier
+        # Build the OPS arg identifier
         time_index = split_affine(indexed.indices[TimeFunction._time_position])
         ops_arg_id = '%s%s%s' % (indexed.name, time_index.var, time_index.shift)
 
@@ -50,12 +48,12 @@ class OPSNodeFactory():
         space_indices = [e for i, e in enumerate(
             indexed.indices) if i != TimeFunction._time_position]
 
-        # Define the Macro used in this ops argument indice
+        # Define the Macro used in OPS arg index
         access_macro = Macro('OPS_ACC%d(%s)' % (len(self.ops_args) - 1,
                                                 ','.join(str(split_affine(i).shift)
                                                          for i in space_indices)))
 
-        # Create Indexed object representing the ops argument access
+        # Create Indexed object representing the OPS arg access
         new_indexed = Indexed(ops_arg.indexed, access_macro)
 
         return new_indexed
