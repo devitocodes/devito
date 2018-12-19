@@ -7,9 +7,9 @@ from devito.types import Indexed, Array
 class OPSNodeFactory():
     """
     Generate OPS nodes for building an OPS expression.
-    A new OPS argument is created based on the indexed name and its time dimension,
-    this pair identify a unique argument in the OPS kernel, so  it will return the
-    stored argument associated with this pair if it was alredy created.
+    A new OPS argument is created based on the indexed name, and its time dimension.
+    Such a pair identifies an unique argument within the OPS kernel. The function
+    returns the stored argument associated with this pair, if it was already created.
     """
 
     def __init__(self):
