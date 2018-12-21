@@ -14,7 +14,13 @@ class Coefficients(object):
     Devito class for users to define custom finite difference weights.
     """
 
-    # FIXME: Make interface more explicit.
+    # FIXME: Make interface explicit.
+    # Add optional argument nodes and allow
+    # coefficients to also be a list of np.ndarray's
+    # of size nodes or a 'function'.
+    # Then we should be able to generate the default
+    # replacement rules during the __init__ is required.
+    # (and we can then clean equation.py up a bit)
     def __init__(self, *args, **kwargs):
 
         self.check_args(args, kwargs)
