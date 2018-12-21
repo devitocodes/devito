@@ -24,6 +24,7 @@ grid = Grid(shape=(Nx), extent=(Lx))
 time = grid.time_dim
 t = grid.stepping_dim
 x = grid.dimensions
+h_x = grid.spacing
 
 # time stepping parameters
 t_end = 1.0
@@ -44,6 +45,9 @@ coeffs=Coefficients(u_x_coeffs,u_t_coeffs)
 
 # Main equations
 eq = Eq(u.dt+u.dx+v.dx, coefficients=coeffs)
+
+#eq = Eq(u.dt+(u*v+u**2*v[time,x+2*h_x]).dx, coefficients=coeffs)
+#eq = Eq(u.dt+(u*v+u**2*v[time,x+2*h_x]).dx)
 
 print(eq)
 

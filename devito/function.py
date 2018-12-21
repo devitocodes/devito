@@ -1035,7 +1035,7 @@ class Function(TensorFunction, Differentiable):
         return self._space_order
     
     @memoized_meth
-    def symbol(self):
+    def fd_coeff_symbol(self):
         if self._coefficients is 'symbolic':
             return sympy.Function('W')
         else:

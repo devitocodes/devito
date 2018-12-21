@@ -45,13 +45,14 @@ class Coefficients(object):
             
             subs = {}
             
+            # FIXME: indices should not be regenerated here?
             if fd_order == 1:
                 indices = [dim, dim + dim.spacing]
             else:
                 indices = [(dim + i * dim.spacing) for i in range(-fd_order//2, fd_order//2 + 1)]
             
             for j in range(len(coeffs)):
-                subs.update({function.symbol()(indices[j], deriv_order, function, dim): coeffs[j]})
+                subs.update({function.fd_coeff_symbol()(indices[j], deriv_order, function, dim): coeffs[j]})
         
             return subs
         
