@@ -2,6 +2,8 @@
 
 import sympy
 
+from devito.finite_differences import default_rules
+
 __all__ = ['Eq', 'Inc', 'solve']
 
 
@@ -50,12 +52,14 @@ class Eq(sympy.Eq):
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         obj._subdomain = subdomain
         obj._coefficients = coefficients
+        # FIXME: We need to check for which parts of the equation
+        # replacement rules have been provided and use default rules
+        # otherwise. Seems tricky...
         if coefficients is not None:
-            # FIXME: Need to also replace (with default coeffs) instances in which
-            # coefficients have been declared as symbolic but no replacement rules
-            # have been provided.
             if bool(coefficients.rules):
                 obj = obj.xreplace(coefficients.rules)
+            # FIXME: Need to add the default replacements, where
+            # required here.
         return obj
 
     @property

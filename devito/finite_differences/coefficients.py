@@ -4,15 +4,17 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.tools import filter_ordered, flatten
+from devito.finite_differences import generate_indices
 
-__all__ = ['Coefficients']
+__all__ = ['Coefficients', 'default_rules']
 
 
 class Coefficients(object):
     """
     Devito class for users to define custom finite difference weights.
     """
- 
+
+    # FIXME: Make interface more explicit.
     def __init__(self, *args, **kwargs):
 
         self.check_args(args, kwargs)
@@ -45,11 +47,7 @@ class Coefficients(object):
             
             subs = {}
             
-            # FIXME: indices should not be regenerated here?
-            if fd_order == 1:
-                indices = [dim, dim + dim.spacing]
-            else:
-                indices = [(dim + i * dim.spacing) for i in range(-fd_order//2, fd_order//2 + 1)]
+            indices = generate_indices(dim, dim.spacing, fd_order)
             
             for j in range(len(coeffs)):
                 subs.update({function.fd_coeff_symbol()(indices[j], deriv_order, function, dim): coeffs[j]})
@@ -65,3 +63,33 @@ class Coefficients(object):
                 rules.update(generate_subs(d))
                 
         return rules
+
+# FIXME: Currently broken.
+# FIXME: Overall code can be reduced plus fix function calls.
+# FIXME: finite_difference.py possibly needs some re-factoring
+# FIXME: to make everything 'smoother'.
+def default_rules(obj):
+    
+    # FIXME: Needs modification + re-location
+    def generate_subs(d):
+
+        #deriv_order = d[0]
+        #function = d[1]
+        #dim = d[2]
+        #coeffs = d[-1]
+
+        fd_order = len(coeffs)-1
+
+        subs = {}
+
+        indices = generate_indices(dim, dim.spacing, fd_order)
+        
+        c = finite_diff_weights(deriv_order, indices, dim)[-1][-1]
+
+        for j in range(len(coeffs)):
+            subs.update({function.fd_coeff_symbol()(indices[j], deriv_order, function, dim): coeffs[j]})
+
+        return subs
+
+    rules = {}
+    return rules

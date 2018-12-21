@@ -34,22 +34,29 @@ ns = int(t_end/dt)+1
 # Devito computation
 u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2, save=ns, coefficients='symbolic')
 v = TimeFunction(name='v', grid=grid, time_order=2, space_order=2, save=ns, coefficients='standard')
+
+term = u.dx
+
+help(term)
+
+# Initalise
 u.data[:] = 0.0
 v.data[:] = 0.0
 
 # Modified coefficients
-u_x_coeffs = (1, u, x[0], np.array([1.0, -2.0, 1.0]))
-u_t_coeffs = (1, u, time, np.array([1.0, -2.0, 1.0]))
+#u_x_coeffs = (1, u, x[0], np.array([1.0, -2.0, 1.0]))
+#u_t_coeffs = (1, u, time, np.array([1.0, -2.0, 1.0]))
 
-coeffs=Coefficients(u_x_coeffs,u_t_coeffs)
+#coeffs=Coefficients(u_x_coeffs,u_t_coeffs)
 
 # Main equations
-eq = Eq(u.dt+u.dx+v.dx, coefficients=coeffs)
+#eq = Eq(u.dt+u.dx+v.dx, coefficients=coeffs)
+#eq = Eq(u.dt+u.dx+v.dx)
 
 #eq = Eq(u.dt+(u*v+u**2*v[time,x+2*h_x]).dx, coefficients=coeffs)
 #eq = Eq(u.dt+(u*v+u**2*v[time,x+2*h_x]).dx)
 
-print(eq)
+#print(eq)
 
 #stencil = solve(eq, u.forward)
 
