@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 from devito import Dimension, TimeFunction
 from devito.ops.utils import namespace
 from devito.symbolics import Macro, split_affine
@@ -13,7 +15,7 @@ class OPSNodeFactory():
     """
 
     def __init__(self):
-        self.ops_args = {}
+        self.ops_args = OrderedDict()
 
     def new_ops_arg(self, indexed):
         """
@@ -49,7 +51,7 @@ class OPSNodeFactory():
             indexed.indices) if i != TimeFunction._time_position]
 
         # Define the Macro used in OPS arg index
-        access_macro = Macro('OPS_ACC%d(%s)' % (len(self.ops_args) - 1,
+        access_macro = Macro('OPS_ACC%d(%s)' % (list(self.ops_args).index(ops_arg_id),
                                                 ','.join(str(split_affine(i).shift)
                                                          for i in space_indices)))
 
