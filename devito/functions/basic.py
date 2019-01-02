@@ -972,7 +972,6 @@ class Indexed(sympy.Indexed):
 
 # Utilities
 
-
 class CacheManager(object):
 
     """

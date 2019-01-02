@@ -12,6 +12,7 @@ from devito.equation import *  # noqa
 from devito.grid import SubDomain  # noqa
 from devito.finite_differences import *  # noqa
 from devito.functions import *  # noqa
+from devito.functions.basic import CacheManager
 from devito.logger import error, warning, info, set_log_level  # noqa
 from devito.parameters import *  # noqa
 from devito.tools import *  # noqa
