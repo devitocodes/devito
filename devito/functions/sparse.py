@@ -394,7 +394,9 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     >>> sf = SparseFunction(name='sf', grid=grid, npoint=2)
     >>> sf
     sf(p_sf)
+
     Inspection
+
     >>> sf.data
     Data([0., 0.], dtype=float32)
     >>> sf.coordinates
@@ -402,13 +404,17 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     >>> sf.coordinates_data
     array([[0., 0.],
            [0., 0.]], dtype=float32)
+
     Symbolic interpolation routines
+
     >>> from devito import Function
     >>> f = Function(name='f', grid=grid)
     >>> exprs0 = sf.interpolate(f)
     >>> exprs1 = sf.inject(f, sf)
+
     Notes
     -----
+
     The parameters must always be given as keyword arguments, since SymPy
     uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     About SparseFunction and MPI. There is a clear difference between: ::
@@ -849,7 +855,9 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     >>> sf = SparseTimeFunction(name='sf', grid=grid, npoint=2, nt=3)
     >>> sf
     sf(time, p_sf)
+
     Inspection
+
     >>> sf.data
     Data([[0., 0.],
           [0., 0.],
@@ -859,11 +867,14 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     >>> sf.coordinates_data
     array([[0., 0.],
            [0., 0.]], dtype=float32)
+
     Symbolic interpolation routines
+
     >>> from devito import TimeFunction
     >>> f = TimeFunction(name='f', grid=grid)
     >>> exprs0 = sf.interpolate(f)
     >>> exprs1 = sf.inject(f, sf)
+
     Notes
     -----
     The parameters must always be given as keyword arguments, since SymPy

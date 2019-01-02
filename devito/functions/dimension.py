@@ -19,33 +19,29 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     """
     Symbol defining an iteration space.
-
     A Dimension represents a problem dimension. It is typically used to index
     into Functions, but it can also appear in the middle of a symbolic expression
     just like any other symbol.
-
     Parameters
     ----------
     name : str
         Name of the dimension.
     spacing : symbol, optional
         A symbol to represent the physical spacing along this Dimension.
-
     Examples
     --------
     Dimensions are automatically created when a Grid is instantiated.
-
     >>> from devito import Grid
     >>> grid = Grid(shape=(4, 4))
     >>> x, y = grid.dimensions
     >>> type(x)
-    <class 'devito.dimension.SpaceDimension'>
+    <class 'devito.functions.dimension.SpaceDimension'>
     >>> time = grid.time_dim
     >>> type(time)
-    <class 'devito.dimension.TimeDimension'>
+    <class 'devito.functions.dimension.TimeDimension'>
     >>> t = grid.stepping_dim
     >>> type(t)
-    <class 'devito.dimension.SteppingDimension'>
+    <class 'devito.functions.dimension.SteppingDimension'>
 
     Alternatively, one can create Dimensions explicitly
 
@@ -165,7 +161,6 @@ class Dimension(AbstractSymbol, ArgProvider):
     def _arg_defaults(self, _min=None, size=None, alias=None):
         """
         A map of default argument values defined by the Dimension.
-
         Parameters
         ----------
         _min : int, optional
@@ -187,7 +182,6 @@ class Dimension(AbstractSymbol, ArgProvider):
         out-of-bounds memory accesses will be performeed. The adjustment exploits
         the information in ``interval``, an Interval describing the Dimension data
         space. If no value is available in ``args``, use a default value.
-
         Parameters
         ----------
         args : dict
@@ -265,13 +259,10 @@ class SpaceDimension(Dimension):
 
     """
     Symbol defining an iteration space.
-
     This symbol represents a space dimension that defines the extent of
     a physical grid.
-
     A SpaceDimension creates dedicated shortcut notations for spatial
     derivatives on Functions.
-
     Parameters
     ----------
     name : str
@@ -287,12 +278,9 @@ class TimeDimension(Dimension):
 
     """
     Symbol defining an iteration space.
-
     This symbol represents a time dimension that defines the extent of time.
-
     A TimeDimension create dedicated shortcut notations for time derivatives
     on Functions.
-
     Parameters
     ----------
     name : str
@@ -308,7 +296,6 @@ class DefaultDimension(Dimension):
 
     """
     Symbol defining an iteration space with statically-known size.
-
     Parameters
     ----------
     name : str
@@ -317,7 +304,6 @@ class DefaultDimension(Dimension):
         A symbol to represent the physical spacing along this Dimension.
     default_value : float, optional
         Default value associated with the Dimension.
-
     Notes
     -----
     A DefaultDimension carries a value, so it has a mutable state. Hence, it is
@@ -346,7 +332,6 @@ class DerivedDimension(Dimension):
 
     """
     Symbol defining an iteration space derived from a ``parent`` Dimension.
-
     Parameters
     ----------
     name : str
@@ -425,7 +410,6 @@ class SubDimension(DerivedDimension):
     """
     Symbol defining a convex iteration sub-space derived from a ``parent``
     Dimension.
-
     Parameters
     ----------
     name : str
@@ -440,17 +424,14 @@ class SubDimension(DerivedDimension):
         SubDimension.
     thickness : 2-tuple of 2-tuples
         The thickness of the left and right regions, respectively.
-
     Examples
     --------
     Apart from rare circumstances, SubDimensions should *not* be created
     directly in user code; SubDomains should be used instead.
-
     To create a SubDimension, one typically uses the shortcut methods ``left``,
     ``right``, ``middle``. For example, to create a SubDimension that spans
     the entire space of the parent Dimension except for the two extremes, one
     could proceed as follows
-
     >>> from devito import Dimension, SubDimension
     >>> x = Dimension('x')
     >>> xi = SubDimension.middle('xi', x, 1, 1)
@@ -573,7 +554,6 @@ class ConditionalDimension(DerivedDimension):
     Symbol defining a non-convex iteration sub-space derived from a ``parent``
     Dimension, implemented by the compiler generating conditional "if-then" code
     within the parent Dimension's iteration space.
-
     Parameters
     ----------
     name : str
@@ -591,13 +571,11 @@ class ConditionalDimension(DerivedDimension):
         If True, use ``condition``, rather than the parent Dimension, to
         index into arrays. A typical use case is when arrays are accessed
         indirectly via the ``condition`` expression. Defaults to False.
-
     Examples
     --------
     Among the other things, ConditionalDimensions are indicated to implement
     Function subsampling. In the following example, an Operator evaluates the
     Function ``g`` and saves its content into ``f`` every ``factor=4`` iterations.
-
     >>> from devito import Dimension, ConditionalDimension, Function, Eq, Operator
     >>> size, factor = 16, 4
     >>> i = Dimension(name='i')
@@ -607,16 +585,13 @@ class ConditionalDimension(DerivedDimension):
     >>> op = Operator([Eq(g, 1), Eq(f, g)])
 
     The Operator generates the following for-loop (pseudocode)
-
     .. code-block:: C
-
         for (int i = i_m; i <= i_M; i += 1) {
           g[i] = 1;
           if (i%4 == 0) {
             f[i / 4] = g[i];
           }
         }
-
     Another typical use case is when one needs to constrain the execution of
     loop iterations to make sure certain conditions are honoured. The following
     artificial example employs indirect array accesses and uses ConditionalDimension
@@ -629,14 +604,13 @@ class ConditionalDimension(DerivedDimension):
     >>> op = Operator(Eq(f[g[i]], f[g[i]] + 1))
 
     The Operator generates the following for-loop (pseudocode)
-
     .. code-block:: C
-
         for (int i = i_m; i <= i_M; i += 1) {
           if (g[i] > 0 && g[i] < 4) {
             f[g[i]] = f[g[i]] + 1;
           }
         }
+
     """
 
     is_NonlinearDerived = True
@@ -691,9 +665,7 @@ class SteppingDimension(DerivedDimension):
     Dimension, which cyclically produces a finite range of values, such
     as ``0, 1, 2, 0, 1, 2, 0, ...`` (also referred to as "modulo buffered
     iteration").
-
     SteppingDimension is most commonly used to represent a time-stepping Dimension.
-
     Parameters
     ----------
     name : str
@@ -720,14 +692,12 @@ class SteppingDimension(DerivedDimension):
     def _arg_defaults(self, _min=None, size=None, **kwargs):
         """
         A map of default argument values defined by this dimension.
-
         Parameters
         ----------
         _min : int, optional
             Minimum point as provided by data-carrying objects.
         size : int, optional
             Size as provided by data-carrying symbols.
-
         Notes
         -----
         A SteppingDimension does not know its max point.
@@ -760,7 +730,6 @@ class ModuloDimension(DerivedDimension):
     Dimension symbol representing a non-contiguous sub-region of a given
     ``parent`` Dimension, which cyclically produces a finite range of values,
     such as ``0, 1, 2, 0, 1, 2, 0, ...``.
-
     Parameters
     ----------
     parent : Dimension
@@ -771,7 +740,6 @@ class ModuloDimension(DerivedDimension):
         The divisor value.
     name : str, optional
         To force a different Dimension name.
-
     Notes
     -----
     This type should not be instantiated directly in user code; if in need for
@@ -840,7 +808,6 @@ class IncrDimension(DerivedDimension):
     ``parent`` Dimension, with one point every ``step`` points. Thus, if
     ``step == k``, the dimension represents the sequence ``min, min + k,
     min + 2*k, ...``.
-
     Parameters
     ----------
     parent : Dimension
@@ -853,7 +820,6 @@ class IncrDimension(DerivedDimension):
         symbolic size.
     name : str, optional
         To force a different Dimension name.
-
     Notes
     -----
     This type should not be instantiated directly in user code.

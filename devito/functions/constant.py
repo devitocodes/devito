@@ -31,8 +31,10 @@ class Constant(AbstractCachedSymbol, ArgProvider):
     >>> c.data = 4
     >>> c.data
     4.0
+
     Notes
     -----
+
     The parameters must always be given as keyword arguments, since SymPy
     uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     """

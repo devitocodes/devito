@@ -799,7 +799,9 @@ class Function(DiscretizedFunction, Differentiable):
     >>> g = Function(name='g', grid=grid, space_order=2)
     >>> g
     g(x, y)
+
     First-order derivatives through centered finite-difference approximations
+
     >>> f.dx
     -f(x, y)/h_x + f(x + h_x, y)/h_x
     >>> f.dy
@@ -808,18 +810,24 @@ class Function(DiscretizedFunction, Differentiable):
     -0.5*g(x - h_x, y)/h_x + 0.5*g(x + h_x, y)/h_x
     >>> (f + g).dx
     -(f(x, y) + g(x, y))/h_x + (f(x + h_x, y) + g(x + h_x, y))/h_x
+
     First-order derivatives through left/right finite-difference approximations
+
     >>> f.dxl
     f(x, y)/h_x - f(x - h_x, y)/h_x
     >>> g.dxl
     1.5*g(x, y)/h_x + 0.5*g(x - 2*h_x, y)/h_x - 2.0*g(x - h_x, y)/h_x
     >>> f.dxr
     -f(x, y)/h_x + f(x + h_x, y)/h_x
+
     Second-order derivative through centered finite-difference approximation
+
     >>> g.dx2
     -2.0*g(x, y)/h_x**2 + g(x - h_x, y)/h_x**2 + g(x + h_x, y)/h_x**2
+
     Notes
     -----
+
     The parameters must always be given as keyword arguments, since SymPy
     uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     """
@@ -1030,27 +1038,35 @@ class TimeFunction(Function):
     >>> g = TimeFunction(name='g', grid=grid, time_order=2)
     >>> g
     g(t, x, y)
+
     First-order derivatives through centered finite-difference approximations
+
     >>> f.dx
     -f(t, x, y)/h_x + f(t, x + h_x, y)/h_x
     >>> f.dt
     -f(t, x, y)/dt + f(t + dt, x, y)/dt
     >>> g.dt
     -0.5*g(t - dt, x, y)/dt + 0.5*g(t + dt, x, y)/dt
+
     When using the alternating buffer protocol, the size of the time dimension
     is given by ``time_order + 1``
+
     >>> f.shape
     (2, 4, 4)
     >>> g.shape
     (3, 4, 4)
+
     One can drop the alternating buffer protocol specifying a value for ``save``
+
     >>> h = TimeFunction(name='h', grid=grid, save=20)
     >>> h
     h(time, x, y)
     >>> h.shape
     (20, 4, 4)
+
     Notes
     -----
+
     The parameters must always be given as keyword arguments, since SymPy
     uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     If the parameter `grid` is provided, the values for `shape`, `dimensions` and `dtype`
