@@ -1,40 +1,31 @@
-
-from collections import OrderedDict, namedtuple
+from collections import namedtuple
 from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
 from functools import wraps
-from itertools import product
 
-import sympy
 import numpy as np
 from psutil import virtual_memory
 from cached_property import cached_property
 from cgen import Struct, Value
 
 from devito.builtins import assign
-from devito.cgen_utils import INT, cast_mapper
 from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, RIGHT,
                          Data, default_allocator)
-from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
-from devito.functions.dimension import Dimension, ConditionalDimension, DefaultDimension
-from devito.functions.basic import (AbstractCachedFunction, AbstractCachedSymbol,
-                                    Symbol, Scalar)
-from devito.functions.utils import Buffer
+from devito.functions.dimension import Dimension
+from devito.functions.basic import AbstractCachedFunction
+from devito.functions.utils import Buffer, NODE, CELL
 from devito.logger import debug, warning
-from devito.mpi import MPI, SparseDistributor
+from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.symbolics import Add, FieldFromPointer, indexify, retrieve_function_carriers
+from devito.symbolics import Add, FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_tuple,
-                          flatten, is_integer, prod, powerset, filter_ordered,
-                          ctypes_to_cstr, memoized_meth)
-
+from devito.tools import (EnrichedTuple, ReducerMap, ArgProvider, as_tuple,
+                          flatten, is_integer, ctypes_to_cstr, memoized_meth)
 
 __all__ = ['Function', 'TimeFunction', 'DiscretizedFunction']
 
 
 class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
-
     """
     Utility class to encapsulate all symbolic types that represent
     discrete (array) data.

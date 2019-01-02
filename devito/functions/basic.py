@@ -24,8 +24,6 @@ __all__ = ['Symbol', 'Indexed', 'Scalar', 'Array', 'LocalObject', 'AbstractFunct
 _SymbolCache = {}
 
 
-
-
 class Basic(object):
     """
     Three relevant types inherit from this class: ::
@@ -946,6 +944,7 @@ class Indexed(sympy.Indexed):
     @property
     def name(self):
         return self.function.name
+
 
 # Utilities
 

@@ -13,6 +13,6 @@ class Buffer(Tag):
 class Stagger(Tag):
     """Stagger region."""
     pass
-    
+
 NODE = Stagger('node')  # noqa
 CELL = Stagger('cell')

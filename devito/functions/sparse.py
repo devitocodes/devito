@@ -1,30 +1,21 @@
-from collections import OrderedDict, namedtuple
-from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
-from functools import wraps
+from collections import OrderedDict
 from itertools import product
 
 import sympy
 import numpy as np
 from cached_property import cached_property
-from cgen import Struct, Value
 
-from devito.builtins import assign
 from devito.cgen_utils import INT, cast_mapper
-from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, RIGHT,
-                         Data, default_allocator)
 from devito.equation import Eq, Inc
-from devito.exceptions import InvalidArgument
-from devito.finite_differences import Differentiable, generate_fd_shortcuts
+from devito.finite_differences import Differentiable
 from devito.functions.dense import DiscretizedFunction, Function, SubFunction
 from devito.functions.dimension import Dimension, ConditionalDimension, DefaultDimension
-from devito.functions.basic import AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar
-from devito.logger import debug, warning
+from devito.functions.basic import Symbol, Scalar
+from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
-from devito.parameters import configuration
-from devito.symbolics import Add, FieldFromPointer, indexify, retrieve_function_carriers
-from devito.tools import (EnrichedTuple, Tag, ReducerMap, ArgProvider, as_tuple,
-                          flatten, is_integer, prod, powerset, filter_ordered,
-                          ctypes_to_cstr, memoized_meth)
+from devito.symbolics import indexify, retrieve_function_carriers
+from devito.tools import (ReducerMap, flatten, prod, powerset,
+                          filter_ordered, memoized_meth)
 
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -578,7 +569,9 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return index_matrix, points
 
     def _interpolation_indices(self, variables, offset=0):
-        """Generate interpolation indices for the DiscretizedFunctions in ``variables``."""
+        """
+        Generate interpolation indices for the DiscretizedFunctions in ``variables``.
+        """
         index_matrix, points = self._index_matrix(offset)
 
         idx_subs = []
