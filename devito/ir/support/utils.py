@@ -1,7 +1,7 @@
 from collections import OrderedDict, defaultdict
 
 from devito.functions.dimension import Dimension, ModuloDimension
-from devito.ir.support.basic import Access, Scope
+from devito.ir.support.basic import Access
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
@@ -50,7 +50,7 @@ def detect_oobs(mapper):
     """
     found = set()
     for f, stencil in mapper.items():
-        if f is None or not f.is_GridedFunction:
+        if f is None or not f.is_DiscretizedFunction:
             continue
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d

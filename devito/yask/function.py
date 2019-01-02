@@ -3,12 +3,12 @@ import ctypes
 import sympy
 import numpy as np
 
-import devito.functions.dense as dense
-import devito.functions.constant as constant
 from devito.exceptions import InvalidArgument
+from devito.functions.basic import _SymbolCache
+import devito.functions.constant as constant
+import devito.functions.dense as dense
 from devito.logger import yask as log
 from devito.tools import Signer, dtype_to_ctype, memoized_meth
-from devito.functions.basic import _SymbolCache
 
 from devito.yask.data import Data, DataScalar
 from devito.yask.utils import namespace

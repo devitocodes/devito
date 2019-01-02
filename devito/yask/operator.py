@@ -41,7 +41,7 @@ class OperatorYASK(Operator):
 
     def _specialize_exprs(self, expressions):
         # Align data accesses to the computational domain if not a yask.Function
-        key = lambda i: i.is_GridedFunction and not i.from_YASK
+        key = lambda i: i.is_DiscretizedFunction and not i.from_YASK
         expressions = [align_accesses(e, key=key) for e in expressions]
 
         expressions = super(OperatorYASK, self)._specialize_exprs(expressions)

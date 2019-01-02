@@ -67,7 +67,7 @@ class Basic(object):
     is_Dimension = False
     is_Constant = False
     # Tensor symbolic objects created by the user
-    is_GridedFunction = False
+    is_DiscretizedFunction = False
     is_Function = False
     is_TimeFunction = False
     is_SparseTimeFunction = False

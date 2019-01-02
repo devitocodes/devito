@@ -4,10 +4,10 @@ from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Clust
                        ClusterGroup, detect_accesses, build_intervals, groupby)
 from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
+from devito.functions.basic import Indexed, Scalar, Array
 from devito.symbolics import Eq, estimate_cost, xreplace_constrained, iq_timeinvariant
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
-from devito.functions.basic import Indexed, Scalar, Array
 
 
 class AdvancedRewriter(BasicRewriter):

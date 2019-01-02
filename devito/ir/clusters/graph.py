@@ -3,12 +3,11 @@ from itertools import islice
 
 from cached_property import cached_property
 
-from devito.functions.dimension import Dimension
+from devito.functions import Dimension, Symbol
 from devito.ir.equations import ClusterizedEq
 from devito.symbolics import (as_symbol, retrieve_indexed, retrieve_terminals,
                               q_indirect, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten, filter_ordered
-from devito.functions import Symbol
 
 __all__ = ['FlowGraph']
 
@@ -185,7 +184,7 @@ class FlowGraph(OrderedDict):
                 elif isinstance(i, Dimension):
                     # Go on with the search, as /i/ is not a time dimension
                     pass
-                elif not i.base.function.is_GridedFunction:
+                elif not i.base.function.is_DiscretizedFunction:
                     # It didn't come from the outside and it's not in self, so
                     # cannot determine if time-invariant; assume time-varying
                     return False

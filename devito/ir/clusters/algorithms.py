@@ -1,10 +1,10 @@
 import sympy
 
+from devito.functions.basic import Scalar
 from devito.ir.support import (Scope, DataSpace, IterationSpace, detect_flow_directions,
                                force_directions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, xreplace_indices
-from devito.functions.basic import Scalar
 from devito.tools import flatten
 
 __all__ = ['clusterize', 'groupby']
@@ -134,7 +134,7 @@ def is_local(array, source, sink, context):
                 written_once = False
                 break
             reads = [j.base.function for j in i.reads]
-            if any(j.is_GridedFunction or j.is_Scalar for j in reads):
+            if any(j.is_DiscretizedFunction or j.is_Scalar for j in reads):
                 # Can't guarantee its value only depends on local data
                 written_once = False
                 break

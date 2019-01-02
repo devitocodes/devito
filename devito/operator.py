@@ -271,7 +271,7 @@ class Operator(Callable):
         args = args.reduce_all()
 
         # All TensorFunctions should be defined on the same Grid
-        functions = [kwargs.get(p, p) for p in self.input if p.is_GridedFunction]
+        functions = [kwargs.get(p, p) for p in self.input if p.is_DiscretizedFunction]
         mapper = ReducerMap([('grid', i.grid) for i in functions if i.grid])
         try:
             grid = mapper.unique('grid')
