@@ -1,5 +1,9 @@
 import numpy as np
+
+from conftest import skipif
 from examples.seismic import TimeAxis, RickerSource, demo_model
+
+pytestmark = skipif(['yask', 'ops'])
 
 
 def test_resample():

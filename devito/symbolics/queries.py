@@ -1,6 +1,5 @@
 from sympy import Eq, diff, cos, sin, nan
 
-from devito.functions.dimension import Dimension
 from devito.tools import as_tuple
 
 
@@ -36,8 +35,8 @@ def q_indexed(expr):
 
 
 def q_function(expr):
-    from devito.functions.dense import GridedFunction
-    return isinstance(expr, GridedFunction)
+    from devito.functions.dense import DiscretizedFunction 
+    return isinstance(expr, DiscretizedFunction  )
 
 
 def q_terminal(expr):
@@ -85,6 +84,7 @@ def q_indirect(expr):
 
 
 def q_timedimension(expr):
+    from devito.dimension import Dimension
     return isinstance(expr, Dimension) and expr.is_Time
 
 

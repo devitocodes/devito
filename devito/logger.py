@@ -3,11 +3,10 @@
 import logging
 import sys
 from contextlib import contextmanager
-from functools import wraps
 
 from devito.parameters import configuration
 
-__all__ = ('set_log_level', 'set_log_noperf', 'silencio',
+__all__ = ('set_log_level', 'set_log_noperf',
            'log', 'warning', 'error', 'perf', 'perf_adv', 'dse', 'dse_warning',
            'dle', 'dle_warning',
            'RED', 'GREEN', 'BLUE')
@@ -78,15 +77,17 @@ def set_log_level(level, comm=None):
     """
     Set the log level of the Devito logger.
 
-    :param level: Accepted values are: DEBUG, PERF, INFO, DSE, DSE_WARN,
-                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL.
-    :param comm: An MPI communicator the logger should be collective
-                 over. If provided, only rank-0 on that communicator will
-                 write to the registered handlers, other ranks will use a
-                 :class:`logging.NullHandler`.  By default, ``comm`` is set
-                 to ``None``, so all ranks will use the default handlers.
-                 This could be used, for example, if one wants to log to
-                 one file per rank.
+    Parameters
+    ----------
+    level : int
+        The logging level. Accepted values are: ``DEBUG, PERF, INFO, DSE, DSE_WARN,
+        DLE, DLE_WARN, WARNING, ERROR, CRITICAL``.
+    comm : MPI communicator, optional
+        An MPI communicator the logger should be collective over. If provided, only
+        rank-0 on that communicator will write to the registered handlers, other
+        ranks will use a :class:`logging.NullHandler`.  By default, ``comm`` is set
+        to ``None``, so all ranks will use the default handlers.  This could be
+        used, for example, if one wants to log to one file per rank.
     """
     if level not in logger_registry:
         raise ValueError("Illegal logging level %s" % level)
@@ -104,28 +105,8 @@ def set_log_noperf():
     logger.setLevel(WARNING)
 
 
-configuration.add('log_level', 'INFO', list(logger_registry),
-                  lambda i: set_log_level(i))
-
-
-class silencio(object):
-
-    """
-    Decorator to temporarily change log levels.
-    """
-
-    def __init__(self, log_level='WARNING'):
-        self.log_level = log_level
-
-    def __call__(self, func, *args, **kwargs):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            previous = configuration['log_level']
-            configuration['log_level'] = self.log_level
-            result = func(*args, **kwargs)
-            configuration['log_level'] = previous
-            return result
-        return wrapper
+configuration.add('log-level', 'INFO', list(logger_registry),
+                  lambda i: set_log_level(i), False)
 
 
 def log(msg, level=INFO, *args, **kwargs):
@@ -133,9 +114,13 @@ def log(msg, level=INFO, *args, **kwargs):
     Wrapper of the main Python's logging function. Print 'msg % args' with
     the severity 'level'.
 
-    :param msg: the message to be printed.
-    :param level: accepted values are: DEBUG, YASK, YASK_WARN, PERF, INFO, DSE,
-                  DSE_WARN, DLE, DLE_WARN, WARNING, ERROR, CRITICAL.
+    Parameters
+    ----------
+    msg : str
+        The message to be printed.
+    level : int
+        The logging level. Accepted values are: ``DEBUG, PERF, INFO, DSE, DSE_WARN,
+        DLE, DLE_WARN, WARNING, ERROR, CRITICAL``.
     """
     color = COLORS[level] if sys.stdout.isatty() and sys.stderr.isatty() else '%s'
     logger.log(level, color % msg, *args, **kwargs)

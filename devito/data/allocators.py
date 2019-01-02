@@ -1,22 +1,19 @@
-from __future__ import absolute_import
-
 import abc
 from functools import reduce
 from operator import mul
+import mmap
 
 import numpy as np
 import ctypes
 from ctypes.util import find_library
-import mmap
 
-from devito.equation import Eq
-from devito.parameters import configuration
-from devito.tools import as_tuple, numpy_to_ctypes
 from devito.logger import logger
-import devito
+from devito.parameters import configuration
+from devito.tools import dtype_to_ctype
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
-           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD']
+           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
+           'default_allocator']
 
 
 class MemoryAllocator(object):
@@ -31,6 +28,9 @@ class MemoryAllocator(object):
     _attempted_init = False
     lib = None
 
+    guaranteed_alignment = 64
+    """Guaranteed data alignment."""
+
     @classmethod
     def available(cls):
         if cls._attempted_init is False:
@@ -43,9 +43,9 @@ class MemoryAllocator(object):
         """
         Initialize the MemoryAllocator.
 
-        .. note::
-
-            This must be implemented by all subclasses of MemoryAllocator.
+        Notes
+        -----
+        This method must be implemented by all subclasses of MemoryAllocator.
         """
         return
 
@@ -53,37 +53,43 @@ class MemoryAllocator(object):
         """
         Allocate memory.
 
-        :param shape: Shape of the array to allocate.
-        :param dtype: Numpy datatype to allocate.
+        Parameters
+        ----------
+        shape : tuple of ints
+            Shape of the allocated array.
+        dtype : numpy.dtype
+            The data type of the raw data.
 
-        :returns (pointer, free_handle): The first element of the tuple is the reference
-                                         that can be used to access the data as a ctypes
-                                         object. The second element is an opaque object
-                                         that is needed only for the call to free.
+        Returns
+        -------
+        pointer, memfree_args
+            The first element of the tuple is the reference that can be used to
+            access the data as a ctypes object. The second element is an opaque
+            object that is needed only for the "memfree" call.
         """
         size = int(reduce(mul, shape))
-        ctype = numpy_to_ctypes(dtype)
+        ctype = dtype_to_ctype(dtype)
 
         c_pointer, memfree_args = self._alloc_C_libcall(size, ctype)
         if c_pointer is None:
             raise RuntimeError("Unable to allocate %d elements in memory", str(size))
 
-        c_pointer = ctypes.cast(c_pointer, np.ctypeslib.ndpointer(dtype=dtype,
-                                                                  shape=shape))
-        pointer = np.ctypeslib.as_array(c_pointer, shape=shape)
+        c_pointer_cast = ctypes.cast(
+            c_pointer, np.ctypeslib.ndpointer(dtype=dtype, shape=shape))
+        pointer = np.ctypeslib.as_array(c_pointer_cast, shape=shape)
 
         return (pointer, memfree_args)
 
     @abc.abstractmethod
     def _alloc_C_libcall(self, size, ctype):
         """
-        Perform the actual memory allocation by calling a C function.
-        Should return a 2-tuple (c_pointer, memfree_args), where the free args
-        are what is handed back to free() later to deallocate.
+        Perform the actual memory allocation by calling a C function.  Should
+        return a 2-tuple (c_pointer, memfree_args), where the free args are
+        what is handed back to free() later to deallocate.
 
-        .. note::
-
-            This method should be implemented by a subclass.
+        Notes
+        -----
+        This method must be implemented by all subclasses of MemoryAllocator.
         """
         return
 
@@ -92,12 +98,12 @@ class MemoryAllocator(object):
         """
         Free memory previously allocated with ``self.alloc``.
 
-        Arguments are provided exactly as returned in the second
-        element of the tuple returned by _alloc_C_libcall
+        Arguments are provided exactly as returned in the second element of the
+        tuple returned by _alloc_C_libcall
 
-        .. note::
-
-            This method should be implemented by a subclass.
+        Notes
+        -----
+        This method must be implemented by all subclasses of MemoryAllocator.
         """
         return
 
@@ -213,8 +219,12 @@ class NumaAllocator(MemoryAllocator):
     to specify a NUMA node in which memory allocation should be attempted first
     (will fall back to an arbitrary NUMA domain if not enough memory is available)
 
-    :param node: Either an integer, indicating a specific NUMA node, or the special
-                 keywords ``'local'`` or ``'any'``.
+    Parameters
+    ----------
+    node : int or str
+        If an integer, it indicates a specific NUMA node. Otherwise, the two
+        keywords ``local`` ("allocate on the local NUMA node") and ``any``
+        ("allocate on any NUMA node with sufficient free memory") are accepted.
     """
 
     is_Numa = True
@@ -245,7 +255,14 @@ class NumaAllocator(MemoryAllocator):
         if not self.available():
             raise RuntimeError("Couldn't find `libnuma`'s `numa_alloc_*` to "
                                "allocate memory")
-        c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
+
+        if size == 0:
+            # work around the fact that the allocator may return NULL when
+            # the size is 0, and numpy does not like that
+            c_bytesize = ctypes.c_ulong(1)
+        else:
+            c_bytesize = ctypes.c_ulong(size * ctypes.sizeof(ctype))
+
         if self.put_onnode:
             c_pointer = self.lib.numa_alloc_onnode(c_bytesize, self._node)
         elif self.put_local:
@@ -256,7 +273,8 @@ class NumaAllocator(MemoryAllocator):
         # note!  even though restype was set above, ctypes returns a
         # python integer.
         # See https://stackoverflow.com/questions/17840144/
-        if c_pointer == 0:
+        # edit: it apparently can return None, also!
+        if c_pointer == 0 or c_pointer is None:
             return None, None
         else:
             # Convert it back to a void * - this is
@@ -290,8 +308,8 @@ ALLOC_NUMA_LOCAL = NumaAllocator('local')
 
 def default_allocator():
     """
-    Return a :class:`MemoryAllocator` for the architecture on which the
-    process is running. Possible allocators are: ::
+    Return a suitable MemoryAllocator for the architecture on which the process
+    is running. Possible allocators are: ::
 
         * ALLOC_FLAT: Align memory to page boundaries using the posix function
                       ``posix_memalign``
@@ -323,124 +341,3 @@ def default_allocator():
             return ALLOC_NUMA_LOCAL
     else:
         return ALLOC_FLAT
-
-
-class Data(np.ndarray):
-
-    """
-    A special :class:`numpy.ndarray` allowing logical indexing.
-
-    The type :class:`numpy.ndarray` is subclassed as indicated at: ::
-
-        https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
-
-    :param shape: Shape of the domain region in grid points.
-    :param dimensions: A tuple of :class:`Dimension`s, representing the dimensions
-                       of the ``Data``.
-    :param dtype: A ``numpy.dtype`` for the raw data.
-    :param allocator: (Optional) a :class:`MemoryAllocator` to specialize memory
-                      allocation. Defaults to ``ALLOC_FLAT``.
-
-    .. note::
-
-        This type supports logical indexing over modulo buffered dimensions.
-
-    .. note::
-
-        Any view or copy ``A`` created starting from ``self``, for instance via
-        a slice operation or a universal function ("ufunc" in NumPy jargon), will
-        still be of type :class:`Data`. However, if ``A``'s rank is different than
-        ``self``'s rank, namely if ``A.ndim != self.ndim``, then the capability of
-        performing logical indexing is lost.
-    """
-
-    def __new__(cls, shape, dimensions, dtype, allocator=ALLOC_FLAT):
-        assert len(shape) == len(dimensions)
-        ndarray, memfree_args = allocator.alloc(shape, dtype)
-        obj = np.asarray(ndarray).view(cls)
-        obj._allocator = allocator
-        obj._memfree_args = memfree_args
-        obj._modulo = tuple(True if i.is_Stepping else False for i in dimensions)
-        return obj
-
-    def __del__(self):
-        if self._memfree_args is None:
-            return
-        self._allocator.free(*self._memfree_args)
-        self._memfree_args = None
-
-    def __array_finalize__(self, obj):
-        # `self` is the newly created object
-        # `obj` is the object from which `self` was created
-        if obj is None:
-            # `self` was created through __new__()
-            return
-        if type(obj) != Data or self.ndim != obj.ndim:
-            self._modulo = tuple(False for i in range(self.ndim))
-        else:
-            self._modulo = obj._modulo
-        # Views or references created via operations on `obj` do not get an
-        # explicit reference to the underlying data (`_memfree_args`). This makes sure
-        # that only one object (the "root" Data) will free the C-allocated memory
-        self._memfree_args = None
-
-    def __getitem__(self, index):
-        index = self._convert_index(index)
-        return super(Data, self).__getitem__(index)
-
-    def __setitem__(self, index, val):
-        index = self._convert_index(index)
-        super(Data, self).__setitem__(index, val)
-
-    def _convert_index(self, index):
-        if isinstance(index, np.ndarray):
-            # Advanced indexing, nothing special to do
-            return index
-
-        index = as_tuple(index)
-        if len(index) > self.ndim:
-            # Maybe user code is trying to add a new axis (see np.newaxis),
-            # so the resulting array will have shape larger than `self`'s,
-            # hence I can just let numpy deal with it, as by specification
-            # we're gonna drop modulo indexing anyway
-            return index
-
-        # Index conversion
-        wrapped = []
-        for i, mod, use_modulo in zip(index, self.shape, self._modulo):
-            if use_modulo is False:
-                # Nothing special to do (no logical indexing)
-                wrapped.append(i)
-            elif isinstance(i, slice):
-                if i.start is None:
-                    start = i.start
-                elif i.start >= 0:
-                    start = i.start % mod
-                else:
-                    start = -(i.start % mod)
-                if i.stop is None:
-                    stop = i.stop
-                elif i.stop >= 0:
-                    stop = i.stop % (mod + 1)
-                else:
-                    stop = -(i.stop % (mod + 1))
-                wrapped.append(slice(start, stop, i.step))
-            elif isinstance(i, (tuple, list)):
-                wrapped.append([k % mod for k in i])
-            else:
-                wrapped.append(i % mod)
-        return wrapped[0] if len(index) == 1 else tuple(wrapped)
-
-    def reset(self):
-        """
-        Set all grid entries to 0.
-        """
-        self[:] = 0.0
-
-
-def first_touch(array):
-    """
-    Uses an Operator to initialize the given array in the same pattern that
-    would later be used to access it.
-    """
-    devito.Operator(Eq(array, 0.))()

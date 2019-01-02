@@ -6,8 +6,9 @@ from cached_property import cached_property
 from devito.functions.dimension import Dimension
 from devito.ir.equations import ClusterizedEq
 from devito.symbolics import (as_symbol, retrieve_indexed, retrieve_terminals,
-                              convert_to_SSA, q_indirect, q_timedimension)
+                              q_indirect, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten, filter_ordered
+from devito.types import Symbol
 
 __all__ = ['FlowGraph']
 
@@ -15,10 +16,10 @@ __all__ = ['FlowGraph']
 class Node(ClusterizedEq):
 
     """
-    A special :class:`ClusterizedEq` which keeps track of: ::
+    A special ClusterizedEq which keeps track of: ::
 
-        - :class:`sympy.Eq` writing to ``self``
-        - :class:`sympy.Eq` reading from ``self``
+        - Equations writing to ``self``
+        - Equations reading from ``self``
     """
 
     _state = ClusterizedEq._state + ('reads', 'readby')
@@ -50,8 +51,8 @@ class Node(ClusterizedEq):
 class FlowGraph(OrderedDict):
 
     """
-    A FlowGraph represents an ordered sequence of operations. Operations,
-    of type :class:`Node`, are the nodes of the graph. An edge from ``n0`` to
+    A FlowGraph represents an ordered sequence of operations. The operations,
+    objects of type Node, are the nodes of the graph. An edge from ``n0`` to
     ``n1`` indicates that ``n1`` reads from ``n0``. For example, the sequence: ::
 
         temp0 = a*b
@@ -76,7 +77,7 @@ class FlowGraph(OrderedDict):
 
     def __init__(self, exprs, **kwargs):
         # Always convert to SSA
-        exprs = convert_to_SSA(exprs)
+        exprs = makeit_ssa(exprs)
         mapper = OrderedDict([(i.lhs, i) for i in exprs])
         assert len(set(mapper)) == len(exprs), "not SSA Cluster?"
 
@@ -214,7 +215,7 @@ class FlowGraph(OrderedDict):
         ``key.readby``, in program order.
 
         Examples
-        ========
+        --------
         Given the following sequence of operations: ::
 
             t1 = ...
@@ -225,7 +226,7 @@ class FlowGraph(OrderedDict):
             t2 = ...
 
         Assuming ``key == v`` and ``readby is False`` (as by default), return
-        the following list of :class:`Node` objects: ::
+        the following list of Node objects: ::
 
             [t1, t0, u[i, j], u[3, j]]
 
@@ -280,3 +281,34 @@ class FlowGraph(OrderedDict):
                     # Not using sets to preserve order
                     found.append(i)
         return mapper
+
+
+def makeit_ssa(exprs):
+    """Convert an iterable of Eqs into Static Single Assignment (SSA) form."""
+    # Identify recurring LHSs
+    seen = {}
+    for i, e in enumerate(exprs):
+        seen.setdefault(e.lhs, []).append(i)
+    # Optimization: don't waste time reconstructing stuff if already in SSA form
+    if all(len(i) == 1 for i in seen.values()):
+        return exprs
+    # SSA conversion
+    c = 0
+    mapper = {}
+    processed = []
+    for i, e in enumerate(exprs):
+        where = seen[e.lhs]
+        rhs = e.rhs.xreplace(mapper)
+        if len(where) > 1:
+            needssa = e.is_Scalar or where[-1] != i
+            lhs = Symbol(name='ssa%d' % c, dtype=e.dtype) if needssa else e.lhs
+            if e.is_Increment:
+                # Turn AugmentedAssignment into Assignment
+                processed.append(e.func(lhs, mapper[e.lhs] + rhs, is_Increment=False))
+            else:
+                processed.append(e.func(lhs, rhs))
+            mapper[e.lhs] = lhs
+            c += 1
+        else:
+            processed.append(e.func(e.lhs, rhs))
+    return processed

@@ -17,11 +17,9 @@ class Vector(tuple):
 
     The elements of a Vector can be integers or any SymPy expression.
 
-    Notes on Vector comparison
-    ==========================
-
-    # Vector-scalar comparison
-    --------------------------
+    Notes
+    -----
+    1) Vector-scalar comparison
     If a comparison between a vector and a non-vector is attempted, then the
     non-vector is promoted to a vector; if this is not possible, an exception
     is raised. This is handy because it turns a vector-scalar comparison into
@@ -30,8 +28,7 @@ class Vector(tuple):
 
         (3, 4, 5) > 4 => (3, 4, 5) > (4, 4, 4) => False
 
-    # Comparing Vector entries when these are SymPy expression
-    ----------------------------------------------------------
+    2) Comparing Vector entries when these are SymPy expression
     When we compare two entries that are both generic SymPy expressions, it is
     generally not possible to determine the truth value of the relation. For
     example, the truth value of `3*i < 4*j` cannot be determined. In some cases,
@@ -151,8 +148,8 @@ class Vector(tuple):
         In particular, the *absolute value* of D_i represents the number of
         integer points that exist between self_i and sink_i.
 
-        Example
-        =======
+        Examples
+        --------
                  | 3 |           | 1 |               |  2  |
         source = | 2 | ,  sink = | 4 | , distance => | -2  |
                  | 1 |           | 5 |               | -4  |
@@ -163,11 +160,7 @@ class Vector(tuple):
 
 
 class IndexMode(Tag):
-
-    """
-    Tag for access functions.
-    """
-
+    """Tag for access functions."""
     pass
 
 
@@ -286,34 +279,42 @@ class IterationInstance(Vector):
                      if im == IRREGULAR)
 
     def affine(self, findices):
-        """Return True if all of the provided findices appear in self and are
-        affine, False otherwise."""
+        """
+        Return True if all of the provided findices appear in self and are
+        affine, False otherwise.
+        """
         return set(as_tuple(findices)).issubset(set(self.findices_affine))
 
     def affine_if_present(self, findices):
-        """Return False if any of the provided findices appears in self and
-        is not affine, True otherwise."""
+        """
+        Return False if any of the provided findices appears in self and
+        is not affine, True otherwise.
+        """
         findices = as_tuple(findices)
         return (set(findices) & set(self.findices)).issubset(set(self.findices_affine))
 
     def touch_halo(self, findices):
-        """Return True if self accesses the halo along any of the provided findices,
-        False otherwise."""
+        """
+        Return True if self accesses the halo along any of the provided findices,
+        False otherwise.
+        """
         # Given `d` \in findices, iterating over [0, size_d):
-        # * if self[d] - d < self.function._offset_domain[d].left, then `self` will
+        # * if self[d] - d < self.function._size_halo[d].left, then `self` will
         #   definitely touch the left-halo when d=0
-        # * if self[d] - d > self.function._offset_domain[d].left, then `self` will
+        # * if self[d] - d > self.function._size_halo[d].left, then `self` will
         #   definitely touch the right-halo when d=size_d-1
         # TODO: the underlying assumption here is that `d` iterates in [0, size_d],
         # which is the typical case. If that's not the case, we have to generalise
         # this method. For this, we will have to attach more iteration space
         # information to IterationInstance, such as start/end point, increment, etc.
-        return all(self[d] - d != self.function._offset_domain[d].left
+        return all(self[d] - d != self.function._size_halo[d].left
                    for d in as_tuple(findices))
 
     def irregular(self, findices):
-        """Return True if all of the provided findices appear in self and are
-        irregular, False otherwise."""
+        """
+        Return True if all of the provided findices appear in self and are
+        irregular, False otherwise.
+        """
         return set(as_tuple(findices)).issubset(set(self.findices_irregular))
 
     @property
@@ -329,14 +330,17 @@ class IterationInstance(Vector):
         return self.rank == 0
 
     def distance(self, other, findex=None, view=None):
-        """Compute the distance from ``self`` to ``other``.
+        """
+        Compute the distance from ``self`` to ``other``.
 
-        :param other: The :class:`IterationInstance` from which the distance
-                      is computed.
-        :param findex: (Optional) if supplied, compute the distance only up to
-                       and including ``findex`` (defaults to None).
-        :param view: (Optional) an iterable of ``findices`` (defaults to None); if
-                     supplied, project the distance along these dimensions.
+        Parameters
+        ----------
+        other : IterationInstance
+            The IterationInstance from which the distance is computed.
+        findex : Dimension, optional
+            If supplied, compute the distance only up to and including ``findex``.
+        view : list of Dimension, optional
+            If supplied, project the distance along these Dimensions.
         """
         if not isinstance(other, IterationInstance):
             raise TypeError("Cannot compute distance from obj of type %s", type(other))
@@ -357,8 +361,10 @@ class IterationInstance(Vector):
             return Vector(*proj)
 
     def section(self, findices):
-        """Return a view of ``self`` in which the slots corresponding to the
-        provided ``findices`` have been zeroed."""
+        """
+        Return a view of ``self`` in which the slots corresponding to the
+        provided ``findices`` have been zeroed.
+        """
         return Vector(*[d if i not in as_tuple(findices) else 0
                         for d, i in zip(self, self.findices)])
 
@@ -369,9 +375,8 @@ class Access(IterationInstance):
     A representation of the access performed by a :class:`Indexed` object
     (a scalar in the degenerate case).
 
-    Notes on Access comparison
-    ==========================
-
+    Notes
+    -----
     The comparison operators ``==, !=, <, <=, >, >=`` should be regarded as
     operators for lexicographic ordering of :class:`Access` objects, based
     on the values of the index functions (and the index functions only).
@@ -447,7 +452,7 @@ class TimedAccess(Access):
     assumptions to be conservative.
 
     Examples
-    ========
+    --------
     Given:
     findices = [x, y, z]
     w = an object of type Dimension
@@ -465,7 +470,6 @@ class TimedAccess(Access):
           of ``x`` within the first index function, where ``x`` is expected;
         * obj5 is irregular, as two findices appear in the same index function --
           the one in the first slot, where only ``x`` is expected.
-
     """
 
     def __new__(cls, indexed, mode, timestamp, directions):
@@ -533,7 +537,9 @@ class TimedAccess(Access):
 
 class Dependence(object):
 
-    """A data dependence between two :class:`Access` objects."""
+    """
+    A data dependence between two :class:`Access` objects.
+    """
 
     def __init__(self, source, sink):
         assert isinstance(source, TimedAccess) and isinstance(sink, TimedAccess)
@@ -557,15 +563,15 @@ class Dependence(object):
     def distance(self):
         return self.source.distance(self.sink)
 
-    @property
+    @cached_property
     def _defined_findices(self):
-        return set(flatten(i._defines for i in self.findices))
+        return frozenset(flatten(i._defines for i in self.findices))
 
-    @property
+    @cached_property
     def distance_mapper(self):
         return {i: j for i, j in zip(self.findices, self.distance)}
 
-    @property
+    @cached_property
     def cause(self):
         """Return the findex causing the dependence."""
         for i, j in zip(self.findices, self.distance):
@@ -575,23 +581,53 @@ class Dependence(object):
             except TypeError:
                 # Conservatively assume this is an offending dimension
                 return i._defines
-        return set()
+        return frozenset()
 
-    @property
+    @cached_property
+    def read(self):
+        if self.is_flow:
+            return self.sink
+        elif self.is_anti:
+            return self.source
+        else:
+            return None
+
+    @cached_property
+    def write(self):
+        if self.is_flow:
+            return self.source
+        elif self.is_anti:
+            return self.sink
+        else:
+            return None
+
+    @cached_property
+    def is_flow(self):
+        return self.source.is_write and self.sink.is_read
+
+    @cached_property
+    def is_anti(self):
+        return self.source.is_read and self.sink.is_write
+
+    @cached_property
+    def is_waw(self):
+        return self.source.is_write and self.sink.is_write
+
+    @cached_property
     def is_regular(self):
         return self.source.is_regular and self.sink.is_regular
 
-    @property
+    @cached_property
     def is_increment(self):
         return self.source.is_increment and self.sink.is_increment
 
-    @property
+    @cached_property
     def is_irregular(self):
         return not self.is_regular
 
+    @memoized_meth
     def is_carried(self, dim=None):
-        """Return True if definitely a dimension-carried dependence,
-        False otherwise."""
+        """Return True if definitely a dimension-carried dependence, False otherwise."""
         try:
             if dim is None:
                 return self.distance > 0
@@ -601,24 +637,31 @@ class Dependence(object):
             # Conservatively assume this is a carried dependence
             return True
 
+    @memoized_meth
     def is_reduce(self, dim):
-        """Return True if ``dim`` may represent a reduction dimension for
-        ``self``, False otherwise."""
+        """
+        Return True if ``dim`` may represent a reduction dimension for
+        ``self``, False otherwise.
+        """
         test0 = self.is_increment
         test1 = self.is_regular
         test2 = all(i not in self._defined_findices for i in dim._defines)
         return test0 and test1 and test2
 
+    @memoized_meth
     def is_reduce_atmost(self, dim=None):
-        """More relaxed than :meth:`is_reduce`. Return True  if ``dim`` may
+        """
+        More relaxed than :meth:`is_reduce`. Return True  if ``dim`` may
         represent a reduction dimension for ``self`` or if `self`` is definitely
-        independent of ``dim``, False otherwise."""
+        independent of ``dim``, False otherwise.
+        """
         return self.is_reduce(dim) or self.is_indep(dim)
 
     @memoized_meth
     def is_indep(self, dim=None):
-        """Return True if definitely a dimension-independent dependence,
-        False otherwise."""
+        """
+        Return True if definitely a dimension-independent dependence, False otherwise.
+        """
         try:
             if self.source.is_irregular or self.sink.is_irregular:
                 # Note: we cannot just return `self.distance == 0` as an irregular
@@ -641,6 +684,7 @@ class Dependence(object):
             # Conservatively assume this is not dimension-independent
             return False
 
+    @memoized_meth
     def is_inplace(self, dim=None):
         """Stronger than ``is_indep()``, as it also compares the timestamps."""
         return self.source.lex_eq(self.sink) and self.is_indep(dim)
@@ -651,20 +695,20 @@ class Dependence(object):
 
 class DependenceGroup(list):
 
-    @property
+    @cached_property
     def cause(self):
-        return set().union(*[i.cause for i in self])
+        return frozenset().union(*[i.cause for i in self])
 
-    @property
+    @cached_property
     def functions(self):
         """Return the :class:`TensorFunction`s inducing a dependence."""
-        return {i.function for i in self}
+        return frozenset({i.function for i in self})
 
-    @property
+    @cached_property
     def none(self):
         return len(self) == 0
 
-    @property
+    @cached_property
     def increment(self):
         """Return the increment-induced dependences."""
         return DependenceGroup(i for i in self if i.is_increment)
@@ -690,8 +734,10 @@ class DependenceGroup(list):
         return DependenceGroup([i for i in self if i not in other])
 
     def project(self, function):
-        """Return a new DependenceGroup retaining only the dependences due to
-        the provided function."""
+        """
+        Return a new DependenceGroup retaining only the dependences due to
+        the provided function.
+        """
         return DependenceGroup(i for i in self if i.function is function)
 
 
@@ -763,32 +809,6 @@ class Scope(object):
         return [i for group in groups for i in group]
 
     @cached_property
-    def has_dep(self):
-        """Return True if at least a dependency is detected, False otherwise."""
-        for k, v in self.writes.items():
-            for w1 in v:
-                for r in self.reads.get(k, []):
-                    try:
-                        is_flow = (r < w1) or (r == w1 and r.lex_ge(w1))
-                        is_anti = (r > w1) or (r == w1 and r.lex_lt(w1))
-                    except TypeError:
-                        # Non-integer vectors are not comparable.
-                        # Conservatively, we assume it is a dependence
-                        is_flow = is_anti = True
-                    if is_flow or is_anti:
-                        return True
-                for w2 in self.writes.get(k, []):
-                    try:
-                        is_output = (w2 > w1) or (w2 == w1 and w2.lex_gt(w1))
-                    except TypeError:
-                        # Non-integer vectors are not comparable.
-                        # Conservatively, we assume it is a dependence
-                        is_output = True
-                    if is_output:
-                        return True
-        return False
-
-    @cached_property
     def d_flow(self):
         """Retrieve the flow dependencies, or true dependencies, or read-after-write."""
         found = DependenceGroup()
@@ -843,3 +863,9 @@ class Scope(object):
     def d_all(self):
         """Retrieve all flow, anti, and output dependences."""
         return self.d_flow + self.d_anti + self.d_output
+
+    @memoized_meth
+    def d_from_access(self, access):
+        """Retrieve all dependences involving a given :class:`TimedAccess`."""
+        return DependenceGroup(d for d in self.d_all
+                               if d.source is access or d.sink is access)

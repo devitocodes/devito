@@ -31,9 +31,7 @@ def iet_build(stree):
 
 
 def iet_make(stree):
-    """
-    Create an Iteration/Expression tree (IET) from a :class:`ScheduleTree`.
-    """
+    """Create an IET from a :class:`ScheduleTree`."""
     nsections = 0
     queues = OrderedDict()
     for i in stree.visit():
@@ -52,7 +50,7 @@ def iet_make(stree):
             # Order to ensure deterministic code generation
             uindices = sorted(i.sub_iterators, key=lambda d: d.name)
             # Generate Iteration
-            body = [Iteration(queues.pop(i), i.dim, i.dim.limits, offsets=i.limits,
+            body = [Iteration(queues.pop(i), i.dim, i.dim._limits, offsets=i.limits,
                               direction=i.direction, uindices=uindices)]
 
         elif i.is_Section:
@@ -60,7 +58,7 @@ def iet_make(stree):
             nsections += 1
 
         elif i.is_Halo:
-            body = [HaloSpot(i.halo_scheme, body=queues.pop(i))]
+            body = [HaloSpot(hs) for hs in i.halo_scheme.components] + queues.pop(i)
 
         queues.setdefault(i.parent, []).extend(body)
 
@@ -107,13 +105,15 @@ def iet_lower_dimensions(iet):
 
 def iet_insert_C_decls(iet, func_table=None):
     """
-    Given an Iteration/Expression tree ``iet``, build a new tree with the
-    necessary symbol declarations. Declarations are placed as close as
-    possible to the first symbol use.
+    Given an IET, build a new tree with the necessary symbol declarations.
+    Declarations are placed as close as possible to the first symbol occurrence.
 
-    :param iet: The input Iteration/Expression tree.
-    :param func_table: (Optional) a mapper from callable names within ``iet``
-                       to :class:`Callable`s.
+    Parameters
+    ----------
+    iet : Node
+        The input Iteration/Expression tree.
+    func_table : dict, optional
+        A mapper from Callable names within ``iet`` to :class:`Callable`s.
     """
     func_table = func_table or {}
     allocator = Allocator()

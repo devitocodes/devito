@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import pytest
 
 import os
@@ -17,9 +15,37 @@ from devito.functions import Scalar, Array
 from devito.ir.iet import Iteration
 from devito.tools import as_tuple
 
+try:
+    from mpi4py import MPI  # noqa
+except ImportError:
+    MPI = None
 
-skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
-                                 reason="YASK testing is currently restricted")
+
+def skipif(items):
+    items = as_tuple(items)
+    # Sanity check
+    accepted = set(configuration._accepted['backend'])
+    accepted.update({'no%s' % i for i in configuration._accepted['backend']})
+    accepted.update({'nompi'})
+    unknown = sorted(set(items) - accepted)
+    if unknown:
+        raise ValueError("Illegal skipif argument(s) `%s`" % unknown)
+    for i in items:
+        # Skip if no MPI
+        if i == 'nompi':
+            if MPI is None:
+                return pytest.mark.skipif(True, reason="mpi4py/MPI not installed")
+            continue
+        # Skip if an unsupported backend
+        if i == configuration['backend']:
+            return pytest.mark.skipif(True, reason="`%s` backend unsupported" % i)
+        try:
+            _, noi = i.split('no')
+            if noi != configuration['backend']:
+                return pytest.mark.skipif(True, reason="`%s` backend unsupported" % i)
+        except ValueError:
+            pass
+    return pytest.mark.skipif(False, reason="")
 
 
 # Testing dimensions for space and time
@@ -49,7 +75,6 @@ def timefunction(name, space_order=1):
     return TimeFunction(name=name, grid=grid, space_order=space_order)
 
 
-@pytest.fixture(scope="session")
 def unit_box(name='a', shape=(11, 11), grid=None):
     """Create a field with value 0. to 1. in each dimension"""
     grid = grid or Grid(shape=shape)
@@ -59,7 +84,6 @@ def unit_box(name='a', shape=(11, 11), grid=None):
     return a
 
 
-@pytest.fixture(scope="session")
 def unit_box_time(name='a', shape=(11, 11)):
     """Create a field with value 0. to 1. in each dimension"""
     grid = Grid(shape=shape)
@@ -70,7 +94,6 @@ def unit_box_time(name='a', shape=(11, 11)):
     return a
 
 
-@pytest.fixture(scope="session")
 def points(grid, ranges, npoints, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
@@ -81,7 +104,6 @@ def points(grid, ranges, npoints, name='points'):
     return points
 
 
-@pytest.fixture(scope="session")
 def time_points(grid, ranges, npoints, name='points', nt=10):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
@@ -266,32 +288,18 @@ def EVAL(exprs, *args):
     return processed[0] if isinstance(exprs, str) else processed
 
 
-def configuration_override(key, value):
-    def dec(f):
-        def wrapper(*args, **kwargs):
-            oldvalue = configuration[key]
-            configuration[key] = value
-            f(*args, **kwargs)
-            configuration[key] = oldvalue
-
-        return wrapper
-
-    return dec
-
-
-# Support to run MPI tests
-# This is partly extracted from:
-# `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
-
-mpi_exec = 'mpiexec'
-mpi_distro = sniff_mpi_distro(mpi_exec)
-
-
 def parallel(item):
     """Run a test in parallel.
 
     :parameter item: The test item to run.
     """
+    # Support to run MPI tests
+    # This is partly extracted from:
+    # `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
+
+    mpi_exec = 'mpiexec'
+    mpi_distro = sniff_mpi_distro(mpi_exec)
+
     marker = item.get_closest_marker("parallel")
     nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
     for i in nprocs:

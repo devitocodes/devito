@@ -1,19 +1,19 @@
 import numpy as np
-
 import pytest
-from conftest import skipif_yask
 
+from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator)
-from devito.ir.iet import Call, Conditional, FindNodes
+                    SubDimension, Eq, Inc, Operator, norm, inner)
+from devito.data import LEFT, RIGHT
+from devito.ir.iet import Call, Conditional, Iteration, FindNodes
 from devito.mpi import MPI, copy, sendrecv, update_halo
-from devito.parameters import configuration
-from devito.functions.basic import LEFT, RIGHT
+from examples.seismic.acoustic import acoustic_setup
+
+pytestmark = skipif(['yask', 'ops', 'nompi'])
 
 
-@skipif_yask
-class TestPythonMPI(object):
+class TestDistributor(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
     def test_partitioning(self):
@@ -44,6 +44,25 @@ class TestPythonMPI(object):
             4: [(8,), (8,), (8,), (8,)]
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
+
+    @pytest.mark.parallel(nprocs=[2, 4])
+    def test_ctypes_neighbours(self):
+        grid = Grid(shape=(4, 4))
+        distributor = grid.distributor
+
+        PN = MPI.PROC_NULL
+        attrs = ['xleft', 'xright', 'yleft', 'yright']
+        expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
+            2: [(PN, PN, PN, 1), (PN, PN, 0, PN)],
+            4: [(PN, 2, PN, 1), (PN, 3, 0, PN), (0, PN, PN, 3), (1, PN, 2, PN)]
+        }
+
+        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
+        obj = distributor._obj_neighbours
+        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
+
+
+class TestFunction(object):
 
     @pytest.mark.parallel(nprocs=9)
     def test_neighborhood_2d(self):
@@ -79,7 +98,7 @@ class TestPythonMPI(object):
         """
         Test halo exchange between two processes organised in a 1x2 cartesian grid.
 
-        The initial ``data_with_halo`` looks like:
+        The initial ``data_with_inhalo`` looks like:
 
                rank0           rank1
             0 0 0 0 0 0     0 0 0 0 0 0
@@ -100,22 +119,23 @@ class TestPythonMPI(object):
             0 0 0 0 0 0     0 0 0 0 0 0
         """
         grid = Grid(shape=(12, 12))
-        f = Function(name='f', grid=grid)
+        x, y = grid.dimensions
 
-        distributor = grid.distributor
-        f.data[:] = distributor.myrank + 1
+        f = Function(name='f', grid=grid)
+        f.data[:] = grid.distributor.myrank + 1
 
         # Now trigger a halo exchange...
         f.data_with_halo   # noqa
 
-        if distributor.myrank == 0:
-            assert np.all(f.data_ro_with_halo[1:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo[:, 0] == 0.)
+        glb_pos_map = grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[y]:
+            assert np.all(f._data_ro_with_inhalo[1:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo[:, 0] == 0.)
         else:
-            assert np.all(f.data_ro_with_halo[1:-1, 0] == 1.)
-            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-        assert np.all(f.data_ro_with_halo[0] == 0.)
-        assert np.all(f.data_ro_with_halo[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, 0] == 1.)
+            assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
+        assert np.all(f._data_ro_with_inhalo[0] == 0.)
+        assert np.all(f._data_ro_with_inhalo[-1] == 0.)
 
     @pytest.mark.parallel(nprocs=2)
     def test_halo_exchange_bilateral_asymmetric(self):
@@ -124,7 +144,7 @@ class TestPythonMPI(object):
 
         In this test, the size of left and right halo regions are different.
 
-        The initial ``data_with_halo`` looks like:
+        The initial ``data_with_inhalo`` looks like:
 
                rank0           rank1
             0 0 0 0 0 0 0     0 0 0 0 0 0 0
@@ -147,29 +167,30 @@ class TestPythonMPI(object):
             0 0 0 0 0 0 0     0 0 0 0 0 0 0
         """
         grid = Grid(shape=(12, 12))
-        f = Function(name='f', grid=grid, space_order=(1, 2, 1))
+        x, y = grid.dimensions
 
-        distributor = grid.distributor
-        f.data[:] = distributor.myrank + 1
+        f = Function(name='f', grid=grid, space_order=(1, 2, 1))
+        f.data[:] = grid.distributor.myrank + 1
 
         # Now trigger a halo exchange...
         f.data_with_halo   # noqa
 
-        if distributor.myrank == 0:
-            assert np.all(f.data_ro_with_halo[2:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo[:, 0:2] == 0.)
+        glb_pos_map = grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[y]:
+            assert np.all(f._data_ro_with_inhalo[2:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo[:, 0:2] == 0.)
         else:
-            assert np.all(f.data_ro_with_halo[2:-1, 0:2] == 1.)
-            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-        assert np.all(f.data_ro_with_halo[0:2] == 0.)
-        assert np.all(f.data_ro_with_halo[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[2:-1, 0:2] == 1.)
+            assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
+        assert np.all(f._data_ro_with_inhalo[0:2] == 0.)
+        assert np.all(f._data_ro_with_inhalo[-1] == 0.)
 
     @pytest.mark.parallel(nprocs=4)
     def test_halo_exchange_quadrilateral(self):
         """
         Test halo exchange between four processes organised in a 2x2 cartesian grid.
 
-        The initial ``data_with_halo`` looks like:
+        The initial ``data_with_inhalo`` looks like:
 
                rank0           rank1
             0 0 0 0 0 0     0 0 0 0 0 0
@@ -206,58 +227,53 @@ class TestPythonMPI(object):
             0 0 0 0 0 0     0 0 0 0 0 0
         """
         grid = Grid(shape=(12, 12))
-        f = Function(name='f', grid=grid)
+        x, y = grid.dimensions
 
-        distributor = grid.distributor
-        f.data[:] = distributor.myrank + 1
+        f = Function(name='f', grid=grid)
+        f.data[:] = grid.distributor.myrank + 1
 
         # Now trigger a halo exchange...
         f.data_with_halo   # noqa
 
-        if distributor.myrank == 0:
-            assert np.all(f.data_ro_with_halo[0] == 0.)
-            assert np.all(f.data_ro_with_halo[:, 0] == 0.)
-            assert np.all(f.data_ro_with_halo[1:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo[-1, 1:-1] == 3.)
-            assert f.data_ro_with_halo[-1, -1] == 4.
-        elif distributor.myrank == 1:
-            assert np.all(f.data_ro_with_halo[0] == 0.)
-            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-            assert np.all(f.data_ro_with_halo[1:-1, 0] == 1.)
-            assert np.all(f.data_ro_with_halo[-1, 1:-1] == 4.)
-            assert f.data_ro_with_halo[-1, 0] == 3.
-        elif distributor.myrank == 2:
-            assert np.all(f.data_ro_with_halo[-1] == 0.)
-            assert np.all(f.data_ro_with_halo[:, 0] == 0.)
-            assert np.all(f.data_ro_with_halo[1:-1, -1] == 4.)
-            assert np.all(f.data_ro_with_halo[0, 1:-1] == 1.)
-            assert f.data_ro_with_halo[0, -1] == 2.
+        glb_pos_map = grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(f._data_ro_with_inhalo[0] == 0.)
+            assert np.all(f._data_ro_with_inhalo[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo[-1, 1:-1] == 3.)
+            assert f._data_ro_with_inhalo[-1, -1] == 4.
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(f._data_ro_with_inhalo[0] == 0.)
+            assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, 0] == 1.)
+            assert np.all(f._data_ro_with_inhalo[-1, 1:-1] == 4.)
+            assert f._data_ro_with_inhalo[-1, 0] == 3.
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(f._data_ro_with_inhalo[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, -1] == 4.)
+            assert np.all(f._data_ro_with_inhalo[0, 1:-1] == 1.)
+            assert f._data_ro_with_inhalo[0, -1] == 2.
         else:
-            assert np.all(f.data_ro_with_halo[-1] == 0.)
-            assert np.all(f.data_ro_with_halo[:, -1] == 0.)
-            assert np.all(f.data_ro_with_halo[1:-1, 0] == 3.)
-            assert np.all(f.data_ro_with_halo[0, 1:-1] == 2.)
-            assert f.data_ro_with_halo[0, 0] == 1.
+            assert np.all(f._data_ro_with_inhalo[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
+            assert np.all(f._data_ro_with_inhalo[1:-1, 0] == 3.)
+            assert np.all(f._data_ro_with_inhalo[0, 1:-1] == 2.)
+            assert f._data_ro_with_inhalo[0, 0] == 1.
 
-    @skipif_yask
-    @pytest.mark.parallel(nprocs=[2, 4])
-    def test_ctypes_neighbours(self):
-        grid = Grid(shape=(4, 4))
-        distributor = grid.distributor
+    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parametrize('shape,expected', [
+        ((15, 15), [((0, 8), (0, 8)), ((0, 8), (8, 15)),
+                    ((8, 15), (0, 8)), ((8, 15), (8, 15))]),
+    ])
+    def test_local_indices(self, shape, expected):
+        grid = Grid(shape=shape)
+        f = Function(name='f', grid=grid)
 
-        PN = MPI.PROC_NULL
-        attrs = ['xleft', 'xright', 'yleft', 'yright']
-        expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
-            2: [(PN, PN, PN, 1), (PN, PN, 0, PN)],
-            4: [(PN, 2, PN, 1), (PN, 3, 0, PN), (0, PN, PN, 3), (1, PN, 2, PN)]
-        }
-
-        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
-        _, _, obj = distributor._C_neighbours
-        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
+        assert all(i == slice(*j)
+                   for i, j in zip(f.local_indices, expected[grid.distributor.myrank]))
 
 
-@skipif_yask
 class TestCodeGeneration(object):
 
     def test_iet_copy(self):
@@ -268,14 +284,13 @@ class TestCodeGeneration(object):
 
         iet = copy(f, [t])
         assert str(iet.parameters) == """\
-(buf(buf_x, buf_y), buf_x_size, buf_y_size, dat(dat_time, dat_x, dat_y),\
- dat_time_size, dat_x_size, dat_y_size, otime, ox, oy)"""
+(buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
   for (int x = 0; x <= buf_x_size - 1; x += 1)
   {
     for (int y = 0; y <= buf_y_size - 1; y += 1)
     {
-      buf[x][y] = dat[otime][x + ox][y + oy];
+      buf[x][y] = f[otime][x + ox][y + oy];
     }
   }""" in str(iet)
 
@@ -287,27 +302,27 @@ class TestCodeGeneration(object):
 
         iet = sendrecv(f, [t])
         assert str(iet.parameters) == """\
-(dat(dat_time, dat_x, dat_y), dat_time_size, dat_x_size, dat_y_size,\
- buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy, fromrank, torank, comm)"""
+(f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
+ fromrank, torank, comm)"""
         assert str(iet.body[0]) == """\
-float (*restrict dat)[dat_x_size][dat_y_size] __attribute__((aligned(64))) =\
- (float (*)[dat_x_size][dat_y_size]) dat_vec;
-float bufs[buf_x_size][buf_y_size] __attribute__((aligned(64)));
+float (*bufs)[buf_y_size];
+float (*bufg)[buf_y_size];
+posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
+posix_memalign((void**)&bufg, 64, sizeof(float[buf_x_size][buf_y_size]));
 MPI_Request rrecv;
-float bufg[buf_x_size][buf_y_size] __attribute__((aligned(64)));
 MPI_Request rsend;
 MPI_Status srecv;
-MPI_Irecv((float*)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
-gather_f((float*)bufg,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
-dat_y_size,ogtime,ogx,ogy);
-MPI_Isend((float*)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
+MPI_Irecv((float *)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
+gather_f((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
+MPI_Isend((float *)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
 MPI_Wait(&rsend,MPI_STATUS_IGNORE);
 MPI_Wait(&rrecv,&srecv);
 if (fromrank != MPI_PROC_NULL)
 {
-  scatter_f((float*)bufs,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
-dat_y_size,ostime,osx,osy);
-}"""
+  scatter_f((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
+}
+free(bufs);
+free(bufg);"""
 
     @pytest.mark.parallel(nprocs=1)
     def test_iet_update_halo(self):
@@ -318,104 +333,118 @@ dat_y_size,ostime,osx,osy);
 
         iet = update_halo(f, [t])
         assert str(iet.parameters) == """\
-(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime, t_size, x_size, y_size)"""
-        assert """\
-MPI_Comm *comm = (MPI_Comm*) _comm;
-struct neighbours *nb = (struct neighbours*) _nb;
+(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime)"""
+        assert str(iet.body[0]) == """\
 if (mxl)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,\
-otime,1,0,otime,x_size + 1,0,nb->xright,nb->xleft,comm);
+  sendrecv_f(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
+f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->xright,nb->xleft,comm);
 }
 if (mxr)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,\
-otime,x_size,0,otime,0,0,nb->xleft,nb->xright,comm);
+  sendrecv_f(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
+f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->xleft,nb->xright,comm);
 }
 if (myl)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
-otime,0,1,otime,0,y_size + 1,nb->yright,nb->yleft,comm);
+  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
+f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->yright,nb->yleft,comm);
 }
 if (myr)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
-otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
+  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
+f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->yleft,nb->yright,comm);
 }"""
 
 
-@skipif_yask
 class TestSparseFunction(object):
 
     @pytest.mark.parallel(nprocs=4)
-    @pytest.mark.parametrize('coords,expected', [
-        ([(1., 1.), (1., 3.), (3., 1.), (3., 3.)], (0, 1, 2, 3)),
+    @pytest.mark.parametrize('coords', [
+        ((1., 1.), (1., 3.), (3., 1.), (3., 3.)),
     ])
-    def test_ownership(self, coords, expected):
+    def test_ownership(self, coords):
         """Given a sparse point ``p`` with known coordinates, this test checks
         that the MPI rank owning ``p`` is retrieved correctly."""
         grid = Grid(shape=(4, 4), extent=(4.0, 4.0))
 
         sf = SparseFunction(name='sf', grid=grid, npoint=4, coordinates=coords)
 
-        assert len(sf.gridpoints) == len(expected)
-        assert all(sf._is_owned(i) == (j == grid.distributor.myrank)
-                   for i, j in zip(sf.gridpoints, expected))
+        # The domain decomposition is so that the i-th MPI rank gets exactly one
+        # sparse point `p` and, incidentally, `p` is logically owned by `i`
+        assert len(sf.gridpoints) == 1
+        assert all(grid.distributor.glb_to_rank(i) == grid.distributor.myrank
+                   for i in sf.gridpoints)
+
+    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parametrize('coords,expected', [
+        ([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]]),
+    ])
+    def test_local_indices(self, coords, expected):
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        data = np.array([0., 1., 2., 3.])
+        coords = np.array(coords)
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords))
+
+        # Each of the 4 MPI ranks get one (randomly chosen) sparse point
+        assert sf.npoint == 1
+
+        sf.coordinates.data[:] = coords
+        sf.data[:] = data
+
+        expected = np.array(expected[grid.distributor.myrank])
+        assert np.all(sf.data == expected)
 
     @pytest.mark.parallel(nprocs=4)
     def test_scatter_gather(self):
         """
         Test scattering and gathering of sparse data from and to a single MPI rank.
 
-        The initial data distribution looks like:
+        The initial data distribution (A, B, C, and D are generic values) looks like:
 
                rank0           rank1           rank2           rank3
-            [0, 1, 2, 3]        []              []               []
+                [D]             [C]             [B]             [A]
 
-        Logically (i.e., given point coordinates and domain decomposition), 0 belongs
-        to rank0, 1 belongs to rank1, etc. Thus, after scattering, the data distribution
+        Logically (i.e., given point coordinates and domain decomposition), A belongs
+        to rank0, B belongs to rank1, etc. Thus, after scattering, the data distribution
         is expected to be:
 
                rank0           rank1           rank2           rank3
-                [0]             [1]             [2]             [3]
+                [A]             [B]             [C]             [D]
 
-        Then, locally on each rank, some trivial computation is performed, and we obtain:
+        Then, locally on each rank, a trivial *2 multiplication is performed:
 
                rank0           rank1           rank2           rank3
-                [0]             [2]             [4]             [6]
+               [A*2]           [B*2]           [C*2]           [D*2]
 
         Finally, we gather the data values and we get:
 
                rank0           rank1           rank2           rank3
-            [0, 2, 4, 6]        []              []              []
+               [D*2]           [C*2]           [B*2]           [A*2]
         """
         grid = Grid(shape=(4, 4), extent=(4.0, 4.0))
 
         # Initialization
-        if grid.distributor.myrank == 0:
-            coords = [(1., 1.), (1., 3.), (3., 1.), (3., 3.)]
-        else:
-            coords = []
+        data = np.array([3, 2, 1, 0])
+        coords = np.array([(3., 3.), (3., 1.), (1., 3.), (1., 1.)])
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
-        sf.data[:] = list(range(len(coords)))
+        sf.data[:] = data
 
         # Scatter
-        data = sf._dist_scatter()[sf]
-        assert len(data) == 1
-        assert data[0] == grid.distributor.myrank
+        loc_data = sf._dist_scatter()[sf]
+        assert len(loc_data) == 1
+        assert loc_data[0] == grid.distributor.myrank
 
         # Do some local computation
-        data = data*2
+        loc_data = loc_data*2
 
         # Gather
-        sf._dist_gather(data)
-        if grid.distributor.myrank == 0:
-            assert np.all(sf.data == [0, 2, 4, 6])
-        else:
-            assert not sf.data
+        sf._dist_gather(loc_data)
+        assert len(sf.data) == 1
+        assert np.all(sf.data == data[sf.local_indices]*2)
 
 
-@skipif_yask
 class TestOperatorSimple(object):
 
     @pytest.mark.parallel(nprocs=[2, 4, 8, 16, 32])
@@ -478,8 +507,7 @@ class TestOperatorSimple(object):
         corner, side, interior = 10., 13., 16.
 
         glb_pos_map = f.grid.distributor.glb_pos_map
-
-        assert np.all(f.data_ro_interior[0] == interior)
+        assert np.all(f.data_ro_domain[0, 1:-1, 1:-1] == interior)
         if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert f.data_ro_domain[0, 0, 0] == corner
             assert np.all(f.data_ro_domain[0, 1:, :1] == side)
@@ -540,20 +568,6 @@ class TestOperatorSimple(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(nprocs=1)
-    def test_stencil_nowrite_implies_haloupdate(self):
-        grid = Grid(shape=(12,))
-        x = grid.dimensions[0]
-        t = grid.stepping_dim
-
-        f = TimeFunction(name='f', grid=grid)
-        g = Function(name='g', grid=grid)
-
-        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
-
-        calls = FindNodes(Call).visit(op)
-        assert len(calls) == 1
-
-    @pytest.mark.parallel(nprocs=1)
     def test_avoid_redundant_haloupdate(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -568,6 +582,47 @@ class TestOperatorSimple(object):
         op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
                        Inc(f[t+1, i], 1.),  # no halo update as it's an Inc
                        Eq(g, f[t, j] + 1)])  # access `f` at `t`, not `t+1`!
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.parallel(nprocs=1)
+    def test_avoid_haloupdate_if_distr_but_sequential(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+
+        # There is an anti-dependence between the first and second Eqs, so
+        # the compiler places them in different x-loops. However, none of the
+        # two loops should be preceded by a halo exchange, though for different
+        # reasons:
+        # * the equation in the first loop has no stencil
+        # * the equation in the second loop is inherently sequential, so the
+        #   compiler should be sufficiently smart to see that there is no point
+        #   in adding a halo exchange
+        op = Operator([Eq(f, f + 1),
+                       Eq(f, f[t, x-1] + f[t, x+1] + 1.)])
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert len(iterations) == 3
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
+
+    @pytest.mark.parallel(nprocs=1)
+    def test_stencil_nowrite_implies_haloupdate_anyway(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        # It does a halo update, even though there's no data dependence,
+        # because when the halo updates are placed, the compiler conservatively
+        # assumes there might have been another equation writing to `f` before.
+        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
@@ -614,8 +669,24 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 0
 
+    @pytest.mark.parallel(nprocs=2)
+    def test_reapply_with_different_functions(self):
+        grid1 = Grid(shape=(30, 30, 30))
+        f1 = Function(name='f', grid=grid1, space_order=4)
 
-@skipif_yask
+        op = Operator(Eq(f1, 1.))
+        op.apply()
+
+        grid2 = Grid(shape=(40, 40, 40))
+        f2 = Function(name='f', grid=grid2, space_order=4)
+
+        # Re-application
+        op.apply(f=f2)
+
+        assert np.all(f1.data == 1.)
+        assert np.all(f2.data == 1.)
+
+
 class TestOperatorAdvanced(object):
 
     @pytest.mark.parallel(nprocs=[4])
@@ -628,10 +699,7 @@ class TestOperatorAdvanced(object):
 
         f = Function(name='f', grid=grid, space_order=0)
         f.data[:] = 0.
-        if grid.distributor.myrank == 0:
-            coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
-        else:
-            coords = []
+        coords = np.array([(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)])
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
         sf.data[:] = 4.
 
@@ -664,10 +732,7 @@ class TestOperatorAdvanced(object):
         save = 3
         f = TimeFunction(name='f', grid=grid, save=save, space_order=0)
         f.data[:] = 0.
-        if grid.distributor.myrank == 0:
-            coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
-        else:
-            coords = []
+        coords = np.array([(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)])
         sf = SparseTimeFunction(name='sf', grid=grid, nt=save,
                                 npoint=len(coords), coordinates=coords)
         sf.data[0, :] = 4.
@@ -692,10 +757,7 @@ class TestOperatorAdvanced(object):
 
         f = Function(name='f', grid=grid)
         f.data[:] = 0.
-        if grid.distributor.myrank == 0:
-            coords = [(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)]
-        else:
-            coords = []
+        coords = [(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)]
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
         sf.data[:] = 4.
 
@@ -745,10 +807,7 @@ class TestOperatorAdvanced(object):
 
         f = Function(name='f', grid=grid, space_order=0)
         f.data[:] = 4.
-        if grid.distributor.myrank == 0:
-            coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
-        else:
-            coords = []
+        coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
         sf.data[:] = 0.
 
@@ -780,15 +839,8 @@ class TestOperatorAdvanced(object):
 
         # Init Function+data
         f = Function(name='f', grid=grid)
-        glb_pos_map = grid.distributor.glb_pos_map
-        if LEFT in glb_pos_map[x]:
-            f.data[:] = [[1., 1.], [2., 2.]]
-        else:
-            f.data[:] = [[3., 3.], [4., 4.]]
-        if grid.distributor.myrank == 0:
-            coords = [(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)]
-        else:
-            coords = []
+        f.data[:] = np.array([[1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 3, 3], [4, 4, 4, 4]])
+        coords = np.array([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)])
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
         sf.data[:] = 0.
 
@@ -825,10 +877,8 @@ class TestOperatorAdvanced(object):
 
         op = Operator(sf.interpolate(expr=f))
         op.apply()
-        if grid.distributor.myrank == 0:
-            assert np.all(sf.data == [1.5, 2.5, 2.5, 3.5])
-        else:
-            assert sf.data.size == 0
+
+        assert np.all(sf.data == [1.5, 2.5, 2.5, 3.5][grid.distributor.myrank])
 
     @pytest.mark.parallel(nprocs=2)
     def test_subsampling(self):
@@ -927,6 +977,68 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[0, :-thickness] == 1.)
             assert np.all(u.data_ro_domain[0, -thickness:] == range(2, thickness+2))
 
+    @pytest.mark.parallel(nprocs=2)
+    def test_interior_w_stencil(self):
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u[t, x-1] + u[t, x+1] + 1, subdomain=grid.interior))
+        op.apply(time=1)
+
+        glb_pos_map = u.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(u.data_ro_domain[0, 1] == 2.)
+            assert np.all(u.data_ro_domain[0, 2:] == 3.)
+        else:
+            assert np.all(u.data_ro_domain[0, -2] == 2.)
+            assert np.all(u.data_ro_domain[0, :-2] == 3.)
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_misc_dims(self):
+        """
+        Test MPI in presence of Functions with mixed distributed/replicated
+        Dimensions, with only a strict subset of the Grid dimensions used.
+        """
+        dx = Dimension(name='dx')
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=1, space_order=2, save=4)
+        c = Function(name='c', grid=grid, dimensions=(x, dx), shape=(4, 5))
+
+        step = Eq(u.forward, (
+            u[time, x-2, y] * c[x, 0]
+            + u[time, x-1, y] * c[x, 1]
+            + u[time, x, y] * c[x, 2]
+            + u[time, x+1, y] * c[x, 3]
+            + u[time, x+2, y] * c[x, 4]))
+
+        for i in range(4):
+            c.data[i, 0] = 1.0+i
+            c.data[i, 1] = 1.0+i
+            c.data[i, 2] = 3.0+i
+            c.data[i, 3] = 6.0+i
+            c.data[i, 4] = 5.0+i
+
+        u.data[:] = 0.0
+        u.data[0, 2, :] = 2.0
+
+        op = Operator(step)
+
+        op(time_m=0, time_M=0)
+
+        if LEFT in glb_pos_map[x]:
+            assert(np.all(u.data[1, 0, :] == 10.0))
+            assert(np.all(u.data[1, 1, :] == 14.0))
+        else:
+            assert(np.all(u.data[1, 2, :] == 10.0))
+            assert(np.all(u.data[1, 3, :] == 8.0))
+
     @pytest.mark.parallel(nprocs=9)
     def test_nontrivial_operator(self):
         """
@@ -1012,24 +1124,58 @@ class TestOperatorAdvanced(object):
 class TestIsotropicAcoustic(object):
 
     """
-    Test the acoustic wave model with MPI.
+    Test the isotropic acoustic wave equation with MPI.
     """
 
-    # TODO: Cannot mark the following test as `xfail` since this marker
-    # doesn't cope well with the `parallel` mark. Leaving it commented out
-    # for the time being...
-    # @pytest.mark.parametrize('shape, kernel, space_order, nbpml', [
-    #     # 1 tests with varying time and space orders
-    #     ((60, ), 'OT2', 4, 10),
-    # ])
-    # @pytest.mark.parallel(nprocs=2)
-    # def test_adjoint_F(self, shape, kernel, space_order, nbpml):
-    #     from test_adjoint import TestAdjoint
-    #     TestAdjoint().test_adjoint_F('layers', shape, kernel, space_order, nbpml)
+    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
+        ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
+        ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
+        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
+    ])
+    @pytest.mark.parallel(nprocs=[4, 8])
+    def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
+                       Eu, Erec, Ev, Esrca):
+        """
+        Unlike `test_adjoint_F` in test_adjoint.py, here we explicitly check the norms
+        of all Operator-evaluated Functions. The numbers we check against are derived
+        "manually" from sequential runs of test_adjoint::test_adjoint_F
+        """
+        tn = 500.  # Final time
+        nrec = 130  # Number of receivers
 
-    pass
+        # Create solver from preset
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+                                nbpml=nbpml, tn=tn, space_order=space_order, nrec=nrec,
+                                preset='layers-isotropic', dtype=np.float64)
+        # Run forward operator
+        rec, u, _ = solver.forward(save=save)
+
+        assert np.isclose(norm(u), Eu, rtol=Eu*1.e-8)
+        assert np.isclose(norm(rec), Erec, rtol=Erec*1.e-8)
+
+        # Run adjoint operator
+        srca, v, _ = solver.adjoint(rec=rec)
+
+        assert np.isclose(norm(v), Ev, rtol=Eu*1.e-8)
+        assert np.isclose(norm(srca), Esrca, rtol=Erec*1.e-8)
+
+        # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
+        term1 = inner(srca, solver.geometry.src)
+        term2 = norm(rec)**2
+        assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
 
 if __name__ == "__main__":
+    from devito import configuration
     configuration['mpi'] = True
-    TestOperatorAdvanced().test_interpolation_dup()
+    # TestDecomposition().test_reshape_left_right()
+    # TestOperatorSimple().test_trivial_eq_2d()
+    # TestFunction().test_halo_exchange_bilateral()
+    # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
+    # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
+    # TestSparseFunction().test_scatter_gather()
+    # TestOperatorAdvanced().test_nontrivial_operator()
+    # TestOperatorAdvanced().test_interpolation_dup()
+    TestOperatorAdvanced().test_injection_wodup()
+    # TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
+    #                                        153.122, 205.902, 27484.635, 11736.917)

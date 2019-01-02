@@ -2,11 +2,12 @@
 
 from collections import OrderedDict
 from os import environ
+from functools import wraps
 
 from devito.tools import Signer, filter_ordered
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
-           'add_sub_configuration']
+           'add_sub_configuration', 'switchconfig']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -27,6 +28,7 @@ class Parameters(OrderedDict, Signer):
         self._name = name
         self._accepted = {}
         self._defaults = {}
+        self._impact_jit = {}
         self._update_functions = {}
         if kwargs is not None:
             for key, value in kwargs.items():
@@ -66,7 +68,7 @@ class Parameters(OrderedDict, Signer):
         """
         super(Parameters, self).__setitem__(key, value)
 
-    def add(self, key, value, accepted=None, callback=None):
+    def add(self, key, value, accepted=None, callback=None, impacts_jit=True):
         """
         Add a new parameter ``key`` with default value ``value``.
 
@@ -74,10 +76,15 @@ class Parameters(OrderedDict, Signer):
 
         If provided, make sure ``callback`` is executed when the value of ``key``
         changes.
+
+        If ``impacts_jit`` is False (defaults to True), then it can be assumed
+        that the parameter doesn't affect code generation, so it can be excluded
+        from the construction of the hash key.
         """
         super(Parameters, self).__setitem__(key, value)
         self._accepted[key] = accepted
         self._defaults[key] = value
+        self._impact_jit[key] = impacts_jit
         if callable(callback):
             self._update_functions[key] = callback
 
@@ -94,10 +101,9 @@ class Parameters(OrderedDict, Signer):
         return self._name
 
     def _signature_items(self):
-        # Note: we are discarding some vars that do not affect the c level
+        # Note: we are discarding some vars that do not affect the C level
         # code in order to avoid recompiling when such vars are modified
-        discard = ['profiling', 'autotuning', 'log_level', 'first_touch']
-        items = sorted((k, v) for k, v in self.items() if k not in discard)
+        items = sorted((k, v) for k, v in self.items() if self._impact_jit[k])
         return tuple(str(items)) + tuple(str(sorted(self.backend.items())))
 
 
@@ -107,16 +113,18 @@ env_vars_mapper = {
     'DEVITO_PLATFORM': 'platform',
     'DEVITO_PROFILING': 'profiling',
     'DEVITO_BACKEND': 'backend',
+    'DEVITO_CODEGEN': 'codegen',
     'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
-    'DEVITO_DLE_OPTIONS': 'dle_options',
+    'DEVITO_DLE_OPTIONS': 'dle-options',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_MPI': 'mpi',
     'DEVITO_AUTOTUNING': 'autotuning',
-    'DEVITO_LOGGING': 'log_level',
-    'DEVITO_FIRST_TOUCH': 'first_touch',
-    'DEVITO_DEBUG_COMPILER': 'debug_compiler',
+    'DEVITO_LOGGING': 'log-level',
+    'DEVITO_FIRST_TOUCH': 'first-touch',
+    'DEVITO_DEBUG_COMPILER': 'debug-compiler',
+    'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns'
 }
 
 
@@ -178,6 +186,29 @@ def add_sub_configuration(sub_configuration, sub_env_vars_mapper=None):
     # For use in user code, when the backend is a runtime choice and some
     # options are in common between the supported backends
     setattr(configuration, 'backend', sub_configuration)
+
+
+class switchconfig(object):
+
+    """
+    Decorator to temporarily change `configuration` parameters.
+    """
+
+    def __init__(self, **params):
+        self.params = {k.replace('_', '-'): v for k, v in params.items()}
+
+    def __call__(self, func, *args, **kwargs):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            previous = {}
+            for k, v in self.params.items():
+                previous[k] = configuration[k]
+                configuration[k] = v
+            result = func(*args, **kwargs)
+            for k, v in self.params.items():
+                configuration[k] = previous[k]
+            return result
+        return wrapper
 
 
 def print_defaults():

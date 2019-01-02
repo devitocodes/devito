@@ -90,12 +90,13 @@ class Compiler(GCCToolchain):
 
     The base class defaults all compiler specific settings to empty lists.
     Preset configurations can be built by inheriting from `Compiler` and setting
-    specific flags to the desired values, eg.:
+    specific flags to the desired values, e.g.:
 
-    def class MyCompiler(Compiler):
-        def __init__(self):
-            self.cc = 'mycompiler'
-            self.cflags += ['list', 'of', 'all', 'compiler', 'flags']
+    .. code-block:: python
+      def class MyCompiler(Compiler):
+          def __init__(self):
+              self.cc = 'mycompiler'
+              self.cflags += ['list', 'of', 'all', 'compiler', 'flags']
 
     The flags that can be set are:
         * :data:`self.cc`
@@ -109,13 +110,15 @@ class Compiler(GCCToolchain):
         * :data:`self.so_ext`
         * :data:`self.undefines`
 
-    Two additional keyword arguments may be passed.
-    :param suffix: A string indicating a specific compiler version available on
-                   the system. For example, assuming ``compiler=gcc`` and
-                   ``suffix='4.9'``, then the ``gcc-4.9`` program will be used
-                   to compile the generated code.
-    :param cpp: Defaults to False. Pass True to set up for C++ compilation,
-                instead of C compilation.
+    Parameters
+    ----------
+    suffix : str, optional
+        The JIT compiler version to be used. For example, assuming ``CC=gcc`` and
+        ``suffix='4.9'``, the ``gcc-4.9`` will be used as JIT compiler.
+    cpp : bool, optional
+        If True, JIT compile using a C++ compiler. Defaults to False.
+    mpi : bool, optional
+        If True, JIT compile using an MPI compiler. Defaults to False.
     """
 
     fields = {'cc', 'ld'}
@@ -271,8 +274,6 @@ class IntelKNLCompiler(IntelCompiler):
 class CustomCompiler(Compiler):
     """Custom compiler based on standard environment flags
 
-    :param openmp: Boolean indicating if openmp is enabled. False by default
-
     Note: Currently honours CC, CFLAGS and LDFLAGS, with defaults similar
     to the default GNU settings. If DEVITO_ARCH is enabled, the OpenMP linker
     flags are read from OMP_LDFLAGS or otherwise default to ``-fopenmp``.
@@ -294,17 +295,13 @@ class CustomCompiler(Compiler):
 
 @memoized_func
 def get_jit_dir():
-    """
-    A deterministic temporary directory for jit-compiled objects.
-    """
+    """A deterministic temporary directory for jit-compiled objects."""
     return make_tempdir('jitcache')
 
 
 @memoized_func
 def get_codepy_dir():
-    """
-    A deterministic temporary directory for the codepy cache.
-    """
+    """A deterministic temporary directory for the codepy cache."""
     return make_tempdir('codepy')
 
 
@@ -312,9 +309,15 @@ def load(soname):
     """
     Load a compiled shared object.
 
-    :param soname: Name of the .so file (w/o the suffix).
+    Parameters
+    ----------
+    soname : str
+        Name of the .so file (w/o the suffix).
 
-    :return: The loaded shared object.
+    Returns
+    -------
+    obj
+        The loaded shared object.
     """
     return npct.load_library(str(get_jit_dir().joinpath(soname)), '.')
 
@@ -323,16 +326,21 @@ def save(soname, binary, compiler):
     """
     Store a binary into a file within a temporary directory.
 
-    :param soname: Name of the .so file (w/o the suffix).
-    :param binary: The binary data.
-    :param compiler: The toolchain used for compilation.
+    Parameters
+    ----------
+    soname : str
+        Name of the .so file (w/o the suffix).
+    binary : obj
+        The binary data.
+    compiler : Compiler
+        The toolchain used for JIT compilation.
     """
     sofile = get_jit_dir().joinpath(soname).with_suffix(compiler.so_ext)
     if sofile.is_file():
         debug("%s: `%s` was not saved in `%s` as it already exists"
               % (compiler, sofile.name, get_jit_dir()))
     else:
-        with open(str(path), 'wb') as f:
+        with open(str(sofile), 'wb') as f:
             f.write(binary)
         debug("%s: `%s` successfully saved in `%s`"
               % (compiler, sofile.name, get_jit_dir()))
@@ -340,18 +348,27 @@ def save(soname, binary, compiler):
 
 def jit_compile(soname, code, compiler):
     """
-    JIT compile the given C/C++ ``code``.
+    JIT compile some source code given as a string.
 
     This function relies upon codepy's ``compile_from_string``, which performs
     caching of compilation units and avoids potential race conditions due to
     multiple processing trying to compile the same object.
 
-    :param soname: A unique name for the jit-compiled shared object.
-    :param code: String of C source code.
-    :param compiler: The toolchain used for compilation.
+    Parameters
+    ----------
+    soname : str
+        Name of the .so file (w/o the suffix).
+    code : str
+        The source code to be JIT compiled.
+    compiler : Compiler
+        The toolchain used for JIT compilation.
     """
     target = str(get_jit_dir().joinpath(soname))
     src_file = "%s.%s" % (target, compiler.src_ext)
+
+    # This makes a suite of cache directories based on the soname
+    cache_dir = get_codepy_dir().joinpath(soname[:7])
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     # `catch_warnings` suppresses codepy complaining that it's taking
     # too long to acquire the cache lock. This warning can only appear
@@ -359,10 +376,15 @@ def jit_compile(soname, code, compiler):
     # many processes are frequently attempting jit-compilation (e.g.,
     # when running the test suite in parallel)
     with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
         tic = time()
+        # Spinlock in case of MPI
+        sleep_delay = 0 if configuration['mpi'] else 1
         _, _, _, recompiled = compile_from_string(compiler, target, code, src_file,
-                                                  cache_dir=get_codepy_dir(),
-                                                  debug=configuration['debug_compiler'])
+                                                  cache_dir=cache_dir,
+                                                  debug=configuration['debug-compiler'],
+                                                  sleep_delay=sleep_delay)
         toc = time()
 
     if recompiled:
@@ -372,9 +394,7 @@ def jit_compile(soname, code, compiler):
 
 
 def make(loc, args):
-    """
-    Invoke ``make`` command from within ``loc`` with arguments ``args``.
-    """
+    """Invoke the ``make`` command from within ``loc`` with arguments ``args``."""
     hash_key = sha1((loc + str(args)).encode()).hexdigest()
     logfile = path.join(get_jit_dir(), "%s.log" % hash_key)
     errfile = path.join(get_jit_dir(), "%s.err" % hash_key)

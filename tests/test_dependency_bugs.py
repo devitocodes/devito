@@ -1,6 +1,10 @@
 import numpy as np
 from numpy.random import rand
 
+from conftest import skipif
+
+pytestmark = skipif('ops')
+
 
 def test_numpy_dot():
     # Checking for bug in numpy.dot

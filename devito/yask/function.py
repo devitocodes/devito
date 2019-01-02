@@ -7,7 +7,7 @@ import devito.functions.dense as dense
 import devito.functions.constant as constant
 from devito.exceptions import InvalidArgument
 from devito.logger import yask as log
-from devito.tools import Signer, numpy_to_ctypes
+from devito.tools import Signer, dtype_to_ctype, memoized_meth
 from devito.functions.basic import _SymbolCache
 
 from devito.yask.data import Data, DataScalar
@@ -79,7 +79,7 @@ class Function(dense.Function, Signer):
                 # Create a YASK grid; this allocates memory
                 grid = context.make_grid(self)
 
-                # /self._padding/ must be updated as (from the YASK docs):
+                # `self._padding` must be updated as (from the YASK docs):
                 # "The value may be slightly larger [...] due to rounding"
                 padding = []
                 for i in self.dimensions:
@@ -90,6 +90,7 @@ class Function(dense.Function, Signer):
                         # time and misc dimensions
                         padding.append((0, 0))
                 self._padding = tuple(padding)
+                del self.shape_allocated  # Invalidate cached_property
 
                 self._data = Data(grid, self.shape_allocated, self.indices, self.dtype)
                 self._data.reset()
@@ -103,7 +104,7 @@ class Function(dense.Function, Signer):
     @property
     @_allocate_memory
     def _data_buffer(self):
-        ctype = numpy_to_ctypes(self.dtype)
+        ctype = dtype_to_ctype(self.dtype)
         cpointer = ctypes.cast(int(self._data.grid.get_raw_storage_buffer()),
                                ctypes.POINTER(ctype))
         ndpointer = np.ctypeslib.ndpointer(dtype=self.dtype, shape=self.shape_allocated)
@@ -145,7 +146,7 @@ class Function(dense.Function, Signer):
             Alias to ``self.data``.
         """
         return Data(self._data.grid, self.shape, self.indices, self.dtype,
-                    offset=self._offset_domain.left)
+                    offset=self._offset_domain)
 
     @cached_property
     @_allocate_memory
@@ -155,7 +156,7 @@ class Function(dense.Function, Signer):
 
     @cached_property
     @_allocate_memory
-    def data_allocated(self):
+    def _data_allocated(self):
         return Data(self._data.grid, self.shape_allocated, self.indices, self.dtype)
 
     def _arg_defaults(self, alias=None):
@@ -184,6 +185,7 @@ class TimeFunction(dense.TimeFunction, Function):
             indices[cls._time_position] = indices[cls._time_position].root
         return tuple(indices)
 
+    @memoized_meth
     def _arg_defaults(self, alias=None):
         args = super(TimeFunction, self)._arg_defaults(alias=alias)
         # This is a little hack: a TimeFunction originally meant to be accessed

@@ -4,8 +4,6 @@ Visitor hierarchy to inspect and/or create IETs.
 The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 """
 
-from __future__ import absolute_import
-
 from collections import Iterable, OrderedDict
 from operator import attrgetter
 
@@ -14,7 +12,7 @@ import cgen as c
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
 from devito.ir.support.space import Backward
-from devito.tools import as_tuple, filter_sorted, flatten, GenericVisitor
+from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype_to_cstr
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
@@ -141,17 +139,12 @@ class CGen(Visitor):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if i.is_AbstractObject:
-                ret.append(c.Value(i.ctype, i.name))
-            elif i.is_Symbol:
-                ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
-            elif i.is_Tensor:
-                ret.append(c.Value(c.dtype_to_ctype(i.dtype),
-                                   '*restrict %s_vec' % i.name))
-            elif i.is_Dimension:
-                ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
+            if i.is_Tensor:
+                ret.append(c.Value('%srestrict' % i._C_typename, i._C_name))
+            elif i.is_AbstractObject or i.is_Symbol:
+                ret.append(c.Value(i._C_typename, i._C_name))
             else:
-                ret.append(c.Value('void', '*_%s' % i.name))
+                ret.append(c.Value('void', '*_%s' % i._C_name))
         return ret
 
     def _args_call(self, args):
@@ -160,29 +153,29 @@ class CGen(Visitor):
         ret = []
         for i in args:
             try:
-                if i.is_Object:
-                    ret.append(i.name)
-                elif i.is_LocalObject:
-                    ret.append('&%s' % i.name)
+                if i.is_LocalObject:
+                    ret.append('&%s' % i._C_name)
                 elif i.is_Array:
-                    ret.append("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name))
-                elif i.is_Symbol:
-                    ret.append(i.name)
-                elif i.is_GridedFunction:
-                    ret.append('%s_vec' % i.name)
+                    ret.append("(%s)%s" % (i._C_typename, i.name))
+                else:
+                    ret.append(i._C_name)
             except AttributeError:
                 ret.append(ccode(i))
         return ret
 
     def visit_ArrayCast(self, o):
-        """
-        Build cgen type casts for an :class:`AbstractFunction`.
-        """
         f = o.function
-        align = "__attribute__((aligned(64)))"
-        shape = ''.join(["[%s]" % ccode(j) for j in f.symbolic_shape[1:]])
-        lvalue = c.POD(f.dtype, '(*restrict %s)%s %s' % (f.name, shape, align))
-        rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(f.dtype), shape, '%s_vec' % f.name)
+        # rvalue
+        shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
+        if f.is_TensorFunction:
+            rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, f._C_name,
+                                            f._C_field_data)
+        else:
+            rvalue = '(%s (*)%s) %s' % (f._C_typedata, shape, f._C_name)
+        # lvalue
+        lvalue = c.AlignedAttribute(f._data_alignment,
+                                    c.Value(f._C_typedata,
+                                            '(*restrict %s)%s' % (f.name, shape)))
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
@@ -208,7 +201,7 @@ class CGen(Visitor):
                                          ccode(o.expr.rhs, dtype=o.dtype)))
 
     def visit_LocalExpression(self, o):
-        return c.Initializer(c.Value(c.dtype_to_ctype(o.dtype),
+        return c.Initializer(c.Value(dtype_to_cstr(o.dtype),
                              ccode(o.expr.lhs, dtype=o.dtype)),
                              ccode(o.expr.rhs, dtype=o.dtype))
 
@@ -232,37 +225,37 @@ class CGen(Visitor):
 
         # Start
         if o.offsets[0] != 0:
-            start = str(o.limits[0] + o.offsets[0])
+            _min = str(o.limits[0] + o.offsets[0])
             try:
-                start = eval(start)
+                _min = eval(_min)
             except (NameError, TypeError):
                 pass
         else:
-            start = o.limits[0]
+            _min = o.limits[0]
 
         # Bound
         if o.offsets[1] != 0:
-            end = str(o.limits[1] + o.offsets[1])
+            _max = str(o.limits[1] + o.offsets[1])
             try:
-                end = eval(end)
+                _max = eval(_max)
             except (NameError, TypeError):
                 pass
         else:
-            end = o.limits[1]
+            _max = o.limits[1]
 
         # For backward direction flip loop bounds
         if o.direction == Backward:
-            loop_init = 'int %s = %s' % (o.index, ccode(end))
-            loop_cond = '%s >= %s' % (o.index, ccode(start))
+            loop_init = 'int %s = %s' % (o.index, ccode(_max))
+            loop_cond = '%s >= %s' % (o.index, ccode(_min))
             loop_inc = '%s -= %s' % (o.index, o.limits[2])
         else:
-            loop_init = 'int %s = %s' % (o.index, ccode(start))
-            loop_cond = '%s <= %s' % (o.index, ccode(end))
+            loop_init = 'int %s = %s' % (o.index, ccode(_min))
+            loop_cond = '%s <= %s' % (o.index, ccode(_max))
             loop_inc = '%s += %s' % (o.index, o.limits[2])
 
         # Append unbounded indices, if any
         if o.uindices:
-            uinit = ['%s = %s' % (i.name, ccode(i.symbolic_start)) for i in o.uindices]
+            uinit = ['%s = %s' % (i.name, ccode(i.symbolic_min)) for i in o.uindices]
             loop_init = c.Line(', '.join([loop_init] + uinit))
             ustep = ['%s = %s' % (i.name, ccode(i.symbolic_incr)) for i in o.uindices]
             loop_inc = c.Line(', '.join([loop_inc] + ustep))
@@ -304,12 +297,13 @@ class CGen(Visitor):
         header = [c.Line(i) for i in o._headers]
         includes = [c.Include(i, system=False) for i in o._includes]
         includes += [blankline]
-        cglobals = list(o._globals)
+        cdefs = [i._C_typedecl for i in o.parameters if i._C_typedecl is not None]
+        cdefs = filter_sorted(cdefs, key=lambda i: i.tpname)
         if o._compiler.src_ext == 'cpp':
-            cglobals += [c.Extern('C', signature)]
-        cglobals = [i for j in cglobals for i in (j, blankline)]
+            cdefs += [c.Extern('C', signature)]
+        cdefs = [i for j in cdefs for i in (j, blankline)]
 
-        return c.Module(header + includes + cglobals +
+        return c.Module(header + includes + cdefs +
                         esigns + [blankline, kernel] + efuncs)
 
 
@@ -319,7 +313,8 @@ class FindSections(Visitor):
     def default_retval(cls):
         return OrderedDict()
 
-    """Find all sections in an Iteration/Expression tree. A section is a map
+    """
+    Find all sections in an Iteration/Expression tree. A section is a map
     from an iteration space (ie, a sequence of :class:`Iteration` obects) to
     a set of expressions (ie, the :class:`Expression` objects enclosed by the
     iteration space).
@@ -401,12 +396,16 @@ class FindSymbols(Visitor):
     def default_retval(cls):
         return []
 
-    """Find symbols in an Iteration/Expression tree.
+    """
+    Find symbols in an Iteration/Expression tree.
 
-    :param mode: Drive the search. Accepted values are: ::
-
-        * 'symbolics': Collect :class:`AbstractSymbol` objects.
-        * 'free-symbols': Collect all free symbols.
+    Parameters
+    ----------
+    mode : str, optional
+        Drive the search. Accepted:
+        - ``symbolics``: Collect :class:`AbstractSymbol` objects, default.
+        - ``free-symbols``: Collect all free symbols.
+        - ``defines``: Collect all defined (bound) objects.
     """
 
     rules = {
@@ -445,13 +444,17 @@ class FindNodes(Visitor):
         return []
 
     """
-    Find :class:`Node` instances.
+    Find all :class:`Node` instances of given type.
 
-    :param match: Pattern to look for.
-    :param mode: Drive the search. Accepted values are: ::
-
-        * 'type' (default): Collect all instances of type ``match``.
-        * 'scope': Return the scope in which the object ``match`` appears.
+    Parameters
+    ----------
+    match : type
+        Searched type.
+    mode : str, optional
+        Drive the search. Accepted:
+        - ``type``: Collect all instances of type ``match``, default.
+        - ``scope``: Collect the scope in which the object of type ``match``
+                     appears.
     """
 
     rules = {
@@ -626,9 +629,12 @@ class XSubs(Transformer):
     :class:`Transformer` that performs substitutions on :class:`Expression`s
     in a given tree, akin to SymPy's ``subs``.
 
-    :param mapper: (Optional) dictionary defining the substitutions.
-    :param replacer: (Optional) a function to perform the substitution. Defaults
-                     to SymPy's ``subs``.
+    Parameters
+    ----------
+    mapper : dict, optional
+        The substitution rules.
+    replacer : callable, optional
+        An ad-hoc function to perform the substitution. Defaults to SymPy's ``subs``.
     """
 
     def __init__(self, mapper=None, replacer=None):

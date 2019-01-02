@@ -1,14 +1,15 @@
 import numpy as np
 import pytest
 from numpy import linalg
-from conftest import skipif_yask
 
+from conftest import skipif
 from devito import Function, info, clear_cache
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
 from examples.seismic import Receiver
 
+pytestmark = skipif(['yask', 'ops'])
 
-@skipif_yask
+
 class TestGradient(object):
 
     def setup_method(self, method):
@@ -58,13 +59,13 @@ class TestGradient(object):
 
         # Gradient: <J^T \delta d, dm>
         residual = Receiver(name='rec', grid=wave.model.grid, data=rec0.data - rec.data,
-                            time_range=rec.time_range, coordinates=rec0.coordinates.data)
+                            time_range=wave.geometry.time_axis,
+                            coordinates=wave.geometry.rec_positions)
 
         gradient, _ = wave.gradient(residual, u0, m=m0, checkpointing=True)
         gradient2, _ = wave.gradient(residual, u0, m=m0, checkpointing=False)
         assert np.allclose(gradient.data, gradient2.data)
 
-    @skipif_yask
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(70, 80)])
@@ -110,7 +111,8 @@ class TestGradient(object):
 
         # Gradient: <J^T \delta d, dm>
         residual = Receiver(name='rec', grid=wave.model.grid, data=rec0.data - rec.data,
-                            time_range=rec.time_range, coordinates=rec0.coordinates.data)
+                            time_range=wave.geometry.time_axis,
+                            coordinates=wave.geometry.rec_positions)
 
         gradient, _ = wave.gradient(residual, u0, m=m0, checkpointing=checkpointing)
         G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
@@ -168,8 +170,8 @@ class TestGradient(object):
         smooth(m0, wave.model.m)
         dm = np.float64(wave.model.m.data - m0.data)
         linrec = Receiver(name='rec', grid=wave.model.grid,
-                          time_range=wave.receiver.time_range,
-                          coordinates=wave.receiver.coordinates.data)
+                          time_range=wave.geometry.time_axis,
+                          coordinates=wave.geometry.rec_positions)
 
         # Compute receiver data and full wavefield for the smooth velocity
         rec, u0, _ = wave.forward(m=m0, save=False)

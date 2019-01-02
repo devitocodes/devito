@@ -1,5 +1,4 @@
 from devito.tools.utils import *  # noqa
-
 from devito.tools.abc import *  # noqa
 from devito.tools.algorithms import *  # noqa
 from devito.tools.data_structures import *  # noqa

@@ -1,7 +1,3 @@
-# The internal loop engine
-
-from __future__ import absolute_import
-
 from collections import OrderedDict
 from itertools import combinations
 
@@ -11,14 +7,13 @@ import numpy as np
 from devito.cgen_utils import ccode
 from devito.functions.dimension import Dimension
 from devito.dle import fold_blockable_tree, unfold_blocked_tree
-from devito.dle.backends import (BasicRewriter, BlockingArg, Ompizer, dle_pass,
-                                 simdinfo, get_simd_flag, get_simd_items)
+from devito.dle.backends import (BasicRewriter, Ompizer, dle_pass, simdinfo,
+                                 get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
 from devito.ir.iet import (Expression, Iteration, List, HaloSpot, PARALLEL, ELEMENTAL,
                            REMAINDER, tagger, FindSymbols, FindNodes, Transformer,
-                           FindAdjacent, IsPerfectIteration, compose_nodes,
-                           retrieve_iteration_tree)
-from devito.logger import dle_warning, perf_adv
+                           IsPerfectIteration, compose_nodes, retrieve_iteration_tree)
+from devito.logger import perf_adv
 from devito.tools import as_tuple
 
 
@@ -33,13 +28,13 @@ class AdvancedRewriter(BasicRewriter):
         self._simdize(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
-        self._create_elemental_functions(state)
+        self._create_efuncs(state)
         self._minimize_remainders(state)
 
     @dle_pass
     def _loop_wrapping(self, iet, state):
         """
-        Emit a performance warning if WRAPPABLE :class:`Iteration`s are found,
+        Emit a performance warning if WRAPPABLE Iterations are found,
         as these are a symptom that unnecessary memory is being allocated.
         """
         for i in FindNodes(Iteration).visit(iet):
@@ -55,39 +50,15 @@ class AdvancedRewriter(BasicRewriter):
         Drop unnecessary halo exchanges, or shuffle them around to improve
         computation-communication overlap.
         """
-        # First, seek adjacent redundant HaloSpots, since by dropping any of
-        # these we may be able to change the IET nesting, thus affecting
-        # later manipulation passes
-        # Example (assume halo1 is redundant and has same HaloScheme as halo0):
-        # root -> halo0 -> iteration0        root -> halo0 -> iteration0
-        #      |                        ==>                |
-        #      -> halo1 -> iteration1                      -> iteration1
-        mapper = {}
-        for k, v in FindAdjacent(HaloSpot).visit(iet).items():
-            for adjacents in v:
-                # Note: at this point `adjacents` has at least two items
-                crt = adjacents[0]
-                for i in adjacents[1:]:
-                    if i.is_Redundant and i.halo_scheme == crt.halo_scheme:
-                        mapper[crt] = crt._rebuild(body=mapper.get(crt, crt).body + (i,),
-                                                   **crt.args_frozen)
-                        mapper[i] = None
-                    else:
-                        crt = i
-        processed = Transformer(mapper).visit(iet)
-
-        # Then, drop any leftover redundant HaloSpot
-        hss = FindNodes(HaloSpot).visit(processed)
-        mapper = {i: i.body[0] for i in hss if i.is_Redundant}
-        processed = Transformer(mapper, nested=True).visit(processed)
+        hss = FindNodes(HaloSpot).visit(iet)
+        mapper = {i: None for i in hss if i.is_Redundant}
+        processed = Transformer(mapper, nested=True).visit(iet)
 
         return processed, {}
 
     @dle_pass
     def _loop_blocking(self, nodes, state):
-        """
-        Apply loop blocking to PARALLEL :class:`Iteration` trees.
-        """
+        """Apply loop blocking to PARALLEL Iteration trees."""
         exclude_innermost = not self.params.get('blockinner', False)
         ignore_heuristic = self.params.get('blockalways', False)
 
@@ -123,20 +94,17 @@ class AdvancedRewriter(BasicRewriter):
             intra_blocks = []
             remainders = []
             for i in iterations:
-                name = "%s%d_block" % (i.dim.name, len(mapper))
-
                 # Build Iteration over blocks
-                dim = blocked.setdefault(i, Dimension(name=name))
-                bsize = dim.symbolic_size
-                bstart = i.limits[0]
-                binnersize = i.symbolic_extent + (i.offsets[1] - i.offsets[0])
-                bfinish = i.dim.symbolic_end - (binnersize % bsize)
-                inter_block = Iteration([], dim, [bstart, bfinish, bsize],
-                                        offsets=i.offsets, properties=PARALLEL)
+                name = "%s%d_block" % (i.dim.name, len(mapper))
+                dim = blocked.setdefault(i, BlockDimension(i.dim, name=name))
+                binnersize = i.symbolic_size + (i.offsets[1] - i.offsets[0])
+                bmax = i.dim.symbolic_max - (binnersize % dim.step)
+                inter_block = Iteration([], dim, bmax, offsets=i.offsets,
+                                        properties=PARALLEL)
                 inter_blocks.append(inter_block)
 
                 # Build Iteration within a block
-                limits = (dim, dim + bsize - 1, 1)
+                limits = (dim, dim + dim.step - 1, 1)
                 intra_block = i._rebuild([], limits=limits, offsets=(0, 0),
                                          properties=i.properties + (TAG, ELEMENTAL))
                 intra_blocks.append(intra_block)
@@ -144,7 +112,7 @@ class AdvancedRewriter(BasicRewriter):
                 # Build unitary-increment Iteration over the 'leftover' region.
                 # This will be used for remainder loops, executed when any
                 # dimension size is not a multiple of the block size.
-                remainder = i._rebuild([], limits=[bfinish + 1, i.dim.symbolic_end, 1],
+                remainder = i._rebuild([], limits=[bmax + 1, i.dim.symbolic_max, 1],
                                        offsets=(i.offsets[1], i.offsets[1]))
                 remainders.append(remainder)
 
@@ -176,37 +144,7 @@ class AdvancedRewriter(BasicRewriter):
         # Finish unrolling any previously folded Iterations
         processed = unfold_blocked_tree(rebuilt)
 
-        # All blocked dimensions
-        if not blocked:
-            return processed, {}
-
-        # Determine the block shape
-        blockshape = self.params.get('blockshape')
-        if not blockshape:
-            # Use trivial heuristic for a suitable blockshape
-            def heuristic(dim_size):
-                ths = 8  # FIXME: This really needs to be improved
-                return ths if dim_size > ths else 1
-            blockshape = {k: heuristic for k in blocked.keys()}
-        else:
-            try:
-                nitems, nrequired = len(blockshape), len(blocked)
-                blockshape = {k: v for k, v in zip(blocked, blockshape)}
-                if nitems > nrequired:
-                    dle_warning("Provided 'blockshape' has more entries than "
-                                "blocked loops; dropping entries ...")
-                if nitems < nrequired:
-                    dle_warning("Provided 'blockshape' has fewer entries than "
-                                "blocked loops; dropping dimensions ...")
-            except TypeError:
-                blockshape = {list(blocked)[0]: blockshape}
-            blockshape.update({k: None for k in blocked.keys()
-                               if k not in blockshape})
-
-        # Track any additional arguments required to execute /state.nodes/
-        arguments = [BlockingArg(v, k, blockshape[k]) for k, v in blocked.items()]
-
-        return processed, {'arguments': arguments, 'flags': 'blocking'}
+        return processed, {'dimensions': list(blocked.values())}
 
     @dle_pass
     def _simdize(self, nodes, state):
@@ -245,7 +183,7 @@ class AdvancedRewriter(BasicRewriter):
         """
         def key(i):
             return i.is_ParallelRelaxed and not (i.is_Elementizable or i.is_Vectorizable)
-        return self._parallelizer(key).make_parallel(iet), {}
+        return self._parallelizer(key).make_parallel(iet)
 
     @dle_pass
     def _minimize_remainders(self, nodes, state):
@@ -286,7 +224,7 @@ class AdvancedRewriter(BasicRewriter):
                 continue
 
             # Dynamic trip count adjustment
-            endpoint = root.symbolic_end
+            endpoint = root.symbolic_max
             if not endpoint.is_Symbol:
                 continue
             condition = []
@@ -294,7 +232,7 @@ class AdvancedRewriter(BasicRewriter):
                             if i.is_Tensor)
             for i in root.uindices:
                 for j in externals:
-                    condition.append(root.symbolic_end + padding < j)
+                    condition.append(root.symbolic_max + padding < j)
             condition = ' && '.join(ccode(i) for i in condition)
             endpoint_padded = endpoint.func('_%s' % endpoint.name)
             init = cgen.Initializer(
@@ -320,7 +258,7 @@ class AdvancedRewriter(BasicRewriter):
 class AdvancedRewriterSafeMath(AdvancedRewriter):
 
     """
-    This Rewriter is slightly less aggressive than :class:`AdvancedRewriter`, as it
+    This Rewriter is slightly less aggressive than AdvancedRewriter, as it
     doesn't drop denormal numbers, which may sometimes harm the numerical precision.
     """
 
@@ -329,7 +267,7 @@ class AdvancedRewriterSafeMath(AdvancedRewriter):
         self._simdize(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
-        self._create_elemental_functions(state)
+        self._create_efuncs(state)
         self._minimize_remainders(state)
 
 
@@ -343,7 +281,7 @@ class SpeculativeRewriter(AdvancedRewriter):
         self._simdize(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
-        self._create_elemental_functions(state)
+        self._create_efuncs(state)
         self._minimize_remainders(state)
 
     @dle_pass
@@ -372,7 +310,7 @@ class SpeculativeRewriter(AdvancedRewriter):
                     mapper[i] = List(header=pragma, body=i)
         processed = Transformer(mapper).visit(processed)
 
-        return processed, {'flags': 'ntstores'}
+        return processed, {}
 
 
 class CustomRewriter(SpeculativeRewriter):
@@ -383,12 +321,14 @@ class CustomRewriter(SpeculativeRewriter):
         'blocking': SpeculativeRewriter._loop_blocking,
         'openmp': SpeculativeRewriter._parallelize,
         'simd': SpeculativeRewriter._simdize,
-        'split': SpeculativeRewriter._create_elemental_functions
+        'split': SpeculativeRewriter._create_efuncs
     }
 
     def __init__(self, nodes, passes, params):
         try:
             passes = passes.split(',')
+            if 'openmp' not in passes and params['openmp']:
+                passes.append('openmp')
         except AttributeError:
             # Already in tuple format
             if not all(i in CustomRewriter.passes_mapper for i in passes):

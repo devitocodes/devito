@@ -202,7 +202,8 @@ class ClusterizedEq(Eq, IREq, FrozenExpr, Pickable):
         return expr
 
     def func(self, *args, **kwargs):
-        return super(ClusterizedEq, self).func(*args, **self.state)
+        kwargs = {k: kwargs.get(k, v) for k, v in self.state.items()}
+        return super(ClusterizedEq, self).func(*args, **kwargs)
 
     # Pickling support
     _pickle_args = ['lhs', 'rhs']
@@ -229,3 +230,7 @@ class DummyEq(ClusterizedEq):
         else:
             raise ValueError("Cannot construct DummyEq from args=%s" % str(args))
         return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace, dspace=obj.dspace)
+
+    # Pickling support
+    _pickle_args = ['lhs', 'rhs']
+    _pickle_kwargs = []

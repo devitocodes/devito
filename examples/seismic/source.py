@@ -92,7 +92,7 @@ class PointSource(SparseTimeFunction):
         time_order = kwargs.pop('time_order', 2)
         p_dim = kwargs.pop('dimension', Dimension(name='p_%s' % name))
 
-        coordinates = kwargs.pop('coordinates', None)
+        coordinates = kwargs.pop('coordinates', kwargs.pop('coordinates_data', None))
         # Either `npoint` or `coordinates` must be provided
         npoint = kwargs.pop('npoint', None)
         if npoint is None:
@@ -115,10 +115,6 @@ class PointSource(SparseTimeFunction):
             obj.data[:] = data
 
         return obj
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(PointSource, self).__init__(*args, **kwargs)
 
     @cached_property
     def time_values(self):

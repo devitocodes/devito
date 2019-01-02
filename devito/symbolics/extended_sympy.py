@@ -43,6 +43,9 @@ class FrozenExpr(Expr):
                 return self.func(*args, evaluate=False)
         return self
 
+    def evalf(self, *args, **kwargs):
+        return self
+
 
 class Eq(sympy.Eq, FrozenExpr):
 
@@ -77,15 +80,18 @@ class CondNe(sympy.Ne, FrozenExpr):
 
 
 class Mul(sympy.Mul, FrozenExpr):
-    pass
+    def __new__(cls, *args, **kwargs):
+        return sympy.Mul.__new__(cls, *args, evaluate=False)
 
 
 class Add(sympy.Add, FrozenExpr):
-    pass
+    def __new__(cls, *args, **kwargs):
+        return sympy.Add.__new__(cls, *args, evaluate=False)
 
 
 class Pow(sympy.Pow, FrozenExpr):
-    pass
+    def __new__(cls, *args, **kwargs):
+        return sympy.Pow.__new__(cls, *args, evaluate=False)
 
 
 class IntDiv(sympy.Expr):
@@ -188,6 +194,9 @@ class FieldFromPointer(FunctionFromPointer, Pickable):
     def field(self):
         return self.function
 
+    # Our __new__ cannot accept the params argument
+    _pickle_kwargs = []
+
     __repr__ = __str__
 
 
@@ -211,6 +220,9 @@ class FieldFromComposite(FunctionFromPointer, Pickable):
     @property
     def composite(self):
         return self.pointer
+
+    # Our __new__ cannot accept the params argument
+    _pickle_kwargs = []
 
     __repr__ = __str__
 

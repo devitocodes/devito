@@ -1,10 +1,9 @@
 import pytest
-
-from conftest import EVAL, time, x, y, z, skipif_yask  # noqa
-
 import numpy as np
 
-from devito import Eq, Inc, Grid, Function, TimeFunction, Operator, Dimension  # noqa
+from conftest import EVAL, time, x, y, z, skipif  # noqa
+from devito import (Eq, Inc, Grid, Function, TimeFunction, # noqa
+                    Operator, Dimension)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet.nodes import Conditional, Expression, Iteration
@@ -15,8 +14,9 @@ from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
 from devito.ir.support.utils import detect_flow_directions
 from devito.symbolics import indexify
 
+pytestmark = skipif(['yask', 'ops'])
 
-@skipif_yask
+
 class TestVectorDistanceArithmetic(object):
 
     @pytest.fixture
@@ -178,7 +178,6 @@ class TestVectorDistanceArithmetic(object):
             assert False
 
 
-@skipif_yask
 class TestSpace(object):
 
     def test_intervals_intersection(self):
@@ -304,7 +303,6 @@ class TestSpace(object):
         assert ix3.subtract(ix) == ix2
 
 
-@skipif_yask
 class TestDependenceAnalysis(object):
 
     @pytest.mark.parametrize('expr,expected', [
@@ -369,7 +367,7 @@ class TestDependenceAnalysis(object):
             return
         else:
             assert len(dep.cause) == 1
-            cause = dep.cause.pop()
+            cause = set(dep.cause).pop()
             assert cause.name == exp_cause
 
         # Check mode restricted to the cause
@@ -442,7 +440,7 @@ class TestDependenceAnalysis(object):
 
         for i in ['flow', 'anti', 'output']:
             for dep in getattr(scope, 'd_%s' % i):
-                item = (dep.function.name, i, str(dep.cause))
+                item = (dep.function.name, i, str(set(dep.cause)))
                 assert item in expected
                 expected.remove(item)
 
@@ -462,7 +460,6 @@ class TestDependenceAnalysis(object):
         assert all(mapper.get(i) == {Any} for i in grid.dimensions)
 
 
-@skipif_yask
 class TestIET(object):
 
     def test_nodes_conditional(self, fc):
@@ -630,7 +627,6 @@ else
         assert all(not i.is_Wrappable for i in iters if i is not time_iter)
 
 
-@skipif_yask
 class TestEquationAlgorithms(object):
 
     @pytest.mark.parametrize('expr,expected', [

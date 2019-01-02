@@ -5,8 +5,6 @@
 
 # This code is partly extracted from https://github.com/OP2/PyOP2/
 
-from __future__ import absolute_import
-
 from sympy.core.function import FunctionClass
 
 from devito.exceptions import DevitoError
@@ -14,7 +12,7 @@ from devito.logger import warning
 
 backends = {}
 
-backends_registry = ('core', 'yask', 'void')
+backends_registry = ('core', 'yask', 'void', 'ops')
 
 
 class void(object):

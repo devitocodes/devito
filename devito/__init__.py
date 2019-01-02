@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import os
 from subprocess import PIPE, Popen
 from collections import namedtuple
@@ -8,14 +6,14 @@ from itertools import product
 import cpuinfo
 
 from devito.base import *  # noqa
-from devito.data import *  # noqa
-from devito.functions.dimension import *  # noqa
+from devito.builtins import *  # noqa
+from devito.data.allocators import *  # noqa
+from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
-from devito.grid import *  # noqa
+from devito.grid import SubDomain  # noqa
 from devito.finite_differences import *  # noqa
-from devito.functions.utils import Buffer, NODE, CELL  # noqa
-from devito.logger import error, warning, info, set_log_level, silencio  # noqa
-from devito.profiling import ruido  # noqa
+from devito.functions import Buffer, NODE, CELL  # noqa
+from devito.logger import error, warning, info, set_log_level  # noqa
 from devito.parameters import *  # noqa
 from devito.tools import *  # noqa
 
@@ -27,9 +25,24 @@ from ._version import get_versions  # noqa
 __version__ = get_versions()['version']
 del get_versions
 
+# Setup compiler and backend
 configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
 configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
+
+# Should Devito run a first-touch Operator upon data allocation?
+configuration.add('first-touch', 0, [0, 1], lambda i: bool(i), False)
+
+# Should Devito ignore any unknown runtime arguments supplied to Operator.apply(),
+# or rather raise an exception (the default behaviour)?
+configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i), False)
+
+# By default, the Devito compiler generates parameters, rather than numbers, for
+# things such as array casts, loop bounds, etc. This maximises Operator reusability,
+# as the same Operator can be applied to Functions that only different in the shape.
+# It is also the only viable way when using MPI. One can change this behaviour
+# (e.g., for educational purposes) by playing with the `codegen` configuration knob
+configuration.add('codegen', 'parametric', ['parametric', 'explicit'])
 
 # Execution mode setup
 def _reinit_compiler(val):  # noqa
@@ -42,8 +55,8 @@ configuration.add('mpi', 0, [0, 1], callback=_reinit_compiler)
 
 # Autotuning setup
 AT_LEVELs = ['off', 'basic', 'aggressive']
-AT_MODEs = ['preemptive', 'runtime']
-at_default_mode = {'core': 'preemptive', 'yask': 'runtime'}
+AT_MODEs = ['preemptive', 'destructive', 'runtime']
+at_default_mode = {'core': 'preemptive', 'yask': 'runtime', 'ops': 'runtime'}
 at_setup = namedtuple('at_setup', 'level mode')
 at_accepted = AT_LEVELs + [list(i) for i in product(AT_LEVELs, AT_MODEs)]
 def _at_callback(val):  # noqa
@@ -53,15 +66,12 @@ def _at_callback(val):  # noqa
         level, mode = val
     if level == 'off':
         level = False
-    if configuration['backend'] == 'core' and mode == 'runtime':
-        warning("Unsupported auto-tuning mode `runtime` with backend `core`")
-        return at_setup(level, 'preemptive')
-    else:
-        return at_setup(level, mode)
-configuration.add('autotuning', 'off', at_accepted, callback=_at_callback)  # noqa
+    return at_setup(level, mode)
+configuration.add('autotuning', 'off', at_accepted, callback=_at_callback,  # noqa
+                  impacts_jit=False)
 
 # Should Devito emit the JIT compilation commands?
-configuration.add('debug_compiler', 0, [0, 1], lambda i: bool(i))
+configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i), False)
 
 # Set the Instruction Set Architecture (ISA)
 ISAs = ['cpp', 'avx', 'avx2', 'avx512']
@@ -70,6 +80,9 @@ configuration.add('isa', 'cpp', ISAs)
 # Set the CPU architecture (only codename)
 PLATFORMs = ['intel64', 'snb', 'ivb', 'hsw', 'bdw', 'skx', 'knl']
 configuration.add('platform', 'intel64', PLATFORMs)
+
+# (Undocumented) escape hatch for cross-compilation
+configuration.add('cross-compile', None)
 
 
 def infer_cpu():
@@ -135,15 +148,15 @@ clear_cache = CacheManager().clear  # noqa
 
 # Helper functions to switch on/off optimisation levels
 def mode_develop():
-    """Run all future :class:`Operator`s in develop mode. This is the default
-    configuration for Devito."""
+    """Run all future Operators in develop mode. This is the default mode."""
     configuration['develop-mode'] = True
 
 
 def mode_performance():
-    """Run all future :class:`Operator`s in performance mode. The performance
-    mode will also try to allocate any future :class:`TensorFunction` with
-    a suitable NUMA strategy."""
+    """
+    Run all future Operators in performance mode. The performance mode
+    also employs suitable NUMA strategies for memory allocation.
+    """
     configuration['develop-mode'] = False
     configuration['autotuning'] = ['aggressive',
                                    at_default_mode[configuration['backend']]]

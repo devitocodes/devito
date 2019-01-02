@@ -1,5 +1,4 @@
 from collections import OrderedDict, defaultdict
-from itertools import groupby
 
 from devito.functions.dimension import Dimension, ModuloDimension
 from devito.ir.support.basic import Access, Scope
@@ -9,8 +8,7 @@ from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
-           'detect_flow_directions', 'force_directions', 'group_expressions',
-           'align_accesses', 'detect_io']
+           'detect_flow_directions', 'force_directions', 'align_accesses', 'detect_io']
 
 
 def detect_accesses(expr):
@@ -57,11 +55,11 @@ def detect_oobs(mapper):
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d
             try:
-                if min(v) < 0 or max(v) > sum(f._offset_domain[p]):
+                if min(v) < 0 or max(v) > sum(f._size_halo[p]):
                     found.add(p)
             except KeyError:
                 # Unable to detect presence of OOB accesses
-                # (/p/ not in /f._offset_domain/, typical of indirect
+                # (/p/ not in /f._size_halo/, typical of indirect
                 # accesses such as A[B[i]])
                 pass
     return found | {i.parent for i in found if i.is_Derived}
@@ -112,7 +110,7 @@ def align_accesses(expr, key=lambda i: False):
         f = indexed.function
         if not key(f):
             continue
-        subs = {i: i + j.left for i, j in zip(indexed.indices, f._offset_domain)}
+        subs = {i: i + j for i, j in zip(indexed.indices, f._size_halo.left)}
         mapper[indexed] = indexed.xreplace(subs)
     return expr.xreplace(mapper)
 
@@ -218,53 +216,17 @@ def force_directions(mapper, key):
     return directions, clashes
 
 
-def group_expressions(exprs):
-    """``{exprs} -> ({exprs'}, {exprs''}, ...)`` where: ::
-
-        * There are data dependences within exprs' and within exprs'';
-        * There are *no* data dependencies across exprs' and exprs''.
-    """
-    # Partion based on data dependences
-    mapper = OrderedDict()
-    ngroups = 0
-    for e1 in exprs:
-        if e1 in mapper:
-            # Optimization: we know already that a group for `e1` has been found
-            continue
-        found = False
-        for e2 in exprs:
-            if e1 is e2:
-                continue
-            elif Scope([e1, e2]).has_dep:
-                v = mapper.get(e1, mapper.get(e2))
-                if v is None:
-                    ngroups += 1
-                    v = ngroups
-                mapper[e1] = mapper[e2] = v
-                found = True
-        if not found:
-            ngroups += 1
-            mapper[e1] = ngroups
-
-    # Reorder to match input ordering
-    groups = []
-    data = sorted(mapper, key=lambda i: mapper[i])
-    for k, g in groupby(data, key=lambda i: mapper[i]):
-        groups.append(tuple(sorted(g, key=lambda i: exprs.index(i))))
-
-    # Sanity check
-    assert max(mapper.values()) == len(groups)
-
-    return tuple(groups)
-
-
 def detect_io(exprs, relax=False):
-    """``{exprs} -> ({reads}, {writes})
+    """
+    ``{exprs} -> ({reads}, {writes})
 
-    :param exprs: The expressions inspected.
-    :param relax: (Optional) if False, as by default, collect only
-                  :class:`Constant`s and :class:`Function`s. Otherwise,
-                  collect any :class:`Basic`s.
+    Parameters
+    ----------
+    exprs : expr-like or list of expr-like
+        The searched expressions.
+    relax : bool, optional
+        If False, as by default, collect only :class:`Constant`s and
+        :class:`Function`s. Otherwise, collect any :class:`types.Basic`s.
     """
     exprs = as_tuple(exprs)
     if relax is False:

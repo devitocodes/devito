@@ -8,8 +8,12 @@ __all__ = ['filter_iterations', 'retrieve_iteration_tree',
 
 
 def retrieve_iteration_tree(node, mode='normal'):
-    """Return a list of all :class:`Iteration` sub-trees rooted in ``node``.
-    For example, given the Iteration tree:
+    """
+    A list with all :class:`Iteration` sub-trees within an IET.
+
+    Examples
+    --------
+    Given the Iteration tree:
 
         .. code-block:: c
 
@@ -25,10 +29,14 @@ def retrieve_iteration_tree(node, mode='normal'):
 
         [(Iteration i, Iteration j, Iteration k), (Iteration i, Iteration p)]
 
-    :param node: The searched Iteration/Expression tree.
-    :param mode: Accepted values are 'normal' (default) and 'superset', in which
-                 case iteration trees that are subset of larger iteration trees
-                 are dropped.
+    Parameters
+    ----------
+    iet : Node
+        The searched Iteration/Expression tree.
+    mode : str, optional
+        - ``normal``
+        - ``superset``: Iteration trees that are subset of larger iteration trees
+                        are dropped.
     """
     assert mode in ('normal', 'superset')
 
@@ -46,8 +54,8 @@ def retrieve_iteration_tree(node, mode='normal'):
 
 def filter_iterations(tree, key=lambda i: i, stop=lambda: False):
     """
-    Given an iterable of :class:`Iteration` objects, return a new list
-    containing all items such that ``key(o)`` is True.
+    Given an iterable of :class:`Iteration`s, produce a list containing
+    all Iterations such that ``key(iteration)`` is True.
 
     This function accepts an optional argument ``stop``. This may be either a
     lambda function, specifying a stop criterium, or any of the following
@@ -59,8 +67,8 @@ def filter_iterations(tree, key=lambda i: i, stop=lambda: False):
                   all items for which ``key(o)`` is False have been encountered.
 
     It is useful to specify a ``stop`` criterium when one is searching the
-    first Iteration in an Iteration/Expression tree for which a given property
-    does not hold.
+    first Iteration in an Iteration/Expression tree which does not honour a
+    given property.
     """
     assert callable(stop) or stop in ['any', 'asap']
 
@@ -86,9 +94,7 @@ def filter_iterations(tree, key=lambda i: i, stop=lambda: False):
 
 
 def compose_nodes(nodes, retrieve=False):
-    """
-    Build an Iteration/Expression tree by nesting the nodes in ``nodes``.
-    """
+    """Build an IET by nesting ``nodes``."""
     l = list(nodes)
     tree = []
 

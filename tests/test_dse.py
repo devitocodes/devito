@@ -1,20 +1,22 @@
-from conftest import EVAL
-
 from sympy import sin  # noqa
 import numpy as np
 import pytest
-from conftest import x, y, z, skipif_yask  # noqa
 
-from devito import Eq, Constant, Function, TimeFunction, SparseFunction, Grid, Operator, ruido  # noqa
-from devito.ir import Stencil, FlowGraph, retrieve_iteration_tree
+from conftest import skipif, EVAL, x, y, z  # noqa
+from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseFunction,  # noqa
+                    Grid, Operator, switchconfig, configuration)
+from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree
+from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
+from devito.functions import Scalar
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
-from devito.functions import Scalar
 from devito.tools import generator
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, TimeAxis, RickerSource, GaborSource, Receiver
+from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
+
+pytestmark = skipif(['yask', 'ops'])
 
 
 # Acoustic
@@ -31,27 +33,24 @@ def run_acoustic_forward(dse=None):
     model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
                        spacing=spacing, shape=shape, nbpml=nbpml)
 
-    # Derive timestepping from model spacing
-    dt = model.critical_dt
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = 20.
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
 
-    # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='nrec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Ricker', f0=0.010)
 
-    solver = AcousticWaveSolver(model, source=src, receiver=rec, dse=dse, dle='basic')
+    solver = AcousticWaveSolver(model, geometry, dse=dse, dle='basic')
     rec, u, _ = solver.forward(save=False)
 
     return u, rec
 
 
-@skipif_yask
 def test_acoustic_rewrite_basic():
     ret1 = run_acoustic_forward(dse=None)
     ret2 = run_acoustic_forward(dse='basic')
@@ -62,7 +61,7 @@ def test_acoustic_rewrite_basic():
 
 # TTI
 
-def tti_operator(dse=False, space_order=4):
+def tti_operator(dse=False, dle='advanced', space_order=4):
     nrec = 101
     t0 = 0.0
     tn = 250.
@@ -74,23 +73,19 @@ def tti_operator(dse=False, space_order=4):
     model = demo_model('layers-tti', ratio=3, nbpml=nbpml, space_order=space_order,
                        shape=shape, spacing=spacing)
 
-    # Derive timestepping from model spacing
-    # Derive timestepping from model spacing
-    dt = model.critical_dt
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    # Define source geometry (center of domain, just below surface)
-    src = GaborSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
 
-    # Define receiver geometry (spread across x, lust below surface)
-    rec = Receiver(name='nrec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Gabor', f0=0.010)
 
-    return AnisotropicWaveSolver(model, source=src, receiver=rec,
-                                 space_order=space_order, dse=dse)
+    return AnisotropicWaveSolver(model, geometry, space_order=space_order, dse=dse)
 
 
 @pytest.fixture(scope="session")
@@ -100,7 +95,6 @@ def tti_nodse():
     return v, rec
 
 
-@skipif_yask
 def test_tti_rewrite_basic(tti_nodse):
     operator = tti_operator(dse='basic')
     rec, u, v, _ = operator.forward()
@@ -109,7 +103,6 @@ def test_tti_rewrite_basic(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
 
 
-@skipif_yask
 def test_tti_rewrite_advanced(tti_nodse):
     operator = tti_operator(dse='advanced')
     rec, u, v, _ = operator.forward()
@@ -118,7 +111,6 @@ def test_tti_rewrite_advanced(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
 
-@skipif_yask
 def test_tti_rewrite_speculative(tti_nodse):
     operator = tti_operator(dse='speculative')
     rec, u, v, _ = operator.forward()
@@ -127,17 +119,30 @@ def test_tti_rewrite_speculative(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
 
-@skipif_yask
 def test_tti_rewrite_aggressive(tti_nodse):
     operator = tti_operator(dse='aggressive')
-    rec, u, v, _ = operator.forward()
+    rec, u, v, _ = operator.forward(kernel='centered', save=False)
 
     assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
+    # Also check that DLE's loop blocking with DSE=aggressive does the right thing
+    # There should be exactly two BlockDimensions; bugs in the past were generating
+    # either code with no blocking (zero BlockDimensions) or code with four
+    # BlockDimensions (i.e., Iteration folding was somewhat broken)
+    op = operator.op_fwd(kernel='centered', save=False)
+    block_dims = [i for i in op.dimensions if isinstance(i, BlockDimension)]
+    assert len(block_dims) == 2
 
-@ruido(profiling='advanced')
-@skipif_yask
+    # Also, in this operator, we expect six temporary Arrays, two on the stack and
+    # four on the heap
+    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+    assert len([i for i in arrays if i._mem_stack]) == 2
+    assert len([i for i in arrays if i._mem_heap]) == 4
+    assert len([i for i in arrays if i._mem_external]) == 0
+
+
+@switchconfig(profiling='advanced')
 @pytest.mark.parametrize('kernel,space_order,expected', [
     ('shifted', 8, 355), ('shifted', 16, 622),
     ('centered', 8, 168), ('centered', 16, 300)
@@ -151,7 +156,6 @@ def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
 # DSE manipulation
 
 
-@skipif_yask
 def test_scheduling_after_rewrite():
     """Tests loop scheduling after DSE-induced expression hoisting."""
     grid = Grid((10, 10))
@@ -174,7 +178,6 @@ def test_scheduling_after_rewrite():
     assert trees[1][0].dim == trees[2][0].dim == trees[3][0].dim == grid.time_dim
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(tu, ti0 + ti1 + 5.)'],
@@ -200,7 +203,6 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(ti0, 3.)', 'Eq(tv, 2.4)', 'Eq(tu, tv + 5. + ti0)'],
@@ -227,7 +229,6 @@ def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(tu, (tv + tw + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
@@ -250,7 +251,6 @@ def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expect
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     (['Eq(t0, 3.)', 'Eq(t1, 7.)', 'Eq(ti0, t0*3. + 2.)', 'Eq(ti1, t1 + t0 + 1.5)',
       'Eq(tv, (ti0 + ti1)*t0)', 'Eq(tw, (ti0 + ti1)*t1)',
@@ -265,7 +265,6 @@ def test_graph_trace(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
         assert set([j.lhs for j in g.trace(i)]) == mapper[i]
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # trivial
     (['Eq(t0, 1.)', 'Eq(t1, fa[x] + fb[x])'],
@@ -291,7 +290,6 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
         assert g.is_index(k) == v
 
 
-@skipif_yask
 @pytest.mark.parametrize('expr,expected', [
     ('2*fa[x] + fb[x]', '2*fa[x] + fb[x]'),
     ('fa[x]**2', 'fa[x]*fa[x]'),
@@ -306,7 +304,6 @@ def test_pow_to_mul(fa, fb, expr, expected):
     assert str(pow_to_mul(eval(expr))) == expected
 
 
-@skipif_yask
 @pytest.mark.parametrize('exprs,expected', [
     # none (different distance)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
@@ -341,7 +338,6 @@ def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
         assert (len(v.aliased) == 1 and mapper[k] is None) or v.anti_stencil == mapper[k]
 
 
-@skipif_yask
 @pytest.mark.parametrize('expr,expected', [
     ('Eq(t0, t1)', 0),
     ('Eq(t0, fa[x] + fb[x])', 1),
@@ -358,3 +354,34 @@ def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
 def test_estimate_cost(fa, fb, fc, t0, t1, t2, expr, expected):
     # Note: integer arithmetic isn't counted
     assert estimate_cost(EVAL(expr, fa, fb, fc, t0, t1, t2)) == expected
+
+
+@pytest.mark.parametrize('exprs,exp_u,exp_v', [
+    (['Eq(s, 0)', 'Eq(s, s + 4)', 'Eq(u, s)'], 4, 0),
+    (['Eq(s, 0)', 'Eq(s, s + s + 4)', 'Eq(s, s + 4)', 'Eq(u, s)'], 8, 0),
+    (['Eq(s, 0)', 'Inc(s, 4)', 'Eq(u, s)'], 4, 0),
+    (['Eq(s, 0)', 'Inc(s, 4)', 'Eq(v, s)', 'Eq(u, s)'], 4, 4),
+    (['Eq(s, 0)', 'Inc(s, 4)', 'Eq(v, s)', 'Eq(s, s + 4)', 'Eq(u, s)'], 8, 4),
+    (['Eq(s, 0)', 'Inc(s, 4)', 'Eq(v, s)', 'Inc(s, 4)', 'Eq(u, s)'], 8, 4),
+    (['Eq(u, 0)', 'Inc(u, 4)', 'Eq(v, u)', 'Inc(u, 4)'], 8, 4),
+    (['Eq(u, 1)', 'Eq(v, 4)', 'Inc(u, v)', 'Inc(v, u)'], 5, 9),
+])
+def test_makeit_ssa(exprs, exp_u, exp_v):
+    """
+    A test building Operators with non-trivial sequences of input expressions
+    that push hard on the `makeit_ssa` utility function.
+    """
+    grid = Grid(shape=(4, 4))
+    u = Function(name='u', grid=grid)  # noqa
+    v = Function(name='v', grid=grid)  # noqa
+    s = Scalar(name='s')  # noqa
+
+    # List comprehension would need explicit locals/globals mappings to eval
+    for i, e in enumerate(list(exprs)):
+        exprs[i] = eval(e)
+
+    op = Operator(exprs)
+    op.apply()
+
+    assert np.all(u.data == exp_u)
+    assert np.all(v.data == exp_v)

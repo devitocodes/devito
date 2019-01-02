@@ -7,12 +7,12 @@ from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacent,
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple, flatten
 
-__all__ = ['fold_blockable_tree', 'unfold_blocked_tree']
+__all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 
 
 def fold_blockable_tree(node, exclude_innermost=False):
     """
-    Create :class:`IterationFold`s from sequences of nested :class:`Iteration`.
+    Create IterationFolds from sequences of nested Iterations.
     """
     found = FindAdjacent(Iteration).visit(node)
 
@@ -65,9 +65,10 @@ def fold_blockable_tree(node, exclude_innermost=False):
 
 def unfold_blocked_tree(node):
     """
-    Unfold nested :class:`IterationFold`.
+    Unfold nested IterationFolds.
 
-    :Example:
+    Examples
+    --------
 
     Given a section of Iteration/Expression tree as below: ::
 
@@ -112,7 +113,7 @@ def unfold_blocked_tree(node):
 
 def is_foldable(nodes):
     """
-    Return True if the iterable ``nodes`` consists of foldable :class:`Iteration`s,
+    Return True if the iterable ``nodes`` consists of foldable Iterations,
     False otherwise.
     """
     nodes = as_tuple(nodes)
@@ -128,7 +129,7 @@ def optimize_unfolded_tree(unfolded, root):
     Transform folded trees to reduce the memory footprint.
 
     Examples
-    ========
+    --------
     Given:
 
         .. code-block::
@@ -214,13 +215,14 @@ def optimize_unfolded_tree(unfolded, root):
 class IterationFold(Iteration):
 
     """
-    An IterationFold is a special :class:`Iteration` object that represents
-    a sequence of consecutive (in program order) Iterations. In an IterationFold,
-    all Iterations of the sequence but the so called ``root`` are "hidden"; that is,
-    they cannot be visited by an Iteration/Expression tree visitor.
+    An IterationFold is a special Iteration object that represents a sequence of
+    consecutive (in program order) Iterations. In an IterationFold, all Iterations
+    of the sequence but the so called ``root`` are "hidden"; that is, they cannot
+    be visited by an Iteration/Expression tree visitor.
 
     The Iterations in the sequence represented by the IterationFold all have same
-    dimension and properties. However, their extent is relative to that of the ``root``.
+    dimension and properties. However, their extent is relative to that of the
+    ``root``.
     """
 
     is_IterationFold = True
@@ -247,9 +249,7 @@ class IterationFold(Iteration):
         return c.Module([comment, code])
 
     def unfold(self):
-        """
-        Return the corresponding :class:`Iteration` objects from each fold in ``self``.
-        """
+        """Return an unfolded sequence of Iterations."""
         args = self.args
         args.pop('folds')
 
@@ -260,11 +260,33 @@ class IterationFold(Iteration):
         args.pop('nodes')
         ofs = args.pop('offsets')
         try:
-            start, end, incr = args.pop('limits')
+            _min, _max, incr = args.pop('limits')
         except TypeError:
-            start, end, incr = self.limits
-        folds = tuple(Iteration(nodes, limits=(start, end, incr),
+            _min, _max, incr = self.limits
+        folds = tuple(Iteration(nodes, limits=(_min, _max, incr),
                                 offsets=tuple(i-j for i, j in zip(ofs, shift)), **args)
                       for shift, nodes in self.folds)
 
         return folds + as_tuple(root)
+
+
+class BlockDimension(IncrDimension):
+
+    @property
+    def _arg_names(self):
+        return (self.step.name,) + self.parent._arg_names
+
+    def _arg_defaults(self, **kwargs):
+        # TODO: need a heuristic to pick a default block size
+        return {self.step.name: 8}
+
+    def _arg_values(self, args, interval, grid, **kwargs):
+        if self.step.name in kwargs:
+            return {self.step.name: kwargs.pop(self.step.name)}
+        else:
+            blocksize = self._arg_defaults()[self.step.name]
+            if args[self.root.min_name] < blocksize < args[self.root.max_name]:
+                return {self.step.name: blocksize}
+            else:
+                # Avoid OOB
+                return {self.step.name: 1}
