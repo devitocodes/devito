@@ -19,7 +19,7 @@ modes = {'basic': BasicRewriter,
 init_dle(modes)
 
 # The following used by backends.backendSelector
-from devito.function import *  # noqa
+from devito.functions import *  # noqa
+from devito.functions.basic import CacheManager  # noqa
 from devito.grid import Grid  # noqa
 from devito.ops.operator import OperatorOPS as Operator  # noqa
-from devito.types import CacheManager  # noqa

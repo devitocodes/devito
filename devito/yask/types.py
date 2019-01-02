@@ -1,5 +1,5 @@
 from devito.logger import yask as log
-import devito.types as types
+import devito.functions.basic as types
 
 from devito.yask.utils import namespace
 from devito.yask.wrappers import contexts
