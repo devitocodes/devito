@@ -296,6 +296,121 @@ class TestArithmetic(object):
         op.apply()
         assert np.all(u.data[:] == 3)
 
+    def test_sparsefunction_inject(self):
+        """
+        Test injection of a SparseFunction into a Function
+        """
+        grid = Grid(shape=(11, 11))
+        u = Function(name='u', grid=grid, space_order=0)
+
+        sf1 = SparseFunction(name='s', grid=grid, npoint=1)
+        op = Operator(sf1.inject(u, expr=sf1))
+
+        assert sf1.data.shape == (1, )
+        sf1.coordinates.data[0, :] = (0.6, 0.6)
+        sf1.data[0] = 5.0
+        u.data[:] = 0.0
+
+        op.apply()
+
+        # This should be exactly on a point, all others 0
+        assert u.data[6, 6] == pytest.approx(5.0)
+        assert np.sum(u.data) == pytest.approx(5.0)
+
+    def test_sparsefunction_interp(self):
+        """
+        Test interpolation of a SparseFunction from a Function
+        """
+        grid = Grid(shape=(11, 11))
+        u = Function(name='u', grid=grid, space_order=0)
+
+        sf1 = SparseFunction(name='s', grid=grid, npoint=1)
+        op = Operator(sf1.interpolate(u))
+
+        assert sf1.data.shape == (1, )
+        sf1.coordinates.data[0, :] = (0.45, 0.45)
+        sf1.data[:] = 0.0
+        u.data[:] = 0.0
+        u.data[4, 4] = 4.0
+
+        op.apply()
+
+        # Exactly in the middle of 4 points, only 1 nonzero is 4
+        assert sf1.data[0] == pytest.approx(1.0)
+
+    def test_sparsetimefunction_interp(self):
+        """
+        Test injection of a SparseTimeFunction into a TimeFunction
+        """
+        grid = Grid(shape=(11, 11))
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+
+        sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
+        op = Operator(sf1.interpolate(u))
+
+        assert sf1.data.shape == (5, 1)
+        sf1.coordinates.data[0, :] = (0.45, 0.45)
+        sf1.data[:] = 0.0
+        u.data[:] = 0.0
+        u.data[:, 4, 4] = 8*np.arange(5)+4
+
+        # Because of time_order=2 this is probably the range we get anyway, but
+        # to be sure...
+        op.apply(time_m=1, time_M=3)
+
+        # Exactly in the middle of 4 points, only 1 nonzero is 4
+        assert np.all(sf1.data[:, 0] == pytest.approx([0.0, 3.0, 5.0, 7.0, 0.0]))
+
+    def test_sparsetimefunction_inject(self):
+        """
+        Test injection of a SparseTimeFunction from a TimeFunction
+        """
+        grid = Grid(shape=(11, 11))
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+
+        sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
+        op = Operator(sf1.inject(u, expr=3*sf1))
+
+        assert sf1.data.shape == (5, 1)
+        sf1.coordinates.data[0, :] = (0.45, 0.45)
+        sf1.data[:, 0] = np.arange(5)
+        u.data[:] = 0.0
+
+        # Because of time_order=2 this is probably the range we get anyway, but
+        # to be sure...
+        op.apply(time_m=1, time_M=3)
+
+        # Exactly in the middle of 4 points, only 1 nonzero is 4
+        assert np.all(u.data[1, 4:6, 4:6] == pytest.approx(0.75))
+        assert np.all(u.data[2, 4:6, 4:6] == pytest.approx(1.5))
+        assert np.all(u.data[3, 4:6, 4:6] == pytest.approx(2.25))
+        assert np.sum(u.data[:]) == pytest.approx(4*0.75+4*1.5+4*2.25)
+
+    def test_sparsetimefunction_inject_dt(self):
+        """
+        Test injection of the time deivative of a SparseTimeFunction into a TimeFunction
+        """
+        grid = Grid(shape=(11, 11))
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+
+        sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5, time_order=2)
+
+        # This should end up as a central difference operator
+        op = Operator(sf1.inject(u, expr=3*sf1.dt))
+
+        assert sf1.data.shape == (5, 1)
+        sf1.coordinates.data[0, :] = (0.45, 0.45)
+        sf1.data[:, 0] = np.arange(5)
+        u.data[:] = 0.0
+
+        # Because of time_order=2 this is probably the range we get anyway, but
+        # to be sure...
+        op.apply(time_m=1, time_M=3, dt=1)
+
+        # Exactly in the middle of 4 points, only 1 nonzero is 4
+        assert np.all(u.data[1:4, 4:6, 4:6] == pytest.approx(0.75))
+        assert np.sum(u.data[:]) == pytest.approx(12*0.75)
+
 
 class TestAllocation(object):
 

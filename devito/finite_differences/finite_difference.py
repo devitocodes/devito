@@ -337,7 +337,8 @@ def generate_fd_shortcuts(function):
     """Create all legal finite-difference derivatives for the given Function."""
     dimensions = function.indices
     space_fd_order = function.space_order
-    time_fd_order = function.time_order if function.is_TimeFunction else 0
+    time_fd_order = function.time_order if (function.is_TimeFunction or
+                                            function.is_SparseTimeFunction) else 0
 
     deriv_function = generic_derivative
     c_deriv_function = generic_cross_derivative
