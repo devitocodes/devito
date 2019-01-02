@@ -382,7 +382,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
                                 |
                  ---------------------------------
                  |                               |
-           TensorFunction                      Array
+           DiscretizedFunction                      Array
                  |
          ----------------------------------------
          |                                      |

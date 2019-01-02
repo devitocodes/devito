@@ -127,22 +127,22 @@ def retrieve_indexed(expr, mode='unique', deep=False):
 
 
 def retrieve_functions(expr, mode='unique'):
-    """Shorthand to retrieve the :class:`TensorFunction`s in ``expr``."""
+    """Shorthand to retrieve the :class:`DiscretizedFunction`s in ``expr``."""
     return search(expr, q_function, mode, 'dfs')
 
 
 def retrieve_function_carriers(expr, mode='unique'):
     """
-    Shorthand to retrieve the :class:`TensorFunction` carriers in ``expr``. An
-    object carreis a TensorFunction if any of the following conditions are met: ::
+    Shorthand to retrieve the :class:`DiscretizedFunction` carriers in ``expr``. An
+    object carreis a DiscretizedFunction if any of the following conditions are met: ::
 
-        * it is itself a TensorFunction, OR
+        * it is itself a DiscretizedFunction, OR
         * it is a :class:`types.Indexed`, which internally has a pointer to a
-          TensorFunction
+          DiscretizedFunction
     """
     query = lambda i: q_function(i) or q_indexed(i)
     retval = search(expr, query, mode, 'dfs')
-    # Filter off Indexeds not carrying a TensorFunction
+    # Filter off Indexeds not carrying a DiscretizedFunction
     for i in list(retval):
         try:
             i.function

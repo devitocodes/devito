@@ -54,7 +54,7 @@ class HaloScheme(object):
         ({loc_indices}, ((Dimension, DataSide, amount), ...))
 
     The tuples (Dimension, DataSide, amount) tell the amount of data that
-    a :class:`TensorFunction` should communicate along (a subset of) its
+    a :class:`DiscretizedFunction` should communicate along (a subset of) its
     :class:`Dimension`s.
 
     The dict ``loc_indices`` tells how to access/insert the halo along the
@@ -142,7 +142,7 @@ class HaloScheme(object):
 def hs_classify(scope):
     """
     A mapper ``Function -> (Dimension -> [HaloLabel]`` describing what type of
-    halo exchange is expected by the various :class:`TensorFunction`s in a
+    halo exchange is expected by the various :class:`DiscretizedFunction`s in a
     :class:`Scope`.
     """
     mapper = {}

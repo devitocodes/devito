@@ -84,7 +84,7 @@ def q_indirect(expr):
 
 
 def q_timedimension(expr):
-    from devito.dimension import Dimension
+    from devito.functions.dimension import Dimension
     return isinstance(expr, Dimension) and expr.is_Time
 
 

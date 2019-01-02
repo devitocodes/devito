@@ -684,7 +684,7 @@ class ArrayCast(Node):
         """
         The symbols required to perform an :class:`ArrayCast`.
 
-        This may include the :class:`TensorFunction` object that carries
+        This may include the :class:`DiscretizedFunction` object that carries
         the data as well as the dimension sizes.
         """
         if configuration['codegen'] == 'explicit' or self.function.is_Array:

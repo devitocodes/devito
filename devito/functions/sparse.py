@@ -15,7 +15,7 @@ from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, RIGHT,
 from devito.equation import Eq, Inc
 from devito.exceptions import InvalidArgument
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.functions.dense import DiscretizedFunction
+from devito.functions.dense import DiscretizedFunction, Function, SubFunction
 from devito.functions.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.functions.basic import AbstractCachedFunction, AbstractCachedSymbol, Symbol, Scalar
 from devito.logger import debug, warning
@@ -32,6 +32,7 @@ __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
 
 
 class AbstractSparseFunction(DiscretizedFunction):
+
     """
     An abstract class to define behaviours common to all sparse functions.
     """
@@ -89,7 +90,6 @@ class AbstractSparseFunction(DiscretizedFunction):
     def gridpoints(self):
         """
         The *reference* grid point corresponding to each sparse point.
-
         Notes
         -----
         When using MPI, this property refers to the *physically* owned
@@ -363,36 +363,74 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
 class SparseFunction(AbstractSparseFunction, Differentiable):
     """
-    A special :class:`GridedFunction` representing a set of sparse point
-    objects that are not aligned with the computational grid.
-
-    A :class:`SparseFunction` provides symbolic interpolation routines
-    to convert between grid-aligned :class:`Function` objects and sparse
-    data points. These are based upon standard [bi,tri]linear interpolation.
-
-    :param name: Name of the function.
-    :param npoint: Number of points to sample.
-    :param grid: :class:`Grid` object defining the computational domain.
-    :param coordinates: (Optional) coordinate data for the sparse points.
-    :param space_order: (Optional) discretisation order for space derivatives.
-    :param shape: (Optional) shape of the function. Defaults to ``(npoint,)``.
-    :param dimensions: (Optional) symbolic dimensions that define the
-                       data layout and function indices of this symbol.
-    :param dtype: (Optional) data type of the buffered data.
-    :param initializer: (Optional) a callable or an object exposing buffer interface
-                        used to initialize the data. If a callable is provided,
-                        initialization is deferred until the first access to
-                        ``data``.
-    :param allocator: (Optional) an object of type :class:`MemoryAllocator` to
-                      specify where to allocate the function data when running
-                      on a NUMA architecture. Refer to ``default_allocator()``'s
-                      __doc__ for more information about possible allocators.
-
-    .. note::
-
-        The parameters must always be given as keyword arguments, since
-        SymPy uses `*args` to (re-)create the dimension arguments of the
-        symbolic function.
+    Tensor symbol representing a sparse array in symbolic equations.
+    A SparseFunction carries multi-dimensional data that are not aligned with
+    the computational grid. As such, each data value is associated some coordinates.
+    A SparseFunction provides symbolic interpolation routines to convert between
+    Functions and sparse data points. These are based upon standard [bi,tri]linear
+    interpolation.
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    npoint : int
+        Number of sparse points.
+    grid : Grid
+        The computational domain from which the sparse points are sampled.
+    coordinates : np.ndarray, optional
+        The coordinates of each sparse point.
+    space_order : int, optional
+        Discretisation order for space derivatives. Defaults to 0.
+    shape : tuple of ints, optional
+        Shape of the object. Defaults to ``(npoint,)``.
+    dimensions : tuple of Dimension, optional
+        Dimensions associated with the object. Only necessary if the SparseFunction
+        defines a multi-dimensional tensor.
+    dtype : data-type, optional
+        Any object that can be interpreted as a numpy data type. Defaults
+        to ``np.float32``.
+    initializer : callable or any object exposing the buffer interface, optional
+        Data initializer. If a callable is provided, data is allocated lazily.
+    allocator : MemoryAllocator, optional
+        Controller for memory allocation. To be used, for example, when one wants
+        to take advantage of the memory hierarchy in a NUMA architecture. Refer to
+        `default_allocator.__doc__` for more information.
+    Examples
+    --------
+    Creation
+    >>> from devito import Grid, SparseFunction
+    >>> grid = Grid(shape=(4, 4))
+    >>> sf = SparseFunction(name='sf', grid=grid, npoint=2)
+    >>> sf
+    sf(p_sf)
+    Inspection
+    >>> sf.data
+    Data([0., 0.], dtype=float32)
+    >>> sf.coordinates
+    sf_coords(p_sf, d)
+    >>> sf.coordinates_data
+    array([[0., 0.],
+           [0., 0.]], dtype=float32)
+    Symbolic interpolation routines
+    >>> from devito import Function
+    >>> f = Function(name='f', grid=grid)
+    >>> exprs0 = sf.interpolate(f)
+    >>> exprs1 = sf.inject(f, sf)
+    Notes
+    -----
+    The parameters must always be given as keyword arguments, since SymPy
+    uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
+    About SparseFunction and MPI. There is a clear difference between: ::
+        * Where the sparse points *physically* live, i.e., on which MPI rank. This
+          depends on the user code, particularly on how the data is set up.
+        * and which MPI rank *logically* owns a given sparse point. The logical
+          ownership depends on where the sparse point is located within ``self.grid``.
+    Right before running an Operator (i.e., upon a call to ``op.apply``), a
+    SparseFunction "scatters" its physically owned sparse points so that each
+    MPI rank gets temporary access to all of its logically owned sparse points.
+    A "gather" operation, executed before returning control to user-land,
+    updates the physically owned sparse points in ``self.data`` by collecting
+    the values computed during ``op.apply`` from different MPI ranks.
     """
 
     is_SparseFunction = True
@@ -450,7 +488,6 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         Symbolic expression for the coefficients for sparse point interpolation
         according to:
         https://en.wikipedia.org/wiki/Bilinear_interpolation.
-
         Returns
         -------
         Matrix of coefficient expressions
@@ -541,8 +578,7 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         return index_matrix, points
 
     def _interpolation_indices(self, variables, offset=0):
-        """Generate interpolation indices for the :class:`GridedFunction`s
-        in ``variables``."""
+        """Generate interpolation indices for the DiscretizedFunctions in ``variables``."""
         index_matrix, points = self._index_matrix(offset)
 
         idx_subs = []
@@ -582,7 +618,6 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     def interpolate(self, expr, offset=0, increment=False, self_subs={}):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
-
         Parameters
         ----------
         expr : sympy.Expr
@@ -614,7 +649,6 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
     def inject(self, field, expr, offset=0):
         """
         Generate equations injecting an arbitrary expression into a field.
-
         Parameters
         ----------
         field : Function
@@ -643,7 +677,6 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
         The introduced condition, here, is that all grid points in the
         support of a sparse value must fall within the grid domain (i.e.,
         *not* on the halo).
-
         Parameters
         ----------
         expr : sympy.Expr, optional
@@ -779,15 +812,12 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     """
     Tensor symbol representing a space- and time-varying sparse array in symbolic
     equations.
-
     Like SparseFunction, SparseTimeFunction carries multi-dimensional data that
     are not aligned with the computational grid. As such, each data value is
     associated some coordinates.
-
     A SparseTimeFunction provides symbolic interpolation routines to convert
     between TimeFunctions and sparse data points. These are based upon standard
     [bi,tri]linear interpolation.
-
     Parameters
     ----------
     name : str
@@ -818,19 +848,15 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
-
     Examples
     --------
     Creation
-
     >>> from devito import Grid, SparseTimeFunction
     >>> grid = Grid(shape=(4, 4))
     >>> sf = SparseTimeFunction(name='sf', grid=grid, npoint=2, nt=3)
     >>> sf
     sf(time, p_sf)
-
     Inspection
-
     >>> sf.data
     Data([[0., 0.],
           [0., 0.],
@@ -840,14 +866,11 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     >>> sf.coordinates_data
     array([[0., 0.],
            [0., 0.]], dtype=float32)
-
     Symbolic interpolation routines
-
     >>> from devito import TimeFunction
     >>> f = TimeFunction(name='f', grid=grid)
     >>> exprs0 = sf.interpolate(f)
     >>> exprs1 = sf.inject(f, sf)
-
     Notes
     -----
     The parameters must always be given as keyword arguments, since SymPy
@@ -859,7 +882,6 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
-
         Parameters
         ----------
         expr : sympy.Expr
@@ -890,7 +912,6 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     def inject(self, field, expr, offset=0, u_t=None, p_t=None):
         """
         Generate equations injecting an arbitrary expression into a field.
-
         Parameters
         ----------
         field : Function
@@ -922,7 +943,6 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     Tensor symbol representing a sparse array in symbolic equations; unlike
     SparseFunction, PrecomputedSparseFunction uses externally-defined data
     for interpolation.
-
     Parameters
     ----------
     name : str
@@ -964,7 +984,6 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
-
     Notes
     -----
     The parameters must always be given as keyword arguments, since SymPy
@@ -1013,7 +1032,6 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     def interpolate(self, expr, offset=0, increment=False, self_subs={}):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
-
         Parameters
         ----------
         expr : sympy.Expr
@@ -1041,7 +1059,6 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     def inject(self, field, expr, offset=0):
         """
         Generate equations injecting an arbitrary expression into a field.
-
         Parameters
         ----------
         field : Function
@@ -1100,7 +1117,6 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
     Tensor symbol representing a space- and time-varying sparse array in symbolic
     equations; unlike SparseTimeFunction, PrecomputedSparseTimeFunction uses
     externally-defined data for interpolation.
-
     Parameters
     ----------
     name : str
@@ -1144,7 +1160,6 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
-
     Notes
     -----
     The parameters must always be given as keyword arguments, since SymPy
@@ -1156,7 +1171,6 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
-
         Parameters
         ----------
         expr : sympy.Expr

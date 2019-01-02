@@ -3,7 +3,7 @@ import numpy as np
 from devito.exceptions import InvalidArgument
 from devito.logger import warning
 from devito.functions.basic import AbstractCachedSymbol
-from devito.tools import ArgProvider
+from devito.tools import ArgProvider, memoized_meth
 
 __all__ = ['Constant']
 
@@ -11,13 +11,30 @@ __all__ = ['Constant']
 class Constant(AbstractCachedSymbol, ArgProvider):
 
     """
-    Symbol representing constant values in symbolic equations.
-
-    .. note::
-
-        The parameters must always be given as keyword arguments, since
-        SymPy uses ``*args`` to (re-)create the dimension arguments of the
-        symbolic function.
+    Symbol representing a constant, scalar value in symbolic equations.
+    A Constant carries a scalar value.
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    dtype : data-type, optional
+        Any object that can be interpreted as a numpy data type. Defaults
+        to ``np.float32``.
+    Examples
+    --------
+    >>> from devito import Constant
+    >>> c = Constant(name='c')
+    >>> c
+    c
+    >>> c.data
+    0.0
+    >>> c.data = 4
+    >>> c.data
+    4.0
+    Notes
+    -----
+    The parameters must always be given as keyword arguments, since SymPy
+    uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     """
 
     is_Input = True
@@ -26,7 +43,7 @@ class Constant(AbstractCachedSymbol, ArgProvider):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self._value = kwargs.get('value')
+            self._value = kwargs.get('value', 0)
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
@@ -43,22 +60,23 @@ class Constant(AbstractCachedSymbol, ArgProvider):
 
     @property
     def _arg_names(self):
-        """Return a tuple of argument names introduced by this symbol."""
+        """Tuple of argument names introduced by this symbol."""
         return (self.name,)
 
+    @memoized_meth
     def _arg_defaults(self, alias=None):
-        """
-        Returns a map of default argument values defined by this symbol.
-        """
+        """A map of default argument values defined by this symbol."""
         key = alias or self
         return {key.name: self.data}
 
     def _arg_values(self, **kwargs):
         """
-        Returns a map of argument values after evaluating user input. If no
+        Produce a map of argument values after evaluating user input. If no
         user input is provided, return a default value.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
+        Parameters
+        ----------
+        **kwargs
+            Dictionary of user-provided argument overrides.
         """
         if self.name in kwargs:
             new = kwargs.pop(self.name)

@@ -25,7 +25,7 @@ class OperatorCore(Operator):
 
         halo_spots = FindNodes(HaloSpot).visit(iet)
 
-        # For each MPI-distributed TensorFunction, generate all necessary
+        # For each MPI-distributed DiscretizedFunction, generate all necessary
         # C-level routines to perform a halo update
         callables = OrderedDict()
         for hs in halo_spots:

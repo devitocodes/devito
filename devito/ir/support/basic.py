@@ -701,7 +701,7 @@ class DependenceGroup(list):
 
     @cached_property
     def functions(self):
-        """Return the :class:`TensorFunction`s inducing a dependence."""
+        """Return the :class:`DiscretizedFunction`s inducing a dependence."""
         return frozenset({i.function for i in self})
 
     @cached_property
