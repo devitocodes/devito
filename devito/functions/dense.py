@@ -2,7 +2,7 @@ import sympy
 import numpy as np
 from psutil import virtual_memory
 
-from devito.data import Data, default_allocator, first_touch
+from devito.data import Data, default_allocator, OWNED, HALO, LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI
@@ -10,18 +10,18 @@ from devito.parameters import configuration
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.functions.dimension import Dimension
 from devito.functions.utils import Buffer, NODE, CELL
-from devito.functions.basic import AbstractCachedFunction, OWNED, HALO, LEFT, RIGHT
+from devito.functions.basic import AbstractCachedFunction
 from devito.tools import (EnrichedTuple, ReducerMap, ArgProvider, as_tuple,
                           is_integer)
 
-__all__ = ['Function', 'TimeFunction']
+__all__ = ['Function', 'TimeFunction', 'DiscretizedFunction']
 
 
-class GridedFunction(AbstractCachedFunction, ArgProvider):
+class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
 
     """
     Utility class to encapsulate all symbolic types that represent
-    tensor (array) data.
+    discrete (array) data.
 
     .. note::
 
@@ -30,19 +30,19 @@ class GridedFunction(AbstractCachedFunction, ArgProvider):
     """
 
     # Required by SymPy, otherwise the presence of __getitem__ will make SymPy
-    # think that a GridedFunction is actually iterable, thus breaking many of
+    # think that a DiscretizedFunction   is actually iterable, thus breaking many of
     # its key routines (e.g., solve)
     _iterable = False
 
     is_Input = True
-    is_GridedFunction = True
+    is_DiscretizedFunction = True
     is_Tensor = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(GridedFunction, self).__init__(*args, **kwargs)
+            super(DiscretizedFunction, self).__init__(*args, **kwargs)
 
-            # There may or may not be a `Grid` attached to the GridedFunction
+            # There may or may not be a `Grid` attached to the DiscretizedFunction
             self._grid = kwargs.get('grid')
 
             # Staggering metadata
@@ -50,7 +50,6 @@ class GridedFunction(AbstractCachedFunction, ArgProvider):
 
             # Data-related properties and data initialization
             self._data = None
-            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._allocator = kwargs.get('allocator', default_allocator())
             initializer = kwargs.get('initializer')
             if initializer is None or callable(initializer):
@@ -79,12 +78,7 @@ class GridedFunction(AbstractCachedFunction, ArgProvider):
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
                 self._data = Data(self.shape_allocated, self.indices, self.dtype,
                                   allocator=self._allocator)
-                if self._first_touch:
-                    first_touch(self)
                 if callable(self._initializer):
-                    if self._first_touch:
-                        warning("`first touch` together with `initializer` causing "
-                                "redundant data initialization")
                     try:
                         self._initializer(self._data)
                     except ValueError:
@@ -156,7 +150,7 @@ class GridedFunction(AbstractCachedFunction, ArgProvider):
     @property
     def shape(self):
         """
-        Shape of the domain associated with this :class:`GridedFunction`.
+        Shape of the domain associated with this :class:`DiscretizedFunction`.
         The domain constitutes the area of the data written to in a
         stencil update.
         """
@@ -165,7 +159,7 @@ class GridedFunction(AbstractCachedFunction, ArgProvider):
     @property
     def shape_domain(self):
         """
-        Shape of the domain associated with this :class:`GridedFunction`.
+        Shape of the domain associated with this :class:`DiscretizedFunction`.
         The domain constitutes the area of the data written to in a
         stencil update.
 
@@ -338,7 +332,7 @@ class GridedFunction(AbstractCachedFunction, ArgProvider):
               known quantities (integers), the domain size is represented by a symbol.
             * the shifting induced by the ``staggered`` mask
         """
-        symbolic_shape = super(GridedFunction, self).symbolic_shape
+        symbolic_shape = super(DiscretizedFunction, self).symbolic_shape
         ret = tuple(sympy.Add(i, -j, evaluate=False)
                     for i, j in zip(symbolic_shape, self.staggered))
         return EnrichedTuple(*ret, getters=self.dimensions)
@@ -441,7 +435,7 @@ class GridedFunction(AbstractCachedFunction, ArgProvider):
         # use defaults
         if self.name in kwargs:
             new = kwargs.pop(self.name)
-            if isinstance(new, GridedFunction):
+            if isinstance(new, DiscretizedFunction):
                 # Set new values and re-derive defaults
                 values = new._arg_defaults(alias=self).reduce_all()
             else:
@@ -482,8 +476,8 @@ class GridedFunction(AbstractCachedFunction, ArgProvider):
         ['grid', 'staggered', 'initializer']
 
 
-class Function(GridedFunction, Differentiable):
-    """A :class:`GridedFunction` providing operations to express
+class Function(DiscretizedFunction, Differentiable):
+    """A :class:`DiscretizedFunction` providing operations to express
     finite-difference approximation. A ``Function`` encapsulates
     space-varying data; for time-varying data, use :class:`TimeFunction`.
 
@@ -677,7 +671,7 @@ class Function(GridedFunction, Differentiable):
         return tot / len(tot.args)
 
     # Pickling support
-    _pickle_kwargs = GridedFunction._pickle_kwargs +\
+    _pickle_kwargs = DiscretizedFunction._pickle_kwargs +\
         ['space_order', 'shape', 'dimensions', 'staggered']
 
 
@@ -881,10 +875,10 @@ class TimeFunction(Function):
 
 class SubFunction(Function):
     """
-    A :class:`Function` that is bound to another "parent" GridedFunction.
+    A :class:`Function` that is bound to another "parent" DiscretizedFunction.
 
     A SubFunction hands control of argument binding and halo exchange to its
-    parent GridedFunction.
+    parent DiscretizedFunction.
     """
 
     def __init__(self, *args, **kwargs):

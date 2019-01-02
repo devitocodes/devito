@@ -8,7 +8,6 @@ import cpuinfo
 from devito.base import *  # noqa
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
-from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
 from devito.grid import SubDomain  # noqa
 from devito.finite_differences import *  # noqa

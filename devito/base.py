@@ -3,17 +3,11 @@
 from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
-<<<<<<< HEAD
-from devito.grid import Grid
+import devito.grid as grid
 import devito.functions.basic as types
 import devito.functions.dense as function
 import devito.functions.sparse as sparse
 import devito.functions.constant as constant
-=======
-import devito.grid as grid
-import devito.types as types
-import devito.function as function
->>>>>>> origin/master
 import devito.operator as operator
 
 

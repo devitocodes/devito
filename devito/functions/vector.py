@@ -1,9 +1,9 @@
-from devito.functions.dense import Function, GridedFunction
+from devito.functions.dense import Function, DiscretizedFunction
 
 __all__ = ["VectorFunction"]
 
 
-class VectorFunction(GridedFunction):
+class VectorFunction(DiscretizedFunction):
     """A :class:`GridedFunction` providing operations to express
     finite-difference approximation. A ``VectorFunction`` encapsulates
     vector valued space-varying data (one value per dimension i.e u_x, u_y, u_z in 3D)

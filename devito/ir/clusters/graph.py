@@ -8,7 +8,7 @@ from devito.ir.equations import ClusterizedEq
 from devito.symbolics import (as_symbol, retrieve_indexed, retrieve_terminals,
                               q_indirect, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten, filter_ordered
-from devito.types import Symbol
+from devito.functions import Symbol
 
 __all__ = ['FlowGraph']
 
