@@ -1,8 +1,7 @@
 from collections import namedtuple
 
-from devito.functions import (Constant, SpaceDimension, TimeDimension, SteppingDimension,
-                              Dimension, SubDimension)
-
+from devito.functions import (Constant, Dimension, SpaceDimension, TimeDimension,
+                              SteppingDimension, SubDimension)
 from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap, as_tuple

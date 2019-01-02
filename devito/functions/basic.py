@@ -24,27 +24,25 @@ __all__ = ['Symbol', 'Indexed', 'Scalar', 'Array', 'LocalObject', 'AbstractFunct
 _SymbolCache = {}
 
 
+
+
 class Basic(object):
     """
     Three relevant types inherit from this class: ::
-
         * AbstractSymbol: represents a scalar; may carry data; may be used
                           to build equations.
         * AbstractFunction: represents a discrete R^n -> R function; may
                             carry data; may be used to build equations.
         * AbstractObject: represents a generic object, for example a (pointer
                           to) data structure.
-
                                         Basic
                                           |
                     ------------------------------------------
                     |                     |                  |
              AbstractSymbol       AbstractFunction     AbstractObject
-
     Subtypes must implement a number of methods/properties to enable code
     generation via the Devito compiler. These methods/properties are easily
     recognizable as their name starts with _C_.
-
     Notes
     -----
     Part of the AbstractFunction sub-hierarchy is implemented in :mod:`function.py`.
@@ -87,7 +85,6 @@ class Basic(object):
     def _C_name(self):
         """
         The C-level name of the object.
-
         Returns
         -------
         str
@@ -98,7 +95,6 @@ class Basic(object):
     def _C_typename(self):
         """
         The C-level type of the object.
-
         Returns
         -------
         str
@@ -109,7 +105,6 @@ class Basic(object):
     def _C_typedata(self):
         """
         The C-level type of the data values.
-
         Returns
         -------
         str
@@ -121,7 +116,6 @@ class Basic(object):
         """
         The C-level type of the object, as a ctypes object, suitable for type
         checking when calling functions via ctypes.
-
         Returns
         -------
         ctypes type
@@ -132,7 +126,6 @@ class Basic(object):
     def _C_typedecl(self):
         """
         The C-level struct declaration representing the object.
-
         Returns
         -------
         cgen.Struct or None
@@ -145,13 +138,11 @@ class Basic(object):
 class Cached(object):
     """
     Base class for symbolic objects that cache on the class type.
-
     In order to maintain meta information across the numerous
     re-instantiation SymPy performs during symbolic manipulation, we inject
     the symbol name as the class name and cache all created objects on that
     name. This entails that a symbolic object inheriting from Cached should
     implement `__init__` in the following way:
-
         .. code-block::
             def __init__(self, \*args, \*\*kwargs):
                 if not self._cached():
@@ -166,7 +157,6 @@ class Cached(object):
     @classmethod
     def _cache_put(cls, obj):
         """Store given object instance in symbol cache.
-
         Parameters
         ----------
         obj : object
@@ -193,9 +183,7 @@ class Cached(object):
 class AbstractSymbol(sympy.Symbol, Basic, Pickable):
     """
     Base class for dimension-free symbols, only cached by SymPy.
-
     The sub-hierarchy is structured as follows
-
                              AbstractSymbol
                                    |
                  -------------------------------------
@@ -207,9 +195,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
      Symbol            Constant
         |
      Scalar
-
     There are three relevant AbstractSymbol sub-types: ::
-
         * Symbol: A generic scalar symbol that can be used to build an equation.
                   It does not carry data. Typically, Symbols are created internally
                   by Devito (e.g., for temporary variables)
@@ -265,7 +251,6 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
 class AbstractCachedSymbol(AbstractSymbol, Cached):
     """
     Base class for dimension-free symbols, cached by both Devito and SymPy.
-
     For more information, refer to the documentation of AbstractSymbol.
     """
 
@@ -342,7 +327,6 @@ class Symbol(AbstractCachedSymbol):
 class Scalar(Symbol):
     """
     Symbol representing a scalar.
-
     Parameters
     ----------
     name : str
@@ -373,16 +357,14 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
     """
     Base class for tensor symbols, only cached by SymPy. It inherits from and
     mimick the behaviour of a sympy.Function.
-
     The sub-hierarchy is structured as follows
-
                          AbstractFunction
                                 |
                       AbstractCachedFunction
                                 |
                  ---------------------------------
                  |                               |
-           DiscretizedFunction                      Array
+           TensorFunction                      Array
                  |
          ----------------------------------------
          |                                      |
@@ -395,9 +377,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
          |               |   ------------------------------------     --------
          |               |   |                                  |     |
     TimeFunction  SparseTimeFunction                 PrecomputedSparseTimeFunction
-
     There are five relevant AbstractFunction sub-types: ::
-
         * Array: A function that does not carry data. Usually created by the DSE.
         * Function: A space-varying discrete function, which carries user data.
         * TimeFunction: A time- and space-varying discrete function, which carries
@@ -421,7 +401,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
 class AbstractCachedFunction(AbstractFunction, Cached):
     """
     Base class for tensor symbols, cached by both Devito and Sympy.
-
     For more information, refer to ``AbstractFunction.__doc__``.
     """
 
@@ -709,10 +688,8 @@ class AbstractCachedFunction(AbstractFunction, Cached):
 class Array(AbstractCachedFunction):
     """
     Tensor symbol representing an array in symbolic equations.
-
     An Array is created and managed directly by Devito; that is, it is not
     expected to be needed in user code.
-
     Parameters
     ----------
     name : str
