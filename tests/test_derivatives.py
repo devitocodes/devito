@@ -255,3 +255,18 @@ class TestFD(object):
 
         assert isinstance(expr, Differentiable)
         assert expected == str(expr)
+
+    @pytest.mark.parametrize('so', [2, 5, 8])
+    def test_all_shortcuts(self, so):
+        """
+        Test that verify that all fd shortcuts are functional
+        """
+        grid = Grid(shape=(10, 10, 10))
+        f = Function(name='f', grid=grid, space_order=so)
+        g = TimeFunction(name='g', grid=grid, space_order=so)
+
+        for fd in f._fd:
+            assert getattr(f, fd)
+
+        for fd in g._fd:
+            assert getattr(g, fd)
