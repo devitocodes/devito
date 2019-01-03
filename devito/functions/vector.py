@@ -3,7 +3,7 @@ from devito.functions.dense import Function, DiscretizedFunction
 __all__ = ["VectorFunction"]
 
 
-class VectorFunction(DiscretizedFunction):
+class VectorFunction(object):
     """A :class:`DiscretizedFunction` providing operations to express
     finite-difference approximation. A ``VectorFunction`` encapsulates
     vector valued space-varying data (one value per dimension i.e u_x, u_y, u_z in 3D)
@@ -55,21 +55,32 @@ class VectorFunction(DiscretizedFunction):
 
     is_VectorFunction = True
 
+    _property_names = ['name', 'space_order', 'components']
+
     def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.name = kwargs.get("name")
-            self.space_order = kwargs.get("space_order", 1)
-            # Get gird
-            grid = kwargs.get("grid")
-            # Each component is a Function
-            components = []
-            for d in grid.dimensions:
-                components += [Function(name=self.name+'_'+d.name, grid=self.grid,
-                                        space_order=self.space_order)]
-            self.components = tuple(components)
+        # if not self._cached():
+        self._name = kwargs.get("name")
+        space_order = kwargs.get("space_order", 1)
+        # Get gird
+        grid = kwargs.get("grid")
+        # Each component is a Function
+        components = []
+        for d in grid.dimensions:
+            components += [Function(name=self._name + '_' + d.name,
+                                    grid=grid, space_order=space_order)]
+        self._components = tuple(components)
+        print("hello")
 
     def __repr__(self):
-        return tuple(i.__repr__() for i in self.components)
+        return str(tuple(i.__repr__() for i in self._components))
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def components(self):
+        return self._components
 
     def __getattr__(self, name):
         """
@@ -78,4 +89,9 @@ class VectorFunction(DiscretizedFunction):
 
             This method acts as a fallback for __getattribute__
         """
-        return tuple(i.getattr(name) for i in self.components)
+        if name == "name":
+            return self._name
+        elif name == "components":
+            return self._components
+        else:
+            return tuple(i.__getattr__(name) for i in self._components)
