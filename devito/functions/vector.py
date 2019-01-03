@@ -1,3 +1,7 @@
+from sympy import Matrix, pprint
+
+from cached_property import cached_property
+
 from devito.functions.dense import Function, DiscretizedFunction
 
 __all__ = ["VectorFunction"]
@@ -60,27 +64,29 @@ class VectorFunction(object):
     def __init__(self, *args, **kwargs):
         # if not self._cached():
         self._name = kwargs.get("name")
-        space_order = kwargs.get("space_order", 1)
+        self._space_order = kwargs.get("space_order", 1)
         # Get gird
         grid = kwargs.get("grid")
         # Each component is a Function
-        components = []
-        for d in grid.dimensions:
-            components += [Function(name=self._name + '_' + d.name,
-                                    grid=grid, space_order=space_order)]
-        self._components = tuple(components)
-        print("hello")
+        components = [Function(name='%s_%s' % (self._name, d.name), grid=grid,
+                               space_order=self._space_order)
+                      for d in grid.dimensions]
+        self._components = Matrix(components)
 
     def __repr__(self):
-        return str(tuple(i.__repr__() for i in self._components))
+        return pprint(self._components)
 
-    @property
+    @cached_property
     def name(self):
         return self._name
 
     @property
     def components(self):
         return self._components
+
+    @property
+    def space_order(self):
+        return self._space_order
 
     def __getattr__(self, name):
         """
@@ -93,5 +99,7 @@ class VectorFunction(object):
             return self._name
         elif name == "components":
             return self._components
+        elif name == "space_order":
+            return self._space_order
         else:
-            return tuple(i.__getattr__(name) for i in self._components)
+            return Matrix([i.__getattr__(name) for i in self._components])
