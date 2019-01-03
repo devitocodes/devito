@@ -27,17 +27,16 @@ __all__ = ['Function', 'TimeFunction', 'DiscretizedFunction']
 
 class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     """
-    Utility class to encapsulate all symbolic types that represent
-    discrete (array) data.
-
-    .. note::
-
-        Users should not instantiate this class. Use :class:`Function` or
-        :class:`SparseFunction` (or their subclasses) instead.
+    Symbol representing a discrete array in symbolic equations. Unlike an
+    Array, a DiscretizedFunction carries data.
+    Notes
+    -----
+    Users should not instantiate this class directly. Use Function or
+    SparseFunction (or their subclasses) instead.
     """
 
     # Required by SymPy, otherwise the presence of __getitem__ will make SymPy
-    # think that a DiscretizedFunction   is actually iterable, thus breaking many of
+    # think that a DiscretizedFunction is actually iterable, thus breaking many of
     # its key routines (e.g., solve)
     _iterable = False
 
@@ -748,7 +747,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
 
 class Function(DiscretizedFunction, Differentiable):
     """
-    Tensor symbol representing an array in symbolic equations.
+    Discretized symbol representing an array in symbolic equations.
     A Function carries multi-dimensional data and provides operations to create
     finite-differences approximations.
     A Function encapsulates space-varying data; for data that also varies in time,

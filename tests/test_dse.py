@@ -8,7 +8,7 @@ from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseFunction,  
 from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree
 from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
-from devito.functions import Scalar
+from devito.functions.basic import Scalar
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
 from devito.tools import generator

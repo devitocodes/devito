@@ -156,7 +156,8 @@ class YaskKernel(object):
             Mapper ``Function -> Data`` for grid-storage sharing.
         """
         # Sanity check
-        grids = {i.grid for i in toshare if i.is_GridedFunction and i.grid is not None}
+        grids = {i.grid for i in toshare if (i.is_DiscretizedFunction and
+                                             i.grid is not None)}
         assert len(grids) == 1
         grid = grids.pop()
 

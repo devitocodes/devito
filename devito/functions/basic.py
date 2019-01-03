@@ -16,7 +16,7 @@ from devito.symbolics import Add
 from devito.tools import (ArgProvider, EnrichedTuple, Pickable, ctypes_to_cstr,
                           dtype_to_cstr, dtype_to_ctype)
 
-__all__ = ['Symbol', 'Indexed', 'Scalar', 'Array', 'LocalObject', 'AbstractFunction']
+__all__ = ['Symbol', 'Indexed']
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
@@ -362,7 +362,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
                                 |
                  ---------------------------------
                  |                               |
-           TensorFunction                      Array
+           DiscretizedFunction                      Array
                  |
          ----------------------------------------
          |                                      |
@@ -945,8 +945,8 @@ class Indexed(sympy.Indexed):
     def name(self):
         return self.function.name
 
-
 # Utilities
+
 
 class CacheManager(object):
 

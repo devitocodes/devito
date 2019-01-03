@@ -3,10 +3,10 @@ import ctypes
 import sympy
 import numpy as np
 
+
+import devito.functions as function
 from devito.exceptions import InvalidArgument
 from devito.functions.basic import _SymbolCache
-import devito.functions.constant as constant
-import devito.functions.dense as dense
 from devito.logger import yask as log
 from devito.tools import Signer, dtype_to_ctype, memoized_meth
 
@@ -17,7 +17,7 @@ from devito.yask.wrappers import contexts
 __all__ = ['Constant', 'Function', 'TimeFunction']
 
 
-class Constant(constant.Constant):
+class Constant(function.Constant):
 
     from_YASK = True
 
@@ -50,7 +50,7 @@ class Constant(constant.Constant):
         return values
 
 
-class Function(dense.Function, Signer):
+class Function(function.Function, Signer):
 
     from_YASK = True
 
@@ -171,13 +171,13 @@ class Function(dense.Function, Signer):
         return (self.name,) + tuple(i.name for i in self.indices)
 
 
-class TimeFunction(dense.TimeFunction, Function):
+class TimeFunction(function.TimeFunction, Function):
 
     from_YASK = True
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        indices = list(dense.TimeFunction.__indices_setup__(**kwargs))
+        indices = list(function.TimeFunction.__indices_setup__(**kwargs))
         # Never use a SteppingDimension in the yask backend: it is simply
         # unnecessary and would only complicate things when creating dummy
         # grids
