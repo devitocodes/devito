@@ -132,7 +132,6 @@ def second_derivative(expr, dim, fd_order, stagger=None):
     ----------
     expr : expr-like
         Expression for which the derivative is produced.
-
     dim : Dimension
         The Dimension w.r.t. which to differentiate.
     fd_order : int
@@ -144,7 +143,7 @@ def second_derivative(expr, dim, fd_order, stagger=None):
     Returns
     -------
     expr-like
-        The derivative of ``expr`` of order ``deriv-order``.
+        The ``deriv-order`` orderderivative of ``expr``.
 
     Examples
     --------
@@ -168,90 +167,7 @@ def second_derivative(expr, dim, fd_order, stagger=None):
 
 
 @check_input
-def cross_derivative(expr, **kwargs):
-    """
-    Shifted cross derivative of a given expression. This generates the cross derivatives
-    shifted from the center point to avoid odd-even coupling.
-    For a conventional cross derivative use `generic_cross_derivative`
-
-    Parameters
-    ----------
-    expr : expr-like
-        Expression for which the cross derivative is produced.
-    **kwargs
-        - ``dims``: 2-tuple Dimensions w.r.t. which to differentiate.
-        - ``diff``: Finite-difference symbol, defaults to `h`.
-        - ``order``: 2-tuple representing the discretisation order of the
-                     derivative in the two Dimensions.
-
-    Returns
-    -------
-    expr-like
-        The cross derivative of ``expr``
-
-    Examples
-    --------
-    >>> from devito import Function, Grid, cross_derivative
-    >>> grid = Grid(shape=(4, 4))
-    >>> x, y = grid.dimensions
-    >>> f = Function(name='f', grid=grid, space_order=2)
-    >>> g = Function(name='g', grid=grid, space_order=2)
-    >>> # cross_derivative(f*g, dims=(x, y))
-    TODO
-
-    This is also more easily obtainable via:
-
-    >>> # (f*g).dxdy
-    TODO
-    """
-
-    dims = kwargs.get('dims')
-    diff = kwargs.get('diff', (dims[0].spacing, dims[1].spacing))
-    order = kwargs.get('order', (1, 1))
-
-    assert(isinstance(dims, tuple) and len(dims) == 2)
-    deriv = 0
-
-    # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind1r = [(dims[0] + i * diff[0])
-             for i in range(-int(order[0] / 2) + 1 - (order[0] < 4),
-                            int((order[0] + 1) / 2) + 2 - (order[0] < 4))]
-    ind2r = [(dims[1] + i * diff[1])
-             for i in range(-int(order[1] / 2) + 1 - (order[1] < 4),
-                            int((order[1] + 1) / 2) + 2 - (order[1] < 4))]
-    ind1l = [(dims[0] - i * diff[0])
-             for i in range(-int(order[0] / 2) + 1 - (order[0] < 4),
-                            int((order[0] + 1) / 2) + 2 - (order[0] < 4))]
-    ind2l = [(dims[1] - i * diff[1])
-             for i in range(-int(order[1] / 2) + 1 - (order[1] < 4),
-                            int((order[1] + 1) / 2) + 2 - (order[1] < 4))]
-
-    # Finite difference weights from Taylor approximation with this positions
-    c11 = finite_diff_weights(1, ind1r, dims[0])[-1][-1]
-    c21 = finite_diff_weights(1, ind1l, dims[0])[-1][-1]
-    c12 = finite_diff_weights(1, ind2r, dims[1])[-1][-1]
-    c22 = finite_diff_weights(1, ind2l, dims[1])[-1][-1]
-    all_dims1 = tuple(set((dims[0], ) +
-                      tuple([i for i in expr.indices if i.root == dims[0]])))
-    all_dims2 = tuple(set((dims[1], ) +
-                      tuple([i for i in expr.indices if i.root == dims[1]])))
-    # Diagonal elements
-    for i in range(0, len(ind1r)):
-        for j in range(0, len(ind2r)):
-            subs1 = dict([(d1, ind1r[i].subs({dims[0]: d1})) +
-                          (d2, ind2r[i].subs({dims[1]: d2}))
-                          for (d1, d2) in zip(all_dims1, all_dims2)])
-            subs2 = dict([(d1, ind1l[i].subs({dims[0]: d1})) +
-                          (d2, ind2l[i].subs({dims[1]: d2}))
-                          for (d1, d2) in zip(all_dims1, all_dims2)])
-            var1 = expr.subs(subs1)
-            var2 = expr.subs(subs2)
-            deriv += .5 * (c11[i] * c12[j] * var1 + c21[-(j+1)] * c22[-(i+1)] * var2)
-    return -deriv.evalf(_PRECISION)
-
-
-@check_input
-def generic_cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
+def cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -337,11 +253,10 @@ def generate_fd_shortcuts(function):
     """Create all legal finite-difference derivatives for the given Function."""
     dimensions = function.indices
     space_fd_order = function.space_order
-    time_fd_order = function.time_order if (function.is_TimeFunction or
-                                            function.is_SparseTimeFunction) else 0
+    time_fd_order = function.time_order if function.is_TimeDifferentiable else 0
 
     deriv_function = generic_derivative
-    c_deriv_function = generic_cross_derivative
+    c_deriv_function = cross_derivative
 
     side = dict()
     for (d, s) in zip(dimensions, function.staggered):
