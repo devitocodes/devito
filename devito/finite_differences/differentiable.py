@@ -157,7 +157,7 @@ class Add(sympy.Add, Differentiable):
         obj = sympy.Add.__new__(cls, *args, **kwargs)
 
         # `(f + f)` is evaluated as `2*f`, with `*` being a sympy.Mul.
-        # Here we make sure to return our own Add.
+        # Here we make sure to return our own Mul.
         if obj.is_Mul:
             obj = Mul(*obj.args)
 
@@ -175,7 +175,7 @@ class Mul(sympy.Mul, Differentiable):
             obj = Add(*obj.args)
 
         # `(f * f)` is evaluated as `f**2`, with `**` being a sympy.Pow.
-        # Here we make sure to return our own Add.
+        # Here we make sure to return our own Pow.
         if obj.is_Pow:
             obj = Pow(*obj.args)
 

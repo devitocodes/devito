@@ -1384,9 +1384,6 @@ class AbstractSparseFunction(TensorFunction):
     _sub_functions = ()
     """SubFunctions encapsulated within this AbstractSparseFunction."""
 
-    space_order = 0
-    """ Sparse functions are not differentiable in space dimensions"""
-
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(AbstractSparseFunction, self).__init__(*args, **kwargs)
@@ -1660,11 +1657,12 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.time_dim = self.indices[self._time_position]
+            self._time_dim = self.indices[self._time_position]
             self._time_order = kwargs.get('time_order', 1)
-            super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
             if not isinstance(self.time_order, int):
                 raise ValueError("`time_order` must be int")
+
+            super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1697,6 +1695,11 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     def time_order(self):
         """The time order."""
         return self._time_order
+
+    @property
+    def time_dim(self):
+        """The time dimension."""
+        return self._time_dim
 
     @property
     def _time_size(self):
