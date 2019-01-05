@@ -163,7 +163,7 @@ def second_derivative(expr, dim, fd_order, stagger=None):
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
 
-    return generic_derivative(expr, 2, dim, fd_order, stagger=None)
+    return generic_derivative(expr, dim, fd_order, 2, stagger=None)
 
 
 @check_input
