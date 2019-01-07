@@ -163,11 +163,11 @@ def second_derivative(expr, dim, fd_order, stagger=None):
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
 
-    return generic_derivative(expr, dim, fd_order, 2, stagger=None)
+    return generic_derivative(expr, dim, fd_order, 2, stagger=stagger)
 
 
 @check_input
-def cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
+def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -182,6 +182,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
         the resulting stencil.
     deriv_order : int
         Derivative order, e.g. 2 for a second-order derivative.
+    stagger : tuple
+        Staggering of the input expression in each dimension of the cross derivative
 
     Examples
     --------
@@ -204,11 +206,11 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
  0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
  0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
     """
-    first = expr
+    stagger = stagger or [None]*len(dims)
     for d, fd, dim, s in zip(deriv_order, fd_order, dims, stagger):
-        first = generic_derivative(first, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
+        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
 
-    return first
+    return expr
 
 
 @check_input
@@ -227,13 +229,44 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
     fd_order : int
         Coefficient discretization order. Note: this impacts the width of
         the resulting stencil.
-    stagger : Side, optional
-        Shift of the finite-difference approximation.
+    stagger : Side of the staggered finite difference (left, right or centered)
+        FD staggering of the input expr
 
     Returns
     -------
     expr-like
         The derivative of ``expr`` of order ``deriv-order``.
+
+    Examples
+    --------
+
+    Cartesian finite differences
+
+    >>> from devito import Function, Grid, second_derivative
+    >>> grid = Grid(shape=(4, 4))
+    >>> x, _ = grid.dimensions
+    >>> f = Function(name='f', grid=grid, space_order=2)
+    >>> generic_derivative(f, dim=x, fd_order=2, deriv_order=1)
+    -0.5*f(x - h_x, y)/h_x + 0.5*f(x + h_x, y)/h_x
+
+    This is also more easily obtainable via:
+
+    >>> f.dx
+    -0.5*f(x - h_x, y)/h_x + 0.5*f(x + h_x, y)/h_x
+
+    Staggered finite differences
+
+    >>> from devito import Function, Grid, second_derivative, left
+    >>> grid = Grid(shape=(4, 4))
+    >>> x, _ = grid.dimensions
+    >>> f = Function(name='f', grid=grid, space_order=2, staggered='x')
+    >>> generic_derivative(f, dim=x, fd_order=2, deriv_order=1, stagger=left)
+    f(x, y)/h_x - f(x - h_x, y)/h_x
+
+    This is also more easily obtainable via:
+
+    >>> f.dx
+    f(x, y)/h_x - f(x - h_x, y)/h_x
     """
 
     diff = dim.spacing
