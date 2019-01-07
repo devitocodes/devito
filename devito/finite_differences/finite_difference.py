@@ -143,7 +143,7 @@ def second_derivative(expr, dim, fd_order, stagger=None):
     Returns
     -------
     expr-like
-        The ``deriv-order`` orderderivative of ``expr``.
+        The ``deriv-order`` order derivative of ``expr``.
 
     Examples
     --------
@@ -183,11 +183,11 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
     deriv_order : int
         Derivative order, e.g. 2 for a second-order derivative.
     stagger : tuple
-        Staggering of the input expression in each dimension of the cross derivative
+        Staggering of the input expression in each dimension of the cross derivative.
 
     Examples
     --------
-    >>> from devito import Function, Grid, second_derivative
+    >>> from devito import Function, Grid, cross_derivative
     >>> grid = Grid(shape=(4, 4))
     >>> x, y = grid.dimensions
     >>> f = Function(name='f', grid=grid, space_order=2)
@@ -230,7 +230,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
         Coefficient discretization order. Note: this impacts the width of
         the resulting stencil.
     stagger : Side of the staggered finite difference (left, right or centered)
-        FD staggering of the input expr
+        finite-difference staggering of the input expr
 
     Returns
     -------
@@ -239,10 +239,9 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
 
     Examples
     --------
-
     Cartesian finite differences
 
-    >>> from devito import Function, Grid, second_derivative
+    >>> from devito import Function, Grid, generic_derivative
     >>> grid = Grid(shape=(4, 4))
     >>> x, _ = grid.dimensions
     >>> f = Function(name='f', grid=grid, space_order=2)
@@ -256,17 +255,14 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
 
     Staggered finite differences
 
-    >>> from devito import Function, Grid, second_derivative, left
-    >>> grid = Grid(shape=(4, 4))
-    >>> x, _ = grid.dimensions
-    >>> f = Function(name='f', grid=grid, space_order=2, staggered='x')
-    >>> generic_derivative(f, dim=x, fd_order=2, deriv_order=1, stagger=left)
-    f(x, y)/h_x - f(x - h_x, y)/h_x
+    >>> g = Function(name='g', grid=grid, space_order=2, staggered='x')
+    >>> generic_derivative(g, dim=x, fd_order=2, deriv_order=1, stagger=left)
+    g(x, y)/h_x - g(x - h_x, y)/h_x
 
     This is also more easily obtainable via:
 
-    >>> f.dx
-    f(x, y)/h_x - f(x - h_x, y)/h_x
+    >>> g.dx
+    g(x, y)/h_x - g(x - h_x, y)/h_x
     """
 
     diff = dim.spacing
