@@ -748,10 +748,12 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
 class Function(DiscretizedFunction, Differentiable):
     """
     Discretized symbol representing an array in symbolic equations.
+
     A Function carries multi-dimensional data and provides operations to create
     finite-differences approximations.
     A Function encapsulates space-varying data; for data that also varies in time,
     use TimeFunction instead.
+
     Parameters
     ----------
     name : str
@@ -787,9 +789,11 @@ class Function(DiscretizedFunction, Differentiable):
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
+
     Examples
     --------
     Creation
+
     >>> from devito import Grid, Function
     >>> grid = Grid(shape=(4, 4))
     >>> f = Function(name='f', grid=grid)
@@ -826,7 +830,6 @@ class Function(DiscretizedFunction, Differentiable):
 
     Notes
     -----
-
     The parameters must always be given as keyword arguments, since SymPy
     uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     """
@@ -930,6 +933,7 @@ class Function(DiscretizedFunction, Differentiable):
         """
         Generate a symbolic expression computing the sum of ``p`` points
         along the spatial dimensions ``dims``.
+
         Parameters
         ----------
         p : int, optional
@@ -955,6 +959,7 @@ class Function(DiscretizedFunction, Differentiable):
         """
         Generate a symbolic expression computing the average of ``p`` points
         along the spatial dimensions ``dims``.
+
         Parameters
         ----------
         p : int, optional
@@ -974,8 +979,10 @@ class Function(DiscretizedFunction, Differentiable):
 class TimeFunction(Function):
     """
     Tensor symbol representing a space- and time-varying array in symbolic equations.
+
     A TimeFunction carries multi-dimensional data and provides operations to create
     finite-differences approximations, in both space and time.
+
     Parameters
     ----------
     name : str
@@ -1026,9 +1033,12 @@ class TimeFunction(Function):
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
+
     Examples
     --------
+
     Creation
+
     >>> from devito import Grid, TimeFunction
     >>> grid = Grid(shape=(4, 4))
     >>> f = TimeFunction(name='f', grid=grid)
@@ -1065,7 +1075,6 @@ class TimeFunction(Function):
 
     Notes
     -----
-
     The parameters must always be given as keyword arguments, since SymPy
     uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     If the parameter `grid` is provided, the values for `shape`, `dimensions` and `dtype`
@@ -1186,6 +1195,7 @@ class TimeFunction(Function):
 class SubFunction(Function):
     """
     A Function bound to a "parent" DiscretizedFunction.
+
     A SubFunction hands control of argument binding and halo exchange to its
     parent DiscretizedFunction.
     """

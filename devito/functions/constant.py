@@ -13,6 +13,7 @@ class Constant(AbstractCachedSymbol, ArgProvider):
     """
     Symbol representing a constant, scalar value in symbolic equations.
     A Constant carries a scalar value.
+
     Parameters
     ----------
     name : str
@@ -20,6 +21,7 @@ class Constant(AbstractCachedSymbol, ArgProvider):
     dtype : data-type, optional
         Any object that can be interpreted as a numpy data type. Defaults
         to ``np.float32``.
+
     Examples
     --------
     >>> from devito import Constant
@@ -34,7 +36,6 @@ class Constant(AbstractCachedSymbol, ArgProvider):
 
     Notes
     -----
-
     The parameters must always be given as keyword arguments, since SymPy
     uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     """
@@ -75,6 +76,7 @@ class Constant(AbstractCachedSymbol, ArgProvider):
         """
         Produce a map of argument values after evaluating user input. If no
         user input is provided, return a default value.
+
         Parameters
         ----------
         **kwargs
