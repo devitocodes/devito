@@ -3,6 +3,8 @@
 import sympy
 
 from devito.finite_differences import default_rules
+from devito.symbolics import retrieve_functions
+from devito.tools import filter_ordered
 
 __all__ = ['Eq', 'Inc', 'solve']
 
@@ -52,14 +54,15 @@ class Eq(sympy.Eq):
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         obj._subdomain = subdomain
         obj._coefficients = coefficients
-        # FIXME: We need to check for which parts of the equation
-        # replacement rules have been provided and use default rules
-        # otherwise. Seems tricky...
-        if coefficients is not None:
-            if bool(coefficients.rules):
-                obj = obj.xreplace(coefficients.rules)
-            # FIXME: Need to add the default replacements, where
-            # required here.
+        functions = retrieve_functions(obj)
+        functions = filter_ordered(functions, key=lambda i: i.name)
+        if any(f._coefficients is 'symbolic' for f in functions):
+            rules = default_rules(obj, functions)
+            try:
+                obj = obj.xreplace({**coefficients.rules, **rules})
+            except:
+                if bool(rules):
+                    obj = obj.xreplace(rules)
         return obj
 
     @property
