@@ -1,4 +1,4 @@
-from devito.functions.basic import Array, LocalObject
+from devito.functions import Array, LocalObject
 from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
 from devito.symbolics import Macro
 from devito.tools import flatten

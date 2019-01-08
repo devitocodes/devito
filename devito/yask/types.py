@@ -1,5 +1,5 @@
 from devito.logger import yask as log
-import devito.functions.basic as base_types
+import devito.functions.basic as basic
 
 from devito.yask.utils import namespace
 from devito.yask.wrappers import contexts
@@ -7,12 +7,12 @@ from devito.yask.wrappers import contexts
 __all__ = ['CacheManager', 'YaskGridObject', 'YaskSolnObject']
 
 
-base_types.Basic.from_YASK = False
-base_types.Basic.is_YaskGridObject = False
-base_types.Array.from_YASK = True
+basic.Basic.from_YASK = False
+basic.Basic.is_YaskGridObject = False
+basic.Array.from_YASK = True
 
 
-class YaskGridObject(base_types.Object):
+class YaskGridObject(basic.Object):
 
     is_YaskGridObject = True
 
@@ -28,7 +28,7 @@ class YaskGridObject(base_types.Object):
     _pickle_kwargs = []
 
 
-class YaskSolnObject(base_types.Object):
+class YaskSolnObject(basic.Object):
 
     dtype = namespace['type-solution']
     value = None
@@ -41,7 +41,7 @@ class YaskSolnObject(base_types.Object):
     _pickle_kwargs = []
 
 
-class CacheManager(base_types.CacheManager):
+class CacheManager(basic.CacheManager):
 
     @classmethod
     def clear(cls):

@@ -3,7 +3,6 @@ import ctypes
 import sympy
 import numpy as np
 
-
 import devito.functions as function
 from devito.exceptions import InvalidArgument
 from devito.functions.basic import _SymbolCache

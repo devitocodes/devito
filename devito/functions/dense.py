@@ -15,7 +15,6 @@ from devito.functions.dimension import Dimension
 from devito.functions.basic import AbstractCachedFunction
 from devito.functions.utils import Buffer, NODE, CELL
 from devito.logger import debug, warning
-from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import Add, FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
@@ -615,6 +614,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         return RegionMeta(offset, size)
 
     def _halo_exchange(self):
+        from devito.mpi import MPI
         """Perform the halo exchange with the neighboring processes."""
         if not MPI.Is_initialized() or MPI.COMM_WORLD.size == 1:
             # Nothing to do
@@ -646,6 +646,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
 
     def __halo_end_exchange(self, dim):
         """End a halo exchange along a given Dimension."""
+        from devito.mpi import MPI
         for d, i, payload, req in list(self._in_flight):
             if d == dim:
                 status = MPI.Status()

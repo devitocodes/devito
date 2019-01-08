@@ -1,5 +1,5 @@
 from devito.dse.backends import AdvancedRewriter, dse_pass
-from devito.functions.basic import Scalar
+from devito.functions import Scalar
 from devito.symbolics import (estimate_cost, xreplace_constrained,
                               iq_timevarying, q_leaf, q_sum_of_product, q_terminalop)
 

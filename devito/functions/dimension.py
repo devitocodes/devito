@@ -7,12 +7,13 @@ from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
-from devito.functions.basic import AbstractSymbol, Scalar
+from devito.functions import AbstractSymbol, Scalar
 from devito.logger import debug
 from devito.tools import ArgProvider, Pickable, dtype_to_cstr
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
+           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
+           'ModuloDimension', 'IncrDimension']
 
 
 class Dimension(AbstractSymbol, ArgProvider):

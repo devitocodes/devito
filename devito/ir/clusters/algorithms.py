@@ -1,6 +1,6 @@
 import sympy
 
-from devito.functions.basic import Scalar
+from devito.functions import Scalar
 from devito.ir.support import (Scope, DataSpace, IterationSpace, detect_flow_directions,
                                force_directions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup

@@ -7,7 +7,7 @@ import os
 
 from cached_property import cached_property
 
-from devito.functions.basic import CompositeObject
+from devito.functions import CompositeObject
 from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
                            FindNodes, Transformer)
 from devito.ir.support import IntervalGroup

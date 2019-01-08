@@ -10,8 +10,8 @@ from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.equation import *  # noqa
 from devito.finite_differences import *  # noqa
+from devito.functions import Buffer, NODE, CELL  # noqa
 from devito.functions.dimension import *  # noqa
-from devito.functions.utils import Buffer, NODE, CELL  # noqa
 from devito.grid import SubDomain  # noqa
 from devito.logger import error, warning, info, set_log_level  # noqa
 from devito.parameters import *  # noqa

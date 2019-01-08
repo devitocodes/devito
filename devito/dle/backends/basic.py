@@ -3,8 +3,7 @@ from collections import OrderedDict
 import cgen as c
 import numpy as np
 
-from devito.functions.basic import Scalar
-from devito.functions.dimension import IncrDimension
+from devito.functions import Scalar, IncrDimension
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
 from devito.ir.iet import (Denormals, Call, Callable, List, ArrayCast,
                            Transformer, FindSymbols, retrieve_iteration_tree,

@@ -10,8 +10,7 @@ import cgen as c
 
 from devito.cgen_utils import ccode
 from devito.data import FULL
-from devito.functions.basic import AbstractFunction, Symbol, Indexed
-from devito.functions.dimension import Dimension
+from devito.functions import AbstractFunction, Dimension, Symbol, Indexed
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,

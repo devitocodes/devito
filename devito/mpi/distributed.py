@@ -8,7 +8,7 @@ from cached_property import cached_property
 import numpy as np
 
 from devito.data import LEFT, RIGHT, Decomposition
-from devito.functions.basic import CompositeObject, Object
+from devito.functions import CompositeObject, Object
 from devito.parameters import configuration
 from devito.tools import EnrichedTuple, as_tuple, is_integer
 

@@ -16,7 +16,8 @@ from devito.symbolics import Add
 from devito.tools import (ArgProvider, EnrichedTuple, Pickable, ctypes_to_cstr,
                           dtype_to_cstr, dtype_to_ctype)
 
-__all__ = ['Symbol', 'Indexed']
+__all__ = ['Symbol', 'Indexed', 'AbstractSymbol', 'Scalar', 'Object', 'CompositeObject',
+           'Array', 'LocalObject', 'AbstractFunction', 'CacheManager', '_SymbolCache']
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic

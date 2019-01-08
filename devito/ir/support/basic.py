@@ -1,7 +1,7 @@
 from cached_property import cached_property
 from sympy import Basic, S
 
-from devito.functions.dimension import Dimension
+from devito.functions import Dimension
 from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted,

@@ -4,8 +4,7 @@ from ctypes import c_void_p
 from itertools import product
 
 from devito.data import OWNED, HALO, NOPAD, LEFT, RIGHT
-from devito.functions.basic import Array, Symbol, LocalObject
-from devito.functions.dimension import Dimension
+from devito.functions import Array, Symbol, LocalObject, Dimension
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls)

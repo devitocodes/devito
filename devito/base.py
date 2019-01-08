@@ -4,18 +4,18 @@ from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
 import devito.grid as grid
-import devito.functions.basic as types
-import devito.functions.dense as function
+import devito.functions.basic as basic
+import devito.functions.dense as dense
 import devito.functions.sparse as sparse
 import devito.functions.constant as constant
 import devito.operator as operator
 
 
-class Scalar(with_metaclass(_BackendSelector, types.Scalar)):
+class Scalar(with_metaclass(_BackendSelector, basic.Scalar)):
     pass
 
 
-class Array(with_metaclass(_BackendSelector, types.Array)):
+class Array(with_metaclass(_BackendSelector, basic.Array)):
     pass
 
 
@@ -23,11 +23,11 @@ class Constant(with_metaclass(_BackendSelector, constant.Constant)):
     pass
 
 
-class Function(with_metaclass(_BackendSelector, function.Function)):
+class Function(with_metaclass(_BackendSelector, dense.Function)):
     pass
 
 
-class TimeFunction(with_metaclass(_BackendSelector, function.TimeFunction)):
+class TimeFunction(with_metaclass(_BackendSelector, dense.TimeFunction)):
     pass
 
 
@@ -55,5 +55,5 @@ class Operator(with_metaclass(_BackendSelector, operator.Operator)):
     pass
 
 
-class CacheManager(with_metaclass(_BackendSelector, types.CacheManager)):
+class CacheManager(with_metaclass(_BackendSelector, basic.CacheManager)):
     pass

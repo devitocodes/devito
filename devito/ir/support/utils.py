@@ -1,6 +1,6 @@
 from collections import OrderedDict, defaultdict
 
-from devito.functions.dimension import Dimension, ModuloDimension
+from devito.functions import Dimension, ModuloDimension
 from devito.ir.support.basic import Access
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
