@@ -63,7 +63,7 @@ def check_input(func):
 
 
 @check_input
-def first_derivative(expr, **kwargs):
+def first_derivative(expr, dim, fd_order, side=centered, matvec=direct):
     """
     First-order derivative of a given expression.
 
@@ -71,11 +71,17 @@ def first_derivative(expr, **kwargs):
     ----------
     expr : expr-like
         Expression for which the first-order derivative is produced.
-    **kwargs
-        - ``dim``: Dimension w.r.t. which to differentiate.
-        - ``diff``: Finite-difference symbol, defaults to `h`.
-        - ``order``: Discretisation order of the derivative.
-
+    dim : Dimension
+        The Dimension w.r.t. which to differentiate.
+    fd_order : int
+        Coefficient discretization order. Note: this impacts the width of
+        the resulting stencil.
+    side : Side
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x +1)
+    matvec : Transpose
+        Forward (side=direct) or transpose (side=transpose) mode of the finite difference
+    
     Returns
     -------
     expr-like
@@ -83,7 +89,7 @@ def first_derivative(expr, **kwargs):
 
     Examples
     --------
-    >>> from devito import Function, Grid, first_derivative
+    >>> from devito import Function, Grid, first_derivative, adjoint
     >>> grid = Grid(shape=(4, 4))
     >>> x, _ = grid.dimensions
     >>> f = Function(name='f', grid=grid)
@@ -95,12 +101,18 @@ def first_derivative(expr, **kwargs):
 
     >>> (f*g).dx
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
+    
+    The adjoint mode
+
+    >>> g = Function(name='g', grid=grid)
+    >>> first_derivative(f*g, dim=x, matvec=transpose)
+    f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
     """
-    dim = kwargs.get('dim')
-    diff = kwargs.get('diff', dim.spacing)
-    order = int(kwargs.get('order', 1))
-    matvec = kwargs.get('matvec', direct)
-    side = kwargs.get('side', centered).adjoint(matvec)
+
+    diff = dim.spacing
+    side = side.adjoint(matvec)
+    order = fd_order
+
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
     if side == right:
