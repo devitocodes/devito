@@ -20,6 +20,12 @@ class OperatorCore(Operator):
         return super(OperatorCore, self)._specialize_exprs(expressions)
 
     def _generate_mpi(self, iet, **kwargs):
+        # Drop superfluous HaloSpots
+        halo_spots = FindNodes(HaloSpot).visit(iet)
+        mapper = {i: None for i in halo_spots if i.is_Redundant}
+        iet = Transformer(mapper, nested=True).visit(iet)
+
+        # Nothing else to do if no MPI
         if configuration['mpi'] is False:
             return iet
 
