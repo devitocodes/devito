@@ -1,7 +1,7 @@
 import sympy
 import numpy as np
 
-from sympy import finite_diff_weights
+#from sympy import finite_diff_weights
 
 from cached_property import cached_property
 
@@ -51,7 +51,6 @@ class Coefficients(object):
 
     def rules(self):
 
-        # FIXME: Move this?
         def generate_subs(d):
 
             deriv_order = d[0]
@@ -100,7 +99,7 @@ def default_rules(obj, functions):
 
         indices = generate_indices(dim, dim.spacing, fd_order)
 
-        coeffs = finite_diff_weights(deriv_order, indices, dim)[-1][-1]
+        coeffs = sympy.finite_diff_weights(deriv_order, indices, dim)[-1][-1]
 
         for j in range(len(coeffs)):
             subs.update({function.fd_coeff_symbol()(indices[j], deriv_order, function, dim): coeffs[j]})
