@@ -175,20 +175,10 @@ class Operator(Callable):
 
         # Lower Schedule tree to an Iteration/Expression tree (IET)
         iet = iet_build(stree)
-
-        # Insert code for C-level performance profiling
         iet, self._profiler = self._profile_sections(iet)
-
-        # Translate into backend-specific representation
-        iet = self._specialize_iet(iet, **kwargs)
-
-        # Insert the required symbol declarations
-        iet = iet_insert_C_decls(iet)
-
-        # Insert code for MPI support
         iet = self._generate_mpi(iet, **kwargs)
-
-        # Insert data and pointer casts for array parameters
+        iet = self._specialize_iet(iet, **kwargs)
+        iet = iet_insert_C_decls(iet)
         iet = self._build_casts(iet)
 
         # Derive parameters as symbols not defined in the kernel itself
