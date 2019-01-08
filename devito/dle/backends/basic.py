@@ -84,27 +84,14 @@ class BasicRewriter(AbstractRewriter):
             external = [i for i in items if i.is_Array]
             free = iet_insert_C_decls(free, external)
 
-            # Derive efunc parameters and arguments
-            args = []
-            params = []
-            for i in derive_parameters(free):
-                if i.name in defined_args:
-                    args.append(defined_args[i.name])
-                    params.append(i)
-                elif i.is_Dimension:
-                    d = Scalar(name=i.name, dtype=i.dtype)
-                    args.append(d)
-                    params.append(d)
-                else:
-                    args.append(i)
-                    params.append(i)
+            # Create the Callable
+            name = "f_%d" % root.tag
+            params = derive_parameters(free)
+            efuncs.setdefault(name, Callable(name, free, 'void', params, 'static'))
 
             # Create the Call
-            name = "f_%d" % root.tag
+            args = [defined_args.get(i.name, i) for i in params]
             mapper[root] = List(header=noinline, body=Call(name, args))
-
-            # Create the Callable
-            efuncs.setdefault(name, Callable(name, free, 'void', params, 'static'))
 
         # Transform the main tree
         processed = Transformer(mapper).visit(nodes)

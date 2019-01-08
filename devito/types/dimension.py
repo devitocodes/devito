@@ -86,7 +86,7 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     # Unlike other Symbols, Dimensions can only be integers
     dtype = np.int32
-    _C_typename = dtype_to_cstr(dtype)
+    _C_typename = 'const %s' % dtype_to_cstr(dtype)
     _C_typedata = _C_typename
 
     def __new__(cls, name, spacing=None):
