@@ -7,7 +7,7 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SubDimension, Eq, Inc, Operator, norm, inner)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes
-from devito.mpi import MPI, copy, sendrecv, update_halo
+from devito.mpi import MPI, make_halo_exchange_routines
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['yask', 'ops', 'nompi'])
@@ -276,14 +276,15 @@ class TestFunction(object):
 
 class TestCodeGeneration(object):
 
+    @pytest.mark.parallel(nprocs=1)
     def test_iet_copy(self):
         grid = Grid(shape=(4, 4))
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = copy(f, [t])
-        assert str(iet.parameters) == """\
+        (_, _, gather, _), _ = make_halo_exchange_routines(f, [t])
+        assert str(gather.parameters) == """\
 (buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
   for (int x = 0; x <= buf_x_size - 1; x += 1)
@@ -292,19 +293,20 @@ class TestCodeGeneration(object):
     {
       buf[x][y] = f[otime][x + ox][y + oy];
     }
-  }""" in str(iet)
+  }""" in str(gather)
 
+    @pytest.mark.parallel(nprocs=1)
     def test_iet_sendrecv(self):
         grid = Grid(shape=(4, 4))
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = sendrecv(f, [t])
-        assert str(iet.parameters) == """\
+        (_, sendrecv, _, _), _ = make_halo_exchange_routines(f, [t])
+        assert str(sendrecv.parameters) == """\
 (f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
  fromrank, torank, comm)"""
-        assert str(iet.body[0]) == """\
+        assert str(sendrecv.body[0]) == """\
 float (*bufs)[buf_y_size];
 float (*bufg)[buf_y_size];
 posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
@@ -331,10 +333,10 @@ free(bufg);"""
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = update_halo(f, [t])
-        assert str(iet.parameters) == """\
+        (update_halo, _, _, _), _ = make_halo_exchange_routines(f, [t])
+        assert str(update_halo.parameters) == """\
 (f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime)"""
-        assert str(iet.body[0]) == """\
+        assert str(update_halo.body[0]) == """\
 if (mxl)
 {
   sendrecv_f(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
