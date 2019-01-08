@@ -785,7 +785,8 @@ class Array(AbstractCachedFunction):
         self._scope = kwargs.get('scope', self._scope)
         assert self._scope in ['heap', 'stack']
 
-    _pickle_kwargs = ['name', 'halo', 'padding', 'dimensions']
+    # Pickling support
+    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['dimensions', 'scope']
 
 
 # Objects belonging to the Devito API not involving data, such as data structures
