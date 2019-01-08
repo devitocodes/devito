@@ -183,7 +183,7 @@ class Operator(Callable):
         iet = self._specialize_iet(iet, **kwargs)
 
         # Insert the required symbol declarations
-        iet = iet_insert_C_decls(iet, self._func_table)
+        iet = iet_insert_C_decls(iet)
 
         # Insert code for MPI support
         iet = self._generate_mpi(iet, **kwargs)
