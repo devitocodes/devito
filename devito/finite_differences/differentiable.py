@@ -139,7 +139,7 @@ class Differentiable(sympy.Expr):
         """
         space_dims = [d for d in self.indices if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
-        return sum([getattr(self, d) for d in derivs])
+        return Add(*[getattr(self, d) for d in derivs])
 
     def laplace2(self, weight=1):
         """
