@@ -90,7 +90,16 @@ class Data(object):
             self.grid.set_element(val, start)
         elif isinstance(val, np.ndarray):
             log("Data: Setting full-array/block via index [%s]" % str(index))
-            self.grid.set_elements_in_slice(val, start, stop)
+            if val.shape == shape:
+                self.grid.set_elements_in_slice(val, start, stop)
+            elif len(val.shape) > len(shape):
+                raise ValueError("Data: could not broadcast input array from shape "
+                                 "%s into shape %s" % (val.shape, shape))
+            else:
+                # Emulate NumPy broadcasting
+                broadcasted = np.empty(shape=shape, dtype=val.dtype)
+                broadcasted[:] = val
+                self.grid.set_elements_in_slice(broadcasted, start, stop)
         elif all(i == j-1 for i, j in zip(shape, self.shape)):
             log("Data: Setting full-array to given scalar via single grid sweep")
             self.grid.set_all_elements_same(val)
@@ -202,7 +211,7 @@ class Data(object):
         cstart = [int(j + i) for i, j in zip(self._offset, cstart)]
         cstop = [int(j + i) for i, j in zip(self._offset, cstop)]
 
-        return cstart, cstop, cshape
+        return tuple(cstart), tuple(cstop), tuple(cshape)
 
     def _give_storage(self, target):
         """
