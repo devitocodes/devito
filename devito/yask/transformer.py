@@ -72,7 +72,7 @@ def yaskit(trees, yc_soln):
                 # For sequential Iterations, the extent *must* be statically known,
                 # otherwise we don't know how to handle this
                 try:
-                    int(i.size())
+                    int(i.dim._thickness_map.get(i.size()))
                 except TypeError:
                     raise NotImplementedError("Found sequential Iteration with "
                                               "statically unknown extent")
