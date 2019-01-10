@@ -3,8 +3,8 @@ import pytest
 from sympy import Derivative, simplify, diff
 
 from conftest import skipif
-from devito import (Grid, Function, TimeFunction, Eq, Operator, clear_cache,
-                    ConditionalDimension, left, right, centered, staggered_diff)
+from devito import (Grid, Function, TimeFunction, Eq, Operator, clear_cache, NODE,
+                    ConditionalDimension, left, right, centered, generic_derivative)
 from devito.finite_differences import Differentiable
 
 _PRECISION = 9
@@ -88,6 +88,7 @@ class TestFD(object):
             indices = [dim, dim + dim.spacing]
         else:
             indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
+
         s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION)
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
         assert(expr == s_expr)  # Exact equailty
@@ -152,7 +153,7 @@ class TestFD(object):
         assert np.isclose(np.mean(error), 0., atol=1e-3)
 
     @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
-    @pytest.mark.parametrize('stagger', [centered, right, left])
+    @pytest.mark.parametrize('stagger', [centered, left, right])
     # Only test x and t as y and z are the same as x
     def test_fd_space_staggered(self, space_order, stagger):
         """
@@ -163,35 +164,42 @@ class TestFD(object):
         :param space_order: space order of the finite difference stencil
         """
         clear_cache()
-        if stagger == left:
-            off = -.5
-        elif stagger == right:
-            off = .5
-        else:
-            off = 0
         # dummy axis dimension
         nx = 100
         xx = np.linspace(-1, 1, nx)
         dx = xx[1] - xx[0]
-        # Location of the staggered function
-        xx2 = xx + off * dx
         # Symbolic data
         grid = Grid(shape=(nx,), dtype=np.float32)
         x = grid.dimensions[0]
-        u = Function(name="u", grid=grid, space_order=space_order, stagger=(1,))
+
+        # Location of the staggered function
+        if stagger == left:
+            off = -.5
+            side = -x
+            xx2 = xx - off * dx
+        elif stagger == right:
+            off = .5
+            side = x
+            xx2 = xx[:-1] - off * dx
+        else:
+            off = 0
+            side = NODE
+            xx2 = xx
+
+        u = Function(name="u", grid=grid, space_order=space_order, staggered=(side,))
         du = Function(name="du", grid=grid, space_order=space_order)
         # Define polynomial with exact fd
-        coeffs = np.ones((space_order,), dtype=np.float32)
-        polynome = sum([coeffs[i]*x**i for i in range(0, space_order)])
-        polyvalues = np.array([polynome.subs(x, xi) for xi in xx], np.float32)
+        coeffs = np.ones((space_order-1,), dtype=np.float32)
+        polynome = sum([coeffs[i]*x**i for i in range(0, space_order-1)])
+        polyvalues = np.array([polynome.subs(x, xi) for xi in xx2], np.float32)
         # Fill original data with the polynomial values
         u.data[:] = polyvalues
         # True derivative of the polynome
         Dpolynome = diff(polynome)
-        Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx2], np.float32)
+        Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx], np.float32)
         # FD derivative, symbolic
-        u_deriv = staggered_diff(u, deriv_order=1, fd_order=space_order,
-                                 dim=x, stagger=stagger)
+        u_deriv = generic_derivative(u, deriv_order=1, fd_order=space_order,
+                                     dim=x, stagger=stagger)
         # Compute numerical FD
         stencil = Eq(du, u_deriv)
         op = Operator(stencil, subs={x.spacing: dx})
@@ -247,3 +255,18 @@ class TestFD(object):
 
         assert isinstance(expr, Differentiable)
         assert expected == str(expr)
+
+    @pytest.mark.parametrize('so', [2, 5, 8])
+    def test_all_shortcuts(self, so):
+        """
+        Test that verify that all fd shortcuts are functional
+        """
+        grid = Grid(shape=(10, 10, 10))
+        f = Function(name='f', grid=grid, space_order=so)
+        g = TimeFunction(name='g', grid=grid, space_order=so)
+
+        for fd in f._fd:
+            assert getattr(f, fd)
+
+        for fd in g._fd:
+            assert getattr(g, fd)
