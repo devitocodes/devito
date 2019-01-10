@@ -5,9 +5,9 @@ import numpy as np
 
 import devito.types as types
 from devito.exceptions import InvalidArgument
-from devito.functions.basic import _SymbolCache
 from devito.logger import yask as log
 from devito.tools import Signer, dtype_to_ctype, memoized_meth
+from devito.types.basic import _SymbolCache
 
 from devito.yask.data import Data, DataScalar
 from devito.yask.utils import namespace

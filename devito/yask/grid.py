@@ -1,4 +1,4 @@
-import devito.grid as grid
+import devito.types.grid as grid
 
 from devito.yask.function import Constant
 from devito.yask.wrappers import contexts
