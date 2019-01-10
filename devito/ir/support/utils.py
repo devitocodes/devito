@@ -55,11 +55,11 @@ def detect_oobs(mapper):
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d
             try:
-                if min(v) < 0 or max(v) > sum(f._offset_domain[p]):
+                if min(v) < 0 or max(v) > sum(f._size_halo[p]):
                     found.add(p)
             except KeyError:
                 # Unable to detect presence of OOB accesses
-                # (/p/ not in /f._offset_domain/, typical of indirect
+                # (/p/ not in /f._size_halo/, typical of indirect
                 # accesses such as A[B[i]])
                 pass
     return found | {i.parent for i in found if i.is_Derived}
@@ -110,7 +110,7 @@ def align_accesses(expr, key=lambda i: False):
         f = indexed.function
         if not key(f):
             continue
-        subs = {i: i + j.left for i, j in zip(indexed.indices, f._offset_domain)}
+        subs = {i: i + j for i, j in zip(indexed.indices, f._size_halo.left)}
         mapper[indexed] = indexed.xreplace(subs)
     return expr.xreplace(mapper)
 
@@ -217,12 +217,16 @@ def force_directions(mapper, key):
 
 
 def detect_io(exprs, relax=False):
-    """``{exprs} -> ({reads}, {writes})
+    """
+    ``{exprs} -> ({reads}, {writes})
 
-    :param exprs: The expressions inspected.
-    :param relax: (Optional) if False, as by default, collect only
-                  :class:`Constant`s and :class:`Function`s. Otherwise,
-                  collect any :class:`Basic`s.
+    Parameters
+    ----------
+    exprs : expr-like or list of expr-like
+        The searched expressions.
+    relax : bool, optional
+        If False, as by default, collect only :class:`Constant`s and
+        :class:`Function`s. Otherwise, collect any :class:`types.Basic`s.
     """
     exprs = as_tuple(exprs)
     if relax is False:

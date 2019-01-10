@@ -5,10 +5,10 @@ from operator import attrgetter
 from cached_property import cached_property
 from frozendict import frozendict
 
+from devito.data import LEFT, RIGHT
 from devito.ir.support import Scope
 from devito.logger import warning
 from devito.parameters import configuration
-from devito.types import LEFT, RIGHT
 from devito.tools import Tag, as_mapper
 
 __all__ = ['HaloScheme', 'HaloSchemeException']
@@ -156,10 +156,10 @@ def hs_classify(scope):
         for i in r:
             for d in i.findices:
                 # Note: if `i` makes use of SubDimensions, we might end up adding useless
-                # (yet harmless) halo exchanges.  This depends on the extent of a
+                # (yet harmless) halo exchanges.  This depends on the size of a
                 # SubDimension; e.g., in rare circumstances, a SubDimension might span a
                 # region that falls completely within a single MPI rank, thus requiring
-                # no communication whatsoever. However, the SubDimension extent is only
+                # no communication whatsoever. However, the SubDimension size is only
                 # known at runtime (op.apply time), so unless one starts messing up with
                 # the generated code (by adding explicit `if-then-else`s to dynamically
                 # prevent a halo exchange), there is no escape from conservatively
@@ -223,15 +223,15 @@ def hs_comp_halos(f, dims, dspace=None):
         if dspace is None:
             # We cannot do anything better than exchanging the full halo
             # in absence of more information
-            lsize = f._extent_halo[d].left
-            rsize = f._extent_halo[d].right
+            lsize = f._size_halo[d].left
+            rsize = f._size_halo[d].right
         else:
             # We can limit the amount of halo exchanged based on the stencil
             # radius, which is dictated by `dspace`
             v = dspace[f].relaxed[d]
             lower, upper = v.limits if not v.is_Null else (0, 0)
-            lsize = f._offset_domain[d].left - lower
-            rsize = upper - f._offset_domain[d].right
+            lsize = f._size_halo[d].left - lower
+            rsize = upper - f._size_halo[d].right
         if lsize > 0:
             halos.append(Halo(d, LEFT, lsize))
         if rsize > 0:

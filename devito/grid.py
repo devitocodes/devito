@@ -10,59 +10,85 @@ from devito.tools import ArgProvider, ReducerMap, as_tuple
 from sympy import prod
 import numpy as np
 
-__all__ = ['SubDomain']
+__all__ = ['Grid', 'SubDomain']
 
 
 class Grid(ArgProvider):
 
     """
     A cartesian grid that encapsulates a computational domain over which
-    to discretize :class:`Function`s.
+    to discretize a Function.
 
-    :param shape: Shape of the computational domain in grid points.
-    :param extent: (Optional) physical extent of the domain in m; defaults
-                   to a unit box of extent 1m in all dimensions.
-    :param origin: (Optional) physical coordinate of the origin of the
-                   domain; defaults to 0.0 in all dimensions.
-    :param dimensions: (Optional) list of :class:`SpaceDimension`s
-                       defining the spatial dimensions of the computational
-                       domain encapsulated by this Grid.
-    :param time_dimension: (Optional) a :class:`TimeDimension`, used to
-                           define the time dimension for all
-                           :class:`TimeFunction`s created from this Grid.
-    :param dtype: (Optional) default data type to be inherited by all
-                  :class:`Function`s created from this Grid. Defaults
-                  to ``numpy.float32``.
-    :param subdomains: (Optional) an iterable of :class:`SubDomain`s.
-                       If None (as by default), then the Grid only has two
-                       subdomains, ``'interior'`` and ``'domain'``.
-    :param comm: (Optional) an MPI communicator defining the set of
-                 processes among which the grid is distributed.
+    Parameters
+    ----------
+    shape : tuple of ints
+        Shape of the computational domain in grid points.
+    extent : tuple of floats, optional
+        Physical extent of the domain in m; defaults to a unit box of extent 1m
+        in all dimensions.
+    origin : tuple of floats, optional
+        Physical coordinate of the origin of the domain; defaults to 0.0 in all
+        dimensions.
+    dimensions : tuple of SpaceDimension, optional
+        The dimensions of the computational domain encapsulated by this Grid.
+    time_dimension : TimeDimension, optional
+        The dimension used to define time in a `TimeFunction` created from
+        this Grid.
+    dtype : data-type, optional
+        Any object that can be interpreted as a numpy data type, used as default
+        data type to be inherited by all Functions created from this Grid.
+        Defaults to ``np.float32``.
+    subdomains : tuple of SubDomain, optional
+        If no subdomains are specified, the Grid only defines the two default
+        subdomains ``interior`` and ``domain``.
+    comm : MPI communicator, optional
+        The set of processes over which the grid is distributed. Only relevant in
+        case of MPI execution.
 
+    Examples
+    --------
+    >>> from devito import Grid, Function
+    >>> grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+    >>> f = Function(name='f', grid=grid)
+    >>> f.shape
+    (4, 4)
+    >>> f.dimensions
+    (x, y)
+    >>> f.dtype
+    <class 'numpy.float32'>
+
+    In a Function, the domain defined by a Grid is often surrounded by a "halo
+    region", which guarantees the correctness of stencil updates nearby the
+    domain boundary. However, the size of the halo region does *not* depend on
+    the Grid; for more information, refer to ``Function.__doc__``.
+
+    >>> f.shape_with_halo
+    (6, 6)
+
+    Notes
+    -----
     A Grid encapsulates the topology and geometry information of the
-    computational domain that :class:`Function`s can be discretized on.
-    As such, it defines and provides the physical coordinate information of
-    the logical cartesian grid underlying the discretized :class:`Function`s.
-    For example, the conventions for defining the coordinate space in 2D are:
+    computational domain that a Function can be discretized on.  As such, it
+    defines and provides the physical coordinate information of the logical
+    cartesian grid underlying the discretized Functions.  For example, the
+    conventions for defining the coordinate space in 2D are:
 
-    .. note::
+        .. code-block:: python
 
-       .. code-block:: python
-
-                      x
-            |----------------------->
-            |  origin
-            |     o------------o
-            |     |            |
-            |     |            |
-            |     |   DOMAIN   | extent[1]
-        y   |     |            |
-            |     |            |
-            |     |  extent[0] |
-            |     o------------o
-            |             origin + extent
-            |
-            v
+                       x
+             |----------------------->
+             |  origin
+             |     o------------o
+             |     |            |
+             |     |            |
+             |     |   DOMAIN   | extent[1]
+         y   |     |            |
+             |     |            |
+             |     |  extent[0] |
+             |     o------------o
+             |             origin + extent
+             |
+             v
     """
 
     _default_dimensions = ('x', 'y', 'z')
@@ -123,7 +149,7 @@ class Grid(ArgProvider):
 
     @property
     def dtype(self):
-        """Data type inherited by all :class:`Function`s defined on this Grid."""
+        """Data type inherited by all Functions defined on this Grid."""
         return self._dtype
 
     @property
@@ -153,19 +179,17 @@ class Grid(ArgProvider):
 
     @property
     def subdomains(self):
-        """The :class:`SubDomain`s defined in this Grid."""
+        """The SubDomains defined in this Grid."""
         return {i.name: i for i in self._subdomains}
 
     @property
     def interior(self):
-        """The interior :class:`SubDomain` of the Grid."""
+        """The interior SubDomain of the Grid."""
         return self.subdomains['interior']
 
     @property
     def volume_cell(self):
-        """
-        Volume of a single cell e.g  h_x*h_y*h_z in 3D
-        """
+        """Volume of a single cell e.g  h_x*h_y*h_z in 3D."""
         return prod(d.spacing for d in self.dimensions).subs(self.spacing_map)
 
     @property
@@ -176,21 +200,17 @@ class Grid(ArgProvider):
 
     @property
     def spacing_symbols(self):
-        """Symbols representing the grid spacing in each :class:`SpaceDimension`"""
+        """Symbols representing the grid spacing in each SpaceDimension"""
         return as_tuple(d.spacing for d in self.dimensions)
 
     @property
     def spacing_map(self):
-        """
-        Map between spacing symbols and their values for each :class:`SpaceDimension`
-        """
+        """Map between spacing symbols and their values for each SpaceDimension."""
         return dict(zip(self.spacing_symbols, self.spacing))
 
     @property
     def origin_offset(self):
-        """
-        Offset of the local (per-process) origin from the domain origin.
-        """
+        """Offset of the local (per-process) origin from the domain origin."""
         grid_origin = [min(i) for i in self.distributor.glb_numb]
         assert len(grid_origin) == len(self.spacing)
         return tuple(i*h for i, h in zip(grid_origin, self.spacing))
@@ -207,27 +227,23 @@ class Grid(ArgProvider):
 
     @property
     def dimension_map(self):
-        """
-        Map between ``self``'s :class:`SpaceDimension` and their global and
-        local size.
-        """
+        """Map between SpaceDimensions and their global/local size."""
         return {d: namedtuple('Size', 'glb loc')(g, l)
                 for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
 
     @property
     def distributor(self):
-        """The :class:`Distributor` used for domain decomposition."""
+        """The Distributor used for domain decomposition."""
         return self._distributor
+
+    def is_distributed(self, dim):
+        """True if ``dim`` is a distributed Dimension, False otherwise."""
+        return any(dim is d for d in self.distributor.dimensions)
 
     @property
     def _const(self):
-        """Return the type to create constant symbols."""
+        """The type to be used to create constant symbols."""
         return Constant
-
-    def is_distributed(self, dim):
-        """Return True if ``dim`` is a distributed :class:`Dimension`,
-        False otherwise."""
-        return any(dim is d for d in self.distributor.dimensions)
 
     def _make_stepping_dim(self, time_dim, name=None):
         """Create a stepping dimension for this Grid."""
@@ -236,18 +252,16 @@ class Grid(ArgProvider):
         return SteppingDimension(name=name, parent=time_dim)
 
     def _arg_defaults(self):
-        """
-        Returns a map of default argument values defined by this Grid.
-        """
+        """A map of default argument values defined by this Grid."""
         args = ReducerMap()
 
         for k, v in self.dimension_map.items():
-            args.update(k._arg_defaults(start=0, size=v.loc))
+            args.update(k._arg_defaults(_min=0, size=v.loc))
 
         if configuration['mpi']:
             distributor = self.distributor
-            args[distributor._C_comm.name] = distributor._C_comm.value
-            args[distributor._C_neighbours.obj.name] = distributor._C_neighbours.obj.value
+            args[distributor._obj_comm.name] = distributor._obj_comm.value
+            args[distributor._obj_neighbours.name] = distributor._obj_neighbours.value
 
         return args
 
@@ -265,9 +279,52 @@ class Grid(ArgProvider):
 
 class SubDomain(object):
 
-    """A :class:`Grid` subdomain."""
+    """
+    Base class to define Grid subdomains.
+
+    To create a new SubDomain, all one needs to do is overriding :meth:`define`.
+    This method takes as input a set of Dimensions and produce a mapper
+
+        M : Dimensions -> {d, ('left', N), ('middle', N, M), ('right', N)}
+
+    so that:
+
+        * If ``M(d) = d``, then the SubDomain spans the entire Dimension ``d``.
+        * If ``M(d) = ('left', N)``, then the SubDomain spans a contiguous
+          region of ``N`` points starting at ``d``\'s left extreme.
+        * ``M(d) = ('right', N)`` is analogous to the case above.
+        * If ``M(d) = ('middle', N, M)``, then the SubDomain spans a contiguous
+          region of ``d_size - (N + M)`` points starting at ``N`` and finishing
+          at ``d_sizeM - M``.
+
+    Examples
+    --------
+    An "Inner" SubDomain, which spans the entire domain except for an exterior
+    boundary region of ``thickness=3``, can be implemented as follows
+
+    >>> from devito import SubDomain
+    >>> class Inner(SubDomain):
+    ...     name = 'inner'
+    ...     def define(self, dimensions):
+    ...         return {d: ('middle', 3, 3) for d in dimensions}
+
+    Like before, but now spanning the entire ``y`` Dimension of a three-dimensional
+    grid
+
+    >>> class InnerY(SubDomain):
+    ...     name = 'inner_y'
+    ...     def define(self, dimensions):
+    ...         x, y, z = dimensions
+    ...         return {x: ('middle', 3, 3), y: y, z: ('middle', 3, 3)}
+
+    See Also
+    --------
+    Domain : An example of preset SubDomain.
+    Interior : An example of preset Subdomain.
+    """
 
     name = None
+    """A unique name for the SubDomain."""
 
     def __init__(self):
         if self.name is None:
@@ -302,7 +359,7 @@ class SubDomain(object):
         self._dimensions = tuple(sub_dimensions)
 
         # Compute the SubDomain shape
-        self._shape = tuple(s - (sum(d.thickness_map.values()) if d.is_Sub else 0)
+        self._shape = tuple(s - (sum(d._thickness_map.values()) if d.is_Sub else 0)
                             for d, s in zip(self._dimensions, shape))
 
     def __eq__(self, other):
@@ -319,10 +376,6 @@ class SubDomain(object):
     __repr__ = __str__
 
     @property
-    def finalized(self):
-        return self._dimensions is not None
-
-    @property
     def dimensions(self):
         return self._dimensions
 
@@ -336,20 +389,12 @@ class SubDomain(object):
 
     def define(self, dimensions):
         """
-        Return a dictionary ``M : D -> V``, where: ::
+        Parametrically describe the SubDomain w.r.t. a generic Grid.
 
-            * D are the Grid dimensions
-            * M(d) = {d, ('left', int), ('middle', int, int), ('right', int, int)}.
-              If ``M(d) = d``, the SubDomain spans the entire domain along the
-              :class:`Dimension` ``d``. In all other cases, the SubDomain spans
-              a contiguous subregion of the domain. For example, if
-              ``M(d) = ('left', 4)``, The SubDomain has thickness 4 near ``d``'s
-              left extreme.
-
-        .. note::
-
-            This method should be overridden by each subclass of SubDomain that
-            wants to define a new type of subdomain.
+        Notes
+        -----
+        This method should be overridden by each SubDomain subclass. For more
+        information, refer to ``SubDomain.__doc__``.
         """
         raise NotImplementedError
 

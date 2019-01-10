@@ -14,7 +14,10 @@ def collect_nested(expr, aggressive=False):
     """
     Collect terms appearing in expr, checking all levels of the expression tree.
 
-    :param expr: the expression to be factorized.
+    Parameters
+    ----------
+    expr : expr-like
+        The expression to be factorized.
     """
 
     def run(expr):
@@ -55,12 +58,18 @@ def collect_nested(expr, aggressive=False):
 
 def common_subexprs_elimination(exprs, make, mode='default'):
     """
-    Perform common subexpressions elimination.
+    Perform common sub-expressions elimination, or CSE.
 
     Note: the output is not guranteed to be topologically sorted.
 
-    :param exprs: The target SymPy expression, or a collection of SymPy expressions.
-    :param make: A function to construct symbols used for replacement.
+    Parameters
+    ----------
+    exprs : expr-like or list of expr-like
+        One or more expressions to which CSE is applied.
+    make : callable
+        Build symbols to store temporary, redundant values.
+    mode : str, optional
+        The CSE algorithm applied. Accepted: ['default'].
     """
 
     # Note: not defaulting to SymPy's CSE() function for three reasons:
@@ -103,9 +112,7 @@ def common_subexprs_elimination(exprs, make, mode='default'):
 
 
 def compact_temporaries(temporaries, leaves):
-    """
-    Drop temporaries consisting of single symbols.
-    """
+    """Drop temporaries consisting of single symbols."""
     exprs = temporaries + leaves
     targets = {i.lhs for i in leaves}
 
@@ -128,9 +135,7 @@ def compact_temporaries(temporaries, leaves):
 
 
 def cross_cluster_cse(clusters):
-    """
-    Perform common sub-expressions elimination across an iterable of Clusters.
-    """
+    """Apply CSE across an iterable of Clusters."""
     clusters = clusters.unfreeze()
 
     # Detect redundancies

@@ -64,9 +64,7 @@ class Ompizer(object):
             return nparallel
 
     def _make_parallel_tree(self, root, candidates):
-        """
-        Return a mapper to parallelize the :class:`Iteration`s within ``root``.
-        """
+        """Return a mapper to parallelize the Iterations within ``root``."""
         ncollapse = self._ncollapse(root, candidates)
         parallel = self.lang['for'](ncollapse)
 
@@ -89,8 +87,8 @@ class Ompizer(object):
 
     def make_parallel(self, iet):
         """
-        Transform ``iet`` by decorating its parallel :class:`Iteration`s with
-        suitable ``#pragma omp ...`` for thread-level parallelism.
+        Transform ``iet`` by decorating its parallel Iterations with suitable
+        ``#pragma omp ...`` for thread-level parallelism.
         """
         # Group sequences of loops that should go within the same parallel region
         was_tagged = False

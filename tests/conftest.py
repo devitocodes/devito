@@ -288,19 +288,6 @@ def EVAL(exprs, *args):
     return processed[0] if isinstance(exprs, str) else processed
 
 
-def configuration_override(key, value):
-    def dec(f):
-        def wrapper(*args, **kwargs):
-            oldvalue = configuration[key]
-            configuration[key] = value
-            f(*args, **kwargs)
-            configuration[key] = oldvalue
-
-        return wrapper
-
-    return dec
-
-
 def parallel(item):
     """Run a test in parallel.
 
@@ -349,7 +336,7 @@ def pytest_configure(config):
 
 def pytest_runtest_setup(item):
     partest = int(os.environ.get('DEVITO_MPI', 0))
-    if item.get_marker("parallel") and not partest:
+    if item.get_closest_marker("parallel") and not partest:
         # Blow away function arg in "master" process, to ensure
         # this test isn't run on only one process
         dummy_test = lambda *args, **kwargs: True
@@ -362,6 +349,6 @@ def pytest_runtest_setup(item):
 
 def pytest_runtest_call(item):
     partest = int(os.environ.get('DEVITO_MPI', 0))
-    if item.get_marker("parallel") and not partest:
+    if item.get_closest_marker("parallel") and not partest:
         # Spawn parallel processes to run test
         parallel(item)

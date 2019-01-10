@@ -8,10 +8,41 @@ __all__ = ['Eq', 'Inc', 'solve']
 class Eq(sympy.Eq):
 
     """
-    A :class:`sympy.Eq` that accepts the additional keyword parameter ``subdomain``.
+    An equal relation between two objects, the left-hand side and the
+    right-hand side.
 
-    The ``subdomain``, an object of type :class:`SubDomain`, can be used to
-    restrict the execution of the equation to a particular subdomain.
+    The left-hand side may be a Function or a SparseFunction. The right-hand
+    side may be any arbitrary expressions with numbers, Dimensions, Constants,
+    Functions and SparseFunctions as operands.
+
+    Parameters
+    ----------
+    lhs : Function or SparseFunction
+        The left-hand side.
+    rhs : expr-like
+        The right-hand side.
+    subdomain : SubDomain, optional
+        To restrict the computation of the Eq to a particular sub-region in the
+        computational domain.
+
+    Examples
+    --------
+    >>> from devito import Grid, Function, Eq
+    >>> grid = Grid(shape=(4, 4))
+    >>> f = Function(name='f', grid=grid)
+    >>> Eq(f, f + 1)
+    Eq(f(x, y), f(x, y) + 1)
+
+    Any SymPy expressions may be used in the right-hand side.
+
+    >>> from sympy import sin
+    >>> Eq(f, sin(f.dx)**2)
+    Eq(f(x, y), sin(f(x, y)/h_x - f(x + h_x, y)/h_x)**2)
+
+    Notes
+    -----
+    An Eq can be thought of as an assignment in an imperative programming language
+    (e.g., ``a[i] = b[i]*c``).
     """
 
     is_Increment = False
@@ -25,9 +56,11 @@ class Eq(sympy.Eq):
 
     @property
     def subdomain(self):
+        """The SubDomain in which the Eq is defined."""
         return self._subdomain
 
     def xreplace(self, rules):
+        """"""
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
                          subdomain=self._subdomain)
 
@@ -35,7 +68,27 @@ class Eq(sympy.Eq):
 class Inc(Eq):
 
     """
-    A :class:`Eq` performing a linear increment.
+    An increment relation between two objects, the left-hand side and the
+    right-hand side.
+
+    Examples
+    --------
+    Inc may be used to express tensor contractions. Below, a summation along
+    the user-defined Dimension ``i``.
+
+    >>> from devito import Grid, Dimension, Function, Inc
+    >>> grid = Grid(shape=(4, 4))
+    >>> x, y = grid.dimensions
+    >>> i = Dimension(name='i')
+    >>> f = Function(name='f', grid=grid)
+    >>> g = Function(name='g', shape=(10, 4, 4), dimensions=(i, x, y))
+    >>> Inc(f, g)
+    Inc(f(x, y), g(i, x, y))
+
+    Notes
+    -----
+    An Inc can be thought of as the augmented assignment '+=' in an imperative
+    programming language (e.g., ``a[i] += c``).
     """
 
     is_Increment = True
@@ -48,17 +101,20 @@ class Inc(Eq):
 
 def solve(eq, target, **kwargs):
     """
-    solve(expr, target, **kwargs)
-
-    Algebraically rearrange an equation w.r.t. a given symbol.
+    Algebraically rearrange an Eq w.r.t. a given symbol.
 
     This is a wrapper around ``sympy.solve``.
 
-    :param eq: The :class:`sympy.Eq` to be rearranged.
-    :param target: The symbol w.r.t. which the equation is rearranged.
-    :param kwargs: (Optional) Symbolic optimizations applied while rearranging
-                   the equation. For more information. refer to
-                   ``sympy.solve.__doc__``.
+    Parameters
+    ----------
+    eq : expr-like
+        The equation to be rearranged.
+    target : symbol
+        The symbol w.r.t. which the equation is rearranged. May be a `Function`
+        or any other symbolic object.
+    **kwargs
+        Symbolic optimizations applied while rearranging the equation. For more
+        information. refer to ``sympy.solve.__doc__``.
     """
     # Enforce certain parameters to values that are known to guarantee a quick
     # turnaround time

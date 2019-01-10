@@ -10,11 +10,6 @@ equations defined in [SymPy](http://www.sympy.org/en/index.html),
 Devito employs automated code generation and just-in-time (JIT)
 compilation to execute FD kernels on multiple computer platforms.
 
-Devito is part of the [OPESCI](http://www.opesci.org) seismic imaging
-project. A general overview of Devito features and capabilities can be
-found [here](http://www.devitoproject.org), including a
-detailed [API documentation](http://www.devitoproject.org).
-
 ## Get in touch
 
 If you're using Devito, we would like to hear from you. Whether you
@@ -80,7 +75,7 @@ expressions. Examples of how to define operators are provided:
 * An advanced example of a Tilted Transverse Isotropy forward operator
   for use in FWI can be found in `examples/seismic/tti`.
 * A benchmark script for the acoustic and TTI forward operators can be
-  found in `examples/seismic/benchmark.py`
+  found in `examples/seismic/benchmark.py`.
 
 
 ## Compilation
@@ -113,8 +108,7 @@ docker-compose run devito /print-defaults
 
 ## Performance optimizations
 
-Devito supports two classes of performance optimizations, which are essential
-in a wide range of real-life kernels:
+Devito supports two classes of performance optimizations:
  * Flop-count optimizations - They aim to reduce the operation count of an FD
    kernel. These include, for example, code motion, factorization, and
    detection of cross-stencil redundancies. The flop-count optimizations

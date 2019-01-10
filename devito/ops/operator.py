@@ -1,12 +1,13 @@
 from devito.logger import warning
-from devito.operator import OperatorRunnable
+from devito.operator import Operator
 
-__all__ = ['Operator']
+__all__ = ['OperatorOPS']
 
 
-class Operator(OperatorRunnable):
+class OperatorOPS(Operator):
+
     """
-        A special :class:`OperatorCore` to JIT-compile and run operators through OPS.
+    A special Operator generating and executing OPS code.
     """
 
     def _specialize_iet(self, iet, **kwargs):

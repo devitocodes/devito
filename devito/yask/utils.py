@@ -1,5 +1,4 @@
 from collections import OrderedDict
-import ctypes
 
 from devito.cgen_utils import INT
 from devito.ir.iet import Expression, ForeignExpression, FindNodes, Transformer
@@ -65,8 +64,10 @@ def split_increment(expr):
     into its three main components, namely the target grid ``u``, the increment
     value ``v``, and the :class:`ListInitializer` ``indices``.
 
-    :raises ValueError: If ``expr`` is not an increment or does not appear in
-                        the normal form above.
+    Raises
+    ------
+    ValueError
+        If ``expr`` is not an increment or does not appear in the normal form above.
     """
     if not isinstance(expr, FunctionFromPointer) or len(expr.params) != 2:
         raise ValueError
@@ -92,6 +93,6 @@ namespace['code-grid-name'] = lambda i: "grid_%s" % str(i)
 namespace['code-grid-get'] = 'get_element'
 namespace['code-grid-put'] = 'set_element'
 namespace['code-grid-add'] = 'add_to_element'
-namespace['type-solution'] = ctypes.POINTER(ctypes_pointer('yask::yk_solution_ptr'))
-namespace['type-grid'] = ctypes.POINTER(ctypes_pointer('yask::yk_grid_ptr'))
+namespace['type-solution'] = ctypes_pointer('yask::yk_solution_ptr')
+namespace['type-grid'] = ctypes_pointer('yask::yk_grid_ptr')
 namespace['numa-put-local'] = -1
