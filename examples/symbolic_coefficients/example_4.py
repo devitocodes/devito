@@ -8,72 +8,65 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
+import sys
+
 # Define a physical size
-shape = (101, 101)  # Number of grid point (nx, nz)
-spacing = (10., 10.)  # Grid spacing in m. The domain size is now 1km by 1km
-origin = (0., 0.)  # What is the location of the top left corner. This is necessary to define
-# the absolute location of the source and receivers
+Lx = 2000
+Ly = Lx
+h = 1
+Nx = int(Lx/h)+1
+Ny = Nx
+
+shape = (Nx, Ny)  # Number of grid point (nx, nz)
+spacing = (h, h)  # Grid spacing in m. The domain size is now 2km by 2km
+origin = (0., 0.)
 
 # Define a velocity profile. The velocity is in km/s
 v = np.empty(shape, dtype=np.float32)
-v[:, :51] = 1.5
-v[:, 51:] = 2.5
+v[:, :int(0.6*(Nx-1)+1)] = 1.5
+v[:, int(0.6*(Nx-1)+1):] = 4.0
 
-# With the velocity and model size defined, we can create the seismic model that
-# encapsulates this properties. We also define the size of the absorbing layer as 10 grid points
-nbpml=10
+nbpml = 20
 model = Model(vp=v, origin=origin, shape=shape, spacing=spacing,
-              space_order=2, nbpml=nbpml)
+              space_order=20, nbpml=nbpml)
 
-plot_velocity(model)
+#plot_velocity(model)
 
 from examples.seismic import TimeAxis
 
-t0 = 0.  # Simulation starts a t=0
-tn = 1000.  # Simulation last 1 second (1000 ms)
+t0 = 0.0  # Simulation starts a t=0
+tn = 500.  # Simulation last 1 second (1000 ms)
 dt = model.critical_dt  # Time step from model grid spacing
+#dt = 0.2
 
 time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
 #NBVAL_IGNORE_OUTPUT
 from examples.seismic import RickerSource
 
-f0 = 0.010  # Source peak frequency is 10Hz (0.010 kHz)
+f0 = 0.025  # Source peak frequency is 25Hz (0.025 kHz)
 src = RickerSource(name='src', grid=model.grid, f0=f0,
                    npoint=1, time_range=time_range)
 
 # First, position source centrally in all dimensions, then set depth
 src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-src.coordinates.data[0, -1] = 20.  # Depth is 20m
+src.coordinates.data[0, -1] = 800.  # Depth is 800m
 
 # We can plot the time signature to see the wavelet
-src.show()
+#src.show()
 
-#NBVAL_IGNORE_OUTPUT
-from examples.seismic import Receiver
-
-# Create symbol for 101 receivers
-rec = Receiver(name='rec', grid=model.grid, npoint=101, time_range=time_range)
-
-# Prescribe even spacing for receivers along the x-axis
-rec.coordinates.data[:, 0] = np.linspace(0, model.domain_size[0], num=101)
-rec.coordinates.data[:, 1] = 20.  # Depth is 20m
-
-# We can now show the source and receivers within our domain:
-# Red dot: Source location
-# Green dots: Receiver locations (every 4th point)
-plot_velocity(model, source=src.coordinates.data,
-              receiver=rec.coordinates.data[::4, :])
-
-# In order to represent the wavefield u and the square slowness we need symbolic objects 
-# corresponding to time-space-varying field (u, TimeFunction) and 
-# space-varying field (m, Function)
 from devito import TimeFunction
 
 # Define the wavefield with the size of the model and the time dimension
-u = TimeFunction(name="u", grid=model.grid, time_order=2, space_order=2)
+u = TimeFunction(name="u", grid=model.grid, time_order=2, space_order=20)
+
+m = model.m
+
+#print(m.data[:])
+#sys.exit()
 
 # We can now write the PDE
+#pde = model.m * u.dt2 - u.laplace + model.damp * u.dt
 pde = model.m * u.dt2 - u.laplace + model.damp * u.dt
 
 # This discrete PDE can be solved in a time-marching way updating u(t+dt) from the previous time step
@@ -87,25 +80,26 @@ stencil = Eq(u.forward, solve(pde, u.forward))
 src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m)
 
 # Create interpolation expression for receivers
-rec_term = rec.interpolate(expr=u.forward)
+#rec_term = rec.interpolate(expr=u.forward)
 
 #NBVAL_IGNORE_OUTPUT
 from devito import Operator
 
-op = Operator([stencil] + src_term + rec_term, subs=model.spacing_map)
+#op = Operator([stencil] + src_term + rec_term, subs=model.spacing_map)
+op = Operator([stencil] + src_term, subs=model.spacing_map)
 
 #NBVAL_IGNORE_OUTPUT
-op(time=time_range.num-1, dt=model.critical_dt)
+#op(time=time_range.num-1, dt=model.critical_dt)
+op(time=time_range.num-1, dt=dt)
 
-#NBVAL_IGNORE_OUTPUT
-from examples.seismic import plot_shotrecord
+##NBVAL_IGNORE_OUTPUT
+#from examples.seismic import plot_shotrecord
 
-plot_shotrecord(rec.data, model, t0, tn)
+#plot_shotrecord(rec.data, model, t0, tn)
 
 # u field plot
-Lx = 1000
-Ly = 1000
-h = 10
+Lx = 2000
+Ly = 2000
 
 abs_lay = nbpml*h
 
