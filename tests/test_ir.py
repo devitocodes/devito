@@ -2,17 +2,19 @@ import pytest
 import numpy as np
 
 from conftest import EVAL, time, x, y, z, skipif  # noqa
-from devito import (Eq, Inc, Grid, Function, TimeFunction, # noqa
-                    Operator, Dimension)
+from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
+                    Operator, Dimension, SubDimension)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet.nodes import Conditional, Expression, Iteration
 from devito.ir.iet.visitors import FindNodes
-from devito.ir.support.basic import IterationInstance, TimedAccess, Scope
+from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
+                                     AFFINE, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
                                      Any, Forward, Backward)
 from devito.ir.support.utils import detect_flow_directions
 from devito.symbolics import indexify
+from devito.types import Scalar
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -304,6 +306,38 @@ class TestSpace(object):
 
 
 class TestDependenceAnalysis(object):
+
+    @pytest.mark.parametrize('indexed,expected', [
+        ('u[x,y,z]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x+1,y,z-1]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x+1,3,z-1]', (AFFINE, AFFINE, AFFINE)),
+        ('u[sx+1,y,z-1]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x+1,c,s]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x+1,c+1,s*s]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x*x+1,y,z]', (IRREGULAR, AFFINE, AFFINE)),
+        ('u[x*y,y,z]', (IRREGULAR, AFFINE, AFFINE)),
+        ('u[x + z,x + y,z*z]', (IRREGULAR, IRREGULAR, IRREGULAR)),
+        ('u[x+1,u[2,2,2],z-1]', (AFFINE, IRREGULAR, AFFINE)),
+        ('u[y,x,z]', (IRREGULAR, IRREGULAR, AFFINE)),
+    ])
+    def test_index_mode_detection(self, indexed, expected):
+        """
+        Test detection of IterationInstance access modes (AFFINE vs IRREGULAR).
+
+        Proper detection of access mode is a prerequisite to any sort of
+        data dependence analysis.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions  # noqa
+
+        sx = SubDimension.middle('sx', x, 1, 1)  # noqa
+
+        u = Function(name='u', grid=grid)  # noqa
+        c = Constant(name='c')  # noqa
+        s = Scalar(name='s')  # noqa
+
+        ii = IterationInstance(eval(indexed))
+        assert ii.index_mode == expected
 
     @pytest.mark.parametrize('expr,expected', [
         ('Eq(ti0[x,y,z], ti1[x,y,z])', None),
