@@ -47,6 +47,10 @@ class Differentiable(sympy.Expr):
                                             for i in self._args_diff)))
 
     @cached_property
+    def is_Staggered(self):
+        return any([getattr(i, 'is_Staggered', False) for i in self._args_diff])
+
+    @cached_property
     def _fd(self):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
 
@@ -135,7 +139,7 @@ class Differentiable(sympy.Expr):
         """
         space_dims = [d for d in self.indices if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
-        return sum([getattr(self, d) for d in derivs])
+        return Add(*[getattr(self, d) for d in derivs])
 
     def laplace2(self, weight=1):
         """
@@ -148,7 +152,16 @@ class Differentiable(sympy.Expr):
 
 
 class Add(sympy.Add, Differentiable):
-    pass
+
+    def __new__(cls, *args, **kwargs):
+        obj = sympy.Add.__new__(cls, *args, **kwargs)
+
+        # `(f + f)` is evaluated as `2*f`, with `*` being a sympy.Mul.
+        # Here we make sure to return our own Mul.
+        if obj.is_Mul:
+            obj = Mul(*obj.args)
+
+        return obj
 
 
 class Mul(sympy.Mul, Differentiable):
@@ -160,6 +173,11 @@ class Mul(sympy.Mul, Differentiable):
         # Here we make sure to return our own Add.
         if obj.is_Add:
             obj = Add(*obj.args)
+
+        # `(f * f)` is evaluated as `f**2`, with `**` being a sympy.Pow.
+        # Here we make sure to return our own Pow.
+        if obj.is_Pow:
+            obj = Pow(*obj.args)
 
         return obj
 
