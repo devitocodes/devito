@@ -1,11 +1,11 @@
 import cgen as c
 
-from devito.functions import IncrDimension
 from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacent,
                            FindNodes, IsPerfectIteration, Transformer,
                            compose_nodes, retrieve_iteration_tree)
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple, flatten
+from devito.types.dimension import IncrDimension
 
 __all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 

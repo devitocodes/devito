@@ -10,7 +10,6 @@ import cgen as c
 
 from devito.cgen_utils import ccode
 from devito.data import FULL
-from devito.functions import AbstractFunction, Dimension, Symbol, Indexed
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
@@ -20,6 +19,8 @@ from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
+from devito.types import Dimension, Symbol, Indexed
+from devito.types.basic import AbstractFunction
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'Section',

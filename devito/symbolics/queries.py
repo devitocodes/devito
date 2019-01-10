@@ -35,7 +35,7 @@ def q_indexed(expr):
 
 
 def q_function(expr):
-    from devito.functions.dense import DiscretizedFunction
+    from devito.types.dense import DiscretizedFunction
     return isinstance(expr, DiscretizedFunction)
 
 
@@ -84,7 +84,7 @@ def q_indirect(expr):
 
 
 def q_timedimension(expr):
-    from devito.functions.dimension import Dimension
+    from devito.types.dimension import Dimension
     return isinstance(expr, Dimension) and expr.is_Time
 
 

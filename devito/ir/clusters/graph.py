@@ -3,11 +3,11 @@ from itertools import islice
 
 from cached_property import cached_property
 
-from devito.functions import Dimension, Symbol
 from devito.ir.equations import ClusterizedEq
 from devito.symbolics import (as_symbol, retrieve_indexed, retrieve_terminals,
                               q_indirect, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten, filter_ordered
+from devito.types import Dimension, Symbol
 
 __all__ = ['FlowGraph']
 

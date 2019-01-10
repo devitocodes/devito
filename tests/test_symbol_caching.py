@@ -6,7 +6,7 @@ import pytest
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
                     Constant, Operator, Eq, Dimension, clear_cache)
-from devito.functions import _SymbolCache, Scalar
+from devito.types.basic import _SymbolCache, Scalar
 
 pytestmark = skipif(['yask', 'ops'])
 

@@ -5,9 +5,9 @@ from sympy import cos, sin
 
 from devito.dse.backends import AbstractRewriter, dse_pass
 from devito.dse.manipulation import common_subexprs_elimination
-from devito.functions import Scalar
 from devito.symbolics import (Eq, bhaskara_cos, bhaskara_sin, retrieve_indexed,
                               q_affine, q_scalar)
+from devito.types.basic import Scalar
 
 
 class BasicRewriter(AbstractRewriter):

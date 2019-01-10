@@ -1,8 +1,8 @@
 from operator import attrgetter
 
-from devito.functions import Dimension
 from devito.symbolics import retrieve_indexed, split_affine
 from devito.tools import PartialOrderTuple, filter_sorted, flatten
+from devito.types import Dimension
 
 __all__ = ['dimension_sort']
 

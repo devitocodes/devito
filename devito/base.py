@@ -3,11 +3,11 @@
 from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
-import devito.grid as grid
-import devito.functions.basic as basic
-import devito.functions.dense as dense
-import devito.functions.sparse as sparse
-import devito.functions.constant as constant
+import devito.types.basic as basic
+import devito.types.dense as dense
+import devito.types.grid as grid
+import devito.types.sparse as sparse
+import devito.types.constant as constant
 import devito.operator as operator
 
 

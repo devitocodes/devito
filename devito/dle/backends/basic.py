@@ -3,7 +3,6 @@ from collections import OrderedDict
 import cgen as c
 import numpy as np
 
-from devito.functions import Scalar, IncrDimension
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
 from devito.ir.iet import (Denormals, Call, Callable, List, ArrayCast,
                            Transformer, FindSymbols, retrieve_iteration_tree,
@@ -11,6 +10,8 @@ from devito.ir.iet import (Denormals, Call, Callable, List, ArrayCast,
 from devito.parameters import configuration
 from devito.symbolics import as_symbol
 from devito.tools import flatten
+from devito.types.basic import Scalar
+from devito.types.dimension import IncrDimension
 
 
 class BasicRewriter(AbstractRewriter):

@@ -1,11 +1,11 @@
 from collections import OrderedDict, defaultdict
 
-from devito.functions import Dimension, ModuloDimension
 from devito.ir.support.basic import Access
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
+from devito.types.dimension import Dimension, ModuloDimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
            'detect_flow_directions', 'force_directions', 'align_accesses', 'detect_io']

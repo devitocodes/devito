@@ -11,15 +11,15 @@ from devito.builtins import assign
 from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, RIGHT,
                          Data, default_allocator)
 from devito.exceptions import InvalidArgument
-from devito.functions.dimension import Dimension
-from devito.functions.basic import AbstractCachedFunction
-from devito.functions.utils import Buffer, NODE, CELL
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.symbolics import Add, FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.tools import (EnrichedTuple, ReducerMap, ArgProvider, as_tuple,
                           flatten, is_integer, ctypes_to_cstr, memoized_meth)
+from devito.types.dimension import Dimension
+from devito.types.basic import AbstractCachedFunction
+from devito.types.utils import Buffer, NODE, CELL
 
 __all__ = ['Function', 'TimeFunction', 'DiscretizedFunction']
 

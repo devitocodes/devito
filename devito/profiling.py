@@ -7,7 +7,6 @@ import os
 
 from cached_property import cached_property
 
-from devito.functions import CompositeObject
 from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
                            FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
@@ -15,6 +14,7 @@ from devito.logger import warning
 from devito.parameters import configuration
 from devito.symbolics import estimate_cost
 from devito.tools import flatten
+from devito.types.basic import CompositeObject
 
 __all__ = ['Timer', 'create_profile']
 

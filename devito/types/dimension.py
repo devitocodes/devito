@@ -7,9 +7,9 @@ from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
-from devito.functions import AbstractSymbol, Scalar
 from devito.logger import debug
 from devito.tools import ArgProvider, Pickable, dtype_to_cstr
+from devito.types.basic import AbstractSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
@@ -40,13 +40,13 @@ class Dimension(AbstractSymbol, ArgProvider):
     >>> grid = Grid(shape=(4, 4))
     >>> x, y = grid.dimensions
     >>> type(x)
-    <class 'devito.functions.dimension.SpaceDimension'>
+    <class 'devito.types.dimension.SpaceDimension'>
     >>> time = grid.time_dim
     >>> type(time)
-    <class 'devito.functions.dimension.TimeDimension'>
+    <class 'devito.types.dimension.TimeDimension'>
     >>> t = grid.stepping_dim
     >>> type(t)
-    <class 'devito.functions.dimension.SteppingDimension'>
+    <class 'devito.types.dimension.SteppingDimension'>
 
     Alternatively, one can create Dimensions explicitly
 

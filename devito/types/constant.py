@@ -2,8 +2,8 @@ import numpy as np
 
 from devito.exceptions import InvalidArgument
 from devito.logger import warning
-from devito.functions.basic import AbstractCachedSymbol
 from devito.tools import ArgProvider, memoized_meth
+from devito.types.basic import AbstractCachedSymbol
 
 __all__ = ['Constant']
 

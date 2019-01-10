@@ -1,13 +1,13 @@
 from collections import OrderedDict
 
 from devito.cgen_utils import Allocator
-from devito.functions import ConditionalDimension
 from devito.ir.iet import (Expression, Increment, LocalExpression, Element, Iteration,
                            List, Conditional, Section, HaloSpot, ExpressionBundle,
                            MetaCall, MapExpressions, Transformer, FindNodes,
                            FindSymbols, XSubs, iet_analyze, filter_iterations)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper
+from devito.types.dimension import ConditionalDimension
 
 __all__ = ['iet_build', 'iet_insert_C_decls']
 

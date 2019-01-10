@@ -1,13 +1,13 @@
 from collections import namedtuple
 
-from devito.functions import (Constant, Dimension, SpaceDimension, TimeDimension,
-                              SteppingDimension, SubDimension)
+from sympy import prod
+import numpy as np
+
 from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap, as_tuple
-
-from sympy import prod
-import numpy as np
+from devito.types import (Constant, Dimension, SpaceDimension, TimeDimension,
+                          SteppingDimension, SubDimension)
 
 __all__ = ['Grid', 'SubDomain']
 

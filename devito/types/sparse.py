@@ -7,10 +7,10 @@ from cached_property import cached_property
 
 from devito.cgen_utils import INT, cast_mapper
 from devito.equation import Eq, Inc
-from devito.finite_differences import Differentiable
-from devito.functions.dense import DiscretizedFunction, Function, SubFunction
-from devito.functions.dimension import Dimension, ConditionalDimension, DefaultDimension
-from devito.functions.basic import Symbol, Scalar
+from devito.finite_differences import Differentiable, generate_fd_shortcuts
+from devito.types.dense import DiscretizedFunction, Function, SubFunction
+from devito.types.dimension import Dimension, ConditionalDimension, DefaultDimension
+from devito.types.basic import Symbol, Scalar
 from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
 from devito.symbolics import indexify, retrieve_function_carriers
@@ -22,7 +22,7 @@ __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction']
 
 
-class AbstractSparseFunction(DiscretizedFunction):
+class AbstractSparseFunction(DiscretizedFunction, Differentiable):
 
     """
     An abstract class to define behaviours common to all sparse functions.
@@ -43,7 +43,7 @@ class AbstractSparseFunction(DiscretizedFunction):
             self._npoint = kwargs['npoint']
             self._space_order = kwargs.get('space_order', 0)
 
-	        # Dynamically add derivative short-cuts
+            # Dynamically add derivative short-cuts
             self._fd = generate_fd_shortcuts(self)
 
     @classmethod
@@ -362,7 +362,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['nt', 'time_order']
 
 
-class SparseFunction(AbstractSparseFunction, Differentiable):
+class SparseFunction(AbstractSparseFunction):
     """
     Tensor symbol representing a sparse array in symbolic equations.
 

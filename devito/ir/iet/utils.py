@@ -1,7 +1,7 @@
-from devito.functions import Array, LocalObject
 from devito.ir.iet import Iteration, List, IterationTree, FindSections, FindSymbols
 from devito.symbolics import Macro
 from devito.tools import flatten
+from devito.types.basic import Array, LocalObject
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree',
            'compose_nodes', 'derive_parameters']

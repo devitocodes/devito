@@ -6,7 +6,7 @@ try:
 except:
     plt = None
 
-from devito.functions import Dimension, SparseTimeFunction
+from devito.types import Dimension, SparseTimeFunction
 
 
 __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',

@@ -1,11 +1,11 @@
 import sympy
 
-from devito.functions import Scalar
 from devito.ir.support import (Scope, DataSpace, IterationSpace, detect_flow_directions,
                                force_directions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, xreplace_indices
 from devito.tools import flatten
+from devito.types.basic import Scalar
 
 __all__ = ['clusterize', 'groupby']
 

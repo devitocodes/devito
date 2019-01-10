@@ -4,12 +4,12 @@ import numpy as np
 import cgen as c
 import psutil
 
-from devito.functions import Constant, Symbol
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (FindSymbols, FindNodes, Transformer, Block, Expression,
                            LocalExpression, List, Iteration, retrieve_iteration_tree,
                            filter_iterations, IsPerfectIteration, COLLAPSED)
 from devito.parameters import configuration
+from devito.types import Constant, Symbol
 
 
 def ncores():
