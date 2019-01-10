@@ -2,7 +2,7 @@ from cached_property import cached_property
 from sympy import Basic, S
 
 from devito.ir.support.space import Any, Backward
-from devito.symbolics import retrieve_terminals, q_affine, q_inc
+from devito.symbolics import retrieve_terminals, q_affine, q_constant, q_inc
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth)
 from devito.types import Dimension
@@ -239,7 +239,7 @@ class IterationInstance(Vector):
     def index_mode(self):
         index_mode = []
         for i, fi in zip(self, self.findices):
-            if is_integer(i):
+            if q_constant(i):
                 index_mode.append(CONSTANT)
             elif q_affine(i, fi):
                 index_mode.append(AFFINE)
@@ -260,7 +260,7 @@ class IterationInstance(Vector):
     def aindices(self):
         aindices = []
         for i, fi in zip(self, self.findices):
-            if is_integer(i):
+            if q_constant(i):
                 aindices.append(None)
             elif q_affine(i, fi):
                 aindices.append(fi)
