@@ -75,8 +75,7 @@ class OperatorYASK(Operator):
 
             try:
                 # Generate YASK grids and populate `yc_soln` with equations
-                gridmap = yaskit(trees, yc_soln)
-                local_grids = [i for i in gridmap if i.is_Array]
+                local_grids = yaskit(trees, yc_soln)
 
                 # Build the new IET nodes
                 yk_soln_obj = YaskSolnObject(namespace['code-soln-name'](n))

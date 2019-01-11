@@ -21,12 +21,10 @@ def yaskit(trees, yc_soln):
     yc_soln
         The YASK compiler solution to be populated.
     """
-    # Track all created YASK grids
-    mapper = {}
-
     # It's up to Devito to organize the equations into a flow graph
     yc_soln.set_dependency_checker_enabled(False)
 
+    mapper = {}
     processed = []
     for tree in trees:
         # All expressions within `tree`
@@ -116,14 +114,21 @@ def yaskit(trees, yc_soln):
     for to, frm in zip(processed, processed[1:]):
         yc_soln.add_flow_dependency(frm, to)
 
-    return mapper
+    # Have we built any local grids (i.e., DSE-produced tensor temporaries)?
+    # If so, eventually these will be mapped to YASK scratch grids
+    local_grids = [i for i in mapper if i.is_Array]
+
+    return local_grids
 
 
-def make_yask_ast(expr, yc_soln, mapper):
+def make_yask_ast(expr, yc_soln, mapper=None):
 
     def nary2binary(args, op):
         r = make_yask_ast(args[0], yc_soln, mapper)
         return r if len(args) == 1 else op(r, nary2binary(args[1:], op))
+
+    if mapper is None:
+        mapper = {}
 
     if expr.is_Integer:
         return nfac.new_const_number_node(int(expr))
@@ -198,9 +203,15 @@ def make_yask_ast(expr, yc_soln, mapper):
                                     make_yask_ast(expr.rhs, yc_soln, mapper))
     elif expr.is_Equality:
         if expr.lhs.is_Symbol:
-            function = expr.lhs.base.function
-            assert function not in mapper
-            mapper[function] = make_yask_ast(expr.rhs, yc_soln, mapper)
+            function = expr.lhs.function
+            # The IETs are always in SSA form, so the only situation in
+            # which `function` may already appear in `mapper` is when we've
+            # already processed it as part of a different set of
+            # boundary conditions. For example consider `expr = a[x]*2`:
+            # first time, expr executed iff `x == FIRST_INDEX(x) + 7`
+            # second time, expr executed iff `x == FIRST_INDEX(x) + 6`
+            if function not in mapper:
+                mapper[function] = make_yask_ast(expr.rhs, yc_soln, mapper)
         else:
             return nfac.new_equation_node(*[make_yask_ast(i, yc_soln, mapper)
                                             for i in expr.args])
