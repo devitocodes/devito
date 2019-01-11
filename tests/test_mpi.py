@@ -283,7 +283,7 @@ class TestCodeGeneration(object):
 
         f = TimeFunction(name='f', grid=grid)
 
-        (_, _, gather, _), _ = make_halo_exchange_routines(f, [t])
+        (_, _, gather, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
         assert str(gather.parameters) == """\
 (buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
@@ -302,7 +302,7 @@ class TestCodeGeneration(object):
 
         f = TimeFunction(name='f', grid=grid)
 
-        (_, sendrecv, _, _), _ = make_halo_exchange_routines(f, [t])
+        (_, sendrecv, _, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
         assert str(sendrecv.parameters) == """\
 (f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
  fromrank, torank, comm)"""
@@ -333,7 +333,7 @@ free(bufg);"""
 
         f = TimeFunction(name='f', grid=grid)
 
-        (update_halo, _, _, _), _ = make_halo_exchange_routines(f, [t])
+        (update_halo, _, _, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
         assert str(update_halo.parameters) == """\
 (f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime)"""
         assert str(update_halo.body[0]) == """\
