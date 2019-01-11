@@ -323,8 +323,10 @@ def parallel(item):
 
         # Tell the MPI ranks that they are running a parallel test
         os.environ['DEVITO_MPI'] = '1'
-        check_call(call)
-        os.environ['DEVITO_MPI'] = '0'
+        try:
+            check_call(call)
+        finally:
+            os.environ['DEVITO_MPI'] = '0'
 
 
 def pytest_configure(config):
