@@ -95,14 +95,17 @@ class HaloScheme(object):
 
         for f, v in classification.items():
             # *How much* halo do we have to exchange?
-            halos = hs_comp_halos(f, [d for d, hl in v.items() if hl is STENCIL], dspace)
-            halos.extend(hs_comp_halos(f, [d for d, hl in v.items() if hl is FULL]))
-
-            # *What* are the local (i.e., non-halo) indices?
-            loc_indices = hs_comp_locindices(f, [d for d, hl in v.items() if hl is NONE],
-                                             ispace, dspace, scope)
+            dims = [d for d, hl in v.items() if hl is STENCIL]
+            halos = hs_comp_halos(f, dims, dspace)
+            dims = [d for d, hl in v.items() if hl is FULL]
+            halos.extend(hs_comp_halos(f, dims))
 
             if halos:
+                # There is some halo to be exchanged; *what* are the local
+                # (i.e., non-halo) indices?
+                dims = [d for d, hl in v.items() if hl is NONE]
+                loc_indices = hs_comp_locindices(f, dims, ispace, dspace, scope)
+
                 self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices), tuple(halos))
 
         self._mapper = frozendict(self._mapper)
