@@ -5,7 +5,7 @@ from devito.ir.iet import Call, List, HaloSpot, MetaCall, FindNodes, Transformer
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
 from devito.mpi import make_halo_exchange_routines
-from devito.operator import Operator
+from devito.operator import Operator, is_threaded
 from devito.tools import flatten
 
 __all__ = ['OperatorCore']
@@ -37,7 +37,8 @@ class OperatorCore(Operator):
             for f, v in hs.fmapper.items():
                 # For each MPI-distributed DiscreteFunction, generate all necessary
                 # C-level routines to perform a halo update
-                routines, extra = make_halo_exchange_routines(f, v.loc_indices)
+                threaded = is_threaded(kwargs.get("dle"))
+                routines, extra = make_halo_exchange_routines(f, v.loc_indices, threaded)
                 callables[f] = routines
 
                 # Replace HaloSpots with suitable calls performing the halo update

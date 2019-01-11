@@ -16,7 +16,7 @@ from devito.types import Array, Dimension, Symbol, LocalObject
 __all__ = ['make_halo_exchange_routines']
 
 
-def make_halo_exchange_routines(f, fixed):
+def make_halo_exchange_routines(f, fixed, threaded=False):
     """
     Construct the Callables necessary to perform a halo exchange for the
     DiscreteFunction ``f``.
@@ -24,15 +24,15 @@ def make_halo_exchange_routines(f, fixed):
     assert f.is_Function
     assert f.grid is not None
 
-    gather, extra = make_copy(f, fixed)
-    scatter, _ = make_copy(f, fixed, True)
+    gather, extra = make_copy(f, fixed, threaded=threaded)
+    scatter, _ = make_copy(f, fixed, swap=True, threaded=threaded)
     sendrecv = make_sendrecv(f, fixed, extra)
     update_halo = make_update_halo(f, fixed, extra)
 
     return (update_halo, sendrecv, gather, scatter), extra
 
 
-def make_copy(f, fixed, swap=False):
+def make_copy(f, fixed, swap=False, threaded=False):
     """
     Construct a Callable capable of copying:
 
@@ -74,7 +74,7 @@ def make_copy(f, fixed, swap=False):
 
     # Optimize the memory copy with the DLE
     from devito.dle import transform
-    state = transform(iet, 'simd')
+    state = transform(iet, 'simd', {'openmp': threaded})
 
     parameters = [buf] + list(buf.shape) + [dummy_f] + f_offsets + state.input
     return Callable(name, state.nodes, 'void', parameters, ('static',)), state.input

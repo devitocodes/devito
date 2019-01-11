@@ -578,3 +578,7 @@ def set_dle_mode(mode):
         else:
             return tuple(flatten(i.split(',') for i in mode)), {}
     raise TypeError("Illegal DLE mode %s." % str(mode))
+
+
+def is_threaded(mode):
+    return set_dle_mode(mode)[1].get('openmp', configuration['openmp'])
