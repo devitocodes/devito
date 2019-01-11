@@ -22,7 +22,7 @@ jobs:
       openmp-conda-gcc4:
         gccVersion: '4.9'
         DEVITO_OPENMP: '1'
-        DEVITO_MPI: '0'
+        DEVITO_MPI: '1'
         installWithPip: 'false'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'true'

@@ -1390,6 +1390,9 @@ class AbstractSparseFunction(TensorFunction):
             self._npoint = kwargs['npoint']
             self._space_order = kwargs.get('space_order', 0)
 
+            # Dynamically add derivative short-cuts
+            self._fd = generate_fd_shortcuts(self)
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         dimensions = kwargs.get('dimensions')
@@ -1654,11 +1657,12 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
-            self.time_dim = self.indices[self._time_position]
+            self._time_dim = self.indices[self._time_position]
             self._time_order = kwargs.get('time_order', 1)
             if not isinstance(self.time_order, int):
                 raise ValueError("`time_order` must be int")
+
+            super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1691,6 +1695,11 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     def time_order(self):
         """The time order."""
         return self._time_order
+
+    @property
+    def time_dim(self):
+        """The time dimension."""
+        return self._time_dim
 
     @property
     def _time_size(self):
