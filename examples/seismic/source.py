@@ -266,17 +266,17 @@ class GaborSource(WaveletSource):
         s = (t-tcut) * agauss
         return np.exp(-2*s**2) * np.cos(2 * np.pi * s)
 
-    
+
 class DGaussSource(WaveletSource):
     """
     Symbolic object that encapsulate a set of sources with a
     pre-defined 1st derivative wavelet of a Gaussian Source:
 
     Note: For visualizing the second or third order derivative of Gaussian wavelets,
-    the convention is to use the negative of the normalized derivative.
-    In the case of the second derivative, scaling by -1 produces a wavelet with its main
-    lobe in the positive y direction.
-    This scaling also makes the Gaussian wavelet resemble the Mexican hat, or Ricker, wavelet.
+    the convention is to use the negative of the normalized derivative. In the case
+    of the second derivative, scaling by -1 produces a wavelet with its main
+    lobe in the positive y direction. This scaling also makes the Gaussian wavelet
+    resemble the Mexican hat, or Ricker, wavelet.
     The validity of the wavelet is not affected by the -1 scaling factor.
 
     returns the 1st order derivative of the Gaussian wavelet
@@ -289,8 +289,8 @@ class DGaussSource(WaveletSource):
 
     def wavelet(self, f0, t, a):
         """
-        Defines the 1st derivative of a Gaussian wavelet with a peak frequency f0 at time t.
-
+        Defines the 1st derivative of a Gaussian wavelet with a peak frequency f0
+        at time t.
         :param f0: Peak frequency in kHz
         :param t: Discretized values of time in ms
         :param a: Maximum amplitude, real constant defined by user
