@@ -152,7 +152,7 @@ def make_yask_ast(expr, yc_soln, mapper):
             else:
                 return nfac.new_misc_index(expr.name)
         else:
-            # A DSE-generated temporary, which must have already been
+            # E.g., A DSE-generated temporary, which must have already been
             # encountered as a LHS of a previous expression
             assert function in mapper
             return mapper[function]
@@ -165,6 +165,13 @@ def make_yask_ast(expr, yc_soln, mapper):
             mapper[function] = yc_soln.new_grid(function.name, dimensions)
             # Allow number of time-steps to be set in YASK kernel.
             mapper[function].set_dynamic_step_alloc(True)
+            # We also get to know some relevant Dimension-related symbols
+            # For example, the min point of the `x` Dimension, `x_m`, should
+            # be mapped to YASK's `FIRST(x)`
+            for d in function.indices:
+                node = nfac.new_domain_index(d.name)
+                mapper[d.symbolic_min] = nfac.new_first_domain_index(node)
+                mapper[d.symbolic_max] = nfac.new_last_domain_index(node)
         indices = [make_yask_ast(i, yc_soln, mapper) for i in expr.indices]
         return mapper[function].new_grid_point(indices)
     elif expr.is_Add:
