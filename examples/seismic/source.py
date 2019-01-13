@@ -308,8 +308,10 @@ class GaborSource(WaveletSource):
         Defines a Gabor wavelet with a peak frequency f0 at time t.
         Parameters
         ----------
-        f0: Peak frequency in kHz.
-        t: Discretized values of time in ms.
+        f0: float
+            Peak frequency in kHz.
+        t:
+            Discretized values of time in ms.
         """
         agauss = 0.5 * f0
         tcut = 1.5 / agauss
