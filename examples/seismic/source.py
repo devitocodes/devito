@@ -10,7 +10,7 @@ from devito.types import Dimension, SparseTimeFunction
 
 
 __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
-           'RickerSource', 'GaborSource', 'TimeAxis', 'DGaussSource']
+           'RickerSource', 'GaborSource', 'DGaussSource', 'TimeAxis']
 
 
 class TimeAxis(object):
@@ -280,19 +280,32 @@ class DGaussSource(WaveletSource):
     The validity of the wavelet is not affected by the -1 scaling factor.
 
     returns the 1st order derivative of the Gaussian wavelet
+    
+    Parameters
+    ----------
 
-    :param name: Name for the resulting symbol
-    :param grid: :class:`Grid` object defining the computational domain.
-    :param f0: Peak frequency for wavelet in kHz
-    :param time: Discretized values of time in ms
+    name: str
+        Name for the resulting symbol
+    grid: :class:`Grid`
+        object defining the computational domain.
+    f0: float
+        Peak frequency for wavelet in kHz
+    time: TimeAxis
+        Discretized values of time in ms
     """
 
     def wavelet(self, f0, t, a):
         """
         Defines the 1st derivative of a Gaussian wavelet with a peak frequency f0
         at time t.
-        :param f0: Peak frequency in kHz
-        :param t: Discretized values of time in ms
-        :param a: Maximum amplitude, real constant defined by user
+        
+        Parameters
+        ----------
+        f0: float
+            Peak frequency in kHz
+        t: TimeAxis
+            Discretized values of time in ms
+        a: float
+            Maximum amplitude, real constant defined by user
         """
         return -2.*a*(t - 1/f0) * np.exp(-a * (t - 1/f0)**2)
