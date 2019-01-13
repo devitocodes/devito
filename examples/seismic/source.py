@@ -14,18 +14,19 @@ __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
 
 
 class TimeAxis(object):
-    """ Data object to store the time axis. Exactly three of the four key arguments
-        must be prescribed. Because of remainder values it is not possible to create
-        a time axis that exactly adhears to the inputs therefore start, stop, step
-        and num values should be taken from the TimeAxis object rather than relying
-        upon the input values.
+    """ 
+    Data object to store the time axis. Exactly three of the four key arguments
+    must be prescribed. Because of remainder values it is not possible to create
+    a time axis that exactly adhears to the inputs therefore start, stop, step
+    and num values should be taken from the TimeAxis object rather than relying
+    upon the input values.
 
-        The four possible cases are:
-        start is None: start = step*(1 - num) + stop
-        step is None: step = (stop - start)/(num - 1)
-        num is None: num = ceil((stop - start + step)/step);
-                     because of remainder stop = step*(num - 1) + start
-        stop is None: stop = step*(num - 1) + start
+    The four possible cases are:
+    start is None: start = step*(1 - num) + stop
+    step is None: step = (stop - start)/(num - 1)
+    num is None: num = ceil((stop - start + step)/step);
+                 because of remainder stop = step*(num - 1) + start
+    stop is None: stop = step*(num - 1) + start
 
     Parameters
     ----------
@@ -86,21 +87,20 @@ class PointSource(SparseTimeFunction):
         The computational domain.
     time_range: `TimeAxis`
         TimeAxis(start, step, num) object.
-    npoint:
-        (Optional) number of sparse points represented by this source.
-    data:
-        (Optional) data values to initialise point data.
-    coordinates:
-        (Optional) point coordinates for this source.
-    space_order:
-        (Optional) space discretization order.
-    time_order:
-        (Optional) time discretization order (defaults to 2).
-    dtype:
-        (Optional) data type of the buffered data.
-    dimension:
-        (Optional) class:`Dimension` object for 
-        representing the number of points in this source.
+    npoint: (Optional)
+        Number of sparse points represented by this source.
+    data: (Optional)
+        Data values to initialise point data.
+    coordinates: (Optional)
+        Point coordinates for this source.
+    space_order: (Optional)
+        Space discretization order.
+    time_order: (Optional)
+        Time discretization order (defaults to 2).
+    dtype: (Optional)
+        Data type of the buffered data.
+    dimension: (Optional) `Dimension`
+        Represents the number of points in this source.
     """
 
     def __new__(cls, **kwargs):
@@ -220,7 +220,7 @@ class WaveletSource(PointSource):
         ----------
         f0: float
             Peak frequency in kHz.
-        t: 
+        t:
             Discretized values of time in ms.
         """
         raise NotImplementedError('Wavelet not defined')
@@ -261,7 +261,7 @@ class RickerSource(WaveletSource):
     ----------
     name: str
         Name for the resulting symbol.
-    grid: `Grid` 
+    grid: `Grid`
         The computational domain.
     f0: float
         Peak frequency for Ricker wavelet in kHz.
@@ -295,7 +295,7 @@ class GaborSource(WaveletSource):
     ----------
     name: str
         Name for the resulting symbol.
-    grid: `Grid` object 
+    grid: `Grid` object
         defining the computational domain.
     f0: float
         Peak frequency for Ricker wavelet in kHz.
