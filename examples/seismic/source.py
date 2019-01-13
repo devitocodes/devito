@@ -30,14 +30,14 @@ class TimeAxis(object):
 
     Parameters
     ----------
-    start: (Optional)
+    start: float (Optional)
         Start of time axis.
-    step: (Optional)
+    step: float (Optional)
         Time interval.
-    num: (Optional)
+    num: int (Optional)
         Number of values (Note: this is the number of intervals + 1).
         Stop value is reset to correct for remainder.
-    stop: (Optional)
+    stop: float (Optional)
         End time.
     """
     def __init__(self, start=None, step=None, num=None, stop=None):
@@ -87,7 +87,7 @@ class PointSource(SparseTimeFunction):
         The computational domain.
     time_range: `TimeAxis`
         TimeAxis(start, step, num) object.
-    npoint: (Optional)
+    npoint: int (Optional)
         Number of sparse points represented by this source.
     data: (Optional)
         Data values to initialise point data.
@@ -352,7 +352,7 @@ class DGaussSource(WaveletSource):
     def wavelet(self, f0, t, a):
         """
         Defines the 1st derivative of a Gaussian wavelet.
-    
+
         Parameters
         ----------
         f0: float
