@@ -14,7 +14,7 @@ __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
 
 
 class TimeAxis(object):
-    """ 
+    """
     Data object to store the time axis. Exactly three of the four key arguments
     must be prescribed. Because of remainder values it is not possible to create
     a time axis that exactly adhears to the inputs therefore start, stop, step
@@ -30,15 +30,15 @@ class TimeAxis(object):
 
     Parameters
     ----------
-    start:
-        (Optional) Start of time axis.
-    step:
-        (Optional) Time interval.
-    num:
-        (Optional) Number of values (Note: this is the number of intervals + 1).
-                 stop value is reset to correct for remainder.
-    stop:
-        (Optional) End time.
+    start: (Optional)
+        Start of time axis.
+    step: (Optional)
+        Time interval.
+    num: (Optional)
+        Number of values (Note: this is the number of intervals + 1).
+        Stop value is reset to correct for remainder.
+    stop: (Optional)
+        End time.
     """
     def __init__(self, start=None, step=None, num=None, stop=None):
         try:
@@ -187,7 +187,7 @@ class WaveletSource(PointSource):
     """
     Abstract base class for symbolic objects that encapsulate a set of
     sources with a pre-defined source signal wavelet.
-    
+
     Parameters
     ----------
     name: str
@@ -256,7 +256,7 @@ class RickerSource(WaveletSource):
     pre-defined Ricker wavelet:
 
     http://subsurfwiki.org/wiki/Ricker_wavelet
-    
+
     Parameters
     ----------
     name: str
@@ -272,7 +272,7 @@ class RickerSource(WaveletSource):
     def wavelet(self, f0, t):
         """
         Defines a Ricker wavelet with a peak frequency f0 at time t.
-        
+
         Parameters
         ----------
         f0: float
@@ -290,7 +290,7 @@ class GaborSource(WaveletSource):
     pre-defined Gabor wavelet:
 
     https://en.wikipedia.org/wiki/Gabor_wavelet
-    
+
     Parameters
     ----------
     name: str
@@ -343,16 +343,16 @@ class DGaussSource(WaveletSource):
         Peak frequency for wavelet in kHz.
     time: TimeAxis
         Discretized values of time in ms.
-    
+
     Returns
     ----------
     returns the 1st order derivative of the Gaussian wavelet
     """
-    
+
     def wavelet(self, f0, t, a):
         """
         Defines the 1st derivative of a Gaussian wavelet.
-        
+    
         Parameters
         ----------
         f0: float
