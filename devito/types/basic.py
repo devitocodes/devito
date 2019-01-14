@@ -16,7 +16,8 @@ from devito.symbolics import Add
 from devito.tools import (ArgProvider, EnrichedTuple, Pickable, ctypes_to_cstr,
                           dtype_to_cstr, dtype_to_ctype)
 
-__all__ = ['Symbol', 'Indexed']
+__all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object', 'LocalObject',
+           'CompositeObject']
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
@@ -67,7 +68,7 @@ class Basic(object):
     is_Dimension = False
     is_Constant = False
     # Tensor symbolic objects created by the user
-    is_TensorFunction = False
+    is_DiscreteFunction = False
     is_Function = False
     is_TimeFunction = False
     is_SparseTimeFunction = False
@@ -250,9 +251,11 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
         return self
 
     def _subs(self, old, new, **hints):
-        """This stub allows sympy.Basic.subs to operate on an expression
+        """
+        This stub allows sympy.Basic.subs to operate on an expression
         involving devito Scalars.  Ordinarily the comparisons between
-        devito subclasses of sympy types are quite strict."""
+        devito subclasses of sympy types are quite strict.
+        """
         try:
             if old.name == self.name:
                 return new
@@ -382,7 +385,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
                                 |
                  ---------------------------------
                  |                               |
-           TensorFunction                      Array
+         DiscreteFunction                      Array
                  |
          ----------------------------------------
          |                                      |
@@ -409,10 +412,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
                           points, i.e. points that are not aligned with the
                           computational grid.
         * PrecomputedSparseFunction: A SparseFunction that uses a custom interpolation
-                                     scheme, instead of the included linear interpolators.
+                                     scheme, instead of linear interpolators.
         * PrecomputedSparseTimeFunction: A SparseTimeFunction that uses a custom
-                                         interpolation scheme, instead of the included
-                                         linear interpolators.
+                                         interpolation scheme, instead of linear
+                                         interpolators.
     """
 
     is_AbstractFunction = True

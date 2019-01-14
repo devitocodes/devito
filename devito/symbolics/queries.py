@@ -35,8 +35,8 @@ def q_indexed(expr):
 
 
 def q_function(expr):
-    from devito.function import TensorFunction
-    return isinstance(expr, TensorFunction)
+    from devito.types.dense import DiscreteFunction
+    return isinstance(expr, DiscreteFunction)
 
 
 def q_terminal(expr):
@@ -84,7 +84,7 @@ def q_indirect(expr):
 
 
 def q_timedimension(expr):
-    from devito.dimension import Dimension
+    from devito.types import Dimension
     return isinstance(expr, Dimension) and expr.is_Time
 
 

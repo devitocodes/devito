@@ -208,7 +208,7 @@ def pow_to_mul(expr):
 
 def as_symbol(expr):
     """Cast composite SymPy objects to :class:`sympy.Symbol`."""
-    from devito.dimension import Dimension
+    from devito.types import Dimension
     try:
         return Number(expr)
     except (TypeError, ValueError):

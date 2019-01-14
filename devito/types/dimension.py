@@ -9,10 +9,11 @@ from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
 from devito.tools import ArgProvider, Pickable, dtype_to_cstr
-from devito.types import AbstractSymbol, Scalar
+from devito.types.basic import AbstractSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
+           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
+           'ModuloDimension', 'IncrDimension']
 
 
 class Dimension(AbstractSymbol, ArgProvider):
@@ -39,13 +40,13 @@ class Dimension(AbstractSymbol, ArgProvider):
     >>> grid = Grid(shape=(4, 4))
     >>> x, y = grid.dimensions
     >>> type(x)
-    <class 'devito.dimension.SpaceDimension'>
+    <class 'devito.types.dimension.SpaceDimension'>
     >>> time = grid.time_dim
     >>> type(time)
-    <class 'devito.dimension.TimeDimension'>
+    <class 'devito.types.dimension.TimeDimension'>
     >>> t = grid.stepping_dim
     >>> type(t)
-    <class 'devito.dimension.SteppingDimension'>
+    <class 'devito.types.dimension.SteppingDimension'>
 
     Alternatively, one can create Dimensions explicitly
 
@@ -637,6 +638,7 @@ class ConditionalDimension(DerivedDimension):
             f[g[i]] = f[g[i]] + 1;
           }
         }
+
     """
 
     is_NonlinearDerived = True

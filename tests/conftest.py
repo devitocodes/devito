@@ -11,9 +11,9 @@ from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # no
                     Constant, Function, TimeFunction, Eq, configuration, SparseFunction, # noqa
                     SparseTimeFunction)  # noqa
 from devito.compiler import sniff_mpi_distro
-from devito.types import Scalar, Array
 from devito.ir.iet import Iteration
 from devito.tools import as_tuple
+from devito.types import Scalar, Array
 
 try:
     from mpi4py import MPI  # noqa

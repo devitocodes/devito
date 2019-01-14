@@ -4,13 +4,12 @@ from ctypes import c_void_p
 from itertools import product
 
 from devito.data import OWNED, HALO, NOPAD, LEFT, RIGHT
-from devito.dimension import Dimension
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls)
 from devito.symbolics import CondNe, FieldFromPointer, Macro
-from devito.types import Array, Symbol, LocalObject
 from devito.tools import dtype_to_mpitype
+from devito.types import Array, Dimension, Symbol, LocalObject
 
 __all__ = ['copy', 'sendrecv', 'update_halo']
 
@@ -111,7 +110,7 @@ def sendrecv(f, fixed):
 
 def update_halo(f, fixed):
     """
-    Construct an IET performing a halo exchange for a :class:`TensorFunction`.
+    Construct an IET performing a halo exchange for a :class:`DiscreteFunction`.
     """
     # Requirements
     assert f.is_Function

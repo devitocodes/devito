@@ -15,7 +15,7 @@ class OperatorCore(Operator):
 
     def _specialize_exprs(self, expressions):
         # Align data accesses to the computational domain
-        key = lambda i: i.is_TensorFunction
+        key = lambda i: i.is_DiscreteFunction
         expressions = [align_accesses(e, key=key) for e in expressions]
         return super(OperatorCore, self)._specialize_exprs(expressions)
 
@@ -25,7 +25,7 @@ class OperatorCore(Operator):
 
         halo_spots = FindNodes(HaloSpot).visit(iet)
 
-        # For each MPI-distributed TensorFunction, generate all necessary
+        # For each MPI-distributed DiscreteFunction, generate all necessary
         # C-level routines to perform a halo update
         callables = OrderedDict()
         for hs in halo_spots:

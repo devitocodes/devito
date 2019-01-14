@@ -20,12 +20,12 @@ from devito.yask.transformer import make_yask_ast
 class YaskKernel(object):
 
     """
-    A ``YaskKernel`` wraps a YASK kernel solution.
+    A wrapper for a YASK kernel solution.
     """
 
     def __init__(self, name, yc_soln, local_grids=None):
         """
-        Write out a YASK kernel, build it using YASK's Makefiles,
+        Write out a YASK kernel, compile it using the YASK's Makefiles,
         import the corresponding SWIG-generated Python module, and finally
         create a YASK kernel solution object.
 
@@ -156,7 +156,7 @@ class YaskKernel(object):
             Mapper ``Function -> Data`` for grid-storage sharing.
         """
         # Sanity check
-        grids = {i.grid for i in toshare if i.is_TensorFunction and i.grid is not None}
+        grids = {i.grid for i in toshare if i.is_DiscreteFunction and i.grid is not None}
         assert len(grids) == 1
         grid = grids.pop()
 
@@ -248,15 +248,15 @@ class YaskContext(Signer):
         """
         Proxy between Devito and YASK.
 
-        A ``YaskContext`` contains N :class:`YaskKernel` and M :class:`Data`,
-        which have common space and time dimensions.
+        A YaskContext contains YaskKernel and Data having common SpaceDimensions
+        and TimeDimension.
 
         Parameters
         ----------
         name : str
             Unique name of the context.
         grid : Grid
-            A :class:`Grid` carrying the context dimensions.
+            A Grid carrying the context Dimensions.
         """
         self.name = name
         self.space_dimensions = grid.dimensions
@@ -277,13 +277,12 @@ class YaskContext(Signer):
 
     def make_grid(self, obj):
         """
-        Create and return a new :class:`Data`, a YASK grid wrapper. Memory
-        is allocated.
+        Create a Data wrapping a YASK grid. Memory is allocated.
 
         Parameters
         ----------
         obj : Function
-            The :class:`Function` for which a YASK grid is allocated.
+            The symbolic object for which a new YASK grid is created.
         """
         # 'hook' compiler solution: describes the grid
         # 'hook' kernel solution: allocates memory
@@ -337,7 +336,7 @@ class YaskContext(Signer):
         return grid
 
     def make_yc_solution(self, name):
-        """Create and return a YASK compiler solution object."""
+        """Create a YASK compiler solution."""
         yc_soln = cfac.new_solution(name)
 
         # Redirect stdout/strerr to a string or file
@@ -366,8 +365,7 @@ class YaskContext(Signer):
 
     def make_yk_solution(self, name, yc_soln, local_grids):
         """
-        Create and return a new :class:`YaskKernel` using ``yc_soln`` as
-        compiler solution.
+        Create a YaskKernel using ``yc_soln`` as YASK compiler solution.
         """
         soln = YaskKernel(name, yc_soln, local_grids)
         self.solutions.append(soln)
@@ -414,8 +412,8 @@ class ContextManager(OrderedDict):
 
     def fetch(self, dimensions, dtype):
         """
-        Fetch the :class:`YaskContext` in ``self`` uniquely identified by
-        ``dimensions`` and ``dtype``.
+        Fetch the YaskContext in ``self`` uniquely identified by ``dimensions`` and
+        ``dtype``.
         """
         key = self._getkey(None, dtype, dimensions)
 
@@ -428,8 +426,8 @@ class ContextManager(OrderedDict):
 
     def putdefault(self, grid):
         """
-        Derive a key ``K`` from the :class:`Grid` ``grid``; if ``K`` in ``self``,
-        return the existing :class:`YaskContext` ``self[K]``, otherwise create a
+        Derive a unique key ``K`` from a Grid`; if ``K`` is in ``self``,
+        return the pre-existing YaskContext ``self[K]``, otherwise create a
         new context ``C``, set ``self[K] = C`` and return ``C``.
         """
         assert grid is not None

@@ -2,6 +2,6 @@
 Grid
 ====
 
-.. autoclass:: devito.grid.Grid
+.. autoclass:: devito.types.Grid
     :members:
     :show-inheritance:

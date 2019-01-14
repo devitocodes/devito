@@ -7,7 +7,7 @@ from devito.dse.backends import BasicRewriter, dse_pass
 from devito.symbolics import Eq, estimate_cost, xreplace_constrained, iq_timeinvariant
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
-from devito.types import Indexed, Scalar, Array
+from devito.types import Array, Indexed, Scalar
 
 
 class AdvancedRewriter(BasicRewriter):

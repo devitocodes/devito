@@ -1,11 +1,11 @@
 from cached_property import cached_property
 from sympy import Basic, S
 
-from devito.dimension import Dimension
 from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_affine, q_inc
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth)
+from devito.types import Dimension
 
 __all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
 
@@ -701,7 +701,7 @@ class DependenceGroup(list):
 
     @cached_property
     def functions(self):
-        """Return the :class:`TensorFunction`s inducing a dependence."""
+        """Return the DiscreteFunctions inducing a dependence."""
         return frozenset({i.function for i in self})
 
     @cached_property
