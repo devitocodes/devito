@@ -5,7 +5,7 @@ from devito.ir.support import (Scope, DataSpace, IterationSpace, detect_flow_dir
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, xreplace_indices
 from devito.tools import flatten
-from devito.types.basic import Scalar
+from devito.types import Scalar
 
 __all__ = ['clusterize', 'groupby']
 

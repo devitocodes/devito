@@ -6,8 +6,9 @@ import numpy as np
 from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap, as_tuple
-from devito.types import (Constant, Dimension, SpaceDimension, TimeDimension,
-                          SteppingDimension, SubDimension)
+from devito.types.constant import Constant
+from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
+                                    SteppingDimension, SubDimension)
 
 __all__ = ['Grid', 'SubDomain']
 
@@ -284,7 +285,7 @@ class SubDomain(object):
     To create a new SubDomain, all one needs to do is overriding :meth:`define`.
     This method takes as input a set of Dimensions and produce a mapper
 
-        M : Dimensions -> {d, ('left', N), ('middle', N, M), ('right', N)}
+        ``M : Dimensions -> {d, ('left', N), ('middle', N, M), ('right', N)}``
 
     so that:
 

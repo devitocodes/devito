@@ -21,10 +21,10 @@ pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.mark.parametrize('modname', [
-    'types.dimension', 'equation', 'types.dense', 'types.grid', 'operator',
+    'types.basic', 'types.dimension', 'types.constant', 'types.grid',
+    'types.dense', 'types.sparse', 'equation', 'operator',
     'data.decomposition', 'finite_differences.finite_difference',
-    'ir.support.space', 'types.sparse', 'types.constant',
-    'types.basic'
+    'ir.support.space'
 ])
 def test_docstrings(modname):
     module = import_module('devito.%s' % modname)

@@ -122,23 +122,22 @@ def search(expr, query, mode='unique', visit='dfs', deep=False):
 
 
 def retrieve_indexed(expr, mode='unique', deep=False):
-    """Shorthand to retrieve the :class:`Indexed`s in ``expr``."""
+    """Shorthand to retrieve the Indexeds in ``expr``."""
     return search(expr, q_indexed, mode, 'dfs', deep)
 
 
 def retrieve_functions(expr, mode='unique'):
-    """Shorthand to retrieve the :class:`DiscretizedFunction`s in ``expr``."""
+    """Shorthand to retrieve the DiscretizedFunctions in ``expr``."""
     return search(expr, q_function, mode, 'dfs')
 
 
 def retrieve_function_carriers(expr, mode='unique'):
     """
-    Shorthand to retrieve the :class:`DiscretizedFunction` carriers in ``expr``. An
+    Shorthand to retrieve the DiscretizedFunction carriers in ``expr``. An
     object carreis a DiscretizedFunction if any of the following conditions are met: ::
 
         * it is itself a DiscretizedFunction, OR
-        * it is a :class:`types.Indexed`, which internally has a pointer to a
-          DiscretizedFunction
+        * it is an Indexed, which internally has a pointer to a DiscretizedFunction.
     """
     query = lambda i: q_function(i) or q_indexed(i)
     retval = search(expr, query, mode, 'dfs')
@@ -152,7 +151,7 @@ def retrieve_function_carriers(expr, mode='unique'):
 
 
 def retrieve_terminals(expr, mode='unique', deep=False):
-    """Shorthand to retrieve :class:`Indexed`s and :class:`Symbol`s within ``expr``."""
+    """Shorthand to retrieve Indexeds and Symbols within ``expr``."""
     return search(expr, q_terminal, mode, 'dfs', deep)
 
 

@@ -12,6 +12,7 @@ from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, RIGHT,
                          Data, default_allocator)
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
+from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import Add, FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
@@ -21,13 +22,14 @@ from devito.types.dimension import Dimension
 from devito.types.basic import AbstractCachedFunction
 from devito.types.utils import Buffer, NODE, CELL
 
-__all__ = ['Function', 'TimeFunction', 'DiscretizedFunction']
+__all__ = ['Function', 'TimeFunction']
 
 
 class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     """
     Symbol representing a discrete array in symbolic equations. Unlike an
     Array, a DiscretizedFunction carries data.
+
     Notes
     -----
     Users should not instantiate this class directly. Use Function or
@@ -117,7 +119,8 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
 
     def __staggered_setup__(self, **kwargs):
         """
-        Setup staggering-related metadata. This method assigns: ::
+        Setup staggering-related metadata. This method assigns:
+
             * 0 to non-staggered dimensions;
             * 1 to staggered dimensions.
         """
@@ -151,8 +154,10 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
 
     @property
     def _data_buffer(self):
-        """Reference to the data. Unlike :attr:`data` and :attr:`data_with_halo`,
-        this *never* returns a view of the data. This method is for internal use only."""
+        """
+        Reference to the data. Unlike :attr:`data` and :attr:`data_with_halo`,
+        this *never* returns a view of the data. This method is for internal use only.
+        """
         return self._data_allocated
 
     @property
@@ -177,6 +182,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         """
         Shape of the domain region. The domain constitutes the area of the
         data written to by an Operator.
+
         Notes
         -----
         In an MPI context, this is the *local* domain region shape.
@@ -188,6 +194,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         """
         Shape of the domain region. The domain constitutes the area of the
         data written to by an Operator.
+
         Notes
         -----
         In an MPI context, this is the *local* domain region shape.
@@ -200,6 +207,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         """
         Shape of the domain+outhalo region. The outhalo is the region
         surrounding the domain that may be read by an Operator.
+
         Notes
         -----
         In an MPI context, this is the *local* with_halo region shape.
@@ -219,6 +227,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         outhalo as well as any additional "ghost" layers for MPI halo
         exchanges. Data in the inhalo region are exchanged when running
         Operators to maintain consistent values as in sequential runs.
+
         Notes
         -----
         Typically, this property won't be used in user code, but it may come
@@ -231,6 +240,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         """
         Shape of the allocated data. It includes the domain and inhalo regions,
         as well as any additional padding surrounding the halo.
+
         Notes
         -----
         In an MPI context, this is the *local* with_halo region shape.
@@ -243,6 +253,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         """
         Global shape of the domain region. The domain constitutes the area of
         the data written to by an Operator.
+
         Notes
         -----
         In an MPI context, this is the *global* domain region shape, which is
@@ -324,7 +335,9 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def data(self):
         """
         The domain data values, as a numpy.ndarray.
+
         Elements are stored in row-major format.
+
         Notes
         -----
         With this accessor you are claiming that you will modify the values you
@@ -338,10 +351,13 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def data_domain(self):
         """
         The domain data values.
+
         Elements are stored in row-major format.
+
         Notes
         -----
         Alias to ``self.data``.
+
         With this accessor you are claiming that you will modify the values you
         get back. If you only need to look at the values, use
         :meth:`data_ro_domain` instead.
@@ -354,7 +370,9 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def data_with_halo(self):
         """
         The domain+outhalo data values.
+
         Elements are stored in row-major format.
+
         Notes
         -----
         With this accessor you are claiming that you will modify the values you
@@ -372,13 +390,17 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def _data_with_inhalo(self):
         """
         The domain+inhalo data values.
+
         Elements are stored in row-major format.
+
         Notes
         -----
         This accessor does *not* support global indexing.
+
         With this accessor you are claiming that you will modify the values you
         get back. If you only need to look at the values, use
         :meth:`data_ro_with_inhalo` instead.
+
         Typically, this accessor won't be used in user code to set or read data
         values. Instead, it may come in handy for testing or debugging
         """
@@ -391,13 +413,17 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def _data_allocated(self):
         """
         The allocated data values, that is domain+inhalo+padding.
+
         Elements are stored in row-major format.
+
         Notes
         -----
         This accessor does *not* support global indexing.
+
         With this accessor you are claiming that you will modify the values you
         get back. If you only need to look at the values, use
         :meth:`data_ro_allocated` instead.
+
         Typically, this accessor won't be used in user code to set or read data
         values. Instead, it may come in handy for testing or debugging
         """
@@ -408,20 +434,26 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def _data_in_region(self, region, dim, side):
         """
         The data values in a given region.
+
         Parameters
         ----------
         region : DataRegion
-            The data region of interest (e.g., OWNED, HALO) for which a view is produced.
+            The data region of interest (e.g., OWNED, HALO) for which a view
+            is produced.
         dim : Dimension
             The dimension of interest.
         side : DataSide
             The side of interest (LEFT, RIGHT).
+
         Notes
         -----
         This accessor does *not* support global indexing.
+
         With this accessor you are claiming that you will modify the values you
         get back.
-        Typically, this accessor won't be used in user code to set or read data values.
+
+        Typically, this accessor won't be used in user code to set or read
+        data values.
         """
         self._is_halo_dirty = True
         offset = getattr(getattr(self, '_offset_%s' % region.name)[dim], side.name)
@@ -453,6 +485,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def _data_ro_with_inhalo(self):
         """
         Read-only view of the domain+inhalo data values.
+
         Notes
         -----
         This accessor does *not* support global indexing.
@@ -466,6 +499,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def _data_ro_allocated(self):
         """
         Read-only view of the domain+inhalo+padding data values.
+
         Notes
         -----
         This accessor does *not* support global indexing.
@@ -479,10 +513,11 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         """
         Tuple of slices representing the global indices that logically
         belong to the calling MPI rank.
+
         Notes
         -----
         Given a Function ``f(x, y)`` with shape ``(nx, ny)``, when *not* using
-        MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``.  On
+        MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``. On
         the other hand, when MPI is used, the local ranges depend on the domain
         decomposition, which is carried by ``self.grid``.
         """
@@ -514,7 +549,8 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     @cached_property
     def symbolic_shape(self):
         """
-        The symbolic shape of the object. This includes: ::
+        The symbolic shape of the object. This includes:
+
             * the domain, halo, and padding regions. While halo and padding are
               known quantities (integers), the domain size is represented by a symbol.
             * the shifting induced by the ``staggered`` mask.
@@ -614,7 +650,6 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         return RegionMeta(offset, size)
 
     def _halo_exchange(self):
-        from devito.mpi import MPI
         """Perform the halo exchange with the neighboring processes."""
         if not MPI.Is_initialized() or MPI.COMM_WORLD.size == 1:
             # Nothing to do
@@ -646,7 +681,6 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
 
     def __halo_end_exchange(self, dim):
         """End a halo exchange along a given Dimension."""
-        from devito.mpi import MPI
         for d, i, payload, req in list(self._in_flight):
             if d == dim:
                 status = MPI.Status()
@@ -666,9 +700,10 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def _arg_defaults(self, alias=None):
         """
         A map of default argument values defined by this symbol.
+
         Parameters
         ----------
-        alias : DiscretizedFunction, optiona;
+        alias : DiscretizedFunction, optional
             To bind the argument values to different names.
         """
         key = alias or self
@@ -688,6 +723,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         """
         A map of argument values after evaluating user input. If no
         user input is provided, return a default value.
+
         Parameters
         ----------
         **kwargs
@@ -718,6 +754,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def _arg_check(self, args, intervals):
         """
         Check that ``args`` contains legal runtime values bound to ``self``.
+
         Raises
         ------
         InvalidArgument
@@ -752,6 +789,7 @@ class Function(DiscretizedFunction, Differentiable):
 
     A Function carries multi-dimensional data and provides operations to create
     finite-differences approximations.
+
     A Function encapsulates space-varying data; for data that also varies in time,
     use TimeFunction instead.
 
@@ -1076,12 +1114,12 @@ class TimeFunction(Function):
 
     Notes
     -----
-    The parameters must always be given as keyword arguments, since SymPy
-    uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
-    If the parameter `grid` is provided, the values for `shape`, `dimensions` and `dtype`
-    will be derived from it. When present, the parameter ``shape`` should only define the
-    spatial shape of the grid. The temporal dimension will be inserted automatically as
-    the leading dimension.
+    The parameters must always be given as keyword arguments, since SymPy uses
+    ``*args`` to (re-)create the dimension arguments of the symbolic object.
+    If the parameter ``grid`` is provided, the values for ``shape``,
+    ``dimensions`` and ``dtype`` will be derived from it. When present, the
+    parameter ``shape`` should only define the spatial shape of the grid. The
+    temporal dimension will be inserted automatically as the leading dimension.
     """
 
     is_TimeFunction = True

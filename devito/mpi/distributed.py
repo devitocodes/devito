@@ -8,9 +8,9 @@ from cached_property import cached_property
 import numpy as np
 
 from devito.data import LEFT, RIGHT, Decomposition
-from devito.types.basic import CompositeObject, Object
 from devito.parameters import configuration
 from devito.tools import EnrichedTuple, as_tuple, is_integer
+from devito.types import CompositeObject, Object
 
 
 # Do not prematurely initialize MPI

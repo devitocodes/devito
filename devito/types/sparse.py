@@ -8,15 +8,14 @@ from cached_property import cached_property
 from devito.cgen_utils import INT, cast_mapper
 from devito.equation import Eq, Inc
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.types.dense import DiscretizedFunction, Function, SubFunction
-from devito.types.dimension import Dimension, ConditionalDimension, DefaultDimension
-from devito.types.basic import Symbol, Scalar
 from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
 from devito.symbolics import indexify, retrieve_function_carriers
 from devito.tools import (ReducerMap, flatten, prod, powerset,
                           filter_ordered, memoized_meth)
-
+from devito.types.dense import DiscretizedFunction, Function, SubFunction
+from devito.types.dimension import Dimension, ConditionalDimension, DefaultDimension
+from devito.types.basic import Symbol, Scalar
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction']
@@ -231,7 +230,7 @@ class AbstractSparseFunction(DiscretizedFunction, Differentiable):
 
     def _dist_scatter(self):
         """
-        Return a ``numpy.ndarray`` containing up-to-date data values belonging
+        A ``numpy.ndarray`` containing up-to-date data values belonging
         to the calling MPI rank. A data value belongs to a given MPI rank R
         if its coordinates fall within R's local domain.
         """
@@ -239,7 +238,7 @@ class AbstractSparseFunction(DiscretizedFunction, Differentiable):
 
     def _dist_gather(self, data):
         """
-        Return a ``numpy.ndarray`` containing up-to-date data and coordinate values
+        A ``numpy.ndarray`` containing up-to-date data and coordinate values
         suitable for insertion into ``self.data``.
         """
         raise NotImplementedError
@@ -431,11 +430,13 @@ class SparseFunction(AbstractSparseFunction):
     -----
     The parameters must always be given as keyword arguments, since SymPy
     uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
-    About SparseFunction and MPI. There is a clear difference between: ::
+    About SparseFunction and MPI. There is a clear difference between:
+
         * Where the sparse points *physically* live, i.e., on which MPI rank. This
           depends on the user code, particularly on how the data is set up.
         * and which MPI rank *logically* owns a given sparse point. The logical
           ownership depends on where the sparse point is located within ``self.grid``.
+
     Right before running an Operator (i.e., upon a call to ``op.apply``), a
     SparseFunction "scatters" its physically owned sparse points so that each
     MPI rank gets temporary access to all of its logically owned sparse points.
@@ -498,11 +499,12 @@ class SparseFunction(AbstractSparseFunction):
         """
         Symbolic expression for the coefficients for sparse point interpolation
         according to:
-        https://en.wikipedia.org/wiki/Bilinear_interpolation.
+
+            https://en.wikipedia.org/wiki/Bilinear_interpolation.
 
         Returns
         -------
-        Matrix of coefficient expressions
+        Matrix of coefficient expressions.
         """
         # Grid indices corresponding to the corners of the cell ie x1, y1, z1
         indices1 = tuple(sympy.symbols('%s1' % d) for d in self.grid.dimensions)
@@ -635,7 +637,7 @@ class SparseFunction(AbstractSparseFunction):
 
         Parameters
         ----------
-        expr : sympy.Expr
+        expr : expr-like
             Input expression to interpolate.
         offset : int, optional
             Additional offset from the boundary.
@@ -669,7 +671,7 @@ class SparseFunction(AbstractSparseFunction):
         ----------
         field : Function
             Input field into which the injection is performed.
-        expr : sympy.Expr
+        expr : expr-like
             Injected expression.
         offset : int, optional
             Additional offset from the boundary.
@@ -688,15 +690,14 @@ class SparseFunction(AbstractSparseFunction):
 
     def guard(self, expr=None, offset=0):
         """
-        Generate a guarded expression, that is expressions that are
-        evaluated by an Operator only if certain conditions are met.
-        The introduced condition, here, is that all grid points in the
-        support of a sparse value must fall within the grid domain (i.e.,
-        *not* on the halo).
+        Generate guarded expressions, that is expressions that are evaluated
+        by an Operator only if certain conditions are met.  The introduced
+        condition, here, is that all grid points in the support of a sparse
+        value must fall within the grid domain (i.e., *not* on the halo).
 
         Parameters
         ----------
-        expr : sympy.Expr, optional
+        expr : expr-like, optional
             Input expression, from which the guarded expression is derived.
             If not specified, defaults to ``self``.
         offset : int, optional
@@ -912,7 +913,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
 
         Parameters
         ----------
-        expr : sympy.Expr
+        expr : expr-like
             Input expression to interpolate.
         offset : int, optional
             Additional offset from the boundary.
@@ -945,7 +946,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         ----------
         field : Function
             Input field into which the injection is performed.
-        expr : sympy.Expr
+        expr : expr-like
             Injected expression.
         offset : int, optional
             Additional offset from the boundary.
@@ -1066,7 +1067,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
         Parameters
         ----------
-        expr : sympy.Expr
+        expr : expr-like
             Input expression to interpolate.
         offset : int, optional
             Additional offset from the boundary.
@@ -1096,7 +1097,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         ----------
         field : Function
             Input field into which the injection is performed.
-        expr : sympy.Expr
+        expr : expr-like
             Injected expression.
         offset : int, optional
             Additional offset from the boundary.
@@ -1209,7 +1210,7 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
 
         Parameters
         ----------
-        expr : sympy.Expr
+        expr : expr-like
             Input expression to interpolate.
         offset : int, optional
             Additional offset from the boundary.

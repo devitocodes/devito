@@ -21,6 +21,8 @@ init_dle(modes)
 
 # The following used by backends.backendSelector
 from devito.core.operator import OperatorCore as Operator  # noqa
-from devito.types import *  # noqa
+from devito.types.constant import *  # noqa
+from devito.types.dense import *  # noqa
+from devito.types.sparse import *  # noqa
 from devito.types.basic import CacheManager  # noqa
 from devito.types.grid import Grid  # noqa

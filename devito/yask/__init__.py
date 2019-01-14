@@ -97,9 +97,7 @@ init_dle(modes)
 
 # The following used by backends.backendSelector
 from devito.types import SparseFunction, SparseTimeFunction  # noqa
-from devito.yask.function import Constant, Function, TimeFunction  # noqa
-from devito.yask.grid import Grid  # noqa
+from devito.yask.types import CacheManager, Grid, Constant, Function, TimeFunction  # noqa
 from devito.yask.operator import OperatorYASK as Operator  # noqa
-from devito.yask.types import CacheManager  # noqa
 
 log("Backend successfully initialized!")

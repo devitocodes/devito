@@ -10,8 +10,7 @@ from devito.ir.iet import (Denormals, Call, Callable, List, ArrayCast,
 from devito.parameters import configuration
 from devito.symbolics import as_symbol
 from devito.tools import flatten
-from devito.types.basic import Scalar
-from devito.types.dimension import IncrDimension
+from devito.types import Scalar, IncrDimension
 
 
 class BasicRewriter(AbstractRewriter):

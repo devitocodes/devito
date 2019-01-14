@@ -184,7 +184,7 @@ class FlowGraph(OrderedDict):
                 elif isinstance(i, Dimension):
                     # Go on with the search, as /i/ is not a time dimension
                     pass
-                elif not i.base.function.is_DiscretizedFunction:
+                elif not i.function.is_DiscretizedFunction:
                     # It didn't come from the outside and it's not in self, so
                     # cannot determine if time-invariant; assume time-varying
                     return False
@@ -262,7 +262,7 @@ class FlowGraph(OrderedDict):
         Return all symbols appearing in self for which a node is not available.
         """
         known = {v.function for v in self.values()}
-        reads = set([i.base.function for i in
+        reads = set([i.function for i in
                      flatten(retrieve_terminals(v.rhs) for v in self.values())])
         return reads - known
 
@@ -275,7 +275,7 @@ class FlowGraph(OrderedDict):
         for v in self.values():
             handle = retrieve_indexed(v)
             for i in handle:
-                found = mapper.setdefault(i.base.function, [])
+                found = mapper.setdefault(i.function, [])
                 if i not in found:
                     # Not using sets to preserve order
                     found.append(i)

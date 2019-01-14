@@ -9,8 +9,7 @@ from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls)
 from devito.symbolics import CondNe, FieldFromPointer, Macro
 from devito.tools import dtype_to_mpitype
-from devito.types import Dimension
-from devito.types.basic import Array, Symbol, LocalObject
+from devito.types import Array, Dimension, Symbol, LocalObject
 
 __all__ = ['copy', 'sendrecv', 'update_halo']
 

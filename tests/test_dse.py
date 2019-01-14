@@ -11,7 +11,7 @@ from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
 from devito.tools import generator
-from devito.types.basic import Scalar
+from devito.types import Scalar
 
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry

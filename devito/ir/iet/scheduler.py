@@ -7,7 +7,7 @@ from devito.ir.iet import (Expression, Increment, LocalExpression, Element, Iter
                            FindSymbols, XSubs, iet_analyze, filter_iterations)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper
-from devito.types.dimension import ConditionalDimension
+from devito.types import ConditionalDimension
 
 __all__ = ['iet_build', 'iet_insert_C_decls']
 
