@@ -7,7 +7,7 @@ import atexit
 from cached_property import cached_property
 import numpy as np
 
-from devito.data import LEFT, RIGHT, Decomposition
+from devito.data import LEFT, CENTER, RIGHT, Decomposition
 from devito.parameters import configuration
 from devito.tools import EnrichedTuple, as_tuple, is_integer
 from devito.types import CompositeObject, Object
@@ -315,18 +315,43 @@ class Distributor(AbstractDistributor):
         return tuple(ret) if len(indices) > 1 else ret[0]
 
     @property
-    def neighbours(self):
+    def neighborhood(self):
         """
-        A mapper ``proc -> side``; ``proc`` is the rank of an MPI
-        process adjacent to the caller (a "neighbour"), while ``side``
-        tells whether ``proc`` is logically at its right (1) or left (-1).
+        A mapper ``M`` describing the calling MPI rank's neighborhood in the
+        decomposed grid. Let
+
+            * ``d`` be a Dimension -- ``d0, d1, ..., dn`` are the decomposed
+              Dimensions.
+            * ``s`` be a DataSide -- possible values are ``LEFT, CENTER, RIGHT``,
+            * ``p`` be the rank of a neighbour MPI process.
+
+        Then ``M`` can be indexed in two ways:
+
+            * ``M[d] -> (s -> p)``; that is, ``M[d]`` returns a further mapper
+              (from DataSide to MPI rank) from which the two adjacent processes
+              along ``d`` can be retrieved.
+            * ``M[(s0, s1, ..., sn)] -> p``, where ``s0`` is the DataSide along
+              ``d0``, ``s1`` the DataSide along ``d1``, and so on. This can be
+              useful to retrieve the diagonal neighbours (e.g., ``M[(LEFT, LEFT)]``
+              gives the top-left neighbour in a 2D grid).
         """
-        shifts = {d: self._comm.Shift(i, 1) for i, d in enumerate(self.dimensions)}
+        # Set up horizontal neighbours
+        shifts = {d: self.comm.Shift(i, 1) for i, d in enumerate(self.dimensions)}
         ret = {}
         for d, (src, dest) in shifts.items():
             ret[d] = {}
             ret[d][LEFT] = src
             ret[d][RIGHT] = dest
+
+        # Set up diagonal neighbours
+        for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
+            neighbor = [c + s.val for c, s in zip(self.mycoords, i)]
+            try:
+                ret[i] = self.comm.Get_cart_rank(neighbor)
+            except:
+                # Fallback for MPI ranks at the grid boundary
+                ret[i] = MPI.PROC_NULL
+
         return ret
 
     @cached_property
@@ -335,16 +360,16 @@ class Distributor(AbstractDistributor):
         return MPICommObject(self.comm)
 
     @cached_property
-    def _obj_neighbours(self):
+    def _obj_neighborhood(self):
         """
         A CompositeObject describing the calling MPI rank's neighborhood
         in the decomposed grid.
         """
         entries = list(product(self.dimensions, [LEFT, RIGHT]))
-        fields = ['%s%s' % (d, i) for d, i in entries]
+        fields = ['%s%s' % (d, i.name) for d, i in entries]
         obj = MPINeighborhood(fields)
         for d, i in entries:
-            setattr(obj.value._obj, '%s%s' % (d, i), self.neighbours[d][i])
+            setattr(obj.value._obj, '%s%s' % (d, i.name), self.neighborhood[d][i])
         return obj
 
 

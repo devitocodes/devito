@@ -46,7 +46,7 @@ class TestDistributor(object):
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
     @pytest.mark.parallel(nprocs=[2, 4])
-    def test_ctypes_neighbours(self):
+    def test_ctypes_neighborhood(self):
         grid = Grid(shape=(4, 4))
         distributor = grid.distributor
 
@@ -58,11 +58,39 @@ class TestDistributor(object):
         }
 
         mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
-        obj = distributor._obj_neighbours
+        obj = distributor._obj_neighborhood
         assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
 
+    @pytest.mark.parallel(nprocs=9)
+    def test_neighborhood_horizontal_2d(self):
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions
 
-class TestFunction(object):
+        distributor = grid.distributor
+        # Rank map:
+        # ---------------y
+        # | 0 | 1 | 2 |
+        # -------------
+        # | 3 | 4 | 5 |
+        # -------------
+        # | 6 | 7 | 8 |
+        # -------------
+        # |
+        # x
+        PN = MPI.PROC_NULL
+        expected = {
+            0: {x: {LEFT: PN, RIGHT: 3}, y: {LEFT: PN, RIGHT: 1}},
+            1: {x: {LEFT: PN, RIGHT: 4}, y: {LEFT: 0, RIGHT: 2}},
+            2: {x: {LEFT: PN, RIGHT: 5}, y: {LEFT: 1, RIGHT: PN}},
+            3: {x: {LEFT: 0, RIGHT: 6}, y: {LEFT: PN, RIGHT: 4}},
+            4: {x: {LEFT: 1, RIGHT: 7}, y: {LEFT: 3, RIGHT: 5}},
+            5: {x: {LEFT: 2, RIGHT: 8}, y: {LEFT: 4, RIGHT: PN}},
+            6: {x: {LEFT: 3, RIGHT: PN}, y: {LEFT: PN, RIGHT: 7}},
+            7: {x: {LEFT: 4, RIGHT: PN}, y: {LEFT: 6, RIGHT: 8}},
+            8: {x: {LEFT: 5, RIGHT: PN}, y: {LEFT: 7, RIGHT: PN}},
+        }
+        assert expected[distributor.myrank][x] == distributor.neighborhood[x]
+        assert expected[distributor.myrank][y] == distributor.neighborhood[y]
 
     @pytest.mark.parallel(nprocs=9)
     def test_neighborhood_2d(self):

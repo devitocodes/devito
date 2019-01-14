@@ -131,7 +131,7 @@ def make_sendrecv(f, fixed, extra=None):
 def make_update_halo(f, fixed, extra=None):
     """Construct an IET performing a halo exchange for a DiscreteFunction."""
     distributor = f.grid.distributor
-    nb = distributor._obj_neighbours
+    nb = distributor._obj_neighborhood
     comm = distributor._obj_comm
 
     fixed = {d: Symbol(name="o%s" % d.root) for d in fixed}

@@ -44,7 +44,7 @@ class OperatorCore(Operator):
                 # Replace HaloSpots with suitable calls performing the halo update
                 stencil = [int(i) for i in hs.mask[f].values()]
                 comm = f.grid.distributor._obj_comm
-                nb = f.grid.distributor._obj_neighbours
+                nb = f.grid.distributor._obj_neighborhood
                 loc_indices = list(v.loc_indices.values())
                 arguments = [f] + stencil + [comm, nb] + loc_indices + extra
                 call = Call('halo_exchange_%s' % f.name, arguments)
