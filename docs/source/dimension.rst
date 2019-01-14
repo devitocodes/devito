@@ -2,6 +2,6 @@
 Dimension
 =========
 
-.. automodule:: devito.dimension
+.. automodule:: devito.types.dimension
     :members:
     :show-inheritance:
