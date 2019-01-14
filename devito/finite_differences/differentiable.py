@@ -54,6 +54,10 @@ class Differentiable(sympy.Expr):
     def _fd(self):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
 
+    @cached_property
+    def stencil(self):
+        return self
+
     def __hash__(self):
         return super(Differentiable, self).__hash__()
 
@@ -66,7 +70,7 @@ class Differentiable(sympy.Expr):
             This method acts as a fallback for __getattribute__
         """
         if name in self._fd:
-            return self._fd[name]
+            return self._fd[name][0](self)
         raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
 
     # Override SymPy arithmetic operators
