@@ -1,11 +1,13 @@
 ./_modules/cached_property.html
 ./_modules/devito/builtins.html
-./_modules/devito/dimension.html
 ./_modules/devito/equation.html
 ./_modules/devito/finite_differences/finite_difference.html
-./_modules/devito/function.html
-./_modules/devito/grid.html
 ./_modules/devito/operator.html
+./_modules/devito/types/constant.html
+./_modules/devito/types/dense.html
+./_modules/devito/types/dimension.html
+./_modules/devito/types/grid.html
+./_modules/devito/types/sparse.html
 ./_modules/index.html
 ./_modules/numpy.html
 ./_sources/builtins.rst.txt

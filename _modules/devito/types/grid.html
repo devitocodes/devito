@@ -8,12 +8,12 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.grid &mdash; Devito v3.4</title>
+  <title>devito.types.grid &mdash; Devito v3.4</title>
   
 
   
   
-    <link rel="shortcut icon" href="../../_static/devito_logo.png"/>
+    <link rel="shortcut icon" href="../../../_static/devito_logo.png"/>
   
   
   
@@ -26,15 +26,15 @@
 
   
 
-  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
-    <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" />
-    <link href="../../_static/devito_style.css" rel="stylesheet" type="text/css">
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link href="../../../_static/devito_style.css" rel="stylesheet" type="text/css">
 
 
   
-  <script src="../../_static/js/modernizr.min.js"></script>
+  <script src="../../../_static/js/modernizr.min.js"></script>
 
 </head>
 
@@ -50,12 +50,12 @@
           
 
           
-            <a href="../../index.html" class="icon icon-home"> Devito v3.4
+            <a href="../../../index.html" class="icon icon-home"> Devito v3.4
           
 
           
             
-            <img src="../../_static/devito_logo.png" class="logo" alt="Logo"/>
+            <img src="../../../_static/devito_logo.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -66,7 +66,7 @@
 
           
 <div role="search">
-  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
@@ -84,10 +84,10 @@
             
             
               <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../userapi.html">API Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../compiler.html">The Devito Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../userapi.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../compiler.html">The Devito Compiler</a></li>
 </ul>
 
             
@@ -102,7 +102,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../index.html">Devito v3.4</a>
+          <a href="../../../index.html">Devito v3.4</a>
         
       </nav>
 
@@ -131,11 +131,11 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="../../index.html">Docs</a> &raquo;</li>
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="../index.html">Module code</a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
         
-      <li>devito.grid</li>
+      <li>devito.types.grid</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -150,23 +150,23 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for devito.grid</h1><div class="highlight"><pre>
+  <h1>Source code for devito.types.grid</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
-
-<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">SpaceDimension</span><span class="p">,</span> <span class="n">TimeDimension</span><span class="p">,</span>
-                              <span class="n">SteppingDimension</span><span class="p">,</span> <span class="n">SubDimension</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Constant</span>
-<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">Distributor</span>
-<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span>
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">prod</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 
+<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">Distributor</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span>
+<span class="kn">from</span> <span class="nn">devito.types.constant</span> <span class="k">import</span> <span class="n">Constant</span>
+<span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="k">import</span> <span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">SpaceDimension</span><span class="p">,</span> <span class="n">TimeDimension</span><span class="p">,</span>
+                                    <span class="n">SteppingDimension</span><span class="p">,</span> <span class="n">SubDimension</span><span class="p">)</span>
+
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Grid&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDomain&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Grid"><a class="viewcode-back" href="../../grid.html#devito.grid.Grid">[docs]</a><span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="n">ArgProvider</span><span class="p">):</span>
+<div class="viewcode-block" id="Grid"><a class="viewcode-back" href="../../../grid.html#devito.types.Grid">[docs]</a><span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="n">ArgProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A cartesian grid that encapsulates a computational domain over which</span>
@@ -389,7 +389,7 @@
         <span class="sd">&quot;&quot;&quot;The Distributor used for domain decomposition.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span>
 
-<div class="viewcode-block" id="Grid.is_distributed"><a class="viewcode-back" href="../../grid.html#devito.grid.Grid.is_distributed">[docs]</a>    <span class="k">def</span> <span class="nf">is_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
+<div class="viewcode-block" id="Grid.is_distributed"><a class="viewcode-back" href="../../../grid.html#devito.types.Grid.is_distributed">[docs]</a>    <span class="k">def</span> <span class="nf">is_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;True if ``dim`` is a distributed Dimension, False otherwise.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">dim</span> <span class="ow">is</span> <span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span></div>
 
@@ -430,7 +430,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="o">=</span> <span class="n">Distributor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="SubDomain"><a class="viewcode-back" href="../../subdomain.html#devito.grid.SubDomain">[docs]</a><span class="k">class</span> <span class="nc">SubDomain</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="viewcode-block" id="SubDomain"><a class="viewcode-back" href="../../../subdomain.html#devito.types.SubDomain">[docs]</a><span class="k">class</span> <span class="nc">SubDomain</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Base class to define Grid subdomains.</span>
@@ -438,7 +438,7 @@
 <span class="sd">    To create a new SubDomain, all one needs to do is overriding :meth:`define`.</span>
 <span class="sd">    This method takes as input a set of Dimensions and produce a mapper</span>
 
-<span class="sd">        M : Dimensions -&gt; {d, (&#39;left&#39;, N), (&#39;middle&#39;, N, M), (&#39;right&#39;, N)}</span>
+<span class="sd">        ``M : Dimensions -&gt; {d, (&#39;left&#39;, N), (&#39;middle&#39;, N, M), (&#39;right&#39;, N)}``</span>
 
 <span class="sd">    so that:</span>
 
@@ -540,7 +540,7 @@
     <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span>
 
-<div class="viewcode-block" id="SubDomain.define"><a class="viewcode-back" href="../../subdomain.html#devito.grid.SubDomain.define">[docs]</a>    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
+<div class="viewcode-block" id="SubDomain.define"><a class="viewcode-back" href="../../../subdomain.html#devito.types.SubDomain.define">[docs]</a>    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parametrically describe the SubDomain w.r.t. a generic Grid.</span>
 
@@ -606,15 +606,15 @@
 
     
     
-      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../../_static/jquery.js"></script>
-        <script type="text/javascript" src="../../_static/underscore.js"></script>
-        <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
     
 
   
 
-  <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  <script type="text/javascript" src="../../../_static/js/theme.js"></script>
 
   <script type="text/javascript">
       jQuery(function () {

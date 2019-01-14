@@ -173,14 +173,14 @@
   <div class="section" id="subdomain">
 <h1>SubDomain<a class="headerlink" href="#subdomain" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
-<dt id="devito.grid.SubDomain">
-<em class="property">class </em><code class="descclassname">devito.grid.</code><code class="descname">SubDomain</code><a class="reference internal" href="_modules/devito/grid.html#SubDomain"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.grid.SubDomain" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.SubDomain">
+<em class="property">class </em><code class="descclassname">devito.types.</code><code class="descname">SubDomain</code><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.SubDomain" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Base class to define Grid subdomains.</p>
-<p>To create a new SubDomain, all one needs to do is overriding <a class="reference internal" href="#devito.grid.SubDomain.define" title="devito.grid.SubDomain.define"><code class="xref py py-meth docutils literal notranslate"><span class="pre">define()</span></code></a>.
+<p>To create a new SubDomain, all one needs to do is overriding <a class="reference internal" href="#devito.types.SubDomain.define" title="devito.types.SubDomain.define"><code class="xref py py-meth docutils literal notranslate"><span class="pre">define()</span></code></a>.
 This method takes as input a set of Dimensions and produce a mapper</p>
 <blockquote>
-<div>M : Dimensions -&gt; {d, (‘left’, N), (‘middle’, N, M), (‘right’, N)}</div></blockquote>
+<div><code class="docutils literal notranslate"><span class="pre">M</span> <span class="pre">:</span> <span class="pre">Dimensions</span> <span class="pre">-&gt;</span> <span class="pre">{d,</span> <span class="pre">('left',</span> <span class="pre">N),</span> <span class="pre">('middle',</span> <span class="pre">N,</span> <span class="pre">M),</span> <span class="pre">('right',</span> <span class="pre">N)}</span></code></div></blockquote>
 <p>so that:</p>
 <blockquote>
 <div><ul class="simple">
@@ -222,8 +222,8 @@ grid</p>
 </dl>
 </div>
 <dl class="method">
-<dt id="devito.grid.SubDomain.define">
-<code class="descname">define</code><span class="sig-paren">(</span><em>dimensions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/grid.html#SubDomain.define"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.grid.SubDomain.define" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.SubDomain.define">
+<code class="descname">define</code><span class="sig-paren">(</span><em>dimensions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#SubDomain.define"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.SubDomain.define" title="Permalink to this definition">¶</a></dt>
 <dd><p>Parametrically describe the SubDomain w.r.t. a generic Grid.</p>
 <p class="rubric">Notes</p>
 <p>This method should be overridden by each SubDomain subclass. For more
@@ -231,8 +231,8 @@ information, refer to <code class="docutils literal notranslate"><span class="pr
 </dd></dl>
 
 <dl class="attribute">
-<dt id="devito.grid.SubDomain.name">
-<code class="descname">name</code><em class="property"> = None</em><a class="headerlink" href="#devito.grid.SubDomain.name" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.SubDomain.name">
+<code class="descname">name</code><em class="property"> = None</em><a class="headerlink" href="#devito.types.SubDomain.name" title="Permalink to this definition">¶</a></dt>
 <dd><p>A unique name for the SubDomain.</p>
 </dd></dl>
 

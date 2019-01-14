@@ -176,7 +176,7 @@
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>expr</strong> (<em>expr-like</em>) – Expression for which the first-order derivative is produced.</li>
-<li><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.dimension.Dimension" title="devito.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</li>
+<li><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</li>
 <li><strong>fd_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Coefficient discretization order. Note: this impacts the width of
 the resulting stencil. Defaults to <code class="docutils literal notranslate"><span class="pre">expr.space_order</span></code></li>
 <li><strong>side</strong> (<em>Side</em><em>, </em><em>optional</em>) – Side of the finite difference location, centered (at x), left (at x - 1)
@@ -227,7 +227,7 @@ finite difference. Defaults to direct</li>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>expr</strong> (<em>expr-like</em>) – Expression for which the derivative is produced.</li>
-<li><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.dimension.Dimension" title="devito.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</li>
+<li><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</li>
 <li><strong>fd_order</strong> (<em>int</em>) – Coefficient discretization order. Note: this impacts the width of
 the resulting stencil.</li>
 <li><strong>stagger</strong> (<em>Side</em><em>, </em><em>optional</em>) – Shift of the finite-difference approximation.</li>
@@ -305,7 +305,7 @@ the resulting stencil.</li>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>expr</strong> (<em>expr-like</em>) – Expression for which the derivative is produced.</li>
-<li><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.dimension.Dimension" title="devito.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</li>
+<li><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</li>
 <li><strong>fd_order</strong> (<em>int</em>) – Coefficient discretization order. Note: this impacts the width of
 the resulting stencil.</li>
 <li><strong>deriv_order</strong> (<em>int</em>) – Derivative order, e.g. 2 for a second-order derivative.</li>

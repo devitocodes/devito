@@ -8,12 +8,12 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.dimension &mdash; Devito v3.4</title>
+  <title>devito.types.dimension &mdash; Devito v3.4</title>
   
 
   
   
-    <link rel="shortcut icon" href="../../_static/devito_logo.png"/>
+    <link rel="shortcut icon" href="../../../_static/devito_logo.png"/>
   
   
   
@@ -26,15 +26,15 @@
 
   
 
-  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
-    <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" />
-    <link href="../../_static/devito_style.css" rel="stylesheet" type="text/css">
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link href="../../../_static/devito_style.css" rel="stylesheet" type="text/css">
 
 
   
-  <script src="../../_static/js/modernizr.min.js"></script>
+  <script src="../../../_static/js/modernizr.min.js"></script>
 
 </head>
 
@@ -50,12 +50,12 @@
           
 
           
-            <a href="../../index.html" class="icon icon-home"> Devito v3.4
+            <a href="../../../index.html" class="icon icon-home"> Devito v3.4
           
 
           
             
-            <img src="../../_static/devito_logo.png" class="logo" alt="Logo"/>
+            <img src="../../../_static/devito_logo.png" class="logo" alt="Logo"/>
           
           </a>
 
@@ -66,7 +66,7 @@
 
           
 <div role="search">
-  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
@@ -84,10 +84,10 @@
             
             
               <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../userapi.html">API Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../compiler.html">The Devito Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../userapi.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../compiler.html">The Devito Compiler</a></li>
 </ul>
 
             
@@ -102,7 +102,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../index.html">Devito v3.4</a>
+          <a href="../../../index.html">Devito v3.4</a>
         
       </nav>
 
@@ -131,11 +131,11 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="../../index.html">Docs</a> &raquo;</li>
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="../index.html">Module code</a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
         
-      <li>devito.dimension</li>
+      <li>devito.types.dimension</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -150,7 +150,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for devito.dimension</h1><div class="highlight"><pre>
+  <h1>Source code for devito.types.dimension</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 
 <span class="kn">import</span> <span class="nn">sympy</span>
@@ -162,13 +162,14 @@
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">dtype_to_cstr</span>
-<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">Scalar</span>
+<span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="k">import</span> <span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">Scalar</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;DefaultDimension&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;ConditionalDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">]</span>
+           <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;ConditionalDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ModuloDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;IncrDimension&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../dimension.html#devito.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">):</span>
+<div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space.</span>
@@ -192,13 +193,13 @@
 <span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
 <span class="sd">    &gt;&gt;&gt; x, y = grid.dimensions</span>
 <span class="sd">    &gt;&gt;&gt; type(x)</span>
-<span class="sd">    &lt;class &#39;devito.dimension.SpaceDimension&#39;&gt;</span>
+<span class="sd">    &lt;class &#39;devito.types.dimension.SpaceDimension&#39;&gt;</span>
 <span class="sd">    &gt;&gt;&gt; time = grid.time_dim</span>
 <span class="sd">    &gt;&gt;&gt; type(time)</span>
-<span class="sd">    &lt;class &#39;devito.dimension.TimeDimension&#39;&gt;</span>
+<span class="sd">    &lt;class &#39;devito.types.dimension.TimeDimension&#39;&gt;</span>
 <span class="sd">    &gt;&gt;&gt; t = grid.stepping_dim</span>
 <span class="sd">    &gt;&gt;&gt; type(t)</span>
-<span class="sd">    &lt;class &#39;devito.dimension.SteppingDimension&#39;&gt;</span>
+<span class="sd">    &lt;class &#39;devito.types.dimension.SteppingDimension&#39;&gt;</span>
 
 <span class="sd">    Alternatively, one can create Dimensions explicitly</span>
 
@@ -414,7 +415,7 @@
     <span class="n">__reduce_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__reduce_ex__</span></div>
 
 
-<div class="viewcode-block" id="SpaceDimension"><a class="viewcode-back" href="../../dimension.html#devito.dimension.SpaceDimension">[docs]</a><span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+<div class="viewcode-block" id="SpaceDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SpaceDimension">[docs]</a><span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space.</span>
@@ -436,7 +437,7 @@
     <span class="n">is_Space</span> <span class="o">=</span> <span class="kc">True</span></div>
 
 
-<div class="viewcode-block" id="TimeDimension"><a class="viewcode-back" href="../../dimension.html#devito.dimension.TimeDimension">[docs]</a><span class="k">class</span> <span class="nc">TimeDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+<div class="viewcode-block" id="TimeDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.TimeDimension">[docs]</a><span class="k">class</span> <span class="nc">TimeDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space.</span>
@@ -457,7 +458,7 @@
     <span class="n">is_Time</span> <span class="o">=</span> <span class="kc">True</span></div>
 
 
-<div class="viewcode-block" id="DefaultDimension"><a class="viewcode-back" href="../../dimension.html#devito.dimension.DefaultDimension">[docs]</a><span class="k">class</span> <span class="nc">DefaultDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+<div class="viewcode-block" id="DefaultDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.DefaultDimension">[docs]</a><span class="k">class</span> <span class="nc">DefaultDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space with statically-known size.</span>
@@ -573,7 +574,7 @@
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span>
 
 
-<div class="viewcode-block" id="SubDimension"><a class="viewcode-back" href="../../dimension.html#devito.dimension.SubDimension">[docs]</a><span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="SubDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SubDimension">[docs]</a><span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining a convex iteration sub-space derived from a ``parent``</span>
@@ -720,7 +721,7 @@
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span></div>
 
 
-<div class="viewcode-block" id="ConditionalDimension"><a class="viewcode-back" href="../../dimension.html#devito.dimension.ConditionalDimension">[docs]</a><span class="k">class</span> <span class="nc">ConditionalDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="ConditionalDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ConditionalDimension">[docs]</a><span class="k">class</span> <span class="nc">ConditionalDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining a non-convex iteration sub-space derived from a ``parent``</span>
@@ -790,6 +791,7 @@
 <span class="sd">            f[g[i]] = f[g[i]] + 1;</span>
 <span class="sd">          }</span>
 <span class="sd">        }</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_NonlinearDerived</span> <span class="o">=</span> <span class="kc">True</span>
@@ -837,7 +839,7 @@
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;factor&#39;</span><span class="p">,</span> <span class="s1">&#39;condition&#39;</span><span class="p">,</span> <span class="s1">&#39;indirect&#39;</span><span class="p">]</span></div>
 
 
-<div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../dimension.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining a convex iteration sub-space derived from a ``parent``</span>
@@ -907,7 +909,7 @@
         <span class="k">return</span> <span class="n">values</span></div>
 
 
-<span class="k">class</span> <span class="nc">ModuloDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="ModuloDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ModuloDimension">[docs]</a><span class="k">class</span> <span class="nc">ModuloDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension symbol representing a non-contiguous sub-region of a given</span>
@@ -983,10 +985,10 @@
 
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">,</span> <span class="s1">&#39;offset&#39;</span><span class="p">,</span> <span class="s1">&#39;modulo&#39;</span><span class="p">]</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span></div>
 
 
-<span class="k">class</span> <span class="nc">IncrDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="IncrDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.IncrDimension">[docs]</a><span class="k">class</span> <span class="nc">IncrDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension symbol representing a non-contiguous sub-region of a given</span>
@@ -1062,7 +1064,7 @@
 
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;step&#39;</span><span class="p">]</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span></div>
 
 
 <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="n">names</span><span class="p">):</span>
@@ -1100,15 +1102,15 @@
 
     
     
-      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../../_static/jquery.js"></script>
-        <script type="text/javascript" src="../../_static/underscore.js"></script>
-        <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
     
 
   
 
-  <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  <script type="text/javascript" src="../../../_static/js/theme.js"></script>
 
   <script type="text/javascript">
       jQuery(function () {

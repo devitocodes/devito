@@ -176,12 +176,12 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="module-devito.dimension">
-<span id="dimension"></span><h1>Dimension<a class="headerlink" href="#module-devito.dimension" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="module-devito.types.dimension">
+<span id="dimension"></span><h1>Dimension<a class="headerlink" href="#module-devito.types.dimension" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
-<dt id="devito.dimension.Dimension">
-<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">Dimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.AbstractSymbol</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.ArgProvider</span></code></p>
+<dt id="devito.types.dimension.Dimension">
+<em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">Dimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.basic.AbstractSymbol</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.ArgProvider</span></code></p>
 <p>Symbol defining an iteration space.</p>
 <p>A Dimension represents a problem dimension. It is typically used to index
 into Functions, but it can also appear in the middle of a symbolic expression
@@ -204,13 +204,13 @@ just like any other symbol.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-<span class="go">&lt;class &#39;devito.dimension.SpaceDimension&#39;&gt;</span>
+<span class="go">&lt;class &#39;devito.types.dimension.SpaceDimension&#39;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">time</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">time_dim</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="nb">type</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
-<span class="go">&lt;class &#39;devito.dimension.TimeDimension&#39;&gt;</span>
+<span class="go">&lt;class &#39;devito.types.dimension.TimeDimension&#39;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">t</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">stepping_dim</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="nb">type</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
-<span class="go">&lt;class &#39;devito.dimension.SteppingDimension&#39;&gt;</span>
+<span class="go">&lt;class &#39;devito.types.dimension.SteppingDimension&#39;&gt;</span>
 </pre></div>
 </div>
 <p>Alternatively, one can create Dimensions explicitly</p>
@@ -236,41 +236,41 @@ expressions, as both array index (“indexed notation”) and free symbol.</p>
 </pre></div>
 </div>
 <dl class="attribute">
-<dt id="devito.dimension.Dimension.dtype">
-<code class="descname">dtype</code><a class="headerlink" href="#devito.dimension.Dimension.dtype" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.dimension.Dimension.dtype">
+<code class="descname">dtype</code><a class="headerlink" href="#devito.types.dimension.Dimension.dtype" title="Permalink to this definition">¶</a></dt>
 <dd><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.int32</span></code></p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.Dimension.spacing">
-<code class="descname">spacing</code><a class="headerlink" href="#devito.dimension.Dimension.spacing" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.dimension.Dimension.spacing">
+<code class="descname">spacing</code><a class="headerlink" href="#devito.types.dimension.Dimension.spacing" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol representing the physical spacing along the Dimension.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.Dimension.symbolic_max">
-<code class="descname">symbolic_max</code><a class="headerlink" href="#devito.dimension.Dimension.symbolic_max" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.dimension.Dimension.symbolic_max">
+<code class="descname">symbolic_max</code><a class="headerlink" href="#devito.types.dimension.Dimension.symbolic_max" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol defining the maximum point of the Dimension.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.Dimension.symbolic_min">
-<code class="descname">symbolic_min</code><a class="headerlink" href="#devito.dimension.Dimension.symbolic_min" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.dimension.Dimension.symbolic_min">
+<code class="descname">symbolic_min</code><a class="headerlink" href="#devito.types.dimension.Dimension.symbolic_min" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol defining the minimum point of the Dimension.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.Dimension.symbolic_size">
-<code class="descname">symbolic_size</code><a class="headerlink" href="#devito.dimension.Dimension.symbolic_size" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.dimension.Dimension.symbolic_size">
+<code class="descname">symbolic_size</code><a class="headerlink" href="#devito.types.dimension.Dimension.symbolic_size" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbolic size of the Dimension.</p>
 </dd></dl>
 
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.dimension.SpaceDimension">
-<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">SpaceDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SpaceDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SpaceDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.Dimension</span></code></a></p>
+<dt id="devito.types.dimension.SpaceDimension">
+<em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">SpaceDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#SpaceDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.SpaceDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.Dimension</span></code></a></p>
 <p>Symbol defining an iteration space.</p>
 <p>This symbol represents a space dimension that defines the extent of
 a physical grid.</p>
@@ -291,9 +291,9 @@ derivatives on Functions.</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.dimension.TimeDimension">
-<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">TimeDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#TimeDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.TimeDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.Dimension</span></code></a></p>
+<dt id="devito.types.dimension.TimeDimension">
+<em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">TimeDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#TimeDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.TimeDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.Dimension</span></code></a></p>
 <p>Symbol defining an iteration space.</p>
 <p>This symbol represents a time dimension that defines the extent of time.</p>
 <p>A TimeDimension create dedicated shortcut notations for time derivatives
@@ -313,9 +313,9 @@ on Functions.</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.dimension.DefaultDimension">
-<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">DefaultDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#DefaultDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.DefaultDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.Dimension</span></code></a></p>
+<dt id="devito.types.dimension.DefaultDimension">
+<em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">DefaultDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#DefaultDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.DefaultDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.Dimension</span></code></a></p>
 <p>Symbol defining an iteration space with statically-known size.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -336,9 +336,9 @@ not cached.</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.dimension.SteppingDimension">
-<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">SteppingDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SteppingDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SteppingDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
+<dt id="devito.types.dimension.SteppingDimension">
+<em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">SteppingDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#SteppingDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.SteppingDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
 <p>Symbol defining a convex iteration sub-space derived from a <code class="docutils literal notranslate"><span class="pre">parent</span></code>
 Dimension, which cyclically produces a finite range of values, such
 as <code class="docutils literal notranslate"><span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">...</span></code> (also referred to as “modulo buffered
@@ -350,30 +350,30 @@ iteration”).</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> (<em>str</em>) – Name of the dimension.</li>
-<li><strong>parent</strong> (<a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</li>
+<li><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
 <dl class="attribute">
-<dt id="devito.dimension.SteppingDimension.symbolic_max">
-<code class="descname">symbolic_max</code><a class="headerlink" href="#devito.dimension.SteppingDimension.symbolic_max" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.dimension.SteppingDimension.symbolic_max">
+<code class="descname">symbolic_max</code><a class="headerlink" href="#devito.types.dimension.SteppingDimension.symbolic_max" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol defining the maximum point of the Dimension.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.SteppingDimension.symbolic_min">
-<code class="descname">symbolic_min</code><a class="headerlink" href="#devito.dimension.SteppingDimension.symbolic_min" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.dimension.SteppingDimension.symbolic_min">
+<code class="descname">symbolic_min</code><a class="headerlink" href="#devito.types.dimension.SteppingDimension.symbolic_min" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol defining the minimum point of the Dimension.</p>
 </dd></dl>
 
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.dimension.SubDimension">
-<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">SubDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#SubDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.SubDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
+<dt id="devito.types.dimension.SubDimension">
+<em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">SubDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#SubDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.SubDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
 <p>Symbol defining a convex iteration sub-space derived from a <code class="docutils literal notranslate"><span class="pre">parent</span></code>
 Dimension.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -382,7 +382,7 @@ Dimension.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> (<em>str</em>) – Name of the dimension.</li>
-<li><strong>parent</strong> (<a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</li>
+<li><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</li>
 <li><strong>left</strong> (<em>expr-like</em>) – Symbolic expression providing the left (lower) bound of the
 SubDimension.</li>
 <li><strong>right</strong> (<em>expr-like</em>) – Symbolic expression providing the right (upper) bound of the
@@ -411,23 +411,23 @@ parent Dimension, instead</p>
 </pre></div>
 </div>
 <dl class="attribute">
-<dt id="devito.dimension.SubDimension.symbolic_max">
-<code class="descname">symbolic_max</code><a class="headerlink" href="#devito.dimension.SubDimension.symbolic_max" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.dimension.SubDimension.symbolic_max">
+<code class="descname">symbolic_max</code><a class="headerlink" href="#devito.types.dimension.SubDimension.symbolic_max" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol defining the maximum point of the Dimension.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.SubDimension.symbolic_min">
-<code class="descname">symbolic_min</code><a class="headerlink" href="#devito.dimension.SubDimension.symbolic_min" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.dimension.SubDimension.symbolic_min">
+<code class="descname">symbolic_min</code><a class="headerlink" href="#devito.types.dimension.SubDimension.symbolic_min" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol defining the minimum point of the Dimension.</p>
 </dd></dl>
 
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.dimension.ConditionalDimension">
-<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">ConditionalDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#ConditionalDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.ConditionalDimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.dimension.DerivedDimension</span></code></p>
+<dt id="devito.types.dimension.ConditionalDimension">
+<em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">ConditionalDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ConditionalDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ConditionalDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
 <p>Symbol defining a non-convex iteration sub-space derived from a <code class="docutils literal notranslate"><span class="pre">parent</span></code>
 Dimension, implemented by the compiler generating conditional “if-then” code
 within the parent Dimension’s iteration space.</p>
@@ -437,7 +437,7 @@ within the parent Dimension’s iteration space.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> (<em>str</em>) – Name of the dimension.</li>
-<li><strong>parent</strong> (<a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</li>
+<li><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</li>
 <li><strong>factor</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of iterations between two executions of the if-branch. If None
 (default), <code class="docutils literal notranslate"><span class="pre">condition</span></code> must be provided.</li>
 <li><strong>condition</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – An arbitrary SymPy expression, typically involving the <code class="docutils literal notranslate"><span class="pre">parent</span></code>
@@ -493,11 +493,65 @@ to guard against out-of-bounds accesses.</p>
 </pre></div>
 </div>
 <dl class="attribute">
-<dt id="devito.dimension.ConditionalDimension.spacing">
-<code class="descname">spacing</code><a class="headerlink" href="#devito.dimension.ConditionalDimension.spacing" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.dimension.ConditionalDimension.spacing">
+<code class="descname">spacing</code><a class="headerlink" href="#devito.types.dimension.ConditionalDimension.spacing" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol representing the physical spacing along the Dimension.</p>
 </dd></dl>
 
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.types.dimension.ModuloDimension">
+<em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">ModuloDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#ModuloDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.ModuloDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
+<p>Dimension symbol representing a non-contiguous sub-region of a given
+<code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, which cyclically produces a finite range of values,
+such as <code class="docutils literal notranslate"><span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">...</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the ModuloDimension is derived.</li>
+<li><strong>offset</strong> (<em>int</em>) – The offset from the parent dimension</li>
+<li><strong>modulo</strong> (<em>int</em>) – The divisor value.</li>
+<li><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To force a different Dimension name.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>This type should not be instantiated directly in user code; if in need for
+modulo buffered iteration, use SteppingDimension instead.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.types.dimension.IncrDimension">
+<em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">IncrDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#IncrDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.IncrDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
+<p>Dimension symbol representing a non-contiguous sub-region of a given
+<code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, with one point every <code class="docutils literal notranslate"><span class="pre">step</span></code> points. Thus, if
+<code class="docutils literal notranslate"><span class="pre">step</span> <span class="pre">==</span> <span class="pre">k</span></code>, the dimension represents the sequence <code class="docutils literal notranslate"><span class="pre">min,</span> <span class="pre">min</span> <span class="pre">+</span> <span class="pre">k,</span>
+<span class="pre">min</span> <span class="pre">+</span> <span class="pre">2*k,</span> <span class="pre">...</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the IncrDimension is derived.</li>
+<li><strong>_min</strong> (<em>int</em><em>, </em><em>optional</em>) – The minimum point of the sequence. Defaults to the parent’s
+symbolic minimum.</li>
+<li><strong>step</strong> (<em>int</em><em>, </em><em>optional</em>) – The distance between two consecutive points. Defaults to the
+symbolic size.</li>
+<li><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To force a different Dimension name.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Notes</p>
+<p>This type should not be instantiated directly in user code.</p>
 </dd></dl>
 
 </div>
