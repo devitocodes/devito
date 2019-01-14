@@ -1,4 +1,4 @@
-from functools import partial, wraps
+from functools import wraps
 
 from sympy import S, finite_diff_weights
 

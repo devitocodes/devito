@@ -8,7 +8,7 @@ from cached_property import cached_property
 
 from devito.tools import filter_ordered, flatten
 
-__all__ = ['Differentiable']
+__all__ = ['Differentiable', 'to_differentiable']
 
 
 class Differentiable(sympy.Expr):
@@ -65,6 +65,21 @@ class Differentiable(sympy.Expr):
     @cached_property
     def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)
+
+    @property
+    def stencil(self):
+        return self.func(*[getattr(a, 'stencil', a) for a in self.args])
+
+    def xreplace(self, rules):
+        new = super(Differentiable, self).xreplace(rules)
+        if new.is_Add:
+            return Add(*new.args)
+        elif new.is_Mul:
+            return Mul(*new.args)
+        elif new.is_Pow:
+            return Pow(*new.args)
+        else:
+            return new
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()
@@ -210,3 +225,14 @@ class Mod(sympy.Mod, Differentiable):
 evalf_table[Add] = evalf_table[sympy.Add]
 evalf_table[Mul] = evalf_table[sympy.Mul]
 evalf_table[Pow] = evalf_table[sympy.Pow]
+
+
+def to_differentiable(expr):
+    if expr.is_Pow:
+        return Pow(*expr.args)
+    elif expr.is_Add:
+        return Add(*expr.args)
+    elif expr.is_Mul:
+        return Mul(*expr.args)
+    else:
+        return expr

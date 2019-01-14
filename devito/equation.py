@@ -4,7 +4,7 @@ import sympy
 
 from cached_property import cached_property
 
-from devito.finite_differences import default_rules
+from devito.finite_differences import default_rules, to_differentiable
 from devito.tools import as_tuple
 
 __all__ = ['Eq', 'Inc', 'solve']
@@ -81,6 +81,12 @@ class Eq(sympy.Eq):
     def subdomain(self):
         """The SubDomain in which the Eq is defined."""
         return self._subdomain
+
+    @property
+    def stencil(self):
+        lhs = getattr(self.lhs, 'stencil', self.lhs)
+        rhs = getattr(self.rhs, 'stencil', self.rhs)
+        return Eq(lhs, rhs, evaluate=False, subdomain=self._subdomain)
 
     @property
     def substitutions(self):
@@ -166,6 +172,17 @@ class Inc(Eq):
 
     is_Increment = True
 
+    def __str__(self):
+        return "Inc(%s, %s)" % (self.lhs, self.rhs)
+
+    @property
+    def stencil(self):
+        lhs = getattr(self.lhs, 'stencil', self.lhs)
+        rhs = getattr(self.rhs, 'stencil', self.rhs)
+        return Inc(lhs, rhs, evaluate=False, subdomain=self._subdomain)
+
+    __repr__ = __str__
+
 
 def solve(eq, target, **kwargs):
     """
@@ -188,4 +205,6 @@ def solve(eq, target, **kwargs):
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
-    return sympy.solve(eq, target, **kwargs)[0]
+
+    solved = sympy.solve(eq.stencil, target.stencil, **kwargs)[0]
+    return to_differentiable(solved)

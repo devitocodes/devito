@@ -650,7 +650,7 @@ class SparseFunction(AbstractSparseFunction):
         idx_subs, temps = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the interpolation coefficients
-        args = [expr.subs(v_sub) * b.subs(v_sub)
+        args = [expr.subs(v_sub) * b
                 for b, v_sub in zip(self._interpolation_coeffs, idx_subs)]
 
         # Accumulate point-wise contributions into a temporary
@@ -660,6 +660,7 @@ class SparseFunction(AbstractSparseFunction):
 
         # Write/Incr `self`
         lhs = self.subs(self_subs)
+
         last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
 
         return temps + summands + last

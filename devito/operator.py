@@ -160,7 +160,7 @@ class Operator(Callable):
         expressions = self._add_implicit(expressions)
 
         # Expression lowering: indexification, substitution rules, specialization
-        expressions = [indexify(i) for i in expressions]
+        expressions = [indexify(getattr(i, 'stencil', i)) for i in expressions]
         expressions = self._apply_substitutions(expressions, subs)
         expressions = self._specialize_exprs(expressions)
 
