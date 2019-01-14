@@ -1,3 +1,5 @@
+import sympy
+
 from cached_property import cached_property
 
 from devito.finite_differences.finite_difference import left, right, centered, generic_derivative, first_derivative, cross_derivative
@@ -5,23 +7,18 @@ from devito.finite_differences.differentiable import Differentiable
 
 __all__ = ['Derivative']
 
-class Derivative(object):
+class Derivative(Differentiable):
 
     """
     Represents an unevaluated  derivative of an input expression
     """
 
-    def __init__(self, expr, deriv_order, dims, fd_order, **kwargs):
-        self._expr = expr
+    def setup_fd(self, deriv_order, dims, fd_order, **kwargs):
         self._dims = dims
         self._fd_order = fd_order
         self._deriv_order = deriv_order
         self._stagger = kwargs.get("stagger", self._stagger_setup)
         self._side = kwargs.get("side", None)
-
-    @cached_property
-    def expr(self):
-        return self._expr
 
     @cached_property
     def dims(self):
@@ -46,12 +43,12 @@ class Derivative(object):
 
     @cached_property
     def _stagger_setup(self):
-        if not self.expr.is_Staggered:
+        if not self.is_Staggered:
             side = None
         else:
-            dims = self.expr.indices
+            dims = self.indices
             side = dict()
-            for (d, s) in zip(dims, self.expr.staggered):
+            for (d, s) in zip(dims, self.staggered):
                 if s == 0:
                     side[d] = left
                 elif s == 1:
@@ -64,16 +61,15 @@ class Derivative(object):
     @cached_property
     def stencil(self):
         if self.side is not None:
-            return first_derivative(self.expr.stencil, self.dims, self.fd_order,
+            return first_derivative(self.stencil, self.dims, self.fd_order,
                                     side=self.side)
         if isinstance(self.dims, tuple):
-            return cross_derivative(self.expr.stencil, self.dims, self.fd_order,
+            return cross_derivative(self.stencil, self.dims, self.fd_order,
                                     self.deriv_order, stagger=self.stagger)
         else:
-            return generic_derivative(self.expr.stencil, self.dims, self.fd_order,
+            return generic_derivative(self.stencil, self.dims, self.fd_order,
                                       self.deriv_order, stagger=self.stagger)
-
 
     def __repr__(self):
         return "d^%s/d%s^%s (%s)" % (self.deriv_order, self.dims,
-                                     self.deriv_order, self.expr)
+                                     self.deriv_order, super(Derivative, self).__repr__())
