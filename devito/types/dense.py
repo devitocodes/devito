@@ -178,6 +178,10 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         return self._staggered
 
     @cached_property
+    def stencil(self):
+        return self
+
+    @cached_property
     def shape(self):
         """
         Shape of the domain region. The domain constitutes the area of the

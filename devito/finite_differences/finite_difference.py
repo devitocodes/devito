@@ -290,18 +290,6 @@ def generate_fd_shortcuts(function):
     time_fd_order = function.time_order if (function.is_TimeFunction or
                                             function.is_SparseTimeFunction) else 0
 
-    deriv_function = generic_derivative
-    c_deriv_function = cross_derivative
-
-    side = dict()
-    for (d, s) in zip(dimensions, function.staggered):
-        if s == 0:
-            side[d] = left
-        elif s == 1:
-            side[d] = right
-        else:
-            side[d] = centered
-
     derivatives = dict()
     done = []
     for d in dimensions:
