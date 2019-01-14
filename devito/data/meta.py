@@ -19,6 +19,6 @@ class DataSide(Tag):
     pass
 
 
-LEFT = DataSide('left')
-RIGHT = DataSide('right')
-CENTER = DataSide('center')
+LEFT = DataSide('left', -1)
+CENTER = DataSide('center', 0)
+RIGHT = DataSide('right', 1)
