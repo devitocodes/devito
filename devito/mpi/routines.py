@@ -110,7 +110,7 @@ def sendrecv(f, fixed):
 
 def update_halo(f, fixed):
     """
-    Construct an IET performing a halo exchange for a :class:`DiscretizedFunction`.
+    Construct an IET performing a halo exchange for a :class:`DiscreteFunction`.
     """
     # Requirements
     assert f.is_Function

@@ -133,8 +133,8 @@ def is_local(array, source, sink, context):
                 # Written more than once, break
                 written_once = False
                 break
-            reads = [j.base.function for j in i.reads]
-            if any(j.is_DiscretizedFunction or j.is_Scalar for j in reads):
+            reads = [j.function for j in i.reads]
+            if any(j.is_DiscreteFunction or j.is_Scalar for j in reads):
                 # Can't guarantee its value only depends on local data
                 written_once = False
                 break
@@ -207,7 +207,7 @@ def bump_and_contract(targets, source, sink):
     # Source
     processed = []
     for e in source.exprs:
-        function = e.lhs.base.function
+        function = e.lhs.function
         if any(function not in i for i in [targets, sink.tensors]):
             processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
         else:

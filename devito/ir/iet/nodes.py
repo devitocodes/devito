@@ -682,10 +682,9 @@ class ArrayCast(Node):
     @property
     def free_symbols(self):
         """
-        The symbols required to perform an :class:`ArrayCast`.
+        The symbols required by the ArrayCast.
 
-        This may include the :class:`DiscretizedFunction` object that carries
-        the data as well as the dimension sizes.
+        This may include DiscreteFunctions as well as Dimensions.
         """
         if configuration['codegen'] == 'explicit' or self.function.is_Array:
             sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])

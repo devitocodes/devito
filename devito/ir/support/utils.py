@@ -45,12 +45,12 @@ def detect_accesses(expr):
 def detect_oobs(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return the set of
-    :class:`Dimension`s that cannot be iterated over for the entire
-    computational domain, to avoid out-of-bounds (OOB) accesses.
+    Dimensions that *cannot* be iterated over the entire computational
+    domain, to avoid out-of-bounds (OOB) accesses.
     """
     found = set()
     for f, stencil in mapper.items():
-        if f is None or not f.is_DiscretizedFunction:
+        if f is None or not f.is_DiscreteFunction:
             continue
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d

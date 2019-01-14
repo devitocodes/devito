@@ -35,8 +35,8 @@ def q_indexed(expr):
 
 
 def q_function(expr):
-    from devito.types.dense import DiscretizedFunction
-    return isinstance(expr, DiscretizedFunction)
+    from devito.types.dense import DiscreteFunction
+    return isinstance(expr, DiscreteFunction)
 
 
 def q_terminal(expr):

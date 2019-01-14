@@ -167,7 +167,7 @@ class CGen(Visitor):
         f = o.function
         # rvalue
         shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
-        if f.is_DiscretizedFunction:
+        if f.is_DiscreteFunction:
             rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, f._C_name,
                                             f._C_field_data)
         else:

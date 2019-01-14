@@ -68,7 +68,7 @@ class Basic(object):
     is_Dimension = False
     is_Constant = False
     # Tensor symbolic objects created by the user
-    is_DiscretizedFunction = False
+    is_DiscreteFunction = False
     is_Function = False
     is_TimeFunction = False
     is_SparseTimeFunction = False
@@ -385,7 +385,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
                                 |
                  ---------------------------------
                  |                               |
-         DiscretizedFunction                   Array
+         DiscreteFunction                      Array
                  |
          ----------------------------------------
          |                                      |

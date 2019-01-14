@@ -13,7 +13,7 @@ from devito.mpi import MPI, SparseDistributor
 from devito.symbolics import indexify, retrieve_function_carriers
 from devito.tools import (ReducerMap, flatten, prod, powerset,
                           filter_ordered, memoized_meth)
-from devito.types.dense import DiscretizedFunction, Function, SubFunction
+from devito.types.dense import DiscreteFunction, Function, SubFunction
 from devito.types.dimension import Dimension, ConditionalDimension, DefaultDimension
 from devito.types.basic import Symbol, Scalar
 
@@ -21,7 +21,7 @@ __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction']
 
 
-class AbstractSparseFunction(DiscretizedFunction, Differentiable):
+class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
     """
     An abstract class to define behaviours common to all sparse functions.
@@ -295,7 +295,7 @@ class AbstractSparseFunction(DiscretizedFunction, Differentiable):
                                       "object of type `%s`" % type(key))
 
     # Pickling support
-    _pickle_kwargs = DiscretizedFunction._pickle_kwargs + ['npoint', 'space_order']
+    _pickle_kwargs = DiscreteFunction._pickle_kwargs + ['npoint', 'space_order']
 
 
 class AbstractSparseTimeFunction(AbstractSparseFunction):
@@ -593,7 +593,7 @@ class SparseFunction(AbstractSparseFunction):
 
     def _interpolation_indices(self, variables, offset=0):
         """
-        Generate interpolation indices for the DiscretizedFunctions in ``variables``.
+        Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
         index_matrix, points = self._index_matrix(offset)
 

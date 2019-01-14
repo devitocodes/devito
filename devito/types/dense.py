@@ -25,10 +25,10 @@ from devito.types.utils import Buffer, NODE, CELL
 __all__ = ['Function', 'TimeFunction']
 
 
-class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
+class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     """
     Symbol representing a discrete array in symbolic equations. Unlike an
-    Array, a DiscretizedFunction carries data.
+    Array, a DiscreteFunction carries data.
 
     Notes
     -----
@@ -37,19 +37,19 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     """
 
     # Required by SymPy, otherwise the presence of __getitem__ will make SymPy
-    # think that a DiscretizedFunction is actually iterable, thus breaking many of
+    # think that a DiscreteFunction is actually iterable, thus breaking many of
     # its key routines (e.g., solve)
     _iterable = False
 
     is_Input = True
-    is_DiscretizedFunction = True
+    is_DiscreteFunction = True
     is_Tensor = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(DiscretizedFunction, self).__init__(*args, **kwargs)
+            super(DiscreteFunction, self).__init__(*args, **kwargs)
 
-            # There may or may not be a `Grid` attached to the DiscretizedFunction
+            # There may or may not be a `Grid` attached to the DiscreteFunction
             self._grid = kwargs.get('grid')
 
             # A `Distributor` to handle domain decomposition (only relevant for MPI)
@@ -149,7 +149,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
     def __distributor_setup__(self, **kwargs):
         grid = kwargs.get('grid')
         # There may or may not be a `Distributor`. In the latter case, the
-        # DiscretizedFunction is to be considered "local" to each MPI rank
+        # DiscreteFunction is to be considered "local" to each MPI rank
         return kwargs.get('distributor') if grid is None else grid.distributor
 
     @property
@@ -555,7 +555,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
               known quantities (integers), the domain size is represented by a symbol.
             * the shifting induced by the ``staggered`` mask.
         """
-        symbolic_shape = super(DiscretizedFunction, self).symbolic_shape
+        symbolic_shape = super(DiscreteFunction, self).symbolic_shape
         ret = tuple(Add(i, -j) for i, j in zip(symbolic_shape, self.staggered))
         return EnrichedTuple(*ret, getters=self.dimensions)
 
@@ -586,7 +586,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
 
     def _C_make_dataobj(self, data):
         """
-        A ctypes object representing the DiscretizedFunction that can be passed to
+        A ctypes object representing the DiscreteFunction that can be passed to
         an Operator.
         """
         dataobj = byref(self._C_ctype._type_())
@@ -601,7 +601,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         return dataobj
 
     def _C_as_ndarray(self, dataobj):
-        """Cast the data carried by a DiscretizedFunction dataobj to an ndarray."""
+        """Cast the data carried by a DiscreteFunction dataobj to an ndarray."""
         shape = tuple(dataobj._obj.size[i] for i in range(self.ndim))
         ndp = np.ctypeslib.ndpointer(dtype=self.dtype, shape=shape)
         data = cast(dataobj._obj.data, ndp)
@@ -703,7 +703,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
 
         Parameters
         ----------
-        alias : DiscretizedFunction, optional
+        alias : DiscreteFunction, optional
             To bind the argument values to different names.
         """
         key = alias or self
@@ -733,7 +733,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         # use defaults
         if self.name in kwargs:
             new = kwargs.pop(self.name)
-            if isinstance(new, DiscretizedFunction):
+            if isinstance(new, DiscreteFunction):
                 # Set new values and re-derive defaults
                 values = new._arg_defaults(alias=self).reduce_all()
             else:
@@ -783,7 +783,7 @@ class DiscretizedFunction(AbstractCachedFunction, ArgProvider):
         ['grid', 'staggered', 'initializer']
 
 
-class Function(DiscretizedFunction, Differentiable):
+class Function(DiscreteFunction, Differentiable):
     """
     Discretized symbol representing an array in symbolic equations.
 
@@ -1011,7 +1011,7 @@ class Function(DiscretizedFunction, Differentiable):
         return tot / len(tot.args)
 
     # Pickling support
-    _pickle_kwargs = DiscretizedFunction._pickle_kwargs +\
+    _pickle_kwargs = DiscreteFunction._pickle_kwargs +\
         ['space_order', 'shape_global', 'dimensions']
 
 
@@ -1233,10 +1233,10 @@ class TimeFunction(Function):
 
 class SubFunction(Function):
     """
-    A Function bound to a "parent" DiscretizedFunction.
+    A Function bound to a "parent" DiscreteFunction.
 
     A SubFunction hands control of argument binding and halo exchange to its
-    parent DiscretizedFunction.
+    parent DiscreteFunction.
     """
 
     def __init__(self, *args, **kwargs):

@@ -127,21 +127,21 @@ def retrieve_indexed(expr, mode='unique', deep=False):
 
 
 def retrieve_functions(expr, mode='unique'):
-    """Shorthand to retrieve the DiscretizedFunctions in ``expr``."""
+    """Shorthand to retrieve the DiscreteFunctions in ``expr``."""
     return search(expr, q_function, mode, 'dfs')
 
 
 def retrieve_function_carriers(expr, mode='unique'):
     """
-    Shorthand to retrieve the DiscretizedFunction carriers in ``expr``. An
-    object carreis a DiscretizedFunction if any of the following conditions are met: ::
+    Shorthand to retrieve the DiscreteFunction carriers in ``expr``. An
+    object carries a DiscreteFunction if any of the following conditions are met: ::
 
-        * it is itself a DiscretizedFunction, OR
-        * it is an Indexed, which internally has a pointer to a DiscretizedFunction.
+        * it is itself a DiscreteFunction, OR
+        * it is an Indexed, which internally has a pointer to a DiscreteFunction.
     """
     query = lambda i: q_function(i) or q_indexed(i)
     retval = search(expr, query, mode, 'dfs')
-    # Filter off Indexeds not carrying a DiscretizedFunction
+    # Filter off Indexeds not carrying a DiscreteFunction
     for i in list(retval):
         try:
             i.function
