@@ -66,7 +66,7 @@ class Differentiable(sympy.Expr):
             This method acts as a fallback for __getattribute__
         """
         if name in self._fd:
-            return self._fd[name][0](self)
+            return self._fd[name]
         raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
 
     # Override SymPy arithmetic operators
