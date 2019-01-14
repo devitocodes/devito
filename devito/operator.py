@@ -260,7 +260,7 @@ class Operator(Callable):
         args.update([p._arg_values() for p in self.input if p.name not in args])
         args = args.reduce_all()
 
-        # All TensorFunctions should be defined on the same Grid
+        # All DiscreteFunctions should be defined on the same Grid
         functions = [kwargs.get(p, p) for p in self.input if p.is_DiscreteFunction]
         mapper = ReducerMap([('grid', i.grid) for i in functions if i.grid])
         try:
