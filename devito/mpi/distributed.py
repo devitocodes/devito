@@ -43,7 +43,7 @@ __all__ = ['Distributor', 'SparseDistributor', 'MPI']
 class AbstractDistributor(ABC):
 
     """
-    Decompose a set of :class:`Dimension`s over a set of MPI processes.
+    Decompose a set of Dimensions over a set of MPI processes.
 
     Notes
     -----
@@ -93,7 +93,7 @@ class AbstractDistributor(ABC):
     def glb_slices(self):
         """
         The global indices owned by the calling MPI rank, as a mapper from
-        :class:`Dimension`s to slices.
+        Dimensions to slices.
         """
         return {d: slice(min(i), max(i) + 1)
                 for d, i in zip(self.dimensions, self.glb_numb)}
@@ -110,17 +110,17 @@ class AbstractDistributor(ABC):
 
     @property
     def dimensions(self):
-        """The decomposed :class:`Dimension`s."""
+        """The decomposed Dimensions."""
         return self._dimensions
 
     @cached_property
     def decomposition(self):
-        """The :class:`Decomposition`s, one for each decomposed :class:`Dimension`."""
+        """The Decompositions, one for each decomposed Dimension."""
         return EnrichedTuple(*self._decomposition, getters=self.dimensions)
 
     @property
     def ndim(self):
-        """Number of decomposed :class:`Dimension`s"""
+        """Number of decomposed Dimensions"""
         return len(self._glb_shape)
 
     def glb_to_loc(self, dim, *args, strict=True):
@@ -129,7 +129,7 @@ class AbstractDistributor(ABC):
 
         Parameters
         ----------
-        dim : :class:`Dimension`
+        dim : Dimension
             The global index Dimension.
         *args
             There are several possibilities, documented in
@@ -149,7 +149,7 @@ class AbstractDistributor(ABC):
 class Distributor(AbstractDistributor):
 
     """
-    Decompose a set of :class:`Dimension`s over a set of MPI processes.
+    Decompose a set of Dimensions over a set of MPI processes.
 
     Parameters
     ----------
@@ -331,13 +331,15 @@ class Distributor(AbstractDistributor):
 
     @cached_property
     def _obj_comm(self):
-        """An :class:`Object` representing the MPI communicator."""
+        """An Object representing the MPI communicator."""
         return MPICommObject(self.comm)
 
     @cached_property
     def _obj_neighbours(self):
-        """A :class:`CompositeObject` describing the calling MPI rank's
-        neighborhood in the decomposed grid."""
+        """
+        A CompositeObject describing the calling MPI rank's neighborhood
+        in the decomposed grid.
+        """
         entries = list(product(self.dimensions, [LEFT, RIGHT]))
         fields = ['%s%s' % (d, i) for d, i in entries]
         obj = MPINeighborhood(fields)
@@ -349,8 +351,8 @@ class Distributor(AbstractDistributor):
 class SparseDistributor(AbstractDistributor):
 
     """
-    Decompose a :class:`Dimension` defining a set of sparse data values
-    arbitrarily spread within a cartesian grid.
+    Decompose a Dimension defining a set of sparse data values arbitrarily
+    spread within a cartesian grid.
 
     Parameters
     ----------
@@ -359,8 +361,7 @@ class SparseDistributor(AbstractDistributor):
     dimensions : tuple of Dimensions
         The decomposed Dimensions.
     distributor : Distributor
-        The :class:`Distributor` carrying the domain decomposition the
-        SparseDistributor depends on.
+        The domain decomposition the SparseDistributor depends on.
     """
 
     def __init__(self, npoint, dimension, distributor):

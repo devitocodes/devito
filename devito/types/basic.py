@@ -713,8 +713,8 @@ class Array(AbstractCachedFunction):
     """
     Tensor symbol representing an array in symbolic equations.
 
-    An Array is created and managed directly by Devito; that is, it is not
-    expected to be needed in user code.
+    Arrays are created and managed directly by Devito (IOW, they are not
+    expected to be used directly in user code).
 
     Parameters
     ----------
@@ -730,9 +730,8 @@ class Array(AbstractCachedFunction):
     padding : iterable of 2-tuples, optional
         The padding region of the object.
     scope : str, optional
-        Control memory allocation. Allowed values: 'heap', 'stack', 'external'.
-        Defaults to 'heap'. 'external' implies that no storage needs to be
-        allocated within a certain scope.
+        Control memory allocation. Allowed values: 'heap', 'stack'. Defaults
+        to 'heap'.
     """
 
     is_Array = True
@@ -747,7 +746,7 @@ class Array(AbstractCachedFunction):
             super(Array, self).__init__(*args, **kwargs)
 
             self._scope = kwargs.get('scope', 'heap')
-            assert self._scope in ['heap', 'stack', 'external']
+            assert self._scope in ['heap', 'stack']
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -762,8 +761,8 @@ class Array(AbstractCachedFunction):
         return self.symbolic_shape
 
     @property
-    def _mem_external(self):
-        return self._scope == 'external'
+    def scope(self):
+        return self._scope
 
     @property
     def _mem_stack(self):
@@ -784,9 +783,10 @@ class Array(AbstractCachedFunction):
         self._halo = kwargs.get('halo', self._halo)
         self._padding = kwargs.get('padding', self._padding)
         self._scope = kwargs.get('scope', self._scope)
-        assert self._scope in ['heap', 'stack', 'external']
+        assert self._scope in ['heap', 'stack']
 
-    _pickle_kwargs = ['name', 'halo', 'padding', 'dimensions']
+    # Pickling support
+    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['dimensions', 'scope']
 
 
 # Objects belonging to the Devito API not involving data, such as data structures

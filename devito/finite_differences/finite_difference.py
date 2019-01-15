@@ -78,15 +78,15 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
         the resulting stencil. Defaults to ``expr.space_order``
     side : Side, optional
         Side of the finite difference location, centered (at x), left (at x - 1)
-        or right (at x +1). Defaults to centered
+        or right (at x +1). Defaults to ``centered``.
     matvec : Transpose, optional
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference. Defaults to direct
+        finite difference. Defaults to ``direct``.
 
     Returns
     -------
     expr-like
-        The first-order derivative of ``expr``
+        First-order derivative of ``expr``.
 
     Examples
     --------
@@ -156,7 +156,7 @@ def second_derivative(expr, dim, fd_order, stagger=None):
     Returns
     -------
     expr-like
-        The finite difference second-order derivative of ``expr``.
+        Second-order derivative of ``expr``.
 
     Examples
     --------
@@ -188,13 +188,20 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
     ----------
     expr : expr-like
         Expression for which the cross derivative is produced.
-    dims : tuple
+    dims : tuple of Dimension
         Dimensions w.r.t. which to differentiate.
-    fd_order : int
+    fd_order : tuple of ints
         Coefficient discretization order. Note: this impacts the width of
         the resulting stencil.
-    deriv_order : int
+    deriv_order : tuple of ints
         Derivative order, e.g. 2 for a second-order derivative.
+    stagger : tuple of Side, optional
+        Shift of the finite-difference approximation.
+
+    Returns
+    -------
+    expr-like
+        Cross-derivative of ``expr``.
 
     Examples
     --------
@@ -246,7 +253,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
     Returns
     -------
     expr-like
-        The derivative of ``expr`` of order ``deriv-order``.
+        ``deriv-order`` derivative of ``expr``.
     """
 
     diff = dim.spacing

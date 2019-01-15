@@ -4,8 +4,8 @@ from devito.core.autotuning import autotune
 from devito.ir.iet import Call, List, HaloSpot, MetaCall, FindNodes, Transformer
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
-from devito.mpi import copy, sendrecv, update_halo
-from devito.operator import Operator
+from devito.mpi import make_halo_exchange_routines
+from devito.operator import Operator, is_threaded
 from devito.tools import flatten
 
 __all__ = ['OperatorCore']
@@ -20,38 +20,40 @@ class OperatorCore(Operator):
         return super(OperatorCore, self)._specialize_exprs(expressions)
 
     def _generate_mpi(self, iet, **kwargs):
+        # Drop superfluous HaloSpots
+        halo_spots = FindNodes(HaloSpot).visit(iet)
+        mapper = {i: None for i in halo_spots if i.is_Redundant}
+        iet = Transformer(mapper, nested=True).visit(iet)
+
+        # Nothing else to do if no MPI
         if configuration['mpi'] is False:
             return iet
 
         halo_spots = FindNodes(HaloSpot).visit(iet)
 
-        # For each MPI-distributed DiscreteFunction, generate all necessary
-        # C-level routines to perform a halo update
         callables = OrderedDict()
-        for hs in halo_spots:
-            for f, v in hs.fmapper.items():
-                callables[f] = [update_halo(f, v.loc_indices)]
-                callables[f].append(sendrecv(f, v.loc_indices))
-                callables[f].append(copy(f, v.loc_indices))
-                callables[f].append(copy(f, v.loc_indices, True))
-        callables = flatten(callables.values())
-
-        # Replace HaloSpots with suitable calls performing the halo update
         mapper = {}
         for hs in halo_spots:
             for f, v in hs.fmapper.items():
+                # For each MPI-distributed DiscreteFunction, generate all necessary
+                # C-level routines to perform a halo update
+                threaded = is_threaded(kwargs.get("dle"))
+                routines, extra = make_halo_exchange_routines(f, v.loc_indices, threaded)
+                callables[f] = routines
+
+                # Replace HaloSpots with suitable calls performing the halo update
                 stencil = [int(i) for i in hs.mask[f].values()]
                 comm = f.grid.distributor._obj_comm
                 nb = f.grid.distributor._obj_neighbours
                 loc_indices = list(v.loc_indices.values())
-                parameters = [f] + stencil + [comm, nb] + loc_indices
-                call = Call('halo_exchange_%s' % f.name, parameters)
+                arguments = [f] + stencil + [comm, nb] + loc_indices + extra
+                call = Call('halo_exchange_%s' % f.name, arguments)
                 mapper.setdefault(hs, []).append(call)
 
         self._includes.append('mpi.h')
 
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                             for i in callables]))
+                                             for i in flatten(callables.values())]))
 
         # Add in the halo update calls
         mapper = {k: List(body=v + list(k.body)) for k, v in mapper.items()}
