@@ -312,8 +312,9 @@ class TestDependenceAnalysis(object):
         ('u[x+1,y,z-1]', (AFFINE, AFFINE, AFFINE)),
         ('u[x+1,3,z-1]', (AFFINE, AFFINE, AFFINE)),
         ('u[sx+1,y,z-1]', (AFFINE, AFFINE, AFFINE)),
-        ('u[x+1,c,s]', (AFFINE, AFFINE, AFFINE)),
-        ('u[x+1,c+1,s*s]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x+1,c,s]', (AFFINE, AFFINE, IRREGULAR)),
+        ('u[x+1,c,sc]', (AFFINE, AFFINE, AFFINE)),
+        ('u[x+1,c+1,sc*sc]', (AFFINE, AFFINE, AFFINE)),
         ('u[x*x+1,y,z]', (IRREGULAR, AFFINE, AFFINE)),
         ('u[x*y,y,z]', (IRREGULAR, AFFINE, AFFINE)),
         ('u[x + z,x + y,z*z]', (IRREGULAR, IRREGULAR, IRREGULAR)),
@@ -334,6 +335,7 @@ class TestDependenceAnalysis(object):
 
         u = Function(name='u', grid=grid)  # noqa
         c = Constant(name='c')  # noqa
+        sc = Scalar(name='sc', is_const=True)  # noqa
         s = Scalar(name='s')  # noqa
 
         ii = IterationInstance(eval(indexed))
