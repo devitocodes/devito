@@ -1129,6 +1129,24 @@ class TestIsotropicAcoustic(object):
     Test the isotropic acoustic wave equation with MPI.
     """
 
+    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save', [
+        ((60, ), 'OT2', 4, 10, False),
+        ((60, 70), 'OT2', 8, 10, False),
+    ])
+    @pytest.mark.parallel(nprocs=1)
+    def test_adjoint_codegen(self, shape, kernel, space_order, nbpml, save):
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+                                nbpml=nbpml, tn=500, space_order=space_order, nrec=130,
+                                preset='layers-isotropic', dtype=np.float64)
+        op_fwd = solver.op_fwd(save=save)
+        fwd_calls = FindNodes(Call).visit(op_fwd)
+
+        op_adj = solver.op_adj()
+        adj_calls = FindNodes(Call).visit(op_adj)
+
+        assert len(fwd_calls) == 2
+        assert len(adj_calls) == 2
+
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
         ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
         ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
