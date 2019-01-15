@@ -57,6 +57,8 @@ class Eq(sympy.Eq):
         functions = retrieve_functions(obj)
         functions = filter_ordered(functions, key=lambda i: i.name)
         if any(f._coefficients is 'symbolic' for f in functions):
+            # NOTE: As Coefficients.py is expanded we will not want
+            # all rules to be expunged during this procress.
             rules = default_rules(obj, functions)
             try:
                 obj = obj.xreplace({**coefficients.rules, **rules})

@@ -1,8 +1,6 @@
 import sympy
 import numpy as np
 
-#from sympy import finite_diff_weights
-
 from cached_property import cached_property
 
 from devito.tools import filter_ordered, flatten
@@ -14,15 +12,24 @@ __all__ = ['Coefficients', 'default_rules']
 class Coefficients(object):
     """
     Devito class for users to define custom finite difference weights.
+    Input must be given as tuple(s) with the following arguments:
+    tuple = (deriv_order, function, dimension, coefficients)
+    
+    Here,
+    deriv_order: represents the order of the derivative being taken.
+    function: represents the function for which the supplied coefficients
+              will be used.
+    dimension: represents the dimension with respect to which the 
+               derivative is being taken.
+    coefficients: represents the set of finite difference coefficients
+                  intended to be used in place of the standard 
+                  coefficients (obtained from a Taylor expansion).
+                  
+    Coefficient objects created in this manner must then be
+    passed to Devito equation objects for the replacement rules
+    to take effect.
     """
 
-    # FIXME: Make interface explicit.
-    # Add optional argument nodes and allow
-    # coefficients to also be a list of np.ndarray's
-    # of size nodes or a 'function'.
-    # Then we should be able to generate the default
-    # replacement rules during the __init__ is required.
-    # (and we can then clean equation.py up a bit)
     def __init__(self, *args, **kwargs):
 
         self.check_args(args, kwargs)
@@ -34,12 +41,17 @@ class Coefficients(object):
 
     def check_args(self, args, kwargs):
         for arg in args:
-            if isinstance(arg, tuple):
-                assert isinstance(arg[0], int)
-                assert(arg[1].is_Function)
-                assert(arg[2].is_Dimension)
-                assert isinstance(arg[3], np.ndarray)
-            else:
+            if not isinstance(arg, tuple):
+                raise TypeError("Input must be of type tuple.")
+            if not isinstance(arg[0], int):
+                raise TypeError("Derivative order must be an integer.")
+            if not arg[1].is_Function:
+                raise TypeError("Coefficients must be attached to a valid function.")
+            if not arg[2].is_Dimension:
+                raise TypeError("Coefficients must be attached to a valid dimension.")
+            # Currently only numpy arrays are accepted here.
+            # Functionality will be expanded in the near future.
+            if not isinstance(arg[3], np.ndarray):
                 raise NotImplementedError
         return
 
