@@ -16,7 +16,11 @@ FULL = DataRegion('full')  # == DOMAIN+HALO+PADDING
 
 
 class DataSide(Tag):
-    pass
+
+    def __str__(self):
+        return self.name
+
+    __repr__ = __str__
 
 
 LEFT = DataSide('left', -1)
