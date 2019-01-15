@@ -155,7 +155,7 @@ class Operator(Callable):
         self._state = {}
 
         # Expression lowering: indexification, substitution rules, specialization
-        expressions = [indexify(i) for i in expressions]
+        expressions = [indexify(i.stencil) for i in expressions]
         expressions = self._apply_substitutions(expressions, subs)
         expressions = self._specialize_exprs(expressions)
 

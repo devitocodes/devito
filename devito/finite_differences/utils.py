@@ -3,8 +3,12 @@ from functools import partial
 from devito.finite_differences.finite_difference import left, right, centered
 from devito.finite_differences.derivative import Diff
 
-def partial_derivative(expr, deriv_order, dims, fd_order, stagger=centered, side=centered):
-    new_obj = Diff(expr, dims, deriv_order=deriv_order, fd_order=fd_order, stagger=centered, side=centered)
+
+def diff(expr, *dims, deriv_order=1, fd_order=1, side=centered, **kwargs):
+    return Diff(expr, *dims, deriv_order=deriv_order, fd_order=fd_order, side=centered, **kwargs)
+
+def partial_derivative(expr, deriv_order, dims, fd_order, side=centered, **kwargs):
+    new_obj = Diff(expr, dims, deriv_order=deriv_order, fd_order=fd_order, side=centered, **kwargs)
     return new_obj
 
 def generate_fd_shortcuts(function):
@@ -13,14 +17,6 @@ def generate_fd_shortcuts(function):
     space_fd_order = function.space_order
     time_fd_order = function.time_order if (function.is_TimeFunction or
                                             function.is_SparseTimeFunction) else 0
-    side = dict()
-    for (d, s) in zip(dimensions, function.staggered):
-        if s == 0:
-            side[d] = left
-        elif s == 1:
-            side[d] = right
-        else:
-            side[d] = centered
 
     deriv_function = partial_derivative
     c_deriv_function = partial_derivative
@@ -37,7 +33,7 @@ def generate_fd_shortcuts(function):
         # All possible derivatives go up to the dimension FD order
         for o in range(1, dim_order + 1):
             deriv = partial(deriv_function, deriv_order=o, dims=d,
-                            fd_order=dim_order, stagger=side[d])
+                            fd_order=dim_order)
             name_fd = 'd%s%d' % (name, o) if o > 1 else 'd%s' % name
             desciption = 'derivative of order %d w.r.t dimension %s' % (o, d)
 
@@ -49,8 +45,7 @@ def generate_fd_shortcuts(function):
                 name2 = 't' if d2.is_Time else d2.root.name
                 for o2 in range(1, dim_order2 + 1):
                     deriv = partial(c_deriv_function, deriv_order=(o, o2), dims=(d, d2),
-                                    fd_order=(dim_order, dim_order2),
-                                    stagger=(side[d], side[d2]))
+                                    fd_order=(dim_order, dim_order2))
                     name_fd2 = 'd%s%d' % (name, o) if o > 1 else 'd%s' % name
                     name_fd2 += 'd%s%d' % (name2, o2) if o2 > 1 else 'd%s' % name2
                     desciption = 'derivative of order (%d, %d) ' % (o, o2)
