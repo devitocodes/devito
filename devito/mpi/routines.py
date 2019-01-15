@@ -62,24 +62,21 @@ class HaloExchangeBuilder(object):
                     calls.setdefault(hs, []).append(mapper[key])
                     continue
 
-                # The halo mask -- what are the Dimensions and DataSides along
-                # which the halo should be communicated?
-                mask = [int(i) for i in hs.mask[f].values()]
-
                 # Callables construction
                 progressid = len(mapper)
                 gather, extra = self._make_copy(f, v.loc_indices, progressid)
                 scatter, _ = self._make_copy(f, v.loc_indices, progressid, swap=True)
                 sendrecv = self._make_sendrecv(f, v.loc_indices, progressid, extra)
-                haloupdate = self._make_haloupdate(f, v.loc_indices, progressid, extra)
+                haloupdate = self._make_haloupdate(f, v.loc_indices, hs.mask[f],
+                                                   progressid, extra)
                 callables.extend([gather, scatter, sendrecv, haloupdate])
 
                 # `haloupdate` Call construction
                 comm = f.grid.distributor._obj_comm
                 nb = f.grid.distributor._obj_neighborhood
                 loc_indices = list(v.loc_indices.values())
-                arguments = [f] + mask + [comm, nb] + loc_indices + extra
-                call = Call('haloupdate%d' % progressid, arguments)
+                args = [f, comm, nb] + loc_indices + extra
+                call = Call('haloupdate%d' % progressid, args)
                 calls.setdefault(hs, []).append(call)
 
                 # Track the newly built halo exchange pattern
@@ -88,7 +85,7 @@ class HaloExchangeBuilder(object):
         return callables, calls
 
     @abc.abstractmethod
-    def _make_haloupdate(self, f, fixed, progressid, **kwargs):
+    def _make_haloupdate(self, f, fixed, halos, progressid, **kwargs):
         """
         Construct a Callable performing, for a given DiscreteFunction, a halo exchange.
         """
@@ -180,10 +177,10 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         fromrank = Symbol(name='fromrank')
         torank = Symbol(name='torank')
 
-        arguments = [bufg] + list(bufg.shape) + [dummy_f] + ofsg + extra
-        gather = Call('gather%d' % progressid, arguments)
-        arguments = [bufs] + list(bufs.shape) + [dummy_f] + ofss + extra
-        scatter = Call('scatter%d' % progressid, arguments)
+        args = [bufg] + list(bufg.shape) + [dummy_f] + ofsg + extra
+        gather = Call('gather%d' % progressid, args)
+        args = [bufs] + list(bufs.shape) + [dummy_f] + ofss + extra
+        scatter = Call('scatter%d' % progressid, args)
 
         # The scatter must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
@@ -208,7 +205,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                       [fromrank, torank, comm] + extra)
         return Callable('sendrecv%d' % progressid, iet, 'void', parameters, ('static',))
 
-    def _make_haloupdate(self, f, fixed, progressid, extra=None):
+    def _make_haloupdate(self, f, fixed, mask, progressid, extra=None):
         extra = extra or []
         distributor = f.grid.distributor
         nb = distributor._obj_neighborhood
@@ -235,7 +232,6 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             mapper[(d0, side, region)] = (sizes, offsets)
 
         body = []
-        masks = []
         for d in f.dimensions:
             if d in fixed:
                 continue
@@ -243,28 +239,22 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             rpeer = FieldFromPointer("%sright" % d, nb)
             lpeer = FieldFromPointer("%sleft" % d, nb)
 
-            # Sending to left, receiving from right
-            lsizes, loffsets = mapper[(d, LEFT, OWNED)]
-            rsizes, roffsets = mapper[(d, RIGHT, HALO)]
-            sizes = lsizes
-            arguments = [f] + sizes + loffsets + roffsets + [rpeer, lpeer, comm] + extra
-            call = Call('sendrecv%d' % progressid, arguments)
-            mask = Symbol(name='m%sl' % d)
-            body.append(Conditional(mask, call))
-            masks.append(mask)
+            if mask[(d, LEFT)]:
+                # Sending to left, receiving from right
+                lsizes, loffsets = mapper[(d, LEFT, OWNED)]
+                rsizes, roffsets = mapper[(d, RIGHT, HALO)]
+                args = [f] + lsizes + loffsets + roffsets + [rpeer, lpeer, comm] + extra
+                body.append(Call('sendrecv%d' % progressid, args))
 
-            # Sending to right, receiving from left
-            rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
-            lsizes, loffsets = mapper[(d, LEFT, HALO)]
-            sizes = rsizes
-            arguments = [f] + sizes + roffsets + loffsets + [lpeer, rpeer, comm] + extra
-            call = Call('sendrecv%d' % progressid, arguments)
-            mask = Symbol(name='m%sr' % d)
-            body.append(Conditional(mask, call))
-            masks.append(mask)
+            if mask[(d, RIGHT)]:
+                # Sending to right, receiving from left
+                rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
+                lsizes, loffsets = mapper[(d, LEFT, HALO)]
+                args = [f] + rsizes + roffsets + loffsets + [lpeer, rpeer, comm] + extra
+                body.append(Call('sendrecv%d' % progressid, args))
 
         iet = List(body=body)
-        parameters = [f] + masks + [comm, nb] + list(fixed.values()) + extra
+        parameters = [f, comm, nb] + list(fixed.values()) + extra
         return Callable('haloupdate%d' % progressid, iet, 'void', parameters, ('static',))
 
 
