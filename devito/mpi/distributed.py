@@ -1,15 +1,16 @@
 from ctypes import c_int, c_void_p, sizeof
-from itertools import product
+from itertools import groupby, product
 from math import ceil
 from abc import ABC, abstractmethod
 import atexit
 
 from cached_property import cached_property
 import numpy as np
+from cgen import Struct, Value
 
 from devito.data import LEFT, CENTER, RIGHT, Decomposition
 from devito.parameters import configuration
-from devito.tools import EnrichedTuple, as_tuple, is_integer
+from devito.tools import EnrichedTuple, as_tuple, ctypes_to_cstr, is_integer
 from devito.types import CompositeObject, Object
 
 
@@ -472,8 +473,26 @@ class MPICommObject(Object):
 class MPINeighborhood(CompositeObject):
 
     def __init__(self, fields):
-        super(MPINeighborhood, self).__init__('nb', 'neighbours',
+        super(MPINeighborhood, self).__init__('nb', 'neighborhood',
                                               [(i, c_int) for i in fields])
+
+    @cached_property
+    def _C_typedecl(self):
+        # Overriding for better code readability
+        #
+        # Struct neighborhood                 Struct neighborhood
+        # {                                   {
+        #   int ll;                             int ll, lc, lr;
+        #   int lc;                 VS          ...
+        #   int lr;                             ...
+        #   ...                                 ...
+        # }                                   }
+        #
+        # With this override, we generate the one on the right
+        groups = [list(g) for k, g in groupby(self.pfields, key=lambda x: x[0][0])]
+        groups = [(j[0], i) for i, j in [zip(*g) for g in groups]]
+        return Struct(self.pname, [Value(ctypes_to_cstr(i), ', '.join(j))
+                                   for i, j in groups])
 
     # Pickling support
     _pickle_args = ['fields']
