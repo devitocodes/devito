@@ -56,7 +56,10 @@ class Differentiable(sympy.Expr):
 
     @cached_property
     def stencil(self):
-        return self.func(*[a.stencil for a in self.args])
+        return self.func(*[getattr(a, 'stencil', a) for a in self.args])
+
+    def xreplace(self, rules):
+        return self.func(*[a.xreplace(rules) for a in self.args])
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()

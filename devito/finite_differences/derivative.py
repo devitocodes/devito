@@ -14,7 +14,21 @@ class Diff(sympy.Derivative, Differentiable):
     """
 
     def __new__(cls, expr, *dims, **kwargs):
-        new_obj = sympy.Derivative.__new__(cls, expr, *dims)
+        deriv_order = kwargs.get("deriv_order", 1)
+
+        # expand the dimension depending on the derivative order
+        # ie Diff(expr, x, 2) becomes Derivative(expr, (x, 2))
+        if int(deriv_order):
+            new_dims = tuple([dims[0] for _ in range(deriv_order)])
+        else:
+            new_dims = []
+            for d, o in zip(*dims, deriv_order):
+                for _ in range(o):
+                    new_dims.append(d)
+
+            new_dims = tuple(new_dims)
+
+        new_obj = sympy.Derivative.__new__(cls, expr, *new_dims)
         new_obj.setup_fd(expr, *dims, **kwargs)
         return new_obj
 

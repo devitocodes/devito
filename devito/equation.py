@@ -59,6 +59,11 @@ class Eq(sympy.Eq):
         """The SubDomain in which the Eq is defined."""
         return self._subdomain
 
+    @property
+    def stencil(self):
+        return Eq(self.lhs.stencil, self.rhs.stencil, evaluate=False,
+                  subdomain=self.subdomain)
+
     def xreplace(self, rules):
         """"""
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
@@ -120,4 +125,4 @@ def solve(eq, target, **kwargs):
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
-    return sympy.solve(eq, target, **kwargs)[0]
+    return sympy.solve(eq.stencil, target.stencil, **kwargs)[0]
