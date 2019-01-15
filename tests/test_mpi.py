@@ -7,7 +7,7 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SubDimension, Eq, Inc, Operator, norm, inner)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes
-from devito.mpi import MPI, make_halo_exchange_routines
+from devito.mpi import MPI, HaloExchangeBuilder
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['yask', 'ops', 'nompi'])
@@ -316,7 +316,8 @@ class TestCodeGeneration(object):
 
         f = TimeFunction(name='f', grid=grid)
 
-        (_, _, gather, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
+        heb = HaloExchangeBuilder(False)
+        gather, _ = heb._make_copy(f, [t], 0)
         assert str(gather.parameters) == """\
 (buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
@@ -335,7 +336,8 @@ class TestCodeGeneration(object):
 
         f = TimeFunction(name='f', grid=grid)
 
-        (_, sendrecv, _, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
+        heb = HaloExchangeBuilder(False)
+        sendrecv = heb._make_sendrecv(f, [t], 0)
         assert str(sendrecv.parameters) == """\
 (f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
  fromrank, torank, comm)"""
@@ -348,46 +350,47 @@ MPI_Request rrecv;
 MPI_Request rsend;
 MPI_Status srecv;
 MPI_Irecv((float *)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
-gather_f((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
+gather0((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
 MPI_Isend((float *)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
 MPI_Wait(&rsend,MPI_STATUS_IGNORE);
 MPI_Wait(&rrecv,&srecv);
 if (fromrank != MPI_PROC_NULL)
 {
-  scatter_f((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
+  scatter0((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
 }
 free(bufs);
 free(bufg);"""
 
     @pytest.mark.parallel(nprocs=1)
-    def test_iet_update_halo(self):
+    def test_iet_haloupdate(self):
         grid = Grid(shape=(4, 4))
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        (update_halo, _, _, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
-        assert str(update_halo.parameters) == """\
+        heb = HaloExchangeBuilder(False)
+        haloupdate = heb._make_haloupdate(f, [t], 0)
+        assert str(haloupdate.parameters) == """\
 (f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime)"""
-        assert str(update_halo.body[0]) == """\
+        assert str(haloupdate.body[0]) == """\
 if (mxl)
 {
-  sendrecv_f(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
+  sendrecv0(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
 f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->xright,nb->xleft,comm);
 }
 if (mxr)
 {
-  sendrecv_f(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
+  sendrecv0(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
 f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->xleft,nb->xright,comm);
 }
 if (myl)
 {
-  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
+  sendrecv0(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
 f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->yright,nb->yleft,comm);
 }
 if (myr)
 {
-  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
+  sendrecv0(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
 f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->yleft,nb->yright,comm);
 }"""
 
