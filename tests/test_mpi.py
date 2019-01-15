@@ -321,7 +321,7 @@ class TestCodeGeneration(object):
         f = TimeFunction(name='f', grid=grid)
 
         heb = HaloExchangeBuilder(False)
-        gather, _ = heb._make_copy(f, [t], 0)
+        gather, _ = heb._make_copy(f, [t])
         assert str(gather.parameters) == """\
 (buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
@@ -341,7 +341,7 @@ class TestCodeGeneration(object):
         f = TimeFunction(name='f', grid=grid)
 
         heb = HaloExchangeBuilder(False)
-        sendrecv = heb._make_sendrecv(f, [t], 0)
+        sendrecv = heb._make_sendrecv(f, [t])
         assert str(sendrecv.parameters) == """\
 (f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
  fromrank, torank, comm)"""
@@ -352,15 +352,19 @@ posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
 posix_memalign((void**)&bufg, 64, sizeof(float[buf_x_size][buf_y_size]));
 MPI_Request rrecv;
 MPI_Request rsend;
+MPI_Status ssend;
 MPI_Status srecv;
 MPI_Irecv((float *)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
-gather0((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
+if (torank != MPI_PROC_NULL)
+{
+  gather3d((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
+}
 MPI_Isend((float *)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
-MPI_Wait(&rsend,MPI_STATUS_IGNORE);
+MPI_Wait(&rsend,&ssend);
 MPI_Wait(&rrecv,&srecv);
 if (fromrank != MPI_PROC_NULL)
 {
-  scatter0((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
+  scatter3d((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
 }
 free(bufs);
 free(bufg);"""
@@ -375,18 +379,18 @@ free(bufg);"""
 
         heb = HaloExchangeBuilder(False)
         mock_halo = {(x, LEFT): True, (x, RIGHT): True, (y, LEFT): True, (y, RIGHT): True}
-        haloupdate = heb._make_haloupdate(f, [t], mock_halo, 0)
+        haloupdate = heb._make_haloupdate(f, [t], mock_halo)
         assert str(haloupdate.parameters) == """\
 (f(t, x, y), comm, nb, otime)"""
         assert str(haloupdate.body[0]) == """\
-sendrecv0(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
-f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->xright,nb->xleft,comm);
-sendrecv0(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
-f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->xleft,nb->xright,comm);
-sendrecv0(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
-f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->yright,nb->yleft,comm);
-sendrecv0(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
-f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->yleft,nb->yright,comm);"""
+sendrecv3d(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
+f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->rc,nb->lc,comm);
+sendrecv3d(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
+f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->lc,nb->rc,comm);
+sendrecv3d(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
+f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->cr,nb->cl,comm);
+sendrecv3d(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
+f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->cl,nb->cr,comm);"""
 
 
 class TestSparseFunction(object):
