@@ -366,11 +366,11 @@ class Distributor(AbstractDistributor):
         A CompositeObject describing the calling MPI rank's neighborhood
         in the decomposed grid.
         """
-        entries = list(product(self.dimensions, [LEFT, RIGHT]))
-        fields = ['%s%s' % (d, i.name) for d, i in entries]
+        entries = list(product([LEFT, CENTER, RIGHT], repeat=self.ndim))
+        fields = [''.join(j.name[0] for j in i) for i in entries]
         obj = MPINeighborhood(fields)
-        for d, i in entries:
-            setattr(obj.value._obj, '%s%s' % (d, i.name), self.neighborhood[d][i])
+        for name, i in zip(fields, entries):
+            setattr(obj.value._obj, name, self.neighborhood[i])
         return obj
 
 

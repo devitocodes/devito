@@ -45,22 +45,6 @@ class TestDistributor(object):
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
-    @pytest.mark.parallel(nprocs=[2, 4])
-    def test_ctypes_neighborhood(self):
-        grid = Grid(shape=(4, 4))
-        distributor = grid.distributor
-
-        PN = MPI.PROC_NULL
-        attrs = ['xleft', 'xright', 'yleft', 'yright']
-        expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
-            2: [(PN, PN, PN, 1), (PN, PN, 0, PN)],
-            4: [(PN, 2, PN, 1), (PN, 3, 0, PN), (0, PN, PN, 3), (1, PN, 2, PN)]
-        }
-
-        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
-        obj = distributor._obj_neighborhood
-        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
-
     @pytest.mark.parallel(nprocs=9)
     def test_neighborhood_horizontal_2d(self):
         grid = Grid(shape=(3, 3))
@@ -122,6 +106,26 @@ class TestDistributor(object):
         }
         assert all(expected[distributor.myrank][i] == distributor.neighborhood[i]
                    for i in [(LEFT, LEFT), (LEFT, RIGHT), (RIGHT, LEFT), (RIGHT, RIGHT)])
+
+    @pytest.mark.parallel(nprocs=[2, 4])
+    def test_ctypes_neighborhood(self):
+        grid = Grid(shape=(4, 4))
+        distributor = grid.distributor
+
+        PN = MPI.PROC_NULL
+        attrs = ['ll', 'lc', 'lr', 'cl', 'cc', 'cr', 'rl', 'rc', 'rr']
+        expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
+            2: [(PN, PN, PN, PN, 0, 1, PN, PN, PN),
+                (PN, PN, PN, 0, 1, PN, PN, PN, PN)],
+            4: [(PN, PN, PN, PN, 0, 1, PN, 2, 3),
+                (PN, PN, PN, 0, 1, PN, 2, 3, PN),
+                (PN, 0, 1, PN, 2, 3, PN, PN, PN),
+                (0, 1, PN, 2, 3, PN, PN, PN, PN)]
+        }
+
+        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
+        obj = distributor._obj_neighborhood
+        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
 
 
 class TestFunction(object):

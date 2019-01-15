@@ -236,8 +236,10 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             if d in fixed:
                 continue
 
-            rpeer = FieldFromPointer("%sright" % d, nb)
-            lpeer = FieldFromPointer("%sleft" % d, nb)
+            name = ''.join('r' if i is d else 'c' for i in distributor.dimensions)
+            rpeer = FieldFromPointer(name, nb)
+            name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
+            lpeer = FieldFromPointer(name, nb)
 
             if mask[(d, LEFT)]:
                 # Sending to left, receiving from right
