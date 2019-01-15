@@ -731,8 +731,8 @@ class Array(AbstractCachedFunction):
     """
     Tensor symbol representing an array in symbolic equations.
 
-    Arrays are created and managed directly by Devito (IOW, they are not
-    expected to be used directly in user code).
+    An Array is very similar to a sympy.Indexed, though it also carries
+    metadata essential for code generation.
 
     Parameters
     ----------
@@ -750,6 +750,11 @@ class Array(AbstractCachedFunction):
     scope : str, optional
         Control memory allocation. Allowed values: 'heap', 'stack'. Defaults
         to 'heap'.
+
+    Warnings
+    --------
+    Arrays are created and managed directly by Devito (IOW, they are not
+    expected to be used directly in user code).
     """
 
     is_Array = True
