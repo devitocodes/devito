@@ -14,17 +14,17 @@ class Coefficients(object):
     Devito class for users to define custom finite difference weights.
     Input must be given as tuple(s) with the following arguments:
     tuple = (deriv_order, function, dimension, coefficients)
-    
+
     Here,
     deriv_order: represents the order of the derivative being taken.
     function: represents the function for which the supplied coefficients
               will be used.
-    dimension: represents the dimension with respect to which the 
+    dimension: represents the dimension with respect to which the
                derivative is being taken.
     coefficients: represents the set of finite difference coefficients
-                  intended to be used in place of the standard 
+                  intended to be used in place of the standard
                   coefficients (obtained from a Taylor expansion).
-                  
+
     Coefficient objects created in this manner must then be
     passed to Devito equation objects for the replacement rules
     to take effect.
