@@ -1,11 +1,13 @@
 from cached_property import cached_property
-import ctypes
 import sympy
 import numpy as np
+import ctypes
+from functools import reduce
+from operator import mul
 
 from devito.exceptions import InvalidArgument
-from devito.logger import yask as log
-from devito.tools import Signer, dtype_to_ctype, memoized_meth
+from devito.logger import yask as log, yask_warning as warning
+from devito.tools import Signer, memoized_meth, dtype_to_ctype
 import devito.types.basic as basic
 import devito.types.constant as constant
 import devito.types.dense as dense
@@ -106,13 +108,19 @@ class Function(dense.Function, Signer):
     @property
     @_allocate_memory
     def _data_buffer(self):
-        ctype = dtype_to_ctype(self.dtype)
-        cpointer = ctypes.cast(int(self._data.grid.get_raw_storage_buffer()),
-                               ctypes.POINTER(ctype))
-        ndpointer = np.ctypeslib.ndpointer(dtype=self.dtype, shape=self.shape_allocated)
-        casted = ctypes.cast(cpointer, ndpointer)
-        ndarray = np.ctypeslib.as_array(casted, shape=self.shape_allocated)
-        return ndarray
+        num_elements = self._data.grid.get_num_storage_elements()
+        shape = self.shape_allocated
+        ctype_1d = dtype_to_ctype(self.dtype) * reduce(mul, shape)
+
+        if num_elements != reduce(mul, shape):
+            warning("num_storage_elements(%d) != reduce(mul, %s)",
+                    num_elements, str(shape))
+
+        buf = ctypes.cast(
+            int(self._data.grid.get_raw_storage_buffer()),
+            ctypes.POINTER(ctype_1d)).contents
+
+        return np.frombuffer(buf, dtype=self.dtype).reshape(shape)
 
     @property
     def data(self):
