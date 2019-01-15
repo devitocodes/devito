@@ -231,15 +231,15 @@
 <span class="sd">        the resulting stencil. Defaults to ``expr.space_order``</span>
 <span class="sd">    side : Side, optional</span>
 <span class="sd">        Side of the finite difference location, centered (at x), left (at x - 1)</span>
-<span class="sd">        or right (at x +1). Defaults to centered</span>
+<span class="sd">        or right (at x +1). Defaults to ``centered``.</span>
 <span class="sd">    matvec : Transpose, optional</span>
 <span class="sd">        Forward (matvec=direct) or transpose (matvec=transpose) mode of the</span>
-<span class="sd">        finite difference. Defaults to direct</span>
+<span class="sd">        finite difference. Defaults to ``direct``.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    expr-like</span>
-<span class="sd">        The first-order derivative of ``expr``</span>
+<span class="sd">        First-order derivative of ``expr``.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
@@ -309,7 +309,7 @@
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    expr-like</span>
-<span class="sd">        The finite difference second-order derivative of ``expr``.</span>
+<span class="sd">        Second-order derivative of ``expr``.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
@@ -341,13 +341,20 @@
 <span class="sd">    ----------</span>
 <span class="sd">    expr : expr-like</span>
 <span class="sd">        Expression for which the cross derivative is produced.</span>
-<span class="sd">    dims : tuple</span>
+<span class="sd">    dims : tuple of Dimension</span>
 <span class="sd">        Dimensions w.r.t. which to differentiate.</span>
-<span class="sd">    fd_order : int</span>
+<span class="sd">    fd_order : tuple of ints</span>
 <span class="sd">        Coefficient discretization order. Note: this impacts the width of</span>
 <span class="sd">        the resulting stencil.</span>
-<span class="sd">    deriv_order : int</span>
+<span class="sd">    deriv_order : tuple of ints</span>
 <span class="sd">        Derivative order, e.g. 2 for a second-order derivative.</span>
+<span class="sd">    stagger : tuple of Side, optional</span>
+<span class="sd">        Shift of the finite-difference approximation.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    expr-like</span>
+<span class="sd">        Cross-derivative of ``expr``.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
@@ -399,7 +406,7 @@
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    expr-like</span>
-<span class="sd">        The derivative of ``expr`` of order ``deriv-order``.</span>
+<span class="sd">        ``deriv-order`` derivative of ``expr``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">diff</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span>

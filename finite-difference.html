@@ -180,13 +180,13 @@
 <li><strong>fd_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Coefficient discretization order. Note: this impacts the width of
 the resulting stencil. Defaults to <code class="docutils literal notranslate"><span class="pre">expr.space_order</span></code></li>
 <li><strong>side</strong> (<em>Side</em><em>, </em><em>optional</em>) – Side of the finite difference location, centered (at x), left (at x - 1)
-or right (at x +1). Defaults to centered</li>
+or right (at x +1). Defaults to <code class="docutils literal notranslate"><span class="pre">centered</span></code>.</li>
 <li><strong>matvec</strong> (<em>Transpose</em><em>, </em><em>optional</em>) – Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-finite difference. Defaults to direct</li>
+finite difference. Defaults to <code class="docutils literal notranslate"><span class="pre">direct</span></code>.</li>
 </ul>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The first-order derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code></p>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">First-order derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </td>
 </tr>
 <tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">expr-like</p>
@@ -234,7 +234,7 @@ the resulting stencil.</li>
 </ul>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The finite difference second-order derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">Second-order derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </td>
 </tr>
 <tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">expr-like</p>
@@ -267,13 +267,20 @@ the resulting stencil.</li>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>expr</strong> (<em>expr-like</em>) – Expression for which the cross derivative is produced.</li>
-<li><strong>dims</strong> (<em>tuple</em>) – Dimensions w.r.t. which to differentiate.</li>
-<li><strong>fd_order</strong> (<em>int</em>) – Coefficient discretization order. Note: this impacts the width of
+<li><strong>dims</strong> (<em>tuple of Dimension</em>) – Dimensions w.r.t. which to differentiate.</li>
+<li><strong>fd_order</strong> (<em>tuple of ints</em>) – Coefficient discretization order. Note: this impacts the width of
 the resulting stencil.</li>
-<li><strong>deriv_order</strong> (<em>int</em>) – Derivative order, e.g. 2 for a second-order derivative.</li>
+<li><strong>deriv_order</strong> (<em>tuple of ints</em>) – Derivative order, e.g. 2 for a second-order derivative.</li>
+<li><strong>stagger</strong> (<em>tuple of Side</em><em>, </em><em>optional</em>) – Shift of the finite-difference approximation.</li>
 </ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">Cross-derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">expr-like</p>
 </td>
 </tr>
 </tbody>
@@ -313,7 +320,7 @@ the resulting stencil.</li>
 </ul>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code> of order <code class="docutils literal notranslate"><span class="pre">deriv-order</span></code>.</p>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><code class="docutils literal notranslate"><span class="pre">deriv-order</span></code> derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </td>
 </tr>
 <tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">expr-like</p>
