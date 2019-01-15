@@ -5,15 +5,20 @@ from cached_property import cached_property
 from devito.finite_differences.finite_difference import left, right, centered, generic_derivative, first_derivative, cross_derivative
 from devito.finite_differences.differentiable import Differentiable
 
-__all__ = ['Derivative']
+__all__ = ['Diff']
 
-class Derivative(Differentiable):
+class Diff(sympy.Derivative, Differentiable):
 
     """
     Represents an unevaluated  derivative of an input expression
     """
 
-    def setup_fd(self, deriv_order, dims, fd_order, **kwargs):
+    def __new__(cls, expr, *dims, **kwargs):
+        new_obj = sympy.Derivative.__new__(cls, expr, *dims)
+        new_obj.setup_fd(expr, *dims, **kwargs)
+        return new_obj
+
+    def setup_fd(self, expr, *dims, deriv_order=1, fd_order=1, **kwargs):
         self._dims = dims
         self._fd_order = fd_order
         self._deriv_order = deriv_order
@@ -40,6 +45,9 @@ class Derivative(Differentiable):
     def side(self):
         return self._side
 
+    @cached_property
+    def is_Staggered(self):
+        return self.expr.is_Staggered
 
     @cached_property
     def _stagger_setup(self):
@@ -61,15 +69,11 @@ class Derivative(Differentiable):
     @cached_property
     def stencil(self):
         if self.side is not None:
-            return first_derivative(self.stencil, self.dims, self.fd_order,
+            return first_derivative(self.expr.stencil, self.dims[0], self.fd_order,
                                     side=self.side)
         if isinstance(self.dims, tuple):
-            return cross_derivative(self.stencil, self.dims, self.fd_order,
+            return cross_derivative(self.expr.stencil, self.dims, self.fd_order,
                                     self.deriv_order, stagger=self.stagger)
         else:
-            return generic_derivative(self.stencil, self.dims, self.fd_order,
+            return generic_derivative(self.expr.stencil, self.dims[0], self.fd_order,
                                       self.deriv_order, stagger=self.stagger)
-
-    def __repr__(self):
-        return "d^%s/d%s^%s (%s)" % (self.deriv_order, self.dims,
-                                     self.deriv_order, super(Derivative, self).__repr__())

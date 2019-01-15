@@ -1,11 +1,10 @@
 from functools import partial
 
 from devito.finite_differences.finite_difference import left, right, centered
-from devito.finite_differences.derivative import Derivative
+from devito.finite_differences.derivative import Diff
 
 def partial_derivative(expr, deriv_order, dims, fd_order, stagger=centered, side=centered):
-    new_obj = Derivativeexpr)
-    new_obj.setup_fd(deriv_order=deriv_order, dims=dims, fd_order=fd_order, stagger=centered, side=centered)
+    new_obj = Diff(expr, dims, deriv_order=deriv_order, fd_order=fd_order, stagger=centered, side=centered)
     return new_obj
 
 def generate_fd_shortcuts(function):
