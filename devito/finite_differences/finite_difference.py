@@ -80,7 +80,7 @@ def check_symbolic(func):
 
 @check_input
 @check_symbolic
-ef first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
+def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
     """
     First-order derivative of a given expression.
     Parameters
@@ -260,20 +260,9 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
         ``deriv-order`` derivative of ``expr``.
     """
 
-<<<<<<< HEAD
     diff = dim.spacing
 
     if stagger == left or not expr.is_Staggered:
-=======
-    # Check if we need symbolic fd weights (not implemented)
-    functions = expr.as_ordered_factors()
-    for f in functions:
-        fd_weight_type = f._symbolic_coefficients
-        if fd_weight_type is 'symbolic':
-            raise NotImplementedError
-
-    if stagger == left:
->>>>>>> .
         off = -.5
     elif stagger == right:
         off = .5
@@ -298,7 +287,6 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
     else:
         c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
-<<<<<<< HEAD
     deriv = 0
     all_dims = tuple(set((dim, ) +
                      tuple([i for i in expr.indices if i.root == dim])))
@@ -307,17 +295,6 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
             deriv += expr.subs(subs) * c[i]
 
     return deriv.evalf(_PRECISION)
-=======
-    :param function: The symbol representing a function.
-    :param dims: Dimensions for which to take the derivative.
-    :param order: Discretisation order of the stencil to create.
-    """
-
-    first = staggered_diff(expr, deriv_order=deriv_order[0],
-                           fd_order=fd_order[0], dim=dims[0], stagger=stagger[0])
-    return staggered_diff(first, deriv_order=deriv_order[1],
-                          fd_order=fd_order[1], dim=dims[1], stagger=stagger[1])
->>>>>>> .
 
 
 def generate_fd_shortcuts(function):
@@ -395,7 +372,7 @@ def generate_fd_shortcuts(function):
             desciption = 'right first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
 
-return derivatives
+    return derivatives
 
 def symbolic_weights(function, deriv_order, indices, dim):
 
