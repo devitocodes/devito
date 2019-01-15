@@ -364,35 +364,25 @@ free(bufg);"""
     @pytest.mark.parallel(nprocs=1)
     def test_iet_haloupdate(self):
         grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
         heb = HaloExchangeBuilder(False)
-        haloupdate = heb._make_haloupdate(f, [t], 0)
+        mock_halo = {(x, LEFT): True, (x, RIGHT): True, (y, LEFT): True, (y, RIGHT): True}
+        haloupdate = heb._make_haloupdate(f, [t], mock_halo, 0)
         assert str(haloupdate.parameters) == """\
-(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime)"""
+(f(t, x, y), comm, nb, otime)"""
         assert str(haloupdate.body[0]) == """\
-if (mxl)
-{
-  sendrecv0(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
+sendrecv0(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
 f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->xright,nb->xleft,comm);
-}
-if (mxr)
-{
-  sendrecv0(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
+sendrecv0(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
 f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->xleft,nb->xright,comm);
-}
-if (myl)
-{
-  sendrecv0(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
+sendrecv0(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
 f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->yright,nb->yleft,comm);
-}
-if (myr)
-{
-  sendrecv0(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
-f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->yleft,nb->yright,comm);
-}"""
+sendrecv0(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
+f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->yleft,nb->yright,comm);"""
 
 
 class TestSparseFunction(object):
