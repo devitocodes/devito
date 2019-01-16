@@ -97,10 +97,14 @@ class YaskKernel(object):
                 # The root directory of generated code files, shared libs, Python modules
                 'YASK_OUTPUT_DIR=%s' % namespace['yask-output-dir'],
                 # Pick the YASK kernel Makefile, i.e. the one under `yask/src/kernel`
-                '-C', namespace['kernel-path'], 'api'
+                '-C', namespace['kernel-path'],
+                # Make target.
+                'api'
             ]
-            # Other potentially useful args:
-            # - "EXTRA_MACROS=TRACE", -- debugging option
+            if configuration['develop-mode']:
+                args.append('check=1') # Activate internal YASK asserts.
+                # args.append('trace=1') # YASK will print out verbose progress messages.
+                args.append('trace_mem=1') # YASK will print out verbose mem-access messages.
             make(namespace['path'], args)
 
             # Now we must be able to import the SWIG-generated Python module
