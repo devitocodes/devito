@@ -100,7 +100,7 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 10)
-        ratio = kwargs.pop('ratio', 2)
+        ratio = kwargs.pop('ratio', 3)
         vp_top = kwargs.pop('vp_top', 1.5)
         vp_bottom = kwargs.pop('vp_bottom', 2.5)
 
@@ -399,7 +399,7 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
     :param pad_mode: A string or a suitable padding function as explained in
                      :func:`numpy.pad`.
     """
-    pad_widths = [(nbpml + i.left, nbpml + i.right) for i in function._offset_domain]
+    pad_widths = [(nbpml + i.left, nbpml + i.right) for i in function._size_halo]
     data = np.pad(data, pad_widths, pad_mode)
     function.data_with_halo[:] = data
 

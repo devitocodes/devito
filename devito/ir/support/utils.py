@@ -1,11 +1,11 @@
 from collections import OrderedDict, defaultdict
 
-from devito.dimension import Dimension, ModuloDimension
 from devito.ir.support.basic import Access
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
+from devito.types import Dimension, ModuloDimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
            'detect_flow_directions', 'force_directions', 'align_accesses', 'detect_io']
@@ -45,21 +45,21 @@ def detect_accesses(expr):
 def detect_oobs(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return the set of
-    :class:`Dimension`s that cannot be iterated over for the entire
-    computational domain, to avoid out-of-bounds (OOB) accesses.
+    Dimensions that *cannot* be iterated over the entire computational
+    domain, to avoid out-of-bounds (OOB) accesses.
     """
     found = set()
     for f, stencil in mapper.items():
-        if f is None or not f.is_TensorFunction:
+        if f is None or not f.is_DiscreteFunction:
             continue
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d
             try:
-                if min(v) < 0 or max(v) > sum(f._offset_domain[p]):
+                if min(v) < 0 or max(v) > sum(f._size_halo[p]):
                     found.add(p)
             except KeyError:
                 # Unable to detect presence of OOB accesses
-                # (/p/ not in /f._offset_domain/, typical of indirect
+                # (/p/ not in /f._size_halo/, typical of indirect
                 # accesses such as A[B[i]])
                 pass
     return found | {i.parent for i in found if i.is_Derived}
@@ -110,7 +110,7 @@ def align_accesses(expr, key=lambda i: False):
         f = indexed.function
         if not key(f):
             continue
-        subs = {i: i + j.left for i, j in zip(indexed.indices, f._offset_domain)}
+        subs = {i: i + j for i, j in zip(indexed.indices, f._size_halo.left)}
         mapper[indexed] = indexed.xreplace(subs)
     return expr.xreplace(mapper)
 
@@ -218,12 +218,16 @@ def force_directions(mapper, key):
 
 
 def detect_io(exprs, relax=False):
-    """``{exprs} -> ({reads}, {writes})
+    """
+    ``{exprs} -> ({reads}, {writes})
 
-    :param exprs: The expressions inspected.
-    :param relax: (Optional) if False, as by default, collect only
-                  :class:`Constant`s and :class:`Function`s. Otherwise,
-                  collect any :class:`Basic`s.
+    Parameters
+    ----------
+    exprs : expr-like or list of expr-like
+        The searched expressions.
+    relax : bool, optional
+        If False, as by default, collect only :class:`Constant`s and
+        :class:`Function`s. Otherwise, collect any :class:`types.Basic`s.
     """
     exprs = as_tuple(exprs)
     if relax is False:

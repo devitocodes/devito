@@ -1,25 +1,22 @@
-from __future__ import absolute_import
-
 from collections import OrderedDict
 
 import cgen as c
 import numpy as np
 
-from devito.dimension import IncrDimension
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
 from devito.ir.iet import (Denormals, Call, Callable, List, ArrayCast,
                            Transformer, FindSymbols, retrieve_iteration_tree,
-                           filter_iterations, derive_parameters)
+                           filter_iterations, iet_insert_C_decls, derive_parameters)
+from devito.parameters import configuration
 from devito.symbolics import as_symbol
-from devito.tools import flatten
-from devito.types import Scalar
+from devito.types import Scalar, IncrDimension
 
 
 class BasicRewriter(AbstractRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
-        self._create_elemental_functions(state)
+        self._create_efuncs(state)
 
     @dle_pass
     def _avoid_denormals(self, nodes, state):
@@ -33,15 +30,15 @@ class BasicRewriter(AbstractRewriter):
                 {'includes': ('xmmintrin.h', 'pmmintrin.h')})
 
     @dle_pass
-    def _create_elemental_functions(self, nodes, state):
+    def _create_efuncs(self, nodes, state):
         """
-        Extract :class:`Iteration` sub-trees and move them into :class:`Callable`s.
+        Extract Iteration sub-trees and turn them into Calls+Callables.
 
         Currently, only tagged, elementizable Iteration objects are targeted.
         """
         noinline = self._compiler_decoration('noinline', c.Comment('noinline?'))
 
-        functions = OrderedDict()
+        efuncs = OrderedDict()
         mapper = {}
         for tree in retrieve_iteration_tree(nodes, mode='superset'):
             # Search an elementizable sub-tree (if any)
@@ -53,66 +50,55 @@ class BasicRewriter(AbstractRewriter):
                 continue
             target = tree[tree.index(root):]
 
-            # Elemental function arguments
-            args = []  # Found so far (scalars, tensors)
-            defined_args = {}  # Map of argument values defined by loop bounds
-
             # Build a new Iteration/Expression tree with free bounds
             free = []
+            defined_args = {}  # Map of argument values defined by loop bounds
             for i in target:
                 name, bounds = i.dim.name, i.symbolic_bounds
                 # Iteration bounds
-                start = Scalar(name='%s_start' % name, dtype=np.int32)
-                finish = Scalar(name='%s_finish' % name, dtype=np.int32)
-                defined_args[start.name] = bounds[0]
-                defined_args[finish.name] = bounds[1]
+                _min = Scalar(name='%sf_m' % name, dtype=np.int32)
+                _max = Scalar(name='%sf_M' % name, dtype=np.int32)
+                defined_args[_min.name] = bounds[0]
+                defined_args[_max.name] = bounds[1]
 
                 # Iteration unbounded indices
                 ufunc = [Scalar(name='%s_ub%d' % (name, j), dtype=np.int32)
                          for j in range(len(i.uindices))]
-                defined_args.update({uf.name: j.symbolic_start
+                defined_args.update({uf.name: j.symbolic_min
                                      for uf, j in zip(ufunc, i.uindices)})
-                limits = [Scalar(name=start.name, dtype=np.int32),
-                          Scalar(name=finish.name, dtype=np.int32), 1]
+                limits = [Scalar(name=_min.name, dtype=np.int32),
+                          Scalar(name=_max.name, dtype=np.int32), 1]
                 uindices = [IncrDimension(j.parent, i.dim + as_symbol(k), 1, j.name)
                             for j, k in zip(i.uindices, ufunc)]
                 free.append(i._rebuild(limits=limits, offsets=None, uindices=uindices))
 
-            # Construct elemental function body, and inspect it
+            # Construct elemental function body
             free = Transformer(dict((zip(target, free))), nested=True).visit(root)
+            items = FindSymbols().visit(free)
 
-            # Insert array casts for all non-defined
-            f_symbols = FindSymbols('symbolics').visit(free)
-            defines = [s.name for s in FindSymbols('defines').visit(free)]
-            casts = [ArrayCast(f) for f in f_symbols
-                     if f.is_Tensor and f.name not in defines]
-            free = (List(body=casts), free)
+            # Insert array casts
+            casts = [ArrayCast(i) for i in items if i.is_Tensor]
+            free = List(body=casts + [free])
 
-            for i in derive_parameters(free):
-                if i.name in defined_args:
-                    args.append((defined_args[i.name], i))
-                elif i.is_Dimension:
-                    d = Scalar(name=i.name, dtype=i.dtype)
-                    args.append((d, d))
-                else:
-                    args.append((i, i))
+            # Insert declarations
+            external = [i for i in items if i.is_Array]
+            free = iet_insert_C_decls(free, external)
 
-            call, params = zip(*args)
+            # Create the Callable
             name = "f_%d" % root.tag
+            params = derive_parameters(free)
+            efuncs.setdefault(name, Callable(name, free, 'void', params, 'static'))
 
-            # Produce the new Call
-            mapper[root] = List(header=noinline, body=Call(name, call))
-
-            # Produce the new Callable
-            functions.setdefault(name, Callable(name, free, 'void', flatten(params),
-                                                ('static',)))
+            # Create the Call
+            args = [defined_args.get(i.name, i) for i in params]
+            mapper[root] = List(header=noinline, body=Call(name, args))
 
         # Transform the main tree
         processed = Transformer(mapper).visit(nodes)
 
-        return processed, {'elemental_functions': functions.values()}
+        return processed, {'efuncs': efuncs.values()}
 
     def _compiler_decoration(self, name, default=None):
-        key = self.params['compiler'].__class__.__name__
+        key = configuration['compiler'].__class__.__name__
         complang = complang_ALL.get(key, {})
         return complang.get(name, default)

@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import pytest
 
 import os
@@ -13,17 +11,41 @@ from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # no
                     Constant, Function, TimeFunction, Eq, configuration, SparseFunction, # noqa
                     SparseTimeFunction)  # noqa
 from devito.compiler import sniff_mpi_distro
-from devito.types import Scalar, Array
 from devito.ir.iet import Iteration
 from devito.tools import as_tuple
+from devito.types import Scalar, Array
+
+try:
+    from mpi4py import MPI  # noqa
+except ImportError:
+    MPI = None
 
 
-def skipif_backend(backends):
-    conditions = []
-    for b in backends:
-        conditions.append(b == configuration['backend'])
-    return pytest.mark.skipif(any(conditions),
-                              reason="{} testing is currently restricted".format(b))
+def skipif(items):
+    items = as_tuple(items)
+    # Sanity check
+    accepted = set(configuration._accepted['backend'])
+    accepted.update({'no%s' % i for i in configuration._accepted['backend']})
+    accepted.update({'nompi'})
+    unknown = sorted(set(items) - accepted)
+    if unknown:
+        raise ValueError("Illegal skipif argument(s) `%s`" % unknown)
+    for i in items:
+        # Skip if no MPI
+        if i == 'nompi':
+            if MPI is None:
+                return pytest.mark.skipif(True, reason="mpi4py/MPI not installed")
+            continue
+        # Skip if an unsupported backend
+        if i == configuration['backend']:
+            return pytest.mark.skipif(True, reason="`%s` backend unsupported" % i)
+        try:
+            _, noi = i.split('no')
+            if noi != configuration['backend']:
+                return pytest.mark.skipif(True, reason="`%s` backend unsupported" % i)
+        except ValueError:
+            pass
+    return pytest.mark.skipif(False, reason="")
 
 
 # Testing dimensions for space and time
@@ -266,32 +288,18 @@ def EVAL(exprs, *args):
     return processed[0] if isinstance(exprs, str) else processed
 
 
-def configuration_override(key, value):
-    def dec(f):
-        def wrapper(*args, **kwargs):
-            oldvalue = configuration[key]
-            configuration[key] = value
-            f(*args, **kwargs)
-            configuration[key] = oldvalue
-
-        return wrapper
-
-    return dec
-
-
-# Support to run MPI tests
-# This is partly extracted from:
-# `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
-
-mpi_exec = 'mpiexec'
-mpi_distro = sniff_mpi_distro(mpi_exec)
-
-
 def parallel(item):
     """Run a test in parallel.
 
     :parameter item: The test item to run.
     """
+    # Support to run MPI tests
+    # This is partly extracted from:
+    # `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
+
+    mpi_exec = 'mpiexec'
+    mpi_distro = sniff_mpi_distro(mpi_exec)
+
     marker = item.get_closest_marker("parallel")
     nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
     for i in nprocs:
@@ -315,8 +323,10 @@ def parallel(item):
 
         # Tell the MPI ranks that they are running a parallel test
         os.environ['DEVITO_MPI'] = '1'
-        check_call(call)
-        os.environ['DEVITO_MPI'] = '0'
+        try:
+            check_call(call)
+        finally:
+            os.environ['DEVITO_MPI'] = '0'
 
 
 def pytest_configure(config):
@@ -328,7 +338,7 @@ def pytest_configure(config):
 
 def pytest_runtest_setup(item):
     partest = int(os.environ.get('DEVITO_MPI', 0))
-    if item.get_marker("parallel") and not partest:
+    if item.get_closest_marker("parallel") and not partest:
         # Blow away function arg in "master" process, to ensure
         # this test isn't run on only one process
         dummy_test = lambda *args, **kwargs: True
@@ -341,6 +351,6 @@ def pytest_runtest_setup(item):
 
 def pytest_runtest_call(item):
     partest = int(os.environ.get('DEVITO_MPI', 0))
-    if item.get_marker("parallel") and not partest:
+    if item.get_closest_marker("parallel") and not partest:
         # Spawn parallel processes to run test
         parallel(item)

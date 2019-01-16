@@ -14,9 +14,12 @@ def yaskit(trees, yc_soln):
 
     The necessary YASK grids are instantiated.
 
-    :param trees: A sequence of offloadable :class:`IterationTree`s, in which the
-                  Expressions are searched.
-    :param yc_soln: The YASK compiler solution to be populated.
+    Parameters
+    ----------
+    trees : list of IterationTree
+        One or more Iteration trees within which the convertible Expressions are searched.
+    yc_soln
+        The YASK compiler solution to be populated.
     """
     # Track all created YASK grids
     mapper = {}
@@ -38,8 +41,8 @@ def yaskit(trees, yc_soln):
             # Can we express both Iteration extremes as
             # `FIRST(i.dim) + integer` OR `LAST(i.dim) + integer` ?
             # If not, one of the following lines will throw a TypeError exception
-            lower_ofs, lower_sym = i.dim.offset_left()
-            upper_ofs, upper_sym = i.dim.offset_right()
+            lower_ofs, lower_sym = i.dim._offset_left()
+            upper_ofs, upper_sym = i.dim._offset_right()
 
             if i.is_Parallel:
                 # At this point, no issues are expected -- we should just be able to
@@ -48,7 +51,7 @@ def yaskit(trees, yc_soln):
                 ydim = nfac.new_domain_index(i.dim.parent.name)
 
                 # Handle lower extreme
-                if lower_sym == i.dim.parent.symbolic_start:
+                if lower_sym == i.dim.parent.symbolic_min:
                     node = nfac.new_first_domain_index(ydim)
                 else:
                     node = nfac.new_last_domain_index(ydim)
@@ -57,7 +60,7 @@ def yaskit(trees, yc_soln):
                     v.append(nfac.new_not_less_than_node(ydim, expr))
 
                 # Handle upper extreme
-                if upper_sym == i.dim.parent.symbolic_start:
+                if upper_sym == i.dim.parent.symbolic_min:
                     node = nfac.new_first_domain_index(ydim)
                 else:
                     node = nfac.new_last_domain_index(ydim)
@@ -69,7 +72,7 @@ def yaskit(trees, yc_soln):
                 # For sequential Iterations, the extent *must* be statically known,
                 # otherwise we don't know how to handle this
                 try:
-                    int(i.extent())
+                    int(i.size())
                 except TypeError:
                     raise NotImplementedError("Found sequential Iteration with "
                                               "statically unknown extent")
@@ -77,7 +80,7 @@ def yaskit(trees, yc_soln):
                 n = lower_sym
 
                 ydim = nfac.new_domain_index(i.dim.parent.name)
-                if n == i.dim.parent.symbolic_start:
+                if n == i.dim.parent.symbolic_min:
                     node = nfac.new_first_domain_index(ydim)
                 else:
                     node = nfac.new_last_domain_index(ydim)
@@ -135,6 +138,8 @@ def make_yask_ast(expr, yc_soln, mapper):
             # Create a YASK grid if it's the first time we encounter the embedded Function
             if function not in mapper:
                 mapper[function] = yc_soln.new_grid(function.name, [])
+                # Allow number of time-steps to be set in YASK kernel.
+                mapper[function].set_dynamic_step_alloc(True)
             return mapper[function].new_grid_point([])
         elif function.is_Dimension:
             if expr.is_Time:
@@ -158,6 +163,8 @@ def make_yask_ast(expr, yc_soln, mapper):
             dimensions = [make_yask_ast(i.root, yc_soln, mapper)
                           for i in function.indices]
             mapper[function] = yc_soln.new_grid(function.name, dimensions)
+            # Allow number of time-steps to be set in YASK kernel.
+            mapper[function].set_dynamic_step_alloc(True)
         indices = [make_yask_ast(i, yc_soln, mapper) for i in expr.indices]
         return mapper[function].new_grid_point(indices)
     elif expr.is_Add:

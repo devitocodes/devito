@@ -1,11 +1,9 @@
 import pytest
-
-from conftest import EVAL, time, x, y, z, skipif_backend  # noqa
-
 import numpy as np
 
+from conftest import EVAL, time, x, y, z, skipif  # noqa
 from devito import (Eq, Inc, Grid, Function, TimeFunction, # noqa
-                    Operator, Dimension, configuration)
+                    Operator, Dimension)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet.nodes import Conditional, Expression, Iteration
@@ -16,9 +14,7 @@ from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
 from devito.ir.support.utils import detect_flow_directions
 from devito.symbolics import indexify
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops'])
 
 
 class TestVectorDistanceArithmetic(object):
@@ -371,7 +367,7 @@ class TestDependenceAnalysis(object):
             return
         else:
             assert len(dep.cause) == 1
-            cause = dep.cause.pop()
+            cause = set(dep.cause).pop()
             assert cause.name == exp_cause
 
         # Check mode restricted to the cause
@@ -444,7 +440,7 @@ class TestDependenceAnalysis(object):
 
         for i in ['flow', 'anti', 'output']:
             for dep in getattr(scope, 'd_%s' % i):
-                item = (dep.function.name, i, str(dep.cause))
+                item = (dep.function.name, i, str(set(dep.cause)))
                 assert item in expected
                 expected.remove(item)
 

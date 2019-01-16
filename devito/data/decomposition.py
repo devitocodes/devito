@@ -3,8 +3,8 @@ from collections import Iterable
 import numpy as np
 from cached_property import cached_property
 
+from devito.data.meta import LEFT
 from devito.tools import is_integer
-from devito.types import LEFT
 
 __all__ = ['Decomposition']
 
@@ -173,7 +173,7 @@ class Decomposition(tuple):
         >>> d.convert_index(7)
         2
         >>> d.convert_index(3)
-        None
+
 
         Retrieve relative local min/man given global min/max
 
@@ -191,7 +191,7 @@ class Decomposition(tuple):
         Retrieve absolute local min/max given global min/max
 
         >>> d.convert_index((5, 9), rel=False)
-        (5, 9)
+        (5, 7)
         >>> d.convert_index((1, 6), rel=False)
         (5, 6)
         """
@@ -261,19 +261,19 @@ class Decomposition(tuple):
             rel_ofs, side = args
             if side is LEFT:
                 abs_ofs = self.glb_min + rel_ofs
-                extent = self.loc_abs_max - base + 1
-                return min(abs_ofs - base, extent) if abs_ofs > base else 0
+                size = self.loc_abs_max - base + 1
+                return min(abs_ofs - base, size) if abs_ofs > base else 0
             else:
                 abs_ofs = self.glb_max - rel_ofs
-                extent = top - self.loc_abs_min + 1
-                return min(top - abs_ofs, extent) if abs_ofs < top else 0
+                size = top - self.loc_abs_min + 1
+                return min(top - abs_ofs, size) if abs_ofs < top else 0
         else:
             raise TypeError("Expected 1 or 2 arguments, found %d" % len(args))
 
     def reshape(self, *args):
         """
-        Create a new :class:`Decomposition` with extended or reduced boundary
-        subdomains. This causes a new index enumeration.
+        Create a new Decomposition with extended or reduced boundary subdomains.
+        This causes a new index enumeration.
 
         Parameters
         ----------

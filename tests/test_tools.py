@@ -1,11 +1,10 @@
-import pytest
 from sympy.abc import a, b, c, d, e
-from devito.tools import toposort
-from devito import configuration
+import pytest
 
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+from conftest import skipif
+from devito.tools import toposort
+
+pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.mark.parametrize('elements, expected', [

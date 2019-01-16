@@ -4,47 +4,43 @@ from argparse import ArgumentParser
 from devito.logger import info
 from devito import Constant, Function, smooth
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
+from examples.seismic import demo_model, AcquisitionGeometry
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    tn=500., kernel='OT2', space_order=4, nbpml=10,
-                   constant=False, **kwargs):
-    nrec = shape[0]
-    preset = 'constant-isotropic' if constant else 'layers-isotropic'
+                   preset='layers-isotropic', **kwargs):
+    nrec = kwargs.pop('nrec', shape[0])
     model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
 
-    # Derive timestepping from model spacing
-    dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-    t0 = 0.0
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    if len(shape) > 1:
+        src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     if len(shape) > 1:
-        src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
-    # Define receiver geometry (spread across x, just below surface)
-    rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    if len(shape) > 1:
-        rec.coordinates.data[:, 1] = np.array(model.domain_size)[1] * .5
-        rec.coordinates.data[:, -1] = model.origin[-1] + 2 * spacing[-1]
+        rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
+        rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
 
     # Create solver object to provide relevant operators
-    solver = AcousticWaveSolver(model, source=src, receiver=rec, kernel=kernel,
+    solver = AcousticWaveSolver(model, geometry, kernel=kernel,
                                 space_order=space_order, **kwargs)
     return solver
 
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         space_order=4, kernel='OT2', nbpml=40, full_run=False,
-        autotune=False, constant=False, checkpointing=False, **kwargs):
+        autotune=False, preset='layers-isotropic', checkpointing=False, **kwargs):
 
     solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
                             space_order=space_order, kernel=kernel,
-                            constant=constant, **kwargs)
+                            preset=preset, **kwargs)
 
     # Smooth velocity
     initial_vp = Function(name='v0', grid=solver.model.grid, space_order=space_order)
@@ -59,7 +55,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     # Define receiver geometry (spread across x, just below surface)
     rec, u, summary = solver.forward(save=save, autotune=autotune)
 
-    if constant:
+    if preset == 'constant':
         # With  a new m as Constant
         m0 = Constant(name="m", value=.25, dtype=np.float32)
         solver.forward(save=save, m=m0)
@@ -110,8 +106,8 @@ if __name__ == "__main__":
     shape = tuple(args.ndim * [51])
     spacing = tuple(args.ndim * [15.0])
     tn = 750. if args.ndim < 3 else 250.
-
+    preset = 'constant-isotropic' if args.constant else 'layers-isotropic'
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
-        space_order=args.space_order, constant=args.constant, kernel=args.kernel,
+        space_order=args.space_order, preset=preset, kernel=args.kernel,
         autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full,
         checkpointing=args.checkpointing)

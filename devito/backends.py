@@ -5,8 +5,6 @@
 
 # This code is partly extracted from https://github.com/OP2/PyOP2/
 
-from __future__ import absolute_import
-
 from sympy.core.function import FunctionClass
 
 from devito.exceptions import DevitoError

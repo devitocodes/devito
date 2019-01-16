@@ -1,22 +1,18 @@
 import numpy as np
 import pytest
-from conftest import skipif_backend  # noqa
+
+from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator, norm, inner, configuration)
-from devito.ir.iet import Call, Conditional, FindNodes
-from devito.mpi import MPI, copy, sendrecv, update_halo
-from devito.types import LEFT, RIGHT
+                    SubDimension, Eq, Inc, Operator, norm, inner)
+from devito.data import LEFT, RIGHT
+from devito.ir.iet import Call, Conditional, Iteration, FindNodes
+from devito.mpi import MPI, make_halo_exchange_routines
+from examples.seismic.acoustic import acoustic_setup
 
-from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver
-from examples.seismic.acoustic import AcousticWaveSolver
-
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'yask' or
-                                configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
+pytestmark = skipif(['yask', 'ops', 'nompi'])
 
 
-@skipif_backend(['yask', 'ops'])
 class TestDistributor(object):
 
     @pytest.mark.parallel(nprocs=[2, 4])
@@ -49,7 +45,6 @@ class TestDistributor(object):
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
-    @skipif_backend(['yask', 'ops'])
     @pytest.mark.parallel(nprocs=[2, 4])
     def test_ctypes_neighbours(self):
         grid = Grid(shape=(4, 4))
@@ -63,11 +58,10 @@ class TestDistributor(object):
         }
 
         mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
-        _, _, obj = distributor._C_neighbours
+        obj = distributor._obj_neighbours
         assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
 
 
-@skipif_backend(['yask', 'ops'])
 class TestFunction(object):
 
     @pytest.mark.parallel(nprocs=9)
@@ -267,7 +261,6 @@ class TestFunction(object):
             assert np.all(f._data_ro_with_inhalo[0, 1:-1] == 2.)
             assert f._data_ro_with_inhalo[0, 0] == 1.
 
-    @skipif_backend(['yask', 'ops'])
     @pytest.mark.parallel(nprocs=4)
     @pytest.mark.parametrize('shape,expected', [
         ((15, 15), [((0, 8), (0, 8)), ((0, 8), (8, 15)),
@@ -283,54 +276,55 @@ class TestFunction(object):
 
 class TestCodeGeneration(object):
 
+    @pytest.mark.parallel(nprocs=1)
     def test_iet_copy(self):
         grid = Grid(shape=(4, 4))
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = copy(f, [t])
-        assert str(iet.parameters) == """\
-(buf(buf_x, buf_y), buf_x_size, buf_y_size, dat(dat_time, dat_x, dat_y),\
- dat_time_size, dat_x_size, dat_y_size, otime, ox, oy)"""
+        (_, _, gather, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
+        assert str(gather.parameters) == """\
+(buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
   for (int x = 0; x <= buf_x_size - 1; x += 1)
   {
     for (int y = 0; y <= buf_y_size - 1; y += 1)
     {
-      buf[x][y] = dat[otime][x + ox][y + oy];
+      buf[x][y] = f[otime][x + ox][y + oy];
     }
-  }""" in str(iet)
+  }""" in str(gather)
 
+    @pytest.mark.parallel(nprocs=1)
     def test_iet_sendrecv(self):
         grid = Grid(shape=(4, 4))
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = sendrecv(f, [t])
-        assert str(iet.parameters) == """\
-(dat(dat_time, dat_x, dat_y), dat_time_size, dat_x_size, dat_y_size,\
- buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy, fromrank, torank, comm)"""
-        assert str(iet.body[0]) == """\
-float (*restrict dat)[dat_x_size][dat_y_size] __attribute__((aligned(64))) =\
- (float (*)[dat_x_size][dat_y_size]) dat_vec;
-float bufs[buf_x_size][buf_y_size] __attribute__((aligned(64)));
+        (_, sendrecv, _, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
+        assert str(sendrecv.parameters) == """\
+(f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
+ fromrank, torank, comm)"""
+        assert str(sendrecv.body[0]) == """\
+float (*bufs)[buf_y_size];
+float (*bufg)[buf_y_size];
+posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
+posix_memalign((void**)&bufg, 64, sizeof(float[buf_x_size][buf_y_size]));
 MPI_Request rrecv;
-float bufg[buf_x_size][buf_y_size] __attribute__((aligned(64)));
 MPI_Request rsend;
 MPI_Status srecv;
-MPI_Irecv((float*)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
-gather_f((float*)bufg,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
-dat_y_size,ogtime,ogx,ogy);
-MPI_Isend((float*)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
+MPI_Irecv((float *)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
+gather_f((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
+MPI_Isend((float *)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
 MPI_Wait(&rsend,MPI_STATUS_IGNORE);
 MPI_Wait(&rrecv,&srecv);
 if (fromrank != MPI_PROC_NULL)
 {
-  scatter_f((float*)bufs,buf_x_size,buf_y_size,(float*)dat,dat_time_size,dat_x_size,\
-dat_y_size,ostime,osx,osy);
-}"""
+  scatter_f((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
+}
+free(bufs);
+free(bufg);"""
 
     @pytest.mark.parallel(nprocs=1)
     def test_iet_update_halo(self):
@@ -339,31 +333,29 @@ dat_y_size,ostime,osx,osy);
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = update_halo(f, [t])
-        assert str(iet.parameters) == """\
-(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime, t_size, x_size, y_size)"""
-        assert """\
-MPI_Comm *comm = (MPI_Comm*) _comm;
-struct neighbours *nb = (struct neighbours*) _nb;
+        (update_halo, _, _, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
+        assert str(update_halo.parameters) == """\
+(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime)"""
+        assert str(update_halo.body[0]) == """\
 if (mxl)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,\
-otime,1,0,otime,x_size + 1,0,nb->xright,nb->xleft,comm);
+  sendrecv_f(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
+f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->xright,nb->xleft,comm);
 }
 if (mxr)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,1,y_size + 1 + 1,\
-otime,x_size,0,otime,0,0,nb->xleft,nb->xright,comm);
+  sendrecv_f(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
+f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->xleft,nb->xright,comm);
 }
 if (myl)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
-otime,0,1,otime,0,y_size + 1,nb->yright,nb->yleft,comm);
+  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
+f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->yright,nb->yleft,comm);
 }
 if (myr)
 {
-  sendrecv(f_vec,t_size,x_size + 1 + 1,y_size + 1 + 1,x_size + 1 + 1,1,\
-otime,0,y_size,otime,0,0,nb->yleft,nb->yright,comm);
+  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
+f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->yleft,nb->yright,comm);
 }"""
 
 
@@ -386,7 +378,6 @@ class TestSparseFunction(object):
         assert all(grid.distributor.glb_to_rank(i) == grid.distributor.myrank
                    for i in sf.gridpoints)
 
-    @skipif_backend(['yask', 'ops'])
     @pytest.mark.parallel(nprocs=4)
     @pytest.mark.parametrize('coords,expected', [
         ([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]]),
@@ -579,20 +570,6 @@ class TestOperatorSimple(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(nprocs=1)
-    def test_stencil_nowrite_implies_haloupdate(self):
-        grid = Grid(shape=(12,))
-        x = grid.dimensions[0]
-        t = grid.stepping_dim
-
-        f = TimeFunction(name='f', grid=grid)
-        g = Function(name='g', grid=grid)
-
-        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
-
-        calls = FindNodes(Call).visit(op)
-        assert len(calls) == 1
-
-    @pytest.mark.parallel(nprocs=1)
     def test_avoid_redundant_haloupdate(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -607,6 +584,47 @@ class TestOperatorSimple(object):
         op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
                        Inc(f[t+1, i], 1.),  # no halo update as it's an Inc
                        Eq(g, f[t, j] + 1)])  # access `f` at `t`, not `t+1`!
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.parallel(nprocs=1)
+    def test_avoid_haloupdate_if_distr_but_sequential(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+
+        # There is an anti-dependence between the first and second Eqs, so
+        # the compiler places them in different x-loops. However, none of the
+        # two loops should be preceded by a halo exchange, though for different
+        # reasons:
+        # * the equation in the first loop has no stencil
+        # * the equation in the second loop is inherently sequential, so the
+        #   compiler should be sufficiently smart to see that there is no point
+        #   in adding a halo exchange
+        op = Operator([Eq(f, f + 1),
+                       Eq(f, f[t, x-1] + f[t, x+1] + 1.)])
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert len(iterations) == 3
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
+
+    @pytest.mark.parallel(nprocs=1)
+    def test_stencil_nowrite_implies_haloupdate_anyway(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        # It does a halo update, even though there's no data dependence,
+        # because when the halo updates are placed, the compiler conservatively
+        # assumes there might have been another equation writing to `f` before.
+        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
@@ -961,6 +979,25 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[0, :-thickness] == 1.)
             assert np.all(u.data_ro_domain[0, -thickness:] == range(2, thickness+2))
 
+    @pytest.mark.parallel(nprocs=2)
+    def test_interior_w_stencil(self):
+        grid = Grid(shape=(10,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u[t, x-1] + u[t, x+1] + 1, subdomain=grid.interior))
+        op.apply(time=1)
+
+        glb_pos_map = u.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(u.data_ro_domain[0, 1] == 2.)
+            assert np.all(u.data_ro_domain[0, 2:] == 3.)
+        else:
+            assert np.all(u.data_ro_domain[0, -2] == 2.)
+            assert np.all(u.data_ro_domain[0, :-2] == 3.)
+
     @pytest.mark.parallel(nprocs=4)
     def test_misc_dims(self):
         """
@@ -1086,7 +1123,6 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[1] == 3)
 
 
-@skipif_backend(['yask'])
 class TestIsotropicAcoustic(object):
 
     """
@@ -1094,7 +1130,7 @@ class TestIsotropicAcoustic(object):
     """
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, ), 'OT2', 4, 10, False, 976.825, 9372.604, 18851836.075, 47002871.882),
+        ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
         ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
@@ -1106,59 +1142,33 @@ class TestIsotropicAcoustic(object):
         of all Operator-evaluated Functions. The numbers we check against are derived
         "manually" from sequential runs of test_adjoint::test_adjoint_F
         """
-        t0 = 0.0  # Start time
         tn = 500.  # Final time
         nrec = 130  # Number of receivers
-        spacing = 15.  # Grid spacing
 
-        # Create model from preset
-        model = demo_model(spacing=[spacing for _ in shape], dtype=np.float64,
-                           space_order=space_order, shape=shape, nbpml=nbpml,
-                           preset='layers-isotropic', ratio=3)
-
-        # Derive timestepping from model spacing
-        dt = model.critical_dt * (1.73 if kernel == 'OT4' else 1.0)
-        time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-        # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-        src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-        src.coordinates.data[0, -1] = 30.
-
-        # Define receiver geometry (same as source, but spread across x)
-        rec = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
-        rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-        if len(shape) > 1:
-            rec.coordinates.data[:, 1] = np.array(model.domain_size)[1] * .5
-            rec.coordinates.data[:, -1] = 30.
-
-        # Create solver object to provide relevant operators
-        solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                    kernel=kernel, space_order=space_order)
-
-        # Create adjoint receiver symbol
-        srca = Receiver(name='srca', grid=model.grid, time_range=solver.source.time_range,
-                        coordinates=solver.source.coordinates.data)
-
+        # Create solver from preset
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+                                nbpml=nbpml, tn=tn, space_order=space_order, nrec=nrec,
+                                preset='layers-isotropic', dtype=np.float64)
         # Run forward operator
-        rec, u, _ = solver.forward(save=save, rec=rec)
+        rec, u, _ = solver.forward(save=save)
 
         assert np.isclose(norm(u), Eu, rtol=Eu*1.e-8)
         assert np.isclose(norm(rec), Erec, rtol=Erec*1.e-8)
 
         # Run adjoint operator
-        srca, v, _ = solver.adjoint(rec=rec, srca=srca)
+        srca, v, _ = solver.adjoint(rec=rec)
 
         assert np.isclose(norm(v), Ev, rtol=Eu*1.e-8)
         assert np.isclose(norm(srca), Esrca, rtol=Erec*1.e-8)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
-        term1 = inner(srca, solver.source)
+        term1 = inner(srca, solver.geometry.src)
         term2 = norm(rec)**2
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
 
 if __name__ == "__main__":
+    from devito import configuration
     configuration['mpi'] = True
     # TestDecomposition().test_reshape_left_right()
     # TestOperatorSimple().test_trivial_eq_2d()
@@ -1168,5 +1178,6 @@ if __name__ == "__main__":
     # TestSparseFunction().test_scatter_gather()
     # TestOperatorAdvanced().test_nontrivial_operator()
     # TestOperatorAdvanced().test_interpolation_dup()
-    TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
-                                           153.122, 205.902, 27484.635, 11736.917)
+    TestOperatorAdvanced().test_injection_wodup()
+    # TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
+    #                                        153.122, 205.902, 27484.635, 11736.917)

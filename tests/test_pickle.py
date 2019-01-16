@@ -1,32 +1,18 @@
 import pytest
-from conftest import skipif_backend
-
 import numpy as np
 from sympy import Symbol
+import cloudpickle as pickle
 
-from examples.seismic import demo_model
-from examples.seismic.source import TimeAxis, RickerSource, Receiver
-
+from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
-                    TimeDimension, SteppingDimension, Operator, configuration)
+                    TimeDimension, SteppingDimension, Operator)
 from devito.mpi.routines import MPIStatusObject, MPIRequestObject
 from devito.profiling import Timer
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
+from examples.seismic import (demo_model, AcquisitionGeometry,
+                              TimeAxis, RickerSource, Receiver)
 
-import cloudpickle as pickle
-
-pytestmark = pytest.mark.skipif(configuration['backend'] == 'ops',
-                                reason="testing is currently restricted")
-
-
-@pytest.fixture
-def enable_mpi_codegen(request):
-    configuration['mpi'] = True
-
-    def fin():
-        configuration['mpi'] = False
-
-    request.addfinalizer(fin)
+pytestmark = skipif('ops')
 
 
 def test_constant():
@@ -96,6 +82,43 @@ def test_receiver():
     assert np.all(new_rec.coordinates.data == [[0.], [1.], [2.]])
 
 
+def test_geometry():
+
+    shape = (50, 50, 50)
+    spacing = [10. for _ in shape]
+    nbpml = 10
+    nrec = 10
+    tn = 150.
+
+    # Create two-layer model from preset
+    model = demo_model(preset='layers-isotropic', vp_top=1., vp_bottom=2.,
+                       spacing=spacing, shape=shape, nbpml=nbpml)
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    if len(shape) > 1:
+        src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
+
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    if len(shape) > 1:
+        rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
+        rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+
+    pkl_geom = pickle.dumps(geometry)
+    new_geom = pickle.loads(pkl_geom)
+
+    assert np.all(new_geom.src_positions == geometry.src_positions)
+    assert np.all(new_geom.rec_positions == geometry.rec_positions)
+    assert new_geom.f0 == geometry.f0
+    assert np.all(new_geom.src_type == geometry.src_type)
+    assert np.all(new_geom.src.data == geometry.src.data)
+    assert new_geom.t0 == geometry.t0
+    assert new_geom.tn == geometry.tn
+
+
 def test_symbolics():
     a = Symbol('a')
 
@@ -149,10 +172,6 @@ def test_unjitted_operator():
     assert str(op) == str(new_op)
 
 
-# With yask, broken padding in the generated code upon pickling, since
-# in this test the data is allocated after generating the code.
-# This is a symptom we need parametric padding
-@skipif_backend(['yask'])
 def test_operator_function():
     grid = Grid(shape=(3, 3, 3))
     f = Function(name='f', grid=grid)
@@ -186,10 +205,6 @@ def test_operator_function_w_preallocation():
     assert np.all(f.data == 2)
 
 
-# With yask, broken padding in the generated code upon pickling, since
-# in this test the data is allocated after generating the code.
-# This is a symptom we need parametric padding
-@skipif_backend(['yask'])
 def test_operator_timefunction():
     grid = Grid(shape=(3, 3, 3))
     f = TimeFunction(name='f', grid=grid, save=3)
@@ -223,21 +238,20 @@ def test_operator_timefunction_w_preallocation():
     assert np.all(f.data[2] == 2)
 
 
-@skipif_backend(['yask'])
+@skipif(['yask', 'nompi'])
 @pytest.mark.parallel(nprocs=[1])
-def test_mpi_objects(enable_mpi_codegen):
+def test_mpi_objects():
     # Neighbours
     grid = Grid(shape=(4, 4, 4))
-    obj = grid.distributor._C_neighbours.obj
+    obj = grid.distributor._obj_neighbours
     pkl_obj = pickle.dumps(obj)
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
     assert obj.pname == new_obj.pname
     assert obj.pfields == new_obj.pfields
-    assert obj.ptype == new_obj.ptype
 
     # Communicator
-    obj = grid.distributor._C_comm
+    obj = grid.distributor._obj_comm
     pkl_obj = pickle.dumps(obj)
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
@@ -258,9 +272,9 @@ def test_mpi_objects(enable_mpi_codegen):
     assert obj.dtype == new_obj.dtype
 
 
-@skipif_backend(['yask'])
+@skipif(['yask', 'nompi'])
 @pytest.mark.parallel(nprocs=[1])
-def test_mpi_operator(enable_mpi_codegen):
+def test_mpi_operator():
     grid = Grid(shape=(4,))
     f = TimeFunction(name='f', grid=grid)
     g = TimeFunction(name='g', grid=grid)
@@ -277,7 +291,7 @@ def test_mpi_operator(enable_mpi_codegen):
 
     new_op.apply(time=2, f=g)
     assert np.all(f.data[0] == [2., 3., 3., 3.])
-    assert np.all(f.data[0] == [2., 3., 3., 3.])
+    assert np.all(f.data[1] == [3., 6., 7., 7.])
     assert np.all(g.data[0] == f.data[0])
     assert np.all(g.data[1] == f.data[1])
 
