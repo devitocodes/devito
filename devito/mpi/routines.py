@@ -181,6 +181,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
         srecv = MPIStatusObject(name='srecv')
+        ssend = MPIStatusObject(name='ssend')
         rrecv = MPIRequestObject(name='rrecv')
         rsend = MPIRequestObject(name='rsend')
 
@@ -191,7 +192,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                                   torank, Integer(13), comm, rsend])
 
         waitrecv = Call('MPI_Wait', [rrecv, srecv])
-        waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
+        waitsend = Call('MPI_Wait', [rsend, ssend])
 
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
         iet = List(body=iet_insert_C_decls(iet))
