@@ -13,9 +13,9 @@ __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals
 
 def detect_accesses(expr):
     """
-    Return a mapper ``M : F -> S``, where F are Function's appearing
-    in ``expr`` and S are Stencil's. ``M[f]`` represents all data accesses
-    to ``f`` within ``expr``. Also map ``M[None]`` to all Dimension's used in
+    Return a mapper ``M : F -> S``, where F are Functions appearing
+    in ``expr`` and S are Stencils. ``M[f]`` represents all data accesses
+    to ``f`` within ``expr``. Also map ``M[None]`` to all Dimensions used in
     ``expr`` as plain symbols, rather than as array indices.
     """
     # Compute M : F -> S
@@ -45,7 +45,7 @@ def detect_accesses(expr):
 def detect_oobs(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return the set of
-    Dimension's that *cannot* be iterated over the entire computational
+    Dimensions that *cannot* be iterated over the entire computational
     domain, to avoid out-of-bounds (OOB) accesses.
     """
     found = set()
@@ -68,8 +68,8 @@ def detect_oobs(mapper):
 def build_iterators(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return a mapper ``M' : D -> V``,
-    where D is the set of Dimension's in M, and V is a set of
-    DerivedDimension's. M'[d] provides the sub-iterators along the
+    where D is the set of Dimensions in M, and V is a set of
+    DerivedDimensions. M'[d] provides the sub-iterators along the
     Dimension `d`.
     """
     iterators = OrderedDict()
@@ -89,7 +89,7 @@ def build_iterators(mapper):
 
 def build_intervals(stencil):
     """
-    Given a Stencil, return an iterable of Interval's, one
+    Given a Stencil, return an iterable of Intervals, one
     for each Dimension in the stencil.
     """
     mapper = {}
@@ -117,8 +117,8 @@ def align_accesses(expr, key=lambda i: False):
 
 def detect_flow_directions(exprs):
     """
-    Return a mapper from Dimension's to iterables of
-    IterationDirection's representing the theoretically necessary
+    Return a mapper from Dimensions to iterables of
+    IterationDirections representing the theoretically necessary
     directions to evaluate ``exprs`` so that the information "naturally
     flows" from an iteration to another.
     """
@@ -179,7 +179,7 @@ def detect_flow_directions(exprs):
 
 def force_directions(mapper, key):
     """
-    Return a mapper ``M : D -> I`` where D is the set of Dimension's
+    Return a mapper ``M : D -> I`` where D is the set of Dimensions
     found in the input mapper ``M' : D -> {I}``, while I = {Any, Backward,
     Forward} (i.e., the set of possible IterationDirections).
 
@@ -225,7 +225,7 @@ def detect_io(exprs, relax=False):
     exprs : expr-like or list of expr-like
         The searched expressions.
     relax : bool, optional
-        If False, as by default, collect only Constant's and
+        If False, as by default, collect only Constants and
         :class:`Function`s. Otherwise, collect any :class:`types.Basic`s.
     """
     exprs = as_tuple(exprs)
