@@ -1,9 +1,9 @@
-import pytest
-
 import os
+from itertools import product
 from subprocess import check_call
 
 import numpy as np
+import pytest
 
 from sympy import cos, Symbol  # noqa
 
@@ -289,20 +289,18 @@ def EVAL(exprs, *args):
 
 
 def parallel(item):
-    """Run a test in parallel.
-
-    :parameter item: The test item to run.
     """
-    # Support to run MPI tests
-    # This is partly extracted from:
-    # `https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py`
+    Run a test in parallel. Readapted from:
 
+        ``https://github.com/firedrakeproject/firedrake/blob/master/tests/conftest.py``
+    """
     mpi_exec = 'mpiexec'
     mpi_distro = sniff_mpi_distro(mpi_exec)
 
     marker = item.get_closest_marker("parallel")
     nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
-    for i in nprocs:
+    modes = as_tuple(marker.kwargs.get("mode", 'basic'))
+    for i, m in product(nprocs, modes):
         # Only spew tracebacks on rank 0.
         # Run xfailing tests to ensure that errors are reported to calling process
         if item.cls is not None:
@@ -322,7 +320,7 @@ def parallel(item):
             call = [mpi_exec] + args
 
         # Tell the MPI ranks that they are running a parallel test
-        os.environ['DEVITO_MPI'] = '1'
+        os.environ['DEVITO_MPI'] = m
         try:
             check_call(call)
         finally:
@@ -333,11 +331,16 @@ def pytest_configure(config):
     """Register an additional marker."""
     config.addinivalue_line(
         "markers",
-        "parallel(nprocs): mark test to run in parallel on nprocs processors")
+        "parallel(nprocs, mode='basic'): mark test to run in parallel"
+    )
 
 
 def pytest_runtest_setup(item):
-    partest = int(os.environ.get('DEVITO_MPI', 0))
+    partest = os.environ.get('DEVITO_MPI', 0)
+    try:
+        partest = int(partest)
+    except ValueError:
+        pass
     if item.get_closest_marker("parallel") and not partest:
         # Blow away function arg in "master" process, to ensure
         # this test isn't run on only one process
@@ -350,7 +353,11 @@ def pytest_runtest_setup(item):
 
 
 def pytest_runtest_call(item):
-    partest = int(os.environ.get('DEVITO_MPI', 0))
+    partest = os.environ.get('DEVITO_MPI', 0)
+    try:
+        partest = int(partest)
+    except ValueError:
+        pass
     if item.get_closest_marker("parallel") and not partest:
         # Spawn parallel processes to run test
         parallel(item)
