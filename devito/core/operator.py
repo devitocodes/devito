@@ -30,7 +30,7 @@ class OperatorCore(Operator):
 
         # Build halo exchange Callables and Calls
         halo_spots = FindNodes(HaloSpot).visit(iet)
-        heb = HaloExchangeBuilder(is_threaded(kwargs.get("dle")))
+        heb = HaloExchangeBuilder(is_threaded(kwargs.get("dle")), configuration['mpi'])
         callables, calls = heb.make(halo_spots)
 
         # Update the Operator internal state

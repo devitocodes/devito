@@ -5,11 +5,11 @@ from operator import attrgetter
 from cached_property import cached_property
 from frozendict import frozendict
 
-from devito.data import LEFT, RIGHT
+from devito.data import LEFT, CENTER, RIGHT
 from devito.ir.support import Scope
 from devito.logger import warning
 from devito.parameters import configuration
-from devito.tools import Tag, as_mapper
+from devito.tools import Tag, as_mapper, filter_ordered
 
 __all__ = ['HaloScheme', 'HaloSchemeException']
 
@@ -38,20 +38,35 @@ Halo = namedtuple('Halo', 'dim side amount')
 class HaloMask(OrderedDict):
 
     @cached_property
-    def need_halo_exchange(self):
-        return {d for (d, _), v in self.items() if v}
+    def full(self):
+        # Also include the diagonal dependences
+        mapper = OrderedDict()
+        dimensions = filter_ordered(i for i, _ in self)
+        for i in product([LEFT, CENTER, RIGHT], repeat=len(dimensions)):
+            need_halo_exchange = any(s is not CENTER for s in i)
+            for d, s in zip(dimensions, i):
+                if s is CENTER:
+                    continue
+                elif not self[(d, s)]:
+                    need_halo_exchange = False
+                    break
+                else:
+                    # All good so far...
+                    pass
+            mapper[i] = need_halo_exchange
+        return mapper
 
 
 class HaloScheme(object):
 
     """
-    A HaloScheme describes a set of halo exchanges through a mapper: ::
+    A HaloScheme describes a set of halo exchanges through a mapper:
 
-        M : Function -> HaloSchemeEntry
+        ``M : Function -> HaloSchemeEntry``
 
-    Where ``HaloSchemeEntry`` is a (named) 2-tuple: ::
+    Where ``HaloSchemeEntry`` is a (named) 2-tuple:
 
-        ({loc_indices}, ((Dimension, DataSide, amount), ...))
+        ``({loc_indices}, ((Dimension, DataSide, amount), ...))``
 
     The tuples (Dimension, DataSide, amount) tell the amount of data that
     a DiscreteFunction should communicate along its Dimensions.
