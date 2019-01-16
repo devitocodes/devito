@@ -63,49 +63,45 @@ class HaloExchangeBuilder(object):
                                           dimensions=f.dimensions)
                 # `gather`, `scatter`, `sendrecv` are generic by construction -- they
                 # only need to be generated once for each `ndim`
-                try:
-                    sendrecv = generated[f.ndim]
-                except KeyError:
-                    # new `ndim`
-                    gather, extra = self._make_copy(df, v.loc_indices, generated)
-                    scatter, _ = self._make_copy(df, v.loc_indices, generated, swap=True)
-                    sendrecv = self._make_sendrecv(df, v.loc_indices, generated, extra)
+                if f.ndim not in generated:
+                    gather, extra = self._make_copy(df, v.loc_indices)
+                    scatter, _ = self._make_copy(df, v.loc_indices, swap=True)
+                    sendrecv = self._make_sendrecv(df, v.loc_indices, extra)
                     generated[f.ndim] = [gather, scatter, sendrecv]
                 # `haloupdate` is generic by construction -- it only needs to be
                 # generated once for each (`ndim`, `mask`)
-                try:
-                    haloupdate = generated[(f.ndim, v)][0]
-                except KeyError:
-                    haloupdate = self._make_haloupdate(df, v.loc_indices, hs.mask[f],
-                                                       generated, extra)
-                    generated[(f.ndim, v)] = [haloupdate]
+                if (f.ndim, v) not in generated:
+                    uniquekey = len([i for i in generated if isinstance(i, tuple)])
+                    generated[(f.ndim, v)] = [self._make_haloupdate(df, v.loc_indices,
+                                                                    hs.mask[f], extra,
+                                                                    uniquekey)]
 
                 # `haloupdate` Call construction
                 comm = f.grid.distributor._obj_comm
                 nb = f.grid.distributor._obj_neighborhood
                 loc_indices = list(v.loc_indices.values())
                 args = [f, comm, nb] + loc_indices + extra
-                call = Call(haloupdate.name, args)
+                call = Call(generated[(f.ndim, v)][0].name, args)
                 calls.setdefault(hs, []).append(call)
 
         return flatten(generated.values()), calls
 
     @abc.abstractmethod
-    def _make_haloupdate(self, f, fixed, halos, generated, **kwargs):
+    def _make_haloupdate(self, f, fixed, halos, **kwargs):
         """
         Construct a Callable performing, for a given DiscreteFunction, a halo exchange.
         """
         return
 
     @abc.abstractmethod
-    def _make_sendrecv(self, f, fixed, generated, **kwargs):
+    def _make_sendrecv(self, f, fixed, **kwargs):
         """
         Construct a Callable performing, for a given DiscreteFunction, a halo exchange
         along given Dimension and DataSide.
         """
         return
 
-    def _make_copy(self, f, fixed, generated, swap=False):
+    def _make_copy(self, f, fixed, swap=False):
         """
         Construct a Callable performing a copy of:
 
@@ -130,10 +126,10 @@ class HaloExchangeBuilder(object):
 
         if swap is False:
             eq = DummyEq(buf[buf_indices], f[f_indices])
-            name = 'gather%d' % len(generated)
+            name = 'gather%dd' % f.ndim
         else:
             eq = DummyEq(f[f_indices], buf[buf_indices])
-            name = 'scatter%d' % len(generated)
+            name = 'scatter%dd' % f.ndim
 
         iet = Expression(eq)
         for i, d in reversed(list(zip(buf_indices, buf_dims))):
@@ -158,7 +154,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
     to executing the code region requiring up-to-date halos.
     """
 
-    def _make_sendrecv(self, f, fixed, generated, extra=None):
+    def _make_sendrecv(self, f, fixed, extra=None):
         extra = extra or []
         comm = f.grid.distributor._obj_comm
 
@@ -174,9 +170,9 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         torank = Symbol(name='torank')
 
         args = [bufg] + list(bufg.shape) + [f] + ofsg + extra
-        gather = Call('gather%d' % len(generated), args)
+        gather = Call('gather%dd' % f.ndim, args)
         args = [bufs] + list(bufs.shape) + [f] + ofss + extra
-        scatter = Call('scatter%d' % len(generated), args)
+        scatter = Call('scatter%dd' % f.ndim, args)
 
         # The scatter must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
@@ -195,23 +191,17 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         waitrecv = Call('MPI_Wait', [rrecv, srecv])
         waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
-        name = 'sendrecv%d' % len(generated)
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
         iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f] + list(bufs.shape) + ofsg + ofss +
                       [fromrank, torank, comm] + extra)
-        return Callable(name, iet, 'void', parameters, ('static',))
+        return Callable('sendrecv%dd' % f.ndim, iet, 'void', parameters, ('static',))
 
-    def _make_haloupdate(self, f, fixed, mask, generated, extra=None):
+    def _make_haloupdate(self, f, fixed, mask, extra=None, uniquekey=None):
+        extra = extra or []
         distributor = f.grid.distributor
         nb = distributor._obj_neighborhood
         comm = distributor._obj_comm
-
-        extra = extra or []
-        try:
-            _, _, sendrecv = generated[f.ndim]
-        except KeyError:
-            sendrecv = Call('sendrecv%d' % len(generated))
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in fixed}
 
@@ -248,16 +238,18 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                 lsizes, loffsets = mapper[(d, LEFT, OWNED)]
                 rsizes, roffsets = mapper[(d, RIGHT, HALO)]
                 args = [f] + lsizes + loffsets + roffsets + [rpeer, lpeer, comm] + extra
-                body.append(Call(sendrecv.name, args))
+                body.append(Call('sendrecv%dd' % f.ndim, args))
 
             if mask[(d, RIGHT)]:
                 # Sending to right, receiving from left
                 rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
                 lsizes, loffsets = mapper[(d, LEFT, HALO)]
                 args = [f] + rsizes + roffsets + loffsets + [lpeer, rpeer, comm] + extra
-                body.append(Call(sendrecv.name, args))
+                body.append(Call('sendrecv%dd' % f.ndim, args))
 
-        name = 'haloupdate%d' % len(generated)
+        if uniquekey is None:
+            uniquekey = ''.join(str(int(i)) for i in mask.values())
+        name = 'haloupdate%dd%s' % (f.ndim, uniquekey)
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values()) + extra
         return Callable(name, iet, 'void', parameters, ('static',))
