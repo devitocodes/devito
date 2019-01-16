@@ -12,7 +12,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls, PARALLEL)
 from devito.symbolics import CondNe, FieldFromPointer, Macro
-from devito.tools import dtype_to_mpitype
+from devito.tools import dtype_to_mpitype, flatten
 from devito.types import Array, Dimension, Symbol, LocalObject
 
 __all__ = ['HaloExchangeBuilder']
@@ -46,60 +46,66 @@ class HaloExchangeBuilder(object):
               data gathering prior to an MPI_Send, and data scattering following
               an MPI recv.
         """
-        callables = []
         calls = OrderedDict()
-        mapper = {}
+        generated = OrderedDict()
         for hs in halo_spots:
             for f, v in hs.fmapper.items():
                 # Sanity check
                 assert f.is_Function
                 assert f.grid is not None
 
-                # Have we already generated code for the same exact type of
-                # halo exchange (i.e., same Function, same mask, etc.) ?
-                key = (f, v)
-                if key in mapper:
-                    calls.setdefault(hs, []).append(mapper[key])
-                    continue
-
                 # Callables construction
-                progressid = len(mapper)
-                gather, extra = self._make_copy(f, v.loc_indices, progressid)
-                scatter, _ = self._make_copy(f, v.loc_indices, progressid, swap=True)
-                sendrecv = self._make_sendrecv(f, v.loc_indices, progressid, extra)
-                haloupdate = self._make_haloupdate(f, v.loc_indices, hs.mask[f],
-                                                   progressid, extra)
-                callables.extend([gather, scatter, sendrecv, haloupdate])
+                # ----------------------
+                # Note: to construct the halo exchange Callables, use the generic `df`,
+                # instead of `f`, so that we don't need to regenerate code for Functions
+                # that are symbolically identical to `f` except for the name
+                df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
+                                          dimensions=f.dimensions)
+                # `gather`, `scatter`, `sendrecv` are generic by construction -- they
+                # only need to be generated once for each `ndim`
+                try:
+                    sendrecv = generated[f.ndim]
+                except KeyError:
+                    # new `ndim`
+                    gather, extra = self._make_copy(df, v.loc_indices, generated)
+                    scatter, _ = self._make_copy(df, v.loc_indices, generated, swap=True)
+                    sendrecv = self._make_sendrecv(df, v.loc_indices, generated, extra)
+                    generated[f.ndim] = [gather, scatter, sendrecv]
+                # `haloupdate` is generic by construction -- it only needs to be
+                # generated once for each (`ndim`, `mask`)
+                try:
+                    haloupdate = generated[(f.ndim, v)][0]
+                except KeyError:
+                    haloupdate = self._make_haloupdate(df, v.loc_indices, hs.mask[f],
+                                                       generated, extra)
+                    generated[(f.ndim, v)] = [haloupdate]
 
                 # `haloupdate` Call construction
                 comm = f.grid.distributor._obj_comm
                 nb = f.grid.distributor._obj_neighborhood
                 loc_indices = list(v.loc_indices.values())
                 args = [f, comm, nb] + loc_indices + extra
-                call = Call('haloupdate%d' % progressid, args)
+                call = Call(haloupdate.name, args)
                 calls.setdefault(hs, []).append(call)
 
-                # Track the newly built halo exchange pattern
-                mapper[key] = call
-
-        return callables, calls
+        return flatten(generated.values()), calls
 
     @abc.abstractmethod
-    def _make_haloupdate(self, f, fixed, halos, progressid, **kwargs):
+    def _make_haloupdate(self, f, fixed, halos, generated, **kwargs):
         """
         Construct a Callable performing, for a given DiscreteFunction, a halo exchange.
         """
         return
 
     @abc.abstractmethod
-    def _make_sendrecv(self, f, fixed, progressid, **kwargs):
+    def _make_sendrecv(self, f, fixed, generated, **kwargs):
         """
         Construct a Callable performing, for a given DiscreteFunction, a halo exchange
         along given Dimension and DataSide.
         """
         return
 
-    def _make_copy(self, f, fixed, progressid, swap=False):
+    def _make_copy(self, f, fixed, generated, swap=False):
         """
         Construct a Callable performing a copy of:
 
@@ -122,29 +128,24 @@ class HaloExchangeBuilder(object):
             f_offsets.append(offset)
             f_indices.append(offset + (d.root if d not in fixed else 0))
 
-        # Use `dummy_f`, instead of the actual `f`, so that we don't regenerate
-        # code for Functions that only differ from `f` in the name
-        dummy_f = f.__class__.__base__(name='f', grid=f.grid, shape=f.shape_global,
-                                       dimensions=f.dimensions)
-
         if swap is False:
-            eq = DummyEq(buf[buf_indices], dummy_f[f_indices])
-            name = 'gather%d' % progressid
+            eq = DummyEq(buf[buf_indices], f[f_indices])
+            name = 'gather%d' % len(generated)
         else:
-            eq = DummyEq(dummy_f[f_indices], buf[buf_indices])
-            name = 'scatter%d' % progressid
+            eq = DummyEq(f[f_indices], buf[buf_indices])
+            name = 'scatter%d' % len(generated)
 
         iet = Expression(eq)
         for i, d in reversed(list(zip(buf_indices, buf_dims))):
             # The -1 below is because an Iteration, by default, generates <=
             iet = Iteration(iet, i, d.symbolic_size - 1, properties=PARALLEL)
-        iet = List(body=[ArrayCast(dummy_f), ArrayCast(buf), iet])
+        iet = List(body=[ArrayCast(f), ArrayCast(buf), iet])
 
         # Optimize the memory copy with the DLE
         from devito.dle import transform
         state = transform(iet, 'simd', {'openmp': self._threaded})
 
-        parameters = [buf] + list(buf.shape) + [dummy_f] + f_offsets + state.input
+        parameters = [buf] + list(buf.shape) + [f] + f_offsets + state.input
         return Callable(name, state.nodes, 'void', parameters, ('static',)), state.input
 
 
@@ -157,7 +158,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
     to executing the code region requiring up-to-date halos.
     """
 
-    def _make_sendrecv(self, f, fixed, progressid, extra=None):
+    def _make_sendrecv(self, f, fixed, generated, extra=None):
         extra = extra or []
         comm = f.grid.distributor._obj_comm
 
@@ -166,21 +167,16 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype, scope='heap')
         bufs = Array(name='bufs', dimensions=buf_dims, dtype=f.dtype, scope='heap')
 
-        # Use `dummy_f`, instead of the actual `f`, so that we don't regenerate
-        # code for Functions that only differ from `f` in the name
-        dummy_f = f.__class__.__base__(name='f', grid=f.grid, shape=f.shape_global,
-                                       dimensions=f.dimensions)
-
         ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
         ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
 
         fromrank = Symbol(name='fromrank')
         torank = Symbol(name='torank')
 
-        args = [bufg] + list(bufg.shape) + [dummy_f] + ofsg + extra
-        gather = Call('gather%d' % progressid, args)
-        args = [bufs] + list(bufs.shape) + [dummy_f] + ofss + extra
-        scatter = Call('scatter%d' % progressid, args)
+        args = [bufg] + list(bufg.shape) + [f] + ofsg + extra
+        gather = Call('gather%d' % len(generated), args)
+        args = [bufs] + list(bufs.shape) + [f] + ofss + extra
+        scatter = Call('scatter%d' % len(generated), args)
 
         # The scatter must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
@@ -199,17 +195,23 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         waitrecv = Call('MPI_Wait', [rrecv, srecv])
         waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
+        name = 'sendrecv%d' % len(generated)
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
         iet = List(body=iet_insert_C_decls(iet))
-        parameters = ([dummy_f] + list(bufs.shape) + ofsg + ofss +
+        parameters = ([f] + list(bufs.shape) + ofsg + ofss +
                       [fromrank, torank, comm] + extra)
-        return Callable('sendrecv%d' % progressid, iet, 'void', parameters, ('static',))
+        return Callable(name, iet, 'void', parameters, ('static',))
 
-    def _make_haloupdate(self, f, fixed, mask, progressid, extra=None):
-        extra = extra or []
+    def _make_haloupdate(self, f, fixed, mask, generated, extra=None):
         distributor = f.grid.distributor
         nb = distributor._obj_neighborhood
         comm = distributor._obj_comm
+
+        extra = extra or []
+        try:
+            _, _, sendrecv = generated[f.ndim]
+        except KeyError:
+            sendrecv = Call('sendrecv%d' % len(generated))
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in fixed}
 
@@ -246,18 +248,19 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                 lsizes, loffsets = mapper[(d, LEFT, OWNED)]
                 rsizes, roffsets = mapper[(d, RIGHT, HALO)]
                 args = [f] + lsizes + loffsets + roffsets + [rpeer, lpeer, comm] + extra
-                body.append(Call('sendrecv%d' % progressid, args))
+                body.append(Call(sendrecv.name, args))
 
             if mask[(d, RIGHT)]:
                 # Sending to right, receiving from left
                 rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
                 lsizes, loffsets = mapper[(d, LEFT, HALO)]
                 args = [f] + rsizes + roffsets + loffsets + [lpeer, rpeer, comm] + extra
-                body.append(Call('sendrecv%d' % progressid, args))
+                body.append(Call(sendrecv.name, args))
 
+        name = 'haloupdate%d' % len(generated)
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values()) + extra
-        return Callable('haloupdate%d' % progressid, iet, 'void', parameters, ('static',))
+        return Callable(name, iet, 'void', parameters, ('static',))
 
 
 class MPIStatusObject(LocalObject):
