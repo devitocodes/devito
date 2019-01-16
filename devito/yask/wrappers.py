@@ -304,9 +304,9 @@ class YaskContext(Signer):
             # different set of dimensions (e.g., a strict subset and/or some misc
             # dimensions). In such a case, an extra dummy grid is attached
             # `obj` examples: u(x, d), u(x, y, z)
-            dimensions = [make_yask_ast(i, yc_hook, {}) for i in self.dimensions]
+            dimensions = [make_yask_ast(i, yc_hook) for i in self.dimensions]
             yc_hook.new_grid('dummy_grid_full', dimensions)
-        dimensions = [make_yask_ast(i.root, yc_hook, {}) for i in obj.indices]
+        dimensions = [make_yask_ast(i.root, yc_hook) for i in obj.indices]
         yc_hook.new_grid('dummy_grid_true', dimensions)
 
         # Create 'hook' kernel solution
@@ -357,7 +357,7 @@ class YaskContext(Signer):
 
         # Apply compile-time optimizations
         if configuration['isa'] != 'cpp':
-            dimensions = [make_yask_ast(i, yc_soln, {}) for i in self.space_dimensions]
+            dimensions = [make_yask_ast(i, yc_soln) for i in self.space_dimensions]
             # Vector folding
             for i, j in zip(dimensions, configuration.yask['folding']):
                 yc_soln.set_fold_len(i, j)
