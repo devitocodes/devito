@@ -2,7 +2,7 @@ from cached_property import cached_property
 from sympy import Basic, S
 
 from devito.ir.support.space import Any, Backward
-from devito.symbolics import retrieve_terminals, q_affine, q_inc
+from devito.symbolics import retrieve_terminals, q_monoaffine, q_inc
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth)
 from devito.types import Dimension
@@ -162,10 +162,7 @@ class Vector(tuple):
 class IndexMode(Tag):
     """Tag for access functions."""
     pass
-
-
-CONSTANT = IndexMode('constant')
-AFFINE = IndexMode('affine')
+AFFINE = IndexMode('affine')  # noqa
 IRREGULAR = IndexMode('irregular')
 
 
@@ -239,16 +236,14 @@ class IterationInstance(Vector):
     def index_mode(self):
         index_mode = []
         for i, fi in zip(self, self.findices):
-            if is_integer(i):
-                index_mode.append(CONSTANT)
-            elif q_affine(i, fi):
+            if q_monoaffine(i, fi, self.findices):
                 index_mode.append(AFFINE)
             else:
                 dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
                 try:
                     # There's still hope it's regular if a DerivedDimension is used
                     candidate = dims.pop()
-                    if candidate.parent == fi and q_affine(i, candidate):
+                    if candidate.root == fi and q_monoaffine(i, candidate, self.findices):
                         index_mode.append(AFFINE)
                         continue
                 except (KeyError, AttributeError):
@@ -260,9 +255,7 @@ class IterationInstance(Vector):
     def aindices(self):
         aindices = []
         for i, fi in zip(self, self.findices):
-            if is_integer(i):
-                aindices.append(None)
-            elif q_affine(i, fi):
+            if q_monoaffine(i, fi, self.findices):
                 aindices.append(fi)
             else:
                 dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
@@ -319,7 +312,7 @@ class IterationInstance(Vector):
 
     @property
     def is_regular(self):
-        return all(i in (CONSTANT, AFFINE) for i in self.index_mode)
+        return all(i is AFFINE for i in self.index_mode)
 
     @property
     def is_irregular(self):

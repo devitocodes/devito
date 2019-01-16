@@ -56,8 +56,8 @@ class BasicRewriter(AbstractRewriter):
             for i in target:
                 name, bounds = i.dim.name, i.symbolic_bounds
                 # Iteration bounds
-                _min = Scalar(name='%sf_m' % name, dtype=np.int32)
-                _max = Scalar(name='%sf_M' % name, dtype=np.int32)
+                _min = Scalar(name='%sf_m' % name, dtype=np.int32, is_const=True)
+                _max = Scalar(name='%sf_M' % name, dtype=np.int32, is_const=True)
                 defined_args[_min.name] = bounds[0]
                 defined_args[_max.name] = bounds[1]
 
@@ -66,11 +66,10 @@ class BasicRewriter(AbstractRewriter):
                          for j in range(len(i.uindices))]
                 defined_args.update({uf.name: j.symbolic_min
                                      for uf, j in zip(ufunc, i.uindices)})
-                limits = [Scalar(name=_min.name, dtype=np.int32),
-                          Scalar(name=_max.name, dtype=np.int32), 1]
                 uindices = [IncrDimension(j.parent, i.dim + as_symbol(k), 1, j.name)
                             for j, k in zip(i.uindices, ufunc)]
-                free.append(i._rebuild(limits=limits, offsets=None, uindices=uindices))
+                free.append(i._rebuild(limits=(_min, _max, 1), offsets=None,
+                                       uindices=uindices))
 
             # Construct elemental function body
             free = Transformer(dict((zip(target, free))), nested=True).visit(root)

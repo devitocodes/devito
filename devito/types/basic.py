@@ -305,12 +305,21 @@ class AbstractCachedSymbol(AbstractSymbol, Cached):
         return self._dtype
 
     @property
+    def _is_const(self):
+        """
+        True if the symbol value cannot be modified within an Operator (and thus
+        its value is provided by the user directly from Python-land), False otherwise.
+        """
+        return False
+
+    @property
     def _C_name(self):
         return self.name
 
     @property
     def _C_typename(self):
-        return 'const %s' % dtype_to_cstr(self.dtype)
+        return '%s%s' % ('const ' if self._is_const else '',
+                         dtype_to_cstr(self.dtype))
 
     @property
     def _C_typedata(self):
@@ -357,19 +366,20 @@ class Scalar(Symbol):
 
     is_Scalar = True
 
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.__is_const = kwargs.get('is_const', kwargs.get('_is_const', False))
+
     @classmethod
     def __dtype_setup__(cls, **kwargs):
         return kwargs.get('dtype', np.float32)
 
     @property
-    def _mem_stack(self):
-        """
-        True if the associated data should be allocated on the stack, False otherwise.
-        """
-        return True
+    def _is_const(self):
+        return self.__is_const
 
-    def update(self, dtype=None, **kwargs):
-        self.dtype = dtype or self.dtype
+    # Pickling support
+    _pickle_kwargs = AbstractCachedSymbol._pickle_kwargs + ['_is_const']
 
 
 class AbstractFunction(sympy.Function, Basic, Pickable):
@@ -578,6 +588,14 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         return self._padding
 
     @property
+    def _is_const(self):
+        """
+        True if the carried data values cannot be modified within an Operator,
+        False otherwise.
+        """
+        return False
+
+    @property
     def _C_name(self):
         return "%s_vec" % self.name
 
@@ -713,8 +731,8 @@ class Array(AbstractCachedFunction):
     """
     Tensor symbol representing an array in symbolic equations.
 
-    Arrays are created and managed directly by Devito (IOW, they are not
-    expected to be used directly in user code).
+    An Array is very similar to a sympy.Indexed, though it also carries
+    metadata essential for code generation.
 
     Parameters
     ----------
@@ -732,6 +750,11 @@ class Array(AbstractCachedFunction):
     scope : str, optional
         Control memory allocation. Allowed values: 'heap', 'stack'. Defaults
         to 'heap'.
+
+    Warnings
+    --------
+    Arrays are created and managed directly by Devito (IOW, they are not
+    expected to be used directly in user code).
     """
 
     is_Array = True
