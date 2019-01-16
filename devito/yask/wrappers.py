@@ -104,7 +104,7 @@ class YaskKernel(object):
             if configuration['develop-mode']:
                 args.append('check=1') # Activate internal YASK asserts.
                 # args.append('trace=1') # YASK will print out verbose progress messages.
-                args.append('trace_mem=1') # YASK will print out verbose mem-access messages.
+                # args.append('trace_mem=1') # YASK will print out verbose mem-access messages.
             make(namespace['path'], args)
 
             # Now we must be able to import the SWIG-generated Python module
