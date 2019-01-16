@@ -65,6 +65,7 @@ def check_input(func):
     return wrapper
 
 def check_symbolic(func):
+    @wraps(func)
     def wrapper(expr, *args, **kwargs):
         functions = retrieve_functions(expr)
         functions = filter_ordered(functions, key=lambda i: i.name)
@@ -80,7 +81,7 @@ def check_symbolic(func):
 
 @check_input
 @check_symbolic
-def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
+def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **kwargs):
     """
     First-order derivative of a given expression.
     Parameters
@@ -151,7 +152,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
 
 
 @check_input
-def second_derivative(expr, dim, fd_order, stagger=None):
+@check_symbolic
+def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
     """
     Second-order derivative of a given expression.
     Parameters
@@ -190,7 +192,7 @@ def second_derivative(expr, dim, fd_order, stagger=None):
 
 @check_input
 @check_symbolic
-def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
+def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
     Parameters
@@ -238,7 +240,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
 
 @check_input
 @check_symbolic
-def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
+def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, **kwargs):
     """
     Arbitrary-order derivative of a given expression.
     Parameters

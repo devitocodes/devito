@@ -3,6 +3,7 @@ from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
 from functools import wraps
 
 import numpy as np
+import sympy
 from psutil import virtual_memory
 from cached_property import cached_property
 from cgen import Struct, Value
