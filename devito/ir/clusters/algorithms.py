@@ -235,7 +235,6 @@ def clusterize(exprs):
     """Group a sequence of LoweredEqs into one or more Clusters."""
     clusters = ClusterGroup()
     flowmap = detect_flow_directions(exprs)
-    # from IPython import embed; embed()
     prev = None
     for idx, e in enumerate(exprs):
         if e.is_Tensor:
