@@ -174,7 +174,9 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         args = [bufs] + list(bufs.shape) + [f] + ofss + extra
         scatter = Call('scatter%dd' % f.ndim, args)
 
-        # The scatter must be guarded as we must not alter the halo values along
+        # The `gather` is unnecessary if sending to MPI.PROC_NULL
+        gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
+        # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
