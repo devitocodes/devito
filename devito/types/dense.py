@@ -890,8 +890,8 @@ class Function(DiscreteFunction, Differentiable):
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
             
             # Symbolic (finite difference) coefficients
-            self._coefficients = kwargs.get('coefficients', 'standard')
-            if not self._coefficients in ('standard', 'symbolic'):
+            self.coefficients = kwargs.get('coefficients', 'standard')
+            if not self.coefficients in ('standard', 'symbolic'):
                 raise ValueError("coefficients must be `standard` or `symbolic`")
 
             # Dynamically add derivative short-cuts
@@ -974,8 +974,9 @@ class Function(DiscreteFunction, Differentiable):
         """The space order."""
         return self._space_order
     
+    @memoized_meth
     def fd_coeff_symbol(self):
-        if self._coefficients is 'symbolic':
+        if self.coefficients is 'symbolic':
             return sympy.Function('W')
         else:
             raise ValueError("Function was not declared with symbolic "

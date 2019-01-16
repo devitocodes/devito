@@ -69,7 +69,7 @@ def check_symbolic(func):
     def wrapper(expr, *args, **kwargs):
         functions = retrieve_functions(expr)
         functions = filter_ordered(functions, key=lambda i: i.name)
-        symbolic_coefficients = any(f._coefficients is 'symbolic' for f in functions)
+        symbolic_coefficients = any(f.coefficients is 'symbolic' for f in functions)
         if symbolic_coefficients:
             expr_dict = expr.as_coefficients_dict()
             if any(len(expr_dict.keys()) > 1 for item in expr_dict):
@@ -125,24 +125,15 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **k
     side = side.adjoint(matvec)
     order = fd_order or expr.space_order
 
-    # FIXME: Remove below index generation and use generate_indices.
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    if side == right:
-        ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
-                                               int((order + 1) / 2) + 2 - (order % 2))]
-    elif side == left:
-        ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
-                                               int((order + 1) / 2) + 2 - (order % 2))]
-    else:
-        ind = [(dim + i * diff) for i in range(-int(order / 2),
-                                               int((order + 1) / 2) + 1)]
+    ind = generate_indices(dim, diff, order, side = side)
+
     # Finite difference weights from Taylor approximation with this positions
     if kwargs.pop('symbolic_coefficients'):
         c = symbolic_weights(expr, 1, indices, dim)
     else:
-        c = finite_diff_weights(1, ind, dim)
-        c = c[-1][-1]
+        c = finite_diff_weights(1, ind, dim)[-1][-1]
     all_dims = tuple(set((dim,) + tuple([i for i in expr.indices if i.root == dim])))
     # Loop through positions
     for i in range(0, len(ind)):
@@ -271,6 +262,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, **kwargs)
     else:
         off = 0
 
+    # FIXME: Incoporate into generate_indices?
     if expr.is_Staggered:
         indices = list(set([(dim + int(i+.5+off) * dim.spacing)
                             for i in range(-fd_order//2, fd_order//2)]))
@@ -398,7 +390,5 @@ def generate_indices(dim, diff, order, side = None):
     else:
         ind = [(dim + i * diff) for i in range(-int(order / 2),
                                                int((order + 1) / 2) + 1)]
-    if order == 1:
-        ind = [dim, dim + diff]
 
     return ind
