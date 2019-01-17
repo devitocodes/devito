@@ -1,4 +1,4 @@
-from scipy import interpolate
+, optional, optional, optionalfrom scipy import interpolate
 from cached_property import cached_property
 import numpy as np
 try:
@@ -30,14 +30,14 @@ class TimeAxis(object):
 
     Parameters
     ----------
-    start: float (Optional)
+    start : float, optional
         Start of time axis.
-    step: float (Optional)
+    step : float, optional
         Time interval.
-    num: int (Optional)
+    num : int, optional
         Number of values (Note: this is the number of intervals + 1).
         Stop value is reset to correct for remainder.
-    stop: float (Optional)
+    stop : float, optional
         End time.
     """
     def __init__(self, start=None, step=None, num=None, stop=None):
@@ -81,25 +81,25 @@ class PointSource(SparseTimeFunction):
 
     Parameters
     ----------
-    name: str
+    name : str
         Name of the symbol representing this source.
-    grid: `Grid`
+    grid : Grid
         The computational domain.
-    time_range: `TimeAxis`
+    time_range : TimeAxis
         TimeAxis(start, step, num) object.
-    npoint: int (Optional)
+    npoint : int, optional
         Number of sparse points represented by this source.
-    data: (Optional)
+    data :, optional
         Data values to initialise point data.
-    coordinates: (Optional)
+    coordinates :, optional
         Point coordinates for this source.
-    space_order: (Optional)
+    space_order :, optional
         Space discretization order.
-    time_order: (Optional)
+    time_order :, optional
         Time discretization order (defaults to 2).
-    dtype: (Optional)
+    dtype :, optional
         Data type of the buffered data.
-    dimension: (Optional) `Dimension`
+    dimension : Dimension, optional
         Represents the number of points in this source.
     """
 
@@ -190,13 +190,13 @@ class WaveletSource(PointSource):
 
     Parameters
     ----------
-    name: str
+    name : str
         Name for the resulting symbol.
-    grid:`Grid`
+    grid : Grid
         The computational domain.
-    f0: float
+    f0 : float
         Peak frequency for Ricker wavelet in kHz.
-    time_values:
+    time_values :
         Discretized values of time in ms.
     """
 
@@ -218,9 +218,9 @@ class WaveletSource(PointSource):
 
         Parameters
         ----------
-        f0: float
+        f0 : float
             Peak frequency in kHz.
-        t:
+        t :
             Discretized values of time in ms.
         """
         raise NotImplementedError('Wavelet not defined')
@@ -231,11 +231,11 @@ class WaveletSource(PointSource):
 
         Parameters
         ----------
-        idx:
+        idx :
             Index of the source point for which to plot wavelet.
-        wavelet:
+        wavelet :
             Prescribed wavelet instead of one from this symbol.
-        time: TimeAxis
+        time : TimeAxis
             Prescribed time instead of time from this symbol.
         """
         wavelet = wavelet or self.data[:, idx]
@@ -259,13 +259,13 @@ class RickerSource(WaveletSource):
 
     Parameters
     ----------
-    name: str
+    name : str
         Name for the resulting symbol.
-    grid: `Grid`
+    grid : Grid
         The computational domain.
-    f0: float
+    f0 : float
         Peak frequency for Ricker wavelet in kHz.
-    time: TimeAxis
+    time : TimeAxis
         Discretized values of time in ms.
     """
 
@@ -275,9 +275,9 @@ class RickerSource(WaveletSource):
 
         Parameters
         ----------
-        f0: float
+        f0 : float
             Peak frequency in kHz.
-        t: TimeAxis
+        t : TimeAxis
             Discretized values of time in ms.
         """
         r = (np.pi * f0 * (t - 1./f0))
@@ -293,13 +293,13 @@ class GaborSource(WaveletSource):
 
     Parameters
     ----------
-    name: str
+    name : str
         Name for the resulting symbol.
-    grid: `Grid` object
+    grid : Grid
         defining the computational domain.
-    f0: float
+    f0 : float
         Peak frequency for Ricker wavelet in kHz.
-    time: TimeAxis
+    time : TimeAxis
         Discretized values of time in ms.
     """
 
@@ -308,9 +308,9 @@ class GaborSource(WaveletSource):
         Defines a Gabor wavelet with a peak frequency f0 at time t.
         Parameters
         ----------
-        f0: float
+        f0 : float
             Peak frequency in kHz.
-        t:
+        t :
             Discretized values of time in ms.
         """
         agauss = 0.5 * f0
@@ -335,13 +335,13 @@ class DGaussSource(WaveletSource):
 
     Parameters
     ----------
-    name: str
+    name : str
         Name for the resulting symbol.
-    grid: `Grid`
+    grid : Grid
         The computational domain.
-    f0: float
+    f0 : float
         Peak frequency for wavelet in kHz.
-    time: TimeAxis
+    time : TimeAxis
         Discretized values of time in ms.
 
     Returns
@@ -355,11 +355,11 @@ class DGaussSource(WaveletSource):
 
         Parameters
         ----------
-        f0: float
+        f0 : float
             Peak frequency in kHz.
-        t: TimeAxis
+        t : TimeAxis
             Discretized values of time in ms.
-        a: float
+        a : float
             Maximum amplitude.
         """
         return -2.*a*(t - 1/f0) * np.exp(-a * (t - 1/f0)**2)
