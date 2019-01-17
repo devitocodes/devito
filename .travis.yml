@@ -19,7 +19,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 INSTALL_TYPE=pip_setup RUN_EXAMPLES=False MPI_INSTALL=1
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 INSTALL_TYPE=stable_pip_setup RUN_EXAMPLES=False MPI_INSTALL=1
     - os: linux
       python: "3.6"
       addons:
@@ -94,18 +94,27 @@ before_install:
 install:
   # Install devito with conda
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
-      conda env create -q -f environment.yml python=$TRAVIS_PYTHON_VERSION;
+      conda env create -q -f ci_environment.yml python=$TRAVIS_PYTHON_VERSION;
       source activate devito;
       pip install -e .;
       conda list;
-    fi
-  - if [[ "$MPI_INSTALL" == '1' ]]; then
-      pip install -r requirements-optional.txt;
+      if [[ "$MPI_INSTALL" == '1' ]]; then
+        pip install -r requirements-optional.txt;
+      fi;
     fi
 
   # Install devito with pip
-  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py install; fi
-  - if [[ $MPI_INSTALL == '1' ]]; then pip install -e .[extras]; fi
+  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then
+      python setup.py install;
+      if [[ $MPI_INSTALL == '1' ]]; then pip install -e .[extras]; fi;
+    fi
+
+  # Stable pip install for CI
+  - if [[ $INSTALL_TYPE == 'stable_pip_setup' ]]; then
+      pip install -r ci_requirements.txt;
+      python setup.py install --no-deps;
+      if [[ $MPI_INSTALL == '1' ]]; then pip install -e .[extras]; fi;
+    fi
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
