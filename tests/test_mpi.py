@@ -526,7 +526,7 @@ class TestOperatorSimple(object):
         else:
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
-    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parallel(nprocs=4, mode=['basic', 'diag'])
     def test_trivial_eq_2d(self):
         grid = Grid(shape=(8, 8,))
         x, y = grid.dimensions
@@ -561,7 +561,7 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
-    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parallel(nprocs=4, mode=['basic', 'diag'])
     def test_multiple_eqs_funcs(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -663,7 +663,7 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
 
-    @pytest.mark.parallel(nprocs=2)
+    @pytest.mark.parallel(nprocs=2, mode=['basic', 'diag'])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -1186,7 +1186,7 @@ class TestIsotropicAcoustic(object):
         ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
-    @pytest.mark.parallel(nprocs=[4, 8])
+    @pytest.mark.parallel(nprocs=[4, 8], mode=['basic', 'diag'])
     def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
                        Eu, Erec, Ev, Esrca):
         """
