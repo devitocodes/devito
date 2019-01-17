@@ -94,7 +94,7 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     def __new_stage2__(cls, name, spacing=None):
         newobj = sympy.Symbol.__xnew__(cls, name)
-        newobj._spacing = spacing or Scalar(name='h_%s' % name)
+        newobj._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
         return newobj
 
     __xnew__ = staticmethod(__new_stage2__)
@@ -111,17 +111,17 @@ class Dimension(AbstractSymbol, ArgProvider):
     @cached_property
     def symbolic_size(self):
         """Symbolic size of the Dimension."""
-        return Scalar(name=self.size_name, dtype=np.int32)
+        return Scalar(name=self.size_name, dtype=np.int32, is_const=True)
 
     @cached_property
     def symbolic_min(self):
         """Symbol defining the minimum point of the Dimension."""
-        return Scalar(name=self.min_name, dtype=np.int32)
+        return Scalar(name=self.min_name, dtype=np.int32, is_const=True)
 
     @cached_property
     def symbolic_max(self):
         """Symbol defining the maximum point of the Dimension."""
-        return Scalar(name=self.max_name, dtype=np.int32)
+        return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
     @cached_property
     def size_name(self):
@@ -515,8 +515,8 @@ class SubDimension(DerivedDimension):
 
     @classmethod
     def _symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32))
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32, is_const=True),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32, is_const=True))
 
     @cached_property
     def _thickness_map(self):
