@@ -1,4 +1,4 @@
-, optional, optional, optionalfrom scipy import interpolate
+from scipy import interpolate
 from cached_property import cached_property
 import numpy as np
 try:
@@ -89,15 +89,15 @@ class PointSource(SparseTimeFunction):
         TimeAxis(start, step, num) object.
     npoint : int, optional
         Number of sparse points represented by this source.
-    data :, optional
+    data : ndarray, optional
         Data values to initialise point data.
-    coordinates :, optional
+    coordinates : ndarray, optional
         Point coordinates for this source.
-    space_order :, optional
+    space_order : int or 3-tuple of ints, optional
         Space discretization order.
-    time_order :, optional
+    time_order : int, optional
         Time discretization order (defaults to 2).
-    dtype :, optional
+    dtype : data-type, optional
         Data type of the buffered data.
     dimension : Dimension, optional
         Represents the number of points in this source.
@@ -196,7 +196,7 @@ class WaveletSource(PointSource):
         The computational domain.
     f0 : float
         Peak frequency for Ricker wavelet in kHz.
-    time_values :
+    time_values : TimeAxis
         Discretized values of time in ms.
     """
 
@@ -220,7 +220,7 @@ class WaveletSource(PointSource):
         ----------
         f0 : float
             Peak frequency in kHz.
-        t :
+        t : TimeAxis
             Discretized values of time in ms.
         """
         raise NotImplementedError('Wavelet not defined')
@@ -231,7 +231,7 @@ class WaveletSource(PointSource):
 
         Parameters
         ----------
-        idx :
+        idx : int
             Index of the source point for which to plot wavelet.
         wavelet :
             Prescribed wavelet instead of one from this symbol.
@@ -310,7 +310,7 @@ class GaborSource(WaveletSource):
         ----------
         f0 : float
             Peak frequency in kHz.
-        t :
+        t : TimeAxis
             Discretized values of time in ms.
         """
         agauss = 0.5 * f0
