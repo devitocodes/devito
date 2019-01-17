@@ -1,9 +1,6 @@
 import sympy
 import numpy as np
 
-from cached_property import cached_property
-
-from devito.tools import filter_ordered, flatten
 from devito.finite_differences import generate_indices
 
 __all__ = ['Coefficients', 'default_rules']
@@ -12,7 +9,7 @@ __all__ = ['Coefficients', 'default_rules']
 class Coefficients(object):
     """
     Devito class for users to define custom finite difference weights.
-    Input must be given as tuple(s) with the following arguments:
+    Input must be given as tuple(s) in the following manner:
     tuple = (deriv_order, function, dimension, coefficients)
 
     Here,
@@ -72,9 +69,13 @@ class Coefficients(object):
 
             fd_order = len(coeffs)-1
 
+            side = function.get_side(dim,deriv_order)
+            stagger = function.get_stagger(dim,deriv_order)
+
             subs = {}
 
-            indices = generate_indices(dim, dim.spacing, fd_order)
+            indices, x0 = generate_indices(function, dim, dim.spacing, fd_order,
+                                       side=side, stagger=stagger)
 
             for j in range(len(coeffs)):
                 subs.update({function.fd_coeff_symbol()(indices[j], deriv_order, function, dim): coeffs[j]})
@@ -107,11 +108,15 @@ def default_rules(obj, functions):
             # Shouldn't arrive here
             raise TypeError("Dimension type not recognised")
 
+        side = function.get_side(dim,deriv_order)
+        stagger = function.get_stagger(dim,deriv_order)
+
         subs = {}
 
-        indices = generate_indices(dim, dim.spacing, fd_order)
+        indices, x0 = generate_indices(function, dim, dim.spacing, fd_order,
+                                   side=side, stagger=stagger)
 
-        coeffs = sympy.finite_diff_weights(deriv_order, indices, dim)[-1][-1]
+        coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
         for j in range(len(coeffs)):
             subs.update({function.fd_coeff_symbol()(indices[j], deriv_order, function, dim): coeffs[j]})

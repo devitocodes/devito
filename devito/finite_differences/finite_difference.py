@@ -127,7 +127,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **k
 
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind = generate_indices(dim, diff, order, side = side)
+    ind = generate_indices(expr, dim, diff, order, side=side)
 
     # Finite difference weights from Taylor approximation with this positions
     if kwargs.pop('symbolic_coefficients'):
@@ -255,29 +255,10 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, **kwargs)
 
     diff = dim.spacing
 
-    if stagger == left or not expr.is_Staggered:
-        off = -.5
-    elif stagger == right:
-        off = .5
-    else:
-        off = 0
-
-    # FIXME: Incoporate into generate_indices?
-    if expr.is_Staggered:
-        indices = list(set([(dim + int(i+.5+off) * dim.spacing)
-                            for i in range(-fd_order//2, fd_order//2)]))
-        x0 = (dim + off*diff)
-        if fd_order < 2:
-            indices = [dim + diff, dim] if stagger == right else [dim - diff, dim]
-
-    else:
-        indices = [(dim + i * dim.spacing) for i in range(-fd_order//2, fd_order//2 + 1)]
-        x0 = dim
-        if fd_order < 2:
-            indices = [dim, dim + diff]
+    indices, x0 = generate_indices(expr, dim, diff, fd_order, stagger=stagger)
 
     if kwargs.pop('symbolic_coefficients'):
-        c = symbolic_weights(expr, deriv_order, indices, dim)
+        c = symbolic_weights(expr, deriv_order, indices, x0)
     else:
         c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
@@ -378,17 +359,39 @@ def symbolic_weights(function, deriv_order, indices, dim):
 
     return weights
 
-def generate_indices(dim, diff, order, side = None):
+def generate_indices(func, dim, diff, order, stagger=None, side=None):
 
-    # FIXME: Needs double checking
-    if side == right:
-        ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
-                                               int((order + 1) / 2) + 2 - (order % 2))]
-    elif side == left:
-        ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
-                                               int((order + 1) / 2) + 2 - (order % 2))]
+    # Check if called from first_derivative()
+    if bool(side):
+        if side == right:
+            ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
+                                                   int((order + 1) / 2) + 2 - (order % 2))]
+        elif side == left:
+            ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
+                                                   int((order + 1) / 2) + 2 - (order % 2))]
+        else:
+            ind = [(dim + i * diff) for i in range(-int(order / 2),
+                                                   int((order + 1) / 2) + 1)]
+        x0=None
     else:
-        ind = [(dim + i * diff) for i in range(-int(order / 2),
-                                               int((order + 1) / 2) + 1)]
+        if stagger == left or not func.is_Staggered:
+            off = -.5
+        elif stagger == right:
+            off = .5
+        else:
+            off = 0
 
-    return ind
+        if func.is_Staggered:
+            ind = list(set([(dim + int(i+.5+off) * dim.spacing)
+                            for i in range(-order//2, order//2)]))
+            x0 = (dim + off*diff)
+            if order < 2:
+                ind = [dim + diff, dim] if stagger == right else [dim - diff, dim]
+
+        else:
+            ind = [(dim + i * dim.spacing) for i in range(-order//2, order//2 + 1)]
+            x0 = dim
+            if order < 2:
+                ind = [dim, dim + diff]
+
+    return ind, x0

@@ -56,7 +56,13 @@ class Eq(sympy.Eq):
         obj._coefficients = coefficients
         functions = retrieve_functions(obj)
         functions = filter_ordered(functions, key=lambda i: i.name)
-        if any(f._coefficients is 'symbolic' for f in functions):
+        # FIXME: Make filter for this
+        fnew = []
+        for f in functions:
+            if not f.is_SparseFunction:
+                fnew += [f,]
+        functions = fnew
+        if any(f.coefficients is 'symbolic' for f in functions):
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
             rules = default_rules(obj, functions)
