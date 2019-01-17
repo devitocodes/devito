@@ -21,7 +21,8 @@ pytestmark = skipif(['yask', 'ops'])
 
 
 @pytest.mark.parametrize('modname', [
-    'dimension', 'equation', 'function', 'grid', 'operator',
+    'types.basic', 'types.dimension', 'types.constant', 'types.grid',
+    'types.dense', 'types.sparse', 'equation', 'operator',
     'data.decomposition', 'finite_differences.finite_difference',
     'ir.support.space'
 ])

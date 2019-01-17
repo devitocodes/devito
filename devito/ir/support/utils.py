@@ -1,11 +1,11 @@
 from collections import OrderedDict, defaultdict
 
-from devito.dimension import Dimension, ModuloDimension
 from devito.ir.support.basic import Access
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
+from devito.types import Dimension, ModuloDimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
            'detect_flow_directions', 'force_directions', 'align_accesses', 'detect_io']
@@ -45,12 +45,12 @@ def detect_accesses(expr):
 def detect_oobs(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return the set of
-    :class:`Dimension`s that cannot be iterated over for the entire
-    computational domain, to avoid out-of-bounds (OOB) accesses.
+    Dimensions that *cannot* be iterated over the entire computational
+    domain, to avoid out-of-bounds (OOB) accesses.
     """
     found = set()
     for f, stencil in mapper.items():
-        if f is None or not f.is_TensorFunction:
+        if f is None or not f.is_DiscreteFunction:
             continue
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d

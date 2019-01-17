@@ -2,6 +2,6 @@
 Constant
 ========
 
-.. autoclass:: devito.function.Constant
+.. autoclass:: devito.types.Constant
     :members:
     :show-inheritance:

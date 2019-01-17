@@ -12,9 +12,7 @@ pytestmark = skipif('ops')
 class TestDataBasic(object):
 
     def test_simple_indexing(self):
-        """
-        Tests packing/unpacking data in :class:`Function` objects.
-        """
+        """Test data packing/unpacking via basic indexing."""
         grid = Grid(shape=(16, 16, 16))
         u = Function(name='yu3D', grid=grid, space_order=0)
 
@@ -51,10 +49,7 @@ class TestDataBasic(object):
         assert np.all(u.data[4, :, 4] == block)
 
     def test_advanced_indexing(self):
-        """
-        Tests packing/unpacking data in :class:`Function` objects with more advanced
-        access functions.
-        """
+        """Test data packing/unpacking via advanced indexing."""
         grid = Grid(shape=(4, 4, 4))
         u = TimeFunction(name='yu4D', grid=grid, space_order=0, time_order=1)
         u.data[:] = 0.
@@ -69,10 +64,7 @@ class TestDataBasic(object):
         assert np.all(u.data[1, :, :, -1] == 0.)
 
     def test_halo_indexing(self):
-        """
-        Tests packing/unpacking data in :class:`Function` objects when some halo
-        region is present.
-        """
+        """Test data packing/unpacking in presence of a halo region."""
         domain_shape = (16, 16, 16)
         grid = Grid(shape=domain_shape)
         u = Function(name='yu3D', grid=grid, space_order=2)
@@ -93,10 +85,40 @@ class TestDataBasic(object):
         assert u.data[-1, -1, -1] == 0.
         assert u.data_with_halo[-1, -1, -1] == 3.
 
+    def test_broadcasting(self):
+        """
+        Test Data broadcasting, expected to behave as NumPy broadcasting.
+
+        Notes
+        -----
+        Refer to https://docs.scipy.org/doc/numpy-1.15.0/user/basics.broadcasting.html
+        for more info about NumPy broadcasting rules.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        u = Function(name='yu3D', grid=grid)
+        u.data[:] = 2.
+
+        # Assign from array with lower-dimensional shape
+        v = np.ones(shape=(4, 4), dtype=u.dtype)
+        u.data[:] = v
+        assert np.all(u.data == 1.)
+
+        # Assign from array with higher-dimensional shape causes a ValueError exception
+        v = np.zeros(shape=(4, 4, 4, 4), dtype=u.dtype)
+        try:
+            u.data[:] = v
+        except ValueError:
+            assert True
+        except:
+            assert False
+
+        # Assign from array having shape with some 1-valued entries
+        v = np.zeros(shape=(4, 1, 4), dtype=u.dtype)
+        u.data[:] = v
+        assert np.all(u.data == 0.)
+
     def test_arithmetic(self):
-        """
-        Tests arithmetic operations between :class:`Data` objects and values.
-        """
+        """Test arithmetic operations involving Data objects."""
         grid = Grid(shape=(16, 16, 16))
         u = Function(name='yu3D', grid=grid, space_order=0)
         u.data[:] = 1
@@ -124,9 +146,7 @@ class TestDataBasic(object):
 
     @skipif('yask')
     def test_illegal_indexing(self):
-        """
-        Tests that indexing into illegal entries throws an exception.
-        """
+        """Tests that indexing into illegal entries throws an exception."""
         nt = 5
         grid = Grid(shape=(4, 4, 4))
         u = Function(name='u', grid=grid)
@@ -144,9 +164,7 @@ class TestDataBasic(object):
             pass
 
     def test_logic_indexing(self):
-        """
-        Tests logic indexing for stepping dimensions.
-        """
+        """Test logic indexing along stepping dimensions."""
         grid = Grid(shape=(4, 4, 4))
         v_mod = TimeFunction(name='v_mod', grid=grid)
 
@@ -233,9 +251,10 @@ class TestDataBasic(object):
 class TestDecomposition(object):
 
     """
-    .. note::
-
-        If these tests don't work, definitely TestDataDistributed won't behave
+    Notes
+    -----
+    If these tests don't work, there is no chance that the tests in TestDataDistributed
+    will pass.
     """
 
     def test_convert_index(self):

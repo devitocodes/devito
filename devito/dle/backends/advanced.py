@@ -9,7 +9,7 @@ from devito.dle import BlockDimension, fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, Ompizer, dle_pass, simdinfo,
                                  get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
-from devito.ir.iet import (Expression, Iteration, List, HaloSpot, PARALLEL, ELEMENTAL,
+from devito.ir.iet import (Expression, Iteration, List, PARALLEL, ELEMENTAL,
                            REMAINDER, tagger, FindSymbols, FindNodes, Transformer,
                            IsPerfectIteration, compose_nodes, retrieve_iteration_tree)
 from devito.logger import perf_adv
@@ -22,7 +22,6 @@ class AdvancedRewriter(BasicRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
-        self._optimize_halo_updates(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
@@ -42,18 +41,6 @@ class AdvancedRewriter(BasicRewriter):
             perf_adv("Functions using modulo iteration along Dimension `%s` "
                      "may safely allocate a one slot smaller buffer" % i.dim)
         return iet, {}
-
-    @dle_pass
-    def _optimize_halo_updates(self, iet, state):
-        """
-        Drop unnecessary halo exchanges, or shuffle them around to improve
-        computation-communication overlap.
-        """
-        hss = FindNodes(HaloSpot).visit(iet)
-        mapper = {i: None for i in hss if i.is_Redundant}
-        processed = Transformer(mapper, nested=True).visit(iet)
-
-        return processed, {}
 
     @dle_pass
     def _loop_blocking(self, nodes, state):
@@ -274,7 +261,6 @@ class SpeculativeRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
-        self._optimize_halo_updates(state)
         self._loop_wrapping(state)
         self._loop_blocking(state)
         self._simdize(state)

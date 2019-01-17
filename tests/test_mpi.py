@@ -7,7 +7,7 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SubDimension, Eq, Inc, Operator, norm, inner)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes
-from devito.mpi import MPI, copy, sendrecv, update_halo
+from devito.mpi import MPI, make_halo_exchange_routines
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['yask', 'ops', 'nompi'])
@@ -276,14 +276,15 @@ class TestFunction(object):
 
 class TestCodeGeneration(object):
 
+    @pytest.mark.parallel(nprocs=1)
     def test_iet_copy(self):
         grid = Grid(shape=(4, 4))
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = copy(f, [t])
-        assert str(iet.parameters) == """\
+        (_, _, gather, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
+        assert str(gather.parameters) == """\
 (buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
   for (int x = 0; x <= buf_x_size - 1; x += 1)
@@ -292,19 +293,20 @@ class TestCodeGeneration(object):
     {
       buf[x][y] = f[otime][x + ox][y + oy];
     }
-  }""" in str(iet)
+  }""" in str(gather)
 
+    @pytest.mark.parallel(nprocs=1)
     def test_iet_sendrecv(self):
         grid = Grid(shape=(4, 4))
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = sendrecv(f, [t])
-        assert str(iet.parameters) == """\
+        (_, sendrecv, _, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
+        assert str(sendrecv.parameters) == """\
 (f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
  fromrank, torank, comm)"""
-        assert str(iet.body[0]) == """\
+        assert str(sendrecv.body[0]) == """\
 float (*bufs)[buf_y_size];
 float (*bufg)[buf_y_size];
 posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
@@ -331,10 +333,10 @@ free(bufg);"""
 
         f = TimeFunction(name='f', grid=grid)
 
-        iet = update_halo(f, [t])
-        assert str(iet.parameters) == """\
+        (update_halo, _, _, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
+        assert str(update_halo.parameters) == """\
 (f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime)"""
-        assert str(iet.body[0]) == """\
+        assert str(update_halo.body[0]) == """\
 if (mxl)
 {
   sendrecv_f(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
@@ -1126,6 +1128,24 @@ class TestIsotropicAcoustic(object):
     """
     Test the isotropic acoustic wave equation with MPI.
     """
+
+    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save', [
+        ((60, ), 'OT2', 4, 10, False),
+        ((60, 70), 'OT2', 8, 10, False),
+    ])
+    @pytest.mark.parallel(nprocs=1)
+    def test_adjoint_codegen(self, shape, kernel, space_order, nbpml, save):
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+                                nbpml=nbpml, tn=500, space_order=space_order, nrec=130,
+                                preset='layers-isotropic', dtype=np.float64)
+        op_fwd = solver.op_fwd(save=save)
+        fwd_calls = FindNodes(Call).visit(op_fwd)
+
+        op_adj = solver.op_adj()
+        adj_calls = FindNodes(Call).visit(op_adj)
+
+        assert len(fwd_calls) == 2
+        assert len(adj_calls) == 2
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
         ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
