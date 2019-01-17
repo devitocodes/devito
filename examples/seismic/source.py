@@ -267,6 +267,10 @@ class RickerSource(WaveletSource):
         Peak frequency for Ricker wavelet in kHz.
     time : TimeAxis
         Discretized values of time in ms.
+
+    Returns
+    ----------
+    A Ricker wavelet.
     """
 
     def wavelet(self, f0, t):
@@ -301,6 +305,10 @@ class GaborSource(WaveletSource):
         Peak frequency for Ricker wavelet in kHz.
     time : TimeAxis
         Discretized values of time in ms.
+
+    Returns
+    ----------
+    A Gabor wavelet.
     """
 
     def wavelet(self, f0, t):
@@ -346,7 +354,7 @@ class DGaussSource(WaveletSource):
 
     Returns
     ----------
-    returns the 1st order derivative of the Gaussian wavelet
+    The 1st order derivative of the Gaussian wavelet
     """
 
     def wavelet(self, f0, t, a):
