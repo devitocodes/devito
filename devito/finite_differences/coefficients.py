@@ -6,6 +6,7 @@ from devito.finite_differences import generate_indices
 __all__ = ['Coefficients', 'default_rules']
 
 
+# FIXME: Use subojects to make interface more explicit.
 class Coefficients(object):
     """
     Devito class for users to define custom finite difference weights.
