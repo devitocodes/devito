@@ -72,11 +72,11 @@ class HaloExchangeBuilder(object):
                     sendrecv = self._make_sendrecv(df, v.loc_indices, extra)
                     generated[f.ndim] = [gather, scatter, sendrecv]
                 # `haloupdate` is generic by construction -- it only needs to be
-                # generated once for each (`ndim`, `mask`)
+                # generated once for each (`ndim`, `halos`)
                 if (f.ndim, v) not in generated:
                     uniquekey = len([i for i in generated if isinstance(i, tuple)])
                     generated[(f.ndim, v)] = [self._make_haloupdate(df, v.loc_indices,
-                                                                    hs.mask[f], extra,
+                                                                    hs.halos[f], extra,
                                                                     uniquekey)]
 
                 # `haloupdate` Call construction
@@ -203,7 +203,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                       [fromrank, torank, comm] + extra)
         return Callable('sendrecv%dd' % f.ndim, iet, 'void', parameters, ('static',))
 
-    def _make_haloupdate(self, f, fixed, mask, extra=None, uniquekey=None):
+    def _make_haloupdate(self, f, fixed, halos, extra=None, uniquekey=None):
         extra = extra or []
         distributor = f.grid.distributor
         nb = distributor._obj_neighborhood
@@ -239,22 +239,20 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
             lpeer = FieldFromPointer(name, nb)
 
-            if mask[(d, LEFT)]:
+            if (d, LEFT) in halos:
                 # Sending to left, receiving from right
                 lsizes, loffsets = mapper[(d, LEFT, OWNED)]
                 rsizes, roffsets = mapper[(d, RIGHT, HALO)]
                 args = [f] + lsizes + loffsets + roffsets + [rpeer, lpeer, comm] + extra
                 body.append(Call('sendrecv%dd' % f.ndim, args))
 
-            if mask[(d, RIGHT)]:
+            if (d, RIGHT) in halos:
                 # Sending to right, receiving from left
                 rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
                 lsizes, loffsets = mapper[(d, LEFT, HALO)]
                 args = [f] + rsizes + roffsets + loffsets + [lpeer, rpeer, comm] + extra
                 body.append(Call('sendrecv%dd' % f.ndim, args))
 
-        if uniquekey is None:
-            uniquekey = ''.join(str(int(i)) for i in mask.values())
         name = 'haloupdate%dd%s' % (f.ndim, uniquekey)
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values()) + extra
@@ -271,7 +269,8 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
     to executing the code region requiring up-to-date halos.
     """
 
-    def _make_haloupdate(self, f, fixed, mask, extra=None, uniquekey=None):
+    def _make_haloupdate(self, f, fixed, halos, extra=None, uniquekey=None):
+        halos = [i.side for i in halos]
         extra = extra or []
         distributor = f.grid.distributor
         nb = distributor._obj_neighborhood
@@ -303,7 +302,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
 
         body = []
         for (tosides, tosizes, tooffs), (fromsides, fromsizes, fromoffs) in candidates:
-            if not mask.full[tosides]:
+            if tosides not in halos:
                 # Ignore useless halo exchanges
                 continue
 
@@ -315,8 +314,6 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
             args = [f] + tosizes + tooffs + fromoffs + [frompeer, topeer, comm] + extra
             body.append(Call('sendrecv%dd' % f.ndim, args))
 
-        if uniquekey is None:
-            uniquekey = ''.join(str(int(i)) for i in mask.values())
         name = 'haloupdate%dd%s' % (f.ndim, uniquekey)
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values()) + extra

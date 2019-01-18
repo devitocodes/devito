@@ -9,7 +9,7 @@ from devito.data import LEFT, CENTER, RIGHT
 from devito.ir.support import Scope
 from devito.logger import warning
 from devito.parameters import configuration
-from devito.tools import Tag, as_mapper, filter_ordered
+from devito.tools import Tag, as_mapper
 
 __all__ = ['HaloScheme', 'HaloSchemeException']
 
@@ -27,34 +27,11 @@ UNSUPPORTED = HaloLabel('unsupported')
 POINTLESS = HaloLabel('pointless')
 IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
-FULL = HaloLabel('full')
 
 
 HaloSchemeEntry = namedtuple('HaloSchemeEntry', 'loc_indices halos')
 
 Halo = namedtuple('Halo', 'dim side')
-
-
-class HaloMask(OrderedDict):
-
-    @cached_property
-    def full(self):
-        # Also include the diagonal dependences
-        mapper = OrderedDict()
-        dimensions = filter_ordered(i for i, _ in self)
-        for i in product([LEFT, CENTER, RIGHT], repeat=len(dimensions)):
-            need_halo_exchange = any(s is not CENTER for s in i)
-            for d, s in zip(dimensions, i):
-                if s is CENTER:
-                    continue
-                elif not self[(d, s)]:
-                    need_halo_exchange = False
-                    break
-                else:
-                    # All good so far...
-                    pass
-            mapper[i] = need_halo_exchange
-        return mapper
 
 
 class HaloScheme(object):
@@ -101,7 +78,7 @@ class HaloScheme(object):
         self._mapper = {}
         scope = Scope(exprs)
         for f, v in hs_classify(scope).items():
-            halos = [Halo(*i) for i, hl in v.items() if hl in [STENCIL, FULL]]
+            halos = [Halo(*i) for i, hl in v.items() if hl is STENCIL]
             if halos:
                 # There is some halo to be exchanged; *what* are the local
                 # (i.e., non-halo) indices?
@@ -133,12 +110,8 @@ class HaloScheme(object):
                             sorted(self._mapper, key=attrgetter('name'))])
 
     @cached_property
-    def mask(self):
-        mapper = {}
-        for f, v in self.fmapper.items():
-            for i in product(f.grid.distributor.dimensions, [LEFT, RIGHT]):
-                mapper.setdefault(f, HaloMask())[i] = i in v.halos
-        return mapper
+    def halos(self):
+        return {f: v.halos for f, v in self.fmapper.items()}
 
 
 def hs_classify(scope):
@@ -155,8 +128,9 @@ def hs_classify(scope):
             continue
         # For each data access, determine if (and what type of) a halo exchange
         # is required
-        v = defaultdict(list)
+        halo_labels = defaultdict(list)
         for i in r:
+            v = {}
             for d in i.findices:
                 # Note: if `i` makes use of SubDimensions, we might end up adding useless
                 # (yet harmless) halo exchanges.  This depends on the size of a
@@ -170,46 +144,58 @@ def hs_classify(scope):
                 if i.affine(d):
                     if f.grid.is_distributed(d):
                         if d in scope.d_from_access(i).cause:
-                            v[d].append(POINTLESS)
+                            v[d] = POINTLESS
                         else:
                             bl, br = i.touched_halo(d)
-                            v[(d, LEFT)].append((bl and STENCIL) or IDENTITY)
-                            v[(d, RIGHT)].append((br and STENCIL) or IDENTITY)
+                            v[(d, LEFT)] = (bl and STENCIL) or IDENTITY
+                            v[(d, RIGHT)] = (br and STENCIL) or IDENTITY
                     else:
-                        v[d].append(NONE)
+                        v[d] = NONE
                 elif i.is_increment:
                     # A read used for a distributed local-reduction. Users are expected
                     # to deal with this data access pattern by themselves, for example
                     # by resorting to common techniques such as redundant computation
-                    v[d].append(UNSUPPORTED)
+                    v[d] = UNSUPPORTED
                 elif i.irregular(d) and f.grid.is_distributed(d):
-                    v[(d, LEFT)].append(FULL)
-                    v[(d, RIGHT)].append(FULL)
+                    v[(d, LEFT)] = STENCIL
+                    v[(d, RIGHT)] = STENCIL
+
+            # Derive diagonal halo exchanges from the previous analysis
+            combs = list(product([LEFT, CENTER, RIGHT], repeat=len(f._dist_dimensions)))
+            combs.remove((CENTER,)*len(f._dist_dimensions))
+            for c in combs:
+                key = (f._dist_dimensions, c)
+                if all(v.get((d, s)) is STENCIL or s is CENTER for d, s in zip(*key)):
+                    v[key] = STENCIL
+
+            # Finally update the `halo_labels`
+            for j, hl in v.items():
+                halo_labels[j].append(hl)
 
         # Sanity check and reductions
-        for i, hl in list(v.items()):
+        for i, hl in list(halo_labels.items()):
             unique_hl = set(hl)
             if unique_hl == {STENCIL, IDENTITY}:
-                v[i] = STENCIL
+                halo_labels[i] = STENCIL
             elif POINTLESS in unique_hl:
-                v[i] = POINTLESS
+                halo_labels[i] = POINTLESS
             elif UNSUPPORTED in unique_hl:
-                v[i] = UNSUPPORTED
+                halo_labels[i] = UNSUPPORTED
             elif len(unique_hl) == 1:
-                v[i] = unique_hl.pop()
+                halo_labels[i] = unique_hl.pop()
             else:
                 raise HaloSchemeException("Inconsistency found while building a halo "
                                           "scheme for `%s` along Dimension `%s`" % (f, d))
 
         # Emit a summary warning
-        unsupported = [i for i, hl in v.items() if hl is UNSUPPORTED]
+        unsupported = [i for i, hl in halo_labels.items() if hl is UNSUPPORTED]
         if configuration['mpi'] and unsupported:
             warning("Distributed local-reductions over `%s` along "
                     "Dimensions `%s` detected." % (f, unsupported))
 
         # Ignore unless an actual halo exchange is required
-        if any(i in [STENCIL, FULL] for i in v.values()):
-            mapper[f] = v
+        if any(i is STENCIL for i in halo_labels.values()):
+            mapper[f] = halo_labels
 
     return mapper
 

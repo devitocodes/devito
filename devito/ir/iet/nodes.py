@@ -794,8 +794,8 @@ class HaloSpot(List):
         return self.halo_scheme.fmapper
 
     @property
-    def mask(self):
-        return self.halo_scheme.mask
+    def halos(self):
+        return self.halo_scheme.halos
 
     @property
     def is_Redundant(self):
