@@ -233,7 +233,7 @@ class WaveletSource(PointSource):
         ----------
         idx : int
             Index of the source point for which to plot wavelet.
-        wavelet :
+        wavelet : ndarray or callable
             Prescribed wavelet instead of one from this symbol.
         time : TimeAxis
             Prescribed time instead of time from this symbol.
