@@ -32,7 +32,7 @@ FULL = HaloLabel('full')
 
 HaloSchemeEntry = namedtuple('HaloSchemeEntry', 'loc_indices halos')
 
-Halo = namedtuple('Halo', 'dim side amount')
+Halo = namedtuple('Halo', 'dim side')
 
 
 class HaloMask(OrderedDict):
@@ -87,16 +87,13 @@ class HaloScheme(object):
         The expressions for which the HaloScheme is built
     ispace : IterationSpace
         Description of iteration directions and sub-iterators used in ``exprs``.
-    dspace : DataSpace
-        Description of the data access pattern in ``exprs``.
     fmapper : dict, optional
-        The format is the same as ``M``. When provided, ``exprs``, ``ispace`` and
-        ``dspace`` are ignored. It should be used to aggregate several existing
-        HaloSchemes into a single, "bigger" HaloScheme, without performing any
-        additional analysis.
+        The format is the same as ``M``. When provided, ``exprs`` and ``ispace``
+        are ignored. It should be used to aggregate several existing HaloSchemes
+        into a single, "bigger" HaloScheme, without performing any further analysis.
     """
 
-    def __init__(self, exprs=None, ispace=None, dspace=None, fmapper=None):
+    def __init__(self, exprs=None, ispace=None, fmapper=None):
         if fmapper is not None:
             self._mapper = frozendict(fmapper.copy())
             return
@@ -109,17 +106,13 @@ class HaloScheme(object):
         classification = hs_classify(scope)
 
         for f, v in classification.items():
-            # *How much* halo do we have to exchange?
-            dims = [d for d, hl in v.items() if hl is STENCIL]
-            halos = hs_comp_halos(f, dims, dspace)
-            dims = [d for d, hl in v.items() if hl is FULL]
-            halos.extend(hs_comp_halos(f, dims))
-
+            halos = [d for d, hl in v.items() if hl in [STENCIL, FULL]]
+            halos = [Halo(*i) for i in product(halos, [LEFT, RIGHT])]
             if halos:
                 # There is some halo to be exchanged; *what* are the local
                 # (i.e., non-halo) indices?
                 dims = [d for d, hl in v.items() if hl is NONE]
-                loc_indices = hs_comp_locindices(f, dims, ispace, dspace, scope)
+                loc_indices = hs_comp_locindices(f, dims, ispace, scope)
 
                 self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices), tuple(halos))
 
@@ -148,11 +141,8 @@ class HaloScheme(object):
     def mask(self):
         mapper = {}
         for f, v in self.fmapper.items():
-            needed = [(i.dim, i.side) for i in v.halos]
-            for i in product(f.dimensions, [LEFT, RIGHT]):
-                if i[0] in v.loc_indices:
-                    continue
-                mapper.setdefault(f, HaloMask())[i] = i in needed
+            for i in product(f.grid.distributor.dimensions, [LEFT, RIGHT]):
+                mapper.setdefault(f, HaloMask())[i] = i in v.halos
         return mapper
 
 
@@ -228,34 +218,7 @@ def hs_classify(scope):
     return mapper
 
 
-def hs_comp_halos(f, dims, dspace=None):
-    """
-    An iterable of 3-tuples ``[(Dimension, DataSide, amount), ...]`` describing
-    the amount of halo that should be exchange along the two sides of a set of
-    Dimensions.
-    """
-    halos = []
-    for d in dims:
-        if dspace is None:
-            # We cannot do anything better than exchanging the full halo
-            # in absence of more information
-            lsize = f._size_halo[d].left
-            rsize = f._size_halo[d].right
-        else:
-            # We can limit the amount of halo exchanged based on the stencil
-            # radius, which is dictated by `dspace`
-            v = dspace[f].relaxed[d]
-            lower, upper = v.limits if not v.is_Null else (0, 0)
-            lsize = f._size_halo[d].left - lower
-            rsize = upper - f._size_halo[d].right
-        if lsize > 0:
-            halos.append(Halo(d, LEFT, lsize))
-        if rsize > 0:
-            halos.append(Halo(d, RIGHT, rsize))
-    return halos
-
-
-def hs_comp_locindices(f, dims, ispace, dspace, scope):
+def hs_comp_locindices(f, dims, ispace, scope):
     """
     Map the Dimensions in ``dims`` to the local indices necessary
     to perform a halo exchange, as described in HaloScheme.__doc__.

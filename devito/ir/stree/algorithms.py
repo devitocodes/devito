@@ -85,7 +85,7 @@ def st_make_halo(stree):
     halo_schemes = {}
     for n in findall(stree, lambda i: i.is_Exprs):
         try:
-            halo_schemes[n] = HaloScheme(n.exprs, n.ispace, n.dspace)
+            halo_schemes[n] = HaloScheme(n.exprs, n.ispace)
         except HaloSchemeException as e:
             if configuration['mpi']:
                 raise RuntimeError(str(e))
