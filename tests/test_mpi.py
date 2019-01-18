@@ -722,6 +722,27 @@ class TestOperatorSimple(object):
         assert np.all(f1.data == 1.)
         assert np.all(f2.data == 1.)
 
+    @pytest.mark.parametrize('expr,expected', [
+        ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'})
+    ])
+    @pytest.mark.parallel(nprocs=1, mode='diag')
+    def test_diag_comm_scheme(self, expr, expected):
+        """
+        Check that the 'diag' mode does not generate more communications
+        than strictly necessary.
+        """
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions  # noqa
+        t = grid.stepping_dim  # noqa
+
+        f = TimeFunction(name='f', grid=grid)  # noqa
+
+        op = Operator(Eq(f.forward, eval(expr)))
+
+        calls = FindNodes(Call).visit(op._func_table['haloupdate3d0'])
+        destinations = {i.params[-3].field for i in calls}
+        assert destinations == expected
+
 
 class TestOperatorAdvanced(object):
 
