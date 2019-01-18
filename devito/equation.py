@@ -4,7 +4,7 @@ import sympy
 
 from devito.finite_differences import default_rules
 from devito.symbolics import retrieve_functions
-from devito.tools import filter_ordered
+from devito.tools import filter_ordered, filter_sparse
 
 __all__ = ['Eq', 'Inc', 'solve']
 
@@ -56,12 +56,7 @@ class Eq(sympy.Eq):
         obj._coefficients = coefficients
         functions = retrieve_functions(obj)
         functions = filter_ordered(functions, key=lambda i: i.name)
-        # FIXME: Make filter for this
-        fnew = []
-        for f in functions:
-            if not f.is_SparseFunction:
-                fnew += [f,]
-        functions = fnew
+        functions = filter_sparse(functions)
         if any(f.coefficients is 'symbolic' for f in functions):
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.

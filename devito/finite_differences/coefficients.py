@@ -3,70 +3,42 @@ import numpy as np
 
 from devito.finite_differences import generate_indices
 
-__all__ = ['Coefficients', 'default_rules']
+__all__ = ['Coefficients', 'Coefficient', 'default_rules']
 
 
-# FIXME: Use subojects to make interface more explicit.
 class Coefficients(object):
     """
     Devito class for users to define custom finite difference weights.
-    Input must be given as tuple(s) in the following manner:
-    tuple = (deriv_order, function, dimension, coefficients)
+    Input must be given as Devito Coefficient objects.
 
-    Here,
-    deriv_order: represents the order of the derivative being taken.
-    function: represents the function for which the supplied coefficients
-              will be used.
-    dimension: represents the dimension with respect to which the
-               derivative is being taken.
-    coefficients: represents the set of finite difference coefficients
-                  intended to be used in place of the standard
-                  coefficients (obtained from a Taylor expansion).
-
-    Coefficient objects created in this manner must then be
+    Coefficients objects created in this manner must then be
     passed to Devito equation objects for the replacement rules
     to take effect.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args):
 
-        self.check_args(args, kwargs)
-
-        self.function_list = self.function_list(args, kwargs)
+        if any(not arg.is_Coefficient for arg in args):
+            raise TypeError("Non Coefficient object within input")
 
         self.data = args
+        self.function_list = self.function_list()
         self.rules = self.rules()
 
-    def check_args(self, args, kwargs):
-        for arg in args:
-            if not isinstance(arg, tuple):
-                raise TypeError("Input must be of type tuple.")
-            if not isinstance(arg[0], int):
-                raise TypeError("Derivative order must be an integer.")
-            if not arg[1].is_Function:
-                raise TypeError("Coefficients must be attached to a valid function.")
-            if not arg[2].is_Dimension:
-                raise TypeError("Coefficients must be attached to a valid dimension.")
-            # Currently only numpy arrays are accepted here.
-            # Functionality will be expanded in the near future.
-            if not isinstance(arg[3], np.ndarray):
-                raise NotImplementedError
-        return
-
-    def function_list(self, args, kwargs):
+    def function_list(self):
         function_list = ()
-        for arg in args:
-            function_list += (arg[1],)
+        for d in self.data:
+            function_list += (d.function,)
         return list(set(function_list))
 
     def rules(self):
 
         def generate_subs(d):
 
-            deriv_order = d[0]
-            function = d[1]
-            dim = d[2]
-            coeffs = d[-1]
+            deriv_order = d.deriv_order
+            function = d.function
+            dim = d.dimension
+            coeffs = d.coefficients
 
             fd_order = len(coeffs)-1
 
@@ -88,10 +60,51 @@ class Coefficients(object):
         # replacement rules
         rules = {}
         for d in self.data:
-            if isinstance(d, tuple):
+            if isinstance(d.coefficients, np.ndarray):
                 rules.update(generate_subs(d))
 
         return rules
+
+
+class Coefficient(object):
+    """
+    Prepare custom FD coefficients to pass to Coefficients object.
+
+    Parameters
+    ----------
+    deriv_order : represents the order of the derivative being taken.
+    function : represents the function for which the supplied coefficients
+               will be used.
+    dimension : represents the dimension with respect to which the
+                derivative is being taken.
+    coefficients : represents the set of finite difference coefficients
+                  intended to be used in place of the standard
+                  coefficients (obtained from a Taylor expansion).
+    """
+
+    def __init__(self, deriv_order, function, dimension, coefficients):
+
+        self.check_input(deriv_order, function, dimension, coefficients)
+
+        self.is_Coefficient = True
+
+        self.deriv_order = deriv_order
+        self.function = function
+        self.dimension = dimension
+        self.coefficients = coefficients
+
+    def check_input(self, deriv_order, function, dimension, coefficients):
+        if not isinstance(deriv_order, int):
+            raise TypeError("Derivative order must be an integer.")
+        if not function.is_Function:
+            raise TypeError("Coefficients must be attached to a valid function.")
+        if not dimension.is_Dimension:
+            raise TypeError("Coefficients must be attached to a valid dimension.")
+        # Currently only numpy arrays are accepted here.
+        # Functionality will be expanded in the near future.
+        if not isinstance(coefficients, np.ndarray):
+            raise NotImplementedError
+        return
 
 def default_rules(obj, functions):
 
@@ -127,8 +140,6 @@ def default_rules(obj, functions):
     rules = {}
 
     # Determine which 'rules' are missing
-    # FIXME: Manipulating coefficient arrays is potentially dangerous
-    # and this should probably be done via subojects.
     sym = functions[0].fd_coeff_symbol()
     terms = obj.find(sym)
     #FIXME: Unnecessary conversions between lists and sets
@@ -138,11 +149,11 @@ def default_rules(obj, functions):
         args_present += [args[1:],]
     args_present = list(set(args_present))
 
-    coeffs = obj._coefficients
+    coeffs = obj.coefficients
     args_provided = []
     if coeffs:
         for coeff in coeffs.data:
-            args_provided += [coeff[:-1],]
+            args_provided += [(coeff.deriv_order, coeff.function, coeff.dimension),]
     # NOTE: Do we want to throw a warning if the same arg has
     # been provided twice?
     args_provided = list(set(args_provided))
