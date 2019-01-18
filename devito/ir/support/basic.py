@@ -3,8 +3,8 @@ from sympy import Basic, S
 
 from devito.ir.support.space import Any, Backward
 from devito.symbolics import retrieve_terminals, q_monoaffine, q_inc
-from devito.tools import (Tag, as_tuple, is_integer, filter_sorted,
-                          flatten, memoized_meth)
+from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
+                          filter_sorted, flatten, memoized_meth)
 from devito.types import Dimension
 
 __all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
@@ -260,7 +260,7 @@ class IterationInstance(Vector):
             else:
                 dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
                 aindices.append(dims.pop() if len(dims) == 1 else None)
-        return tuple(aindices)
+        return EnrichedTuple(*aindices, getters=self.findices)
 
     @cached_property
     def findices_affine(self):
@@ -286,22 +286,19 @@ class IterationInstance(Vector):
         findices = as_tuple(findices)
         return (set(findices) & set(self.findices)).issubset(set(self.findices_affine))
 
-    def touch_halo(self, findices):
+    def touched_halo(self, findex):
         """
-        Return True if self accesses the halo along any of the provided findices,
-        False otherwise.
+        Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
+        means that the halo is touched along that DataSide.
         """
         # Given `d` \in findices, iterating over [0, size_d):
         # * if self[d] - d < self.function._size_halo[d].left, then `self` will
         #   definitely touch the left-halo when d=0
         # * if self[d] - d > self.function._size_halo[d].left, then `self` will
         #   definitely touch the right-halo when d=size_d-1
-        # TODO: the underlying assumption here is that `d` iterates in [0, size_d],
-        # which is the typical case. If that's not the case, we have to generalise
-        # this method. For this, we will have to attach more iteration space
-        # information to IterationInstance, such as start/end point, increment, etc.
-        return all(self[d] - d != self.function._size_halo[d].left
-                   for d in as_tuple(findices))
+        aindex = self.aindices[findex]
+        return (self[findex] - aindex < self.function._size_halo[findex].left,
+                self[findex] - aindex > self.function._size_halo[findex].left)
 
     def irregular(self, findices):
         """
