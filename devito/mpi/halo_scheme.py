@@ -102,10 +102,7 @@ class HaloScheme(object):
 
         scope = Scope(exprs)
 
-        # *What* halo exchanges do we need?
-        classification = hs_classify(scope)
-
-        for f, v in classification.items():
+        for f, v in hs_classify(scope).items():
             halos = [d for d, hl in v.items() if hl in [STENCIL, FULL]]
             halos = [Halo(*i) for i in product(halos, [LEFT, RIGHT])]
             if halos:
@@ -158,7 +155,9 @@ def hs_classify(scope):
         elif f.grid is None:
             # TODO: improve me
             continue
-        v = mapper.setdefault(f, defaultdict(list))
+        # For each data access, determine if (and what type of) a halo exchange
+        # is required
+        v = defaultdict(list)
         for i in r:
             for d in i.findices:
                 # Note: if `i` makes use of SubDimensions, we might end up adding useless
@@ -188,8 +187,7 @@ def hs_classify(scope):
                 elif i.irregular(d) and f.grid.is_distributed(d):
                     v[d].append(FULL)
 
-    # Sanity check and reductions
-    for f, v in mapper.items():
+        # Sanity check and reductions
         for d, hl in list(v.items()):
             unique_hl = set(hl)
             if unique_hl == {STENCIL, IDENTITY}:
@@ -204,12 +202,11 @@ def hs_classify(scope):
                 raise HaloSchemeException("Inconsistency found while building a halo "
                                           "scheme for `%s` along Dimension `%s`" % (f, d))
 
-    # Drop functions needing no halo exchange
-    mapper = {f: v for f, v in mapper.items()
-              if any(i in [STENCIL, FULL] for i in v.values())}
+        # Ignore unless an actual halo exchange is required
+        if any(i in [STENCIL, FULL] for i in v.values()):
+            mapper[f] = v
 
-    # Emit a summary warning
-    for f, v in mapper.items():
+        # Emit a summary warning
         unsupported = [d for d, hl in v.items() if hl is UNSUPPORTED]
         if configuration['mpi'] and unsupported:
             warning("Distributed local-reductions over `%s` along "
