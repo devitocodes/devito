@@ -99,20 +99,18 @@ class HaloScheme(object):
             return
 
         self._mapper = {}
-
         scope = Scope(exprs)
-
         for f, v in hs_classify(scope).items():
-            halos = [d for d, hl in v.items() if hl in [STENCIL, FULL]]
-            halos = [Halo(*i) for i in product(halos, [LEFT, RIGHT])]
+            halos = [Halo(*i) for i, hl in v.items() if hl in [STENCIL, FULL]]
             if halos:
                 # There is some halo to be exchanged; *what* are the local
                 # (i.e., non-halo) indices?
-                dims = [d for d, hl in v.items() if hl is NONE]
+                dims = [i for i, hl in v.items() if hl is NONE]
                 loc_indices = hs_comp_locindices(f, dims, ispace, scope)
 
                 self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices), tuple(halos))
 
+        # A HaloScheme is immutable, so let's make it hashable
         self._mapper = frozendict(self._mapper)
 
     def __repr__(self):
@@ -173,10 +171,10 @@ def hs_classify(scope):
                     if f.grid.is_distributed(d):
                         if d in scope.d_from_access(i).cause:
                             v[d].append(POINTLESS)
-                        elif i.touch_halo(d):
-                            v[d].append(STENCIL)
                         else:
-                            v[d].append(IDENTITY)
+                            bl, br = i.touched_halo(d)
+                            v[(d, LEFT)].append((bl and STENCIL) or IDENTITY)
+                            v[(d, RIGHT)].append((br and STENCIL) or IDENTITY)
                     else:
                         v[d].append(NONE)
                 elif i.is_increment:
@@ -185,32 +183,33 @@ def hs_classify(scope):
                     # by resorting to common techniques such as redundant computation
                     v[d].append(UNSUPPORTED)
                 elif i.irregular(d) and f.grid.is_distributed(d):
-                    v[d].append(FULL)
+                    v[(d, LEFT)].append(FULL)
+                    v[(d, RIGHT)].append(FULL)
 
         # Sanity check and reductions
-        for d, hl in list(v.items()):
+        for i, hl in list(v.items()):
             unique_hl = set(hl)
             if unique_hl == {STENCIL, IDENTITY}:
-                v[d] = STENCIL
+                v[i] = STENCIL
             elif POINTLESS in unique_hl:
-                v[d] = POINTLESS
+                v[i] = POINTLESS
             elif UNSUPPORTED in unique_hl:
-                v[d] = UNSUPPORTED
+                v[i] = UNSUPPORTED
             elif len(unique_hl) == 1:
-                v[d] = unique_hl.pop()
+                v[i] = unique_hl.pop()
             else:
                 raise HaloSchemeException("Inconsistency found while building a halo "
                                           "scheme for `%s` along Dimension `%s`" % (f, d))
 
-        # Ignore unless an actual halo exchange is required
-        if any(i in [STENCIL, FULL] for i in v.values()):
-            mapper[f] = v
-
         # Emit a summary warning
-        unsupported = [d for d, hl in v.items() if hl is UNSUPPORTED]
+        unsupported = [i for i, hl in v.items() if hl is UNSUPPORTED]
         if configuration['mpi'] and unsupported:
             warning("Distributed local-reductions over `%s` along "
                     "Dimensions `%s` detected." % (f, unsupported))
+
+        # Ignore unless an actual halo exchange is required
+        if any(i in [STENCIL, FULL] for i in v.values()):
+            mapper[f] = v
 
     return mapper
 
