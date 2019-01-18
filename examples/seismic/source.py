@@ -15,9 +15,9 @@ __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
 
 class TimeAxis(object):
     """
-    Data object to store the time axis. Exactly three of the four key arguments
+    Data object to store the TimeAxis. Exactly three of the four key arguments
     must be prescribed. Because of remainder values it is not possible to create
-    a time axis that exactly adhears to the inputs therefore start, stop, step
+    a TimeAxis that exactly adhears to the inputs therefore start, stop, step
     and num values should be taken from the TimeAxis object rather than relying
     upon the input values.
 
@@ -93,7 +93,7 @@ class PointSource(SparseTimeFunction):
         Data values to initialise point data.
     coordinates : ndarray, optional
         Point coordinates for this source.
-    space_order : int or 3-tuple of ints, optional
+    space_order : int, optional
         Space discretization order.
     time_order : int, optional
         Time discretization order (defaults to 2).
@@ -307,7 +307,7 @@ class GaborSource(WaveletSource):
         Discretized values of time in ms.
 
     Returns
-    ----------
+    -------
     A Gabor wavelet.
     """
 
@@ -333,13 +333,15 @@ class DGaussSource(WaveletSource):
     pre-defined 1st derivative wavelet of a Gaussian Source:
 
     Notes
-    ---------
-    For visualizing the second or third order derivative of Gaussian wavelets,
-    the convention is to use the negative of the normalized derivative. In the case
-    of the second derivative, scaling by -1 produces a wavelet with its main
-    lobe in the positive y direction. This scaling also makes the Gaussian wavelet
-    resemble the Mexican hat, or Ricker, wavelet.
-    The validity of the wavelet is not affected by the -1 scaling factor.
+    -----
+    For visualizing the second or third order derivative
+    of Gaussian wavelets, the convention is to use the
+    negative of the normalized derivative. In the case
+    of the second derivative, scaling by -1 produces a
+    wavelet with its main lobe in the positive y direction.
+    This scaling also makes the Gaussian wavelet resemble
+    the Mexican hat, or Ricker, wavelet. The validity of
+    the wavelet is not affected by the -1 scaling factor.
 
     Parameters
     ----------
