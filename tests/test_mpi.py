@@ -561,6 +561,47 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
+    @pytest.mark.parallel(nprocs=8, mode=['basic', 'diag'])
+    def test_trivial_eq_3d(self):
+        grid = Grid(shape=(8, 8, 8))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid, space_order=1)
+        f.data_with_halo[:] = 1.
+
+        eqn = Eq(f.forward, f[t, x-1, y, z] + f[t, x+1, y, z] +
+                            f[t, x, y-1, z] + f[t, x, y+1, z] +
+                            f[t, x, y, z-1] + f[t, x, y, z+1])
+        op = Operator(eqn)
+        op.apply(time=1)
+
+        # Expected computed values
+        corner, side, face, interior = 21., 26., 31., 36.
+
+        # Situation at t=0
+        assert np.all(f.data_ro_domain[1] == 6.)
+        # Situation at t=1
+        # 1) corners
+        for i in [[0, 0, 0], [0, 0, -1], [0, -1, 0], [0, -1, -1],
+                  [-1, 0, 0], [-1, 0, -1], [-1, -1, 0], [-1, -1, -1]]:
+            assert f.data_ro_domain[[0] + i] in [corner, None]
+        # 2) sides
+        for i in [[0, 0, slice(1, -1)], [0, -1, slice(1, -1)],
+                  [0, slice(1, -1), 0], [0, slice(1, -1), -1],
+                  [-1, 0, slice(1, -1)], [-1, -1, slice(1, -1)],
+                  [-1, slice(1, -1), 0], [-1, slice(1, -1), -1],
+                  [slice(1, -1), 0, 0], [slice(1, -1), 0, -1],
+                  [slice(1, -1), -1, 0], [slice(1, -1), -1, -1]]:
+            assert np.all(f.data_ro_domain[[0] + i] == side)
+        # 3) faces
+        for i in [[0, slice(1, -1), slice(1, -1)], [-1, slice(1, -1), slice(1, -1)],
+                  [slice(1, -1), 0, slice(1, -1)], [slice(1, -1), -1, slice(1, -1)],
+                  [slice(1, -1), slice(1, -1), 0], [slice(1, -1), slice(1, -1), -1]]:
+            assert np.all(f.data_ro_domain[[0] + i] == face)
+        # 4) interior
+        assert np.all(f.data_ro_domain[0, 1:-1, 1:-1, 1:-1] == interior)
+
     @pytest.mark.parallel(nprocs=4, mode=['basic', 'diag'])
     def test_multiple_eqs_funcs(self):
         grid = Grid(shape=(12,))
