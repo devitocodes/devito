@@ -379,7 +379,7 @@ free(bufg);"""
 
         heb = HaloExchangeBuilder(False)
         mock_halo = {(x, LEFT): True, (x, RIGHT): True, (y, LEFT): True, (y, RIGHT): True}
-        haloupdate = heb._make_haloupdate(f, [t], mock_halo)
+        haloupdate = heb._make_haloupdate(f, [t], mock_halo, uniquekey='')
         assert str(haloupdate.parameters) == """\
 (f(t, x, y), comm, nb, otime)"""
         assert str(haloupdate.body[0]) == """\
