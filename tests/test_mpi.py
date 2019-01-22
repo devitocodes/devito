@@ -570,9 +570,9 @@ class TestOperatorSimple(object):
         f = TimeFunction(name='f', grid=grid, space_order=1)
         f.data_with_halo[:] = 1.
 
-        eqn = Eq(f.forward, f[t, x-1, y, z] + f[t, x+1, y, z] +
-                            f[t, x, y-1, z] + f[t, x, y+1, z] +
-                            f[t, x, y, z-1] + f[t, x, y, z+1])
+        eqn = Eq(f.forward, (f[t, x-1, y, z] + f[t, x+1, y, z] +
+                             f[t, x, y-1, z] + f[t, x, y+1, z] +
+                             f[t, x, y, z-1] + f[t, x, y, z+1]))
         op = Operator(eqn)
         op.apply(time=1)
 
@@ -1272,8 +1272,8 @@ class TestIsotropicAcoustic(object):
         # Run adjoint operator
         srca, v, _ = solver.adjoint(rec=rec)
 
-        assert np.isclose(norm(v), Ev, rtol=Eu*1.e-8)
-        assert np.isclose(norm(srca), Esrca, rtol=Erec*1.e-8)
+        assert np.isclose(norm(v), Ev, rtol=Ev*1.e-8)
+        assert np.isclose(norm(srca), Esrca, rtol=Esrca*1.e-8)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = inner(srca, solver.geometry.src)
@@ -1286,6 +1286,7 @@ if __name__ == "__main__":
     configuration['mpi'] = True
     # TestDecomposition().test_reshape_left_right()
     # TestOperatorSimple().test_trivial_eq_2d()
+    # TestOperatorSimple().test_num_comms('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'})
     # TestFunction().test_halo_exchange_bilateral()
     # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
     # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
