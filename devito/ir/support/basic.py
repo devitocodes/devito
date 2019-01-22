@@ -292,13 +292,27 @@ class IterationInstance(Vector):
         means that the halo is touched along that DataSide.
         """
         # Given `d` \in findices, iterating over [0, size_d):
-        # * if self[d] - d < self.function._size_halo[d].left, then `self` will
-        #   definitely touch the left-halo when d=0
-        # * if self[d] - d > self.function._size_halo[d].left, then `self` will
-        #   definitely touch the right-halo when d=size_d-1
+        # * if `self[d] - d < self.function._size_halo[d].left`, then `self` will
+        #   definitely touch the left-halo when `d=0`
+        # * if `self[d] - d > self.function._size_halo[d].left`, then `self` will
+        #   definitely touch the right-halo when `d=size_d-1`
         aindex = self.aindices[findex]
-        return (self[findex] - aindex < self.function._size_halo[findex].left,
-                self[findex] - aindex > self.function._size_halo[findex].left)
+        size_halo_left = self.function._size_halo[findex].left
+        try:
+            touch_halo_left = bool(self[findex] - aindex < size_halo_left)
+        except TypeError:
+            # Conservatively assume True. We might end up here, for example,
+            # in the following cases:
+            # * The `aindex` doesn't appear in `self[findex]`, such as when the
+            #   `aindex` is a pure number of a different Dimension
+            # * `self[findex]` isn't affine in the `aindex`
+            touch_halo_left = True
+        try:
+            touch_halo_right = bool(self[findex] - aindex > size_halo_left)
+        except TypeError:
+            # Same considerations as in the try-except above
+            touch_halo_right = True
+        return (touch_halo_left, touch_halo_right)
 
     def irregular(self, findices):
         """
