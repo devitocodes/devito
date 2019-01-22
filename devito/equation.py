@@ -27,7 +27,8 @@ class Eq(sympy.Eq):
         To restrict the computation of the Eq to a particular sub-region in the
         computational domain.
     coefficients : Coefficients, optional
-        Can be used to replace symbolic finite difference weights with user defined weights.
+        Can be used to replace symbolic finite difference weights with user
+        defined weights.
     Examples
     --------
     >>> from devito import Grid, Function, Eq

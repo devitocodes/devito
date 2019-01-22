@@ -6,6 +6,7 @@ from devito.finite_differences import generate_indices
 __all__ = ['Coefficients', 'Coefficient', 'default_rules']
 
 
+# FIXME: Class naming a bit unclear
 class Coefficients(object):
     """
     Devito class for users to define custom finite difference weights.
@@ -42,16 +43,17 @@ class Coefficients(object):
 
             fd_order = len(coeffs)-1
 
-            side = function.get_side(dim,deriv_order)
-            stagger = function.get_stagger(dim,deriv_order)
+            side = function.get_side(dim, deriv_order)
+            stagger = function.get_stagger(dim, deriv_order)
 
             subs = {}
 
             indices, x0 = generate_indices(function, dim, dim.spacing, fd_order,
-                                       side=side, stagger=stagger)
+                                           side=side, stagger=stagger)
 
             for j in range(len(coeffs)):
-                subs.update({function.fd_coeff_symbol()(indices[j], deriv_order, function, dim): coeffs[j]})
+                subs.update({function.fd_coeff_symbol()
+                             (indices[j], deriv_order, function, dim): coeffs[j]})
 
             return subs
 
@@ -106,6 +108,7 @@ class Coefficient(object):
             raise NotImplementedError
         return
 
+
 def default_rules(obj, functions):
 
     def generate_subs(d):
@@ -122,18 +125,19 @@ def default_rules(obj, functions):
             # Shouldn't arrive here
             raise TypeError("Dimension type not recognised")
 
-        side = function.get_side(dim,deriv_order)
-        stagger = function.get_stagger(dim,deriv_order)
+        side = function.get_side(dim, deriv_order)
+        stagger = function.get_stagger(dim, deriv_order)
 
         subs = {}
 
         indices, x0 = generate_indices(function, dim, dim.spacing, fd_order,
-                                   side=side, stagger=stagger)
+                                       side=side, stagger=stagger)
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
         for j in range(len(coeffs)):
-            subs.update({function.fd_coeff_symbol()(indices[j], deriv_order, function, dim): coeffs[j]})
+            subs.update({function.fd_coeff_symbol()
+                         (indices[j], deriv_order, function, dim): coeffs[j]})
 
         return subs
 
@@ -142,18 +146,18 @@ def default_rules(obj, functions):
     # Determine which 'rules' are missing
     sym = functions[0].fd_coeff_symbol()
     terms = obj.find(sym)
-    #FIXME: Unnecessary conversions between lists and sets
+    # FIXME: Unnecessary conversions between lists and sets
     args_present = []
     for term in terms:
         args = term.args
-        args_present += [args[1:],]
+        args_present += [args[1:], ]
     args_present = list(set(args_present))
 
     coeffs = obj.coefficients
     args_provided = []
     if coeffs:
         for coeff in coeffs.data:
-            args_provided += [(coeff.deriv_order, coeff.function, coeff.dimension),]
+            args_provided += [(coeff.deriv_order, coeff.function, coeff.dimension), ]
     # NOTE: Do we want to throw a warning if the same arg has
     # been provided twice?
     args_provided = list(set(args_provided))

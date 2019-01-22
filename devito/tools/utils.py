@@ -161,7 +161,7 @@ def filter_sparse(elements):
     filtered = []
     for e in elements:
         if not e.is_SparseFunction:
-            filtered += [e,]
+            filtered += [e, ]
     return filtered
 
 

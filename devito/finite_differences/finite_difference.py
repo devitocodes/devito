@@ -64,6 +64,7 @@ def check_input(func):
             return func(expr, *args, **kwargs)
     return wrapper
 
+
 def check_symbolic(func):
     @wraps(func)
     def wrapper(expr, *args, **kwargs):
@@ -131,7 +132,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **k
 
     # Finite difference weights from Taylor approximation with this positions
     if kwargs.pop('symbolic_coefficients'):
-        c = symbolic_weights(expr, 1, indices, dim)
+        c = symbolic_weights(expr, 1, ind, dim)
     else:
         c = finite_diff_weights(1, ind, dim)[-1][-1]
     all_dims = tuple(set((dim,) + tuple([i for i in expr.indices if i.root == dim])))
@@ -349,30 +350,32 @@ def generate_fd_shortcuts(function):
 
     return derivatives
 
+
 def symbolic_weights(function, deriv_order, indices, dim):
 
     n_weights = len(indices)
 
     weights = []
     for j in range(n_weights):
-        weights += [function.fd_coeff_symbol()(indices[j], deriv_order, function, dim),]
+        weights += [function.fd_coeff_symbol()(indices[j], deriv_order, function, dim), ]
 
     return weights
+
 
 def generate_indices(func, dim, diff, order, stagger=None, side=None):
 
     # Check if called from first_derivative()
     if bool(side):
         if side == right:
-            ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
-                                                   int((order + 1) / 2) + 2 - (order % 2))]
+            ind = [(dim+i*diff) for i in range(-int(order/2)+1-(order % 2),
+                                               int((order+1)/2)+2-(order % 2))]
         elif side == left:
-            ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
-                                                   int((order + 1) / 2) + 2 - (order % 2))]
+            ind = [(dim-i*diff) for i in range(-int(order/2)+1-(order % 2),
+                                               int((order+1)/2)+2-(order % 2))]
         else:
-            ind = [(dim + i * diff) for i in range(-int(order / 2),
-                                                   int((order + 1) / 2) + 1)]
-        x0=None
+            ind = [(dim+i*diff) for i in range(-int(order/2),
+                                               int((order+1)/2)+1)]
+        x0 = None
     else:
         if stagger == left or not func.is_Staggered:
             off = -.5
@@ -389,7 +392,7 @@ def generate_indices(func, dim, diff, order, stagger=None, side=None):
                 ind = [dim + diff, dim] if stagger == right else [dim - diff, dim]
 
         else:
-            ind = [(dim + i * dim.spacing) for i in range(-order//2, order//2 + 1)]
+            ind = [(dim + i*dim.spacing) for i in range(-order//2, order//2 + 1)]
             x0 = dim
             if order < 2:
                 ind = [dim, dim + diff]
