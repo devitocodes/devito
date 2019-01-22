@@ -5,7 +5,7 @@ from sympy import S, finite_diff_weights
 from devito.finite_differences import Differentiable
 from devito.tools import Tag
 from devito.symbolics import retrieve_functions
-from devito.tools import filter_ordered
+from devito.tools import filter_ordered, filter_sparse
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'left', 'right', 'centered', 'transpose',
@@ -70,6 +70,7 @@ def check_symbolic(func):
     def wrapper(expr, *args, **kwargs):
         functions = retrieve_functions(expr)
         functions = filter_ordered(functions, key=lambda i: i.name)
+        functions = filter_sparse(functions)
         symbolic_coefficients = any(f.coefficients is 'symbolic' for f in functions)
         if symbolic_coefficients:
             expr_dict = expr.as_coefficients_dict()
@@ -85,6 +86,7 @@ def check_symbolic(func):
 def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **kwargs):
     """
     First-order derivative of a given expression.
+
     Parameters
     ----------
     expr : expr-like
@@ -100,10 +102,12 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **k
     matvec : Transpose, optional
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
         finite difference. Defaults to ``direct``.
+
     Returns
     -------
     expr-like
         First-order derivative of ``expr``.
+
     Examples
     --------
     >>> from devito import Function, Grid, first_derivative, transpose
@@ -113,10 +117,14 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **k
     >>> g = Function(name='g', grid=grid)
     >>> first_derivative(f*g, dim=x)
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
+
     This is also more easily obtainable via:
+
     >>> (f*g).dx
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
+
     The adjoint mode
+
     >>> g = Function(name='g', grid=grid)
     >>> first_derivative(f*g, dim=x, matvec=transpose)
     f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
@@ -128,7 +136,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **k
 
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind = generate_indices(expr, dim, diff, order, side=side)
+    ind = generate_indices(expr, dim, diff, order, side=side)[0]
 
     # Finite difference weights from Taylor approximation with this positions
     if kwargs.pop('symbolic_coefficients'):
@@ -148,6 +156,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **k
 def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
     """
     Second-order derivative of a given expression.
+
     Parameters
     ----------
     expr : expr-like
@@ -159,10 +168,12 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
         the resulting stencil.
     stagger : Side, optional
         Shift of the finite-difference approximation.
+
     Returns
     -------
     expr-like
         Second-order derivative of ``expr``.
+
     Examples
     --------
     >>> from devito import Function, Grid, second_derivative
@@ -173,7 +184,9 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
     >>> second_derivative(f*g, dim=x, fd_order=2)
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
+
     This is also more easily obtainable via:
+
     >>> (f*g).dx2
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
@@ -187,6 +200,7 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
 def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
+
     Parameters
     ----------
     expr : expr-like
@@ -200,10 +214,12 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
         Derivative order, e.g. 2 for a second-order derivative.
     stagger : tuple of Side, optional
         Shift of the finite-difference approximation.
+
     Returns
     -------
     expr-like
         Cross-derivative of ``expr``.
+
     Examples
     --------
     >>> from devito import Function, Grid, second_derivative
@@ -216,7 +232,9 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
  0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
  0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
  0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
+
     This is also more easily obtainable via:
+
     >>> (f*g).dxdy
     -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
  0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
@@ -235,6 +253,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
 def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, **kwargs):
     """
     Arbitrary-order derivative of a given expression.
+
     Parameters
     ----------
     expr : expr-like
@@ -248,6 +267,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, **kwargs)
         Derivative order, e.g. 2 for a second-order derivative.
     stagger : Side, optional
         Shift of the finite-difference approximation.
+
     Returns
     -------
     expr-like

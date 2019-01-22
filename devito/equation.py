@@ -14,9 +14,11 @@ class Eq(sympy.Eq):
     """
     An equal relation between two objects, the left-hand side and the
     right-hand side.
+
     The left-hand side may be a Function or a SparseFunction. The right-hand
     side may be any arbitrary expressions with numbers, Dimensions, Constants,
     Functions and SparseFunctions as operands.
+
     Parameters
     ----------
     lhs : Function or SparseFunction
@@ -29,6 +31,7 @@ class Eq(sympy.Eq):
     coefficients : Coefficients, optional
         Can be used to replace symbolic finite difference weights with user
         defined weights.
+
     Examples
     --------
     >>> from devito import Grid, Function, Eq
@@ -36,10 +39,13 @@ class Eq(sympy.Eq):
     >>> f = Function(name='f', grid=grid)
     >>> Eq(f, f + 1)
     Eq(f(x, y), f(x, y) + 1)
+
     Any SymPy expressions may be used in the right-hand side.
+
     >>> from sympy import sin
     >>> Eq(f, sin(f.dx)**2)
     Eq(f(x, y), sin(f(x, y)/h_x - f(x + h_x, y)/h_x)**2)
+
     Notes
     -----
     An Eq can be thought of as an assignment in an imperative programming language
