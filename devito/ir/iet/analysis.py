@@ -18,7 +18,7 @@ class Analysis(object):
 
         self.trees = retrieve_iteration_tree(iet, mode='superset')
         self.scopes = OrderedDict([(k, Scope([i.expr for i in v]))
-                                   for k, v in MapIteration().visit(iet).items()])
+                                   for k, v in MapNodes().visit(iet).items()])
 
     def update(self, properties):
         for k, v in properties.items():
