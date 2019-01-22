@@ -113,6 +113,21 @@ class HaloScheme(object):
     def halos(self):
         return {f: v.halos for f, v in self.fmapper.items()}
 
+    def union(self, others):
+        """Create a HaloScheme from the union of ``self`` with ``others``."""
+        fmapper = dict(self.fmapper)
+        for i in as_tuple(others):
+            for k, v in i.fmapper.items():
+                hse = fmapper.setdefault(k, v)
+                # At this point, the `loc_indices` must match
+                if hse.loc_indices != v.loc_indices:
+                    raise ValueError("Cannot compute the union of one or more HaloScheme "
+                                     "when the `loc_indices` differ")
+                halos = tuple(filter_ordered(hse.halos + v.halos))
+                fmapper[k] = HaloSchemeEntry(hse.loc_indices, halos)
+
+        return HaloScheme(fmapper=fmapper)
+
 
 def hs_classify(scope):
     """
