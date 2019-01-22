@@ -7,9 +7,7 @@ from frozendict import frozendict
 
 from devito.data import LEFT, CENTER, RIGHT
 from devito.ir.support import Scope
-from devito.logger import warning
-from devito.parameters import configuration
-from devito.tools import Tag, as_mapper
+from devito.tools import Tag, as_mapper, as_tuple, filter_ordered
 
 __all__ = ['HaloScheme', 'HaloSchemeException']
 
@@ -23,7 +21,6 @@ class HaloLabel(Tag):
 
 
 NONE = HaloLabel('none')
-UNSUPPORTED = HaloLabel('unsupported')
 POINTLESS = HaloLabel('pointless')
 IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
@@ -97,6 +94,9 @@ class HaloScheme(object):
     def __eq__(self, other):
         return isinstance(other, HaloScheme) and self.fmapper == other.fmapper
 
+    def __len__(self):
+        return len(self._mapper)
+
     def __hash__(self):
         return self._mapper.__hash__()
 
@@ -156,8 +156,8 @@ def hs_classify(scope):
                 # the generated code (by adding explicit `if-then-else`s to dynamically
                 # prevent a halo exchange), there is no escape from conservatively
                 # assuming that some halo exchanges will be required
-                if i.affine(d):
-                    if f.grid.is_distributed(d):
+                if f.grid.is_distributed(d):
+                    if i.affine(d):
                         if d in scope.d_from_access(i).cause:
                             v[d] = POINTLESS
                         else:
@@ -165,15 +165,10 @@ def hs_classify(scope):
                             v[(d, LEFT)] = (bl and STENCIL) or IDENTITY
                             v[(d, RIGHT)] = (br and STENCIL) or IDENTITY
                     else:
-                        v[d] = NONE
-                elif i.is_increment:
-                    # A read used for a distributed local-reduction. Users are expected
-                    # to deal with this data access pattern by themselves, for example
-                    # by resorting to common techniques such as redundant computation
-                    v[d] = UNSUPPORTED
-                elif i.irregular(d) and f.grid.is_distributed(d):
-                    v[(d, LEFT)] = STENCIL
-                    v[(d, RIGHT)] = STENCIL
+                        v[(d, LEFT)] = STENCIL
+                        v[(d, RIGHT)] = STENCIL
+                else:
+                    v[d] = NONE
 
             # Derive diagonal halo exchanges from the previous analysis
             combs = list(product([LEFT, CENTER, RIGHT], repeat=len(f._dist_dimensions)))
@@ -194,19 +189,11 @@ def hs_classify(scope):
                 halo_labels[i] = STENCIL
             elif POINTLESS in unique_hl:
                 halo_labels[i] = POINTLESS
-            elif UNSUPPORTED in unique_hl:
-                halo_labels[i] = UNSUPPORTED
             elif len(unique_hl) == 1:
                 halo_labels[i] = unique_hl.pop()
             else:
                 raise HaloSchemeException("Inconsistency found while building a halo "
                                           "scheme for `%s` along Dimension `%s`" % (f, d))
-
-        # Emit a summary warning
-        unsupported = [i for i, hl in halo_labels.items() if hl is UNSUPPORTED]
-        if configuration['mpi'] and unsupported:
-            warning("Distributed local-reductions over `%s` along "
-                    "Dimensions `%s` detected." % (f, unsupported))
 
         # Ignore unless an actual halo exchange is required
         if any(i is STENCIL for i in halo_labels.values()):
