@@ -2,7 +2,7 @@ from cached_property import cached_property
 from sympy import Basic, S
 
 from devito.ir.support.space import Any, Backward
-from devito.symbolics import retrieve_terminals, q_monoaffine, q_inc
+from devito.symbolics import retrieve_terminals, q_monoaffine
 from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
                           filter_sorted, flatten, memoized_meth)
 from devito.types import Dimension
@@ -747,14 +747,14 @@ class Scope(object):
             # reads
             for j in retrieve_terminals(e.rhs):
                 v = self.reads.setdefault(j.function, [])
-                mode = 'R' if not q_inc(e) else 'RI'
+                mode = 'RI' if e.is_Increment and j.function is e.lhs.function else 'R'
                 v.append(TimedAccess(j, mode, i, e.ispace.directions))
             # write
             v = self.writes.setdefault(e.lhs.function, [])
-            mode = 'W' if not q_inc(e) else 'WI'
+            mode = 'WI' if e.is_Increment else 'W'
             v.append(TimedAccess(e.lhs, mode, i, e.ispace.directions))
             # if an increment, we got one implicit read
-            if q_inc(e):
+            if e.is_Increment:
                 v = self.reads.setdefault(e.lhs.function, [])
                 v.append(TimedAccess(e.lhs, 'RI', i, e.ispace.directions))
 
