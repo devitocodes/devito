@@ -764,7 +764,10 @@ class TestOperatorSimple(object):
         assert np.all(f2.data == 1.)
 
     @pytest.mark.parametrize('expr,expected', [
-        ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'})
+        ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
+        ('f[t,x,y-1] + f[t,x,y+1]', {'cr', 'cl'}),
+        ('f[t,x-1,y-1] + f[t,x,y+1]', {'cl', 'll', 'lc', 'cr'}),
+        ('f[t,x-1,y-1] + f[t,x+1,y+1]', {'cl', 'll', 'lc', 'cr', 'rr', 'rc'}),
     ])
     @pytest.mark.parallel(nprocs=1, mode='diag')
     def test_diag_comm_scheme(self, expr, expected):
@@ -781,7 +784,7 @@ class TestOperatorSimple(object):
         op = Operator(Eq(f.forward, eval(expr)))
 
         calls = FindNodes(Call).visit(op._func_table['haloupdate3d0'])
-        destinations = {i.params[-3].field for i in calls}
+        destinations = {i.params[-2].field for i in calls}
         assert destinations == expected
 
 
