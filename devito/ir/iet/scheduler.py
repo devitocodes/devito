@@ -14,7 +14,8 @@ __all__ = ['iet_build', 'iet_insert_C_decls']
 
 def iet_build(stree):
     """
-    Create an Iteration/Expression tree (IET) from a :class:`ScheduleTree`.
+    Create an Iteration/Expression tree (IET) from a ScheduleTree.
+
     The nodes in the returned IET are decorated with properties deriving from
     data dependence analysis.
     """
@@ -31,7 +32,7 @@ def iet_build(stree):
 
 
 def iet_make(stree):
-    """Create an IET from a :class:`ScheduleTree`."""
+    """Create an IET from a ScheduleTree."""
     nsections = 0
     queues = OrderedDict()
     for i in stree.visit():
@@ -67,13 +68,12 @@ def iet_make(stree):
 
 def iet_lower_dimensions(iet):
     """
-    Replace all :class:`DerivedDimension`s within the ``iet``'s expressions with
-    lower-level symbolic objects (other :class:`Dimension`s, or :class:`sympy.Symbol`).
+    Replace all DerivedDimensions within the ``iet``'s expressions with
+    lower-level symbolic objects (other Dimensions or Symbols).
 
-        * Array indices involving :class:`SteppingDimension`s are turned into
-          :class:`ModuloDimension`s.
+        * Array indices involving SteppingDimensions are turned into ModuloDimensions.
           Example: ``u[t+1, x] = u[t, x] + 1 >>> u[t1, x] = u[t0, x] + 1``
-        * Array indices involving :class:`ConditionalDimension`s used are turned into
+        * Array indices involving ConditionalDimensions used are turned into
           integer-division expressions.
           Example: ``u[t_sub, x] = u[time, x] >>> u[time / 4, x] = u[time, x]``
     """
