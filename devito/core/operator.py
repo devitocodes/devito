@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 from devito.core.autotuning import autotune
-from devito.ir.iet import List, HaloSpot, MetaCall, FindNodes, Transformer
+from devito.ir.iet import List, HaloOp, MetaCall, FindNodes, Transformer
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
 from devito.mpi import HaloExchangeBuilder
@@ -23,10 +23,9 @@ class OperatorCore(Operator):
         if configuration['mpi'] is False:
             return iet
 
-        # Build halo exchange Callables and Calls
-        halo_spots = FindNodes(HaloSpot).visit(iet)
+        # Build send/recv Callables and Calls
         heb = HaloExchangeBuilder(is_threaded(kwargs.get("dle")), configuration['mpi'])
-        callables, calls = heb.make(halo_spots)
+        callables, calls = heb.make(FindNodes(HaloOp).visit(iet))
 
         # Update the Operator internal state
         self._includes.append('mpi.h')
