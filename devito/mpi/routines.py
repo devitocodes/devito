@@ -195,7 +195,11 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                 call = Call(generated[(f.ndim, v)][0].name, args)
                 calls.setdefault(hs, []).append(call)
 
-        return flatten(generated.values()), calls
+        # Polish retval
+        callables = flatten(generated.values())
+        calls = {k: List(body=v) for k, v in calls.items()}
+
+        return callables, calls
 
     def _handle_halowaitany(self, halo_wait_anys):
         return [], {i: None for i in halo_wait_anys}

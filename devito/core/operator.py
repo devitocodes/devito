@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 from devito.core.autotuning import autotune
-from devito.ir.iet import List, HaloOp, MetaCall, FindNodes, Transformer
+from devito.ir.iet import HaloOp, MetaCall, FindNodes, Transformer
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
 from devito.mpi import HaloExchangeBuilder
@@ -33,8 +33,7 @@ class OperatorCore(Operator):
                                              for i in callables]))
 
         # Transform the IET by adding in the `haloupdate` Calls
-        mapper = {k: List(body=v) for k, v in calls.items()}
-        iet = Transformer(mapper, nested=True).visit(iet)
+        iet = Transformer(calls, nested=True).visit(iet)
 
         return iet
 
