@@ -2,9 +2,9 @@ from collections import OrderedDict
 
 from devito.cgen_utils import Allocator
 from devito.ir.iet import (Expression, Increment, LocalExpression, Element, Iteration,
-                           List, Conditional, Section, HaloSpot, ExpressionBundle,
-                           MapExpressions, Transformer, FindNodes, FindSymbols, XSubs,
-                           iet_analyze, filter_iterations)
+                           List, Conditional, Section, HaloSpot, HaloWaitAny, HaloCompAny,
+                           ExpressionBundle, MapExpressions, Transformer, FindNodes,
+                           FindSymbols, XSubs, iet_analyze, filter_iterations)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper
 from devito.types import ConditionalDimension
@@ -34,6 +34,7 @@ def iet_build(stree):
 def iet_make(stree):
     """Create an IET from a ScheduleTree."""
     nsections = 0
+    nhalos = 0
     queues = OrderedDict()
     for i in stree.visit():
         if i == stree:
@@ -59,7 +60,15 @@ def iet_make(stree):
             nsections += 1
 
         elif i.is_Halo:
-            body = [HaloSpot(hs) for hs in i.halo_scheme.components] + queues.pop(i)
+            comp = queues.pop(i)
+            key = tuple(nhalos + j for j in range(len(i.halo_scheme)))
+            body = (
+                [HaloSpot(v, k) for k, v in zip(key, i.halo_scheme.components)] +
+                comp +
+                [HaloWaitAny(k) for k in key] +
+                [HaloCompAny(key, comp)]
+            )
+            nhalos += len(i.halo_scheme)
 
         queues.setdefault(i.parent, []).extend(body)
 
