@@ -24,8 +24,9 @@ from devito.types.basic import AbstractFunction
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'Section',
-           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot',
-           'IterationTree', 'ExpressionBundle', 'Increment']
+           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloOp',
+           'HaloSpot', 'HaloWaitAny', 'HaloCompAny', 'IterationTree', 'ExpressionBundle',
+           'Increment']
 
 # First-class IET nodes
 
@@ -46,7 +47,7 @@ class Node(Signer):
     is_List = False
     is_Element = False
     is_Section = False
-    is_HaloSpot = False
+    is_HaloOp = False
     is_ExpressionBundle = False
 
     _traversable = []
@@ -776,19 +777,87 @@ class Section(List):
         return self.body
 
 
-class HaloSpot(List):
+class ExpressionBundle(List):
 
     """
-    A node representing an MPI halo exchange for a certain Function.
+    A sequence of Expressions.
     """
+
+    is_ExpressionBundle = True
+
+    def __init__(self, shape, ops, traffic, body=None):
+        super(ExpressionBundle, self).__init__(body=body)
+        self.shape = shape
+        self.ops = ops
+        self.traffic = traffic
+
+    def __repr__(self):
+        return "<ExpressionBundle (%d)>" % len(self.exprs)
+
+    @property
+    def exprs(self):
+        return self.body
+
+
+# Nodes required for distributed-memory halo exchange
+
+
+class HaloOp(Node):
+
+    """
+    A generic halo-exchange-related operation.
+    """
+
+    is_HaloOp = True
+    is_HaloSpot = False
+    is_HaloWaitAny = False
+    is_HaloCompAny = False
+
+    def __init__(self, key, properties=None):
+        super(HaloOp, self).__init__()
+        self._key = key
+        self._properties = as_tuple(properties)
+
+    @property
+    def key(self):
+        return self._key
+
+    @property
+    def properties(self):
+        return self._properties
+
+    def __repr__(self):
+        if self.properties:
+            properties = "[%s]" % ",".join(str(i) for i in self.properties)
+        else:
+            properties = ""
+        return "<%s[%s]%s>" % (self.__class__.__name__, self.key, properties)
+
+    @property
+    def functions(self):
+        return ()
+
+    @property
+    def free_symbols(self):
+        return ()
+
+    @property
+    def defines(self):
+        return ()
+
+
+class HaloSpot(HaloOp):
 
     is_HaloSpot = True
 
-    def __init__(self, halo_scheme, body=None, properties=None):
-        super(HaloSpot, self).__init__(body=body)
+    def __init__(self, halo_scheme, key, properties=None):
+        super(HaloSpot, self).__init__(key, properties)
         assert len(halo_scheme) == 1
-        self.halo_scheme = halo_scheme
-        self.properties = as_tuple(properties)
+        self._halo_scheme = halo_scheme
+
+    @property
+    def halo_scheme(self):
+        return self._halo_scheme
 
     @property
     def fmapper(self):
@@ -814,34 +883,19 @@ class HaloSpot(List):
     def is_Useless(self):
         return USELESS in self.properties
 
-    def __repr__(self):
-        if self.properties:
-            properties = "[%s]" % ",".join(str(i) for i in self.properties)
-        else:
-            properties = ""
-        return "<HaloSpot%s>" % properties
+
+class HaloWaitAny(HaloOp):
+
+    is_HaloWaitAny = True
 
 
-class ExpressionBundle(List):
+class HaloCompAny(HaloOp):
 
-    """
-    A sequence of Expressions.
-    """
+    is_HaloCompAny = True
 
-    is_ExpressionBundle = True
-
-    def __init__(self, shape, ops, traffic, body=None):
-        super(ExpressionBundle, self).__init__(body=body)
-        self.shape = shape
-        self.ops = ops
-        self.traffic = traffic
-
-    def __repr__(self):
-        return "<ExpressionBundle (%d)>" % len(self.exprs)
-
-    @property
-    def exprs(self):
-        return self.body
+    def __init__(self, key, comp):
+        super(HaloCompAny, self).__init__(key)
+        self._comp = comp
 
 
 # Utility classes
