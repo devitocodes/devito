@@ -68,7 +68,7 @@ class AdvancedRewriter(BasicRewriter):
                 hoistable = [i for i in needed[1:] if i.is_Hoistable]
                 mapper.update({i: None for i in hoistable})
                 hoistable = [i.halo_scheme for i in hoistable]
-                mapper[top] = HaloSpot(top.halo_scheme.union(hoistable))
+                mapper[top] = HaloSpot(top.halo_scheme.union(hoistable), top.key)
 
         iet = Transformer(mapper, nested=True).visit(iet)
 
