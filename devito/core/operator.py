@@ -34,7 +34,7 @@ class OperatorCore(Operator):
                                              for i in callables]))
 
         # Transform the IET by adding in the `haloupdate` Calls
-        mapper = {k: List(body=v + list(k.body)) for k, v in calls.items()}
+        mapper = {k: List(body=v) for k, v in calls.items()}
         iet = Transformer(mapper, nested=True).visit(iet)
 
         return iet
