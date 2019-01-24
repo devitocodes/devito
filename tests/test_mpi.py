@@ -781,7 +781,7 @@ class TestOperatorSimple(object):
 
         f = TimeFunction(name='f', grid=grid)  # noqa
 
-        op = Operator(Eq(f.forward, eval(expr)))
+        op = Operator(Eq(f.forward, eval(expr)), dle=('advanced', {'openmp': False}))
 
         calls = FindNodes(Call).visit(op._func_table['haloupdate3d0'])
         destinations = {i.params[-2].field for i in calls}
