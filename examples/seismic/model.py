@@ -516,6 +516,8 @@ class Model(GenericModel):
         if grid is not None:
             assert self.grid.extent == grid.extent
             assert self.grid.shape == grid.shape
+            # Ensure subdomains match
+            grid.add_subdomains(self.grid.subdomains)
             self.grid = grid
 
         # Create square slowness of the wave as symbol `m`

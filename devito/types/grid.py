@@ -182,6 +182,19 @@ class Grid(ArgProvider):
         """The SubDomains defined in this Grid."""
         return {i.name: i for i in self._subdomains}
 
+    def add_subdomains(self, subdomain_dict):
+        """Add a subdomain/subdomains (of type dict) to the grid."""
+        if type(subdomain_dict) is not dict:
+            raise TypeError("subdomain_dict is not of type dict")
+        try:
+            new_dict = {**self.subdomains, **subdomain_dict}
+        except:
+            new_dict = subdomain_dict
+        subdomains = ()
+        for key in new_dict:
+            subdomains += (new_dict[key], )
+        self._subdomains = subdomains
+
     @property
     def interior(self):
         """The interior SubDomain of the Grid."""
@@ -381,7 +394,15 @@ class SubDomain(object):
 
     @property
     def dimension_map(self):
-        return {d.parent: d for d in self.dimensions}
+        dim_map = {}
+        for d in self.dimensions:
+            try:
+                dim_map[d.parent] = d
+            except:
+                # No parent and therefore must be the
+                # full dimension
+                dim_map[d] = d
+        return dim_map
 
     @property
     def shape(self):
