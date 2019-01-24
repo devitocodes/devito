@@ -7,7 +7,7 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SubDimension, Eq, Inc, Operator, norm, inner)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes
-from devito.mpi import MPI, make_halo_exchange_routines
+from devito.mpi import MPI, HaloExchangeBuilder
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['yask', 'ops', 'nompi'])
@@ -45,27 +45,8 @@ class TestDistributor(object):
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
-    @pytest.mark.parallel(nprocs=[2, 4])
-    def test_ctypes_neighbours(self):
-        grid = Grid(shape=(4, 4))
-        distributor = grid.distributor
-
-        PN = MPI.PROC_NULL
-        attrs = ['xleft', 'xright', 'yleft', 'yright']
-        expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
-            2: [(PN, PN, PN, 1), (PN, PN, 0, PN)],
-            4: [(PN, 2, PN, 1), (PN, 3, 0, PN), (0, PN, PN, 3), (1, PN, 2, PN)]
-        }
-
-        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
-        obj = distributor._obj_neighbours
-        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
-
-
-class TestFunction(object):
-
     @pytest.mark.parallel(nprocs=9)
-    def test_neighborhood_2d(self):
+    def test_neighborhood_horizontal_2d(self):
         grid = Grid(shape=(3, 3))
         x, y = grid.dimensions
 
@@ -80,18 +61,74 @@ class TestFunction(object):
         # -------------
         # |
         # x
+        PN = MPI.PROC_NULL
         expected = {
-            0: {x: {LEFT: MPI.PROC_NULL, RIGHT: 3}, y: {LEFT: MPI.PROC_NULL, RIGHT: 1}},
-            1: {x: {LEFT: MPI.PROC_NULL, RIGHT: 4}, y: {LEFT: 0, RIGHT: 2}},
-            2: {x: {LEFT: MPI.PROC_NULL, RIGHT: 5}, y: {LEFT: 1, RIGHT: MPI.PROC_NULL}},
-            3: {x: {LEFT: 0, RIGHT: 6}, y: {LEFT: MPI.PROC_NULL, RIGHT: 4}},
+            0: {x: {LEFT: PN, RIGHT: 3}, y: {LEFT: PN, RIGHT: 1}},
+            1: {x: {LEFT: PN, RIGHT: 4}, y: {LEFT: 0, RIGHT: 2}},
+            2: {x: {LEFT: PN, RIGHT: 5}, y: {LEFT: 1, RIGHT: PN}},
+            3: {x: {LEFT: 0, RIGHT: 6}, y: {LEFT: PN, RIGHT: 4}},
             4: {x: {LEFT: 1, RIGHT: 7}, y: {LEFT: 3, RIGHT: 5}},
-            5: {x: {LEFT: 2, RIGHT: 8}, y: {LEFT: 4, RIGHT: MPI.PROC_NULL}},
-            6: {x: {LEFT: 3, RIGHT: MPI.PROC_NULL}, y: {LEFT: MPI.PROC_NULL, RIGHT: 7}},
-            7: {x: {LEFT: 4, RIGHT: MPI.PROC_NULL}, y: {LEFT: 6, RIGHT: 8}},
-            8: {x: {LEFT: 5, RIGHT: MPI.PROC_NULL}, y: {LEFT: 7, RIGHT: MPI.PROC_NULL}},
+            5: {x: {LEFT: 2, RIGHT: 8}, y: {LEFT: 4, RIGHT: PN}},
+            6: {x: {LEFT: 3, RIGHT: PN}, y: {LEFT: PN, RIGHT: 7}},
+            7: {x: {LEFT: 4, RIGHT: PN}, y: {LEFT: 6, RIGHT: 8}},
+            8: {x: {LEFT: 5, RIGHT: PN}, y: {LEFT: 7, RIGHT: PN}},
         }
-        assert expected[distributor.myrank] == distributor.neighbours
+        assert expected[distributor.myrank][x] == distributor.neighborhood[x]
+        assert expected[distributor.myrank][y] == distributor.neighborhood[y]
+
+    @pytest.mark.parallel(nprocs=9)
+    def test_neighborhood_diagonal_2d(self):
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions
+
+        distributor = grid.distributor
+        # Rank map:
+        # ---------------y
+        # | 0 | 1 | 2 |
+        # -------------
+        # | 3 | 4 | 5 |
+        # -------------
+        # | 6 | 7 | 8 |
+        # -------------
+        # |
+        # x
+        PN = MPI.PROC_NULL
+        expected = {
+            0: {(LEFT, LEFT): PN, (LEFT, RIGHT): PN, (RIGHT, LEFT): PN, (RIGHT, RIGHT): 4},  # noqa
+            1: {(LEFT, LEFT): PN, (LEFT, RIGHT): PN, (RIGHT, LEFT): 3, (RIGHT, RIGHT): 5},
+            2: {(LEFT, LEFT): PN, (LEFT, RIGHT): PN, (RIGHT, LEFT): 4, (RIGHT, RIGHT): PN},  # noqa
+            3: {(LEFT, LEFT): PN, (LEFT, RIGHT): 1, (RIGHT, LEFT): PN, (RIGHT, RIGHT): 7},
+            4: {(LEFT, LEFT): 0, (LEFT, RIGHT): 2, (RIGHT, LEFT): 6, (RIGHT, RIGHT): 8},
+            5: {(LEFT, LEFT): 1, (LEFT, RIGHT): PN, (RIGHT, LEFT): 7, (RIGHT, RIGHT): PN},
+            6: {(LEFT, LEFT): PN, (LEFT, RIGHT): 4, (RIGHT, LEFT): PN, (RIGHT, RIGHT): PN},  # noqa
+            7: {(LEFT, LEFT): 3, (LEFT, RIGHT): 5, (RIGHT, LEFT): PN, (RIGHT, RIGHT): PN},
+            8: {(LEFT, LEFT): 4, (LEFT, RIGHT): PN, (RIGHT, LEFT): PN, (RIGHT, RIGHT): PN}  # noqa
+        }
+        assert all(expected[distributor.myrank][i] == distributor.neighborhood[i]
+                   for i in [(LEFT, LEFT), (LEFT, RIGHT), (RIGHT, LEFT), (RIGHT, RIGHT)])
+
+    @pytest.mark.parallel(nprocs=[2, 4])
+    def test_ctypes_neighborhood(self):
+        grid = Grid(shape=(4, 4))
+        distributor = grid.distributor
+
+        PN = MPI.PROC_NULL
+        attrs = ['ll', 'lc', 'lr', 'cl', 'cc', 'cr', 'rl', 'rc', 'rr']
+        expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
+            2: [(PN, PN, PN, PN, 0, 1, PN, PN, PN),
+                (PN, PN, PN, 0, 1, PN, PN, PN, PN)],
+            4: [(PN, PN, PN, PN, 0, 1, PN, 2, 3),
+                (PN, PN, PN, 0, 1, PN, 2, 3, PN),
+                (PN, 0, 1, PN, 2, 3, PN, PN, PN),
+                (0, 1, PN, 2, 3, PN, PN, PN, PN)]
+        }
+
+        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
+        obj = distributor._obj_neighborhood
+        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
+
+
+class TestFunction(object):
 
     @pytest.mark.parallel(nprocs=2)
     def test_halo_exchange_bilateral(self):
@@ -283,7 +320,8 @@ class TestCodeGeneration(object):
 
         f = TimeFunction(name='f', grid=grid)
 
-        (_, _, gather, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
+        heb = HaloExchangeBuilder(False)
+        gather, _ = heb._make_copy(f, [t])
         assert str(gather.parameters) == """\
 (buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
@@ -302,7 +340,8 @@ class TestCodeGeneration(object):
 
         f = TimeFunction(name='f', grid=grid)
 
-        (_, sendrecv, _, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
+        heb = HaloExchangeBuilder(False)
+        sendrecv = heb._make_sendrecv(f, [t])
         assert str(sendrecv.parameters) == """\
 (f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
  fromrank, torank, comm)"""
@@ -313,50 +352,45 @@ posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
 posix_memalign((void**)&bufg, 64, sizeof(float[buf_x_size][buf_y_size]));
 MPI_Request rrecv;
 MPI_Request rsend;
+MPI_Status ssend;
 MPI_Status srecv;
 MPI_Irecv((float *)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
-gather_f((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
+if (torank != MPI_PROC_NULL)
+{
+  gather3d((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
+}
 MPI_Isend((float *)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
-MPI_Wait(&rsend,MPI_STATUS_IGNORE);
+MPI_Wait(&rsend,&ssend);
 MPI_Wait(&rrecv,&srecv);
 if (fromrank != MPI_PROC_NULL)
 {
-  scatter_f((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
+  scatter3d((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
 }
 free(bufs);
 free(bufg);"""
 
     @pytest.mark.parallel(nprocs=1)
-    def test_iet_update_halo(self):
+    def test_iet_haloupdate(self):
         grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        (update_halo, _, _, _), _ = make_halo_exchange_routines(f, [t], threaded=False)
-        assert str(update_halo.parameters) == """\
-(f(t, x, y), mxl, mxr, myl, myr, comm, nb, otime)"""
-        assert str(update_halo.body[0]) == """\
-if (mxl)
-{
-  sendrecv_f(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
-f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->xright,nb->xleft,comm);
-}
-if (mxr)
-{
-  sendrecv_f(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
-f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->xleft,nb->xright,comm);
-}
-if (myl)
-{
-  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
-f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->yright,nb->yleft,comm);
-}
-if (myr)
-{
-  sendrecv_f(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
-f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->yleft,nb->yright,comm);
-}"""
+        heb = HaloExchangeBuilder(False)
+        mock_halo = {(x, LEFT): True, (x, RIGHT): True, (y, LEFT): True, (y, RIGHT): True}
+        haloupdate = heb._make_haloupdate(f, [t], mock_halo)
+        assert str(haloupdate.parameters) == """\
+(f(t, x, y), comm, nb, otime)"""
+        assert str(haloupdate.body[0]) == """\
+sendrecv3d(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
+f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->rc,nb->lc,comm);
+sendrecv3d(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
+f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->lc,nb->rc,comm);
+sendrecv3d(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
+f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->cr,nb->cl,comm);
+sendrecv3d(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
+f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->cl,nb->cr,comm);"""
 
 
 class TestSparseFunction(object):

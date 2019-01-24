@@ -1,12 +1,11 @@
 from collections import OrderedDict
 
 from devito.core.autotuning import autotune
-from devito.ir.iet import Call, List, HaloSpot, MetaCall, FindNodes, Transformer
+from devito.ir.iet import List, HaloSpot, MetaCall, FindNodes, Transformer
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
-from devito.mpi import make_halo_exchange_routines
+from devito.mpi import HaloExchangeBuilder
 from devito.operator import Operator, is_threaded
-from devito.tools import flatten
 
 __all__ = ['OperatorCore']
 
@@ -29,34 +28,18 @@ class OperatorCore(Operator):
         if configuration['mpi'] is False:
             return iet
 
+        # Build halo exchange Callables and Calls
         halo_spots = FindNodes(HaloSpot).visit(iet)
+        heb = HaloExchangeBuilder(is_threaded(kwargs.get("dle")))
+        callables, calls = heb.make(halo_spots)
 
-        callables = OrderedDict()
-        mapper = {}
-        for hs in halo_spots:
-            for f, v in hs.fmapper.items():
-                # For each MPI-distributed DiscreteFunction, generate all necessary
-                # C-level routines to perform a halo update
-                threaded = is_threaded(kwargs.get("dle"))
-                routines, extra = make_halo_exchange_routines(f, v.loc_indices, threaded)
-                callables[f] = routines
-
-                # Replace HaloSpots with suitable calls performing the halo update
-                stencil = [int(i) for i in hs.mask[f].values()]
-                comm = f.grid.distributor._obj_comm
-                nb = f.grid.distributor._obj_neighbours
-                loc_indices = list(v.loc_indices.values())
-                arguments = [f] + stencil + [comm, nb] + loc_indices + extra
-                call = Call('halo_exchange_%s' % f.name, arguments)
-                mapper.setdefault(hs, []).append(call)
-
+        # Update the Operator internal state
         self._includes.append('mpi.h')
-
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                             for i in flatten(callables.values())]))
+                                             for i in callables]))
 
-        # Add in the halo update calls
-        mapper = {k: List(body=v + list(k.body)) for k, v in mapper.items()}
+        # Transform the IET by adding in the `haloupdate` Calls
+        mapper = {k: List(body=v + list(k.body)) for k, v in calls.items()}
         iet = Transformer(mapper, nested=True).visit(iet)
 
         return iet

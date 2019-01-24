@@ -668,16 +668,16 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
 
     def __halo_begin_exchange(self, dim):
         """Begin a halo exchange along a given Dimension."""
-        neighbours = self._distributor.neighbours
+        neighborhood = self._distributor.neighborhood
         comm = self._distributor.comm
         for i in [LEFT, RIGHT]:
-            neighbour = neighbours[dim][i]
+            neighbor = neighborhood[dim][i]
             owned_region = self._data_in_region(OWNED, dim, i)
             halo_region = self._data_in_region(HALO, dim, i)
             sendbuf = np.ascontiguousarray(owned_region)
             recvbuf = np.ndarray(shape=halo_region.shape, dtype=self.dtype)
-            self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
-            self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
+            self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbor)))
+            self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbor)))
 
     def __halo_end_exchange(self, dim):
         """End a halo exchange along a given Dimension."""

@@ -527,6 +527,8 @@ class TestIsotropicAcoustic(object):
 
         op.apply(u=self.u, m=self.m, damp=self.damp, time=10, dt=dt)
 
+        assert np.linalg.norm(self.u.data[:]) == 0.0
+
     def test_acoustic_w_src_wo_rec(self):
         """
         Test that the acoustic wave equation runs without crashing in absence
@@ -542,7 +544,6 @@ class TestIsotropicAcoustic(object):
         op.apply(u=self.u, m=self.m, damp=self.damp, src=self.src, dt=dt)
 
         exp_u = 154.05
-
         assert np.isclose(np.linalg.norm(self.u.data[:]), exp_u, atol=exp_u*1.e-2)
 
     def test_acoustic_w_src_w_rec(self):
