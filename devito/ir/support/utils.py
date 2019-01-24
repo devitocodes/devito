@@ -117,7 +117,7 @@ def align_accesses(expr, key=lambda i: False):
 
 def detect_flow_directions(exprs):
     """
-    Return a mapper from Dimensions to iterables of
+    Return a mapper from Dimensions to Iterables of
     IterationDirections representing the theoretically necessary
     directions to evaluate ``exprs`` so that the information "naturally
     flows" from an iteration to another.
@@ -128,7 +128,7 @@ def detect_flow_directions(exprs):
     reads = flatten(retrieve_indexed(i.rhs, mode='all') for i in exprs)
     reads = [Access(i, 'R') for i in reads]
 
-    # Determine indexed-wise direction by looking at the vector distance
+    # Determine indexed-wise direction by looking at the distance vector
     mapper = defaultdict(set)
     for w in writes:
         for r in reads:
