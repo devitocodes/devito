@@ -118,6 +118,9 @@ class PrintAST(Visitor):
         else:
             return self.indent + str(o)
 
+    def visit_HaloOp(self, o):
+        return self.indent + o.__repr__()
+
     def visit_Conditional(self, o):
         self._depth += 1
         then_body = self._visit(o.then_body)
