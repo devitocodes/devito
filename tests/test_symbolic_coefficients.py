@@ -39,8 +39,6 @@ class TestSC(object):
         u = Function(name='u', grid=grid, space_order=2, coefficients='symbolic')
         x = grid.dimensions
 
-        # FIXME: Make sure to throw error if len(np.array([-0.6, 0.1, 0.6]))
-        # doesn't match space_order
         coeffs = Coefficient(1, u, x[0], np.array([-0.6, 0.1, 0.6]))
 
         eq = Eq(u.dx, coefficients=Coefficients(coeffs))

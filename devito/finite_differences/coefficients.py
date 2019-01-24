@@ -88,6 +88,16 @@ class Coefficient(object):
 
         self.check_input(deriv_order, function, dimension, coefficients)
 
+        # Ensure the given set of coefficients is the correct length
+        if dimension.is_Time:
+            if len(coefficients)-1 != function.time_order:
+                raise ValueError("Number FD weights provided does not \
+                    match the functions space_order")
+        elif dimension.is_Space:
+            if len(coefficients)-1 != function.space_order:
+                raise ValueError("Number FD weights provided does not \
+                    match the functions space_order")
+
         self.is_Coefficient = True
 
         self.deriv_order = deriv_order
