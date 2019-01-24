@@ -170,15 +170,15 @@ class IterationInstance(Vector):
 
     """
     A representation of the iteration and data points accessed by an
-    :class:`Indexed` object. Three different concepts are distinguished:
+    Indexed object. Three different concepts are distinguished:
 
         * Index functions: the expressions telling what *iteration* space point
           is accessed.
-        * ``aindices``: the :class:`Dimension`s acting as iteration variables.
+        * ``aindices``: the Dimension's acting as iteration variables.
           There is one aindex for each index function. If the index function
           is non-affine, then it may not be possible to detect its aindex;
           in such a case, None is used as placeholder.
-        * ``findices``: the :class:`Dimension`s telling what *data* space point
+        * ``findices``: the Dimension's telling what *data* space point
           is accessed.
     """
 
@@ -365,13 +365,13 @@ class IterationInstance(Vector):
 class Access(IterationInstance):
 
     """
-    A representation of the access performed by a :class:`Indexed` object
+    A representation of the access performed by an Indexed object
     (a scalar in the degenerate case).
 
     Notes
     -----
     The comparison operators ``==, !=, <, <=, >, >=`` should be regarded as
-    operators for lexicographic ordering of :class:`Access` objects, based
+    operators for lexicographic ordering of Access objects, based
     on the values of the index functions (and the index functions only).
 
     For example, if two Access objects A and B employ the same index functions,
@@ -430,7 +430,7 @@ class Access(IterationInstance):
 class TimedAccess(Access):
 
     """
-    A special :class:`Access` object enriched with: ::
+    A special Access object enriched with: ::
 
         * a "timestamp"; that is, an integer indicating the access location
           within the execution flow;
@@ -450,14 +450,14 @@ class TimedAccess(Access):
     findices = [x, y, z]
     w = an object of type Dimension
 
-           | x+1 |           |  x  |           |  x  |          | w |          | x+y |
-    obj1 = | y+2 | ,  obj2 = |  4  | , obj3 => |  x  | , obj4 = | y | , obj5 = |  y  |
-           | z-3 |           | z+1 |           |  y  |          | z |          |  z  |
+           | x+1 |           |  x  |          |  x  |          | w |          | x+y |
+    obj1 = | y+2 | ,  obj2 = |  4  | , obj3 = |  x  | , obj4 = | y | , obj5 = |  y  |
+           | z-3 |           | z+1 |          |  y  |          | z |          |  z  |
 
     We have that: ::
 
         * obj1 and obj2 are regular;
-        * obj3 is irregular because an findex, ``x``, appears outside of its index
+        * obj3 is irregular because a findex, ``x``, appears outside of its index
           function (i.e., in the second slot, whew ``y`` is expected);
         * obj4 is irregular, because a different dimension, ``w``, is used in place
           of ``x`` within the first index function, where ``x`` is expected;
@@ -531,7 +531,7 @@ class TimedAccess(Access):
 class Dependence(object):
 
     """
-    A data dependence between two :class:`Access` objects.
+    A data dependence between two Access objects.
     """
 
     def __init__(self, source, sink):
@@ -738,8 +738,8 @@ class Scope(object):
 
     def __init__(self, exprs):
         """
-        A Scope represents a group of :class:`TimedAccess` objects extracted
-        from some :class:`IREq` ``exprs``. The expressions must be provided
+        A Scope represents a group of TimedAcces objects extracted
+        from some IREq ``exprs``. The expressions must be provided
         in program order.
         """
         exprs = as_tuple(exprs)
@@ -859,6 +859,6 @@ class Scope(object):
 
     @memoized_meth
     def d_from_access(self, access):
-        """Retrieve all dependences involving a given :class:`TimedAccess`."""
+        """Retrieve all dependences involving a given TimedAccess."""
         return DependenceGroup(d for d in self.d_all
                                if d.source is access or d.sink is access)
