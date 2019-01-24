@@ -243,7 +243,7 @@ def test_operator_timefunction_w_preallocation():
 def test_mpi_objects():
     # Neighbours
     grid = Grid(shape=(4, 4, 4))
-    obj = grid.distributor._obj_neighbours
+    obj = grid.distributor._obj_neighborhood
     pkl_obj = pickle.dumps(obj)
     new_obj = pickle.loads(pkl_obj)
     assert obj.name == new_obj.name
