@@ -35,20 +35,12 @@ class HaloExchangeBuilder(object):
     def __init__(self, threaded, mode='basic'):
         self._threaded = threaded
 
-    @abc.abstractmethod
     def make(self, halo_spots):
         """
-        Construct Callables and Calls implementing a halo exchange for the
-        provided HaloSpots.
+        Turn the input HaloSpots into Callables/Calls implementing
+        distributed-memory halo exchange.
 
-        There are three types of HaloSpots:
-
-            * ``HaloSpot``, representing send/recv operations;
-            * ``HaloWaitAny``, representing wait operations;
-            * ``HaloCompAny``, representing a unit of computation involving the
-              "boundary iterations" depending on halo values.
-
-        For each (unique) ``HaloSpot``, three Callables are *always* constructed:
+        For each HaloSpot, at least three Callables are constructed:
 
             * ``update_halo``, to be called to trigger the halo exchange,
             * ``sendrecv``, called from within ``update_halo``.
@@ -56,55 +48,62 @@ class HaloExchangeBuilder(object):
               data gathering prior to an MPI_Send, and data scattering following
               an MPI recv.
 
-        The creator of the HaloExchangeBuilder should only worry about placing the
-        ``update_halo`` calls.
+        Additional Callables may be constructed in the case of asynchronous
+        halo exchange.
 
-        The situation is slightly different for ``HaloWaitAny`` and ``HaloCompAny``.
-        *If* the HaloExchangeBuilder does *not* make use of asynchronous
-        communication, then both ``HaloWaitAny`` and ``HaloCompAny`` will be
-        trivial no-op (hence the "Any" suffix).
+        In any case, the HaloExchangeBuilder creator only needs to worry about
+        placing the ``update_halo`` Calls.
         """
-        ret = [self._handle_halospot(halo_spots)]
-        ret.append(self._handle_halowaitany([]))
-        ret.append(self._handle_halocompany([]))
-
-        callables = []
         calls = {}
-        for _callables, _calls in ret:
-            callables.extend(_callables)
-            calls.update(_calls)
+        generated = OrderedDict()
+        for hs in halo_spots:
+            # 1) Callables/Calls for send/recv
+            begin_exchange = []
+            for f, v in hs.fmapper.items():
+                # Sanity check
+                assert f.is_Function
+                assert f.grid is not None
 
-        return callables, calls
+                # Note: to construct the halo exchange Callables, use the generic `df`,
+                # instead of `f`, so that we don't need to regenerate code for Functions
+                # that are symbolically identical to `f` except for the name
+                df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
+                                          dimensions=f.dimensions)
+                # `gather`, `scatter`, `sendrecv` are generic by construction -- they
+                # only need to be generated once for each `ndim`
+                if f.ndim not in generated:
+                    gather, extra = self._make_copy(df, v.loc_indices)
+                    scatter, _ = self._make_copy(df, v.loc_indices, swap=True)
+                    sendrecv = self._make_sendrecv(df, v.loc_indices, extra)
+                    generated[f.ndim] = [gather, scatter, sendrecv]
+                # `haloupdate` is generic by construction -- it only needs to be
+                # generated once for each (`ndim`, `halos`)
+                if (f.ndim, v) not in generated:
+                    uniquekey = len([i for i in generated if isinstance(i, tuple)])
+                    haloupdate = self._make_haloupdate(df, v.loc_indices, v.halos, extra,
+                                                       uniquekey)
+                    generated[(f.ndim, v)] = [haloupdate]
 
-    @abc.abstractmethod
-    def _handle_halospot(self, halo_spots):
-        """Build HaloSpot-related routines."""
-        return
+                # `haloupdate` Call construction
+                comm = f.grid.distributor._obj_comm
+                nb = f.grid.distributor._obj_neighborhood
+                loc_indices = list(v.loc_indices.values())
+                args = [f, comm, nb] + loc_indices + extra
+                begin_exchange.append(Call(generated[(f.ndim, v)][0].name, args))
 
-    @abc.abstractmethod
-    def _handle_halowaitany(self, halo_wait_anys):
-        """Build HaloWaitAny-related routines."""
-        return
+            # 2) Callables/Calls for wait (no-op in case of synchronous halo exchange)
+            wait_exchange = []
+            for f, v in hs.fmapper.items():
+                # TODO
+                pass
 
-    @abc.abstractmethod
-    def _handle_halocompany(self, halo_comp_anys):
-        """Build HaloCompAny-related routines."""
-        return
+            # 3) Callables/Calls for remainder computation (no-op in case of
+            # synchronous halo exchange)
+            remainder = []
 
-    @abc.abstractmethod
-    def _make_haloupdate(self, f, fixed, halos, **kwargs):
-        """
-        Construct a Callable performing, for a given DiscreteFunction, a halo exchange.
-        """
-        return
+            calls[hs] = List(body=begin_exchange + [hs.body] + wait_exchange + remainder)
 
-    @abc.abstractmethod
-    def _make_sendrecv(self, f, fixed, **kwargs):
-        """
-        Construct a Callable performing, for a given DiscreteFunction, a halo exchange
-        along given Dimension and DataSide.
-        """
-        return
+        return flatten(generated.values()), calls
 
     def _make_copy(self, f, fixed, swap=False):
         """
@@ -149,63 +148,43 @@ class HaloExchangeBuilder(object):
         parameters = [buf] + list(buf.shape) + [f] + f_offsets + state.input
         return Callable(name, state.nodes, 'void', parameters, ('static',)), state.input
 
+    @abc.abstractmethod
+    def _make_sendrecv(self, f, fixed, **kwargs):
+        """
+        Construct a Callable performing, for a given DiscreteFunction, a halo exchange
+        along given Dimension and DataSide.
+        """
+        return
+
+    @abc.abstractmethod
+    def _make_haloupdate(self, f, fixed, halos, **kwargs):
+        """
+        Construct a Callable performing, for a given DiscreteFunction, a halo exchange.
+        """
+        return
+
+    @abc.abstractmethod
+    def _make_halowait(self, f):
+        """
+        Construct a Callable performing, for a given DiscreteFunction, a wait on
+        one or more asynchrnous calls.
+        """
+        return
+
+    @abc.abstractmethod
+    def _make_halocomp(self, body):
+        """
+        Construct a Callable performing computation over the OWNED region, that is
+        the region requiring up-to-date halo values.
+        """
+        return
+
 
 class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
     """
     A HaloExchangeBuilder making use of synchronous MPI routines only.
     """
-
-    def _handle_halospot(self, halo_spots):
-        calls = {}
-        generated = OrderedDict()
-        for hs in halo_spots:
-            for f, v in hs.fmapper.items():
-                # Sanity check
-                assert f.is_Function
-                assert f.grid is not None
-
-                # Callables construction
-                # ----------------------
-                # Note: to construct the halo exchange Callables, use the generic `df`,
-                # instead of `f`, so that we don't need to regenerate code for Functions
-                # that are symbolically identical to `f` except for the name
-                df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
-                                          dimensions=f.dimensions)
-                # `gather`, `scatter`, `sendrecv` are generic by construction -- they
-                # only need to be generated once for each `ndim`
-                if f.ndim not in generated:
-                    gather, extra = self._make_copy(df, v.loc_indices)
-                    scatter, _ = self._make_copy(df, v.loc_indices, swap=True)
-                    sendrecv = self._make_sendrecv(df, v.loc_indices, extra)
-                    generated[f.ndim] = [gather, scatter, sendrecv]
-                # `haloupdate` is generic by construction -- it only needs to be
-                # generated once for each (`ndim`, `halos`)
-                if (f.ndim, v) not in generated:
-                    uniquekey = len([i for i in generated if isinstance(i, tuple)])
-                    haloupdate = self._make_haloupdate(df, v.loc_indices, v.halos, extra,
-                                                       uniquekey)
-                    generated[(f.ndim, v)] = [haloupdate]
-
-                # `haloupdate` Call construction
-                comm = f.grid.distributor._obj_comm
-                nb = f.grid.distributor._obj_neighborhood
-                loc_indices = list(v.loc_indices.values())
-                args = [f, comm, nb] + loc_indices + extra
-                call = Call(generated[(f.ndim, v)][0].name, args)
-                calls.setdefault(hs, []).append(call)
-
-        # Polish retval
-        callables = flatten(generated.values())
-        calls = {k: List(body=v + [k.body]) for k, v in calls.items()}
-
-        return callables, calls
-
-    def _handle_halowaitany(self, halo_wait_anys):
-        return [], {i: None for i in halo_wait_anys}
-
-    def _handle_halocompany(self, halo_comp_anys):
-        return [], {i: None for i in halo_comp_anys}
 
     def _make_sendrecv(self, f, fixed, extra=None):
         extra = extra or []
@@ -307,6 +286,12 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values()) + extra
         return Callable(name, iet, 'void', parameters, ('static',))
+
+    def _make_halowait(self, f):
+        return
+
+    def _make_halocomp(self, body):
+        return
 
 
 class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
