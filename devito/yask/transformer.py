@@ -21,12 +21,10 @@ def yaskit(trees, yc_soln):
     yc_soln
         The YASK compiler solution to be populated.
     """
-    # Track all created YASK grids
-    mapper = {}
-
     # It's up to Devito to organize the equations into a flow graph
     yc_soln.set_dependency_checker_enabled(False)
 
+    mapper = {}
     processed = []
     for tree in trees:
         # All expressions within `tree`
@@ -72,7 +70,7 @@ def yaskit(trees, yc_soln):
                 # For sequential Iterations, the extent *must* be statically known,
                 # otherwise we don't know how to handle this
                 try:
-                    int(i.size())
+                    int(i.dim._thickness_map.get(i.size()))
                 except TypeError:
                     raise NotImplementedError("Found sequential Iteration with "
                                               "statically unknown extent")
@@ -116,14 +114,21 @@ def yaskit(trees, yc_soln):
     for to, frm in zip(processed, processed[1:]):
         yc_soln.add_flow_dependency(frm, to)
 
-    return mapper
+    # Have we built any local grids (i.e., DSE-produced tensor temporaries)?
+    # If so, eventually these will be mapped to YASK scratch grids
+    local_grids = [i for i in mapper if i.is_Array]
+
+    return local_grids
 
 
-def make_yask_ast(expr, yc_soln, mapper):
+def make_yask_ast(expr, yc_soln, mapper=None):
 
     def nary2binary(args, op):
         r = make_yask_ast(args[0], yc_soln, mapper)
         return r if len(args) == 1 else op(r, nary2binary(args[1:], op))
+
+    if mapper is None:
+        mapper = {}
 
     if expr.is_Integer:
         return nfac.new_const_number_node(int(expr))
@@ -152,7 +157,7 @@ def make_yask_ast(expr, yc_soln, mapper):
             else:
                 return nfac.new_misc_index(expr.name)
         else:
-            # A DSE-generated temporary, which must have already been
+            # E.g., A DSE-generated temporary, which must have already been
             # encountered as a LHS of a previous expression
             assert function in mapper
             return mapper[function]
@@ -165,6 +170,13 @@ def make_yask_ast(expr, yc_soln, mapper):
             mapper[function] = yc_soln.new_grid(function.name, dimensions)
             # Allow number of time-steps to be set in YASK kernel.
             mapper[function].set_dynamic_step_alloc(True)
+            # We also get to know some relevant Dimension-related symbols
+            # For example, the min point of the `x` Dimension, `x_m`, should
+            # be mapped to YASK's `FIRST(x)`
+            for d in function.indices:
+                node = nfac.new_domain_index(d.name)
+                mapper[d.symbolic_min] = nfac.new_first_domain_index(node)
+                mapper[d.symbolic_max] = nfac.new_last_domain_index(node)
         indices = [make_yask_ast(i, yc_soln, mapper) for i in expr.indices]
         return mapper[function].new_grid_point(indices)
     elif expr.is_Add:
@@ -191,9 +203,15 @@ def make_yask_ast(expr, yc_soln, mapper):
                                     make_yask_ast(expr.rhs, yc_soln, mapper))
     elif expr.is_Equality:
         if expr.lhs.is_Symbol:
-            function = expr.lhs.base.function
-            assert function not in mapper
-            mapper[function] = make_yask_ast(expr.rhs, yc_soln, mapper)
+            function = expr.lhs.function
+            # The IETs are always in SSA form, so the only situation in
+            # which `function` may already appear in `mapper` is when we've
+            # already processed it as part of a different set of
+            # boundary conditions. For example consider `expr = a[x]*2`:
+            # first time, expr executed iff `x == FIRST_INDEX(x) + 7`
+            # second time, expr executed iff `x == FIRST_INDEX(x) + 6`
+            if function not in mapper:
+                mapper[function] = make_yask_ast(expr.rhs, yc_soln, mapper)
         else:
             return nfac.new_equation_node(*[make_yask_ast(i, yc_soln, mapper)
                                             for i in expr.args])

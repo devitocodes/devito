@@ -541,7 +541,7 @@ class Callable(Node):
         self.name = name
         self.body = as_tuple(body)
         self.retval = retval
-        self.prefix = prefix
+        self.prefix = as_tuple(prefix)
         self.parameters = as_tuple(parameters)
 
     def __repr__(self):

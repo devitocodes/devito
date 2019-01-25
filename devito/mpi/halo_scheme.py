@@ -54,26 +54,25 @@ class HaloScheme(object):
         ({loc_indices}, ((Dimension, DataSide, amount), ...))
 
     The tuples (Dimension, DataSide, amount) tell the amount of data that
-    a :class:`DiscreteFunction` should communicate along (a subset of) its
-    :class:`Dimension`s.
+    a DiscreteFunction should communicate along its Dimensions.
 
     The dict ``loc_indices`` tells how to access/insert the halo along the
-    keyed Function's non-halo indices. For example, consider the
-    :class:`Function` ``u(t, x, y)``. Assume ``x`` and ``y`` require a halo
-    exchange. The question is: once the halo exchange is performed, at what
-    offset in ``t`` should it be placed? should it be at ``u(0, ...)`` or
-    ``u(1, ...)`` or even ``u(t-1, ...)``? ``loc_indices`` has as many entries
-    as non-halo dimensions, and each entry provides symbolic information about
-    how to access the corresponding non-halo dimension. Thus, in this example
+    keyed Function's non-halo indices. For example, consider the Function
+    ``u(t, x, y)``. Assume ``x`` and ``y`` require a halo exchange. The
+    question is: once the halo exchange is performed, at what offset in ``t``
+    should it be placed? should it be at ``u(0, ...)`` or ``u(1, ...)`` or even
+    ``u(t-1, ...)``? ``loc_indices`` has as many entries as non-halo
+    dimensions, and each entry provides symbolic information about how to
+    access the corresponding non-halo dimension. Thus, in this example
     ``loc_indices`` could be, for instance, ``{t: 0}`` or ``{t: t-1}``.
 
     Parameters
     ----------
-    exprs : tuple of :class:`IREq`
+    exprs : tuple of IREq
         The expressions for which the HaloScheme is built
-    ispace : :class:`IterationSpace`
+    ispace : IterationSpace
         Description of iteration directions and sub-iterators used in ``exprs``.
-    dspace : :class:`DataSpace`
+    dspace : DataSpace
         Description of the data access pattern in ``exprs``.
     fmapper : dict, optional
         The format is the same as ``M``. When provided, ``exprs``, ``ispace`` and
@@ -96,14 +95,17 @@ class HaloScheme(object):
 
         for f, v in classification.items():
             # *How much* halo do we have to exchange?
-            halos = hs_comp_halos(f, [d for d, hl in v.items() if hl is STENCIL], dspace)
-            halos.extend(hs_comp_halos(f, [d for d, hl in v.items() if hl is FULL]))
-
-            # *What* are the local (i.e., non-halo) indices?
-            loc_indices = hs_comp_locindices(f, [d for d, hl in v.items() if hl is NONE],
-                                             ispace, dspace, scope)
+            dims = [d for d, hl in v.items() if hl is STENCIL]
+            halos = hs_comp_halos(f, dims, dspace)
+            dims = [d for d, hl in v.items() if hl is FULL]
+            halos.extend(hs_comp_halos(f, dims))
 
             if halos:
+                # There is some halo to be exchanged; *what* are the local
+                # (i.e., non-halo) indices?
+                dims = [d for d, hl in v.items() if hl is NONE]
+                loc_indices = hs_comp_locindices(f, dims, ispace, dspace, scope)
+
                 self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices), tuple(halos))
 
         self._mapper = frozendict(self._mapper)
@@ -142,8 +144,7 @@ class HaloScheme(object):
 def hs_classify(scope):
     """
     A mapper ``Function -> (Dimension -> [HaloLabel]`` describing what type of
-    halo exchange is expected by the various :class:`DiscreteFunction`s in a
-    :class:`Scope`.
+    halo exchange is expected by the DiscreteFunctions in a given Scope.
     """
     mapper = {}
     for f, r in scope.reads.items():
@@ -216,7 +217,7 @@ def hs_comp_halos(f, dims, dspace=None):
     """
     An iterable of 3-tuples ``[(Dimension, DataSide, amount), ...]`` describing
     the amount of halo that should be exchange along the two sides of a set of
-    :class:`Dimension`s.
+    Dimensions.
     """
     halos = []
     for d in dims:
@@ -241,7 +242,7 @@ def hs_comp_halos(f, dims, dspace=None):
 
 def hs_comp_locindices(f, dims, ispace, dspace, scope):
     """
-    Map the :class:`Dimension`s in ``dims`` to the local indices necessary
+    Map the Dimensions in ``dims`` to the local indices necessary
     to perform a halo exchange, as described in HaloScheme.__doc__.
 
     Examples

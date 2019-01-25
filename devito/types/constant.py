@@ -53,6 +53,10 @@ class Constant(AbstractCachedSymbol, ArgProvider):
         return kwargs.get('dtype', np.float32)
 
     @property
+    def _is_const(self):
+        return True
+
+    @property
     def data(self):
         """The value of the data object, as a scalar (int, float, ...)."""
         return self.dtype(self._value)

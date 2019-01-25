@@ -97,10 +97,14 @@ class YaskKernel(object):
                 # The root directory of generated code files, shared libs, Python modules
                 'YASK_OUTPUT_DIR=%s' % namespace['yask-output-dir'],
                 # Pick the YASK kernel Makefile, i.e. the one under `yask/src/kernel`
-                '-C', namespace['kernel-path'], 'api'
+                '-C', namespace['kernel-path'],
+                # Make target.
+                'api'
             ]
-            # Other potentially useful args:
-            # - "EXTRA_MACROS=TRACE", -- debugging option
+            if configuration['develop-mode']:
+                args.append('check=1')   # Activate internal YASK asserts.
+                # args.append('trace=1')   # Print out verbose progress messages.
+                # args.append('trace_mem=1')   # Print out verbose mem-access messages.
             make(namespace['path'], args)
 
             # Now we must be able to import the SWIG-generated Python module
@@ -300,9 +304,9 @@ class YaskContext(Signer):
             # different set of dimensions (e.g., a strict subset and/or some misc
             # dimensions). In such a case, an extra dummy grid is attached
             # `obj` examples: u(x, d), u(x, y, z)
-            dimensions = [make_yask_ast(i, yc_hook, {}) for i in self.dimensions]
+            dimensions = [make_yask_ast(i, yc_hook) for i in self.dimensions]
             yc_hook.new_grid('dummy_grid_full', dimensions)
-        dimensions = [make_yask_ast(i.root, yc_hook, {}) for i in obj.indices]
+        dimensions = [make_yask_ast(i.root, yc_hook) for i in obj.indices]
         yc_hook.new_grid('dummy_grid_true', dimensions)
 
         # Create 'hook' kernel solution
@@ -353,7 +357,7 @@ class YaskContext(Signer):
 
         # Apply compile-time optimizations
         if configuration['isa'] != 'cpp':
-            dimensions = [make_yask_ast(i, yc_soln, {}) for i in self.space_dimensions]
+            dimensions = [make_yask_ast(i, yc_soln) for i in self.space_dimensions]
             # Vector folding
             for i, j in zip(dimensions, configuration.yask['folding']):
                 yc_soln.set_fold_len(i, j)
