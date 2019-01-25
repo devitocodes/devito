@@ -183,9 +183,9 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                 # generated once for each (`ndim`, `halos`)
                 if (f.ndim, v) not in generated:
                     uniquekey = len([i for i in generated if isinstance(i, tuple)])
-                    generated[(f.ndim, v)] = [self._make_haloupdate(df, v.loc_indices,
-                                                                    hs.halos[f], extra,
-                                                                    uniquekey)]
+                    haloupdate = self._make_haloupdate(df, v.loc_indices, v.halos, extra,
+                                                       uniquekey)
+                    generated[(f.ndim, v)] = [haloupdate]
 
                 # `haloupdate` Call construction
                 comm = f.grid.distributor._obj_comm
@@ -197,7 +197,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         # Polish retval
         callables = flatten(generated.values())
-        calls = {k: List(body=v) for k, v in calls.items()}
+        calls = {k: List(body=v + [k.body]) for k, v in calls.items()}
 
         return callables, calls
 

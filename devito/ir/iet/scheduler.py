@@ -2,9 +2,9 @@ from collections import OrderedDict
 
 from devito.cgen_utils import Allocator
 from devito.ir.iet import (Expression, Increment, LocalExpression, Element, Iteration,
-                           List, Conditional, Section, HaloSpot, HaloWaitAny, HaloCompAny,
-                           ExpressionBundle, MapExpressions, Transformer, FindNodes,
-                           FindSymbols, XSubs, iet_analyze, filter_iterations)
+                           List, Conditional, Section, HaloSpot, ExpressionBundle,
+                           MapExpressions, Transformer, FindNodes, FindSymbols,
+                           XSubs, iet_analyze, filter_iterations)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper
 from devito.types import ConditionalDimension
@@ -34,7 +34,6 @@ def iet_build(stree):
 def iet_make(stree):
     """Create an IET from a ScheduleTree."""
     nsections = 0
-    nhalos = 0
     queues = OrderedDict()
     for i in stree.visit():
         if i == stree:
@@ -43,34 +42,26 @@ def iet_make(stree):
 
         elif i.is_Exprs:
             exprs = [Increment(e) if e.is_Increment else Expression(e) for e in i.exprs]
-            body = [ExpressionBundle(i.shape, i.ops, i.traffic, body=exprs)]
+            body = ExpressionBundle(i.shape, i.ops, i.traffic, body=exprs)
 
         elif i.is_Conditional:
-            body = [Conditional(i.guard, queues.pop(i))]
+            body = Conditional(i.guard, queues.pop(i))
 
         elif i.is_Iteration:
             # Order to ensure deterministic code generation
             uindices = sorted(i.sub_iterators, key=lambda d: d.name)
             # Generate Iteration
-            body = [Iteration(queues.pop(i), i.dim, i.dim._limits, offsets=i.limits,
-                              direction=i.direction, uindices=uindices)]
+            body = Iteration(queues.pop(i), i.dim, i.dim._limits, offsets=i.limits,
+                             direction=i.direction, uindices=uindices)
 
         elif i.is_Section:
-            body = [Section('section%d' % nsections, body=queues.pop(i))]
+            body = Section('section%d' % nsections, body=queues.pop(i))
             nsections += 1
 
         elif i.is_Halo:
-            comp = queues.pop(i)
-            key = tuple(nhalos + j for j in range(len(i.halo_scheme)))
-            body = (
-                [HaloSpot(v, k) for k, v in zip(key, i.halo_scheme.components)] +
-                comp +
-                [HaloWaitAny(k) for k in key] +
-                [HaloCompAny(key, comp)]
-            )
-            nhalos += len(i.halo_scheme)
+            body = HaloSpot(i.halo_scheme, body=queues.pop(i))
 
-        queues.setdefault(i.parent, []).extend(body)
+        queues.setdefault(i.parent, []).append(body)
 
     assert False
 

@@ -10,10 +10,11 @@ from devito.dle.backends import (BasicRewriter, Ompizer, dle_pass, simdinfo,
                                  get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
 from devito.ir.iet import (Expression, Iteration, List, HaloSpot, PARALLEL, ELEMENTAL,
-                           REMAINDER, tagger, FindSymbols, FindNodes, IsPerfectIteration,
-                           MapNodes, Transformer, compose_nodes, retrieve_iteration_tree)
+                           REMAINDER, tagger, FindSymbols, FindNodes, FindAdjacent,
+                           IsPerfectIteration, MapNodes, Transformer, compose_nodes,
+                           retrieve_iteration_tree)
 from devito.logger import perf_adv
-from devito.tools import as_mapper, as_tuple, split
+from devito.tools import as_tuple
 
 
 class AdvancedRewriter(BasicRewriter):
@@ -22,7 +23,7 @@ class AdvancedRewriter(BasicRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
-        self._merge_halospots(state)
+        self._optimize_halospots(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
@@ -44,7 +45,7 @@ class AdvancedRewriter(BasicRewriter):
         return iet, {}
 
     @dle_pass
-    def _merge_halospots(self, iet, state):
+    def _optimize_halospots(self, iet, state):
         """
         Optimize the HaloSpots in ``iet``.
 
@@ -53,23 +54,38 @@ class AdvancedRewriter(BasicRewriter):
           removing redundant communications and anticipating communications
           that will be required by later Iterations.
         """
+        # Drop USELESS HaloSpots
+        mapper = {hs: hs.body for hs in FindNodes(HaloSpot).visit(iet) if hs.is_Useless}
+        iet = Transformer(mapper, nested=True).visit(iet)
+
+        # Handle `hoistable` HaloSpots
         mapper = {}
-        for k, v in MapNodes(child_types=HaloSpot).visit(iet).items():
-            halo_spots = as_mapper(v, lambda hs: hs.target)
-            for hss in halo_spots.values():
-                # Drop USELESS HaloSpots
-                needed, useless = split(hss, lambda i: not i.is_Useless)
-                mapper.update({i: None for i in useless})
+        for halo_spots in MapNodes(Iteration, HaloSpot).visit(iet).values():
+            root = halo_spots[0]
+            halo_schemes = [hs.halo_scheme.project(hs.hoistable) for hs in halo_spots[1:]]
+            mapper[root] = root._rebuild(halo_scheme=root.halo_scheme.union(halo_schemes))
+            mapper.update({hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.hoistable))
+                           for hs in halo_spots[1:]})
+        iet = Transformer(mapper, nested=True).visit(iet)
 
-                # Deal with HOISTABLE HaloSpots
-                if not needed:
-                    continue
-                top = needed[0]
-                hoistable = [i for i in needed[1:] if i.is_Hoistable]
-                mapper.update({i: None for i in hoistable})
-                hoistable = [i.halo_scheme for i in hoistable]
-                mapper[top] = HaloSpot(top.halo_scheme.union(hoistable), top.key)
-
+        # At this point, some HaloSpots may be empty (i.e., no communications required)
+        # Such HaloSpots can be dropped and their body might be squashable with that
+        # of an adjacent HaloSpot
+        mapper = {}
+        for v in FindAdjacent(HaloSpot).visit(iet).values():
+            for g in v:
+                root = g[0]
+                for i in g[1:]:
+                    if i.is_empty:
+                        rebuilt = mapper.get(root, root)
+                        body = List(body=as_tuple(root.body) + (i.body,))
+                        mapper[root] = rebuilt._rebuild(body=body)
+                        mapper[i] = None
+                    else:
+                        root = i
+        # Finally, any leftover empty HaloSpot should be dropped
+        mapper.update({i: i.body for i in FindNodes(HaloSpot).visit(iet)
+                       if i.is_empty and i not in mapper})
         iet = Transformer(mapper, nested=True).visit(iet)
 
         return iet, {}
@@ -281,7 +297,7 @@ class AdvancedRewriterSafeMath(AdvancedRewriter):
     """
 
     def _pipeline(self, state):
-        self._merge_halospots(state)
+        self._optimize_halospots(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
@@ -294,7 +310,7 @@ class SpeculativeRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
-        self._merge_halospots(state)
+        self._optimize_halospots(state)
         self._loop_wrapping(state)
         self._loop_blocking(state)
         self._simdize(state)
@@ -336,7 +352,7 @@ class CustomRewriter(SpeculativeRewriter):
 
     passes_mapper = {
         'denormals': SpeculativeRewriter._avoid_denormals,
-        'mergecomms': SpeculativeRewriter._merge_halospots,
+        'optcomms': SpeculativeRewriter._optimize_halospots,
         'wrapping': SpeculativeRewriter._loop_wrapping,
         'blocking': SpeculativeRewriter._loop_blocking,
         'openmp': SpeculativeRewriter._parallelize,

@@ -65,10 +65,14 @@ class HaloSpotProperty(Tag):
     pass
 
 
-HOISTABLE = HaloSpotProperty('hoistable')
-"""The HaloSpot can be squashed with a previous HaloSpot as all data dependences
-would still be honored."""
-
 USELESS = HaloSpotProperty('useless')
 """The HaloSpot can be ignored as an halo update at this point would be completely
 useless."""
+
+
+def hoistable(i):
+    """
+    The HaloSpot can be squashed with a previous HaloSpot as all data dependences
+    would still be honored.
+    """
+    return HaloSpotProperty('hoistable', i)
