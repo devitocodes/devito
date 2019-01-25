@@ -119,7 +119,10 @@ class PrintAST(Visitor):
             return self.indent + str(o)
 
     def visit_HaloOp(self, o):
-        return self.indent + o.__repr__()
+        self._depth += 1
+        body = self._visit(o.children)
+        self._depth -= 1
+        return self.indent + "%s\n%s" % (o.__repr__(), body)
 
     def visit_Conditional(self, o):
         self._depth += 1
@@ -279,6 +282,10 @@ class CGen(Visitor):
         decls = self._args_decl(params)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
+
+    def visit_HaloOp(self, o):
+        body = flatten(self._visit(i) for i in o.children)
+        return c.Collection(body)
 
     def visit_Operator(self, o):
         # Kernel signature and body
