@@ -59,7 +59,15 @@ class Differentiable(sympy.Expr):
         return self.func(*[getattr(a, 'stencil', a) for a in self.args])
 
     def xreplace(self, rules):
-        return self.func(*[a.xreplace(rules) for a in self.args])
+        new = super(Differentiable, self).xreplace(rules)
+        if new.is_Add:
+            return Add(*new.args)
+        elif new.is_Mul:
+            return Mul(*new.args)
+        elif new.is_Pow:
+            return Pow(*new.args)
+        else:
+            return new
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()

@@ -61,8 +61,9 @@ class Eq(sympy.Eq):
 
     @property
     def stencil(self):
-        return Eq(self.lhs.stencil, self.rhs.stencil, evaluate=False,
-                  subdomain=self.subdomain)
+        lhs = getattr(self.lhs, 'stencil', self.lhs)
+        rhs = getattr(self.rhs, 'stencil', self.rhs)
+        return Eq(lhs, rhs, evaluate=False, subdomain=self._subdomain)
 
     def xreplace(self, rules):
         """"""
@@ -125,4 +126,5 @@ def solve(eq, target, **kwargs):
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
-    return sympy.solve(eq.stencil, target.stencil, **kwargs)[0]
+    solved = sympy.solve(eq.stencil, target.stencil, **kwargs)[0]
+    return eq.__class__(*solved.args)
