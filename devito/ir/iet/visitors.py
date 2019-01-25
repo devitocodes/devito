@@ -11,7 +11,7 @@ import cgen as c
 
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
-from devito.ir.iet.nodes import Iteration, Expression, Call
+from devito.ir.iet.nodes import Node, Iteration, Expression, Call
 from devito.ir.support.space import Backward
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype_to_cstr
 
@@ -388,37 +388,40 @@ class MapNodes(Visitor):
 
     Parameters
     ----------
-    parent_type : Node, optional
+    parent_type : Node or str, optional
         By default, parents are of type Iteration. One can alternatively supply
-        a different type.
+        a different type. Optionally, the keyword 'any' can be supplied, in which
+        case the parent can be a generic Node.
     child_types : Node or list of Node, optional
         By default, children of type Call and Expression are retrieved.
         One can alternatively supply one or more different types.
     mode : str, optional
-        By default, a depth-first visit is performed. Alternatively, if the
-        keyword 'immediate' is passed, the visit stops to the immediate children
-        of a given parent.
-    groupby : bool, optional
-        If True, nested nodes of type ``parent_type`` are used as key in the
-        built mapper. Defaults to False.
+        By default, all ancestors matching the ``parent_type`` are mapped to
+        the nodes of type ``child_types`` retrieved by the search. This behaviour
+        can be changed through this parameter. Accepted values are:
+        - 'immediate': only the closest matching ancestor is mapped.
+        - 'groupby': the matching ancestors are grouped together as a single key.
     """
 
-    def __init__(self, parent_type=None, child_types=None, mode=None, groupby=False):
+    def __init__(self, parent_type=None, child_types=None, mode=None):
         super(MapNodes, self).__init__()
-        self.parent_type = parent_type or Iteration
+        if parent_type is None:
+            self.parent_type = Iteration
+        elif parent_type is 'any':
+            self.parent_type = Node
+        else:
+            assert issubclass(parent_type, Node)
+            self.parent_type = parent_type
         self.child_types = as_tuple(child_types) or (Call, Expression)
-        assert mode is None or mode == 'immediate'
+        assert mode in (None, 'immediate', 'groupby')
         self.mode = mode
-        self.groupby = groupby
 
     def visit_object(self, o, ret=None, **kwargs):
         return ret
 
     def visit_tuple(self, o, ret=None, parents=None, in_parent=False):
-        if ret is None:
-            ret = self.default_retval()
         for i in o:
-            ret = self._visit(i, ret=ret, parents=parents, in_parent=False)
+            ret = self._visit(i, ret=ret, parents=parents, in_parent=in_parent)
         return ret
 
     def visit_Node(self, o, ret=None, parents=None, in_parent=False):
@@ -426,19 +429,22 @@ class MapNodes(Visitor):
             ret = self.default_retval()
         if parents is None:
             parents = []
+        if isinstance(o, self.child_types):
+            if self.mode == 'groupby':
+                ret.setdefault(as_tuple(parents), []).append(o)
+            elif self.mode == 'immediate':
+                if in_parent:
+                    ret.setdefault(parents[-1], []).append(o)
+                else:
+                    ret.setdefault(None, []).append(o)
+            else:
+                for i in parents:
+                    ret.setdefault(i, []).append(o)
         if isinstance(o, self.parent_type):
-            if in_parent and self.mode == 'immediate':
-                return ret
             parents.append(o)
             for i in o.children:
                 ret = self._visit(i, ret=ret, parents=parents, in_parent=True)
             parents.remove(o)
-        elif isinstance(o, self.child_types):
-            if self.groupby is True:
-                ret.setdefault(as_tuple(parents), []).append(o)
-            else:
-                for i in parents:
-                    ret.setdefault(i, []).append(o)
         else:
             for i in o.children:
                 ret = self._visit(i, ret=ret, parents=parents, in_parent=in_parent)
