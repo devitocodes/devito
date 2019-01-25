@@ -91,12 +91,12 @@ class Coefficient(object):
         # Ensure the given set of coefficients is the correct length
         if dimension.is_Time:
             if len(coefficients)-1 != function.time_order:
-                raise ValueError("Number FD weights provided does not \
-                    match the functions space_order")
+                raise ValueError("Number FD weights provided does not "
+                                 "match the functions space_order")
         elif dimension.is_Space:
             if len(coefficients)-1 != function.space_order:
-                raise ValueError("Number FD weights provided does not \
-                    match the functions space_order")
+                raise ValueError("Number FD weights provided does not "
+                                 "match the functions space_order")
 
         self.is_Coefficient = True
 
@@ -107,11 +107,11 @@ class Coefficient(object):
 
     def check_input(self, deriv_order, function, dimension, coefficients):
         if not isinstance(deriv_order, int):
-            raise TypeError("Derivative order must be an integer.")
+            raise TypeError("Derivative order must be an integer")
         if not function.is_Function:
-            raise TypeError("Coefficients must be attached to a valid function.")
+            raise TypeError("Coefficients must be attached to a valid function")
         if not dimension.is_Dimension:
-            raise TypeError("Coefficients must be attached to a valid dimension.")
+            raise TypeError("Coefficients must be attached to a valid dimension")
         # Currently only numpy arrays are accepted here.
         # Functionality will be expanded in the near future.
         if not isinstance(coefficients, np.ndarray):
@@ -154,7 +154,7 @@ def default_rules(obj, functions):
     rules = {}
 
     # Determine which 'rules' are missing
-    sym = functions[0].fd_coeff_symbol()
+    sym = get_sym(functions)
     terms = obj.find(sym)
     # FIXME: Unnecessary conversions between lists and sets
     args_present = []
@@ -178,3 +178,14 @@ def default_rules(obj, functions):
             rules = {**rules, **generate_subs(i)}
 
     return rules
+
+
+def get_sym(functions):
+    for j in range(0, len(functions)):
+        try:
+            sym = functions[j].fd_coeff_symbol()
+            return sym
+        except:
+            pass
+    # Shouldn't arrive here
+    raise TypeError("Failed to retreive symbol")

@@ -378,7 +378,6 @@ def symbolic_weights(function, deriv_order, indices, dim):
     weights = []
     for j in range(n_weights):
         weights += [function.fd_coeff_symbol()(indices[j], deriv_order, function, dim), ]
-
     return weights
 
 
