@@ -114,7 +114,9 @@ class HaloScheme(object):
         return {f: v.halos for f, v in self.fmapper.items()}
 
     def union(self, others):
-        """Create a HaloScheme from the union of ``self`` with ``others``."""
+        """
+        Create a new HaloScheme representing the union of ``self`` with other HaloSchemes.
+        """
         fmapper = dict(self.fmapper)
         for i in as_tuple(others):
             for k, v in i.fmapper.items():
@@ -126,6 +128,22 @@ class HaloScheme(object):
                 halos = tuple(filter_ordered(hse.halos + v.halos))
                 fmapper[k] = HaloSchemeEntry(hse.loc_indices, halos)
 
+        return HaloScheme(fmapper=fmapper)
+
+    def project(self, functions):
+        """
+        Create a new HaloScheme which only retains the HaloSchemeEntries corresponding
+        to the provided ``functions``.
+        """
+        fmapper = {k: v for k, v in self.fmapper.items() if k in as_tuple(functions)}
+        return HaloScheme(fmapper=fmapper)
+
+    def drop(self, functions):
+        """
+        Create a new HaloScheme which contains all entries in ``self`` except those
+        corresponding to the provided ``functions``.
+        """
+        fmapper = {k: v for k, v in self.fmapper.items() if k not in as_tuple(functions)}
         return HaloScheme(fmapper=fmapper)
 
 
