@@ -13,7 +13,7 @@ from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
-                           HOISTABLE, USELESS)
+                           USELESS)
 from devito.ir.support import Forward, detect_io
 from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
@@ -24,9 +24,8 @@ from devito.types.basic import AbstractFunction
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
            'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'Section',
-           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloOp',
-           'HaloSpot', 'HaloWaitAny', 'HaloCompAny', 'IterationTree', 'ExpressionBundle',
-           'Increment']
+           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot',
+           'IterationTree', 'ExpressionBundle', 'Increment']
 
 # First-class IET nodes
 
@@ -47,7 +46,7 @@ class Node(Signer):
     is_List = False
     is_Element = False
     is_Section = False
-    is_HaloOp = False
+    is_HaloSpot = False
     is_ExpressionBundle = False
 
     _traversable = []
@@ -66,7 +65,7 @@ class Node(Signer):
         return obj
 
     def _rebuild(self, *args, **kwargs):
-        """Reconstruct self. None of the embedded Sympy expressions are rebuilt."""
+        """Reconstruct ``self``."""
         handle = self._args.copy()  # Original constructor arguments
         argnames = [i for i in self._traversable if i not in kwargs]
         handle.update(OrderedDict([(k, v) for k, v in zip(argnames, args)]))
@@ -802,58 +801,40 @@ class ExpressionBundle(List):
 # Nodes required for distributed-memory halo exchange
 
 
-class HaloOp(Node):
+class HaloSpot(Node):
 
     """
-    A generic halo-exchange-related operation.
+    A halo exchange operation (e.g., send, recv, wait, ...) required to
+    correctly execute the subtree in the case of distributed-memory parallelism.
     """
-
-    is_HaloOp = True
-    is_HaloSpot = False
-    is_HaloWaitAny = False
-    is_HaloCompAny = False
-
-    def __init__(self, key, properties=None):
-        super(HaloOp, self).__init__()
-        self._key = key
-        self._properties = as_tuple(properties)
-
-    @property
-    def key(self):
-        return self._key
-
-    @property
-    def properties(self):
-        return self._properties
-
-    def __repr__(self):
-        if self.properties:
-            properties = "[%s]" % ",".join(str(i) for i in self.properties)
-        else:
-            properties = ""
-        return "<%s[%s]%s>" % (self.__class__.__name__, self.key, properties)
-
-    @property
-    def functions(self):
-        return ()
-
-    @property
-    def free_symbols(self):
-        return ()
-
-    @property
-    def defines(self):
-        return ()
-
-
-class HaloSpot(HaloOp):
 
     is_HaloSpot = True
 
-    def __init__(self, halo_scheme, key, properties=None):
-        super(HaloSpot, self).__init__(key, properties)
-        assert len(halo_scheme) == 1
+    _traversable = ['body']
+
+    def __init__(self, halo_scheme, body=None, properties=None):
+        super(HaloSpot, self).__init__()
         self._halo_scheme = halo_scheme
+        if isinstance(body, Node):
+            self._body = body
+        elif isinstance(body, (list, tuple)) and len(body) == 1:
+            self._body = body[0]
+        else:
+            raise ValueError("`body` is expected to be a single Node")
+        self._properties = as_tuple(properties)
+
+    def __repr__(self):
+        properties = []
+        if self.is_Useless:
+            properties.append("useless")
+        if self.hoistable:
+            properties.append("hoistable[%s]" % ",".join(i.name for i in self.hoistable))
+        if properties:
+            properties = "[%s]" % ','.join(properties)
+        else:
+            properties = ""
+        functions = "(%s)" % ",".join(i.name for i in self.functions)
+        return "<%s%s%s>" % (self.__class__.__name__, functions, properties)
 
     @property
     def halo_scheme(self):
@@ -864,38 +845,39 @@ class HaloSpot(HaloOp):
         return self.halo_scheme.fmapper
 
     @property
-    def target(self):
-        return list(self.fmapper)[0]
+    def is_empty(self):
+        return len(self.halo_scheme) == 0
 
     @property
-    def loc_indices(self):
-        return list(self.fmapper.values())[0].loc_indices
+    def body(self):
+        return self._body
 
     @property
-    def halos(self):
-        return self.halo_scheme.halos
+    def properties(self):
+        return self._properties
 
     @property
-    def is_Hoistable(self):
-        return HOISTABLE in self.properties
+    def hoistable(self):
+        for i in self.properties:
+            if i.name == 'hoistable':
+                return i.val
+        return ()
 
     @property
     def is_Useless(self):
         return USELESS in self.properties
 
+    @property
+    def functions(self):
+        return tuple(self.fmapper)
 
-class HaloWaitAny(HaloOp):
+    @property
+    def free_symbols(self):
+        return ()
 
-    is_HaloWaitAny = True
-
-
-class HaloCompAny(HaloOp):
-
-    is_HaloCompAny = True
-
-    def __init__(self, key, comp):
-        super(HaloCompAny, self).__init__(key)
-        self._comp = comp
+    @property
+    def defines(self):
+        return ()
 
 
 # Utility classes

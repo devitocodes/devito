@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 from devito.core.autotuning import autotune
-from devito.ir.iet import HaloOp, MetaCall, FindNodes, Transformer
+from devito.ir.iet import HaloSpot, MetaCall, FindNodes, Transformer
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
 from devito.mpi import HaloExchangeBuilder
@@ -25,7 +25,7 @@ class OperatorCore(Operator):
 
         # Build send/recv Callables and Calls
         heb = HaloExchangeBuilder(is_threaded(kwargs.get("dle")), configuration['mpi'])
-        callables, calls = heb.make(FindNodes(HaloOp).visit(iet))
+        callables, calls = heb.make(FindNodes(HaloSpot).visit(iet))
 
         # Update the Operator internal state
         self._includes.append('mpi.h')

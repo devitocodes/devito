@@ -36,12 +36,12 @@ class HaloExchangeBuilder(object):
         self._threaded = threaded
 
     @abc.abstractmethod
-    def make(self, halo_ops):
+    def make(self, halo_spots):
         """
         Construct Callables and Calls implementing a halo exchange for the
-        provided HaloOps.
+        provided HaloSpots.
 
-        There are three types of HaloOp:
+        There are three types of HaloSpots:
 
             * ``HaloSpot``, representing send/recv operations;
             * ``HaloWaitAny``, representing wait operations;
@@ -64,9 +64,9 @@ class HaloExchangeBuilder(object):
         communication, then both ``HaloWaitAny`` and ``HaloCompAny`` will be
         trivial no-op (hence the "Any" suffix).
         """
-        ret = [self._handle_halospot([i for i in halo_ops if i.is_HaloSpot])]
-        ret.append(self._handle_halowaitany([i for i in halo_ops if i.is_HaloWaitAny]))
-        ret.append(self._handle_halocompany([i for i in halo_ops if i.is_HaloCompAny]))
+        ret = [self._handle_halospot(halo_spots)]
+        ret.append(self._handle_halowaitany([]))
+        ret.append(self._handle_halocompany([]))
 
         callables = []
         calls = {}

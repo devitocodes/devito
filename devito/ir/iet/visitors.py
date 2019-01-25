@@ -118,7 +118,7 @@ class PrintAST(Visitor):
         else:
             return self.indent + str(o)
 
-    def visit_HaloOp(self, o):
+    def visit_HaloSpot(self, o):
         self._depth += 1
         body = self._visit(o.children)
         self._depth -= 1
@@ -283,7 +283,7 @@ class CGen(Visitor):
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
 
-    def visit_HaloOp(self, o):
+    def visit_HaloSpot(self, o):
         body = flatten(self._visit(i) for i in o.children)
         return c.Collection(body)
 
