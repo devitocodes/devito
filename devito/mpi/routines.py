@@ -212,19 +212,16 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         # the domain boundary, where the sender is actually MPI.PROC_NULL
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
-        srecv = MPIStatusObject(name='srecv')
-        ssend = MPIStatusObject(name='ssend')
+        count = reduce(mul, bufs.shape, 1)
         rrecv = MPIRequestObject(name='rrecv')
         rsend = MPIRequestObject(name='rsend')
-
-        count = reduce(mul, bufs.shape, 1)
         recv = Call('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
                                   fromrank, Integer(13), comm, rrecv])
         send = Call('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
                                   torank, Integer(13), comm, rsend])
 
-        waitrecv = Call('MPI_Wait', [rrecv, srecv])
-        waitsend = Call('MPI_Wait', [rsend, ssend])
+        waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
+        waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
         iet = List(body=iet_insert_C_decls(iet))
