@@ -131,9 +131,7 @@ def detect_flow_directions(exprs):
     # Determine indexed-wise direction by looking at the distance vector 
     mapper = defaultdict(set)
     for w in writes:
-        print(w)
         for r in reads:
-            print(r)
             if r.name != w.name:
                 continue
             dimensions = [d for d in w.aindices if d is not None]
