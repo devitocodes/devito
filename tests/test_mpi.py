@@ -352,16 +352,14 @@ posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
 posix_memalign((void**)&bufg, 64, sizeof(float[buf_x_size][buf_y_size]));
 MPI_Request rrecv;
 MPI_Request rsend;
-MPI_Status ssend;
-MPI_Status srecv;
 MPI_Irecv((float *)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
 if (torank != MPI_PROC_NULL)
 {
   gather3d((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
 }
 MPI_Isend((float *)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
-MPI_Wait(&rsend,&ssend);
-MPI_Wait(&rrecv,&srecv);
+MPI_Wait(&rsend,MPI_STATUS_IGNORE);
+MPI_Wait(&rrecv,MPI_STATUS_IGNORE);
 if (fromrank != MPI_PROC_NULL)
 {
   scatter3d((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
