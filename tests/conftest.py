@@ -1,5 +1,4 @@
 import os
-from itertools import product
 from subprocess import check_call
 
 import numpy as np
@@ -298,9 +297,18 @@ def parallel(item):
     mpi_distro = sniff_mpi_distro(mpi_exec)
 
     marker = item.get_closest_marker("parallel")
-    nprocs = as_tuple(marker.kwargs.get("nprocs", 2))
-    modes = as_tuple(marker.kwargs.get("mode", 'basic'))
-    for i, m in product(nprocs, modes):
+    mode = as_tuple(marker.kwargs.get("mode", 2))
+    for m in mode:
+        # Parse the `mode`
+        if isinstance(m, int):
+            nprocs = m
+            scheme = 'basic'
+        else:
+            try:
+                nprocs, scheme = m
+            except:
+                raise ValueError("Can't run test: unexpected mode `%s`" % m)
+
         # Only spew tracebacks on rank 0.
         # Run xfailing tests to ensure that errors are reported to calling process
         if item.cls is not None:
@@ -309,8 +317,8 @@ def parallel(item):
             testname = "%s::%s" % (item.fspath, item.name)
         args = ["-n", "1", "python", "-m", "pytest", "--runxfail", "-s",
                 "-q", testname]
-        if i > 1:
-            args.extend([":", "-n", "%d" % (i - 1), "python", "-m", "pytest",
+        if nprocs > 1:
+            args.extend([":", "-n", "%d" % (nprocs - 1), "python", "-m", "pytest",
                          "--runxfail", "--tb=no", "-q", testname])
         # OpenMPI requires an explicit flag for oversubscription. We need it as some
         # of the MPI tests will spawn lots of processes
@@ -320,7 +328,7 @@ def parallel(item):
             call = [mpi_exec] + args
 
         # Tell the MPI ranks that they are running a parallel test
-        os.environ['DEVITO_MPI'] = m
+        os.environ['DEVITO_MPI'] = scheme
         try:
             check_call(call)
         finally:
@@ -331,7 +339,7 @@ def pytest_configure(config):
     """Register an additional marker."""
     config.addinivalue_line(
         "markers",
-        "parallel(nprocs, mode='basic'): mark test to run in parallel"
+        "parallel(mode): mark test to run in parallel"
     )
 
 
