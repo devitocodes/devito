@@ -394,15 +394,7 @@ class SubDomain(object):
 
     @property
     def dimension_map(self):
-        dim_map = {}
-        for d in self.dimensions:
-            try:
-                dim_map[d.parent] = d
-            except:
-                # No parent and therefore must be the
-                # full dimension
-                dim_map[d] = d
-        return dim_map
+        return {d.root: d for d in self.dimensions}
 
     @property
     def shape(self):

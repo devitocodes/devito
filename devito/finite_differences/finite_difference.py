@@ -5,7 +5,7 @@ from sympy import S, finite_diff_weights
 from devito.finite_differences import Differentiable
 from devito.tools import Tag
 from devito.symbolics import retrieve_functions
-from devito.tools import filter_ordered, filter_sparse
+from devito.tools import filter_ordered
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'left', 'right', 'centered', 'transpose',
@@ -70,12 +70,14 @@ def check_symbolic(func):
     def wrapper(expr, *args, **kwargs):
         functions = retrieve_functions(expr)
         functions = filter_ordered(functions, key=lambda i: i.name)
-        functions = filter_sparse(functions)
+        functions = [f for f in functions if not f.is_SparseFunction]
         symbolic_coefficients = any(f.coefficients is 'symbolic' for f in functions)
         if symbolic_coefficients:
             expr_dict = expr.as_coefficients_dict()
-            if any(len(expr_dict.keys()) > 1 for item in expr_dict):
-                raise NotImplementedError
+            if any(len(expr_dict) > 1 for item in expr_dict):
+                raise NotImplementedError("Applying the chain rule to functions "
+                                          "with symbolic coefficients is not currently "
+                                          "supported")
         kwargs['symbolic_coefficients'] = symbolic_coefficients
         return func(expr, *args, **kwargs)
     return wrapper
@@ -377,7 +379,7 @@ def symbolic_weights(function, deriv_order, indices, dim):
 
     weights = []
     for j in range(n_weights):
-        weights += [function.fd_coeff_symbol()(indices[j], deriv_order, function, dim), ]
+        weights.append(function.fd_coeff_symbol(indices[j], deriv_order, function, dim))
     return weights
 
 

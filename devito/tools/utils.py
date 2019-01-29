@@ -10,8 +10,8 @@ from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'roundm',
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
-           'filter_sorted', 'filter_sparse', 'dtype_to_cstr', 'dtype_to_ctype',
-           'dtype_to_mpitype', 'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep']
+           'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
+           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep']
 
 
 def prod(iterable):
@@ -152,17 +152,6 @@ def filter_sorted(elements, key=None):
     if key is None:
         key = attrgetter('name')
     return sorted(filter_ordered(elements, key=key), key=key)
-
-
-def filter_sparse(elements):
-    """Remove any sparse functions from a list of functions."""
-    if bool(elements) and not any(bool(e.is_DiscreteFunction) for e in elements):
-        raise TypeError("List contains non Discrete Function")
-    filtered = []
-    for e in elements:
-        if not e.is_SparseFunction:
-            filtered += [e, ]
-    return filtered
 
 
 def dtype_to_cstr(dtype):
