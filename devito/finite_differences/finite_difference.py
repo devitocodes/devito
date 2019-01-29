@@ -78,14 +78,15 @@ def check_symbolic(func):
                 raise NotImplementedError("Applying the chain rule to functions "
                                           "with symbolic coefficients is not currently "
                                           "supported")
-        kwargs['symbolic_coefficients'] = symbolic_coefficients
+        kwargs['symbolic'] = symbolic_coefficients
         return func(expr, *args, **kwargs)
     return wrapper
 
 
 @check_input
 @check_symbolic
-def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **kwargs):
+def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
+                     symbolic=False):
     """
     First-order derivative of a given expression.
 
@@ -141,7 +142,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, **k
     ind = generate_indices(expr, dim, diff, order, side=side)[0]
 
     # Finite difference weights from Taylor approximation with this positions
-    if kwargs.pop('symbolic_coefficients'):
+    if symbolic:
         c = symbolic_weights(expr, 1, ind, dim)
     else:
         c = finite_diff_weights(1, ind, dim)[-1][-1]
@@ -194,7 +195,7 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
 
-    return generic_derivative(expr, dim, fd_order, 2, stagger=None)
+    return generic_derivative(expr, dim, fd_order, 2, stagger=None, **kwargs)
 
 
 @check_input
@@ -252,7 +253,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
 
 @check_input
 @check_symbolic
-def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, **kwargs):
+def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=False):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -280,7 +281,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, **kwargs)
 
     indices, x0 = generate_indices(expr, dim, diff, fd_order, stagger=stagger)
 
-    if kwargs.pop('symbolic_coefficients'):
+    if symbolic:
         c = symbolic_weights(expr, deriv_order, indices, x0)
     else:
         c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
