@@ -75,8 +75,7 @@ class LoweredEq(Eq, IREq):
     LoweredEq(devito.LoweredEq, **kwargs)
     LoweredEq(lhs, rhs, **kwargs)
 
-    A SymPy equation with associated :class:`IterationSpace` and
-    :class:`DataSpace`.
+    A SymPy equation with associated IterationSpace and DataSpace.
 
     When created as ``LoweredEq(sympy.Eq)``, the iteration and data spaces are
     automatically derived from analysis of ``expr``.
@@ -167,10 +166,9 @@ class ClusterizedEq(Eq, IREq, FrozenExpr, Pickable):
     ClusterizedEq(devito.IREq, **kwargs)
     ClusterizedEq(lhs, rhs, **kwargs)
 
-    A SymPy equation with associated :class:`IterationSpace` and
-    :class:`DataSpace`.
+    A SymPy equation with associated IterationSpace and DataSpace.
 
-    There are two main differences between a :class:`LoweredEq` and a
+    There are two main differences between a LoweredEq and a
     ClusterizedEq: ::
 
         * In a ClusterizedEq, the iteration and data spaces must *always*
@@ -179,8 +177,7 @@ class ClusterizedEq(Eq, IREq, FrozenExpr, Pickable):
           will not trigger re-evaluation (e.g., mathematical simplification)
           of the expression.
 
-    These two properties make a ClusterizedEq suitable for use in a
-    :class:`Cluster`.
+    These two properties make a ClusterizedEq suitable for use in a Cluster.
     """
 
     def __new__(cls, *args, **kwargs):
@@ -217,7 +214,7 @@ class DummyEq(ClusterizedEq):
     DummyEq(expr)
     DummyEq(lhs, rhs)
 
-    A special :class:`ClusterizedEq` that tracks no iteration or data spaces.
+    A special ClusterizedEq that tracks no iteration or data spaces.
     """
 
     def __new__(cls, *args):
