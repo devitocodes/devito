@@ -15,42 +15,42 @@ jobs:
       pip-gcc4:
         gccVersion: '4.9'
         DEVITO_OPENMP: '0'
-        DEVITO_MPI: '1'
+        MPI_INSTALL: '1'
         installWithPip: 'true'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'false'
       openmp-conda-gcc4:
         gccVersion: '4.9'
         DEVITO_OPENMP: '1'
-        DEVITO_MPI: '1'
+        MPI_INSTALL: '1'
         installWithPip: 'false'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'true'
       nompi-conda-gcc5:
         gccVersion: '5'
         DEVITO_OPENMP: '0'
-        DEVITO_MPI: '0'
+        MPI_INSTALL: '0'
         installWithPip: 'false'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'false'
       ops-conda-gcc7:
         gccVersion: '7'
         DEVITO_OPENMP: '0'
-        DEVITO_MPI: '1'
+        MPI_INSTALL: '1'
         installWithPip: 'false'
         DEVITO_BACKEND: 'ops'
         RUN_EXAMPLES: 'false'
       yask-conda-gcc7:
         gccVersion: '7'
         DEVITO_OPENMP: '0'
-        DEVITO_MPI: '1'
+        MPI_INSTALL: '1'
         installWithPip: 'false'
         DEVITO_BACKEND: 'yask'
         RUN_EXAMPLES: 'false'
       conda-gcc8:
         gccVersion: '8'
         DEVITO_OPENMP: '0'
-        DEVITO_MPI: '1'
+        MPI_INSTALL: '1'
         installWithPip: 'false'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'true'
@@ -67,7 +67,7 @@ jobs:
         --build-arg installWithPip=$(installWithPip)
         --build-arg DEVITO_BACKEND=$(DEVITO_BACKEND)
         --build-arg DEVITO_OPENMP=$(DEVITO_OPENMP)
-        --build-arg DEVITO_MPI=$(DEVITO_MPI)
+        --build-arg MPI_INSTALL=$(MPI_INSTALL)
         --build-arg RUN_EXAMPLES=$(RUN_EXAMPLES)
   - task: Docker@1
     displayName: "Run tests"
