@@ -886,7 +886,15 @@ class IncrDimension(DerivedDimension):
 
     @cached_property
     def symbolic_min(self):
-        return self._min if self._min is not None else self.parent.symbolic_min
+        if self._min is not None:
+            # Make sure we return a symbolic object as the provided min might
+            # be for example a pure int
+            try:
+                return sympy.Number(self._min)
+            except (TypeError, ValueError):
+                return self._min
+        else:
+            return self.parent.symbolic_min
 
     @property
     def symbolic_incr(self):
