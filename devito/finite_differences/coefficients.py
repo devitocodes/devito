@@ -5,12 +5,12 @@ from cached_property import cached_property
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered
 
-__all__ = ['Coefficients', 'Coefficient', 'default_rules']
+__all__ = ['Coefficient', 'CoefficientRules', 'default_rules']
 
 
 class Coefficient(object):
     """
-    Prepare custom FD coefficients to pass to Coefficients object.
+    Prepare custom FD coefficients to pass to CoefficientRules object.
 
     Parameters
     ----------
@@ -105,15 +105,32 @@ class Coefficient(object):
         return
 
 
-# FIXME: Class naming a bit unclear
-class Coefficients(object):
+class CoefficientRules(object):
     """
-    Devito class for users to define custom finite difference weights.
-    Input must be given as Devito Coefficient objects.
+    Devito class to convert Coefficient objects into replacent rules
+    to be applied when constructing a Devito Eq.
 
-    Coefficients objects created in this manner must then be
-    passed to Devito equation objects for the replacement rules
-    to take effect.
+    Example
+    -------
+    Assume we have created the 'u_x_coeffs' Coefficient object
+    as shown above in the Class Coefficient example.
+
+    >>> from devito import CoefficientRules
+    >>> coeffs = CoefficientsRules(u_x_coeffs)
+
+    Now create a Devito equation and pass to it 'coeffs'
+
+    >>> from devito import Eq
+    >>> eq = Eq(u.dt+u.dx, coefficients=coeffs)
+    Eq(0.1*u(t, x, y) - 0.6*u(t, x - h_x, y) + 0.6*u(t, x + h_x, y) 
+    - u(t - dt, x, y)/(2*dt) + u(t + dt, x, y)/(2*dt), 0)
+
+    Notes
+    -----
+    If a function is declared with 'symbolic' coefficients and no
+    replacement rules for any derivative appearing in a Devito equation,
+    the coefficients will revert to those of the 'default' Taylor
+    expansion.
     """
 
     def __init__(self, *args):
