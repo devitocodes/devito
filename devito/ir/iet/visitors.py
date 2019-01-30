@@ -491,6 +491,8 @@ class FindSymbols(Visitor):
         symbols = flatten([self._visit(i) for i in o])
         return filter_sorted(symbols, key=attrgetter('name'))
 
+    visit_list = visit_tuple
+
     def visit_Iteration(self, o):
         symbols = flatten([self._visit(i) for i in o.children])
         symbols += self.rule(o)
@@ -543,6 +545,8 @@ class FindNodes(Visitor):
         for i in o:
             ret = self._visit(i, ret=ret)
         return ret
+
+    visit_list = visit_tuple
 
     def visit_Node(self, o, ret=None):
         if ret is None:
