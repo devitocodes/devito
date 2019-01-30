@@ -1,6 +1,6 @@
 import abc
 from collections import OrderedDict
-from itertools import combinations, product
+from itertools import product
 from time import time
 
 import cgen

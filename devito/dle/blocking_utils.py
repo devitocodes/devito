@@ -13,13 +13,10 @@ __all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 
 
 def fold_blockable_tree(node, exclude_innermost=False):
-    """
-    Create IterationFolds from sequences of nested Iterations.
-    """
-    found = FindAdjacent(Iteration).visit(node)
+    """Create IterationFolds from sequences of nested Iterations."""
 
     mapper = {}
-    for k, v in found.items():
+    for k, v in FindAdjacent(Iteration).visit(node).items():
         for i in v:
             # Pre-condition: they all must be perfect iterations
             assert len(i) > 1
@@ -178,24 +175,23 @@ def optimize_unfolded_tree(unfolded, root):
 
         # "Shrink" the iteration space
         for t1, t2 in zip(tree, root):
-            t1_udim = IncrDimension(t1.dim, t1.limits[0], 1, "%ss%d" % (t1.index, i))
+            t1_udim = IncrDimension(t1.dim, t1.symbolic_min, 1, "%ss%d" % (t1.index, i))
             limits = (0, t1.limits[1] - t1.limits[0], t1.symbolic_incr)
             modified_tree.append(t1._rebuild(limits=limits,
                                              uindices=t1.uindices + (t1_udim,)))
 
-            t2_udim = IncrDimension(t1.dim, -t1.limits[0], 1, "%ss%d" % (t1.index, i))
+            t2_udim = IncrDimension(t1.dim, 0, 1, "%ss%d" % (t1.index, i))
             modified_root.append(t2._rebuild(uindices=t2.uindices + (t2_udim,)))
 
             mapper[t1.dim] = t1_udim
 
         # Temporary arrays can now be moved onto the stack
-        if all(not j.is_Remainder for j in modified_tree):
-            dimensions = tuple(j.limits[0] for j in modified_root)
-            for j in writes:
-                if j.is_Array:
-                    j_dimensions = dimensions + j.dimensions[len(modified_root):]
-                    j_shape = tuple(k.symbolic_size for k in j_dimensions)
-                    j.update(shape=j_shape, dimensions=j_dimensions, scope='stack')
+        dimensions = tuple(j.limits[0] for j in modified_root)
+        for j in writes:
+            if j.is_Array:
+                j_dimensions = dimensions + j.dimensions[len(modified_root):]
+                j_shape = tuple(k.symbolic_size for k in j_dimensions)
+                j.update(shape=j_shape, dimensions=j_dimensions, scope='stack')
 
         # Substitute iteration variables within the folded trees
         modified_tree = compose_nodes(modified_tree)
