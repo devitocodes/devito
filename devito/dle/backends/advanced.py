@@ -9,11 +9,11 @@ from devito.dle import BlockDimension, fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, Ompizer, dle_pass, simdinfo,
                                  get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
-from devito.ir.iet import (Expression, Iteration, List, PARALLEL, ELEMENTAL,
-                           REMAINDER, tagger, FindSymbols, FindNodes, Transformer,
-                           IsPerfectIteration, compose_nodes, retrieve_iteration_tree)
+from devito.ir.iet import (Expression, Iteration, List, HaloSpot, PARALLEL, ELEMENTAL,
+                           REMAINDER, tagger, FindSymbols, FindNodes, IsPerfectIteration,
+                           MapNodes, Transformer, compose_nodes, retrieve_iteration_tree)
 from devito.logger import perf_adv
-from devito.tools import as_tuple
+from devito.tools import as_mapper, as_tuple, split
 
 
 class AdvancedRewriter(BasicRewriter):
@@ -22,6 +22,7 @@ class AdvancedRewriter(BasicRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
+        self._merge_halospots(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
@@ -40,6 +41,37 @@ class AdvancedRewriter(BasicRewriter):
                 continue
             perf_adv("Functions using modulo iteration along Dimension `%s` "
                      "may safely allocate a one slot smaller buffer" % i.dim)
+        return iet, {}
+
+    @dle_pass
+    def _merge_halospots(self, iet, state):
+        """
+        Optimize the HaloSpots in ``iet``.
+
+        * Remove all USELESS HaloSpots;
+        * Merge all HOISTABLE HaloSpots with their root HaloSpot, thus
+          removing redundant communications and anticipating communications
+          that will be required by later Iterations.
+        """
+        mapper = {}
+        for k, v in MapNodes(child_types=HaloSpot).visit(iet).items():
+            halo_spots = as_mapper(v, lambda hs: hs.target)
+            for hss in halo_spots.values():
+                # Drop USELESS HaloSpots
+                needed, useless = split(hss, lambda i: not i.is_Useless)
+                mapper.update({i: None for i in useless})
+
+                # Deal with HOISTABLE HaloSpots
+                if not needed:
+                    continue
+                top = needed[0]
+                hoistable = [i for i in needed[1:] if i.is_Hoistable]
+                mapper.update({i: None for i in hoistable})
+                hoistable = [i.halo_scheme for i in hoistable]
+                mapper[top] = HaloSpot(top.halo_scheme.union(hoistable))
+
+        iet = Transformer(mapper, nested=True).visit(iet)
+
         return iet, {}
 
     @dle_pass
@@ -249,6 +281,7 @@ class AdvancedRewriterSafeMath(AdvancedRewriter):
     """
 
     def _pipeline(self, state):
+        self._merge_halospots(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
@@ -261,6 +294,7 @@ class SpeculativeRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
+        self._merge_halospots(state)
         self._loop_wrapping(state)
         self._loop_blocking(state)
         self._simdize(state)
@@ -302,6 +336,7 @@ class CustomRewriter(SpeculativeRewriter):
 
     passes_mapper = {
         'denormals': SpeculativeRewriter._avoid_denormals,
+        'mergecomms': SpeculativeRewriter._merge_halospots,
         'wrapping': SpeculativeRewriter._loop_wrapping,
         'blocking': SpeculativeRewriter._loop_blocking,
         'openmp': SpeculativeRewriter._parallelize,
