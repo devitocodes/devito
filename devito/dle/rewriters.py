@@ -1,20 +1,127 @@
+import abc
 from collections import OrderedDict
 from itertools import combinations, product
+from time import time
 
 import cgen
 import numpy as np
 
 from devito.cgen_utils import ccode
-from devito.dle import BlockDimension, fold_blockable_tree, unfold_blocked_tree
-from devito.dle.backends import (BasicRewriter, Ompizer, dle_pass, simdinfo,
-                                 get_simd_flag, get_simd_items)
+from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
+                                       unfold_blocked_tree)
+from devito.dle.parallelizer import Ompizer
+from devito.dle.utils import complang_ALL, simdinfo, get_simd_flag, get_simd_items
 from devito.exceptions import DLEException
-from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, PARALLEL,
-                           REMAINDER, FindSymbols, FindNodes, FindAdjacent,
+from devito.ir.iet import (Denormals, Expression, Iteration, List, HaloSpot,
+                           PARALLEL, FindSymbols, FindNodes, FindAdjacent,
                            IsPerfectIteration, MapNodes, Transformer, compose_nodes,
                            retrieve_iteration_tree, make_efunc)
-from devito.logger import perf_adv
+from devito.logger import dle, perf_adv
+from devito.parameters import configuration
 from devito.tools import as_tuple, flatten
+
+__all__ = ['BasicRewriter', 'AdvancedRewriter', 'SpeculativeRewriter',
+           'AdvancedRewriterSafeMath', 'CustomRewriter']
+
+
+def dle_pass(func):
+
+    def wrapper(self, state, **kwargs):
+        tic = time()
+        # Processing
+        processed, extra = func(self, state.nodes, state)
+        for i, nodes in enumerate(list(state.efuncs)):
+            state.efuncs[i], _ = func(self, nodes, state)
+        # State update
+        state.update(processed, **extra)
+        toc = time()
+
+        self.timings[func.__name__] = toc - tic
+
+    return wrapper
+
+
+class State(object):
+
+    """Represent the output of the DLE."""
+
+    def __init__(self, nodes):
+        self.nodes = nodes
+
+        self.efuncs = []
+        self.dimensions = []
+        self.input = []
+        self.includes = []
+
+    def update(self, nodes, **kwargs):
+        self.nodes = nodes
+
+        self.efuncs.extend(list(kwargs.get('efuncs', [])))
+        self.dimensions.extend(list(kwargs.get('dimensions', [])))
+        self.input.extend(list(kwargs.get('input', [])))
+        self.includes.extend(list(kwargs.get('includes', [])))
+
+
+class AbstractRewriter(object):
+    """
+    Transform Iteration/Expression trees (IETs) to generate high performance C.
+
+    This is just an abstract class. Actual transformers should implement the
+    abstract method ``_pipeline``, which performs a sequence of IET transformations.
+    """
+
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self, nodes, params):
+        self.nodes = nodes
+        self.params = params
+
+        self.timings = OrderedDict()
+
+    def run(self):
+        """The optimization pipeline, as a sequence of AST transformation passes."""
+        state = State(self.nodes)
+
+        self._pipeline(state)
+
+        self._summary()
+
+        return state
+
+    @abc.abstractmethod
+    def _pipeline(self, state):
+        return
+
+    def _summary(self):
+        """Print a summary of the DLE transformations."""
+        row = "%s [elapsed: %.2f]"
+        out = " >>\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k[1:])),
+                                       v)
+                                for k, v in self.timings.items())
+        elapsed = sum(self.timings.values())
+        dle("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
+
+
+class BasicRewriter(AbstractRewriter):
+
+    def _pipeline(self, state):
+        self._avoid_denormals(state)
+
+    def _compiler_decoration(self, name, default=None):
+        key = configuration['compiler'].__class__.__name__
+        complang = complang_ALL.get(key, {})
+        return complang.get(name, default)
+
+    @dle_pass
+    def _avoid_denormals(self, nodes, state):
+        """
+        Introduce nodes in the Iteration/Expression tree that will expand to C
+        macros telling the CPU to flush denormal numbers in hardware. Denormals
+        are normally flushed when using SSE-based instruction sets, except when
+        compiling shared objects.
+        """
+        return (List(body=(Denormals(), nodes)),
+                {'includes': ('xmmintrin.h', 'pmmintrin.h')})
 
 
 class AdvancedRewriter(BasicRewriter):

@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from devito.dle.backends import AdvancedRewriter, Ompizer
+from devito.dle import AdvancedRewriter, Ompizer
 from devito.ir.iet import Expression, FindNodes, Transformer
 from devito.logger import yask_warning as warning
 

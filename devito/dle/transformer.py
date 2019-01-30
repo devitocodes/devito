@@ -1,5 +1,5 @@
 from devito.ir.iet import Node
-from devito.dle.backends import State, CustomRewriter
+from devito.dle.rewriters import CustomRewriter, State
 from devito.exceptions import DLEException
 from devito.logger import dle_warning
 from devito.parameters import configuration
