@@ -122,7 +122,7 @@ class CoefficientRules(object):
 
     >>> from devito import Eq
     >>> eq = Eq(u.dt+u.dx, coefficients=coeffs)
-    Eq(0.1*u(t, x, y) - 0.6*u(t, x - h_x, y) + 0.6*u(t, x + h_x, y) 
+    Eq(0.1*u(t, x, y) - 0.6*u(t, x - h_x, y) + 0.6*u(t, x + h_x, y)
     - u(t - dt, x, y)/(2*dt) + u(t + dt, x, y)/(2*dt), 0)
 
     Notes
