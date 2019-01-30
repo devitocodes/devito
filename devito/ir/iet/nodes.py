@@ -13,7 +13,7 @@ from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
-                           REDUNDANT)
+                           HOISTABLE, USELESS)
 from devito.ir.support import Forward, detect_io
 from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
@@ -779,13 +779,14 @@ class Section(List):
 class HaloSpot(List):
 
     """
-    A node representing an MPI halo exchange.
+    A node representing an MPI halo exchange for a certain Function.
     """
 
     is_HaloSpot = True
 
     def __init__(self, halo_scheme, body=None, properties=None):
         super(HaloSpot, self).__init__(body=body)
+        assert len(halo_scheme) == 1
         self.halo_scheme = halo_scheme
         self.properties = as_tuple(properties)
 
@@ -794,16 +795,31 @@ class HaloSpot(List):
         return self.halo_scheme.fmapper
 
     @property
-    def mask(self):
-        return self.halo_scheme.mask
+    def target(self):
+        return list(self.fmapper)[0]
 
     @property
-    def is_Redundant(self):
-        return REDUNDANT in self.properties
+    def loc_indices(self):
+        return list(self.fmapper.values())[0].loc_indices
+
+    @property
+    def halos(self):
+        return self.halo_scheme.halos
+
+    @property
+    def is_Hoistable(self):
+        return HOISTABLE in self.properties
+
+    @property
+    def is_Useless(self):
+        return USELESS in self.properties
 
     def __repr__(self):
-        redundant = "[redundant]" if self.is_Redundant else ""
-        return "<HaloSpot%s>" % redundant
+        if self.properties:
+            properties = "[%s]" % ",".join(str(i) for i in self.properties)
+        else:
+            properties = ""
+        return "<HaloSpot%s>" % properties
 
 
 class ExpressionBundle(List):

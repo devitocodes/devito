@@ -2,9 +2,9 @@ from cached_property import cached_property
 from sympy import Basic, S
 
 from devito.ir.support.space import Any, Backward
-from devito.symbolics import retrieve_terminals, q_monoaffine, q_inc
-from devito.tools import (Tag, as_tuple, is_integer, filter_sorted,
-                          flatten, memoized_meth)
+from devito.symbolics import retrieve_terminals, q_monoaffine
+from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
+                          filter_sorted, flatten, memoized_meth)
 from devito.types import Dimension
 
 __all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
@@ -260,7 +260,7 @@ class IterationInstance(Vector):
             else:
                 dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
                 aindices.append(dims.pop() if len(dims) == 1 else None)
-        return tuple(aindices)
+        return EnrichedTuple(*aindices, getters=self.findices)
 
     @cached_property
     def findices_affine(self):
@@ -286,22 +286,33 @@ class IterationInstance(Vector):
         findices = as_tuple(findices)
         return (set(findices) & set(self.findices)).issubset(set(self.findices_affine))
 
-    def touch_halo(self, findices):
+    def touched_halo(self, findex):
         """
-        Return True if self accesses the halo along any of the provided findices,
-        False otherwise.
+        Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
+        means that the halo is touched along that DataSide.
         """
         # Given `d` \in findices, iterating over [0, size_d):
-        # * if self[d] - d < self.function._size_halo[d].left, then `self` will
-        #   definitely touch the left-halo when d=0
-        # * if self[d] - d > self.function._size_halo[d].left, then `self` will
-        #   definitely touch the right-halo when d=size_d-1
-        # TODO: the underlying assumption here is that `d` iterates in [0, size_d],
-        # which is the typical case. If that's not the case, we have to generalise
-        # this method. For this, we will have to attach more iteration space
-        # information to IterationInstance, such as start/end point, increment, etc.
-        return all(self[d] - d != self.function._size_halo[d].left
-                   for d in as_tuple(findices))
+        # * if `self[d] - d < self.function._size_halo[d].left`, then `self` will
+        #   definitely touch the left-halo when `d=0`
+        # * if `self[d] - d > self.function._size_halo[d].left`, then `self` will
+        #   definitely touch the right-halo when `d=size_d-1`
+        aindex = self.aindices[findex]
+        size_halo_left = self.function._size_halo[findex].left
+        try:
+            touch_halo_left = bool(self[findex] - aindex < size_halo_left)
+        except TypeError:
+            # Conservatively assume True. We might end up here, for example,
+            # in the following cases:
+            # * The `aindex` doesn't appear in `self[findex]`, such as when the
+            #   `aindex` is a pure number of a different Dimension
+            # * `self[findex]` isn't affine in the `aindex`
+            touch_halo_left = True
+        try:
+            touch_halo_right = bool(self[findex] - aindex > size_halo_left)
+        except TypeError:
+            # Same considerations as in the try-except above
+            touch_halo_right = True
+        return (touch_halo_left, touch_halo_right)
 
     def irregular(self, findices):
         """
@@ -750,14 +761,14 @@ class Scope(object):
             # reads
             for j in retrieve_terminals(e.rhs):
                 v = self.reads.setdefault(j.function, [])
-                mode = 'R' if not q_inc(e) else 'RI'
+                mode = 'RI' if e.is_Increment and j.function is e.lhs.function else 'R'
                 v.append(TimedAccess(j, mode, i, e.ispace.directions))
             # write
             v = self.writes.setdefault(e.lhs.function, [])
-            mode = 'W' if not q_inc(e) else 'WI'
+            mode = 'WI' if e.is_Increment else 'W'
             v.append(TimedAccess(e.lhs, mode, i, e.ispace.directions))
             # if an increment, we got one implicit read
-            if q_inc(e):
+            if e.is_Increment:
                 v = self.reads.setdefault(e.lhs.function, [])
                 v.append(TimedAccess(e.lhs, 'RI', i, e.ispace.directions))
 

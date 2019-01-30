@@ -7,7 +7,7 @@ from operator import mul
 
 from sympy import Integer
 
-from devito.data import OWNED, HALO, NOPAD, LEFT, RIGHT
+from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls, PARALLEL)
@@ -24,12 +24,15 @@ class HaloExchangeBuilder(object):
     Build IET-based routines to implement MPI halo exchange.
     """
 
-    def __new__(cls, threaded):
-        obj = object.__new__(BasicHaloExchangeBuilder)
-        obj.__init__(threaded)
+    def __new__(cls, threaded, mode='basic'):
+        if mode is True or mode == 'basic':
+            obj = object.__new__(BasicHaloExchangeBuilder)
+        elif mode == 'diag':
+            obj = object.__new__(DiagHaloExchangeBuilder)
+        obj.__init__(threaded, mode)
         return obj
 
-    def __init__(self, threaded):
+    def __init__(self, threaded, mode='basic'):
         self._threaded = threaded
 
     @abc.abstractmethod
@@ -69,11 +72,11 @@ class HaloExchangeBuilder(object):
                     sendrecv = self._make_sendrecv(df, v.loc_indices, extra)
                     generated[f.ndim] = [gather, scatter, sendrecv]
                 # `haloupdate` is generic by construction -- it only needs to be
-                # generated once for each (`ndim`, `mask`)
+                # generated once for each (`ndim`, `halos`)
                 if (f.ndim, v) not in generated:
                     uniquekey = len([i for i in generated if isinstance(i, tuple)])
                     generated[(f.ndim, v)] = [self._make_haloupdate(df, v.loc_indices,
-                                                                    hs.mask[f], extra,
+                                                                    hs.halos[f], extra,
                                                                     uniquekey)]
 
                 # `haloupdate` Call construction
@@ -150,7 +153,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
     """
     Build basic routines for MPI halo exchanges. No optimisations are performed.
 
-    The only constraint is that the built ``update_halo`` Callable is called prior
+    The only constraint is that the built ``haloupdate`` Callable is called prior
     to executing the code region requiring up-to-date halos.
     """
 
@@ -200,7 +203,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                       [fromrank, torank, comm] + extra)
         return Callable('sendrecv%dd' % f.ndim, iet, 'void', parameters, ('static',))
 
-    def _make_haloupdate(self, f, fixed, mask, extra=None, uniquekey=None):
+    def _make_haloupdate(self, f, fixed, halos, extra=None, uniquekey=None):
         extra = extra or []
         distributor = f.grid.distributor
         nb = distributor._obj_neighborhood
@@ -236,22 +239,81 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
             lpeer = FieldFromPointer(name, nb)
 
-            if mask[(d, LEFT)]:
+            if (d, LEFT) in halos:
                 # Sending to left, receiving from right
                 lsizes, loffsets = mapper[(d, LEFT, OWNED)]
                 rsizes, roffsets = mapper[(d, RIGHT, HALO)]
                 args = [f] + lsizes + loffsets + roffsets + [rpeer, lpeer, comm] + extra
                 body.append(Call('sendrecv%dd' % f.ndim, args))
 
-            if mask[(d, RIGHT)]:
+            if (d, RIGHT) in halos:
                 # Sending to right, receiving from left
                 rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
                 lsizes, loffsets = mapper[(d, LEFT, HALO)]
                 args = [f] + rsizes + roffsets + loffsets + [lpeer, rpeer, comm] + extra
                 body.append(Call('sendrecv%dd' % f.ndim, args))
 
-        if uniquekey is None:
-            uniquekey = ''.join(str(int(i)) for i in mask.values())
+        name = 'haloupdate%dd%s' % (f.ndim, uniquekey)
+        iet = List(body=body)
+        parameters = [f, comm, nb] + list(fixed.values()) + extra
+        return Callable(name, iet, 'void', parameters, ('static',))
+
+
+class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
+
+    """
+    Build routines for MPI halo exchanges with explicit send/recv to/from
+    diagonal neighbours. No optimisations are performed.
+
+    The only constraint is that the built ``haloupdate`` Callable is called prior
+    to executing the code region requiring up-to-date halos.
+    """
+
+    def _make_haloupdate(self, f, fixed, halos, extra=None, uniquekey=None):
+        halos = [i.side for i in halos]
+        extra = extra or []
+        distributor = f.grid.distributor
+        nb = distributor._obj_neighborhood
+        comm = distributor._obj_comm
+
+        fixed = {d: Symbol(name="o%s" % d.root) for d in fixed}
+        all_tosides = list(product([LEFT, CENTER, RIGHT], repeat=distributor.ndim))
+        all_fromsides = list(reversed(all_tosides))
+
+        # Build an iterable `[((tosides, size, ofs), (fromsides, size, ofs)), ...]`
+        # for `f`. `size` and `ofs` are symbolic objects. This mapper tells what data
+        # values should be sent (OWNED) or received (HALO) given the dimension sides
+        candidates = []
+        for i in zip(all_tosides, all_fromsides):
+            handle = []
+            for sides, region in zip(i, [OWNED, HALO]):
+                sizes = []
+                offsets = []
+                mapper = dict(zip(distributor.dimensions, sides))
+                for d in f.dimensions:
+                    if d in fixed:
+                        offsets.append(fixed[d])
+                    else:
+                        meta = f._C_get_field(region, d, mapper[d])
+                        offsets.append(meta.offset)
+                        sizes.append(meta.size)
+                handle.append((sides, sizes, offsets))
+            candidates.append(tuple(handle))
+
+        body = []
+        for (tosides, tosizes, tooffs), (fromsides, fromsizes, fromoffs) in candidates:
+            if tosides not in halos:
+                # Ignore useless halo exchanges
+                continue
+
+            name = ''.join(i.name[0] for i in tosides)
+            topeer = FieldFromPointer(name, nb)
+            name = ''.join(i.name[0] for i in fromsides)
+            frompeer = FieldFromPointer(name, nb)
+
+            args = [f] + tosizes + tooffs + fromoffs + [frompeer, topeer, comm] + extra
+            body.append(Call('sendrecv%dd' % f.ndim, args))
+
         name = 'haloupdate%dd%s' % (f.ndim, uniquekey)
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values()) + extra
