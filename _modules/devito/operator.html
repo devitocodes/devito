@@ -329,8 +329,8 @@
         <span class="c1"># Lower Schedule tree to an Iteration/Expression tree (IET)</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_build</span><span class="p">(</span><span class="n">stree</span><span class="p">)</span>
         <span class="n">iet</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profiler</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profile_sections</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
-        <span class="n">iet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_mpi</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_specialize_iet</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">iet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_mpi</span><span class="p">(</span><span class="n">iet</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="n">iet_insert_C_decls</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
         <span class="n">iet</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_casts</span><span class="p">(</span><span class="n">iet</span><span class="p">)</span>
 
