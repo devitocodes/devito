@@ -30,18 +30,25 @@ class TestSC(object):
         eq1 = Eq(u1.dt-u1.dx)
         assert(eq0.evalf(_PRECISION).__repr__() == eq1.evalf(_PRECISION).__repr__())
 
-    @pytest.mark.parametrize('expected', [
-        ('0.1*u(x) - 0.6*u(x - h_x) + 0.6*u(x + h_x)'),
-    ])
-    def test_coefficients(self, expected):
+    @pytest.mark.parametrize('expr, sorder, dorder, dim, weights, expected', [
+        ('u.dx', 2, 1, 0, (-0.6, 0.1, 0.6),
+         '0.1*u(x, y) - 0.6*u(x - h_x, y) + 0.6*u(x + h_x, y)'),
+        #('u.dy2', 3, 2, 1, (0.121, -0.223,  1.648 , -2.904),
+         #'1.648*u(x,y)+0.121*u(x,y-2*h_y)-0.223*u(x,y-h_y)-2.904*u(x,y+h_y)')
+        ])
+    def test_coefficients(self, expr, sorder, dorder, dim, weights, expected):
         """Test that custom coefficients return the expected result"""
-        grid = Grid(shape=(10,))
-        u = Function(name='u', grid=grid, space_order=2, coefficients='symbolic')
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid, space_order=sorder, coefficients='symbolic')
         x = grid.dimensions
 
-        coeffs = Coefficient(1, u, x[0], np.array([-0.6, 0.1, 0.6]))
+        order = dorder
+        dim = x[dim]
+        weights = np.array(weights)
 
-        eq = Eq(u.dx, coefficients=CoefficientRules(coeffs))
+        coeffs = Coefficient(order, u, dim, weights)
+
+        eq = Eq(eval(expr), coefficients=CoefficientRules(coeffs))
 
         assert isinstance(eq.lhs, Differentiable)
         assert expected == str(eq.lhs)
