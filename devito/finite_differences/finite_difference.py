@@ -71,7 +71,7 @@ def check_symbolic(func):
         functions = retrieve_functions(expr)
         functions = filter_ordered(functions, key=lambda i: i.name)
         functions = [f for f in functions if not f.is_SparseFunction]
-        symbolic_coefficients = any(f.coefficients is 'symbolic' for f in functions)
+        symbolic_coefficients = any(f.coefficients == 'symbolic' for f in functions)
         if symbolic_coefficients:
             expr_dict = expr.as_coefficients_dict()
             if any(len(expr_dict) > 1 for item in expr_dict):
@@ -149,8 +149,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     all_dims = tuple(set((dim,) + tuple([i for i in expr.indices if i.root == dim])))
     # Loop through positions
     for i in range(0, len(ind)):
-            subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
-            deriv += expr.subs(subs) * c[i]
+        subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
+        deriv += expr.subs(subs) * c[i]
     return (matvec.val*deriv).evalf(_PRECISION)
 
 
@@ -290,8 +290,8 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
     all_dims = tuple(set((dim, ) +
                      tuple([i for i in expr.indices if i.root == dim])))
     for i in range(0, len(indices)):
-            subs = dict([(d, indices[i].subs({dim: d})) for d in all_dims])
-            deriv += expr.subs(subs) * c[i]
+        subs = dict([(d, indices[i].subs({dim: d})) for d in all_dims])
+        deriv += expr.subs(subs) * c[i]
 
     return deriv.evalf(_PRECISION)
 

@@ -981,7 +981,7 @@ class Function(DiscreteFunction, Differentiable):
 
     @cached_property
     def fd_coeff_symbol(self):
-        if self.coefficients is 'symbolic':
+        if self.coefficients == 'symbolic':
             return sympy.Function('W')
         else:
             raise ValueError("Function was not declared with symbolic "
