@@ -174,25 +174,44 @@ class AdvancedRewriter(BasicRewriter):
                            for hs in halo_spots[1:]})
         iet = Transformer(mapper, nested=True).visit(iet)
 
-        # At this point, some HaloSpots may be empty (i.e., no communications required)
-        # Such HaloSpots can be dropped and their body might be squashable with that
-        # of an adjacent HaloSpot
+        # At this point, some HaloSpots may have become empty (i.e., requiring
+        # no communications), hence they can be removed
+        #
+        # <HaloSpot(u,v)>           HaloSpot(u,v)
+        #   <A>                       <A>
+        # <HaloSpot()>      ---->   <B>
+        #   <B>
+        mapper = {i: i.body for i in FindNodes(HaloSpot).visit(iet) if i.is_empty}
+        iet = Transformer(mapper, nested=True).visit(iet)
+
+        # Finally, we try to move HaloSpot-free Iteration nests within HaloSpot
+        # subtrees, to overlap as much computation as possible. The HaloSpot-free
+        # Iteration nests must be fully affine, otherwise we wouldn't be able to
+        # honour the data dependences along the halo
+        #
+        # <HaloSpot(u,v)>            HaloSpot(u,v)
+        #   <A>             ---->      <A>
+        # <B>              affine?     <B>
+        #
+        # Here, <B> doesn't require any halo exchange, but it might still need the
+        # output of <A>; thus, if we do computation/communication overlap over <A>
+        # *and* want to embed <B> within the HaloSpot, then <B>'s iteration space
+        # will have to be split as well. For this, <B> must be affine.
         mapper = {}
-        for v in FindAdjacent(HaloSpot).visit(iet).values():
+        for v in FindAdjacent((HaloSpot, Iteration)).visit(iet).values():
             for g in v:
-                root = g[0]
-                for i in g[1:]:
-                    if i.is_empty:
+                root = None
+                for i in g:
+                    if i.is_HaloSpot:
+                        root = i
+                    elif root and all(j.is_Affine for j in FindNodes(Iteration).visit(i)):
                         rebuilt = mapper.get(root, root)
-                        body = List(body=as_tuple(root.body) + (i.body,))
+                        body = List(body=as_tuple(root.body) + (i,))
                         mapper[root] = rebuilt._rebuild(body=body)
                         mapper[i] = None
                     else:
-                        root = i
-        # Finally, any leftover empty HaloSpot should be dropped
-        mapper.update({i: i.body for i in FindNodes(HaloSpot).visit(iet)
-                       if i.is_empty and i not in mapper})
-        iet = Transformer(mapper, nested=True).visit(iet)
+                        root = None
+        iet = Transformer(mapper).visit(iet)
 
         return iet, {}
 
