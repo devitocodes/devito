@@ -572,7 +572,7 @@ class FindAdjacent(Visitor):
 
     def __init__(self, match):
         super(FindAdjacent, self).__init__()
-        self.match = match
+        self.match = as_tuple(match)
 
     def handler(self, o, parent=None, ret=None):
         if ret is None:
@@ -606,7 +606,7 @@ class FindAdjacent(Visitor):
 
     def visit_Node(self, o, parent=None, ret=None):
         ret = self.handler(o.children, parent=o, ret=ret)
-        ret['seen_type'] = type(o) is self.match
+        ret['seen_type'] = type(o) in self.match
         return ret
 
 
