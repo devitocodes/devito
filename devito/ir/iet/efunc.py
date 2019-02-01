@@ -1,10 +1,12 @@
+from anytree import NodeMixin, PreOrderIter, RenderTree, ContStyle
+
 from devito.ir.iet.nodes import ArrayCast, Call, Callable, Expression, List
 from devito.ir.iet.scheduler import iet_insert_C_decls
 from devito.ir.iet.utils import derive_parameters
 from devito.ir.iet.visitors import FindSymbols, FindNodes
 from devito.tools import as_tuple
 
-__all__ = ['make_efunc']
+__all__ = ['make_efunc', 'EFuncNode']
 
 
 class ElementalFunction(Callable):
@@ -66,3 +68,26 @@ def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static
     params = [i for i in derive_parameters(iet) if i not in local]
 
     return ElementalFunction(name, iet, retval, params, prefix, dynamic_parameters)
+
+
+class EFuncNode(NodeMixin):
+
+    """A simple utility class to keep track of ElementalFunctions and Call sites."""
+
+    def __init__(self, iet, parent=None, name=None):
+        self.iet = iet
+        if name is not None:
+            self.name = name
+        else:
+            assert iet.is_Callable
+            self.name = iet.name
+        self.parent = parent
+
+        self._rendered_name = "<%s>" % self.name
+
+    def __repr__(self):
+        return RenderTree(self, style=ContStyle()).by_attr('_rendered_name')
+
+    def visit(self):
+        for i in PreOrderIter(self):
+            yield i
