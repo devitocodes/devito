@@ -30,9 +30,6 @@ COLLAPSED = lambda i: IterationProperty('collapsed', i)
 VECTOR = IterationProperty('vector-dim')
 """The Iteration can be SIMD-vectorized."""
 
-REMAINDER = IterationProperty('remainder')
-"""The Iteration implements a remainder/peeler loop."""
-
 WRAPPABLE = IterationProperty('wrappable')
 """The Iteration implements modulo buffered iteration and its expressions are so that
 one or more buffer slots can be dropped without affecting correctness. For example,
