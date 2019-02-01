@@ -380,10 +380,10 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
             all_ind = [slice(0, d) for d in data.shape]
             # Left slice for dampening for dimension i
             all_ind[i] = slice(j, j+1)
-            data[all_ind] += val/spacing[i]
+            data[tuple(all_ind)] += val/spacing[i]
             # right slice for dampening for dimension i
             all_ind[i] = slice(data.shape[i]-j, data.shape[i]-j+1)
-            data[all_ind] += val/spacing[i]
+            data[tuple(all_ind)] += val/spacing[i]
 
     initialize_function(damp, data, 0)
 

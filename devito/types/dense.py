@@ -1,6 +1,7 @@
 from collections import namedtuple
 from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
-from functools import wraps
+from functools import wraps, reduce
+from operator import mul
 
 import numpy as np
 from psutil import virtual_memory
@@ -17,7 +18,8 @@ from devito.parameters import configuration
 from devito.symbolics import Add, FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.tools import (EnrichedTuple, ReducerMap, ArgProvider, as_tuple,
-                          flatten, is_integer, ctypes_to_cstr, memoized_meth)
+                          flatten, is_integer, ctypes_to_cstr, memoized_meth,
+                          dtype_to_ctype)
 from devito.types.dimension import Dimension
 from devito.types.basic import AbstractCachedFunction
 from devito.types.utils import Buffer, NODE, CELL
@@ -607,10 +609,9 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     def _C_as_ndarray(self, dataobj):
         """Cast the data carried by a DiscreteFunction dataobj to an ndarray."""
         shape = tuple(dataobj._obj.size[i] for i in range(self.ndim))
-        ndp = np.ctypeslib.ndpointer(dtype=self.dtype, shape=shape)
-        data = cast(dataobj._obj.data, ndp)
-        data = np.ctypeslib.as_array(data, shape=shape)
-        return data
+        ctype_1d = dtype_to_ctype(self.dtype) * int(reduce(mul, shape))
+        buf = cast(dataobj._obj.data, POINTER(ctype_1d)).contents
+        return np.frombuffer(buf, dtype=self.dtype).reshape(shape)
 
     @memoized_meth
     def _C_make_index(self, dim, side=None):

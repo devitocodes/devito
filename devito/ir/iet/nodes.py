@@ -52,7 +52,7 @@ class Node(Signer):
     _traversable = []
     """
     :attr:`_traversable`. The traversable fields of the Node; that is, fields
-    walked over by a :class:`Visitor`. All arguments in __init__ whose name
+    walked over by a Visitor. All arguments in __init__ whose name
     appears in this list are treated as traversable fields.
     """
 
@@ -113,17 +113,17 @@ class Node(Signer):
 
     @abc.abstractproperty
     def functions(self):
-        """All :class:`AbstractFunction` objects used by this node."""
+        """All AbstractFunction objects used by this node."""
         raise NotImplementedError()
 
     @abc.abstractproperty
     def free_symbols(self):
-        """All :class:`Symbol` objects used by this node."""
+        """All Symbol objects used by this node."""
         raise NotImplementedError()
 
     @abc.abstractproperty
     def defines(self):
-        """All :class:`Symbol` objects defined by this node."""
+        """All Symbol objects defined by this node."""
         raise NotImplementedError()
 
     def _signature_items(self):
@@ -220,7 +220,7 @@ class Call(Node):
 
 class Expression(Node):
 
-    """A node encapsulating a :class:`ClusterizedEq`."""
+    """A node encapsulating a ClusterizedEq."""
 
     is_Expression = True
 
@@ -250,7 +250,7 @@ class Expression(Node):
 
     @property
     def write(self):
-        """The :class:`Function` this Expression writes to."""
+        """The Function this Expression writes to."""
         return self.expr.lhs.function
 
     @property
@@ -485,12 +485,12 @@ class Iteration(Node):
 
     @property
     def functions(self):
-        """All :class:`Function`s appearing in the Iteration header."""
+        """All Functions appearing in the Iteration header."""
         return ()
 
     @property
     def free_symbols(self):
-        """All :class:`Symbol`s appearing in the Iteration header."""
+        """All Symbols appearing in the Iteration header."""
         return tuple(self.symbolic_min.free_symbols) \
             + tuple(self.symbolic_max.free_symbols) \
             + self.uindices \
@@ -499,17 +499,17 @@ class Iteration(Node):
 
     @property
     def defines(self):
-        """All :class:`Symbol`s defined in the Iteration header."""
+        """All Symbols defined in the Iteration header."""
         return self.dimensions
 
     @property
     def dimensions(self):
-        """All :class:`Dimension`s appearing in the Iteration header."""
+        """All Dimensions appearing in the Iteration header."""
         return tuple(self.dim._defines) + self.uindices
 
     @property
     def write(self):
-        """All :class:`Function`s written to in this :class:`Iteration`"""
+        """All Functions written to in this Iteration"""
         return []
 
 
@@ -526,7 +526,7 @@ class Callable(Node):
         The Callable body.
     retval : str
         The return type of Callable.
-    parameters : list of :class:`Basic`, optional
+    parameters : list of Basic, optional
         The objects in input to the Callable.
     prefix : list of str, optional
         Qualifiers to prepend to the Callable signature. Defaults to ``('static',
@@ -710,7 +710,7 @@ class LocalExpression(Expression):
 
 class ForeignExpression(Expression):
 
-    """A node representing a SymPy :class:`FunctionFromPointer` expression."""
+    """A node representing a SymPy FunctionFromPointer expression."""
 
     is_ForeignExpression = True
 
@@ -755,7 +755,7 @@ class Section(List):
     """
     A sequence of nodes.
 
-    Functionally, a :class:`Section` is identical to a :class:`List`; that is,
+    Functionally, a Section is identical to a List; that is,
     they generate the same code (i.e., their ``body``). However, a Section should
     be used to define sub-trees that, for some reasons, have a relevance within
     the IET (e.g., groups of statements that logically represent the same
@@ -825,7 +825,7 @@ class HaloSpot(List):
 class ExpressionBundle(List):
 
     """
-    A sequence of :class:`Expression`s.
+    A sequence of Expressions.
     """
 
     is_ExpressionBundle = True
@@ -850,7 +850,7 @@ class ExpressionBundle(List):
 class IterationTree(tuple):
 
     """
-    Represent a sequence of nested :class:`Iteration`s.
+    Represent a sequence of nested Iterations.
     """
 
     @property
@@ -875,7 +875,7 @@ class IterationTree(tuple):
 
 MetaCall = namedtuple('MetaCall', 'root local')
 """
-Metadata for :class:`Callable`s. ``root`` is a pointer to the callable
+Metadata for Callables. ``root`` is a pointer to the callable
 Iteration/Expression tree. ``local`` is a boolean indicating whether the
 definition of the callable is known or not.
 """
