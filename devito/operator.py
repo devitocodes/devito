@@ -224,7 +224,7 @@ class Operator(Callable):
         dle = kwargs.get("dle", configuration['dle'])
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
-        state = transform(iet, *set_dle_mode(dle))
+        iet, state = transform(iet, *set_dle_mode(dle))
 
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                              for i in state.efuncs]))
@@ -232,7 +232,7 @@ class Operator(Callable):
         self.input.extend(state.input)
         self._includes.extend(state.includes)
 
-        return state.nodes
+        return iet
 
     def _generate_mpi(self, iet, **kwargs):
         """Transform the IET adding nodes performing halo exchanges."""

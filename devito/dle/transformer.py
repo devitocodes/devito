@@ -82,14 +82,14 @@ def transform(iet, mode='basic', options=None):
 
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':
-        return State(iet)
+        return iet, State(iet)
     elif mode not in default_modes:
         try:
-            rewriter = CustomRewriter(iet, mode, params)
-            return rewriter.run()
+            rewriter = CustomRewriter(mode, params)
+            return rewriter.run(iet)
         except DLEException:
             dle_warning("Unknown transformer mode(s) %s" % mode)
-            return State(iet)
+            return iet, State(iet)
     else:
-        rewriter = default_modes[mode](iet, params)
-        return rewriter.run()
+        rewriter = default_modes[mode](params)
+        return rewriter.run(iet)

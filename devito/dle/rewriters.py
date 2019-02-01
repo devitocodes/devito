@@ -1,10 +1,12 @@
 import abc
 from collections import OrderedDict
 from itertools import product
+from functools import partial
 from time import time
 
 import cgen
 import numpy as np
+from anytree import NodeMixin, PreOrderIter, RenderTree, ContStyle
 
 from devito.cgen_utils import ccode
 from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
@@ -12,7 +14,7 @@ from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
 from devito.dle.parallelizer import Ompizer
 from devito.dle.utils import complang_ALL, simdinfo, get_simd_flag, get_simd_items
 from devito.exceptions import DLEException
-from devito.ir.iet import (Denormals, Expression, Iteration, List, HaloSpot,
+from devito.ir.iet import (Call, Denormals, Expression, Iteration, List, HaloSpot,
                            PARALLEL, FindSymbols, FindNodes, FindAdjacent,
                            IsPerfectIteration, MapNodes, Transformer, compose_nodes,
                            retrieve_iteration_tree, make_efunc)
@@ -25,41 +27,79 @@ __all__ = ['BasicRewriter', 'AdvancedRewriter', 'SpeculativeRewriter',
 
 
 def dle_pass(func):
-
     def wrapper(self, state, **kwargs):
         tic = time()
-        # Processing
-        processed, extra = func(self, state.nodes, state)
-        for i, nodes in enumerate(list(state.efuncs)):
-            state.efuncs[i], _ = func(self, nodes, state)
-        # State update
-        state.update(processed, **extra)
+        state._process(partial(func, self))
         toc = time()
-
         self.timings[func.__name__] = toc - tic
-
     return wrapper
 
 
 class State(object):
 
-    """Represent the output of the DLE."""
+    def __init__(self, iet):
+        self.call_tree = EFuncNode(iet, name='main')
 
-    def __init__(self, nodes):
-        self.nodes = nodes
-
-        self.efuncs = []
         self.dimensions = []
         self.input = []
         self.includes = []
 
-    def update(self, nodes, **kwargs):
-        self.nodes = nodes
+    def _process(self, func):
+        """Apply ``func`` to all IETs in the ``call_tree``."""
 
-        self.efuncs.extend(list(kwargs.get('efuncs', [])))
-        self.dimensions.extend(list(kwargs.get('dimensions', [])))
-        self.input.extend(list(kwargs.get('input', [])))
-        self.includes.extend(list(kwargs.get('includes', [])))
+        for i in list(PreOrderIter(self.call_tree)):
+            # TODO: do not process Callable, just its body!
+            i.iet, metadata = func(i.iet)
+
+            # Track any new Dimensions and includes introduced by `func`
+            self.dimensions.extend(list(metadata.get('dimensions', [])))
+            self.includes.extend(list(metadata.get('includes', [])))
+
+            # If there's a change to the `input` and the `iet` is an efunc, then
+            # we must update the call sites as well, as the arguments dropped down
+            # to the efunc have just increased
+            _input = as_tuple(metadata.get('input'))
+            if _input:
+                callee = i.name
+                for n in [i] + list(reversed(i.ancestors)):
+                    calls = [c for c in FindNodes(Call).visit(n.iet) if c.name == callee]
+                    mapper = {c: c._rebuild(params=c.params + _input) for c in calls}
+                    n.iet = Transformer(mapper).visit(n.iet)
+                    if n.iet.is_Callable:
+                        n.iet = n.iet._rebuild(parameters=n.iet.parameters + _input)
+                    callee = n.name
+                self.input.extend(list(_input))
+
+            # Update the call tree as some new efuncs may have been created
+            for j in metadata.get('call_trees', []):
+                j.parent = self.call_tree
+
+    @property
+    def root(self):
+        return self.call_tree.iet
+
+    @property
+    def efuncs(self):
+        return tuple(i.iet for i in PreOrderIter(self.call_tree))[1:]
+
+
+class EFuncNode(NodeMixin):
+
+    """A simple utility class to keep track of Callables and Call sites."""
+
+    def __init__(self, iet, parent=None, name=None):
+        self.iet = iet
+        if name is not None:
+            self.name = name
+        else:
+            assert iet.is_Callable
+            self.name = iet.name
+        self.parent = parent
+
+        self._rendered_name = "<%s>" % self.name
+
+    def __repr__(self):
+        return RenderTree(self, style=ContStyle()).by_attr('_rendered_name')
 
 
 class AbstractRewriter(object):
@@ -72,21 +112,19 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, nodes, params):
-        self.nodes = nodes
+    def __init__(self, params):
         self.params = params
-
         self.timings = OrderedDict()
 
-    def run(self):
+    def run(self, iet):
         """The optimization pipeline, as a sequence of AST transformation passes."""
-        state = State(self.nodes)
+        state = State(iet)
 
         self._pipeline(state)
 
         self._summary()
 
-        return state
+        return state.root, state
 
     @abc.abstractmethod
     def _pipeline(self, state):
@@ -113,7 +151,7 @@ class BasicRewriter(AbstractRewriter):
         return complang.get(name, default)
 
     @dle_pass
-    def _avoid_denormals(self, nodes, state):
+    def _avoid_denormals(self, nodes):
         """
         Introduce nodes in the Iteration/Expression tree that will expand to C
         macros telling the CPU to flush denormal numbers in hardware. Denormals
@@ -142,7 +180,7 @@ class AdvancedRewriter(BasicRewriter):
         self._minimize_remainders(state)
 
     @dle_pass
-    def _loop_wrapping(self, iet, state):
+    def _loop_wrapping(self, iet):
         """
         Emit a performance warning if WRAPPABLE Iterations are found,
         as these are a symptom that unnecessary memory is being allocated.
@@ -155,7 +193,7 @@ class AdvancedRewriter(BasicRewriter):
         return iet, {}
 
     @dle_pass
-    def _optimize_halospots(self, iet, state):
+    def _optimize_halospots(self, iet):
         """
         Optimize the HaloSpots in ``iet``.
 
@@ -220,7 +258,7 @@ class AdvancedRewriter(BasicRewriter):
         return iet, {}
 
     @dle_pass
-    def _loop_blocking(self, iet, state):
+    def _loop_blocking(self, iet):
         """Apply loop blocking to PARALLEL Iteration trees."""
         exclude_innermost = not self.params.get('blockinner', False)
         ignore_heuristic = self.params.get('blockalways', False)
@@ -230,7 +268,7 @@ class AdvancedRewriter(BasicRewriter):
         iet = fold_blockable_tree(iet, exclude_innermost)
 
         mapper = {}
-        efuncs = []
+        call_trees = []
         block_dims = []
         for tree in retrieve_iteration_tree(iet):
             # Is the Iteration tree blockable ?
@@ -269,8 +307,7 @@ class AdvancedRewriter(BasicRewriter):
 
             # Promote to a separate Callable
             dynamic_parameters = flatten((bi.dim, bi.dim.symbolic_size) for bi in interb)
-            efunc = make_efunc("bf%d" % len(mapper), blocked, dynamic_parameters)
-            efuncs.append(efunc)
+            efunc0 = make_efunc("bf%d" % len(mapper), blocked, dynamic_parameters)
 
             # Compute the iteration ranges
             ranges = []
@@ -286,23 +323,23 @@ class AdvancedRewriter(BasicRewriter):
                 for bi, (m, M, b) in zip(interb, p):
                     dynamic_parameters_mapper[bi.dim] = (m, M)
                     dynamic_parameters_mapper[bi.dim.step] = (b,)
-                body.append(efunc.make_call(dynamic_parameters_mapper))
+                body.append(efunc0.make_call(dynamic_parameters_mapper))
 
-            # Build indirect Call to the `efunc` Calls
+            # Build indirect Call to the `efunc0` Calls
             dynamic_parameters = [i.dim for i in iterations]
             dynamic_parameters.extend([bi.dim.step for bi in interb])
-            efunc = make_efunc("f%d" % len(mapper), body, dynamic_parameters)
-            efuncs.append(efunc)
+            efunc1 = make_efunc("f%d" % len(mapper), body, dynamic_parameters)
 
             # Track everything to ultimately transform the input `iet`
-            mapper[root] = efunc.make_call()
+            mapper[root] = efunc1.make_call()
+            call_trees.append(EFuncNode(efunc0, EFuncNode(efunc1)).parent)
 
         iet = Transformer(mapper).visit(iet)
 
-        return iet, {'dimensions': block_dims, 'efuncs': efuncs}
+        return iet, {'dimensions': block_dims, 'call_trees': call_trees}
 
     @dle_pass
-    def _simdize(self, nodes, state):
+    def _simdize(self, nodes):
         """
         Add compiler-specific or, if not available, OpenMP pragmas to the
         Iteration/Expression tree to emit SIMD-friendly code.
@@ -332,7 +369,7 @@ class AdvancedRewriter(BasicRewriter):
         return processed, {}
 
     @dle_pass
-    def _parallelize(self, iet, state):
+    def _parallelize(self, iet):
         """
         Add OpenMP pragmas to the Iteration/Expression tree to emit shared-memory
         parallel code.
@@ -340,7 +377,7 @@ class AdvancedRewriter(BasicRewriter):
         return self._parallelizer.make_parallel(iet)
 
     @dle_pass
-    def _minimize_remainders(self, nodes, state):
+    def _minimize_remainders(self, nodes):
         """
         Reshape temporary tensors and adjust loop trip counts to prevent as many
         compiler-generated remainder loops as possible.
@@ -438,7 +475,7 @@ class SpeculativeRewriter(AdvancedRewriter):
         self._minimize_remainders(state)
 
     @dle_pass
-    def _nontemporal_stores(self, nodes, state):
+    def _nontemporal_stores(self, nodes):
         """
         Add compiler-specific pragmas and instructions to generate nontemporal
         stores (ie, non-cached stores).
@@ -477,7 +514,7 @@ class CustomRewriter(SpeculativeRewriter):
         'simd': SpeculativeRewriter._simdize,
     }
 
-    def __init__(self, nodes, passes, params):
+    def __init__(self, passes, params):
         try:
             passes = passes.split(',')
             if 'openmp' not in passes and params['openmp']:
@@ -487,7 +524,7 @@ class CustomRewriter(SpeculativeRewriter):
             if not all(i in CustomRewriter.passes_mapper for i in passes):
                 raise DLEException
         self.passes = passes
-        super(CustomRewriter, self).__init__(nodes, params)
+        super(CustomRewriter, self).__init__(params)
 
     def _pipeline(self, state):
         for i in self.passes:

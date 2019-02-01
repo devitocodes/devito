@@ -143,10 +143,10 @@ class HaloExchangeBuilder(object):
 
         # Optimize the memory copy with the DLE
         from devito.dle import transform
-        state = transform(iet, 'simd', {'openmp': self._threaded})
+        iet, state = transform(iet, 'simd', {'openmp': self._threaded})
 
         parameters = [buf] + list(buf.shape) + [f] + f_offsets + state.input
-        return Callable(name, state.nodes, 'void', parameters, ('static',)), state.input
+        return Callable(name, iet, 'void', parameters, ('static',)), state.input
 
     @abc.abstractmethod
     def _make_sendrecv(self, f, fixed, **kwargs):
