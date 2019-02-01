@@ -469,7 +469,7 @@ class TimedAccess(Access):
 
         * obj1 and obj2 are regular;
         * obj3 is irregular because a findex, ``x``, appears outside of its index
-          function (i.e., in the second slot, whew ``y`` is expected);
+          function (i.e., in the second slot, when ``y`` is expected);
         * obj4 is irregular, because a different dimension, ``w``, is used in place
           of ``x`` within the first index function, where ``x`` is expected;
         * obj5 is irregular, as two findices appear in the same index function --
