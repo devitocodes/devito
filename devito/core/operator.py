@@ -1,12 +1,11 @@
 from collections import OrderedDict
 
 from devito.core.autotuning import autotune
-from devito.ir.iet import Call, List, HaloSpot, MetaCall, FindNodes, Transformer
+from devito.ir.iet import List, HaloSpot, MetaCall, FindNodes, Transformer
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
-from devito.mpi import copy, sendrecv, update_halo
-from devito.operator import Operator
-from devito.tools import flatten
+from devito.mpi import HaloExchangeBuilder
+from devito.operator import Operator, is_threaded
 
 __all__ = ['OperatorCore']
 
@@ -20,41 +19,22 @@ class OperatorCore(Operator):
         return super(OperatorCore, self)._specialize_exprs(expressions)
 
     def _generate_mpi(self, iet, **kwargs):
+        # Nothing to do if no MPI
         if configuration['mpi'] is False:
             return iet
 
+        # Build halo exchange Callables and Calls
         halo_spots = FindNodes(HaloSpot).visit(iet)
+        heb = HaloExchangeBuilder(is_threaded(kwargs.get("dle")), configuration['mpi'])
+        callables, calls = heb.make(halo_spots)
 
-        # For each MPI-distributed DiscreteFunction, generate all necessary
-        # C-level routines to perform a halo update
-        callables = OrderedDict()
-        for hs in halo_spots:
-            for f, v in hs.fmapper.items():
-                callables[f] = [update_halo(f, v.loc_indices)]
-                callables[f].append(sendrecv(f, v.loc_indices))
-                callables[f].append(copy(f, v.loc_indices))
-                callables[f].append(copy(f, v.loc_indices, True))
-        callables = flatten(callables.values())
-
-        # Replace HaloSpots with suitable calls performing the halo update
-        mapper = {}
-        for hs in halo_spots:
-            for f, v in hs.fmapper.items():
-                stencil = [int(i) for i in hs.mask[f].values()]
-                comm = f.grid.distributor._obj_comm
-                nb = f.grid.distributor._obj_neighbours
-                loc_indices = list(v.loc_indices.values())
-                parameters = [f] + stencil + [comm, nb] + loc_indices
-                call = Call('halo_exchange_%s' % f.name, parameters)
-                mapper.setdefault(hs, []).append(call)
-
+        # Update the Operator internal state
         self._includes.append('mpi.h')
-
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                              for i in callables]))
 
-        # Add in the halo update calls
-        mapper = {k: List(body=v + list(k.body)) for k, v in mapper.items()}
+        # Transform the IET by adding in the `haloupdate` Calls
+        mapper = {k: List(body=v + list(k.body)) for k, v in calls.items()}
         iet = Transformer(mapper, nested=True).visit(iet)
 
         return iet

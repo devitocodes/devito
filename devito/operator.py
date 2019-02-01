@@ -175,20 +175,10 @@ class Operator(Callable):
 
         # Lower Schedule tree to an Iteration/Expression tree (IET)
         iet = iet_build(stree)
-
-        # Insert code for C-level performance profiling
         iet, self._profiler = self._profile_sections(iet)
-
-        # Translate into backend-specific representation
         iet = self._specialize_iet(iet, **kwargs)
-
-        # Insert the required symbol declarations
-        iet = iet_insert_C_decls(iet, self._func_table)
-
-        # Insert code for MPI support
         iet = self._generate_mpi(iet, **kwargs)
-
-        # Insert data and pointer casts for array parameters
+        iet = iet_insert_C_decls(iet)
         iet = self._build_casts(iet)
 
         # Derive parameters as symbols not defined in the kernel itself
@@ -270,7 +260,7 @@ class Operator(Callable):
         args.update([p._arg_values() for p in self.input if p.name not in args])
         args = args.reduce_all()
 
-        # All TensorFunctions should be defined on the same Grid
+        # All DiscreteFunctions should be defined on the same Grid
         functions = [kwargs.get(p, p) for p in self.input if p.is_DiscreteFunction]
         mapper = ReducerMap([('grid', i.grid) for i in functions if i.grid])
         try:
@@ -588,3 +578,7 @@ def set_dle_mode(mode):
         else:
             return tuple(flatten(i.split(',') for i in mode)), {}
     raise TypeError("Illegal DLE mode %s." % str(mode))
+
+
+def is_threaded(mode):
+    return set_dle_mode(mode)[1].get('openmp', configuration['openmp'])

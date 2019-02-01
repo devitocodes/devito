@@ -3,8 +3,8 @@ from collections import OrderedDict
 from devito.cgen_utils import Allocator
 from devito.ir.iet import (Expression, Increment, LocalExpression, Element, Iteration,
                            List, Conditional, Section, HaloSpot, ExpressionBundle,
-                           MetaCall, MapExpressions, Transformer, FindNodes,
-                           FindSymbols, XSubs, iet_analyze, filter_iterations)
+                           MapExpressions, Transformer, FindNodes, FindSymbols, XSubs,
+                           iet_analyze, filter_iterations)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper
 from devito.types import ConditionalDimension
@@ -103,7 +103,7 @@ def iet_lower_dimensions(iet):
     return iet
 
 
-def iet_insert_C_decls(iet, func_table=None):
+def iet_insert_C_decls(iet, external=None):
     """
     Given an IET, build a new tree with the necessary symbol declarations.
     Declarations are placed as close as possible to the first symbol occurrence.
@@ -112,25 +112,16 @@ def iet_insert_C_decls(iet, func_table=None):
     ----------
     iet : Node
         The input Iteration/Expression tree.
-    func_table : dict, optional
-        A mapper from Callable names within ``iet`` to :class:`Callable`s.
+    external : tuple, optional
+        The symbols defined in some outer Callable, which therefore must not
+        be re-defined.
     """
-    func_table = func_table or {}
+    external = external or []
+
+    # Classify and then schedule declarations to stack/heap
     allocator = Allocator()
     mapper = OrderedDict()
-
-    # Detect all IET nodes accessing symbols that need to be declared
-    scopes = []
-    me = MapExpressions()
-    for k, v in me.visit(iet).items():
-        if k.is_Call:
-            func = func_table.get(k.name)
-            if func is not None and func.local:
-                scopes.extend(me.visit(func.root, queue=list(v)).items())
-        scopes.append((k, v))
-
-    # Classify, and then schedule declarations to stack/heap
-    for k, v in scopes:
+    for k, v in MapExpressions().visit(iet).items():
         if k.is_Expression:
             if k.is_scalar_assign:
                 # Inline declaration
@@ -139,9 +130,7 @@ def iet_insert_C_decls(iet, func_table=None):
             objs = [k.write]
         elif k.is_Call:
             objs = k.params
-        else:
-            raise NotImplementedError("Cannot schedule declarations for IET "
-                                      "node of type `%s`" % type(k))
+
         for i in objs:
             try:
                 if i.is_LocalObject:
@@ -149,8 +138,8 @@ def iet_insert_C_decls(iet, func_table=None):
                     site = v[-1] if v else iet
                     allocator.push_stack(site, i)
                 elif i.is_Array:
-                    if i._mem_external:
-                        # Nothing to do; e.g., a user-provided Function
+                    if i in external:
+                        # The Array is to be defined in some foreign IET
                         continue
                     elif i._mem_stack:
                         # On the stack
@@ -168,9 +157,6 @@ def iet_insert_C_decls(iet, func_table=None):
     for k, v in allocator.onstack:
         mapper[k] = tuple(Element(i) for i in v)
     iet = Transformer(mapper, nested=True).visit(iet)
-    for k, v in list(func_table.items()):
-        if v.local:
-            func_table[k] = MetaCall(Transformer(mapper).visit(v.root), v.local)
 
     # Introduce declarations on the heap (if any)
     if allocator.onheap:

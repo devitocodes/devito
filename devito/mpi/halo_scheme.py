@@ -5,11 +5,9 @@ from operator import attrgetter
 from cached_property import cached_property
 from frozendict import frozendict
 
-from devito.data import LEFT, RIGHT
+from devito.data import LEFT, CENTER, RIGHT
 from devito.ir.support import Scope
-from devito.logger import warning
-from devito.parameters import configuration
-from devito.tools import Tag, as_mapper
+from devito.tools import Tag, as_mapper, as_tuple, filter_ordered
 
 __all__ = ['HaloScheme', 'HaloSchemeException']
 
@@ -23,89 +21,70 @@ class HaloLabel(Tag):
 
 
 NONE = HaloLabel('none')
-UNSUPPORTED = HaloLabel('unsupported')
 POINTLESS = HaloLabel('pointless')
 IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
-FULL = HaloLabel('full')
 
 
 HaloSchemeEntry = namedtuple('HaloSchemeEntry', 'loc_indices halos')
 
-Halo = namedtuple('Halo', 'dim side amount')
-
-
-class HaloMask(OrderedDict):
-
-    @cached_property
-    def need_halo_exchange(self):
-        return {d for (d, _), v in self.items() if v}
+Halo = namedtuple('Halo', 'dim side')
 
 
 class HaloScheme(object):
 
     """
-    A HaloScheme describes a set of halo exchanges through a mapper: ::
+    A HaloScheme describes a set of halo exchanges through a mapper:
 
-        M : Function -> HaloSchemeEntry
+        ``M : Function -> HaloSchemeEntry``
 
-    Where ``HaloSchemeEntry`` is a (named) 2-tuple: ::
+    Where ``HaloSchemeEntry`` is a (named) 2-tuple:
 
-        ({loc_indices}, ((Dimension, DataSide, amount), ...))
+        ``({loc_indices}, ((Dimension, DataSide, amount), ...))``
 
     The tuples (Dimension, DataSide, amount) tell the amount of data that
-    a :class:`DiscreteFunction` should communicate along (a subset of) its
-    :class:`Dimension`s.
+    a DiscreteFunction should communicate along its Dimensions.
 
     The dict ``loc_indices`` tells how to access/insert the halo along the
-    keyed Function's non-halo indices. For example, consider the
-    :class:`Function` ``u(t, x, y)``. Assume ``x`` and ``y`` require a halo
-    exchange. The question is: once the halo exchange is performed, at what
-    offset in ``t`` should it be placed? should it be at ``u(0, ...)`` or
-    ``u(1, ...)`` or even ``u(t-1, ...)``? ``loc_indices`` has as many entries
-    as non-halo dimensions, and each entry provides symbolic information about
-    how to access the corresponding non-halo dimension. Thus, in this example
+    keyed Function's non-halo indices. For example, consider the Function
+    ``u(t, x, y)``. Assume ``x`` and ``y`` require a halo exchange. The
+    question is: once the halo exchange is performed, at what offset in ``t``
+    should it be placed? should it be at ``u(0, ...)`` or ``u(1, ...)`` or even
+    ``u(t-1, ...)``? ``loc_indices`` has as many entries as non-halo
+    dimensions, and each entry provides symbolic information about how to
+    access the corresponding non-halo dimension. Thus, in this example
     ``loc_indices`` could be, for instance, ``{t: 0}`` or ``{t: t-1}``.
 
     Parameters
     ----------
-    exprs : tuple of :class:`IREq`
+    exprs : tuple of IREq
         The expressions for which the HaloScheme is built
-    ispace : :class:`IterationSpace`
+    ispace : IterationSpace
         Description of iteration directions and sub-iterators used in ``exprs``.
-    dspace : :class:`DataSpace`
-        Description of the data access pattern in ``exprs``.
     fmapper : dict, optional
-        The format is the same as ``M``. When provided, ``exprs``, ``ispace`` and
-        ``dspace`` are ignored. It should be used to aggregate several existing
-        HaloSchemes into a single, "bigger" HaloScheme, without performing any
-        additional analysis.
+        The format is the same as ``M``. When provided, ``exprs`` and ``ispace``
+        are ignored. It should be used to aggregate several existing HaloSchemes
+        into a single, "bigger" HaloScheme, without performing any further analysis.
     """
 
-    def __init__(self, exprs=None, ispace=None, dspace=None, fmapper=None):
+    def __init__(self, exprs=None, ispace=None, fmapper=None):
         if fmapper is not None:
             self._mapper = frozendict(fmapper.copy())
             return
 
         self._mapper = {}
-
         scope = Scope(exprs)
-
-        # *What* halo exchanges do we need?
-        classification = hs_classify(scope)
-
-        for f, v in classification.items():
-            # *How much* halo do we have to exchange?
-            halos = hs_comp_halos(f, [d for d, hl in v.items() if hl is STENCIL], dspace)
-            halos.extend(hs_comp_halos(f, [d for d, hl in v.items() if hl is FULL]))
-
-            # *What* are the local (i.e., non-halo) indices?
-            loc_indices = hs_comp_locindices(f, [d for d, hl in v.items() if hl is NONE],
-                                             ispace, dspace, scope)
-
+        for f, v in hs_classify(scope).items():
+            halos = [Halo(*i) for i, hl in v.items() if hl is STENCIL]
             if halos:
+                # There is some halo to be exchanged; *what* are the local
+                # (i.e., non-halo) indices?
+                dims = [i for i, hl in v.items() if hl is NONE]
+                loc_indices = hs_comp_locindices(f, dims, ispace, scope)
+
                 self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices), tuple(halos))
 
+        # A HaloScheme is immutable, so let's make it hashable
         self._mapper = frozendict(self._mapper)
 
     def __repr__(self):
@@ -114,6 +93,9 @@ class HaloScheme(object):
 
     def __eq__(self, other):
         return isinstance(other, HaloScheme) and self.fmapper == other.fmapper
+
+    def __len__(self):
+        return len(self._mapper)
 
     def __hash__(self):
         return self._mapper.__hash__()
@@ -128,22 +110,29 @@ class HaloScheme(object):
                             sorted(self._mapper, key=attrgetter('name'))])
 
     @cached_property
-    def mask(self):
-        mapper = {}
-        for f, v in self.fmapper.items():
-            needed = [(i.dim, i.side) for i in v.halos]
-            for i in product(f.dimensions, [LEFT, RIGHT]):
-                if i[0] in v.loc_indices:
-                    continue
-                mapper.setdefault(f, HaloMask())[i] = i in needed
-        return mapper
+    def halos(self):
+        return {f: v.halos for f, v in self.fmapper.items()}
+
+    def union(self, others):
+        """Create a HaloScheme from the union of ``self`` with ``others``."""
+        fmapper = dict(self.fmapper)
+        for i in as_tuple(others):
+            for k, v in i.fmapper.items():
+                hse = fmapper.setdefault(k, v)
+                # At this point, the `loc_indices` must match
+                if hse.loc_indices != v.loc_indices:
+                    raise ValueError("Cannot compute the union of one or more HaloScheme "
+                                     "when the `loc_indices` differ")
+                halos = tuple(filter_ordered(hse.halos + v.halos))
+                fmapper[k] = HaloSchemeEntry(hse.loc_indices, halos)
+
+        return HaloScheme(fmapper=fmapper)
 
 
 def hs_classify(scope):
     """
     A mapper ``Function -> (Dimension -> [HaloLabel]`` describing what type of
-    halo exchange is expected by the various :class:`DiscreteFunction`s in a
-    :class:`Scope`.
+    halo exchange is expected by the DiscreteFunctions in a given Scope.
     """
     mapper = {}
     for f, r in scope.reads.items():
@@ -152,8 +141,11 @@ def hs_classify(scope):
         elif f.grid is None:
             # TODO: improve me
             continue
-        v = mapper.setdefault(f, defaultdict(list))
+        # For each data access, determine if (and what type of) a halo exchange
+        # is required
+        halo_labels = defaultdict(list)
         for i in r:
+            v = {}
             for d in i.findices:
                 # Note: if `i` makes use of SubDimensions, we might end up adding useless
                 # (yet harmless) halo exchanges.  This depends on the size of a
@@ -164,84 +156,55 @@ def hs_classify(scope):
                 # the generated code (by adding explicit `if-then-else`s to dynamically
                 # prevent a halo exchange), there is no escape from conservatively
                 # assuming that some halo exchanges will be required
-                if i.affine(d):
-                    if f.grid.is_distributed(d):
+                if f.grid.is_distributed(d):
+                    if i.affine(d):
                         if d in scope.d_from_access(i).cause:
-                            v[d].append(POINTLESS)
-                        elif i.touch_halo(d):
-                            v[d].append(STENCIL)
+                            v[d] = POINTLESS
                         else:
-                            v[d].append(IDENTITY)
+                            bl, br = i.touched_halo(d)
+                            v[(d, LEFT)] = (bl and STENCIL) or IDENTITY
+                            v[(d, RIGHT)] = (br and STENCIL) or IDENTITY
                     else:
-                        v[d].append(NONE)
-                elif i.is_increment:
-                    # A read used for a distributed local-reduction. Users are expected
-                    # to deal with this data access pattern by themselves, for example
-                    # by resorting to common techniques such as redundant computation
-                    v[d].append(UNSUPPORTED)
-                elif i.irregular(d) and f.grid.is_distributed(d):
-                    v[d].append(FULL)
+                        v[(d, LEFT)] = STENCIL
+                        v[(d, RIGHT)] = STENCIL
+                else:
+                    v[d] = NONE
 
-    # Sanity check and reductions
-    for f, v in mapper.items():
-        for d, hl in list(v.items()):
+            # Derive diagonal halo exchanges from the previous analysis
+            combs = list(product([LEFT, CENTER, RIGHT], repeat=len(f._dist_dimensions)))
+            combs.remove((CENTER,)*len(f._dist_dimensions))
+            for c in combs:
+                key = (f._dist_dimensions, c)
+                if all(v.get((d, s)) is STENCIL or s is CENTER for d, s in zip(*key)):
+                    v[key] = STENCIL
+
+            # Finally update the `halo_labels`
+            for j, hl in v.items():
+                halo_labels[j].append(hl)
+
+        # Sanity check and reductions
+        for i, hl in list(halo_labels.items()):
             unique_hl = set(hl)
             if unique_hl == {STENCIL, IDENTITY}:
-                v[d] = STENCIL
+                halo_labels[i] = STENCIL
             elif POINTLESS in unique_hl:
-                v[d] = POINTLESS
-            elif UNSUPPORTED in unique_hl:
-                v[d] = UNSUPPORTED
+                halo_labels[i] = POINTLESS
             elif len(unique_hl) == 1:
-                v[d] = unique_hl.pop()
+                halo_labels[i] = unique_hl.pop()
             else:
                 raise HaloSchemeException("Inconsistency found while building a halo "
                                           "scheme for `%s` along Dimension `%s`" % (f, d))
 
-    # Drop functions needing no halo exchange
-    mapper = {f: v for f, v in mapper.items()
-              if any(i in [STENCIL, FULL] for i in v.values())}
-
-    # Emit a summary warning
-    for f, v in mapper.items():
-        unsupported = [d for d, hl in v.items() if hl is UNSUPPORTED]
-        if configuration['mpi'] and unsupported:
-            warning("Distributed local-reductions over `%s` along "
-                    "Dimensions `%s` detected." % (f, unsupported))
+        # Ignore unless an actual halo exchange is required
+        if any(i is STENCIL for i in halo_labels.values()):
+            mapper[f] = halo_labels
 
     return mapper
 
 
-def hs_comp_halos(f, dims, dspace=None):
+def hs_comp_locindices(f, dims, ispace, scope):
     """
-    An iterable of 3-tuples ``[(Dimension, DataSide, amount), ...]`` describing
-    the amount of halo that should be exchange along the two sides of a set of
-    :class:`Dimension`s.
-    """
-    halos = []
-    for d in dims:
-        if dspace is None:
-            # We cannot do anything better than exchanging the full halo
-            # in absence of more information
-            lsize = f._size_halo[d].left
-            rsize = f._size_halo[d].right
-        else:
-            # We can limit the amount of halo exchanged based on the stencil
-            # radius, which is dictated by `dspace`
-            v = dspace[f].relaxed[d]
-            lower, upper = v.limits if not v.is_Null else (0, 0)
-            lsize = f._size_halo[d].left - lower
-            rsize = upper - f._size_halo[d].right
-        if lsize > 0:
-            halos.append(Halo(d, LEFT, lsize))
-        if rsize > 0:
-            halos.append(Halo(d, RIGHT, rsize))
-    return halos
-
-
-def hs_comp_locindices(f, dims, ispace, dspace, scope):
-    """
-    Map the :class:`Dimension`s in ``dims`` to the local indices necessary
+    Map the Dimensions in ``dims`` to the local indices necessary
     to perform a halo exchange, as described in HaloScheme.__doc__.
 
     Examples
