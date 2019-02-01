@@ -12,9 +12,6 @@ __all__ = ['YaskRewriter']
 class YaskOmpizer(Ompizer):
 
     def _make_parallel_tree(self, root, candidates):
-        """
-        Return a mapper to parallelize the :class:`Iteration`s within /root/.
-        """
         ncollapse = self._ncollapse(root, candidates)
         parallel = self.lang['for'](ncollapse)
 
@@ -47,7 +44,7 @@ class YaskOmpizer(Ompizer):
 
 class YaskRewriter(AdvancedRewriter):
 
-    _parallelizer = YaskOmpizer
+    _parallelizer_type = YaskOmpizer
 
     def _pipeline(self, state):
         self._avoid_denormals(state)

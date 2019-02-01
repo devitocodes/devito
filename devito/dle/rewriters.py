@@ -126,7 +126,11 @@ class BasicRewriter(AbstractRewriter):
 
 class AdvancedRewriter(BasicRewriter):
 
-    _parallelizer = Ompizer
+    _parallelizer_type = Ompizer
+
+    def __init__(self, params):
+        super(AdvancedRewriter, self).__init__(params)
+        self._parallelizer = self._parallelizer_type()
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
@@ -330,11 +334,10 @@ class AdvancedRewriter(BasicRewriter):
     @dle_pass
     def _parallelize(self, iet, state):
         """
-        Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code
+        Add OpenMP pragmas to the Iteration/Expression tree to emit shared-memory
+        parallel code.
         """
-        def key(i):
-            return i.is_ParallelRelaxed and not (i.is_Elementizable or i.is_Vectorizable)
-        return self._parallelizer(key).make_parallel(iet)
+        return self._parallelizer.make_parallel(iet)
 
     @dle_pass
     def _minimize_remainders(self, nodes, state):
