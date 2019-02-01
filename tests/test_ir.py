@@ -524,8 +524,8 @@ else
         exprs = list(as_tuple(exprs))
 
         grid = Grid(shape=(10, 10))
-        t = grid.stepping_dim
-        x, y = grid.dimensions
+        t = grid.stepping_dim  # noqa
+        x, y = grid.dimensions  # noqa
 
         u = Function(name='u', grid=grid)  # noqa
         v = TimeFunction(name='v', grid=grid)  # noqa

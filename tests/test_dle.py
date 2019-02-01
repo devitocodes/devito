@@ -8,8 +8,8 @@ from conftest import EVAL, skipif
 from devito import Grid, Function, TimeFunction, Eq, Operator, solve
 from devito.dle import transform
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Expression, Callable, Iteration, List, tagger,
-                           Transformer, FindNodes, iet_analyze, retrieve_iteration_tree)
+from devito.ir.iet import (Call, Expression, Iteration, FindNodes, iet_analyze,
+                           retrieve_iteration_tree)
 from devito.tools import as_tuple
 from unittest.mock import patch
 
@@ -94,33 +94,30 @@ def _new_operator3(shape, blockshape=None, dle=None):
     return u.data[1, :], op
 
 
-@pytest.mark.parametrize("blockinner,expected", [
-    (False, 4),
-    (True, 8)
+@pytest.mark.parametrize("blockinner,exp_calls,exp_iters", [
+    (False, 4, 5),
+    (True, 8, 6)
 ])
-def test_cache_blocking_structure(blockinner, expected):
+def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
+    # Check code structure
     _, op = _new_operator1((10, 31, 45), dle=('blocking', {'blockalways': True,
                                                            'blockinner': blockinner}))
-
-    # Check presence of remainder loops
-    iterations = retrieve_iteration_tree(op)
-    assert len(iterations) == expected
-    assert not iterations[0][0].is_Remainder
-    assert all(i[0].is_Remainder for i in iterations[1:])
+    calls = FindNodes(Call).visit(op._func_table['f0'].root)
+    assert len(calls) == exp_calls
+    trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+    assert len(trees) == 1
+    assert len(trees[0]) == exp_iters
 
     # Check presence of openmp pragmas at the right place
     _, op = _new_operator1((10, 31, 45), dle=('blocking',
                                               {'openmp': True,
                                                'blockalways': True,
                                                'blockinner': blockinner}))
-    iterations = retrieve_iteration_tree(op)
-    assert len(iterations) == expected
-    # All iterations except the last one an outermost parallel loop over blocks
-    assert not iterations[-1][0].is_Parallel
-    for i in iterations[:-1]:
-        outermost = i[0]
-        assert len(outermost.pragmas) == 1
-        assert 'omp for' in outermost.pragmas[0].value
+    trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+    assert len(trees) == 1
+    tree = trees[0]
+    assert len(tree.root.pragmas) == 1
+    assert 'omp for' in tree.root.pragmas[0].value
 
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (10, 31, 45)])
@@ -236,8 +233,8 @@ def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
 
     ast = iet_analyze(ast)
 
-    nodes = transform(ast, mode='openmp').nodes
-    iterations = FindNodes(Iteration).visit(nodes)
+    iet, _ = transform(ast, mode='openmp')
+    iterations = FindNodes(Iteration).visit(iet)
     assert len(iterations) == len(expected)
 
     # Check for presence of pragma omp
@@ -260,7 +257,7 @@ def test_dynamic_nthreads():
 
     # Check num_threads appears in the generated code
     # Not very elegant, but it does the trick
-    assert 'num_threads(nt)' in str(op)
+    assert 'num_threads(nthreads)' in str(op)
 
     # Check `op` accepts the `nthreads` kwarg
     op.apply(time=0)
@@ -286,7 +283,7 @@ def test_composite_transformation(shape):
     (['Eq(fe[x,y,z], fe[x,y,z] + fe[x,y,z])'],
      (True, False, False))
 ])
-@patch("devito.dle.backends.parallelizer.Ompizer.COLLAPSE", 1)
+@patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
 def test_loops_collapsed(fe, t0, t1, t2, t3, exprs, expected, iters):
     scope = [fe, t0, t1, t2, t3]
     node_exprs = [Expression(DummyEq(EVAL(i, *scope))) for i in exprs]
@@ -294,8 +291,8 @@ def test_loops_collapsed(fe, t0, t1, t2, t3, exprs, expected, iters):
 
     ast = iet_analyze(ast)
 
-    nodes = transform(ast, mode='openmp').nodes
-    iterations = FindNodes(Iteration).visit(nodes)
+    iet, _ = transform(ast, mode='openmp')
+    iterations = FindNodes(Iteration).visit(iet)
     assert len(iterations) == len(expected)
 
     # Check for presence of pragma omp

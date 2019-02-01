@@ -188,7 +188,7 @@ def test_tti_aggressive():
 
 
 @switchconfig(develop_mode=False, cross_compile=MockArch)
-@patch("devito.dle.backends.parallelizer.Ompizer.COLLAPSE", 1)
+@patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
 def test_discarding_runs():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
