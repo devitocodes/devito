@@ -245,7 +245,11 @@ class Operator(Callable):
 
     def _build_parameters(self, iet):
         """Derive the Operator parameters."""
-        return derive_parameters(iet, True)
+        parameters = derive_parameters(iet, True)
+        # Hackish: add parameters not emebedded directly in any IET node,
+        # e.g. those produced by the DLE or by a backend
+        parameters.extend([i for i in self.input if i not in parameters])
+        return tuple(parameters)
 
     # Arguments processing
 
