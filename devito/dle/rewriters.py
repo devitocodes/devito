@@ -164,11 +164,11 @@ class BasicRewriter(AbstractRewriter):
 
 class AdvancedRewriter(BasicRewriter):
 
-    _parallelizer_type = Ompizer
+    _shm_parallelizer_type = Ompizer
 
     def __init__(self, params):
         super(AdvancedRewriter, self).__init__(params)
-        self._parallelizer = self._parallelizer_type()
+        self._shm_parallelizer = self._shm_parallelizer_type()
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
@@ -176,7 +176,7 @@ class AdvancedRewriter(BasicRewriter):
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
-            self._parallelize(state)
+            self._shm_parallelize(state)
         self._minimize_remainders(state)
 
     @dle_pass
@@ -369,12 +369,12 @@ class AdvancedRewriter(BasicRewriter):
         return processed, {}
 
     @dle_pass
-    def _parallelize(self, iet):
+    def _shm_parallelize(self, iet):
         """
         Add OpenMP pragmas to the Iteration/Expression tree to emit shared-memory
         parallel code.
         """
-        return self._parallelizer.make_parallel(iet)
+        return self._shm_parallelizer.make_parallel(iet)
 
     @dle_pass
     def _minimize_remainders(self, nodes):
@@ -458,7 +458,7 @@ class AdvancedRewriterSafeMath(AdvancedRewriter):
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
-            self._parallelize(state)
+            self._shm_parallelize(state)
         self._minimize_remainders(state)
 
 
@@ -471,7 +471,7 @@ class SpeculativeRewriter(AdvancedRewriter):
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
-            self._parallelize(state)
+            self._shm_parallelize(state)
         self._minimize_remainders(state)
 
     @dle_pass
@@ -510,7 +510,7 @@ class CustomRewriter(SpeculativeRewriter):
         'optcomms': SpeculativeRewriter._optimize_halospots,
         'wrapping': SpeculativeRewriter._loop_wrapping,
         'blocking': SpeculativeRewriter._loop_blocking,
-        'openmp': SpeculativeRewriter._parallelize,
+        'openmp': SpeculativeRewriter._shm_parallelize,
         'simd': SpeculativeRewriter._simdize,
     }
 
