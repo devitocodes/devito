@@ -177,7 +177,6 @@ class Operator(Callable):
         iet = iet_build(stree)
         iet, self._profiler = self._profile_sections(iet)
         iet = self._specialize_iet(iet, **kwargs)
-        iet = self._generate_mpi(iet, **kwargs)
         iet = iet_insert_C_decls(iet)
         iet = self._build_casts(iet)
 
@@ -232,10 +231,6 @@ class Operator(Callable):
         self.input.extend(state.input)
         self._includes.extend(state.includes)
 
-        return iet
-
-    def _generate_mpi(self, iet, **kwargs):
-        """Transform the IET adding nodes performing halo exchanges."""
         return iet
 
     def _build_casts(self, iet):

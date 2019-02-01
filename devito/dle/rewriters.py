@@ -6,7 +6,6 @@ from time import time
 
 import cgen
 import numpy as np
-from anytree import NodeMixin, PreOrderIter, RenderTree, ContStyle
 
 from devito.cgen_utils import ccode
 from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
@@ -17,8 +16,9 @@ from devito.exceptions import DLEException
 from devito.ir.iet import (Call, Denormals, Expression, Iteration, List, HaloSpot,
                            PARALLEL, FindSymbols, FindNodes, FindAdjacent,
                            IsPerfectIteration, MapNodes, Transformer, compose_nodes,
-                           retrieve_iteration_tree, make_efunc)
+                           retrieve_iteration_tree, EFuncNode, make_efunc)
 from devito.logger import dle, perf_adv
+from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
 from devito.tools import as_tuple, flatten
 
@@ -47,8 +47,7 @@ class State(object):
     def _process(self, func):
         """Apply ``func`` to all IETs in the ``call_tree``."""
 
-        for i in list(PreOrderIter(self.call_tree)):
-            # TODO: do not process Callable, just its body!
+        for i in list(self.call_tree.visit()):
             i.iet, metadata = func(i.iet)
 
             # Track any new Dimensions and includes introduced by `func`
@@ -60,13 +59,16 @@ class State(object):
             # to the efunc have just increased
             _input = as_tuple(metadata.get('input'))
             if _input:
+                # `extendif` avoids redundant updates to the parameters list, due
+                # to multiple children wanting to add the same input argument
+                extendif = lambda v: list(v) + [e for e in _input if e not in v]
                 callee = i.name
                 for n in [i] + list(reversed(i.ancestors)):
                     calls = [c for c in FindNodes(Call).visit(n.iet) if c.name == callee]
-                    mapper = {c: c._rebuild(params=c.params + _input) for c in calls}
+                    mapper = {c: c._rebuild(params=extendif(c.params)) for c in calls}
                     n.iet = Transformer(mapper).visit(n.iet)
                     if n.iet.is_Callable:
-                        n.iet = n.iet._rebuild(parameters=n.iet.parameters + _input)
+                        n.iet = n.iet._rebuild(parameters=extendif(n.iet.parameters))
                     callee = n.name
                 self.input.extend(list(_input))
 
@@ -80,26 +82,7 @@ class State(object):
 
     @property
     def efuncs(self):
-        return tuple(i.iet for i in PreOrderIter(self.call_tree))[1:]
-
-
-class EFuncNode(NodeMixin):
-
-    """A simple utility class to keep track of Callables and Call sites."""
-
-    def __init__(self, iet, parent=None, name=None):
-        self.iet = iet
-        if name is not None:
-            self.name = name
-        else:
-            assert iet.is_Callable
-            self.name = iet.name
-        self.parent = parent
-
-        self._rendered_name = "<%s>" % self.name
-
-    def __repr__(self):
-        return RenderTree(self, style=ContStyle()).by_attr('_rendered_name')
+        return tuple(i.iet for i in self.call_tree.visit())[1:]
 
 
 class AbstractRewriter(object):
@@ -174,8 +157,10 @@ class AdvancedRewriter(BasicRewriter):
         self._avoid_denormals(state)
         self._optimize_halospots(state)
         self._loop_blocking(state)
+        if self.params['mpi']:
+            self._dist_parallelize(state)
         self._simdize(state)
-        if self.params['openmp'] is True:
+        if self.params['openmp']:
             self._shm_parallelize(state)
         self._minimize_remainders(state)
 
@@ -339,6 +324,21 @@ class AdvancedRewriter(BasicRewriter):
         return iet, {'dimensions': block_dims, 'call_trees': call_trees}
 
     @dle_pass
+    def _dist_parallelize(self, iet):
+        """
+        Add MPI routines performing halo exchanges to emit distributed-memory
+        parallel code.
+        """
+        # Build send/recv Callables and Calls
+        heb = HaloExchangeBuilder(self.params['mpi'])
+        call_trees, calls = heb.make(FindNodes(HaloSpot).visit(iet))
+
+        # Transform the IET by adding in the `haloupdate` Calls
+        iet = Transformer(calls, nested=True).visit(iet)
+
+        return iet, {'includes': ['mpi.h'], 'call_trees': call_trees}
+
+    @dle_pass
     def _simdize(self, nodes):
         """
         Add compiler-specific or, if not available, OpenMP pragmas to the
@@ -455,9 +455,12 @@ class AdvancedRewriterSafeMath(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._optimize_halospots(state)
+        self._loop_wrapping(state)
         self._loop_blocking(state)
+        if self.params['mpi']:
+            self._dist_parallelize(state)
         self._simdize(state)
-        if self.params['openmp'] is True:
+        if self.params['openmp']:
             self._shm_parallelize(state)
         self._minimize_remainders(state)
 
@@ -469,8 +472,10 @@ class SpeculativeRewriter(AdvancedRewriter):
         self._optimize_halospots(state)
         self._loop_wrapping(state)
         self._loop_blocking(state)
+        if self.params['mpi']:
+            self._dist_parallelize(state)
         self._simdize(state)
-        if self.params['openmp'] is True:
+        if self.params['openmp']:
             self._shm_parallelize(state)
         self._minimize_remainders(state)
 
@@ -511,6 +516,7 @@ class CustomRewriter(SpeculativeRewriter):
         'wrapping': SpeculativeRewriter._loop_wrapping,
         'blocking': SpeculativeRewriter._loop_blocking,
         'openmp': SpeculativeRewriter._shm_parallelize,
+        'mpi': SpeculativeRewriter._dist_parallelize,
         'simd': SpeculativeRewriter._simdize,
     }
 

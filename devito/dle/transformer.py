@@ -56,6 +56,7 @@ def transform(iet, mode='basic', options=None):
                            performance.
     options : dict, optional
         - ``openmp``: Enable/disable OpenMP. Defaults to `configuration['openmp']`.
+        - ``mpi``: Enable/disable MPI. Defaults to `configuration['mpi']`.
         - ``blockinner``: Enable/disable blocking of innermost loops. By default,
                           this is disabled to maximize SIMD vectorization. Pass True
                           to override this heuristic.
@@ -75,6 +76,7 @@ def transform(iet, mode='basic', options=None):
     params.update({k: v for k, v in configuration['dle-options'].items()
                    if k not in params})
     params.setdefault('openmp', configuration['openmp'])
+    params.setdefault('mpi', configuration['mpi'])
 
     # Force OpenMP if parallelism was requested, even though mode is 'noop'
     if mode == 'noop' and params['openmp'] is True:
