@@ -6,7 +6,7 @@ import numpy as np
 
 from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
-from devito.ir.iet import ForeignExpression, MetaCall, Transformer, find_offloadable_trees
+from devito.ir.iet import ForeignExpression, MetaCall, Transformer, find_affine_trees
 from devito.ir.support import align_accesses
 from devito.operator import Operator
 from devito.tools import Signer, filter_ordered, flatten
@@ -61,7 +61,7 @@ class OperatorYASK(Operator):
         """
         mapper = {}
         self.yk_solns = OrderedDict()
-        for n, (section, trees) in enumerate(find_offloadable_trees(iet).items()):
+        for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
             dimensions = tuple(filter_ordered(i.dim.root for i in flatten(trees)))
             context = contexts.fetch(dimensions, self._dtype)
 

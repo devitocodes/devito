@@ -7,7 +7,7 @@ from devito.tools import flatten, ReducerMap
 from devito.types import Array, LocalObject
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree',
-           'compose_nodes', 'derive_parameters', 'find_offloadable_trees']
+           'compose_nodes', 'derive_parameters', 'find_affine_trees']
 
 
 def retrieve_iteration_tree(node, mode='normal'):
@@ -148,23 +148,23 @@ def derive_parameters(nodes, drop_locals=False):
     return parameters
 
 
-def find_offloadable_trees(iet):
+def find_affine_trees(iet):
     """
-    Find offloadable trees. A tree is offloadable when all of the array accesses are
+    Find affine trees. A tree is affine when all of the array accesses are
     constant/affine functions of the Iteration variables and the Iteration bounds
     are fixed (but possibly symbolic).
 
     Parameters
     ----------
-    iet : :class:`Node`
+    iet : `Node`
         The searched tree
 
     Returns
     -------
-    list of :class:`Node`
-        Each item in the list is the root of an offloadable tree
+    list of `Node`
+        Each item in the list is the root of an affine tree
     """
-    offloadable = OrderedDict()
+    affine = OrderedDict()
     roots = [i for i in FindNodes(Iteration).visit(iet) if i.dim.is_Time]
     for root in roots:
         sections = FindNodes(Section).visit(root)
@@ -177,7 +177,7 @@ def find_offloadable_trees(iet):
                 grid = ReducerMap([('', i.grid) for i in exprs if i.grid]).unique('')
                 writeto_dimensions = tuple(i.dim.root for i in tree)
                 if grid.dimensions == writeto_dimensions:
-                    offloadable.setdefault(section, []).append(tree)
+                    affine.setdefault(section, []).append(tree)
                 else:
                     break
-    return offloadable
+    return affine

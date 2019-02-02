@@ -6,7 +6,7 @@ from devito.symbolics import Macro, split_affine
 from devito.types import Indexed, Array
 
 
-class OPSNodeFactory():
+class OPSNodeFactory(object):
     """
     Generate OPS nodes for building an OPS expression.
     A new OPS argument is created based on the indexed name, and its time dimension.
