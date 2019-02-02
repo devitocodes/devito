@@ -932,8 +932,10 @@ class TestArguments(object):
         ((2, 5, 4), 1, 3, (2, 16, 16, 16)),
     ])
     def test_function_dataobj(self, so, to, pad, expected):
-        """Tests that the C-level structs from TensorFunctions are properly
-        populated upon application of an Operator."""
+        """
+        Tests that the C-level structs from DiscreteFunctions are properly
+        populated upon application of an Operator.
+        """
         grid = Grid(shape=(4, 4, 4))
 
         u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to, padding=pad)

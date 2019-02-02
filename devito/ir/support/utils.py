@@ -1,11 +1,11 @@
 from collections import OrderedDict, defaultdict
 
-from devito.dimension import Dimension, ModuloDimension
 from devito.ir.support.basic import Access
 from devito.ir.support.space import Interval, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted
+from devito.types import Dimension, ModuloDimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
            'detect_flow_directions', 'force_directions', 'align_accesses', 'detect_io']
@@ -13,8 +13,8 @@ __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals
 
 def detect_accesses(expr):
     """
-    Return a mapper ``M : F -> S``, where F are :class:`Function`s appearing
-    in ``expr`` and S are :class:`Stencil`s. ``M[f]`` represents all data accesses
+    Return a mapper ``M : F -> S``, where F are Functions appearing
+    in ``expr`` and S are Stencils. ``M[f]`` represents all data accesses
     to ``f`` within ``expr``. Also map ``M[None]`` to all Dimensions used in
     ``expr`` as plain symbols, rather than as array indices.
     """
@@ -45,12 +45,12 @@ def detect_accesses(expr):
 def detect_oobs(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return the set of
-    :class:`Dimension`s that cannot be iterated over for the entire
-    computational domain, to avoid out-of-bounds (OOB) accesses.
+    Dimensions that *cannot* be iterated over the entire computational
+    domain, to avoid out-of-bounds (OOB) accesses.
     """
     found = set()
     for f, stencil in mapper.items():
-        if f is None or not f.is_TensorFunction:
+        if f is None or not f.is_DiscreteFunction:
             continue
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d
@@ -68,8 +68,8 @@ def detect_oobs(mapper):
 def build_iterators(mapper):
     """
     Given M as produced by :func:`detect_accesses`, return a mapper ``M' : D -> V``,
-    where D is the set of :class:`Dimension`s in M, and V is a set of
-    :class:`DerivedDimension`s. M'[d] provides the sub-iterators along the
+    where D is the set of Dimensions in M, and V is a set of
+    DerivedDimensions. M'[d] provides the sub-iterators along the
     Dimension `d`.
     """
     iterators = OrderedDict()
@@ -89,8 +89,8 @@ def build_iterators(mapper):
 
 def build_intervals(stencil):
     """
-    Given a :class:`Stencil`, return an iterable of :class:`Interval`s, one
-    for each :class:`Dimension` in the stencil.
+    Given a Stencil, return an iterable of Intervals, one
+    for each Dimension in the stencil.
     """
     mapper = {}
     for d, offs in stencil.items():
@@ -117,8 +117,8 @@ def align_accesses(expr, key=lambda i: False):
 
 def detect_flow_directions(exprs):
     """
-    Return a mapper from :class:`Dimension`s to iterables of
-    :class:`IterationDirection`s representing the theoretically necessary
+    Return a mapper from Dimensions to Iterables of
+    IterationDirections representing the theoretically necessary
     directions to evaluate ``exprs`` so that the information "naturally
     flows" from an iteration to another.
     """
@@ -128,7 +128,7 @@ def detect_flow_directions(exprs):
     reads = flatten(retrieve_indexed(i.rhs, mode='all') for i in exprs)
     reads = [Access(i, 'R') for i in reads]
 
-    # Determine indexed-wise direction by looking at the vector distance
+    # Determine indexed-wise direction by looking at the distance vector
     mapper = defaultdict(set)
     for w in writes:
         for r in reads:
@@ -179,9 +179,9 @@ def detect_flow_directions(exprs):
 
 def force_directions(mapper, key):
     """
-    Return a mapper ``M : D -> I`` where D is the set of :class:`Dimension`s
+    Return a mapper ``M : D -> I`` where D is the set of Dimensions
     found in the input mapper ``M' : D -> {I}``, while I = {Any, Backward,
-    Forward} (i.e., the set of possible :class:`IterationDirection`s).
+    Forward} (i.e., the set of possible IterationDirections).
 
     The iteration direction is chosen so that the information "naturally flows"
     from an iteration to another (i.e., to generate "flow" or "read-after-write"
@@ -225,8 +225,8 @@ def detect_io(exprs, relax=False):
     exprs : expr-like or list of expr-like
         The searched expressions.
     relax : bool, optional
-        If False, as by default, collect only :class:`Constant`s and
-        :class:`Function`s. Otherwise, collect any :class:`types.Basic`s.
+        If False, as by default, collect only Constants and
+        Functions. Otherwise, collect any :class:`types.Basic`s.
     """
     exprs = as_tuple(exprs)
     if relax is False:

@@ -1,14 +1,14 @@
 from collections import namedtuple
 
-from devito.dimension import (Dimension, SpaceDimension, TimeDimension,
-                              SteppingDimension, SubDimension)
-from devito.function import Constant
+from sympy import prod
+import numpy as np
+
 from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ArgProvider, ReducerMap, as_tuple
-
-from sympy import prod
-import numpy as np
+from devito.types.constant import Constant
+from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
+                                    SteppingDimension, SubDimension)
 
 __all__ = ['Grid', 'SubDomain']
 
@@ -261,7 +261,7 @@ class Grid(ArgProvider):
         if configuration['mpi']:
             distributor = self.distributor
             args[distributor._obj_comm.name] = distributor._obj_comm.value
-            args[distributor._obj_neighbours.name] = distributor._obj_neighbours.value
+            args[distributor._obj_neighborhood.name] = distributor._obj_neighborhood.value
 
         return args
 
@@ -285,7 +285,7 @@ class SubDomain(object):
     To create a new SubDomain, all one needs to do is overriding :meth:`define`.
     This method takes as input a set of Dimensions and produce a mapper
 
-        M : Dimensions -> {d, ('left', N), ('middle', N, M), ('right', N)}
+        ``M : Dimensions -> {d, ('left', N), ('middle', N, M), ('right', N)}``
 
     so that:
 

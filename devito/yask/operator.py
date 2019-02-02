@@ -40,7 +40,7 @@ class OperatorYASK(Operator):
 
     def _specialize_exprs(self, expressions):
         # Align data accesses to the computational domain if not a yask.Function
-        key = lambda i: i.is_TensorFunction and not i.from_YASK
+        key = lambda i: i.is_DiscreteFunction and not i.from_YASK
         expressions = [align_accesses(e, key=key) for e in expressions]
 
         expressions = super(OperatorYASK, self)._specialize_exprs(expressions)
@@ -74,8 +74,7 @@ class OperatorYASK(Operator):
 
             try:
                 # Generate YASK grids and populate `yc_soln` with equations
-                gridmap = yaskit(trees, yc_soln)
-                local_grids = [i for i in gridmap if i.is_Array]
+                local_grids = yaskit(trees, yc_soln)
 
                 # Build the new IET nodes
                 yk_soln_obj = YaskSolnObject(namespace['code-soln-name'](n))

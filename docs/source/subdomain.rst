@@ -2,6 +2,6 @@
 SubDomain
 =========
 
-.. autoclass:: devito.grid.SubDomain
+.. autoclass:: devito.types.SubDomain
     :members:
     :show-inheritance:

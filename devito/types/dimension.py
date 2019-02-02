@@ -9,10 +9,11 @@ from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
 from devito.tools import ArgProvider, Pickable, dtype_to_cstr
-from devito.types import AbstractSymbol, Scalar
+from devito.types.basic import AbstractSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
+           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
+           'ModuloDimension', 'IncrDimension']
 
 
 class Dimension(AbstractSymbol, ArgProvider):
@@ -39,13 +40,13 @@ class Dimension(AbstractSymbol, ArgProvider):
     >>> grid = Grid(shape=(4, 4))
     >>> x, y = grid.dimensions
     >>> type(x)
-    <class 'devito.dimension.SpaceDimension'>
+    <class 'devito.types.dimension.SpaceDimension'>
     >>> time = grid.time_dim
     >>> type(time)
-    <class 'devito.dimension.TimeDimension'>
+    <class 'devito.types.dimension.TimeDimension'>
     >>> t = grid.stepping_dim
     >>> type(t)
-    <class 'devito.dimension.SteppingDimension'>
+    <class 'devito.types.dimension.SteppingDimension'>
 
     Alternatively, one can create Dimensions explicitly
 
@@ -85,7 +86,7 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     # Unlike other Symbols, Dimensions can only be integers
     dtype = np.int32
-    _C_typename = dtype_to_cstr(dtype)
+    _C_typename = 'const %s' % dtype_to_cstr(dtype)
     _C_typedata = _C_typename
 
     def __new__(cls, name, spacing=None):
@@ -93,7 +94,7 @@ class Dimension(AbstractSymbol, ArgProvider):
 
     def __new_stage2__(cls, name, spacing=None):
         newobj = sympy.Symbol.__xnew__(cls, name)
-        newobj._spacing = spacing or Scalar(name='h_%s' % name)
+        newobj._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
         return newobj
 
     __xnew__ = staticmethod(__new_stage2__)
@@ -110,17 +111,17 @@ class Dimension(AbstractSymbol, ArgProvider):
     @cached_property
     def symbolic_size(self):
         """Symbolic size of the Dimension."""
-        return Scalar(name=self.size_name, dtype=np.int32)
+        return Scalar(name=self.size_name, dtype=np.int32, is_const=True)
 
     @cached_property
     def symbolic_min(self):
         """Symbol defining the minimum point of the Dimension."""
-        return Scalar(name=self.min_name, dtype=np.int32)
+        return Scalar(name=self.min_name, dtype=np.int32, is_const=True)
 
     @cached_property
     def symbolic_max(self):
         """Symbol defining the maximum point of the Dimension."""
-        return Scalar(name=self.max_name, dtype=np.int32)
+        return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
     @cached_property
     def size_name(self):
@@ -514,8 +515,8 @@ class SubDimension(DerivedDimension):
 
     @classmethod
     def _symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32))
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32, is_const=True),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32, is_const=True))
 
     @cached_property
     def _thickness_map(self):
@@ -637,6 +638,7 @@ class ConditionalDimension(DerivedDimension):
             f[g[i]] = f[g[i]] + 1;
           }
         }
+
     """
 
     is_NonlinearDerived = True

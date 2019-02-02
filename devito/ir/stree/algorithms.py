@@ -14,7 +14,7 @@ __all__ = ['st_build']
 
 def st_build(clusters):
     """
-    Create a :class:`ScheduleTree` from a :class:`ClusterGroup`.
+    Create a ScheduleTree from a ClusterGroup.
     """
     # ClusterGroup -> Schedule tree
     stree = st_schedule(clusters)
@@ -30,7 +30,7 @@ def st_build(clusters):
 
 def st_schedule(clusters):
     """
-    Arrange an iterable of :class:`Cluster`s into a :class:`ScheduleTree`.
+    Arrange an iterable of Clusters into a ScheduleTree.
     """
     stree = ScheduleTree()
 
@@ -77,15 +77,15 @@ def st_schedule(clusters):
 
 def st_make_halo(stree):
     """
-    Add :class:`NodeHalo`s to a :class:`ScheduleTree`. A HaloNode captures
-    the halo exchanges that should take place before executing the sub-tree;
-    these are described by means of a :class:`HaloScheme`.
+    Add NodeHalos to a ScheduleTree. A NodeHalo captures the halo exchanges
+    that should take place before executing the sub-tree; these are described
+    by means of a HaloScheme.
     """
     # Build a HaloScheme for each expression bundle
     halo_schemes = {}
     for n in findall(stree, lambda i: i.is_Exprs):
         try:
-            halo_schemes[n] = HaloScheme(n.exprs, n.ispace, n.dspace)
+            halo_schemes[n] = HaloScheme(n.exprs, n.ispace)
         except HaloSchemeException as e:
             if configuration['mpi']:
                 raise RuntimeError(str(e))
@@ -111,17 +111,15 @@ def st_make_halo(stree):
 
 def st_section(stree):
     """
-    Add :class:`NodeSection` to a :class:`ScheduleTree`. A section defines a
-    sub-tree with the following properties: ::
+    Add NodeSections to a ScheduleTree. A NodeSection, or simply "section",
+    defines a sub-tree with the following properties:
 
-        * The root is a node of type :class:`NodeSection`;
-        * The immediate children of the root are nodes of type :class:`NodeIteration`
-          and have same parent.
-        * The :class:`Dimension` of the immediate children are either: ::
+        * The root is a node of type NodeSection;
+        * The immediate children of the root are nodes of type NodeIteration;
+        * The Dimensions of the immediate children are either:
             * identical, OR
-            * different, but all of type :class:`SubDimension`;
-        * The :class:`Dimension` of the immediate children cannot be a
-          :class:`TimeDimension`.
+            * different, but all of type SubDimension;
+        * The Dimension of the immediate children cannot be a TimeDimension.
     """
 
     class Section(object):
@@ -131,8 +129,7 @@ def st_section(stree):
             self.nodes = [node]
 
         def is_compatible(self, node):
-            return (self.parent == node.parent
-                    and (self.dim == node.dim or node.dim.is_Sub))
+            return self.parent == node.parent and self.dim.root == node.dim.root
 
     # Search candidate sections
     sections = []

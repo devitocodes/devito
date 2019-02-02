@@ -8,14 +8,13 @@ import cpuinfo
 from devito.base import *  # noqa
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
-from devito.dimension import *  # noqa
 from devito.equation import *  # noqa
-from devito.grid import SubDomain  # noqa
 from devito.finite_differences import *  # noqa
-from devito.function import Buffer, NODE, CELL  # noqa
 from devito.logger import error, warning, info, set_log_level  # noqa
 from devito.parameters import *  # noqa
 from devito.tools import *  # noqa
+from devito.types import NODE, CELL, Buffer, SubDomain  # noqa
+from devito.types.dimension import *  # noqa
 
 from devito.compiler import compiler_registry
 from devito.backends import backends_registry, init_backend
@@ -49,9 +48,9 @@ def _reinit_compiler(val):  # noqa
     # Force re-build the compiler
     configuration['compiler'].__init__(suffix=configuration['compiler'].suffix,
                                        mpi=configuration['mpi'])
-    return bool(val)
+    return bool(val) if isinstance(val, int) else val
 configuration.add('openmp', 0, [0, 1], callback=_reinit_compiler)  # noqa
-configuration.add('mpi', 0, [0, 1], callback=_reinit_compiler)
+configuration.add('mpi', 0, [0, 1, 'basic', 'diag'], callback=_reinit_compiler)
 
 # Autotuning setup
 AT_LEVELs = ['off', 'basic', 'aggressive']

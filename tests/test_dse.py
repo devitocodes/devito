@@ -12,6 +12,7 @@ from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevar
                               estimate_cost, pow_to_mul)
 from devito.tools import generator
 from devito.types import Scalar
+
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver

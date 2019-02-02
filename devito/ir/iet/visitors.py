@@ -11,13 +11,14 @@ import cgen as c
 
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
+from devito.ir.iet.nodes import Iteration, Expression, Call
 from devito.ir.support.space import Backward
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype_to_cstr
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
-           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen',
-           'Transformer', 'FindAdjacent', 'MapIteration']
+           'MapNodes', 'IsPerfectIteration', 'XSubs', 'printAST', 'CGen',
+           'Transformer', 'FindAdjacent']
 
 
 class Visitor(GenericVisitor):
@@ -167,7 +168,7 @@ class CGen(Visitor):
         f = o.function
         # rvalue
         shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
-        if f.is_TensorFunction:
+        if f.is_DiscreteFunction:
             rvalue = '(%s (*)%s) %s->%s' % (f._C_typedata, shape, f._C_name,
                                             f._C_field_data)
         else:
@@ -372,22 +373,74 @@ class MapExpressions(FindSections):
     visit_Element = FindSections.visit_Node
 
 
-class MapIteration(FindSections):
+class MapNodes(Visitor):
+
+    @classmethod
+    def default_retval(cls):
+        return OrderedDict()
 
     """
-    Map each :class:`Iteration` object in the Iteration/Expression tree to the
-    enclosed :class:`Expression` and :class:`Call` objects.
+    Given an Iteration/Expression tree, build a mapper between parent and
+    children nodes of given type.
+
+    Parameters
+    ----------
+    parent_type : Node, optional
+        By default, parents are of type Iteration. One can alternatively supply
+        a different type.
+    child_types : Node or list of Node, optional
+        By default, children of type Call and Expression are retrieved.
+        One can alternatively supply one or more different types.
+    mode : str, optional
+        By default, a depth-first visit is performed. Alternatively, if the
+        keyword 'immediate' is passed, the visit stops to the immediate children
+        of a given parent.
+    groupby : bool, optional
+        If True, nested nodes of type ``parent_type`` are used as key in the
+        built mapper. Defaults to False.
     """
 
-    def visit_Call(self, o, ret=None, queue=None):
-        if ret is None:
-            ret = self.default_retval()
-        for i in as_tuple(queue):
-            ret.setdefault(i, []).append(o)
+    def __init__(self, parent_type=None, child_types=None, mode=None, groupby=False):
+        super(MapNodes, self).__init__()
+        self.parent_type = parent_type or Iteration
+        self.child_types = as_tuple(child_types) or (Call, Expression)
+        assert mode is None or mode == 'immediate'
+        self.mode = mode
+        self.groupby = groupby
+
+    def visit_object(self, o, ret=None, **kwargs):
         return ret
 
-    visit_Expression = visit_Call
-    visit_Element = FindSections.visit_Node
+    def visit_tuple(self, o, ret=None, parents=None, in_parent=False):
+        if ret is None:
+            ret = self.default_retval()
+        for i in o:
+            ret = self._visit(i, ret=ret, parents=parents, in_parent=False)
+        return ret
+
+    def visit_Node(self, o, ret=None, parents=None, in_parent=False):
+        if ret is None:
+            ret = self.default_retval()
+        if parents is None:
+            parents = []
+        if isinstance(o, self.parent_type):
+            if in_parent and self.mode == 'immediate':
+                return ret
+            parents.append(o)
+            for i in o.children:
+                ret = self._visit(i, ret=ret, parents=parents, in_parent=True)
+            parents.remove(o)
+        elif isinstance(o, self.child_types):
+            if self.groupby is True:
+                ret.setdefault(as_tuple(parents), []).append(o)
+            else:
+                for i in parents:
+                    ret.setdefault(i, []).append(o)
+        else:
+            for i in o.children:
+                ret = self._visit(i, ret=ret, parents=parents, in_parent=in_parent)
+
+        return ret
 
 
 class FindSymbols(Visitor):
@@ -444,7 +497,7 @@ class FindNodes(Visitor):
         return []
 
     """
-    Find all :class:`Node` instances of given type.
+    Find all instances of given type.
 
     Parameters
     ----------

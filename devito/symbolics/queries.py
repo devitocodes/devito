@@ -1,12 +1,12 @@
 from sympy import Eq, diff, cos, sin, nan
 
-from devito.tools import as_tuple
+from devito.tools import as_tuple, is_integer
 
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_timedimension',
-           'q_affine', 'q_linear', 'q_identity', 'q_inc', 'q_scalar',
-           'iq_timeinvariant', 'iq_timevarying']
+           'q_constant', 'q_affine', 'q_linear', 'q_identity', 'q_inc', 'q_scalar',
+           'q_multivar', 'q_monoaffine', 'iq_timeinvariant', 'iq_timevarying']
 
 
 """
@@ -35,8 +35,8 @@ def q_indexed(expr):
 
 
 def q_function(expr):
-    from devito.function import TensorFunction
-    return isinstance(expr, TensorFunction)
+    from devito.types.dense import DiscreteFunction
+    return isinstance(expr, DiscreteFunction)
 
 
 def q_terminal(expr):
@@ -84,7 +84,7 @@ def q_indirect(expr):
 
 
 def q_timedimension(expr):
-    from devito.dimension import Dimension
+    from devito.types import Dimension
     return isinstance(expr, Dimension) and expr.is_Time
 
 
@@ -95,6 +95,34 @@ def q_inc(expr):
         return False
 
 
+def q_multivar(expr, vars):
+    """
+    Return True if at least two variables in ``vars`` appear in ``expr``,
+    False otherwise.
+    """
+    # The vast majority of calls here provide incredibly simple single variable
+    # functions, so if there are < 2 free symbols we return immediately
+    if not len(expr.free_symbols) > 1:
+        return False
+    return len(set(as_tuple(vars)) & expr.free_symbols) >= 2
+
+
+def q_constant(expr):
+    """
+    Return True if ``expr`` is a constant, possibly symbolic, value, False otherwise.
+    Examples of non-constants are expressions containing Dimensions.
+    """
+    if is_integer(expr):
+        return True
+    for i in expr.free_symbols:
+        try:
+            if not i._is_const:
+                return False
+        except AttributeError:
+            return False
+    return True
+
+
 def q_affine(expr, vars):
     """
     Return True if ``expr`` is (separately) affine in the variables ``vars``,
@@ -103,12 +131,14 @@ def q_affine(expr, vars):
     Readapted from: https://stackoverflow.com/questions/36283548\
         /check-if-an-equation-is-linear-for-a-specific-set-of-variables/
     """
-    # A function is (separately) affine in a given set of variables if all
-    # non-mixed second order derivatives are identically zero.
-    for x in as_tuple(vars):
-        if x not in expr.atoms():
-            return False
-
+    vars = as_tuple(vars)
+    # If any `vars` does not appear in `expr`, the only possibility
+    # for `expr` to be affine is that it's a constant function
+    if any(x not in expr.atoms() for x in vars):
+        return q_constant(expr)
+    # At this point, `expr` is (separately) affine in the `vars` variables
+    # if all non-mixed second order derivatives are identically zero.
+    for x in vars:
         # The vast majority of calls here are incredibly simple tests
         # like q_affine(x+1, [x]).  Catch these quickly and
         # explicitly, instead of calling the very slow function `diff`.
@@ -126,6 +156,16 @@ def q_affine(expr, vars):
         except TypeError:
             return False
     return True
+
+
+def q_monoaffine(expr, x, vars):
+    """
+    Return True if ``expr`` is a single variable function which is affine in ``x`` ,
+    False otherwise.
+    """
+    if q_multivar(expr, vars):
+        return False
+    return q_affine(expr, x)
 
 
 def q_linear(expr, vars):
