@@ -5,6 +5,7 @@ from cached_property import cached_property
 from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacent,
                            FindNodes, IsPerfectIteration, Transformer,
                            compose_nodes, retrieve_iteration_tree)
+from devito.logger import warning
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple, flatten
 from devito.types import IncrDimension, Scalar
@@ -284,11 +285,22 @@ class BlockDimension(IncrDimension):
 
     def _arg_values(self, args, interval, grid, **kwargs):
         if self.step.name in kwargs:
-            return {self.step.name: kwargs.pop(self.step.name)}
+            value = kwargs.pop(self.step.name)
+            if value <= args[self.root.max_name] - args[self.root.min_name]:
+                return {self.step.name: value}
+            elif value < 0:
+                raise ValueError("Illegale block size `%s=%d` (it should be > 0)"
+                                 % (self.step.name, value))
+            else:
+                # Avoid OOB
+                warning("The specified block size `%s=%d` is bigger than the "
+                        "iteration range; shrinking it to `%s=1`."
+                        % (self.step.name, value, self.step.name))
+                return {self.step.name: 1}
         else:
-            blocksize = self._arg_defaults()[self.step.name]
-            if args[self.root.min_name] < blocksize < args[self.root.max_name]:
-                return {self.step.name: blocksize}
+            value = self._arg_defaults()[self.step.name]
+            if value <= args[self.root.max_name] - args[self.root.min_name]:
+                return {self.step.name: value}
             else:
                 # Avoid OOB
                 return {self.step.name: 1}
