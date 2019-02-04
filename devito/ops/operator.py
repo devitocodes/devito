@@ -1,3 +1,4 @@
+from devito.logger import warning
 from devito.operator import Operator
 
 __all__ = ['OperatorOPS']
@@ -10,4 +11,7 @@ class OperatorOPS(Operator):
     """
 
     def _specialize_iet(self, iet, **kwargs):
-        raise NotImplementedError
+
+        warning("The OPS backend is still work-in-progress")
+
+        return iet
