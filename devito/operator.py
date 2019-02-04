@@ -475,19 +475,20 @@ class Operator(Callable):
         symbolic expressions, one symbolic expression for each memory scope (external,
         stack, heap).
         """
-        tensors = [i for i in derive_parameters(self) if i.is_Tensor]
+        roots = [self] + [i.root for i in self._func_table.values()]
+        functions = [i for i in derive_parameters(roots) if i.is_Function]
 
         summary = {}
 
-        external = [i.symbolic_shape for i in tensors if i._mem_external]
+        external = [i.symbolic_shape for i in functions if i._mem_external]
         external = sum(reduce(mul, i, 1) for i in external)*self._dtype().itemsize
         summary['external'] = external
 
-        heap = [i.symbolic_shape for i in tensors if i._mem_heap]
+        heap = [i.symbolic_shape for i in functions if i._mem_heap]
         heap = sum(reduce(mul, i, 1) for i in heap)*self._dtype().itemsize
         summary['heap'] = heap
 
-        stack = [i.symbolic_shape for i in tensors if i._mem_stack]
+        stack = [i.symbolic_shape for i in functions if i._mem_stack]
         stack = sum(reduce(mul, i, 1) for i in stack)*self._dtype().itemsize
         summary['stack'] = stack
 
