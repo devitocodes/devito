@@ -57,9 +57,22 @@ class Ompizer(object):
         self.nthreads = NThreads('nthreads')
 
     def _ncollapse(self, root, candidates):
+        # The OpenMP specification forbids collapsed loops to use iteration variables
+        # in initializer expressions. For example, the following is forbidden:
+        #
+        # #pragma omp ... collapse(2)
+        # for (int i = ... )
+        #   for (int j = i ...)
+        #     ...
+        #
+        # Below, we make sure this won't happen
+        for n, i in enumerate(candidates):
+            if any(j.dim in i.symbolic_min.free_symbols for j in candidates[:n]):
+                break
+        candidates = candidates[:n]
         # Heuristic: if at least two parallel loops are available and the
         # physical core count is greater than COLLAPSE, then omp-collapse them
-        nparallel = min(len(candidates), 2)  # TODO: find a better heuristic
+        nparallel = len(candidates)
         isperfect = IsPerfectIteration().visit(root)
         if ncores() < Ompizer.COLLAPSE or nparallel < 2 or not isperfect:
             return 1
