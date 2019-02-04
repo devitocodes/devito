@@ -10,25 +10,26 @@ __all__ = ['Coefficient', 'CoefficientRules', 'default_rules']
 
 class Coefficient(object):
     """
-    Prepare custom FD coefficients to pass to CoefficientRules object.
+    Prepare custom coefficients to pass to CoefficientRules object.
 
     Parameters
     ----------
-    deriv_order : integer
-        Represents the order of the derivative being taken.
+    deriv_order : int
+        The order of the derivative being taken.
     function : Function
-        Represents the function for which the supplied coefficients
+        The function for which the supplied coefficients
         will be used.
     dimension : Dimension
-        Represents the dimension with respect to which the
+        The dimension with respect to which the
         derivative is being taken.
     coefficients : np.ndarray
-        Represents the set of finite difference coefficients
+        The set of finite difference coefficients
         intended to be used in place of the standard
         coefficients (obtained from a Taylor expansion).
 
     Example
     -------
+    >>> import numpy as np
     >>> from devito import Grid, Function, Coefficient
     >>> grid = Grid(shape=(4, 4))
     >>> u = Function(name='u', grid=grid, space_order=2, coefficients='symbolic')
@@ -46,7 +47,7 @@ class Coefficient(object):
 
     def __init__(self, deriv_order, function, dimension, coefficients):
 
-        self.check_input(deriv_order, function, dimension, coefficients)
+        self._check_input(deriv_order, function, dimension, coefficients)
 
         # Ensure the given set of coefficients is the correct length
         if dimension.is_Time:
@@ -83,7 +84,7 @@ class Coefficient(object):
         """The set of coefficients."""
         return self._coefficients
 
-    def check_input(self, deriv_order, function, dimension, coefficients):
+    def _check_input(self, deriv_order, function, dimension, coefficients):
         if not isinstance(deriv_order, int):
             raise TypeError("Derivative order must be an integer")
         # NOTE: Can potentially be tidied up following the implementation
@@ -110,24 +111,32 @@ class CoefficientRules(object):
     Devito class to convert Coefficient objects into replacent rules
     to be applied when constructing a Devito Eq.
 
-    Example
-    -------
-    Assume we have created the 'u_x_coeffs' Coefficient object
-    as shown above in the Class Coefficient example.
+    Examples
+    --------
+    >>> from devito import Grid, TimeFunction, Coefficient
+    >>> grid = Grid(shape=(4, 4))
+    >>> u = TimeFunction(name='u', grid=grid, space_order=2, coefficients='symbolic')
+    >>> x, y = grid.dimensions
+
+    Now define some partial d/dx FD coefficients of the Function u:
+
+    >>> u_x_coeffs = Coefficient(1, u, x, np.array([-0.6, 0.1, 0.6]))
+
+    And now create our CoefficientRules object to pass to equation:
 
     >>> from devito import CoefficientRules
-    >>> coeffs = CoefficientsRules(u_x_coeffs)
+    >>> coeffs = CoefficientRules(u_x_coeffs)
 
     Now create a Devito equation and pass to it 'coeffs'
 
     >>> from devito import Eq
-    >>> eq = Eq(u.dt+u.dx, coefficients=coeffs)
-    Eq(0.1*u(t, x, y) - 0.6*u(t, x - h_x, y) + 0.6*u(t, x + h_x, y)
-    - u(t - dt, x, y)/(2*dt) + u(t + dt, x, y)/(2*dt), 0)
+    >>> Eq(u.dt+u.dx, coefficients=coeffs)
+    Eq(0.1*u(t, x, y) - 0.6*u(t, x - h_x, y) + 0.6*u(t, x + h_x, y) \
+- u(t, x, y)/dt + u(t + dt, x, y)/dt, 0)
 
     Notes
     -----
-    If a function is declared with 'symbolic' coefficients and no
+    If a Function is declared with 'symbolic' coefficients and no
     replacement rules for any derivative appearing in a Devito equation,
     the coefficients will revert to those of the 'default' Taylor
     expansion.
@@ -138,18 +147,18 @@ class CoefficientRules(object):
         if any(not isinstance(arg, Coefficient) for arg in args):
             raise TypeError("Non Coefficient object within input")
 
-        self._data = args
+        self._coefficients = args
         self._function_list = self.function_list
         self._rules = self.rules
 
     @property
-    def data(self):
+    def coefficients(self):
         """The Coefficient objects passed."""
-        return self._data
+        return self._coefficients
 
     @cached_property
     def function_list(self):
-        return list(set([d.function for d in self.data]))
+        return filter_ordered((i.function for i in self.coefficients), lambda i: i.name)
 
     @cached_property
     def rules(self):
@@ -172,7 +181,7 @@ class CoefficientRules(object):
                                            side=side, stagger=stagger)
 
             for j in range(len(coeffs)):
-                subs.update({function.fd_coeff_symbol
+                subs.update({function.coeff_symbol
                              (indices[j], deriv_order, function, dim): coeffs[j]})
 
             return subs
@@ -181,9 +190,9 @@ class CoefficientRules(object):
         # with user provided coefficients and, if possible, generate
         # replacement rules
         rules = {}
-        for d in self.data:
-            if isinstance(d.coefficients, np.ndarray):
-                rules.update(generate_subs(d))
+        for i in self.coefficients:
+            if isinstance(i.coefficients, np.ndarray):
+                rules.update(generate_subs(i))
 
         return rules
 
@@ -215,7 +224,7 @@ def default_rules(obj, functions):
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
         for j in range(len(coeffs)):
-            subs.update({function.fd_coeff_symbol
+            subs.update({function.coeff_symbol
                          (indices[j], deriv_order, function, dim): coeffs[j]})
 
         return subs
@@ -228,7 +237,7 @@ def default_rules(obj, functions):
     coeffs = obj.coefficients
     if coeffs:
         args_provided = [(coeff.deriv_order, coeff.function, coeff.dimension)
-                         for coeff in coeffs.data]
+                         for coeff in coeffs.coefficients]
     else:
         args_provided = []
 
@@ -248,7 +257,7 @@ def default_rules(obj, functions):
 def get_sym(functions):
     for j in range(0, len(functions)):
         try:
-            sym = functions[j].fd_coeff_symbol
+            sym = functions[j].coeff_symbol
             return sym
         except:
             pass

@@ -5,7 +5,6 @@ from sympy import S, finite_diff_weights
 from devito.finite_differences import Differentiable
 from devito.tools import Tag
 from devito.symbolics import retrieve_functions
-from devito.tools import filter_ordered
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'left', 'right', 'centered', 'transpose',
@@ -69,7 +68,6 @@ def check_symbolic(func):
     @wraps(func)
     def wrapper(expr, *args, **kwargs):
         functions = retrieve_functions(expr)
-        functions = filter_ordered(functions, key=lambda i: i.name)
         functions = [f for f in functions if not f.is_SparseFunction]
         symbolic_coefficients = any(f.coefficients == 'symbolic' for f in functions)
         if symbolic_coefficients:
@@ -290,7 +288,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
     all_dims = tuple(set((dim, ) +
                      tuple([i for i in expr.indices if i.root == dim])))
     for i in range(0, len(indices)):
-        subs = dict([(d, indices[i].subs({dim: d})) for d in all_dims])
+        subs = dict((d, indices[i].subs({dim: d})) for d in all_dims)
         deriv += expr.subs(subs) * c[i]
 
     return deriv.evalf(_PRECISION)
@@ -375,13 +373,8 @@ def generate_fd_shortcuts(function):
 
 
 def symbolic_weights(function, deriv_order, indices, dim):
-
-    n_weights = len(indices)
-
-    weights = []
-    for j in range(n_weights):
-        weights.append(function.fd_coeff_symbol(indices[j], deriv_order, function, dim))
-    return weights
+    return [function.coeff_symbol(indices[j], deriv_order, function, dim)
+            for j in range(0, len(indices))]
 
 
 def generate_indices(func, dim, diff, order, stagger=None, side=None):
@@ -399,14 +392,13 @@ def generate_indices(func, dim, diff, order, stagger=None, side=None):
                                                int((order+1)/2)+1)]
         x0 = None
     else:
-        if stagger == left or not func.is_Staggered:
-            off = -.5
-        elif stagger == right:
-            off = .5
-        else:
-            off = 0
-
         if func.is_Staggered:
+            if stagger == left:
+                off = -.5
+            elif stagger == right:
+                off = .5
+            else:
+                off = 0
             ind = list(set([(dim + int(i+.5+off) * dim.spacing)
                             for i in range(-order//2, order//2)]))
             x0 = (dim + off*diff)
@@ -418,5 +410,4 @@ def generate_indices(func, dim, diff, order, stagger=None, side=None):
             x0 = dim
             if order < 2:
                 ind = [dim, dim + diff]
-
     return ind, x0

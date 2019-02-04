@@ -980,7 +980,7 @@ class Function(DiscreteFunction, Differentiable):
         return self._coefficients
 
     @cached_property
-    def fd_coeff_symbol(self):
+    def coeff_symbol(self):
         if self.coefficients == 'symbolic':
             return sympy.Function('W')
         else:
