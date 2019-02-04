@@ -308,7 +308,8 @@ class AdvancedRewriter(BasicRewriter):
                 for bi, (m, M, b) in zip(interb, p):
                     dynamic_parameters_mapper[bi.dim] = (m, M)
                     dynamic_parameters_mapper[bi.dim.step] = (b,)
-                body.append(efunc0.make_call(dynamic_parameters_mapper))
+                call = efunc0.make_call(dynamic_parameters_mapper)
+                body.append(List(header=noinline, body=call))
 
             # Build indirect Call to the `efunc0` Calls
             dynamic_parameters = [i.dim for i in iterations]

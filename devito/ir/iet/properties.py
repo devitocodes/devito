@@ -41,15 +41,6 @@ affine in ``d``. Further, the Iteration does not contain any Indexed varying in
 ``d`` used to indirectly access some other Indexed."""
 
 
-def tagger(i):
-    return IterationProperty('tag', i)
-
-
-def ntags():
-    return len(IterationProperty._KNOWN) - ntags.n_original_properties
-ntags.n_original_properties = len(IterationProperty._KNOWN)  # noqa
-
-
 class HaloSpotProperty(Tag):
 
     """

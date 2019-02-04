@@ -12,7 +12,7 @@ from devito.cgen_utils import ccode
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, AFFINE, tagger, ntags, USELESS)
+                           VECTOR, WRAPPABLE, AFFINE, USELESS)
 from devito.ir.support import Forward, detect_io
 from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
@@ -407,18 +407,6 @@ class Iteration(Node):
             if i.name == 'tag':
                 return i.val
         return None
-
-    def retag(self, tag_value=None):
-        """
-        Create a new Iteration object which is identical to ``self``, except
-        for the tag. If provided, ``tag_value`` is used as new tag; otherwise,
-        an internally generated tag is used.
-        """
-        if self.tag is None:
-            return self._rebuild()
-        properties = [tagger(tag_value or (ntags() + 1)) if i.name == 'tag' else i
-                      for i in self.properties]
-        return self._rebuild(properties=properties)
 
     @property
     def symbolic_bounds(self):

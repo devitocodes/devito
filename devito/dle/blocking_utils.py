@@ -2,7 +2,7 @@ import cgen as c
 import numpy as np
 from cached_property import cached_property
 
-from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacent,
+from devito.ir.iet import (Expression, Iteration, List, FindAdjacent,
                            FindNodes, IsPerfectIteration, Transformer,
                            compose_nodes, retrieve_iteration_tree)
 from devito.logger import warning
@@ -95,13 +95,9 @@ def unfold_blocked_tree(node):
             candidates.append(handle)
 
     # Perform unfolding
-    tag = ntags()
     mapper = {}
     for tree in candidates:
         trees = list(zip(*[i.unfold() for i in tree]))
-        # Update tag
-        for i, _tree in enumerate(list(trees)):
-            trees[i] = tuple(j.retag(tag + i) for j in _tree)
         trees = optimize_unfolded_tree(trees[:-1], trees[-1])
         mapper[tree[0]] = List(body=trees)
 
