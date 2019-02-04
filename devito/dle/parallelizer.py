@@ -4,11 +4,12 @@ import numpy as np
 import cgen as c
 import psutil
 
-from devito.ir.iet import (FindSymbols, FindNodes, Transformer, Block, Expression,
-                           List, retrieve_iteration_tree, filter_iterations,
-                           IsPerfectIteration, COLLAPSED)
+from devito.ir.iet import (Conditional, Block, Element, Expression, List, FindSymbols,
+                           FindNodes, Transformer, IsPerfectIteration, COLLAPSED,
+                           retrieve_iteration_tree, filter_iterations)
+from devito.symbolics import CondEq
 from devito.parameters import configuration
-from devito.types import Constant
+from devito.types import Constant, Symbol
 
 
 def ncores():
@@ -111,6 +112,13 @@ class Ompizer(object):
             private = ('private(%s)' % ','.join(private)) if private else ''
             partree = Block(header=self.lang['par-region'](self.nthreads.name, private),
                             body=partree)
+
+            # Do not enter the parallel region if the step increment might be 0; this
+            # would raise a `Floating point exception (core dumped)` in some OpenMP
+            # implementation. Note that using an OpenMP `if` clause won't work
+            if isinstance(root.step, Symbol):
+                cond = Conditional(CondEq(root.step, 0), Element(c.Statement('return')))
+                partree = List(body=[cond, partree])
 
             mapper[root] = partree
         iet = Transformer(mapper).visit(iet)
