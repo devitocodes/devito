@@ -179,7 +179,7 @@ class Data(np.ndarray):
                 if NONLOCAL in val_idx:
                     # no-op
                     return
-                val_idx = [i for i in val_idx if i is not PROJECTED]
+                val_idx = tuple([i for i in val_idx if i is not PROJECTED])
                 # NumPy broadcasting note:
                 # When operating on two arrays, NumPy compares their shapes
                 # element-wise. It starts with the trailing dimensions, and works

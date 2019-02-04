@@ -371,7 +371,7 @@ class TestDataDistributed(object):
     Test Data indexing and manipulation when distributed over a set of MPI processes.
     """
 
-    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parallel(mode=4)
     def test_localviews(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -399,7 +399,7 @@ class TestDataDistributed(object):
             assert np.all(u.data_ro_with_halo._local[:2, :2] == myrank)
             assert np.all(u.data_ro_with_halo._local[2] == 0.)
 
-    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parallel(mode=4)
     def test_trivial_insertion(self):
         grid = Grid(shape=(4, 4))
         u = Function(name='u', grid=grid, space_order=0)
@@ -415,7 +415,7 @@ class TestDataDistributed(object):
         assert np.all(v.data_with_halo[:] == 1.)
         assert np.all(v.data_with_halo._local == 1.)
 
-    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parallel(mode=4)
     def test_indexing(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -446,7 +446,7 @@ class TestDataDistributed(object):
             assert np.all(u.data[2] == [myrank, myrank])
             assert np.all(u.data[:, 2] == [myrank, myrank])
 
-    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parallel(mode=4)
     def test_slicing(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -473,7 +473,7 @@ class TestDataDistributed(object):
             assert np.all(u.data[2:, 2:] == myrank)
             assert u.data[:2, 2:].size == u.data[2:, :2].size == u.data[:2, :2].size == 0
 
-    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parallel(mode=4)
     def test_indexing_in_views(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -537,7 +537,7 @@ class TestDataDistributed(object):
             assert np.all(view2[:] == myrank)
             assert view2.size == 0
 
-    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parallel(mode=4)
     def test_from_replicated_to_distributed(self):
         shape = (4, 4)
         grid = Grid(shape=shape)
@@ -586,7 +586,7 @@ class TestDataDistributed(object):
         except:
             assert False
 
-    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parallel(mode=4)
     def test_misc_setup(self):
         """Test setup of Functions with mixed distributed/replicated Dimensions."""
         grid = Grid(shape=(4, 4))
@@ -627,7 +627,7 @@ class TestDataDistributed(object):
             # Too few entries for `shape` (two expected, for `y` and `dy`)
             assert True
 
-    @pytest.mark.parallel(nprocs=4)
+    @pytest.mark.parallel(mode=4)
     def test_misc_data(self):
         """
         Test data insertion/indexing for Functions with mixed

@@ -1,6 +1,7 @@
 from collections import namedtuple
 from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
-from functools import wraps
+from functools import wraps, reduce
+from operator import mul
 
 import numpy as np
 import sympy
@@ -9,7 +10,7 @@ from cached_property import cached_property
 from cgen import Struct, Value
 
 from devito.builtins import assign
-from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, RIGHT,
+from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, CENTER, RIGHT,
                          Data, default_allocator)
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
@@ -18,7 +19,8 @@ from devito.parameters import configuration
 from devito.symbolics import Add, FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.tools import (EnrichedTuple, ReducerMap, ArgProvider, as_tuple,
-                          flatten, is_integer, ctypes_to_cstr, memoized_meth)
+                          flatten, is_integer, ctypes_to_cstr, memoized_meth,
+                          dtype_to_ctype)
 from devito.types.dimension import Dimension
 from devito.types.basic import AbstractCachedFunction
 from devito.types.utils import Buffer, NODE, CELL
@@ -565,6 +567,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     _C_field_data = 'data'
     _C_field_size = 'size'
     _C_field_nopad_size = 'npsize'
+    _C_field_domain_size = 'dsize'
     _C_field_halo_size = 'hsize'
     _C_field_halo_ofs = 'hofs'
     _C_field_owned_ofs = 'oofs'
@@ -573,6 +576,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
                          [Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_size),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_nopad_size),
+                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_domain_size),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_size),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_ofs),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_owned_ofs)])
@@ -581,6 +585,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
                             {'_fields_': [(_C_field_data, c_void_p),
                                           (_C_field_size, POINTER(c_int)),
                                           (_C_field_nopad_size, POINTER(c_int)),
+                                          (_C_field_domain_size, POINTER(c_int)),
                                           (_C_field_halo_size, POINTER(c_int)),
                                           (_C_field_halo_ofs, POINTER(c_int)),
                                           (_C_field_owned_ofs, POINTER(c_int))]}))
@@ -596,6 +601,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         # MPI-related fields
         dataobj._obj.npsize = (c_int*self.ndim)(*[i - sum(j) for i, j in
                                                   zip(data.shape, self._size_padding)])
+        dataobj._obj.dsize = (c_int*self.ndim)(*self._size_domain)
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
         dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
@@ -604,10 +610,9 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     def _C_as_ndarray(self, dataobj):
         """Cast the data carried by a DiscreteFunction dataobj to an ndarray."""
         shape = tuple(dataobj._obj.size[i] for i in range(self.ndim))
-        ndp = np.ctypeslib.ndpointer(dtype=self.dtype, shape=shape)
-        data = cast(dataobj._obj.data, ndp)
-        data = np.ctypeslib.as_array(data, shape=shape)
-        return data
+        ctype_1d = dtype_to_ctype(self.dtype) * int(reduce(mul, shape))
+        buf = cast(dataobj._obj.data, POINTER(ctype_1d)).contents
+        return np.frombuffer(buf, dtype=self.dtype).reshape(shape)
 
     @memoized_meth
     def _C_make_index(self, dim, side=None):
@@ -623,11 +628,15 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_name)
         if region is DOMAIN:
             offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
-            size = dim.symbolic_size
+            size = ffp(self._C_field_domain_size, self._C_make_index(dim))
         elif region is OWNED:
             if side is LEFT:
                 offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
                 size = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
+            elif side is CENTER:
+                # Note: identical to region=HALO, side=CENTER
+                offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
+                size = ffp(self._C_field_domain_size, self._C_make_index(dim))
             else:
                 offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, RIGHT))
                 size = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
@@ -635,6 +644,10 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
             if side is LEFT:
                 offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, LEFT))
                 size = ffp(self._C_field_halo_size, self._C_make_index(dim, LEFT))
+            elif side is CENTER:
+                # Note: identical to region=OWNED, side=CENTER
+                offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
+                size = ffp(self._C_field_domain_size, self._C_make_index(dim))
             else:
                 offset = ffp(self._C_field_halo_ofs, self._C_make_index(dim, RIGHT))
                 size = ffp(self._C_field_halo_size, self._C_make_index(dim, RIGHT))
@@ -669,16 +682,16 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
 
     def __halo_begin_exchange(self, dim):
         """Begin a halo exchange along a given Dimension."""
-        neighbours = self._distributor.neighbours
+        neighborhood = self._distributor.neighborhood
         comm = self._distributor.comm
         for i in [LEFT, RIGHT]:
-            neighbour = neighbours[dim][i]
+            neighbor = neighborhood[dim][i]
             owned_region = self._data_in_region(OWNED, dim, i)
             halo_region = self._data_in_region(HALO, dim, i)
             sendbuf = np.ascontiguousarray(owned_region)
             recvbuf = np.ndarray(shape=halo_region.shape, dtype=self.dtype)
-            self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbour)))
-            self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbour)))
+            self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbor)))
+            self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbor)))
 
     def __halo_end_exchange(self, dim):
         """End a halo exchange along a given Dimension."""
