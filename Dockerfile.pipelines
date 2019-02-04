@@ -44,6 +44,10 @@ ARG DEVITO_OPENMP=0
 ENV DEVITO_OPENMP=$DEVITO_OPENMP
 ENV OMP_NUM_THREADS=2
 
+# Use MPI?
+ARG MPI_INSTALL=1
+ENV MPI_INSTALL=$MPI_INSTALL
+
 # Run examples?
 ARG RUN_EXAMPLES='false'
 ENV RUN_EXAMPLES=$RUN_EXAMPLES
@@ -70,7 +74,7 @@ RUN if [ -f /usr/bin/gcov-tool-$gccVersion ] ; then \
     fi
 
 # Install MPI
-RUN if [ "$DEVITO_MPI" == "1" ] ; then \
+RUN if [ "$MPI_INSTALL" == "1" ] ; then \
       apt-get install -y -q mpich libmpich-dev ; \
     fi
 
@@ -92,7 +96,7 @@ WORKDIR /home/devito
 
 RUN if [ $installWithPip == "true" ] ; then \ 
       python setup.py install --user ; \
-      if [ $DEVITO_MPI == '1' ] ; then \
+      if [ $MPI_INSTALL == '1' ] ; then \
         pip install --user -e .[extras] ; \
       fi ; \
     else \
@@ -100,7 +104,7 @@ RUN if [ $installWithPip == "true" ] ; then \
       source activate devito ; \
       echo $PATH ; \
       pip install -e . ; \
-      if [ $DEVITO_MPI == '1' ] ; then \
+      if [ $MPI_INSTALL == '1' ] ; then \
         pip install -r requirements-optional.txt ; \
       fi ; \
       pip install pytest-xdist ; \
