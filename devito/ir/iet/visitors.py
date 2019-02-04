@@ -414,7 +414,7 @@ class MapNodes(Visitor):
         super(MapNodes, self).__init__()
         if parent_type is None:
             self.parent_type = Iteration
-        elif parent_type is 'any':
+        elif parent_type == 'any':
             self.parent_type = Node
         else:
             assert issubclass(parent_type, Node)
