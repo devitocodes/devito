@@ -338,6 +338,8 @@ class FindSections(Visitor):
             ret = self._visit(i, ret=ret, queue=queue)
         return ret
 
+    visit_list = visit_tuple
+
     def visit_Node(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
