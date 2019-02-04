@@ -59,7 +59,7 @@ class Ompizer(object):
     def _ncollapse(self, root, candidates):
         # Heuristic: if at least two parallel loops are available and the
         # physical core count is greater than COLLAPSE, then omp-collapse them
-        nparallel = len(candidates)
+        nparallel = min(len(candidates), 2)  # TODO: find a better heuristic
         isperfect = IsPerfectIteration().visit(root)
         if ncores() < Ompizer.COLLAPSE or nparallel < 2 or not isperfect:
             return 1
