@@ -163,12 +163,12 @@ class CoefficientRules(object):
     @cached_property
     def rules(self):
 
-        def generate_subs(d):
+        def generate_subs(i):
 
-            deriv_order = d.deriv_order
-            function = d.function
-            dim = d.dimension
-            coeffs = d.coefficients
+            deriv_order = i.deriv_order
+            function = i.function
+            dim = i.dimension
+            coeffs = i.coefficients
 
             fd_order = len(coeffs)-1
 
@@ -199,11 +199,7 @@ class CoefficientRules(object):
 
 def default_rules(obj, functions):
 
-    def generate_subs(d):
-
-        deriv_order = d[0]
-        function = d[1]
-        dim = d[2]
+    def generate_subs(deriv_order, function, dim):
 
         if dim.is_Time:
             fd_order = function.time_order
@@ -249,8 +245,10 @@ def default_rules(obj, functions):
     rules = {}
     if not_provided:
         for i in not_provided:
-            rules = {**rules, **generate_subs(i)}
-
+            deriv_order = i[0]
+            function = i[1]
+            dim = i[2]
+            rules = {**rules, **generate_subs(deriv_order, function, dim)}
     return rules
 
 
