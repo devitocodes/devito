@@ -452,11 +452,6 @@ class Iteration(Node):
         """The symbolic max of the Iteration."""
         return self.symbolic_bounds[1]
 
-    @property
-    def symbolic_incr(self):
-        """The symbolic increment of the Iteration."""
-        return self.limits[2]
-
     def bounds(self, _min=None, _max=None):
         """
         The bounds [min, max] of the Iteration, as numbers if min/max are supplied,
@@ -469,6 +464,11 @@ class Iteration(Node):
         _max = _max + self.offsets[1]
 
         return (_min, _max)
+
+    @property
+    def step(self):
+        """The step value."""
+        return self.limits[2]
 
     def size(self, _min=None, _max=None):
         """The size of the iteration space if _min/_max are supplied, None otherwise."""
