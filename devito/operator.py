@@ -176,8 +176,8 @@ class Operator(Callable):
         # Lower Schedule tree to an Iteration/Expression tree (IET)
         iet = iet_build(stree)
         iet, self._profiler = self._profile_sections(iet)
-        iet = self._generate_mpi(iet, **kwargs)
         iet = self._specialize_iet(iet, **kwargs)
+        iet = self._generate_mpi(iet, **kwargs)
         iet = iet_insert_C_decls(iet)
         iet = self._build_casts(iet)
 

@@ -239,7 +239,7 @@ def test_operator_timefunction_w_preallocation():
 
 
 @skipif(['yask', 'nompi'])
-@pytest.mark.parallel(nprocs=[1])
+@pytest.mark.parallel(mode=[1])
 def test_mpi_objects():
     # Neighbours
     grid = Grid(shape=(4, 4, 4))
@@ -273,7 +273,7 @@ def test_mpi_objects():
 
 
 @skipif(['yask', 'nompi'])
-@pytest.mark.parallel(nprocs=[1])
+@pytest.mark.parallel(mode=[1])
 def test_mpi_operator():
     grid = Grid(shape=(4,))
     f = TimeFunction(name='f', grid=grid)

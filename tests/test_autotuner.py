@@ -211,7 +211,7 @@ def test_discarding_runs():
 
 
 @skipif('nompi')
-@pytest.mark.parallel(nprocs=2)
+@pytest.mark.parallel(mode=2)
 def test_at_w_mpi():
     """Make sure autotuning works in presence of MPI. MPI ranks work
     in isolation to determine the best block size, locally."""
