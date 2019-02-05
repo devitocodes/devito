@@ -30,9 +30,6 @@ COLLAPSED = lambda i: IterationProperty('collapsed', i)
 VECTOR = IterationProperty('vector-dim')
 """The Iteration can be SIMD-vectorized."""
 
-ELEMENTAL = IterationProperty('elemental')
-"""The Iteration can be pulled out to an elemental function."""
-
 REMAINDER = IterationProperty('remainder')
 """The Iteration implements a remainder/peeler loop."""
 
