@@ -21,8 +21,8 @@ def ncores():
 
 class NThreads(Constant):
 
-    def __new__(cls, name):
-        return super(NThreads, cls).__new__(cls, name=name, dtype=np.int32,
+    def __new__(cls, **kwargs):
+        return super(NThreads, cls).__new__(cls, name=kwargs['name'], dtype=np.int32,
                                             value=ncores())
 
 
@@ -54,7 +54,7 @@ class Ompizer(object):
             self.key = key
         else:
             self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorizable
-        self.nthreads = NThreads('nthreads')
+        self.nthreads = NThreads(name='nthreads')
 
     def _ncollapse(self, root, candidates):
         # The OpenMP specification forbids collapsed loops to use iteration variables
