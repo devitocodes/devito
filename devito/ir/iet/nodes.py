@@ -402,13 +402,6 @@ class Iteration(Node):
         return 0
 
     @property
-    def tag(self):
-        for i in self.properties:
-            if i.name == 'tag':
-                return i.val
-        return None
-
-    @property
     def symbolic_bounds(self):
         """A 2-tuple representing the symbolic bounds [min, max] of the Iteration."""
         _min = self.limits[0]

@@ -392,8 +392,6 @@ class AdvancedRewriter(BasicRewriter):
             if not vector_iterations or len(vector_iterations) > 1:
                 continue
             root = vector_iterations[0]
-            if root.tag is None:
-                continue
 
             # Padding
             writes = [i.write for i in FindNodes(Expression).visit(root)
