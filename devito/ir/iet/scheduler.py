@@ -1,10 +1,10 @@
 from collections import OrderedDict
 
 from devito.cgen_utils import Allocator
-from devito.ir.iet import (Expression, Increment, LocalExpression, Element, Iteration,
-                           List, Conditional, Section, HaloSpot, ExpressionBundle,
-                           MapExpressions, Transformer, FindNodes, FindSymbols,
-                           XSubs, iet_analyze, filter_iterations)
+from devito.ir.iet import (Callable, Expression, Increment, LocalExpression,
+                           Element, Iteration, List, Conditional, Section, HaloSpot,
+                           ExpressionBundle, MapExpressions, Transformer, FindNodes,
+                           FindSymbols, XSubs, iet_analyze, filter_iterations)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper
 from devito.types import ConditionalDimension

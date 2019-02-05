@@ -1,11 +1,13 @@
 import cgen as c
+import numpy as np
+from cached_property import cached_property
 
 from devito.ir.iet import (Expression, Iteration, List, ntags, FindAdjacent,
                            FindNodes, IsPerfectIteration, Transformer,
                            compose_nodes, retrieve_iteration_tree)
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple, flatten
-from devito.types import IncrDimension
+from devito.types import IncrDimension, Scalar
 
 __all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 
@@ -271,6 +273,10 @@ class IterationFold(Iteration):
 
 
 class BlockDimension(IncrDimension):
+
+    @cached_property
+    def symbolic_min(self):
+        return Scalar(name=self.min_name, dtype=np.int32, is_const=True)
 
     @property
     def _arg_names(self):

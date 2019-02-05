@@ -207,9 +207,10 @@ class Call(Node):
         for p in self.params:
             if isinstance(p, numbers.Number):
                 continue
-            free.update(p.free_symbols)
-        # HACK: Filter dimensions to avoid them on popping onto outer parameters
-        free = tuple(s for s in free if not isinstance(s, Dimension))
+            elif isinstance(p, AbstractFunction):
+                free.add(p)
+            else:
+                free.update(p.free_symbols)
         return free
 
     @property
