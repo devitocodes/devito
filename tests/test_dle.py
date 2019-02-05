@@ -8,67 +8,12 @@ from conftest import EVAL, skipif
 from devito import Grid, Function, TimeFunction, Eq, Operator, solve
 from devito.dle import transform
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
+from devito.ir.iet import (Expression, Callable, Iteration, List, tagger,
                            Transformer, FindNodes, iet_analyze, retrieve_iteration_tree)
 from devito.tools import as_tuple
 from unittest.mock import patch
 
 pytestmark = skipif(['yask', 'ops'])
-
-
-@pytest.fixture(scope="module")
-def exprs(a, b, c, d, a_dense, b_dense):
-    return [Expression(DummyEq(a, a + b + 5.)),
-            Expression(DummyEq(a, b*d - a*c)),
-            Expression(DummyEq(b, a + b*b + 3)),
-            Expression(DummyEq(a, a*b*d*c)),
-            Expression(DummyEq(a, 4 * ((b + d) * (a + c)))),
-            Expression(DummyEq(a, (6. / b) + (8. * a))),
-            Expression(DummyEq(a_dense, a_dense + b_dense + 5.))]
-
-
-@pytest.fixture(scope="module")
-def simple_function(a, b, c, d, exprs, iters):
-    # void foo(a, b)
-    #   for i
-    #     for j
-    #       for k
-    #         expr0
-    #         expr1
-    symbols = [i.base.function for i in [a, b, c, d]]
-    body = iters[0](iters[1](iters[2]([exprs[0], exprs[1]])))
-    return Callable('foo', body, 'void', symbols, ())
-
-
-@pytest.fixture(scope="module")
-def simple_function_with_paddable_arrays(a_dense, b_dense, exprs, iters):
-    # void foo(a_dense, b_dense)
-    #   for i
-    #     for j
-    #       for k
-    #         expr0
-    symbols = [i.base.function for i in [a_dense, b_dense]]
-    body = iters[0](iters[1](iters[2](exprs[6])))
-    return Callable('foo', body, 'void', symbols, ())
-
-
-@pytest.fixture(scope="module")
-def complex_function(a, b, c, d, exprs, iters):
-    # void foo(a, b, c, d)
-    #   for i
-    #     for s
-    #       expr0
-    #     for j
-    #       for k
-    #         expr1
-    #         expr2
-    #     for p
-    #       expr3
-    symbols = [i.base.function for i in [a, b, c, d]]
-    body = iters[0]([iters[3](exprs[2]),
-                     iters[1](iters[2]([exprs[3], exprs[4]])),
-                     iters[4](exprs[5])])
-    return Callable('foo', body, 'void', symbols, ())
 
 
 def get_blocksizes(op, dle, grid, blockshape):
@@ -147,112 +92,6 @@ def _new_operator3(shape, blockshape=None, dle=None):
     op.apply(u=u, t=10, dt=dt, **blocksizes)
 
     return u.data[1, :], op
-
-
-def test_create_efuncs_simple(simple_function):
-    roots = [i[-1] for i in retrieve_iteration_tree(simple_function)]
-    retagged = [i._rebuild(properties=tagger(0)) for i in roots]
-    mapper = {i: j._rebuild(properties=(j.properties + (ELEMENTAL,)))
-              for i, j in zip(roots, retagged)}
-    function = Transformer(mapper).visit(simple_function)
-    handle = transform(function, mode='split')
-    block = List(body=[handle.nodes] + handle.efuncs)
-    output = str(block.ccode)
-    # Make output compiler independent
-    output = [i for i in output.split('\n')
-              if all([j not in i for j in ('#pragma', '/*')])]
-    assert '\n'.join(output) == \
-        ("""void foo(float *restrict a_vec, float *restrict b_vec,"""
-         """ float *restrict c_vec, float *restrict d_vec)
-{
-  for (int i = 0; i <= 3; i += 1)
-  {
-    for (int j = 0; j <= 5; j += 1)
-    {
-      f_0((float *)a,(float *)b,(float *)c,(float *)d,i_size,j_size,k_size,i,j,7,0);
-    }
-  }
-}
-void f_0(float *restrict a_vec, float *restrict b_vec,"""
-         """ float *restrict c_vec, float *restrict d_vec,"""
-         """ const int i_size, const int j_size, const int k_size,"""
-         """ const int i, const int j, const int kf_M, const int kf_m)
-{
-  float (*restrict a) __attribute__ ((aligned (64))) = (float (*)) a_vec;
-  float (*restrict b) __attribute__ ((aligned (64))) = (float (*)) b_vec;
-  float (*restrict c)[j_size] __attribute__ ((aligned (64))) = (float (*)[j_size]) c_vec;
-  float (*restrict d)[j_size][k_size] __attribute__ ((aligned (64))) ="""
-         """ (float (*)[j_size][k_size]) d_vec;
-  for (int k = kf_m; k <= kf_M; k += 1)
-  {
-    a[i] = a[i] + b[i] + 5.0F;
-    a[i] = -a[i]*c[i][j] + b[i]*d[i][j][k];
-  }
-}""")
-
-
-def test_create_efuncs_complex(complex_function):
-    roots = [i[-1] for i in retrieve_iteration_tree(complex_function)]
-    retagged = [j._rebuild(properties=tagger(i)) for i, j in enumerate(roots)]
-    mapper = {i: j._rebuild(properties=(j.properties + (ELEMENTAL,)))
-              for i, j in zip(roots, retagged)}
-    function = Transformer(mapper).visit(complex_function)
-    handle = transform(function, mode='split')
-    block = List(body=[handle.nodes] + handle.efuncs)
-    output = str(block.ccode)
-    # Make output compiler independent
-    output = [i for i in output.split('\n')
-              if all([j not in i for j in ('#pragma', '/*')])]
-    assert '\n'.join(output) == \
-        ("""void foo(float *restrict a_vec, float *restrict b_vec,"""
-         """ float *restrict c_vec, float *restrict d_vec)
-{
-  for (int i = 0; i <= 3; i += 1)
-  {
-    f_0((float *)a,(float *)b,i_size,i,4,0);
-    for (int j = 0; j <= 5; j += 1)
-    {
-      f_1((float *)a,(float *)b,(float *)c,(float *)d,i_size,j_size,k_size,i,j,7,0);
-    }
-    f_2((float *)a,(float *)b,i_size,i,4,0);
-  }
-}
-void f_0(float *restrict a_vec, float *restrict b_vec,"""
-         """ const int i_size, const int i, const int sf_M, const int sf_m)
-{
-  float (*restrict a) __attribute__ ((aligned (64))) = (float (*)) a_vec;
-  float (*restrict b) __attribute__ ((aligned (64))) = (float (*)) b_vec;
-  for (int s = sf_m; s <= sf_M; s += 1)
-  {
-    b[i] = a[i] + pow(b[i], 2) + 3;
-  }
-}
-void f_1(float *restrict a_vec, float *restrict b_vec,"""
-         """ float *restrict c_vec, float *restrict d_vec,"""
-         """ const int i_size, const int j_size, const int k_size,"""
-         """ const int i, const int j, const int kf_M, const int kf_m)
-{
-  float (*restrict a) __attribute__ ((aligned (64))) = (float (*)) a_vec;
-  float (*restrict b) __attribute__ ((aligned (64))) = (float (*)) b_vec;
-  float (*restrict c)[j_size] __attribute__ ((aligned (64))) = (float (*)[j_size]) c_vec;
-  float (*restrict d)[j_size][k_size] __attribute__ ((aligned (64))) ="""
-         """ (float (*)[j_size][k_size]) d_vec;
-  for (int k = kf_m; k <= kf_M; k += 1)
-  {
-    a[i] = a[i]*b[i]*c[i][j]*d[i][j][k];
-    a[i] = 4*(a[i] + c[i][j])*(b[i] + d[i][j][k]);
-  }
-}
-void f_2(float *restrict a_vec, float *restrict b_vec,"""
-         """ const int i_size, const int i, const int qf_M, const int qf_m)
-{
-  float (*restrict a) __attribute__ ((aligned (64))) = (float (*)) a_vec;
-  float (*restrict b) __attribute__ ((aligned (64))) = (float (*)) b_vec;
-  for (int q = qf_m; q <= qf_M; q += 1)
-  {
-    a[i] = 8.0F*a[i] + 6.0F/b[i];
-  }
-}""")
 
 
 @pytest.mark.parametrize("blockinner,expected", [
