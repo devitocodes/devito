@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from conftest import skipif
-from devito import Grid, Function, TimeFunction, Eq, Coefficient, CoefficientRules
+from devito import Grid, Function, TimeFunction, Eq, Coefficient, Substitutions
 from devito.finite_differences import Differentiable
 
 _PRECISION = 9
@@ -48,7 +48,7 @@ class TestSC(object):
 
         coeffs = Coefficient(order, u, dim, weights)
 
-        eq = Eq(eval(expr), coefficients=CoefficientRules(coeffs))
+        eq = Eq(eval(expr), coefficients=Substitutions(coeffs))
 
         assert isinstance(eq.lhs, Differentiable)
         assert expected == str(eq.lhs)

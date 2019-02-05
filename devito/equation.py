@@ -27,7 +27,7 @@ class Eq(sympy.Eq):
     subdomain : SubDomain, optional
         To restrict the computation of the Eq to a particular sub-region in the
         computational domain.
-    coefficients : Coefficients, optional
+    coefficients : Substitutions, optional
         Can be used to replace symbolic finite difference weights with user
         defined weights.
 
@@ -56,10 +56,10 @@ class Eq(sympy.Eq):
     def __new__(cls, *args, **kwargs):
         kwargs['evaluate'] = False
         subdomain = kwargs.pop('subdomain', None)
-        coefficients = kwargs.pop('coefficients', None)
+        substitutions = kwargs.pop('coefficients', None)
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         obj._subdomain = subdomain
-        obj._coefficients = coefficients
+        obj._substitutions = substitutions
         functions = retrieve_functions(obj)
         functions = [f for f in functions if not f.is_SparseFunction]
         if any(f.coefficients == 'symbolic' for f in functions):
@@ -67,8 +67,8 @@ class Eq(sympy.Eq):
             # all rules to be expunged during this procress.
             rules = default_rules(obj, functions)
             try:
-                obj = obj.xreplace({**coefficients.rules, **rules})
-            except:
+                obj = obj.xreplace({**substitutions.rules, **rules})
+            except AttributeError:
                 if bool(rules):
                     obj = obj.xreplace(rules)
         return obj
@@ -79,8 +79,8 @@ class Eq(sympy.Eq):
         return self._subdomain
 
     @property
-    def coefficients(self):
-        return self._coefficients
+    def substitutions(self):
+        return self._substitutions
 
     def xreplace(self, rules):
         """"""

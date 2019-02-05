@@ -5,12 +5,12 @@ from cached_property import cached_property
 from devito.finite_differences import generate_indices
 from devito.tools import filter_ordered
 
-__all__ = ['Coefficient', 'CoefficientRules', 'default_rules']
+__all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
 
 class Coefficient(object):
     """
-    Prepare custom coefficients to pass to CoefficientRules object.
+    Prepare custom coefficients to pass to a Substitutions object.
 
     Parameters
     ----------
@@ -22,10 +22,10 @@ class Coefficient(object):
     dimension : Dimension
         The dimension with respect to which the
         derivative is being taken.
-    coefficients : np.ndarray
-        The set of finite difference coefficients
+    weights : np.ndarray
+        The set of finite difference weights
         intended to be used in place of the standard
-        coefficients (obtained from a Taylor expansion).
+        weights (obtained from a Taylor expansion).
 
     Example
     -------
@@ -45,24 +45,24 @@ class Coefficient(object):
 
     """
 
-    def __init__(self, deriv_order, function, dimension, coefficients):
+    def __init__(self, deriv_order, function, dimension, weights):
 
-        self._check_input(deriv_order, function, dimension, coefficients)
+        self._check_input(deriv_order, function, dimension, weights)
 
-        # Ensure the given set of coefficients is the correct length
+        # Ensure the given set of weights is the correct length
         if dimension.is_Time:
-            if len(coefficients)-1 != function.time_order:
+            if len(weights)-1 != function.time_order:
                 raise ValueError("Number FD weights provided does not "
                                  "match the functions space_order")
         elif dimension.is_Space:
-            if len(coefficients)-1 != function.space_order:
+            if len(weights)-1 != function.space_order:
                 raise ValueError("Number FD weights provided does not "
                                  "match the functions space_order")
 
         self._deriv_order = deriv_order
         self._function = function
         self._dimension = dimension
-        self._coefficients = coefficients
+        self._weights = weights
 
     @property
     def deriv_order(self):
@@ -80,11 +80,11 @@ class Coefficient(object):
         return self._dimension
 
     @property
-    def coefficients(self):
-        """The set of coefficients."""
-        return self._coefficients
+    def weights(self):
+        """The set of weights."""
+        return self._weights
 
-    def _check_input(self, deriv_order, function, dimension, coefficients):
+    def _check_input(self, deriv_order, function, dimension, weights):
         if not isinstance(deriv_order, int):
             raise TypeError("Derivative order must be an integer")
         # NOTE: Can potentially be tidied up following the implementation
@@ -101,12 +101,12 @@ class Coefficient(object):
             raise TypeError("Coefficients must be attached to a valid dimension")
         # Currently only numpy arrays are accepted here.
         # Functionality will be expanded in the near future.
-        if not isinstance(coefficients, np.ndarray):
+        if not isinstance(weights, np.ndarray):
             raise NotImplementedError
         return
 
 
-class CoefficientRules(object):
+class Substitutions(object):
     """
     Devito class to convert Coefficient objects into replacent rules
     to be applied when constructing a Devito Eq.
@@ -122,15 +122,15 @@ class CoefficientRules(object):
 
     >>> u_x_coeffs = Coefficient(1, u, x, np.array([-0.6, 0.1, 0.6]))
 
-    And now create our CoefficientRules object to pass to equation:
+    And now create our Substitutions object to pass to equation:
 
-    >>> from devito import CoefficientRules
-    >>> coeffs = CoefficientRules(u_x_coeffs)
+    >>> from devito import Substitutions
+    >>> subs = Substitutions(u_x_coeffs)
 
-    Now create a Devito equation and pass to it 'coeffs'
+    Now create a Devito equation and pass to it 'subs'
 
     >>> from devito import Eq
-    >>> Eq(u.dt+u.dx, coefficients=coeffs)
+    >>> Eq(u.dt+u.dx, coefficients=subs)
     Eq(0.1*u(t, x, y) - 0.6*u(t, x - h_x, y) + 0.6*u(t, x + h_x, y) \
 - u(t, x, y)/dt + u(t + dt, x, y)/dt, 0)
 
@@ -168,9 +168,9 @@ class CoefficientRules(object):
             deriv_order = i.deriv_order
             function = i.function
             dim = i.dimension
-            coeffs = i.coefficients
+            weights = i.weights
 
-            fd_order = len(coeffs)-1
+            fd_order = len(weights)-1
 
             side = function.get_side(dim, deriv_order)
             stagger = function.get_stagger(dim, deriv_order)
@@ -180,9 +180,9 @@ class CoefficientRules(object):
             indices, x0 = generate_indices(function, dim, dim.spacing, fd_order,
                                            side=side, stagger=stagger)
 
-            for j in range(len(coeffs)):
+            for j in range(len(weights)):
                 subs.update({function.coeff_symbol
-                             (indices[j], deriv_order, function, dim): coeffs[j]})
+                             (indices[j], deriv_order, function, dim): weights[j]})
 
             return subs
 
@@ -191,7 +191,7 @@ class CoefficientRules(object):
         # replacement rules
         rules = {}
         for i in self.coefficients:
-            if isinstance(i.coefficients, np.ndarray):
+            if isinstance(i.weights, np.ndarray):
                 rules.update(generate_subs(i))
 
         return rules
@@ -230,10 +230,10 @@ def default_rules(obj, functions):
     terms = obj.find(sym)
     args_present = filter_ordered(term.args[1:] for term in terms)
 
-    coeffs = obj.coefficients
-    if coeffs:
-        args_provided = [(coeff.deriv_order, coeff.function, coeff.dimension)
-                         for coeff in coeffs.coefficients]
+    subs = obj.substitutions
+    if subs:
+        args_provided = [(i.deriv_order, i.function, i.dimension)
+                         for i in subs.coefficients]
     else:
         args_provided = []
 
