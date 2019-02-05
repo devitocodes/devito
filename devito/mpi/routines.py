@@ -29,6 +29,8 @@ class HaloExchangeBuilder(object):
             obj = object.__new__(BasicHaloExchangeBuilder)
         elif mode == 'diag':
             obj = object.__new__(DiagHaloExchangeBuilder)
+        else:
+            assert False, "unexpected value `mode=%s`" % mode
         return obj
 
     def make(self, halo_spots):
