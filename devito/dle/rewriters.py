@@ -162,7 +162,6 @@ class AdvancedRewriter(BasicRewriter):
         self._simdize(state)
         if self.params['openmp']:
             self._shm_parallelize(state)
-        self._minimize_remainders(state)
 
     @dle_pass
     def _loop_wrapping(self, iet):
@@ -377,6 +376,67 @@ class AdvancedRewriter(BasicRewriter):
         """
         return self._shm_parallelizer.make_parallel(iet)
 
+
+class AdvancedRewriterSafeMath(AdvancedRewriter):
+
+    """
+    This Rewriter is slightly less aggressive than AdvancedRewriter, as it
+    doesn't drop denormal numbers, which may sometimes harm the numerical precision.
+    """
+
+    def _pipeline(self, state):
+        self._optimize_halospots(state)
+        self._loop_wrapping(state)
+        self._loop_blocking(state)
+        if self.params['mpi']:
+            self._dist_parallelize(state)
+        self._simdize(state)
+        if self.params['openmp']:
+            self._shm_parallelize(state)
+
+
+class SpeculativeRewriter(AdvancedRewriter):
+
+    def _pipeline(self, state):
+        self._avoid_denormals(state)
+        self._optimize_halospots(state)
+        self._loop_wrapping(state)
+        self._loop_blocking(state)
+        if self.params['mpi']:
+            self._dist_parallelize(state)
+        self._simdize(state)
+        if self.params['openmp']:
+            self._shm_parallelize(state)
+        self._minimize_remainders(state)
+
+    @dle_pass
+    def _nontemporal_stores(self, nodes):
+        """
+        Add compiler-specific pragmas and instructions to generate nontemporal
+        stores (ie, non-cached stores).
+        """
+        pragma = self._compiler_decoration('ntstores')
+        fence = self._compiler_decoration('storefence')
+        if not pragma or not fence:
+            return {}
+
+        mapper = {}
+        for tree in retrieve_iteration_tree(nodes):
+            for i in tree:
+                if i.is_Parallel:
+                    mapper[i] = List(body=i, footer=fence)
+                    break
+        processed = Transformer(mapper).visit(nodes)
+
+        mapper = {}
+        for tree in retrieve_iteration_tree(processed):
+            for i in tree:
+                if i.is_Vectorizable:
+                    mapper[i] = List(header=pragma, body=i)
+        processed = Transformer(mapper).visit(processed)
+
+        return processed, {}
+
     @dle_pass
     def _minimize_remainders(self, nodes):
         """
@@ -445,68 +505,6 @@ class AdvancedRewriter(BasicRewriter):
         return processed, {}
 
 
-class AdvancedRewriterSafeMath(AdvancedRewriter):
-
-    """
-    This Rewriter is slightly less aggressive than AdvancedRewriter, as it
-    doesn't drop denormal numbers, which may sometimes harm the numerical precision.
-    """
-
-    def _pipeline(self, state):
-        self._optimize_halospots(state)
-        self._loop_wrapping(state)
-        self._loop_blocking(state)
-        if self.params['mpi']:
-            self._dist_parallelize(state)
-        self._simdize(state)
-        if self.params['openmp']:
-            self._shm_parallelize(state)
-        self._minimize_remainders(state)
-
-
-class SpeculativeRewriter(AdvancedRewriter):
-
-    def _pipeline(self, state):
-        self._avoid_denormals(state)
-        self._optimize_halospots(state)
-        self._loop_wrapping(state)
-        self._loop_blocking(state)
-        if self.params['mpi']:
-            self._dist_parallelize(state)
-        self._simdize(state)
-        if self.params['openmp']:
-            self._shm_parallelize(state)
-        self._minimize_remainders(state)
-
-    @dle_pass
-    def _nontemporal_stores(self, nodes):
-        """
-        Add compiler-specific pragmas and instructions to generate nontemporal
-        stores (ie, non-cached stores).
-        """
-        pragma = self._compiler_decoration('ntstores')
-        fence = self._compiler_decoration('storefence')
-        if not pragma or not fence:
-            return {}
-
-        mapper = {}
-        for tree in retrieve_iteration_tree(nodes):
-            for i in tree:
-                if i.is_Parallel:
-                    mapper[i] = List(body=i, footer=fence)
-                    break
-        processed = Transformer(mapper).visit(nodes)
-
-        mapper = {}
-        for tree in retrieve_iteration_tree(processed):
-            for i in tree:
-                if i.is_Vectorizable:
-                    mapper[i] = List(header=pragma, body=i)
-        processed = Transformer(mapper).visit(processed)
-
-        return processed, {}
-
-
 class CustomRewriter(SpeculativeRewriter):
 
     passes_mapper = {
@@ -517,6 +515,7 @@ class CustomRewriter(SpeculativeRewriter):
         'openmp': SpeculativeRewriter._shm_parallelize,
         'mpi': SpeculativeRewriter._dist_parallelize,
         'simd': SpeculativeRewriter._simdize,
+        'minrem': SpeculativeRewriter._minimize_remainders
     }
 
     def __init__(self, passes, params):
