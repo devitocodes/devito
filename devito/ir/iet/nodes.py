@@ -12,8 +12,7 @@ from devito.cgen_utils import ccode
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
-                           USELESS)
+                           VECTOR, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags, USELESS)
 from devito.ir.support import Forward, detect_io
 from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
@@ -389,10 +388,6 @@ class Iteration(Node):
     @property
     def is_Vectorizable(self):
         return VECTOR in self.properties
-
-    @property
-    def is_Elementizable(self):
-        return ELEMENTAL in self.properties
 
     @property
     def is_Wrappable(self):
