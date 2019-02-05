@@ -1,11 +1,11 @@
 from collections import OrderedDict
 from functools import cmp_to_key
 
-from devito.ir.iet import (HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, AFFINE, USELESS, HOISTABLE, MapNodes,
+from devito.ir.iet import (Iteration, HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
+                           VECTOR, WRAPPABLE, AFFINE, USELESS, hoistable, MapNodes,
                            FindNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import Scope
-from devito.tools import as_mapper, as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, filter_ordered, flatten
 
 __all__ = ['iet_analyze']
 
@@ -254,26 +254,17 @@ def mark_halospot_hoistable(analysis):
     Update the ``analysis`` detecting the HOISTABLE HaloSpots within ``analysis.iet``.
     """
     properties = OrderedDict()
-    for i, scope in analysis.scopes.items():
-        mapper = as_mapper(FindNodes(HaloSpot).visit(i), lambda hs: hs.target)
-        for k, v in mapper.items():
-            for j in v[1:]:
-                if j in properties:
-                    # Already went through this HaloSpot, let's save some analysis time
-                    continue
-                # To be HOISTABLE, first of all, we must be inserting at the same
-                # location along the non-distributed Dimensions
-                test0 = v[0].loc_indices != j.loc_indices
-                if test0:
-                    continue
-                # Also, there must not be anti dependences in the non-distributed
-                # Dimensions along which the halos are inserted, otherwise we might
-                # end up sending yet-to-be-computed data
-                test1 = any(a.cause & set(j.loc_indices) for a in scope.d_anti.project(k))
-                if test1:
-                    continue
-
-                # Finally, we are sure the HaloSpot can safely be hoisted
-                properties[j] = HOISTABLE
+    for i, halo_spots in MapNodes(Iteration, HaloSpot).visit(analysis.iet).items():
+        for hs in halo_spots:
+            if hs in properties:
+                # Already went through this HaloSpot, let's save some analysis time
+                continue
+            # A sufficient condition to be `hoistable` is that, for a given Function,
+            # there are no anti-dependences in the entire scope.
+            # TODO: This condition can actually be relaxed, by considering smaller
+            # sections of the scope
+            found = [f for f in hs.fmapper if not analysis.scopes[i].d_anti.project(f)]
+            if found:
+                properties[hs] = hoistable(tuple(found))
 
     analysis.update(properties)
