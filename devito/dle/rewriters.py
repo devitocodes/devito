@@ -312,7 +312,7 @@ class AdvancedRewriter(BasicRewriter):
                 body.append(List(header=noinline, body=call))
 
             # Build indirect Call to the `efunc0` Calls
-            dynamic_parameters = [i.dim for i in iterations]
+            dynamic_parameters = [i.dim.root for i in iterations]
             dynamic_parameters.extend([bi.dim.step for bi in interb])
             efunc1 = make_efunc("f%d" % len(mapper), body, dynamic_parameters)
 
