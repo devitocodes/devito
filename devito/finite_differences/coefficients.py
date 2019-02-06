@@ -243,12 +243,8 @@ def default_rules(obj, functions):
     not_provided = list(set(args_provided).symmetric_difference(set(args_present)))
 
     rules = {}
-    if not_provided:
-        for i in not_provided:
-            deriv_order = i[0]
-            function = i[1]
-            dim = i[2]
-            rules = {**rules, **generate_subs(deriv_order, function, dim)}
+    for i in not_provided:
+        rules = {**rules, **generate_subs(*i)}
     return rules
 
 
