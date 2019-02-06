@@ -8,7 +8,7 @@ from devito.symbolics import retrieve_functions
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'left', 'right', 'centered', 'transpose',
-           'generate_indices']
+           'generate_indices', 'form_side']
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
@@ -304,14 +304,7 @@ def generate_fd_shortcuts(function):
     deriv_function = generic_derivative
     c_deriv_function = cross_derivative
 
-    side = dict()
-    for (d, s) in zip(dimensions, function.staggered):
-        if s == 0:
-            side[d] = left
-        elif s == 1:
-            side[d] = right
-        else:
-            side[d] = centered
+    side = form_side(dimensions, function)
 
     derivatives = dict()
     done = []
@@ -411,3 +404,15 @@ def generate_indices(func, dim, diff, order, stagger=None, side=None):
             if order < 2:
                 ind = [dim, dim + diff]
     return ind, x0
+
+
+def form_side(dimensions, function):
+    side = dict()
+    for (d, s) in zip(dimensions, function.staggered):
+        if s == 0:
+            side[d] = left
+        elif s == 1:
+            side[d] = right
+        else:
+            side[d] = centered
+    return side

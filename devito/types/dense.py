@@ -989,16 +989,21 @@ class Function(DiscreteFunction, Differentiable):
 
     @property
     def coefficients(self):
-        """Form of the FD coefficients of the function."""
+        """Form of the coefficients of the function."""
         return self._coefficients
 
     @cached_property
-    def coeff_symbol(self):
+    def _coeff_symbol(self):
         if self.coefficients == 'symbolic':
             return sympy.Function('W')
         else:
             raise ValueError("Function was not declared with symbolic "
                              "coefficients.")
+
+    @property
+    def coeff_symbol(self):
+        """The symbol representing the functions coefficients."""
+        return self._coeff_symbol
 
     def sum(self, p=None, dims=None):
         """
@@ -1045,28 +1050,6 @@ class Function(DiscreteFunction, Differentiable):
     # Pickling support
     _pickle_kwargs = DiscreteFunction._pickle_kwargs +\
         ['space_order', 'shape_global', 'dimensions']
-
-    def get_stagger(self, dim, order):
-
-        name = 't' if dim.is_Time else dim.name
-        name_fd = 'd%s%d' % (name, order) if order > 1 else 'd%s' % name
-        item = self._fd.get(name_fd, None)
-        if bool(item):
-            stagger = item[0].keywords.get('stagger', None)
-        else:
-            raise ValueError("Requested derivative unavailable")
-        return stagger
-
-    def get_side(self, dim, order):
-
-        name = 't' if dim.is_Time else dim.name
-        name_fd = 'd%s%d' % (name, order) if order > 1 else 'd%s' % name
-        item = self._fd.get(name_fd, None)
-        if bool(item):
-            side = item[0].keywords.get('side', None)
-        else:
-            raise ValueError("Requested derivative unavailable")
-        return side
 
 
 class TimeFunction(Function):

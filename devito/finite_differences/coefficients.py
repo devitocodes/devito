@@ -2,7 +2,7 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
-from devito.finite_differences import generate_indices
+from devito.finite_differences import generate_indices, form_side
 from devito.tools import filter_ordered
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
@@ -172,13 +172,13 @@ class Substitutions(object):
 
             fd_order = len(weights)-1
 
-            side = function.get_side(dim, deriv_order)
-            stagger = function.get_stagger(dim, deriv_order)
+            side = form_side((dim,), function)
+            stagger = side.get(dim)
 
             subs = {}
 
             indices, x0 = generate_indices(function, dim, dim.spacing, fd_order,
-                                           side=side, stagger=stagger)
+                                           side=None, stagger=stagger)
 
             for j in range(len(weights)):
                 subs.update({function.coeff_symbol
@@ -209,13 +209,13 @@ def default_rules(obj, functions):
             # Shouldn't arrive here
             raise TypeError("Dimension type not recognised")
 
-        side = function.get_side(dim, deriv_order)
-        stagger = function.get_stagger(dim, deriv_order)
+        side = form_side((dim,), function)
+        stagger = side.get(dim)
 
         subs = {}
 
         indices, x0 = generate_indices(function, dim, dim.spacing, fd_order,
-                                       side=side, stagger=stagger)
+                                       side=None, stagger=stagger)
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 

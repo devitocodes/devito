@@ -12,8 +12,7 @@ pytestmark = skipif(['yask', 'ops'])
 
 class TestSC(object):
     """
-    Class for testing symbolic FD coefficients
-    functionality
+    Class for testing symbolic coefficients functionality
     """
 
     @pytest.mark.parametrize('order', [1, 2, 6])
