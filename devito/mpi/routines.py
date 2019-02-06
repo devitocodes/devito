@@ -107,6 +107,7 @@ class HaloExchangeBuilder(object):
 
         return flatten(generated.values()), calls
 
+    @abc.abstractmethod
     def _make_copy(self, f, fixed, swap=False):
         """
         Construct a Callable performing a copy of:
@@ -115,36 +116,7 @@ class HaloExchangeBuilder(object):
             * if ``swap=True``, a contiguous Array into an arbitrary convex
               region of ``f``.
         """
-        buf_dims = []
-        buf_indices = []
-        for d in f.dimensions:
-            if d not in fixed:
-                buf_dims.append(Dimension(name='buf_%s' % d.root))
-                buf_indices.append(d.root)
-        buf = Array(name='buf', dimensions=buf_dims, dtype=f.dtype)
-
-        f_offsets = []
-        f_indices = []
-        for d in f.dimensions:
-            offset = Symbol(name='o%s' % d.root)
-            f_offsets.append(offset)
-            f_indices.append(offset + (d.root if d not in fixed else 0))
-
-        if swap is False:
-            eq = DummyEq(buf[buf_indices], f[f_indices])
-            name = 'gather%dd' % f.ndim
-        else:
-            eq = DummyEq(f[f_indices], buf[buf_indices])
-            name = 'scatter%dd' % f.ndim
-
-        iet = Expression(eq)
-        for i, d in reversed(list(zip(buf_indices, buf_dims))):
-            # The -1 below is because an Iteration, by default, generates <=
-            iet = Iteration(iet, i, d.symbolic_size - 1, properties=PARALLEL)
-        iet = List(body=[ArrayCast(f), ArrayCast(buf), iet])
-
-        parameters = [buf] + list(buf.shape) + [f] + f_offsets
-        return Callable(name, iet, 'void', parameters, ('static',))
+        return
 
     @abc.abstractmethod
     def _make_sendrecv(self, f, fixed, **kwargs):
@@ -183,6 +155,38 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
     """
     A HaloExchangeBuilder making use of synchronous MPI routines only.
     """
+
+    def _make_copy(self, f, fixed, swap=False):
+        buf_dims = []
+        buf_indices = []
+        for d in f.dimensions:
+            if d not in fixed:
+                buf_dims.append(Dimension(name='buf_%s' % d.root))
+                buf_indices.append(d.root)
+        buf = Array(name='buf', dimensions=buf_dims, dtype=f.dtype)
+
+        f_offsets = []
+        f_indices = []
+        for d in f.dimensions:
+            offset = Symbol(name='o%s' % d.root)
+            f_offsets.append(offset)
+            f_indices.append(offset + (d.root if d not in fixed else 0))
+
+        if swap is False:
+            eq = DummyEq(buf[buf_indices], f[f_indices])
+            name = 'gather%dd' % f.ndim
+        else:
+            eq = DummyEq(f[f_indices], buf[buf_indices])
+            name = 'scatter%dd' % f.ndim
+
+        iet = Expression(eq)
+        for i, d in reversed(list(zip(buf_indices, buf_dims))):
+            # The -1 below is because an Iteration, by default, generates <=
+            iet = Iteration(iet, i, d.symbolic_size - 1, properties=PARALLEL)
+        iet = List(body=[ArrayCast(f), ArrayCast(buf), iet])
+
+        parameters = [buf] + list(buf.shape) + [f] + f_offsets
+        return Callable(name, iet, 'void', parameters, ('static',))
 
     def _make_sendrecv(self, f, fixed):
         comm = f.grid.distributor._obj_comm
