@@ -29,6 +29,8 @@ class HaloExchangeBuilder(object):
             obj = object.__new__(BasicHaloExchangeBuilder)
         elif mode == 'diag':
             obj = object.__new__(DiagHaloExchangeBuilder)
+        elif mode == 'diag_wmsg':
+            obj = object.__new__(DiagWithMsgHaloExchangeBuilder)
         else:
             assert False, "unexpected value `mode=%s`" % mode
         return obj
@@ -53,15 +55,25 @@ class HaloExchangeBuilder(object):
         placing the ``update_halo`` Calls.
         """
         calls = {}
+        msgs = {}
         generated = OrderedDict()
         for hs in halo_spots:
-            # 1) Callables/Calls for send/recv
             begin_exchange = []
+            wait_exchange = []
+            remainder = []
             for f, v in hs.fmapper.items():
                 # Sanity check
                 assert f.is_Function
                 assert f.grid is not None
 
+                # 0) Build data structures to be passed along the MPI Call stack
+                # --------------------------------------------------------------
+                if (f, v) not in msgs:
+                    key = len(msgs)
+                    msgs[(f, v)] = self._make_msg(f, v, key)
+
+                # 1) Callables/Calls for send/recv
+                # --------------------------------
                 # Note: to construct the halo exchange Callables, use the generic `df`,
                 # instead of `f`, so that we don't need to regenerate code for Functions
                 # that are symbolically identical to `f` except for the name
@@ -83,9 +95,7 @@ class HaloExchangeBuilder(object):
                     sendrecv = EFuncNode(sendrecv, haloupdate)
                     gather = EFuncNode(gather, sendrecv)
                     scatter = EFuncNode(scatter, sendrecv)
-
                     generated[(f.ndim, v)] = haloupdate
-
                 # `haloupdate` Call construction
                 comm = f.grid.distributor._obj_comm
                 nb = f.grid.distributor._obj_neighborhood
@@ -93,19 +103,26 @@ class HaloExchangeBuilder(object):
                 args = [f, comm, nb] + loc_indices
                 begin_exchange.append(Call(generated[(f.ndim, v)].name, args))
 
-            # 2) Callables/Calls for wait (no-op in case of synchronous halo exchange)
-            wait_exchange = []
-            for f, v in hs.fmapper.items():
+                # 2) Callables/Calls for wait (no-op in case of synchronous halo exchange)
+                # ------------------------------------------------------------------------
                 # TODO
-                pass
 
-            # 3) Callables/Calls for remainder computation (no-op in case of
-            # synchronous halo exchange)
-            remainder = []
+                # 3) Callables/Calls for remainder computation (no-op in case of
+                # synchronous halo exchange)
+                # --------------------------------------------------------------
+                # TODO
 
             calls[hs] = List(body=begin_exchange + [hs.body] + wait_exchange + remainder)
 
         return flatten(generated.values()), calls
+
+    @abc.abstractmethod
+    def _make_msg(self, f, halos, key):
+        """
+        Construct data structures carrying information about the HaloSpot
+        ``hs``, to propagate information across the MPI Call stack.
+        """
+        return
 
     @abc.abstractmethod
     def _make_copy(self, f, fixed, swap=False):
@@ -137,7 +154,7 @@ class HaloExchangeBuilder(object):
     def _make_halowait(self, f):
         """
         Construct a Callable performing, for a given DiscreteFunction, a wait on
-        one or more asynchrnous calls.
+        one or more asynchronous calls.
         """
         return
 
@@ -155,6 +172,9 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
     """
     A HaloExchangeBuilder making use of synchronous MPI routines only.
     """
+
+    def _make_msg(self, f, halos, key):
+        return
 
     def _make_copy(self, f, fixed, swap=False):
         buf_dims = []
@@ -345,6 +365,19 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values())
         return Callable(name, iet, 'void', parameters, ('static',))
+
+
+class DiagWithMsgHaloExchangeBuilder(BasicHaloExchangeBuilder):
+
+    """
+    Like a DiagHaloExchangeBuilder, but generates specific data structures
+    carrying halo-exchange metadata. This allows generating code that is at
+    the same time more readable and more efficient, as function calls with
+    long parameter lists can be avoided.
+    """
+
+    def _make_msg(self, f, halos, key):
+        return
 
 
 class MPIStatusObject(LocalObject):

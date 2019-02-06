@@ -61,7 +61,8 @@ def _reinit_compiler(val):  # noqa
                                        mpi=configuration['mpi'])
     return bool(val) if isinstance(val, int) else val
 configuration.add('openmp', 0, [0, 1], callback=_reinit_compiler)  # noqa
-configuration.add('mpi', 0, [0, 1, 'basic', 'diag'], callback=_reinit_compiler)
+configuration.add('mpi', 0, [0, 1, 'basic', 'diag', 'diag_wmsg'],
+                  callback=_reinit_compiler)
 
 # Autotuning setup
 AT_LEVELs = ['off', 'basic', 'aggressive']
