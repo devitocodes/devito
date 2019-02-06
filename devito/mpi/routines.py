@@ -1,19 +1,19 @@
 import abc
 from collections import OrderedDict
-from ctypes import c_void_p
+from ctypes import POINTER, c_void_p
 from functools import reduce
 from itertools import product
 from operator import mul
 
 from sympy import Integer
 
-from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
+from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls, PARALLEL, EFuncNode)
 from devito.symbolics import CondNe, FieldFromPointer, Macro
-from devito.tools import dtype_to_mpitype, flatten
-from devito.types import Array, Dimension, Symbol, LocalObject
+from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten
+from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
 
 __all__ = ['HaloExchangeBuilder']
 
@@ -377,7 +377,11 @@ class DiagWithMsgHaloExchangeBuilder(BasicHaloExchangeBuilder):
     """
 
     def _make_msg(self, f, halos, key):
-        return
+        # TODO: `halos` not used yet, but will be exploited for optimization
+        # in later versions (or perhaps in newer subclasses). By knowing the halos
+        # we could constrain the buffer size and the amount of data that is
+        # sent over to the neighbours
+        return MPIMsg('msg%d' % key, f)
 
 
 class MPIStatusObject(LocalObject):
@@ -400,3 +404,40 @@ class MPIRequestObject(LocalObject):
 
     # Pickling support
     _pickle_args = ['name']
+
+
+c_mpirequest_p = type('MPI_Request', (c_void_p,), {})
+
+
+class MPIMsg(CompositeObject):
+
+    _C_field_bufs = 'bufs'
+    _C_field_bufg = 'bufg'
+    _C_field_rrecv = 'rrecv'
+    _C_field_rsend = 'rsend'
+
+    def __init__(self, name, function):
+        self._function = function
+        fields = [
+            (MPIMsg._C_field_bufs, POINTER(dtype_to_ctype(function.dtype))),
+            (MPIMsg._C_field_bufg, POINTER(dtype_to_ctype(function.dtype))),
+            (MPIMsg._C_field_rrecv, c_mpirequest_p),
+            (MPIMsg._C_field_rsend, c_mpirequest_p),
+        ]
+        super(MPIMsg, self).__init__(name, 'msg', fields)
+
+    @property
+    def function(self):
+        return self._function
+
+    def _arg_values(self, **kwargs):
+        value = self._arg_defaults()
+        # Allocate the send/recv buffers
+        from IPython import embed; embed()
+
+    def _arg_apply(self):
+        # Deallocate the buffers
+        pass
+
+    # Pickling support
+    _pickle_args = ['name', 'function_name']
