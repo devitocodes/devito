@@ -874,6 +874,10 @@ class Object(AbstractObject, ArgProvider):
         super(Object, self).__init__(name, dtype)
         self.value = value
 
+    @property
+    def _arg_names(self):
+        return (self.name,)
+
     def _arg_defaults(self):
         if callable(self.value):
             return {self.name: self.value()}
