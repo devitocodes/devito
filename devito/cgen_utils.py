@@ -159,7 +159,7 @@ class CodePrinter(C99CodePrinter):
         return expr.__str__()
 
     def _print_Byref(self, expr):
-        return "&%s" % expr.name
+        return "&%s" % expr.base
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
