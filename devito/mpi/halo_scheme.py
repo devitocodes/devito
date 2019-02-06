@@ -82,7 +82,8 @@ class HaloScheme(object):
                 dims = [i for i, hl in v.items() if hl is NONE]
                 loc_indices = hs_comp_locindices(f, dims, ispace, scope)
 
-                self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices), tuple(halos))
+                self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices),
+                                                  frozenset(halos))
 
         # A HaloScheme is immutable, so let's make it hashable
         self._mapper = frozendict(self._mapper)
@@ -121,8 +122,7 @@ class HaloScheme(object):
                 if hse.loc_indices != v.loc_indices:
                     raise ValueError("Cannot compute the union of one or more HaloScheme "
                                      "when the `loc_indices` differ")
-                halos = tuple(filter_ordered(hse.halos + v.halos))
-                fmapper[k] = HaloSchemeEntry(hse.loc_indices, halos)
+                fmapper[k] = HaloSchemeEntry(hse.loc_indices, hse.halos | v.halos)
 
         return HaloScheme(fmapper=fmapper)
 
