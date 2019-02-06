@@ -29,8 +29,8 @@ class HaloExchangeBuilder(object):
             obj = object.__new__(BasicHaloExchangeBuilder)
         elif mode == 'diag':
             obj = object.__new__(DiagHaloExchangeBuilder)
-        elif mode == 'diag_wmsg':
-            obj = object.__new__(DiagWithMsgHaloExchangeBuilder)
+        elif mode == 'overlap':
+            obj = object.__new__(OverlapHaloExchangeBuilder)
         else:
             assert False, "unexpected value `mode=%s`" % mode
         return obj
@@ -367,13 +367,11 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
         return Callable(name, iet, 'void', parameters, ('static',))
 
 
-class DiagWithMsgHaloExchangeBuilder(BasicHaloExchangeBuilder):
+class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
     """
-    Like a DiagHaloExchangeBuilder, but generates specific data structures
-    carrying halo-exchange metadata. This allows generating code that is at
-    the same time more readable and more efficient, as function calls with
-    long parameter lists can be avoided.
+    A DiagHaloExchangeBuilder making use of asynchronous MPI routines to implement
+    computation-communication overlap.
     """
 
     def _make_msg(self, f, halos, key):
