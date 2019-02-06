@@ -112,7 +112,7 @@ before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
   - if [[ $DEVITO_BACKEND == 'yask' ]]; then
       conda install -c conda-forge swig; cd ../;
-      git clone https://github.com/opesci/yask.git;
+      git clone -b yask_updates https://github.com/opesci/yask.git;
       cd yask; make compiler-api; pip install -e .; cd ../devito;
     fi
 
