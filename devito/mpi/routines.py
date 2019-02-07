@@ -98,9 +98,8 @@ class HaloExchangeBuilder(object):
                 name = generated[(f.ndim, hse)].name
                 comm = f.grid.distributor._obj_comm
                 nb = f.grid.distributor._obj_neighborhood
-                loc_indices = list(v.loc_indices.values())
-                args = [f, comm, nb] + loc_indices
-                begin_exchange.append(Call(generated[(f.ndim, v)].name, args))
+                args = [f, comm, nb] + list(hse.loc_indices.values())
+                begin_exchange.append(self._call_haloupdate(name, args, msg=msg))
 
                 # 2) Callables/Calls for wait (no-op in case of synchronous halo exchange)
                 # ------------------------------------------------------------------------
@@ -304,17 +303,17 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
             if (d, LEFT) in hse.halos:
                 # Sending to left, receiving from right
-                lsizes, loffsets = mapper[(d, LEFT, OWNED)]
-                rsizes, roffsets = mapper[(d, RIGHT, HALO)]
-                args = [f] + lsizes + loffsets + roffsets + [rpeer, lpeer, comm]
-                body.append(Call('sendrecv%dd' % f.ndim, args))
+                lsizes, lofs = mapper[(d, LEFT, OWNED)]
+                rsizes, rofs = mapper[(d, RIGHT, HALO)]
+                args = [f, lsizes, lofs, rofs, rpeer, lpeer, comm]
+                body.append(self._call_sendrecv('sendrecv%dd' % f.ndim, *args, **kwargs))
 
             if (d, RIGHT) in hse.halos:
                 # Sending to right, receiving from left
-                rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
-                lsizes, loffsets = mapper[(d, LEFT, HALO)]
-                args = [f] + rsizes + roffsets + loffsets + [lpeer, rpeer, comm]
-                body.append(Call('sendrecv%dd' % f.ndim, args))
+                rsizes, rofs = mapper[(d, RIGHT, OWNED)]
+                lsizes, lofs = mapper[(d, LEFT, HALO)]
+                args = [f, rsizes, rofs, lofs, lpeer, rpeer, comm]
+                body.append(self._call_sendrecv('sendrecv%dd' % f.ndim, *args, **kwargs))
 
         name = 'haloupdate%dd%s' % (f.ndim, key)
         iet = List(body=body)
