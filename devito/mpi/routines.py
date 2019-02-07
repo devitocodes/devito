@@ -281,15 +281,15 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             if d0 in fixed:
                 continue
             sizes = []
-            offsets = []
+            ofs = []
             for d1 in f.dimensions:
                 if d1 in fixed:
-                    offsets.append(fixed[d1])
+                    ofs.append(fixed[d1])
                 else:
                     meta = f._C_get_field(region if d0 is d1 else NOPAD, d1, side)
-                    offsets.append(meta.offset)
+                    ofs.append(meta.offset)
                     sizes.append(meta.size)
-            mapper[(d0, side, region)] = (sizes, offsets)
+            mapper[(d0, side, region)] = (sizes, ofs)
 
         body = []
         for d in f.dimensions:
