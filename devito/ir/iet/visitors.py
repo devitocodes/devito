@@ -118,6 +118,12 @@ class PrintAST(Visitor):
         else:
             return self.indent + str(o)
 
+    def visit_ForeignExpression(self, o):
+        if self.verbose:
+            return self.indent + "<Expression %s>" % o.expr
+        else:
+            return self.indent + str(o)
+
     def visit_HaloSpot(self, o):
         self._depth += 1
         body = self._visit(o.children)
