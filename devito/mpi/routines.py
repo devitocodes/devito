@@ -61,16 +61,14 @@ class HaloExchangeBuilder(object):
             begin_exchange = []
             wait_exchange = []
             remainder = []
-            for f, v in hs.fmapper.items():
+            for f, hse in hs.fmapper.items():
                 # Sanity check
                 assert f.is_Function
                 assert f.grid is not None
 
                 # 0) Build data structures to be passed along the MPI Call stack
                 # --------------------------------------------------------------
-                if (f, v) not in msgs:
-                    key = len(msgs)
-                    msgs[(f, v)] = self._make_msg(f, v, key)
+                msg = msgs.setdefault((f, hse), self._make_msg(f, hse, len(msgs)))
 
                 # 1) Callables/Calls for send/recv
                 # --------------------------------
@@ -81,13 +79,13 @@ class HaloExchangeBuilder(object):
                                           dimensions=f.dimensions)
                 # `gather`, `scatter`, `sendrecv` and `haloupdate` are generic by
                 # construction -- they only need to be generated once for each unique
-                # pair (`ndim`, `halos`)
-                if (f.ndim, v) not in generated:
+                # pair (`ndim`, `hse`)
+                if (f.ndim, hse) not in generated:
                     key = len(generated)
-                    haloupdate = self._make_haloupdate(df, v.loc_indices, v.halos, key)
-                    sendrecv = self._make_sendrecv(df, v.loc_indices)
-                    gather = self._make_copy(df, v.loc_indices)
-                    scatter = self._make_copy(df, v.loc_indices, swap=True)
+                    haloupdate = self._make_haloupdate(df, hse, key=key, msg=msg)
+                    sendrecv = self._make_sendrecv(df, hse, msg=msg)
+                    gather = self._make_copy(df, hse)
+                    scatter = self._make_copy(df, hse, swap=True)
                     # Arrange the newly constructed Callables in a suitable data
                     # structure to capture the call tree. This may be useful to
                     # the HaloExchangeBuilder user
@@ -95,8 +93,9 @@ class HaloExchangeBuilder(object):
                     sendrecv = EFuncNode(sendrecv, haloupdate)
                     gather = EFuncNode(gather, sendrecv)
                     scatter = EFuncNode(scatter, sendrecv)
-                    generated[(f.ndim, v)] = haloupdate
+                    generated[(f.ndim, hse)] = haloupdate
                 # `haloupdate` Call construction
+                name = generated[(f.ndim, hse)].name
                 comm = f.grid.distributor._obj_comm
                 nb = f.grid.distributor._obj_neighborhood
                 loc_indices = list(v.loc_indices.values())
@@ -117,7 +116,7 @@ class HaloExchangeBuilder(object):
         return flatten(generated.values()), calls
 
     @abc.abstractmethod
-    def _make_msg(self, f, halos, key):
+    def _make_msg(self, f, hse, key):
         """
         Construct data structures carrying information about the HaloSpot
         ``hs``, to propagate information across the MPI Call stack.
@@ -125,7 +124,7 @@ class HaloExchangeBuilder(object):
         return
 
     @abc.abstractmethod
-    def _make_copy(self, f, fixed, swap=False):
+    def _make_copy(self, f, hse, swap=False):
         """
         Construct a Callable performing a copy of:
 
@@ -136,7 +135,7 @@ class HaloExchangeBuilder(object):
         return
 
     @abc.abstractmethod
-    def _make_sendrecv(self, f, fixed, **kwargs):
+    def _make_sendrecv(self, f, hse, **kwargs):
         """
         Construct a Callable performing, for a given DiscreteFunction, a halo exchange
         along given Dimension and DataSide.
@@ -144,9 +143,25 @@ class HaloExchangeBuilder(object):
         return
 
     @abc.abstractmethod
-    def _make_haloupdate(self, f, fixed, halos, **kwargs):
+    def _call_sendrecv(self, name, *args, **kwargs):
+        """
+        Construct a Call to ``sendrecv``, the Callable produced by
+        :meth:`_make_sendrecv`.
+        """
+        return
+
+    @abc.abstractmethod
+    def _make_haloupdate(self, f, hse, **kwargs):
         """
         Construct a Callable performing, for a given DiscreteFunction, a halo exchange.
+        """
+        return
+
+    @abc.abstractmethod
+    def _call_haloupdate(self, name, *args, **kwargs):
+        """
+        Construct a Call to ``haloupdate``, the Callable produced by
+        :meth:`_make_haloupdate`.
         """
         return
 
@@ -173,14 +188,14 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
     A HaloExchangeBuilder making use of synchronous MPI routines only.
     """
 
-    def _make_msg(self, f, halos, key):
+    def _make_msg(self, f, hse, key):
         return
 
-    def _make_copy(self, f, fixed, swap=False):
+    def _make_copy(self, f, hse, swap=False):
         buf_dims = []
         buf_indices = []
         for d in f.dimensions:
-            if d not in fixed:
+            if d not in hse.loc_indices:
                 buf_dims.append(Dimension(name='buf_%s' % d.root))
                 buf_indices.append(d.root)
         buf = Array(name='buf', dimensions=buf_dims, dtype=f.dtype)
@@ -190,7 +205,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         for d in f.dimensions:
             offset = Symbol(name='o%s' % d.root)
             f_offsets.append(offset)
-            f_indices.append(offset + (d.root if d not in fixed else 0))
+            f_indices.append(offset + (d.root if d not in hse.loc_indices else 0))
 
         if swap is False:
             eq = DummyEq(buf[buf_indices], f[f_indices])
@@ -208,11 +223,11 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         parameters = [buf] + list(buf.shape) + [f] + f_offsets
         return Callable(name, iet, 'void', parameters, ('static',))
 
-    def _make_sendrecv(self, f, fixed):
+    def _make_sendrecv(self, f, hse, **kwargs):
         comm = f.grid.distributor._obj_comm
 
         buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions
-                    if d not in fixed]
+                    if d not in hse.loc_indices]
         bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype, scope='heap')
         bufs = Array(name='bufs', dimensions=buf_dims, dtype=f.dtype, scope='heap')
 
@@ -249,12 +264,15 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         parameters = ([f] + list(bufs.shape) + ofsg + ofss + [fromrank, torank, comm])
         return Callable('sendrecv%dd' % f.ndim, iet, 'void', parameters, ('static',))
 
-    def _make_haloupdate(self, f, fixed, halos, key=None):
+    def _call_sendrecv(self, name, *args, **kwargs):
+        return Call(name, flatten(args))
+
+    def _make_haloupdate(self, f, hse, key=None, **kwargs):
         distributor = f.grid.distributor
         nb = distributor._obj_neighborhood
         comm = distributor._obj_comm
 
-        fixed = {d: Symbol(name="o%s" % d.root) for d in fixed}
+        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
         # Build a mapper `(dim, side, region) -> (size, ofs)` for `f`. `size` and
         # `ofs` are symbolic objects. This mapper tells what data values should be
@@ -284,14 +302,14 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
             lpeer = FieldFromPointer(name, nb)
 
-            if (d, LEFT) in halos:
+            if (d, LEFT) in hse.halos:
                 # Sending to left, receiving from right
                 lsizes, loffsets = mapper[(d, LEFT, OWNED)]
                 rsizes, roffsets = mapper[(d, RIGHT, HALO)]
                 args = [f] + lsizes + loffsets + roffsets + [rpeer, lpeer, comm]
                 body.append(Call('sendrecv%dd' % f.ndim, args))
 
-            if (d, RIGHT) in halos:
+            if (d, RIGHT) in hse.halos:
                 # Sending to right, receiving from left
                 rsizes, roffsets = mapper[(d, RIGHT, OWNED)]
                 lsizes, loffsets = mapper[(d, LEFT, HALO)]
@@ -302,6 +320,9 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values())
         return Callable(name, iet, 'void', parameters, ('static',))
+
+    def _call_haloupdate(self, name, *args, **kwargs):
+        return Call(name, flatten(args))
 
     def _make_halowait(self, f):
         return
@@ -317,8 +338,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
     neighbours are performed explicitly.
     """
 
-    def _make_haloupdate(self, f, fixed, halos, key=None):
-        halos = [i.side for i in halos]
+    def _make_haloupdate(self, f, hse, key=None, **kwargs):
         distributor = f.grid.distributor
         nb = distributor._obj_neighborhood
         comm = distributor._obj_comm
