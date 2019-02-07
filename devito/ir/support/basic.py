@@ -823,8 +823,9 @@ class Scope(object):
                         is_flow = (r < w) or (r == w and r.lex_ge(w))
                     except TypeError:
                         # Non-integer vectors are not comparable.
-                        # Conservatively, we assume it is a dependence
-                        is_flow = True
+                        # Conservatively, we assume it is a dependence, unless
+                        # it's a read-for-increment
+                        is_flow = not r.is_read_increment
                     if is_flow:
                         found.append(Dependence(w, r))
         return found
@@ -840,8 +841,9 @@ class Scope(object):
                         is_anti = (r > w) or (r == w and r.lex_lt(w))
                     except TypeError:
                         # Non-integer vectors are not comparable.
-                        # Conservatively, we assume it is a dependence
-                        is_anti = True
+                        # Conservatively, we assume it is a dependence, unless
+                        # it's a read-for-increment
+                        is_anti = not r.is_read_increment
                     if is_anti:
                         found.append(Dependence(r, w))
         return found

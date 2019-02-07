@@ -13,7 +13,7 @@ from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
-                           HOISTABLE, USELESS)
+                           USELESS)
 from devito.ir.support import Forward, detect_io
 from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
@@ -65,7 +65,7 @@ class Node(Signer):
         return obj
 
     def _rebuild(self, *args, **kwargs):
-        """Reconstruct self. None of the embedded Sympy expressions are rebuilt."""
+        """Reconstruct ``self``."""
         handle = self._args.copy()  # Original constructor arguments
         argnames = [i for i in self._traversable if i not in kwargs]
         handle.update(OrderedDict([(k, v) for k, v in zip(argnames, args)]))
@@ -776,52 +776,6 @@ class Section(List):
         return self.body
 
 
-class HaloSpot(List):
-
-    """
-    A node representing an MPI halo exchange for a certain Function.
-    """
-
-    is_HaloSpot = True
-
-    def __init__(self, halo_scheme, body=None, properties=None):
-        super(HaloSpot, self).__init__(body=body)
-        assert len(halo_scheme) == 1
-        self.halo_scheme = halo_scheme
-        self.properties = as_tuple(properties)
-
-    @property
-    def fmapper(self):
-        return self.halo_scheme.fmapper
-
-    @property
-    def target(self):
-        return list(self.fmapper)[0]
-
-    @property
-    def loc_indices(self):
-        return list(self.fmapper.values())[0].loc_indices
-
-    @property
-    def halos(self):
-        return self.halo_scheme.halos
-
-    @property
-    def is_Hoistable(self):
-        return HOISTABLE in self.properties
-
-    @property
-    def is_Useless(self):
-        return USELESS in self.properties
-
-    def __repr__(self):
-        if self.properties:
-            properties = "[%s]" % ",".join(str(i) for i in self.properties)
-        else:
-            properties = ""
-        return "<HaloSpot%s>" % properties
-
-
 class ExpressionBundle(List):
 
     """
@@ -842,6 +796,88 @@ class ExpressionBundle(List):
     @property
     def exprs(self):
         return self.body
+
+
+# Nodes required for distributed-memory halo exchange
+
+
+class HaloSpot(Node):
+
+    """
+    A halo exchange operation (e.g., send, recv, wait, ...) required to
+    correctly execute the subtree in the case of distributed-memory parallelism.
+    """
+
+    is_HaloSpot = True
+
+    _traversable = ['body']
+
+    def __init__(self, halo_scheme, body=None, properties=None):
+        super(HaloSpot, self).__init__()
+        self._halo_scheme = halo_scheme
+        if isinstance(body, Node):
+            self._body = body
+        elif isinstance(body, (list, tuple)) and len(body) == 1:
+            self._body = body[0]
+        else:
+            raise ValueError("`body` is expected to be a single Node")
+        self._properties = as_tuple(properties)
+
+    def __repr__(self):
+        properties = []
+        if self.is_Useless:
+            properties.append("useless")
+        if self.hoistable:
+            properties.append("hoistable[%s]" % ",".join(i.name for i in self.hoistable))
+        if properties:
+            properties = "[%s]" % ','.join(properties)
+        else:
+            properties = ""
+        functions = "(%s)" % ",".join(i.name for i in self.functions)
+        return "<%s%s%s>" % (self.__class__.__name__, functions, properties)
+
+    @property
+    def halo_scheme(self):
+        return self._halo_scheme
+
+    @property
+    def fmapper(self):
+        return self.halo_scheme.fmapper
+
+    @property
+    def is_empty(self):
+        return len(self.halo_scheme) == 0
+
+    @property
+    def body(self):
+        return self._body
+
+    @property
+    def properties(self):
+        return self._properties
+
+    @property
+    def hoistable(self):
+        for i in self.properties:
+            if i.name == 'hoistable':
+                return i.val
+        return ()
+
+    @property
+    def is_Useless(self):
+        return USELESS in self.properties
+
+    @property
+    def functions(self):
+        return tuple(self.fmapper)
+
+    @property
+    def free_symbols(self):
+        return ()
+
+    @property
+    def defines(self):
+        return ()
 
 
 # Utility classes

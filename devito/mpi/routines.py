@@ -35,30 +35,35 @@ class HaloExchangeBuilder(object):
     def __init__(self, threaded, mode='basic'):
         self._threaded = threaded
 
-    @abc.abstractmethod
     def make(self, halo_spots):
         """
-        Construct Callables and Calls implementing a halo exchange for the
-        provided HaloSpots.
+        Turn the input HaloSpots into Callables/Calls implementing
+        distributed-memory halo exchange.
 
-        For each (unique) HaloSpot, three Callables are built:
+        For each HaloSpot, at least three Callables are constructed:
 
-            * ``update_halo``, to be called when a halo exchange is necessary,
-            * ``sendrecv``, called multiple times by ``update_halo``.
-            * ``copy``, called twice by ``sendrecv``, to implement, for example,
+            * ``update_halo``, to be called to trigger the halo exchange,
+            * ``sendrecv``, called from within ``update_halo``.
+            * ``copy``, called from within ``sendrecv``, to implement, for example,
               data gathering prior to an MPI_Send, and data scattering following
               an MPI recv.
+
+        Additional Callables may be constructed in the case of asynchronous
+        halo exchange.
+
+        In any case, the HaloExchangeBuilder creator only needs to worry about
+        placing the ``update_halo`` Calls.
         """
-        calls = OrderedDict()
+        calls = {}
         generated = OrderedDict()
         for hs in halo_spots:
+            # 1) Callables/Calls for send/recv
+            begin_exchange = []
             for f, v in hs.fmapper.items():
                 # Sanity check
                 assert f.is_Function
                 assert f.grid is not None
 
-                # Callables construction
-                # ----------------------
                 # Note: to construct the halo exchange Callables, use the generic `df`,
                 # instead of `f`, so that we don't need to regenerate code for Functions
                 # that are symbolically identical to `f` except for the name
@@ -75,34 +80,30 @@ class HaloExchangeBuilder(object):
                 # generated once for each (`ndim`, `halos`)
                 if (f.ndim, v) not in generated:
                     uniquekey = len([i for i in generated if isinstance(i, tuple)])
-                    generated[(f.ndim, v)] = [self._make_haloupdate(df, v.loc_indices,
-                                                                    hs.halos[f], extra,
-                                                                    uniquekey)]
+                    haloupdate = self._make_haloupdate(df, v.loc_indices, v.halos, extra,
+                                                       uniquekey)
+                    generated[(f.ndim, v)] = [haloupdate]
 
                 # `haloupdate` Call construction
                 comm = f.grid.distributor._obj_comm
                 nb = f.grid.distributor._obj_neighborhood
                 loc_indices = list(v.loc_indices.values())
                 args = [f, comm, nb] + loc_indices + extra
-                call = Call(generated[(f.ndim, v)][0].name, args)
-                calls.setdefault(hs, []).append(call)
+                begin_exchange.append(Call(generated[(f.ndim, v)][0].name, args))
+
+            # 2) Callables/Calls for wait (no-op in case of synchronous halo exchange)
+            wait_exchange = []
+            for f, v in hs.fmapper.items():
+                # TODO
+                pass
+
+            # 3) Callables/Calls for remainder computation (no-op in case of
+            # synchronous halo exchange)
+            remainder = []
+
+            calls[hs] = List(body=begin_exchange + [hs.body] + wait_exchange + remainder)
 
         return flatten(generated.values()), calls
-
-    @abc.abstractmethod
-    def _make_haloupdate(self, f, fixed, halos, **kwargs):
-        """
-        Construct a Callable performing, for a given DiscreteFunction, a halo exchange.
-        """
-        return
-
-    @abc.abstractmethod
-    def _make_sendrecv(self, f, fixed, **kwargs):
-        """
-        Construct a Callable performing, for a given DiscreteFunction, a halo exchange
-        along given Dimension and DataSide.
-        """
-        return
 
     def _make_copy(self, f, fixed, swap=False):
         """
@@ -147,14 +148,42 @@ class HaloExchangeBuilder(object):
         parameters = [buf] + list(buf.shape) + [f] + f_offsets + state.input
         return Callable(name, state.nodes, 'void', parameters, ('static',)), state.input
 
+    @abc.abstractmethod
+    def _make_sendrecv(self, f, fixed, **kwargs):
+        """
+        Construct a Callable performing, for a given DiscreteFunction, a halo exchange
+        along given Dimension and DataSide.
+        """
+        return
+
+    @abc.abstractmethod
+    def _make_haloupdate(self, f, fixed, halos, **kwargs):
+        """
+        Construct a Callable performing, for a given DiscreteFunction, a halo exchange.
+        """
+        return
+
+    @abc.abstractmethod
+    def _make_halowait(self, f):
+        """
+        Construct a Callable performing, for a given DiscreteFunction, a wait on
+        one or more asynchrnous calls.
+        """
+        return
+
+    @abc.abstractmethod
+    def _make_halocomp(self, body):
+        """
+        Construct a Callable performing computation over the OWNED region, that is
+        the region requiring up-to-date halo values.
+        """
+        return
+
 
 class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
     """
-    Build basic routines for MPI halo exchanges. No optimisations are performed.
-
-    The only constraint is that the built ``haloupdate`` Callable is called prior
-    to executing the code region requiring up-to-date halos.
+    A HaloExchangeBuilder making use of synchronous MPI routines only.
     """
 
     def _make_sendrecv(self, f, fixed, extra=None):
@@ -183,19 +212,16 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         # the domain boundary, where the sender is actually MPI.PROC_NULL
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
-        srecv = MPIStatusObject(name='srecv')
-        ssend = MPIStatusObject(name='ssend')
+        count = reduce(mul, bufs.shape, 1)
         rrecv = MPIRequestObject(name='rrecv')
         rsend = MPIRequestObject(name='rsend')
-
-        count = reduce(mul, bufs.shape, 1)
         recv = Call('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
                                   fromrank, Integer(13), comm, rrecv])
         send = Call('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
                                   torank, Integer(13), comm, rsend])
 
-        waitrecv = Call('MPI_Wait', [rrecv, srecv])
-        waitsend = Call('MPI_Wait', [rsend, ssend])
+        waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
+        waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
         iet = List(body=iet_insert_C_decls(iet))
@@ -258,15 +284,18 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         parameters = [f, comm, nb] + list(fixed.values()) + extra
         return Callable(name, iet, 'void', parameters, ('static',))
 
+    def _make_halowait(self, f):
+        return
+
+    def _make_halocomp(self, body):
+        return
+
 
 class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
 
     """
-    Build routines for MPI halo exchanges with explicit send/recv to/from
-    diagonal neighbours. No optimisations are performed.
-
-    The only constraint is that the built ``haloupdate`` Callable is called prior
-    to executing the code region requiring up-to-date halos.
+    Similar to a BasicHaloExchangeBuilder, but communications to diagonal
+    neighbours are performed explicitly.
     """
 
     def _make_haloupdate(self, f, fixed, halos, extra=None, uniquekey=None):
