@@ -327,7 +327,7 @@ class Operator(Callable):
 
     def _postprocess_arguments(self, args, **kwargs):
         """Process runtime arguments upon returning from ``.apply()``."""
-        for p in self.output:
+        for p in self.input:
             p._arg_apply(args[p.name], kwargs.get(p.name))
 
     @cached_property
