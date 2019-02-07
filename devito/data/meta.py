@@ -17,6 +17,26 @@ FULL = DataRegion('full')  # == DOMAIN+HALO+PADDING
 
 class DataSide(Tag):
 
+    def __init__(self, name, val, flipto=None):
+        super(DataSide, self).__init__(name, val)
+        if flipto is not None:
+            self.flip = lambda: flipto
+            flipto.flip = lambda: self
+        else:
+            self.flip = lambda: self
+
+    def __lt__(self, other):
+        return self.val < other.val
+
+    def __le__(self, other):
+        return self.val <= other.val
+
+    def __gt__(self, other):
+        return self.val > other.val
+
+    def __ge__(self, other):
+        return self.val >= other.val
+
     def __str__(self):
         return self.name
 
@@ -25,4 +45,4 @@ class DataSide(Tag):
 
 LEFT = DataSide('left', -1)
 CENTER = DataSide('center', 0)
-RIGHT = DataSide('right', 1)
+RIGHT = DataSide('right', 1, LEFT)
