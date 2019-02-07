@@ -343,43 +343,31 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
         nb = distributor._obj_neighborhood
         comm = distributor._obj_comm
 
-        fixed = {d: Symbol(name="o%s" % d.root) for d in fixed}
-        all_tosides = list(product([LEFT, CENTER, RIGHT], repeat=distributor.ndim))
-        all_fromsides = list(reversed(all_tosides))
+        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
-        # Build an iterable `[((tosides, size, ofs), (fromsides, size, ofs)), ...]`
-        # for `f`. `size` and `ofs` are symbolic objects. This mapper tells what data
-        # values should be sent (OWNED) or received (HALO) given the dimension sides
-        candidates = []
-        for i in zip(all_tosides, all_fromsides):
-            handle = []
-            for sides, region in zip(i, [OWNED, HALO]):
-                sizes = []
-                offsets = []
-                mapper = dict(zip(distributor.dimensions, sides))
-                for d in f.dimensions:
-                    if d in fixed:
-                        offsets.append(fixed[d])
-                    else:
-                        meta = f._C_get_field(region, d, mapper[d])
-                        offsets.append(meta.offset)
-                        sizes.append(meta.size)
-                handle.append((sides, sizes, offsets))
-            candidates.append(tuple(handle))
+        # Only retain the halos required by the Diag scheme
+        # Note: `sorted` is only for deterministic code generation
+        halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
 
         body = []
-        for (tosides, tosizes, tooffs), (fromsides, fromsizes, fromoffs) in candidates:
-            if tosides not in halos:
-                # Ignore useless halo exchanges
-                continue
+        for dims, tosides in halos:
+            mapper = OrderedDict(zip(dims, tosides))
 
-            name = ''.join(i.name[0] for i in tosides)
-            topeer = FieldFromPointer(name, nb)
-            name = ''.join(i.name[0] for i in fromsides)
-            frompeer = FieldFromPointer(name, nb)
+            sizes = [f._C_get_field(OWNED, d, s).size for d, s in mapper.items()]
 
-            args = [f] + tosizes + tooffs + fromoffs + [frompeer, topeer, comm]
-            body.append(Call('sendrecv%dd' % f.ndim, args))
+            topeer = FieldFromPointer(''.join(i.name[0] for i in mapper.values()), nb)
+            ofsg = [fixed.get(d, f._C_get_field(OWNED, d, mapper.get(d)).offset)
+                    for d in f.dimensions]
+
+            mapper = OrderedDict(zip(dims, [i.flip() for i in tosides]))
+            frompeer = FieldFromPointer(''.join(i.name[0] for i in mapper.values()), nb)
+            ofss = [fixed.get(d, f._C_get_field(HALO, d, mapper.get(d)).offset)
+                    for d in f.dimensions]
+
+            kwargs['haloid'] = len(body)
+
+            body.append(self._call_sendrecv('sendrecv%dd' % f.ndim, f, sizes, ofsg,
+                                            ofss, frompeer, topeer, comm, **kwargs))
 
         name = 'haloupdate%dd%s' % (f.ndim, key)
         iet = List(body=body)
