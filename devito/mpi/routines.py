@@ -1,6 +1,6 @@
 import abc
 from collections import OrderedDict
-from ctypes import POINTER, c_void_p
+from ctypes import POINTER, c_void_p, c_int
 from functools import reduce
 from itertools import product
 from operator import mul
@@ -418,31 +418,73 @@ class MPIMsg(CompositeObject):
 
     _C_field_bufs = 'bufs'
     _C_field_bufg = 'bufg'
+    _C_field_sizes = 'sizes'
     _C_field_rrecv = 'rrecv'
     _C_field_rsend = 'rsend'
 
-    def __init__(self, name, function):
+    def __init__(self, name, function, halos):
         self._function = function
+        self._halos = halos
         fields = [
-            (MPIMsg._C_field_bufs, POINTER(dtype_to_ctype(function.dtype))),
-            (MPIMsg._C_field_bufg, POINTER(dtype_to_ctype(function.dtype))),
+            (MPIMsg._C_field_bufs, c_void_p),
+            (MPIMsg._C_field_bufg, c_void_p),
+            (MPIMsg._C_field_sizes, POINTER(c_int)),
             (MPIMsg._C_field_rrecv, c_mpirequest_p),
             (MPIMsg._C_field_rsend, c_mpirequest_p),
         ]
         super(MPIMsg, self).__init__(name, 'msg', fields)
 
+        # Required for buffer allocation/deallocation before/after jumping/returning
+        # to/from C-land
+        self._allocator = default_allocator()
+        self._memfree_args = []
+
+    def __value_setup__(self, dtype, value):
+        # We eventually produce an array of `struct msg` that is as big as
+        # the number of peers we have to communicate with
+        return (dtype._type_*self.npeers)()
+
     @property
     def function(self):
         return self._function
 
-    def _arg_values(self, **kwargs):
-        value = self._arg_defaults()
-        # Allocate the send/recv buffers
-        from IPython import embed; embed()
+    @property
+    def halos(self):
+        return self._halos
 
-    def _arg_apply(self):
+    @property
+    def npeers(self):
+        return len(self._halos)
+
+    def _arg_values(self, **kwargs):
+        values = self._arg_defaults()
+        function = kwargs.get(self.function.name, self.function)
+        for i, halo in enumerate(self.halos):
+            entry = values[self.name][i]
+            # Buffer size for this peer
+            shape = []
+            for dim, side in zip(*halo):
+                try:
+                    shape.append(getattr(function._size_owned[dim], side.name))
+                except AttributeError:
+                    assert side is CENTER
+                    shape.append(function._size_domain[dim])
+            entry.sizes = (c_int*len(shape))(*shape)
+            # Allocate the send/recv buffers
+            size = reduce(mul, shape)
+            ctype = dtype_to_ctype(function.dtype)
+            entry.bufg, bufg_memfree_args = self._allocator._alloc_C_libcall(size, ctype)
+            entry.bufs, bufs_memfree_args = self._allocator._alloc_C_libcall(size, ctype)
+            # The `memfree_args` will be used to deallocate the buffer upon returning
+            # from C-land
+            self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
+        return values
+
+    def _arg_apply(self, *args, **kwargs):
         # Deallocate the buffers
-        pass
+        for i in self._memfree_args:
+            self._allocator.free(*i)
+        self._memfree_args[:] = []
 
     # Pickling support
-    _pickle_args = ['name', 'function_name']
+    _pickle_args = ['name', 'function', 'halos']
