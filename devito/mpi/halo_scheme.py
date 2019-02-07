@@ -7,9 +7,9 @@ from frozendict import frozendict
 
 from devito.data import LEFT, CENTER, RIGHT
 from devito.ir.support import Scope
-from devito.tools import Tag, as_mapper, as_tuple, filter_ordered
+from devito.tools import Tag, as_mapper, as_tuple
 
-__all__ = ['HaloScheme', 'HaloSchemeException']
+__all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException']
 
 
 class HaloSchemeException(Exception):
