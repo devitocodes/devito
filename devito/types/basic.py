@@ -908,8 +908,11 @@ class CompositeObject(Object):
 
     def __init__(self, name, pname, pfields, value=None):
         dtype = CompositeObject._generate_unique_dtype(pname, pfields)
-        value = value or byref(dtype._type_())
+        value = self.__value_setup__(dtype, value)
         super(CompositeObject, self).__init__(name, dtype, value)
+
+    def __value_setup__(self, dtype, value):
+        return value or byref(dtype._type_())
 
     @property
     def pfields(self):
