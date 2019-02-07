@@ -92,12 +92,12 @@ class Coefficient(object):
         try:
             if not function.is_Function:
                 raise TypeError("Object is not of type Function")
-        except:
+        except AttributeError:
             raise TypeError("Object is not of type Function")
         try:
             if not dimension.is_Dimension:
                 raise TypeError("Coefficients must be attached to a valid dimension")
-        except:
+        except AttributeError:
             raise TypeError("Coefficients must be attached to a valid dimension")
         # Currently only numpy arrays are accepted here.
         # Functionality will be expanded in the near future.
