@@ -158,8 +158,8 @@ class CodePrinter(C99CodePrinter):
     def _print_IntDiv(self, expr):
         return expr.__str__()
 
-    def _print_Byref(self, expr):
-        return "&%s" % expr.base
+    _print_Byref = _print_IntDiv
+    _print_IndexedPointer = _print_IntDiv
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)

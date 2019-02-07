@@ -11,8 +11,8 @@ from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
-           'ListInitializer', 'Byref', 'Macro', 'taylor_sin', 'taylor_cos',
-           'bhaskara_sin', 'bhaskara_cos']
+           'ListInitializer', 'Byref', 'IndexedPointer', 'Macro', 'taylor_sin',
+           'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
 
 
 class FrozenExpr(Expr):
@@ -282,6 +282,43 @@ class Byref(sympy.Expr, Pickable):
 
     # Pickling support
     _pickle_args = ['base']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class IndexedPointer(sympy.Expr):
+
+    """
+    Symbolic representation of the C notation ``symbol[...]``
+
+    Unlike a sympy.Indexed, an IndexedPointer accepts, as base, objects that
+    are not necessarily a Symbol or an IndexedBase, such as a FieldFromPointer.
+    """
+
+    def __new__(cls, base, index):
+        if isinstance(base, (str, sympy.IndexedBase, sympy.Symbol)):
+            return sympy.Indexed(base, index)
+        elif not isinstance(base, sympy.Basic):
+            raise ValueError("`base` must be of type sympy.Basic")
+        obj = sympy.Expr.__new__(cls, base)
+        obj._base = base
+        obj._index = as_tuple(index)
+        return obj
+
+    @property
+    def base(self):
+        return self._base
+
+    @property
+    def index(self):
+        return self._index
+
+    def __str__(self):
+        return "%s%s" % (self.base, ''.join('[%s]' % i for i in self.index))
+
+    __repr__ = __str__
+
+    # Pickling support
+    _pickle_args = ['base', 'index']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
