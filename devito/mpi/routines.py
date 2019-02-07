@@ -11,7 +11,7 @@ from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocat
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls, PARALLEL, EFuncNode)
-from devito.symbolics import CondNe, FieldFromPointer, Macro
+from devito.symbolics import Byref, CondNe, FieldFromPointer, IndexedPointer, Macro
 from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
 
@@ -112,7 +112,7 @@ class HaloExchangeBuilder(object):
 
             calls[hs] = List(body=begin_exchange + [hs.body] + wait_exchange + remainder)
 
-        return flatten(generated.values()), calls
+        return flatten(generated.values()), calls, [i for i in msgs.values() if i]
 
     @abc.abstractmethod
     def _make_msg(self, f, hse, key):
@@ -381,12 +381,63 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     computation-communication overlap.
     """
 
-    def _make_msg(self, f, halos, key):
-        # TODO: `halos` not used yet, but will be exploited for optimization
-        # in later versions (or perhaps in newer subclasses). By knowing the halos
-        # we could constrain the buffer size and the amount of data that is
-        # sent over to the neighbours
-        return MPIMsg('msg%d' % key, f)
+    def _make_msg(self, f, hse, key):
+        # Only retain the halos required by the Diag scheme
+        halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
+        return MPIMsg('msg%d' % key, f, halos)
+
+    def _make_sendrecv(self, f, hse, msg):
+        comm = f.grid.distributor._obj_comm
+
+        bufg = FieldFromPointer(msg._C_field_bufg, msg)
+        bufs = FieldFromPointer(msg._C_field_bufs, msg)
+
+        ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
+        ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
+
+        fromrank = Symbol(name='fromrank')
+        torank = Symbol(name='torank')
+
+        sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
+                 for i in range(len(f._dist_dimensions))]
+        gather = Call('gather%dd' % f.ndim, [bufg] + sizes + [f] + ofsg)
+        scatter = Call('scatter%dd' % f.ndim, [bufs] + sizes + [f] + ofss)
+
+        # The `gather` is unnecessary if sending to MPI.PROC_NULL
+        gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
+        # The `scatter` must be guarded as we must not alter the halo values along
+        # the domain boundary, where the sender is actually MPI.PROC_NULL
+        scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
+
+        count = reduce(mul, sizes, 1)
+        rrecv = Byref(FieldFromPointer(msg._C_field_rrecv, msg))
+        rsend = Byref(FieldFromPointer(msg._C_field_rsend, msg))
+        recv = Call('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                                  fromrank, Integer(13), comm, rrecv])
+        send = Call('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                                  torank, Integer(13), comm, rsend])
+
+        waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
+        waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
+
+        iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
+        iet = List(body=iet_insert_C_decls(iet))
+        parameters = ([f] + ofsg + ofss + [fromrank, torank, comm, msg])
+        return Callable('sendrecv%dd' % f.ndim, iet, 'void', parameters, ('static',))
+
+    def _call_sendrecv(self, name, *args, msg=None, haloid=None):
+        # Drop `sizes` as this HaloExchangeBuilder conveys them through `msg`
+        f, _, ofsg, ofss, fromrank, torank, comm = args
+        msg = Byref(IndexedPointer(msg, haloid))
+        return Call(name, [f] + ofsg + ofss + [fromrank, torank, comm, msg])
+
+    def _make_haloupdate(self, f, hse, **kwargs):
+        iet = super(OverlapHaloExchangeBuilder, self)._make_haloupdate(f, hse, **kwargs)
+        iet = iet._rebuild(parameters=iet.parameters + (kwargs['msg'],))
+        return iet
+
+    def _call_haloupdate(self, name, *args, **kwargs):
+        return Call(name, flatten(args) + [kwargs['msg']])
 
 
 class MPIStatusObject(LocalObject):

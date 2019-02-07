@@ -331,12 +331,13 @@ class AdvancedRewriter(BasicRewriter):
         """
         # Build send/recv Callables and Calls
         heb = HaloExchangeBuilder(self.params['mpi'])
-        call_trees, calls = heb.make(FindNodes(HaloSpot).visit(iet))
+        call_trees, calls, msgs = heb.make(FindNodes(HaloSpot).visit(iet))
 
         # Transform the IET by adding in the `haloupdate` Calls
         iet = Transformer(calls, nested=True).visit(iet)
 
-        return iet, {'includes': ['mpi.h'], 'call_trees': call_trees}
+        return iet, {'includes': ['mpi.h'], 'call_trees': call_trees,
+                     'input': msgs}
 
     @dle_pass
     def _simdize(self, nodes):
