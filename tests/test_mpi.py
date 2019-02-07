@@ -7,7 +7,7 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SubDimension, Eq, Inc, Operator, norm, inner)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes
-from devito.mpi import MPI, HaloExchangeBuilder
+from devito.mpi import MPI, HaloExchangeBuilder, HaloSchemeEntry
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['yask', 'ops', 'nompi'])
@@ -321,7 +321,7 @@ class TestCodeGeneration(object):
         f = TimeFunction(name='f', grid=grid)
 
         heb = HaloExchangeBuilder()
-        gather = heb._make_copy(f, [t])
+        gather = heb._make_copy(f, HaloSchemeEntry([t], []))
         assert str(gather.parameters) == """\
 (buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
@@ -341,7 +341,7 @@ class TestCodeGeneration(object):
         f = TimeFunction(name='f', grid=grid)
 
         heb = HaloExchangeBuilder()
-        sendrecv = heb._make_sendrecv(f, [t])
+        sendrecv = heb._make_sendrecv(f, HaloSchemeEntry([t], []))
         assert str(sendrecv.parameters) == """\
 (f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
  fromrank, torank, comm)"""
@@ -376,8 +376,8 @@ free(bufg);"""
         f = TimeFunction(name='f', grid=grid)
 
         heb = HaloExchangeBuilder()
-        mock_halo = {(x, LEFT): True, (x, RIGHT): True, (y, LEFT): True, (y, RIGHT): True}
-        haloupdate = heb._make_haloupdate(f, [t], mock_halo, key='')
+        halos = [(x, LEFT), (x, RIGHT), (y, LEFT), (y, RIGHT)]
+        haloupdate = heb._make_haloupdate(f, HaloSchemeEntry([t], halos))
         assert str(haloupdate.parameters) == """\
 (f(t, x, y), comm, nb, otime)"""
         assert str(haloupdate.body[0]) == """\
@@ -524,7 +524,7 @@ class TestOperatorSimple(object):
         else:
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap')])
     def test_trivial_eq_2d(self):
         grid = Grid(shape=(8, 8,))
         x, y = grid.dimensions
@@ -559,7 +559,7 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
-    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'diag')])
+    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'diag'), (8, 'overlap')])
     def test_trivial_eq_3d(self):
         grid = Grid(shape=(8, 8, 8))
         x, y, z = grid.dimensions
@@ -600,7 +600,7 @@ class TestOperatorSimple(object):
         # 4) interior
         assert np.all(f.data_ro_domain[0, 1:-1, 1:-1, 1:-1] == interior)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap')])
     def test_multiple_eqs_funcs(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -702,7 +702,7 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
 
-    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
+    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag'), (2, 'overlap')])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -1249,7 +1249,7 @@ class TestIsotropicAcoustic(object):
         ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (8, 'basic')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'), (8, 'basic')])
     def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
                        Eu, Erec, Ev, Esrca):
         """
