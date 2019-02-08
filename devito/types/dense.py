@@ -61,6 +61,11 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
             # Staggering metadata
             self._staggered = self.__staggered_setup__(**kwargs)
 
+            # Symbolic (finite difference) coefficients
+            self._coefficients = kwargs.get('coefficients', 'standard')
+            if self._coefficients not in ('standard', 'symbolic'):
+                raise ValueError("coefficients must be `standard` or `symbolic`")
+
             # Data-related properties and data initialization
             self._data = None
             self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
@@ -179,6 +184,14 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     @property
     def staggered(self):
         return self._staggered
+
+    @cached_property
+    def _coeff_symbol(self):
+        if self.coefficients == 'symbolic':
+            return sympy.Function('W')
+        else:
+            raise ValueError("Function was not declared with symbolic "
+                             "coefficients.")
 
     @cached_property
     def shape(self):
@@ -902,11 +915,6 @@ class Function(DiscreteFunction, Differentiable):
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
 
-            # Symbolic (finite difference) coefficients
-            self._coefficients = kwargs.get('coefficients', 'standard')
-            if self._coefficients not in ('standard', 'symbolic'):
-                raise ValueError("coefficients must be `standard` or `symbolic`")
-
             # Dynamically add derivative short-cuts
             self._fd = generate_fd_shortcuts(self)
 
@@ -991,19 +999,6 @@ class Function(DiscreteFunction, Differentiable):
     def coefficients(self):
         """Form of the coefficients of the function."""
         return self._coefficients
-
-    @cached_property
-    def _coeff_symbol(self):
-        if self.coefficients == 'symbolic':
-            return sympy.Function('W')
-        else:
-            raise ValueError("Function was not declared with symbolic "
-                             "coefficients.")
-
-    @property
-    def coeff_symbol(self):
-        """The symbol representing the functions coefficients."""
-        return self._coeff_symbol
 
     def sum(self, p=None, dims=None):
         """

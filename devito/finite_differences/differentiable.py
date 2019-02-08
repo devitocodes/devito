@@ -150,6 +150,10 @@ class Differentiable(sympy.Expr):
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return sum([getattr(self.laplace * weight, d) for d in derivs])
 
+    @property
+    def symbolic_coefficients(self):
+        return
+
 
 class Add(sympy.Add, Differentiable):
 
