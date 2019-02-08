@@ -155,6 +155,9 @@
 
 <span class="kn">import</span> <span class="nn">sympy</span>
 
+<span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="k">import</span> <span class="n">default_rules</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">retrieve_functions</span>
+
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;solve&#39;</span><span class="p">]</span>
 
 
@@ -177,6 +180,9 @@
 <span class="sd">    subdomain : SubDomain, optional</span>
 <span class="sd">        To restrict the computation of the Eq to a particular sub-region in the</span>
 <span class="sd">        computational domain.</span>
+<span class="sd">    coefficients : Substitutions, optional</span>
+<span class="sd">        Can be used to replace symbolic finite difference weights with user</span>
+<span class="sd">        defined weights.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
@@ -203,14 +209,31 @@
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;evaluate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="n">subdomain</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;subdomain&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">substitutions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;coefficients&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_subdomain</span> <span class="o">=</span> <span class="n">subdomain</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_substitutions</span> <span class="o">=</span> <span class="n">substitutions</span>
+        <span class="n">functions</span> <span class="o">=</span> <span class="n">retrieve_functions</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="n">functions</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">functions</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">f</span><span class="o">.</span><span class="n">is_SparseFunction</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">coefficients</span> <span class="o">==</span> <span class="s1">&#39;symbolic&#39;</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">functions</span><span class="p">):</span>
+            <span class="c1"># NOTE: As Coefficients.py is expanded we will not want</span>
+            <span class="c1"># all rules to be expunged during this procress.</span>
+            <span class="n">rules</span> <span class="o">=</span> <span class="n">default_rules</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">functions</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="o">**</span><span class="n">substitutions</span><span class="o">.</span><span class="n">rules</span><span class="p">,</span> <span class="o">**</span><span class="n">rules</span><span class="p">})</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">rules</span><span class="p">):</span>
+                    <span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">obj</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">subdomain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;The SubDomain in which the Eq is defined.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subdomain</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">substitutions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_substitutions</span>
 
     <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;&quot;&quot;&quot;</span>
@@ -310,6 +333,7 @@
         <script type="text/javascript" src="../../_static/jquery.js"></script>
         <script type="text/javascript" src="../../_static/underscore.js"></script>
         <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
     
 
   

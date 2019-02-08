@@ -168,7 +168,7 @@
 <span id="finite-difference-approximations"></span><h1>Finite-difference approximations<a class="headerlink" href="#module-devito.finite_differences.finite_difference" title="Permalink to this headline">¶</a></h1>
 <dl class="function">
 <dt id="devito.finite_differences.finite_difference.first_derivative">
-<code class="descclassname">devito.finite_differences.finite_difference.</code><code class="descname">first_derivative</code><span class="sig-paren">(</span><em>expr, dim, fd_order=None, side=centered[0], matvec=direct[1]</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#first_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.first_derivative" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.finite_differences.finite_difference.</code><code class="descname">first_derivative</code><span class="sig-paren">(</span><em>expr, dim, fd_order=None, side=centered[0], matvec=direct[1], symbolic=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#first_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.first_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>First-order derivative of a given expression.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -219,7 +219,7 @@ finite difference. Defaults to <code class="docutils literal notranslate"><span 
 
 <dl class="function">
 <dt id="devito.finite_differences.finite_difference.second_derivative">
-<code class="descclassname">devito.finite_differences.finite_difference.</code><code class="descname">second_derivative</code><span class="sig-paren">(</span><em>expr</em>, <em>dim</em>, <em>fd_order</em>, <em>stagger=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#second_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.second_derivative" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.finite_differences.finite_difference.</code><code class="descname">second_derivative</code><span class="sig-paren">(</span><em>expr</em>, <em>dim</em>, <em>fd_order</em>, <em>stagger=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#second_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.second_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>Second-order derivative of a given expression.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -261,7 +261,7 @@ the resulting stencil.</li>
 
 <dl class="function">
 <dt id="devito.finite_differences.finite_difference.cross_derivative">
-<code class="descclassname">devito.finite_differences.finite_difference.</code><code class="descname">cross_derivative</code><span class="sig-paren">(</span><em>expr</em>, <em>dims</em>, <em>fd_order</em>, <em>deriv_order</em>, <em>stagger=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#cross_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.cross_derivative" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.finite_differences.finite_difference.</code><code class="descname">cross_derivative</code><span class="sig-paren">(</span><em>expr</em>, <em>dims</em>, <em>fd_order</em>, <em>deriv_order</em>, <em>stagger=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#cross_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.cross_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>Arbitrary-order cross derivative of a given expression.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -304,7 +304,7 @@ the resulting stencil.</li>
 
 <dl class="function">
 <dt id="devito.finite_differences.finite_difference.generic_derivative">
-<code class="descclassname">devito.finite_differences.finite_difference.</code><code class="descname">generic_derivative</code><span class="sig-paren">(</span><em>expr</em>, <em>dim</em>, <em>fd_order</em>, <em>deriv_order</em>, <em>stagger=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#generic_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generic_derivative" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.finite_differences.finite_difference.</code><code class="descname">generic_derivative</code><span class="sig-paren">(</span><em>expr</em>, <em>dim</em>, <em>fd_order</em>, <em>deriv_order</em>, <em>stagger=None</em>, <em>symbolic=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#generic_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generic_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>Arbitrary-order derivative of a given expression.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -376,6 +376,7 @@ the resulting stencil.</li>
         <script type="text/javascript" src="_static/jquery.js"></script>
         <script type="text/javascript" src="_static/underscore.js"></script>
         <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
     
 
   
