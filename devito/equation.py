@@ -2,6 +2,9 @@
 
 import sympy
 
+from devito.finite_differences import default_rules
+from devito.symbolics import retrieve_functions
+
 __all__ = ['Eq', 'Inc', 'solve']
 
 
@@ -24,6 +27,9 @@ class Eq(sympy.Eq):
     subdomain : SubDomain, optional
         To restrict the computation of the Eq to a particular sub-region in the
         computational domain.
+    coefficients : Substitutions, optional
+        Can be used to replace symbolic finite difference weights with user
+        defined weights.
 
     Examples
     --------
@@ -50,14 +56,31 @@ class Eq(sympy.Eq):
     def __new__(cls, *args, **kwargs):
         kwargs['evaluate'] = False
         subdomain = kwargs.pop('subdomain', None)
+        substitutions = kwargs.pop('coefficients', None)
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         obj._subdomain = subdomain
+        obj._substitutions = substitutions
+        functions = retrieve_functions(obj)
+        functions = [f for f in functions if not f.is_SparseFunction]
+        if any(f.coefficients == 'symbolic' for f in functions):
+            # NOTE: As Coefficients.py is expanded we will not want
+            # all rules to be expunged during this procress.
+            rules = default_rules(obj, functions)
+            try:
+                obj = obj.xreplace({**substitutions.rules, **rules})
+            except AttributeError:
+                if bool(rules):
+                    obj = obj.xreplace(rules)
         return obj
 
     @property
     def subdomain(self):
         """The SubDomain in which the Eq is defined."""
         return self._subdomain
+
+    @property
+    def substitutions(self):
+        return self._substitutions
 
     def xreplace(self, rules):
         """"""

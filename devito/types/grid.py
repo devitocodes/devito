@@ -381,7 +381,7 @@ class SubDomain(object):
 
     @property
     def dimension_map(self):
-        return {d.parent: d for d in self.dimensions}
+        return {d.root: d for d in self.dimensions}
 
     @property
     def shape(self):

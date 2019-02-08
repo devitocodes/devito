@@ -4,6 +4,7 @@ from functools import wraps, reduce
 from operator import mul
 
 import numpy as np
+import sympy
 from psutil import virtual_memory
 from cached_property import cached_property
 from cgen import Struct, Value
@@ -901,6 +902,11 @@ class Function(DiscreteFunction, Differentiable):
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
 
+            # Symbolic (finite difference) coefficients
+            self._coefficients = kwargs.get('coefficients', 'standard')
+            if self._coefficients not in ('standard', 'symbolic'):
+                raise ValueError("coefficients must be `standard` or `symbolic`")
+
             # Dynamically add derivative short-cuts
             self._fd = generate_fd_shortcuts(self)
 
@@ -980,6 +986,24 @@ class Function(DiscreteFunction, Differentiable):
     def space_order(self):
         """The space order."""
         return self._space_order
+
+    @property
+    def coefficients(self):
+        """Form of the coefficients of the function."""
+        return self._coefficients
+
+    @cached_property
+    def _coeff_symbol(self):
+        if self.coefficients == 'symbolic':
+            return sympy.Function('W')
+        else:
+            raise ValueError("Function was not declared with symbolic "
+                             "coefficients.")
+
+    @property
+    def coeff_symbol(self):
+        """The symbol representing the functions coefficients."""
+        return self._coeff_symbol
 
     def sum(self, p=None, dims=None):
         """

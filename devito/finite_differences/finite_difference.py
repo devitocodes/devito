@@ -4,9 +4,11 @@ from sympy import S, finite_diff_weights
 
 from devito.finite_differences import Differentiable
 from devito.tools import Tag
+from devito.symbolics import retrieve_functions
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
-           'generic_derivative', 'left', 'right', 'centered', 'transpose']
+           'generic_derivative', 'left', 'right', 'centered', 'transpose',
+           'generate_indices', 'form_side']
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
@@ -62,8 +64,27 @@ def check_input(func):
     return wrapper
 
 
+def check_symbolic(func):
+    @wraps(func)
+    def wrapper(expr, *args, **kwargs):
+        functions = retrieve_functions(expr)
+        functions = [f for f in functions if not f.is_SparseFunction]
+        symbolic_coefficients = any(f.coefficients == 'symbolic' for f in functions)
+        if symbolic_coefficients:
+            expr_dict = expr.as_coefficients_dict()
+            if any(len(expr_dict) > 1 for item in expr_dict):
+                raise NotImplementedError("Applying the chain rule to functions "
+                                          "with symbolic coefficients is not currently "
+                                          "supported")
+        kwargs['symbolic'] = symbolic_coefficients
+        return func(expr, *args, **kwargs)
+    return wrapper
+
+
 @check_input
-def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
+@check_symbolic
+def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
+                     symbolic=False):
     """
     First-order derivative of a given expression.
 
@@ -116,18 +137,13 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
 
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    if side == right:
-        ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
-                                               int((order + 1) / 2) + 2 - (order % 2))]
-    elif side == left:
-        ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
-                                               int((order + 1) / 2) + 2 - (order % 2))]
-    else:
-        ind = [(dim + i * diff) for i in range(-int(order / 2),
-                                               int((order + 1) / 2) + 1)]
+    ind = generate_indices(expr, dim, diff, order, side=side)[0]
+
     # Finite difference weights from Taylor approximation with this positions
-    c = finite_diff_weights(1, ind, dim)
-    c = c[-1][-1]
+    if symbolic:
+        c = symbolic_weights(expr, 1, ind, dim)
+    else:
+        c = finite_diff_weights(1, ind, dim)[-1][-1]
     all_dims = tuple(set((dim,) + tuple([i for i in expr.indices if i.root == dim])))
     # Loop through positions
     for i in range(0, len(ind)):
@@ -137,7 +153,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
 
 
 @check_input
-def second_derivative(expr, dim, fd_order, stagger=None):
+@check_symbolic
+def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
     """
     Second-order derivative of a given expression.
 
@@ -176,11 +193,12 @@ def second_derivative(expr, dim, fd_order, stagger=None):
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
 
-    return generic_derivative(expr, dim, fd_order, 2, stagger=None)
+    return generic_derivative(expr, dim, fd_order, 2, stagger=None, **kwargs)
 
 
 @check_input
-def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
+@check_symbolic
+def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -232,7 +250,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
 
 
 @check_input
-def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
+@check_symbolic
+def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=False):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -258,33 +277,18 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
 
     diff = dim.spacing
 
-    if stagger == left or not expr.is_Staggered:
-        off = -.5
-    elif stagger == right:
-        off = .5
+    indices, x0 = generate_indices(expr, dim, diff, fd_order, stagger=stagger)
+
+    if symbolic:
+        c = symbolic_weights(expr, deriv_order, indices, x0)
     else:
-        off = 0
-
-    if expr.is_Staggered:
-        indices = list(set([(dim + int(i+.5+off) * dim.spacing)
-                            for i in range(-fd_order//2, fd_order//2)]))
-        x0 = (dim + off*diff)
-        if fd_order < 2:
-            indices = [dim + diff, dim] if stagger == right else [dim - diff, dim]
-
-    else:
-        indices = [(dim + i * dim.spacing) for i in range(-fd_order//2, fd_order//2 + 1)]
-        x0 = dim
-        if fd_order < 2:
-            indices = [dim, dim + diff]
-
-    c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
+        c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
     deriv = 0
     all_dims = tuple(set((dim, ) +
                      tuple([i for i in expr.indices if i.root == dim])))
     for i in range(0, len(indices)):
-        subs = dict([(d, indices[i].subs({dim: d})) for d in all_dims])
+        subs = dict((d, indices[i].subs({dim: d})) for d in all_dims)
         deriv += expr.subs(subs) * c[i]
 
     return deriv.evalf(_PRECISION)
@@ -300,14 +304,7 @@ def generate_fd_shortcuts(function):
     deriv_function = generic_derivative
     c_deriv_function = cross_derivative
 
-    side = dict()
-    for (d, s) in zip(dimensions, function.staggered):
-        if s == 0:
-            side[d] = left
-        elif s == 1:
-            side[d] = right
-        else:
-            side[d] = centered
+    side = form_side(dimensions, function)
 
     derivatives = dict()
     done = []
@@ -366,3 +363,56 @@ def generate_fd_shortcuts(function):
             derivatives[name_fd] = (deriv, desciption)
 
     return derivatives
+
+
+def symbolic_weights(function, deriv_order, indices, dim):
+    return [function.coeff_symbol(indices[j], deriv_order, function, dim)
+            for j in range(0, len(indices))]
+
+
+def generate_indices(func, dim, diff, order, stagger=None, side=None):
+
+    # Check if called from first_derivative()
+    if bool(side):
+        if side == right:
+            ind = [(dim+i*diff) for i in range(-int(order/2)+1-(order % 2),
+                                               int((order+1)/2)+2-(order % 2))]
+        elif side == left:
+            ind = [(dim-i*diff) for i in range(-int(order/2)+1-(order % 2),
+                                               int((order+1)/2)+2-(order % 2))]
+        else:
+            ind = [(dim+i*diff) for i in range(-int(order/2),
+                                               int((order+1)/2)+1)]
+        x0 = None
+    else:
+        if func.is_Staggered:
+            if stagger == left:
+                off = -.5
+            elif stagger == right:
+                off = .5
+            else:
+                off = 0
+            ind = list(set([(dim + int(i+.5+off) * dim.spacing)
+                            for i in range(-order//2, order//2)]))
+            x0 = (dim + off*diff)
+            if order < 2:
+                ind = [dim + diff, dim] if stagger == right else [dim - diff, dim]
+
+        else:
+            ind = [(dim + i*dim.spacing) for i in range(-order//2, order//2 + 1)]
+            x0 = dim
+            if order < 2:
+                ind = [dim, dim + diff]
+    return ind, x0
+
+
+def form_side(dimensions, function):
+    side = dict()
+    for (d, s) in zip(dimensions, function.staggered):
+        if s == 0:
+            side[d] = left
+        elif s == 1:
+            side[d] = right
+        else:
+            side[d] = centered
+    return side
