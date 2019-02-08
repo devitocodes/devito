@@ -3,7 +3,6 @@
 import sympy
 
 from devito.finite_differences import default_rules
-from devito.symbolics import retrieve_functions
 
 __all__ = ['Eq', 'Inc', 'solve']
 
@@ -60,12 +59,10 @@ class Eq(sympy.Eq):
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         obj._subdomain = subdomain
         obj._substitutions = substitutions
-        functions = retrieve_functions(obj)
-        functions = [f for f in functions if not f.is_SparseFunction]
-        if any(f.coefficients == 'symbolic' for f in functions):
+        if obj.lhs.symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
-            rules = default_rules(obj, functions)
+            rules = default_rules(obj, obj.lhs.symbolic_functions)
             try:
                 obj = obj.xreplace({**substitutions.rules, **rules})
             except AttributeError:

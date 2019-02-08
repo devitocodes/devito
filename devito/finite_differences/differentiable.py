@@ -7,6 +7,7 @@ from sympy.core.evalf import evalf_table
 from cached_property import cached_property
 
 from devito.tools import filter_ordered, flatten
+from devito.symbolics import retrieve_functions
 
 __all__ = ['Differentiable']
 
@@ -151,8 +152,12 @@ class Differentiable(sympy.Expr):
         return sum([getattr(self.laplace * weight, d) for d in derivs])
 
     @property
+    def symbolic_functions(self):
+        return [i for i in retrieve_functions(self) if i.coefficients == 'symbolic']
+
+    @property
     def symbolic_coefficients(self):
-        return
+        return bool(self.symbolic_functions)
 
 
 class Add(sympy.Add, Differentiable):
