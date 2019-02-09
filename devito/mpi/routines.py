@@ -572,15 +572,14 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         for i in product(*items):
             if all(r is CORE for _, r, _ in i):
                 continue
-            dynamic_params_mapper = {d: mapper[k] for d, k in zip(hs.dimensions, i)}
+            dynamic_params_mapper = {d: mapper[(d, r, s)] for d, r, s in i}
             body.append(compute._rebuild(dynamic_params_mapper=dynamic_params_mapper,
                                          incr=False))
 
-        parameters = derive_parameters(body)
-        return Callable('remainder%s' % key, body, 'void', parameters, ('static'))
+        return make_efunc('remainder%s' % key, body)
 
     def _call_remainder(self, remainder):
-        return Call(remainder.name, remainder.parameters)
+        return remainder.make_call()
 
 
 class MPIStatusObject(LocalObject):
