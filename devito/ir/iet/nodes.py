@@ -12,7 +12,7 @@ from devito.cgen_utils import ccode
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, AFFINE, USELESS)
+                           VECTOR, WRAPPABLE, AFFINE, USELESS, OVERLAPPABLE)
 from devito.ir.support import Forward, detect_io
 from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
@@ -797,15 +797,9 @@ class HaloSpot(Node):
         self._properties = as_tuple(properties)
 
     def __repr__(self):
-        properties = []
-        if self.is_Useless:
-            properties.append("useless")
-        if self.hoistable:
-            properties.append("hoistable[%s]" % ",".join(i.name for i in self.hoistable))
-        if properties:
-            properties = "[%s]" % ','.join(properties)
-        else:
-            properties = ""
+        properties = ""
+        if self.properties:
+            properties = "[%s]" % ','.join(str(i) for i in self.properties)
         functions = "(%s)" % ",".join(i.name for i in self.functions)
         return "<%s%s%s>" % (self.__class__.__name__, functions, properties)
 
@@ -847,6 +841,10 @@ class HaloSpot(Node):
     @property
     def is_Useless(self):
         return USELESS in self.properties
+
+    @property
+    def is_Overlappable(self):
+        return OVERLAPPABLE in self.properties
 
     @property
     def functions(self):
