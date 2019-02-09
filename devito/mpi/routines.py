@@ -13,7 +13,7 @@ from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls, PARALLEL, EFuncNode,
                            derive_parameters, make_efunc)
 from devito.symbolics import Byref, CondNe, FieldFromPointer, IndexedPointer, Macro
-from devito.tools import DefaultOrderedDict, dtype_to_mpitype, dtype_to_ctype, flatten
+from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
 
 __all__ = ['HaloExchangeBuilder']
@@ -34,14 +34,28 @@ class HaloExchangeBuilder(object):
             obj = object.__new__(OverlapHaloExchangeBuilder)
         else:
             assert False, "unexpected value `mode=%s`" % mode
+        obj._msgs = OrderedDict()
+        obj._call_trees_compute = []
+        obj._call_trees_haloupdate = OrderedDict()
+        obj._call_trees_halowait = OrderedDict()
         return obj
 
-    def make(self, halo_spots):
-        """
-        Turn the input HaloSpots into Callables/Calls implementing
-        distributed-memory halo exchange.
+    @property
+    def call_trees(self):
+        return (self._call_trees_compute +
+                list(self._call_trees_haloupdate.values()) +
+                list(self._call_trees_halowait.values()))
 
-        For each HaloSpot, at least three Callables are constructed:
+    @property
+    def msgs(self):
+        return [i for i in self._msgs.values() if i is not None]
+
+    def make(self, hs, key):
+        """
+        Construct Callables and Calls implementing distributed-memory halo
+        exchange for the HaloSpot ``hs``.
+
+        At least three Callables are constructed:
 
             * ``update_halo``, to be called to trigger the halo exchange,
             * ``sendrecv``, called from within ``update_halo``.
@@ -49,72 +63,58 @@ class HaloExchangeBuilder(object):
               data gathering prior to an MPI_Send, and data scattering following
               an MPI recv.
 
-        Additional Callables may be constructed in the case of asynchronous
-        halo exchange.
-
-        In any case, the HaloExchangeBuilder creator only needs to worry about
-        placing the ``update_halo`` Calls.
+        Additional Callables may be constructed if the halo exchange is asynchronous
+        (which depends on the specific HaloExchangeBuilder implementation).
         """
-        efuncs = DefaultOrderedDict(OrderedDict)
-        mapper = {}
-        msgs = {}
-        for hs in halo_spots:
-            # Sanity check
-            assert all(f.is_Function and f.grid is not None for f in hs.fmapper)
+        # Sanity check
+        assert all(f.is_Function and f.grid is not None for f in hs.fmapper)
 
-            # 1) Callables and Calls for compute over the CORE region
-            compute = self._make_compute(hs, len(efuncs['comp']))
-            if compute is not None:
-                efuncs['comp'][hs] = EFuncNode(compute)
-            compute = self._call_compute(hs, compute)
-            body = [compute]
+        # 1) Callables and Calls for compute over the CORE region
+        compute = self._make_compute(hs, key)
+        if compute is not None:
+            self._call_trees_compute.append(EFuncNode(compute))
+        compute = self._call_compute(hs, compute)
+        body = [compute]
 
-            for f, hse in hs.fmapper.items():
-                msg = msgs.setdefault((f, hse), self._make_msg(f, hse, len(msgs)))
+        for f, hse in hs.fmapper.items():
+            msg = self._make_msg(f, hse, key='%d_%d' % (key, len(self.msgs)))
+            msg = self._msgs.setdefault((f, hse), msg)
 
-                if (f.ndim, hse) not in efuncs['update']:
-                    key = len(efuncs['update'])
-                    df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
-                                              dimensions=f.dimensions)
+            if (f.ndim, hse) not in self._call_trees_haloupdate:
+                df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
+                                          dimensions=f.dimensions)
 
-                    # 2) Callables for send/recv
-                    haloupdate = EFuncNode(self._make_haloupdate(df, hse, key, msg=msg))
-                    sendrecv = EFuncNode(self._make_sendrecv(df, hse, key, msg=msg),
-                                         haloupdate)
-                    EFuncNode(self._make_copy(df, hse, key), sendrecv)
-                    EFuncNode(self._make_copy(df, hse, key, True), sendrecv)
-                    efuncs['update'][(f.ndim, hse)] = haloupdate
+                # 2) Callables for send/recv
+                haloupdate = EFuncNode(self._make_haloupdate(df, hse, key, msg=msg))
+                sendrecv = EFuncNode(self._make_sendrecv(df, hse, key, msg=msg),
+                                     haloupdate)
+                EFuncNode(self._make_copy(df, hse, key), sendrecv)
+                EFuncNode(self._make_copy(df, hse, key, swap=True), sendrecv)
+                self._call_trees_haloupdate[(f.ndim, hse)] = haloupdate
 
-                    # 3) Callables for wait
-                    key = len(efuncs['wait'])
-                    halowait = self._make_halowait(df, hse, key, msg=msg)
-                    if halowait is not None:
-                        halowait = EFuncNode(halowait)
-                        EFuncNode(self._make_wait(df, hse, key, msg=msg), halowait)
-                        efuncs['wait'][(f.ndim, hse)] = halowait
-
-                # 4) Call for send/recv
-                haloupdate = efuncs['update'][(f.ndim, hse)]
-                body.insert(0, self._call_haloupdate(haloupdate.name, f, hse, msg))
-
-                # 5) Call for wait
-                halowait = efuncs['wait'].get((f.ndim, hse))
+                # 3) Callables for wait
+                halowait = self._make_halowait(df, hse, key, msg=msg)
                 if halowait is not None:
-                    body.append(self._call_halowait(halowait.name, f, hse, msg))
+                    halowait = EFuncNode(halowait)
+                    EFuncNode(self._make_wait(df, hse, key, msg=msg), halowait)
+                    self._call_trees_halowait[(f.ndim, hse)] = halowait
 
-            # 6) Calls for compute over the OWNED region
-            remainder = self._make_remainder(compute, hs, len(efuncs['remainder']))
-            if remainder is not None:
-                body.append(self._call_remainder(remainder))
-                efuncs['remainder'][hs] = EFuncNode(remainder)
+            # 4) Call for send/recv
+            haloupdate = self._call_trees_haloupdate[(f.ndim, hse)]
+            body.insert(0, self._call_haloupdate(haloupdate.name, f, hse, msg))
 
-            mapper[hs] = List(body=body)
+            # 5) Call for wait
+            halowait = self._call_trees_halowait.get((f.ndim, hse))
+            if halowait is not None:
+                body.append(self._call_halowait(halowait.name, f, hse, msg))
 
-        # Adjust output
-        efuncs = flatten(i.values() for i in efuncs.values())
-        msgs = [i for i in msgs.values() if i is not None]
+        # 6) Calls for compute over the OWNED region
+        remainder = self._make_remainder(compute, hs, key)
+        if remainder is not None:
+            body.append(self._call_remainder(remainder))
+            self._call_trees_compute.append(EFuncNode(remainder))
 
-        return efuncs, mapper, msgs
+        return List(body=body)
 
     @abc.abstractmethod
     def _make_msg(self, f, hse, key):
@@ -436,7 +436,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
-        return MPIMsg('msg%d' % key, f, halos)
+        return MPIMsg('msg%s' % key, f, halos)
 
     def _make_sendrecv(self, f, hse, key='', msg=None):
         comm = f.grid.distributor._obj_comm

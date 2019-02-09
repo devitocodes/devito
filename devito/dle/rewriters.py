@@ -333,12 +333,14 @@ class AdvancedRewriter(BasicRewriter):
         Add MPI routines performing halo exchanges to emit distributed-memory
         parallel code.
         """
-        # Build send/recv Callables and Calls
-        from IPython import embed; embed()
-        heb = HaloExchangeBuilder(self.params['mpi'])
-        call_trees, mapper, msgs = heb.make(FindNodes(HaloSpot).visit(iet))
-
-        # Transform the IET by adding in the `haloupdate` Calls
+        sync_heb = HaloExchangeBuilder('basic')
+        user_heb = HaloExchangeBuilder(self.params['mpi'])
+        mapper = {}
+        for i, hs in enumerate(FindNodes(HaloSpot).visit(iet)):
+            heb = user_heb if hs.is_Overlappable else sync_heb
+            mapper[hs] = heb.make(hs, i)
+        call_trees = sync_heb.call_trees + user_heb.call_trees
+        msgs = sync_heb.msgs + user_heb.msgs
         iet = Transformer(mapper, nested=True).visit(iet)
 
         return iet, {'includes': ['mpi.h'], 'call_trees': call_trees, 'input': msgs}
