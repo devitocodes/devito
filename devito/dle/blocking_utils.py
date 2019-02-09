@@ -13,9 +13,10 @@ from devito.types import IncrDimension, Scalar
 __all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 
 
-def fold_blockable_tree(node, exclude_innermost=False):
-    """Create IterationFolds from sequences of nested Iterations."""
-
+def fold_blockable_tree(node, blockinner=True):
+    """
+    Create IterationFolds from sequences of nested Iterations.
+    """
     mapper = {}
     for k, v in FindAdjacent(Iteration).visit(node).items():
         for i in v:
@@ -38,7 +39,7 @@ def fold_blockable_tree(node, exclude_innermost=False):
             if any(not is_foldable(j) for j in pairwise_folds):
                 continue
             # Maybe heuristically exclude innermost Iteration
-            if exclude_innermost is True:
+            if blockinner is False:
                 pairwise_folds = pairwise_folds[:-1]
             # Perhaps there's nothing to fold
             if len(pairwise_folds) == 1:

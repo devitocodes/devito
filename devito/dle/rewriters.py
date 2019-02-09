@@ -243,29 +243,33 @@ class AdvancedRewriter(BasicRewriter):
 
     @dle_pass
     def _loop_blocking(self, iet):
-        """Apply loop blocking to PARALLEL Iteration trees."""
-        exclude_innermost = not self.params.get('blockinner', False)
-        ignore_heuristic = self.params.get('blockalways', False)
+        """
+        Apply loop blocking to PARALLEL Iteration trees.
+        """
+        blockinner = bool(self.params.get('blockinner'))
+        blockalways = bool(self.params.get('blockalways'))
         noinline = self._compiler_decoration('noinline', cgen.Comment('noinline?'))
 
         # Make sure loop blocking will span as many Iterations as possible
-        iet = fold_blockable_tree(iet, exclude_innermost)
+        iet = fold_blockable_tree(iet, blockinner)
 
         mapper = {}
         call_trees = []
         block_dims = []
         for tree in retrieve_iteration_tree(iet):
             # Is the Iteration tree blockable ?
-            iterations = [i for i in tree if i.is_Parallel]
-            if exclude_innermost:
-                iterations = [i for i in iterations if not i.is_Vectorizable]
+            candidates = [i for i in tree if i.is_Parallel]
+            if blockinner:
+                iterations = candidates
+            else:
+                iterations = [i for i in candidates if not i.is_Vectorizable]
             if len(iterations) <= 1:
                 continue
             root = iterations[0]
             if not IsPerfectIteration().visit(root):
                 # Illegal/unsupported
                 continue
-            if not tree.root.is_Sequential and not ignore_heuristic:
+            if not tree.root.is_Sequential and not blockalways:
                 # Heuristic: avoid polluting the generated code with blocked
                 # nests (thus increasing JIT compilation time and affecting
                 # readability) if the blockable tree isn't embedded in a
@@ -311,7 +315,7 @@ class AdvancedRewriter(BasicRewriter):
                 body.append(List(header=noinline, body=call))
 
             # Build indirect Call to the `efunc0` Calls
-            dynamic_parameters = [i.dim.root for i in iterations]
+            dynamic_parameters = [i.dim.root for i in candidates]
             dynamic_parameters.extend([bi.dim.step for bi in interb])
             efunc1 = make_efunc("f%d" % len(mapper), body, dynamic_parameters)
 
