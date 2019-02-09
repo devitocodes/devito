@@ -1,4 +1,5 @@
 from anytree import NodeMixin, PreOrderIter, RenderTree, ContStyle
+from cached_property import cached_property
 
 from devito.ir.iet.nodes import ArrayCast, Call, Callable, Expression, List
 from devito.ir.iet.scheduler import iet_insert_C_decls
@@ -31,9 +32,9 @@ class ElementalFunction(Callable):
             else:
                 self._mapper[i] = (parameters.index(i),)
 
-    @property
+    @cached_property
     def dynamic_defaults(self):
-        return {k : tuple(self.parameters[i] for i in v) for k, v in self._mapper.items()}
+        return {k: tuple(self.parameters[i] for i in v) for k, v in self._mapper.items()}
 
     def make_call(self, dynamic_params_mapper=None, incr=False):
         return ElementalCall(self.name, list(self.parameters), dict(self._mapper),
@@ -61,9 +62,9 @@ class ElementalCall(Call):
 
         super(ElementalCall, self).__init__(name, arguments)
 
-    @property
+    @cached_property
     def dynamic_defaults(self):
-        return {k : tuple(self.params[i] for i in v) for k, v in self._mapper.items()}
+        return {k: tuple(self.params[i] for i in v) for k, v in self._mapper.items()}
 
 
 def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static'):
