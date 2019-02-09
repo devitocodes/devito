@@ -11,7 +11,7 @@ from devito.data import CORE, OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_a
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls, PARALLEL, EFuncNode,
-                           derive_parameters, make_efunc)
+                           make_efunc)
 from devito.symbolics import Byref, CondNe, FieldFromPointer, IndexedPointer, Macro
 from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
