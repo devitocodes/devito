@@ -355,14 +355,14 @@ MPI_Request rsend;
 MPI_Irecv((float *)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
 if (torank != MPI_PROC_NULL)
 {
-  gather3d((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
+  gather((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
 }
 MPI_Isend((float *)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
 MPI_Wait(&rsend,MPI_STATUS_IGNORE);
 MPI_Wait(&rrecv,MPI_STATUS_IGNORE);
 if (fromrank != MPI_PROC_NULL)
 {
-  scatter3d((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
+  scatter((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
 }
 free(bufs);
 free(bufg);"""
@@ -381,13 +381,13 @@ free(bufg);"""
         assert str(haloupdate.parameters) == """\
 (f(t, x, y), comm, nb, otime)"""
         assert str(haloupdate.body[0]) == """\
-sendrecv3d(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
+sendrecv(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
 f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->rc,nb->lc,comm);
-sendrecv3d(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
+sendrecv(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
 f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->lc,nb->rc,comm);
-sendrecv3d(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
+sendrecv(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
 f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->cr,nb->cl,comm);
-sendrecv3d(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
+sendrecv(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
 f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->cl,nb->cr,comm);"""
 
 
@@ -600,7 +600,7 @@ class TestOperatorSimple(object):
         # 4) interior
         assert np.all(f.data_ro_domain[0, 1:-1, 1:-1, 1:-1] == interior)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag')])
     def test_multiple_eqs_funcs(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -702,7 +702,7 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
 
-    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag'), (2, 'overlap')])
+    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -781,7 +781,7 @@ class TestOperatorSimple(object):
 
         op = Operator(Eq(f.forward, eval(expr)), dle=('advanced', {'openmp': False}))
 
-        calls = FindNodes(Call).visit(op._func_table['haloupdate3d0'])
+        calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
         destinations = {i.params[-2].field for i in calls}
         assert destinations == expected
 
