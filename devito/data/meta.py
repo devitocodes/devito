@@ -1,6 +1,6 @@
 from devito.tools import Tag
 
-__all__ = ['DOMAIN', 'OWNED', 'HALO', 'NOPAD', 'FULL',
+__all__ = ['DOMAIN', 'CORE', 'OWNED', 'HALO', 'NOPAD', 'FULL',
            'LEFT', 'RIGHT', 'CENTER']
 
 
@@ -8,8 +8,9 @@ class DataRegion(Tag):
     pass
 
 
-DOMAIN = DataRegion('domain')
+CORE = DataRegion('core')  # within DOMAIN
 OWNED = DataRegion('owned')  # within DOMAIN
+DOMAIN = DataRegion('domain')  # == CORE + OWNED
 HALO = DataRegion('halo')
 NOPAD = DataRegion('nopad')  # == DOMAIN+HALO
 FULL = DataRegion('full')  # == DOMAIN+HALO+PADDING
