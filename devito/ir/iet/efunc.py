@@ -6,7 +6,7 @@ from devito.ir.iet.utils import derive_parameters
 from devito.ir.iet.visitors import FindSymbols, FindNodes
 from devito.tools import as_tuple
 
-__all__ = ['make_efunc', 'EFuncNode']
+__all__ = ['ElementalFunction', 'ElementalCall', 'EFuncNode', 'make_efunc']
 
 
 class ElementalFunction(Callable):
@@ -31,10 +31,24 @@ class ElementalFunction(Callable):
             else:
                 self._mapper[i] = (parameters.index(i),)
 
-    def make_call(self, dynamic_parameters_mapper=None):
-        dynamic_parameters_mapper = dynamic_parameters_mapper or {}
-        arguments = list(self.parameters)
-        for k, v in dynamic_parameters_mapper.items():
+    @property
+    def dynamic_defaults(self):
+        return {k : tuple(self.parameters[i] for i in v) for k, v in self._mapper.items()}
+
+    def make_call(self, dynamic_params_mapper=None, incr=False):
+        return ElementalCall(self.name, list(self.parameters), dict(self._mapper),
+                             dynamic_params_mapper, incr)
+
+
+class ElementalCall(Call):
+
+    def __init__(self, name, arguments=None, mapper=None, dynamic_params_mapper=None,
+                 incr=False):
+        self._mapper = mapper or {}
+
+        arguments = list(as_tuple(arguments))
+        dynamic_params_mapper = dynamic_params_mapper or {}
+        for k, v in dynamic_params_mapper.items():
             # Sanity check
             if k not in self._mapper:
                 raise ValueError("`k` is not a dynamic parameter" % k)
@@ -43,8 +57,13 @@ class ElementalFunction(Callable):
                                  % (len(self._mapper[k]), k, len(v)))
             # Create the argument list
             for i, j in zip(self._mapper[k], v):
-                arguments[i] = j
-        return Call(self.name, tuple(arguments))
+                arguments[i] = j if incr is False else (arguments[i] + j)
+
+        super(ElementalCall, self).__init__(name, arguments)
+
+    @property
+    def dynamic_defaults(self):
+        return {k : tuple(self.params[i] for i in v) for k, v in self._mapper.items()}
 
 
 def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static'):
