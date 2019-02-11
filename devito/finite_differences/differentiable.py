@@ -55,6 +55,14 @@ class Differentiable(sympy.Expr):
     def _fd(self):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
 
+    @property
+    def symbolic_functions(self):
+        return [i for i in retrieve_functions(self) if i.coefficients == 'symbolic']
+
+    @property
+    def symbolic_coefficients(self):
+        return bool(self.symbolic_functions)
+
     def __hash__(self):
         return super(Differentiable, self).__hash__()
 
@@ -150,14 +158,6 @@ class Differentiable(sympy.Expr):
         space_dims = [d for d in self.indices if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return sum([getattr(self.laplace * weight, d) for d in derivs])
-
-    @property
-    def symbolic_functions(self):
-        return [i for i in retrieve_functions(self) if i.coefficients == 'symbolic']
-
-    @property
-    def symbolic_coefficients(self):
-        return bool(self.symbolic_functions)
 
 
 class Add(sympy.Add, Differentiable):

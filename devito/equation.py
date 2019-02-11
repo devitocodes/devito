@@ -2,7 +2,7 @@
 
 import sympy
 
-from devito.finite_differences import default_rules
+from devito.finite_differences import default_rules, Differentiable
 
 __all__ = ['Eq', 'Inc', 'solve']
 
@@ -59,10 +59,10 @@ class Eq(sympy.Eq):
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         obj._subdomain = subdomain
         obj._substitutions = substitutions
-        if obj.lhs.symbolic_coefficients:
+        if obj.symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
-            rules = default_rules(obj, obj.lhs.symbolic_functions)
+            rules = default_rules(obj, obj.symbolic_functions)
             try:
                 obj = obj.xreplace({**substitutions.rules, **rules})
             except AttributeError:
@@ -78,6 +78,31 @@ class Eq(sympy.Eq):
     @property
     def substitutions(self):
         return self._substitutions
+
+    #@cached_property
+    @property
+    def symbolic_coefficients(self):
+        if not isinstance(self.lhs, Differentiable):
+            lhs = Differentiable(self.lhs)
+        else:
+            lhs = self.lhs
+        if not isinstance(self.rhs, Differentiable):
+            rhs = Differentiable(self.rhs)
+        else:
+            rhs = self.rhs
+        return any([lhs.symbolic_coefficients, rhs.symbolic_coefficients])
+
+    @property
+    def symbolic_functions(self):
+        if not isinstance(self.lhs, Differentiable):
+            lhs = Differentiable(self.lhs)
+        else:
+            lhs = self.lhs
+        if not isinstance(self.rhs, Differentiable):
+            rhs = Differentiable(self.rhs)
+        else:
+            rhs = self.rhs
+        return list(set(lhs.symbolic_functions+rhs.symbolic_functions))
 
     def xreplace(self, rules):
         """"""

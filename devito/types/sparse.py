@@ -22,6 +22,7 @@ __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
 
 
 class AbstractSparseFunction(DiscreteFunction, Differentiable):
+#class AbstractSparseFunction(DiscreteFunction):
 
     """
     An abstract class to define behaviours common to all sparse functions.
