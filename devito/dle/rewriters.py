@@ -182,7 +182,7 @@ class AdvancedRewriter(BasicRewriter):
         Optimize the HaloSpots in ``iet``.
 
         * Remove all USELESS HaloSpots;
-        * Merge all HOISTABLE HaloSpots with their root HaloSpot, thus
+        * Merge all hoistable HaloSpots with their root HaloSpot, thus
           removing redundant communications and anticipating communications
           that will be required by later Iterations.
         """
@@ -303,11 +303,11 @@ class AdvancedRewriter(BasicRewriter):
             # Build Calls to the `efunc`
             body = []
             for p in product(*ranges):
-                dynamic_parameters_mapper = {}
+                dynamic_params_mapper = {}
                 for bi, (m, M, b) in zip(interb, p):
-                    dynamic_parameters_mapper[bi.dim] = (m, M)
-                    dynamic_parameters_mapper[bi.dim.step] = (b,)
-                call = efunc0.make_call(dynamic_parameters_mapper)
+                    dynamic_params_mapper[bi.dim] = (m, M)
+                    dynamic_params_mapper[bi.dim.step] = (b,)
+                call = efunc0.make_call(dynamic_params_mapper)
                 body.append(List(header=noinline, body=call))
 
             # Build indirect Call to the `efunc0` Calls
@@ -330,14 +330,14 @@ class AdvancedRewriter(BasicRewriter):
         parallel code.
         """
         # Build send/recv Callables and Calls
+        from IPython import embed; embed()
         heb = HaloExchangeBuilder(self.params['mpi'])
-        call_trees, calls, msgs = heb.make(FindNodes(HaloSpot).visit(iet))
+        call_trees, mapper, msgs = heb.make(FindNodes(HaloSpot).visit(iet))
 
         # Transform the IET by adding in the `haloupdate` Calls
-        iet = Transformer(calls, nested=True).visit(iet)
+        iet = Transformer(mapper, nested=True).visit(iet)
 
-        return iet, {'includes': ['mpi.h'], 'call_trees': call_trees,
-                     'input': msgs}
+        return iet, {'includes': ['mpi.h'], 'call_trees': call_trees, 'input': msgs}
 
     @dle_pass
     def _simdize(self, nodes):
