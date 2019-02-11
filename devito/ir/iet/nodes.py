@@ -190,27 +190,27 @@ class Call(Node):
 
     is_Call = True
 
-    def __init__(self, name, params=None):
+    def __init__(self, name, arguments=None):
         self.name = name
-        self.params = as_tuple(params)
+        self.arguments = as_tuple(arguments)
 
     def __repr__(self):
         return "Call::\n\t%s(...)" % self.name
 
     @property
     def functions(self):
-        return tuple(p for p in self.params if isinstance(p, AbstractFunction))
+        return tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
 
     @cached_property
     def free_symbols(self):
         free = set()
-        for p in self.params:
-            if isinstance(p, numbers.Number):
+        for i in self.arguments:
+            if isinstance(i, numbers.Number):
                 continue
-            elif isinstance(p, AbstractFunction):
-                free.add(p)
+            elif isinstance(i, AbstractFunction):
+                free.add(i)
             else:
-                free.update(p.free_symbols)
+                free.update(i.free_symbols)
         return free
 
     @property

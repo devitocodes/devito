@@ -59,16 +59,16 @@ class State(object):
             # to the efunc have just increased
             _input = as_tuple(metadata.get('input'))
             if _input:
-                # `extendif` avoids redundant updates to the parameters list, due
+                # `extif` avoids redundant updates to the parameters list, due
                 # to multiple children wanting to add the same input argument
-                extendif = lambda v: list(v) + [e for e in _input if e not in v]
+                extif = lambda v: list(v) + [e for e in _input if e not in v]
                 callee = i.name
                 for n in [i] + list(reversed(i.ancestors)):
                     calls = [c for c in FindNodes(Call).visit(n.iet) if c.name == callee]
-                    mapper = {c: c._rebuild(params=extendif(c.params)) for c in calls}
+                    mapper = {c: c._rebuild(arguments=extif(c.arguments)) for c in calls}
                     n.iet = Transformer(mapper).visit(n.iet)
                     if n.iet.is_Callable:
-                        n.iet = n.iet._rebuild(parameters=extendif(n.iet.parameters))
+                        n.iet = n.iet._rebuild(parameters=extif(n.iet.parameters))
                     callee = n.name
                 self.input.extend(list(_input))
 
@@ -307,11 +307,11 @@ class AdvancedRewriter(BasicRewriter):
             # Build Calls to the `efunc`
             body = []
             for p in product(*ranges):
-                dynamic_params_mapper = {}
+                dynamic_args_mapper = {}
                 for bi, (m, M, b) in zip(interb, p):
-                    dynamic_params_mapper[bi.dim] = (m, M)
-                    dynamic_params_mapper[bi.dim.step] = (b,)
-                call = efunc0.make_call(dynamic_params_mapper)
+                    dynamic_args_mapper[bi.dim] = (m, M)
+                    dynamic_args_mapper[bi.dim.step] = (b,)
+                call = efunc0.make_call(dynamic_args_mapper)
                 body.append(List(header=noinline, body=call))
 
             # Build indirect Call to the `efunc0` Calls

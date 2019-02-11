@@ -485,7 +485,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
     def _call_haloupdate(self, name, f, hse, msg):
         call = super(OverlapHaloExchangeBuilder, self)._call_haloupdate(name, f, hse)
-        call = call._rebuild(params=call.params + (msg,))
+        call = call._rebuild(arguments=call.arguments + (msg,))
         return call
 
     def _make_compute(self, hs, key):
@@ -497,9 +497,9 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     def _call_compute(self, hs, compute):
         if compute is None:
             assert hs.body.is_Call
-            return hs.body._rebuild(dynamic_params_mapper=hs.omapper, incr=True)
+            return hs.body._rebuild(dynamic_args_mapper=hs.omapper, incr=True)
         else:
-            return compute.make_call(dynamic_params_mapper=hs.omapper, incr=True)
+            return compute.make_call(dynamic_args_mapper=hs.omapper, incr=True)
 
     def _make_wait(self, f, hse, key='', msg=None):
         bufs = FieldFromPointer(msg._C_field_bufs, msg)
@@ -572,8 +572,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         for i in product(*items):
             if all(r is CORE for _, r, _ in i):
                 continue
-            dynamic_params_mapper = {d: mapper[(d, r, s)] for d, r, s in i}
-            body.append(compute._rebuild(dynamic_params_mapper=dynamic_params_mapper,
+            dynamic_args_mapper = {d: mapper[(d, r, s)] for d, r, s in i}
+            body.append(compute._rebuild(dynamic_args_mapper=dynamic_args_mapper,
                                          incr=False))
 
         return make_efunc('remainder%s' % key, body)

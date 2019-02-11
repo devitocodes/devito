@@ -782,7 +782,7 @@ class TestOperatorSimple(object):
         op = Operator(Eq(f.forward, eval(expr)), dle=('advanced', {'openmp': False}))
 
         calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
-        destinations = {i.params[-2].field for i in calls}
+        destinations = {i.arguments[-2].field for i in calls}
         assert destinations == expected
 
 

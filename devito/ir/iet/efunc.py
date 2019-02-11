@@ -36,20 +36,20 @@ class ElementalFunction(Callable):
     def dynamic_defaults(self):
         return {k: tuple(self.parameters[i] for i in v) for k, v in self._mapper.items()}
 
-    def make_call(self, dynamic_params_mapper=None, incr=False):
+    def make_call(self, dynamic_args_mapper=None, incr=False):
         return ElementalCall(self.name, list(self.parameters), dict(self._mapper),
-                             dynamic_params_mapper, incr)
+                             dynamic_args_mapper, incr)
 
 
 class ElementalCall(Call):
 
-    def __init__(self, name, arguments=None, mapper=None, dynamic_params_mapper=None,
+    def __init__(self, name, arguments=None, mapper=None, dynamic_args_mapper=None,
                  incr=False):
         self._mapper = mapper or {}
 
         arguments = list(as_tuple(arguments))
-        dynamic_params_mapper = dynamic_params_mapper or {}
-        for k, v in dynamic_params_mapper.items():
+        dynamic_args_mapper = dynamic_args_mapper or {}
+        for k, v in dynamic_args_mapper.items():
             # Sanity check
             if k not in self._mapper:
                 raise ValueError("`k` is not a dynamic parameter" % k)
@@ -64,7 +64,7 @@ class ElementalCall(Call):
 
     @cached_property
     def dynamic_defaults(self):
-        return {k: tuple(self.params[i] for i in v) for k, v in self._mapper.items()}
+        return {k: tuple(self.arguments[i] for i in v) for k, v in self._mapper.items()}
 
 
 def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static'):
@@ -85,9 +85,9 @@ def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static
     iet = iet_insert_C_decls(iet, external)
 
     # The Callable parameters
-    params = [i for i in derive_parameters(iet) if i not in local]
+    parameters = [i for i in derive_parameters(iet) if i not in local]
 
-    return ElementalFunction(name, iet, retval, params, prefix, dynamic_parameters)
+    return ElementalFunction(name, iet, retval, parameters, prefix, dynamic_parameters)
 
 
 class EFuncNode(NodeMixin):
