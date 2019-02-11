@@ -7,7 +7,7 @@ from frozendict import frozendict
 
 from devito.data import LEFT, CENTER, RIGHT
 from devito.ir.support import Scope
-from devito.tools import Tag, as_mapper, as_tuple
+from devito.tools import Tag, as_mapper, as_tuple, filter_ordered, flatten
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException']
 
@@ -107,8 +107,50 @@ class HaloScheme(object):
                             sorted(self._mapper, key=attrgetter('name'))])
 
     @cached_property
+    def omapper(self):
+        """
+        Mapper describing the OWNED ('o'-mapper) region offset from the DOMAIN
+        extremes, along each Dimension and DataSide.
+
+        Examples
+        --------
+        Consider a HaloScheme comprising two one-dimensional Functions, ``u``
+        and ``v``.  ``u``'s halo, on the LEFT and RIGHT DataSides respectively,
+        is (2, 2), while ``v``'s is (4, 4). The situation is depicted below.
+
+        .. code-block:: python
+
+              xx**----------------**xx     u
+            xxxx****------------****xxxx   v
+
+        Where 'x' represents a HALO point, '*' a OWNED point, and '-' a CORE point.
+        Together, '*' and '-' constitute the DOMAIN, which is guaranteed to have
+        identical size across all Functions.
+
+        Now, in this case, the "cumulative" OWNED size is (4, 4), that is the max
+        on each DataSide across all Functions (``u`` and ``v`` here).
+
+        Then, the ``omapper``, which provides *relative offsets*, not sizes,
+        will be ``{d0: (4, -4)}``.
+        """
+        mapper = {}
+        for f, v in self.halos.items():
+            dimensions = filter_ordered(flatten(i.dim for i in v))
+            for d, s in zip(f.dimensions, f._size_owned):
+                if d in dimensions:
+                    mapper.setdefault(d, []).append(s)
+        for k, v in list(mapper.items()):
+            left, right = zip(*v)
+            mapper[k] = (max(left), -max(right))
+        return mapper
+
+    @cached_property
     def halos(self):
         return {f: v.halos for f, v in self.fmapper.items()}
+
+    @cached_property
+    def dimensions(self):
+        return filter_ordered(flatten(i.dim for i in set().union(*self.halos.values())))
 
     def union(self, others):
         """

@@ -818,6 +818,14 @@ class HaloSpot(Node):
         return self.halo_scheme.fmapper
 
     @property
+    def omapper(self):
+        return self.halo_scheme.omapper
+
+    @property
+    def dimensions(self):
+        return self.halo_scheme.dimensions
+
+    @property
     def is_empty(self):
         return len(self.halo_scheme) == 0
 
