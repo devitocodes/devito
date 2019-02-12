@@ -185,6 +185,11 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     def staggered(self):
         return self._staggered
 
+    @property
+    def coefficients(self):
+        """Form of the coefficients of the function."""
+        return self._coefficients
+
     @cached_property
     def _coeff_symbol(self):
         if self.coefficients == 'symbolic':
@@ -994,11 +999,6 @@ class Function(DiscreteFunction, Differentiable):
     def space_order(self):
         """The space order."""
         return self._space_order
-
-    @property
-    def coefficients(self):
-        """Form of the coefficients of the function."""
-        return self._coefficients
 
     def sum(self, p=None, dims=None):
         """

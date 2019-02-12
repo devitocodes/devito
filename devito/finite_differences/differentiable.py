@@ -7,7 +7,6 @@ from sympy.core.evalf import evalf_table
 from cached_property import cached_property
 
 from devito.tools import filter_ordered, flatten
-from devito.symbolics import retrieve_functions
 
 __all__ = ['Differentiable']
 
@@ -55,13 +54,18 @@ class Differentiable(sympy.Expr):
     def _fd(self):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
 
-    @property
-    def symbolic_functions(self):
-        return [i for i in retrieve_functions(self) if i.coefficients == 'symbolic']
+    @cached_property
+    def _symbolic_functions(self):
+        components = []
+        for j in range(0, len(self._args_diff)):
+            components.extend(self._args_diff[j].args_cnc()[0])
+        functions = [i for i in components if isinstance(i, Differentiable)]
+        functions = filter_ordered(functions, key=lambda i: i.name)
+        return [i for i in functions if i.coefficients == 'symbolic']
 
-    @property
-    def symbolic_coefficients(self):
-        return bool(self.symbolic_functions)
+    @cached_property
+    def _symbolic_coefficients(self):
+        return bool(self._symbolic_functions)
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()

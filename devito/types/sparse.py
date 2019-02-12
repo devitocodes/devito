@@ -22,7 +22,6 @@ __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
 
 
 class AbstractSparseFunction(DiscreteFunction, Differentiable):
-#class AbstractSparseFunction(DiscreteFunction):
 
     """
     An abstract class to define behaviours common to all sparse functions.
@@ -995,8 +994,8 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     interpolation_coeffs : np.ndarray, optional
         An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
         gridpoints that each sparse point will be interpolated to. The coefficient is
-        split across the n dimensions such that the contribution of the point (i, j, k) will
-        be multiplied by ``interpolation_coeffs[..., i]*interpolation_coeffs[...,
+        split across the n dimensions such that the contribution of the point (i, j, k)
+        will be multiplied by ``interpolation_coeffs[..., i]*interpolation_coeffs[...,
         j]*interpolation_coeffs[...,k]``. So for ``r=6``, we will store 18
         coefficients per sparse point (instead of potentially 216).
         Must be a three-dimensional array of shape ``(npoint, grid.ndim, r)``.
@@ -1050,10 +1049,13 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             self._gridpoints = gridpoints
 
             interpolation_coeffs = SubFunction(name="%s_interpolation_coeffs" % self.name,
-                                       dimensions=(self.indices[-1], Dimension(name='d'),
-                                                   Dimension(name='i')),
-                                       shape=(self.npoint, self.grid.dim, self.r),
-                                       dtype=self.dtype, space_order=0, parent=self)
+                                               dimensions=(self.indices[-1],
+                                                           Dimension(name='d'),
+                                                           Dimension(name='i')),
+                                               shape=(self.npoint, self.grid.dim,
+                                                      self.r),
+                                               dtype=self.dtype, space_order=0,
+                                               parent=self)
             coefficients_data = kwargs.get('interpolation_coeffs', None)
             assert(coefficients_data is not None)
             interpolation_coeffs.data[:] = coefficients_data[:]
@@ -1171,9 +1173,9 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         gridpoints that each sparse point will be interpolated to. The coefficient is
         split across the n dimensions such that the contribution of the point (i, j, k)
         will be multiplied by ``interpolation_coeffs[..., i]*interpolation_coeffs[...,
-        j]*interpolation_coeffs[...,k]``. So for ``r=6``, we will store 18 coefficients per
-        sparse point (instead of potentially 216). Must be a three-dimensional array of
-        shape ``(npoint, grid.ndim, r)``.
+        j]*interpolation_coeffs[...,k]``. So for ``r=6``, we will store 18 coefficients
+        per sparse point (instead of potentially 216). Must be a three-dimensional array
+        of shape ``(npoint, grid.ndim, r)``.
     space_order : int, optional
         Discretisation order for space derivatives. Defaults to 0.
     time_order : int, optional
