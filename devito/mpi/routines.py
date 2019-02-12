@@ -32,6 +32,8 @@ class HaloExchangeBuilder(object):
             obj = object.__new__(DiagHaloExchangeBuilder)
         elif mode == 'overlap':
             obj = object.__new__(OverlapHaloExchangeBuilder)
+        elif mode == 'overlap2':
+            obj = object.__new__(Overlap2HaloExchangeBuilder)
         else:
             assert False, "unexpected value `mode=%s`" % mode
         obj._msgs = OrderedDict()
@@ -585,6 +587,18 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
     def _call_remainder(self, remainder):
         return remainder.make_call()
+
+
+class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
+
+    """
+    A OverlapHaloExchangeBuilder with reduced Call overhead and increased code
+    readability, achieved by supplying more values via Python-land-produced
+    structs, which replace explicit Call arguments.
+    """
+
+    pass
+
 
 
 class MPIStatusObject(LocalObject):
