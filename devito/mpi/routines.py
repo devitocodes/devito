@@ -1,6 +1,6 @@
 import abc
 from collections import OrderedDict
-from ctypes import POINTER, c_void_p, c_int
+from ctypes import POINTER, c_void_p, c_int, sizeof
 from functools import reduce
 from itertools import product
 from operator import mul
@@ -12,6 +12,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls, PARALLEL, EFuncNode,
                            make_efunc)
+from devito.mpi import MPI
 from devito.symbolics import Byref, CondNe, FieldFromPointer, IndexedPointer, Macro
 from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
@@ -604,9 +605,6 @@ class MPIRequestObject(LocalObject):
     _pickle_args = ['name']
 
 
-c_mpirequest_p = type('MPI_Request', (c_void_p,), {})
-
-
 class MPIMsg(CompositeObject):
 
     _C_field_bufs = 'bufs'
@@ -615,6 +613,11 @@ class MPIMsg(CompositeObject):
     _C_field_rrecv = 'rrecv'
     _C_field_rsend = 'rsend'
 
+    if MPI._sizeof(MPI.Request) == sizeof(c_int):
+        c_mpirequest_p = type('MPI_Request', (c_int,), {})
+    else:
+        c_mpirequest_p = type('MPI_Request', (c_void_p,), {})
+
     def __init__(self, name, function, halos):
         self._function = function
         self._halos = halos
@@ -622,8 +625,8 @@ class MPIMsg(CompositeObject):
             (MPIMsg._C_field_bufs, c_void_p),
             (MPIMsg._C_field_bufg, c_void_p),
             (MPIMsg._C_field_sizes, POINTER(c_int)),
-            (MPIMsg._C_field_rrecv, c_mpirequest_p),
-            (MPIMsg._C_field_rsend, c_mpirequest_p),
+            (MPIMsg._C_field_rrecv, MPIMsg.c_mpirequest_p),
+            (MPIMsg._C_field_rsend, MPIMsg.c_mpirequest_p),
         ]
         super(MPIMsg, self).__init__(name, 'msg', fields)
 
