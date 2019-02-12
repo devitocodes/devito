@@ -283,7 +283,10 @@ class Byref(sympy.Expr, Pickable):
         return self._base
 
     def __str__(self):
-        return "&%s" % self.base
+        if self.base.is_Symbol:
+            return "&%s" % self.base
+        else:
+            return "&(%s)" % self.base
 
     __repr__ = __str__
 
