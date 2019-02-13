@@ -16,11 +16,11 @@ from devito.exceptions import DLEException
 from devito.ir.iet import (Call, Denormals, Expression, Iteration, List, HaloSpot,
                            PARALLEL, FindSymbols, FindNodes, FindAdjacent,
                            IsPerfectIteration, MapNodes, Transformer, compose_nodes,
-                           retrieve_iteration_tree, EFuncNode, make_efunc)
+                           retrieve_iteration_tree, make_efunc)
 from devito.logger import dle, perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
-from devito.tools import as_tuple, flatten
+from devito.tools import DAG, as_tuple, flatten
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'SpeculativeRewriter',
            'AdvancedRewriterSafeMath', 'CustomRewriter']
@@ -38,21 +38,22 @@ def dle_pass(func):
 class State(object):
 
     def __init__(self, iet):
-        self.call_tree = EFuncNode(iet, name='main')
+        self._efuncs = OrderedDict([('main', iet)])
+        self._dimensions = []
+        self._input = []
+        self._includes = []
 
-        self.dimensions = []
-        self.input = []
-        self.includes = []
+        self._call_graph = DAG(nodes=['main'])
 
     def _process(self, func):
-        """Apply ``func`` to all IETs in the ``call_tree``."""
+        """Apply ``func`` to all tracked ``IETs``."""
 
-        for i in list(self.call_tree.visit()):
-            i.iet, metadata = func(i.iet)
+        for i in self._call_graph.topological_sort():
+            self._efuncs[i], metadata = func(self._efuncs[i])
 
             # Track any new Dimensions and includes introduced by `func`
-            self.dimensions.extend(list(metadata.get('dimensions', [])))
-            self.includes.extend(list(metadata.get('includes', [])))
+            self._dimensions.extend(list(metadata.get('dimensions', [])))
+            self._includes.extend(list(metadata.get('includes', [])))
 
             # If there's a change to the `input` and the `iet` is an efunc, then
             # we must update the call sites as well, as the arguments dropped down
@@ -62,27 +63,45 @@ class State(object):
                 # `extif` avoids redundant updates to the parameters list, due
                 # to multiple children wanting to add the same input argument
                 extif = lambda v: list(v) + [e for e in _input if e not in v]
-                callee = i.name
-                for n in [i] + list(reversed(i.ancestors)):
-                    calls = [c for c in FindNodes(Call).visit(n.iet) if c.name == callee]
+                stack = [i] + self._call_graph.all_downstreams(i)
+                for n in stack:
+                    efunc = self._efuncs[n]
+                    calls = [c for c in FindNodes(Call).visit(efunc) if c.name in stack]
                     mapper = {c: c._rebuild(arguments=extif(c.arguments)) for c in calls}
-                    n.iet = Transformer(mapper).visit(n.iet)
-                    if n.iet.is_Callable:
-                        n.iet = n.iet._rebuild(parameters=extif(n.iet.parameters))
-                    callee = n.name
-                self.input.extend(list(_input))
+                    efunc = Transformer(mapper).visit(efunc)
+                    if efunc.is_Callable:
+                        efunc = efunc._rebuild(parameters=extif(efunc.parameters))
+                    self._efuncs[n] = efunc
+                self._input.extend(list(_input))
 
-            # Update the call tree as some new efuncs may have been created
-            for j in metadata.get('call_trees', []):
-                j.parent = self.call_tree
+            for k, v in metadata.get('efuncs', {}).items():
+                # Update the efuncs
+                if k.is_Callable:
+                    self._efuncs[k.name] = k
+                # Update the call graph
+                self._call_graph.add_node(k.name, ignore_existing=True)
+                for target in (v or [None]):
+                    self._call_graph.add_edge(k.name, target or 'main', force_add=True)
 
     @property
     def root(self):
-        return self.call_tree.iet
+        return self._efuncs['main']
 
     @property
     def efuncs(self):
-        return tuple(i.iet for i in self.call_tree.visit())[1:]
+        return tuple(v for k, v in self._efuncs.items() if k != 'main')
+
+    @property
+    def dimensions(self):
+        return self._dimensions
+
+    @property
+    def input(self):
+        return self._input
+
+    @property
+    def includes(self):
+        return self._includes
 
 
 class AbstractRewriter(object):
@@ -254,7 +273,7 @@ class AdvancedRewriter(BasicRewriter):
         iet = fold_blockable_tree(iet, blockinner)
 
         mapper = {}
-        call_trees = []
+        efuncs = OrderedDict()
         block_dims = []
         for tree in retrieve_iteration_tree(iet):
             # Is the Iteration tree blockable ?
@@ -321,11 +340,12 @@ class AdvancedRewriter(BasicRewriter):
 
             # Track everything to ultimately transform the input `iet`
             mapper[root] = efunc1.make_call()
-            call_trees.append(EFuncNode(efunc0, EFuncNode(efunc1)).parent)
+            efuncs[efunc1] = None
+            efuncs[efunc0] = [efunc1.name]
 
         iet = Transformer(mapper).visit(iet)
 
-        return iet, {'dimensions': block_dims, 'call_trees': call_trees}
+        return iet, {'dimensions': block_dims, 'efuncs': efuncs}
 
     @dle_pass
     def _dist_parallelize(self, iet):
@@ -339,11 +359,11 @@ class AdvancedRewriter(BasicRewriter):
         for i, hs in enumerate(FindNodes(HaloSpot).visit(iet)):
             heb = user_heb if hs.is_Overlappable else sync_heb
             mapper[hs] = heb.make(hs, i)
-        call_trees = sync_heb.call_trees + user_heb.call_trees
+        efuncs = OrderedDict(**sync_heb.efuncs, **user_heb.efuncs)
         msgs = sync_heb.msgs + user_heb.msgs
         iet = Transformer(mapper, nested=True).visit(iet)
 
-        return iet, {'includes': ['mpi.h'], 'call_trees': call_trees, 'input': msgs}
+        return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'input': msgs}
 
     @dle_pass
     def _simdize(self, nodes):

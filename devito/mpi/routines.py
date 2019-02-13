@@ -10,8 +10,7 @@ from sympy import Integer
 from devito.data import CORE, OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
-                           Iteration, List, iet_insert_C_decls, PARALLEL, EFuncNode,
-                           make_efunc)
+                           Iteration, List, iet_insert_C_decls, PARALLEL, make_efunc)
 from devito.mpi import MPI
 from devito.symbolics import Byref, CondNe, FieldFromPointer, IndexedPointer, Macro
 from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten
@@ -36,16 +35,13 @@ class HaloExchangeBuilder(object):
         else:
             assert False, "unexpected value `mode=%s`" % mode
         obj._msgs = OrderedDict()
-        obj._call_trees_compute = []
-        obj._call_trees_haloupdate = OrderedDict()
-        obj._call_trees_halowait = OrderedDict()
+        obj._efuncs = OrderedDict()
+        obj._cache = OrderedDict()
         return obj
 
     @property
-    def call_trees(self):
-        return (self._call_trees_compute +
-                list(self._call_trees_haloupdate.values()) +
-                list(self._call_trees_halowait.values()))
+    def efuncs(self):
+        return self._efuncs
 
     @property
     def msgs(self):
@@ -70,50 +66,58 @@ class HaloExchangeBuilder(object):
         # Sanity check
         assert all(f.is_Function and f.grid is not None for f in hs.fmapper)
 
-        # 1) Callables and Calls for compute over the CORE region
+        # Callable for compute over the CORE region
         compute = self._make_compute(hs, key)
         if compute is not None:
-            self._call_trees_compute.append(EFuncNode(compute))
-        compute = self._call_compute(hs, compute)
-        body = [compute]
+            self._efuncs[compute] = [None]
 
+        # Callables for send/recv/wait
         for f, hse in hs.fmapper.items():
             msg = self._make_msg(f, hse, key='%d_%d' % (key, len(self.msgs)))
             msg = self._msgs.setdefault((f, hse), msg)
-
-            if (f.ndim, hse) not in self._call_trees_haloupdate:
+            if (f.ndim, hse) not in self._cache:
                 df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
                                           dimensions=f.dimensions)
 
-                # 2) Callables for send/recv
-                haloupdate = EFuncNode(self._make_haloupdate(df, hse, key, msg=msg))
-                sendrecv = EFuncNode(self._make_sendrecv(df, hse, key, msg=msg),
-                                     haloupdate)
-                EFuncNode(self._make_copy(df, hse, key), sendrecv)
-                EFuncNode(self._make_copy(df, hse, key, swap=True), sendrecv)
-                self._call_trees_haloupdate[(f.ndim, hse)] = haloupdate
+                haloupdate = self._make_haloupdate(df, hse, key, msg=msg)
+                sendrecv = self._make_sendrecv(df, hse, key, msg=msg)
+                gather = self._make_copy(df, hse, key)
 
-                # 3) Callables for wait
+                self._efuncs[haloupdate] = None
+                self._efuncs[sendrecv] = [haloupdate.name]
+                self._efuncs[gather] = [sendrecv.name]
+
                 halowait = self._make_halowait(df, hse, key, msg=msg)
-                if halowait is not None:
-                    halowait = EFuncNode(halowait)
-                    EFuncNode(self._make_wait(df, hse, key, msg=msg), halowait)
-                    self._call_trees_halowait[(f.ndim, hse)] = halowait
+                wait = self._make_wait(df, hse, key, msg=msg)
+                scatter = self._make_copy(df, hse, key, swap=True)
 
-            # 4) Call for send/recv
-            haloupdate = self._call_trees_haloupdate[(f.ndim, hse)]
+                if halowait is None:
+                    assert wait is None
+                    self._efuncs[scatter] = [sendrecv.name]
+                else:
+                    self._efuncs[halowait] = None
+                    self._efuncs[wait] = [halowait.name]
+                    self._efuncs[scatter] = [wait.name]
+
+                self._cache[(f.ndim, hse)] = (haloupdate, halowait)
+
+        # Callable for compute over the OWNED region
+        callcompute = self._call_compute(hs, compute)
+        remainder = self._make_remainder(callcompute, hs, key)
+        if remainder is not None:
+            self._efuncs[remainder] = None
+            self._efuncs.setdefault(callcompute, []).append(remainder.name)
+
+        # Now build up the HaloSpot body, with explicit Calls to the constructed Callables
+        body = [callcompute]
+        for f, hse in hs.fmapper.items():
+            msg = self._msgs[(f, hse)]
+            haloupdate, halowait = self._cache[(f.ndim, hse)]
             body.insert(0, self._call_haloupdate(haloupdate.name, f, hse, msg))
-
-            # 5) Call for wait
-            halowait = self._call_trees_halowait.get((f.ndim, hse))
             if halowait is not None:
                 body.append(self._call_halowait(halowait.name, f, hse, msg))
-
-        # 6) Calls for compute over the OWNED region
-        remainder = self._make_remainder(compute, hs, key)
         if remainder is not None:
             body.append(self._call_remainder(remainder))
-            self._call_trees_compute.append(EFuncNode(remainder))
 
         return List(body=body)
 
