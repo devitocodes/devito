@@ -24,6 +24,10 @@ class Differentiable(sympy.Expr):
     _state = ('space_order', 'time_order', 'indices')
 
     @cached_property
+    def _functions(self):
+        return set().union(*[i._functions for i in self._args_diff])
+
+    @cached_property
     def _args_diff(self):
         ret = [i for i in self.args if isinstance(i, Differentiable)]
         ret.extend([i.function for i in self.args if i.is_Indexed])

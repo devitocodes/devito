@@ -155,6 +155,10 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         # DiscreteFunction is to be considered "local" to each MPI rank
         return kwargs.get('distributor') if grid is None else grid.distributor
 
+    @cached_property
+    def _functions(self):
+        return {self.function}
+
     @property
     def _data_buffer(self):
         """
