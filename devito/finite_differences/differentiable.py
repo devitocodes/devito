@@ -60,12 +60,7 @@ class Differentiable(sympy.Expr):
 
     @cached_property
     def _symbolic_functions(self):
-        components = []
-        for j in range(0, len(self._args_diff)):
-            components.extend(self._args_diff[j].args_cnc()[0])
-        functions = [i for i in components if isinstance(i, Differentiable)]
-        functions = filter_ordered(functions, key=lambda i: i.name)
-        return [i for i in functions if i.coefficients == 'symbolic']
+        return [i for i in list(self._functions) if i.coefficients == 'symbolic']
 
     @cached_property
     def _symbolic_coefficients(self):
