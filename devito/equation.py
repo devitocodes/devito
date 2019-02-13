@@ -4,7 +4,7 @@ import sympy
 
 from cached_property import cached_property
 
-from devito.finite_differences import default_rules, Differentiable
+from devito.finite_differences import default_rules
 
 __all__ = ['Eq', 'Inc', 'solve']
 
@@ -87,15 +87,20 @@ class Eq(sympy.Eq):
 
     @cached_property
     def _symbolic_functions(self):
-        if not isinstance(self.lhs, Differentiable):
-            lhs = Differentiable(self.lhs)
+        try:
+            return list(set(self.lhs._symbolic_functions+self.rhs._symbolic_functions))
+        except AttributeError:
+            pass
+        try:
+            return self.lhs._symbolic_functions
+        except AttributeError:
+            pass
+        try:
+            return self.rhs._symbolic_functions
+        except AttributeError:
+            return []
         else:
-            lhs = self.lhs
-        if not isinstance(self.rhs, Differentiable):
-            rhs = Differentiable(self.rhs)
-        else:
-            rhs = self.rhs
-        return list(set(lhs._symbolic_functions+rhs._symbolic_functions))
+            TypeError('Failed to retrieve symbolic functions')
 
     def xreplace(self, rules):
         """"""
