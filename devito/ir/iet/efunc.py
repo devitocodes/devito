@@ -61,6 +61,12 @@ class ElementalCall(Call):
 
         super(ElementalCall, self).__init__(name, arguments)
 
+    def _rebuild(self, *args, dynamic_args_mapper=None, incr=False, **kwargs):
+        # This guarantees that `ec._rebuild(arguments=ec.arguments) == ec`
+        return super(ElementalCall, self)._rebuild(
+            *args, dynamic_args_mapper=dynamic_args_mapper, incr=incr, **kwargs
+        )
+
     @cached_property
     def dynamic_defaults(self):
         return {k: tuple(self.arguments[i] for i in v) for k, v in self._mapper.items()}
