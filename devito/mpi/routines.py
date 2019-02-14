@@ -12,7 +12,8 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
                            Iteration, List, iet_insert_C_decls, PARALLEL, make_efunc)
 from devito.mpi import MPI
-from devito.symbolics import Byref, CondNe, FieldFromPointer, IndexedPointer, Macro
+from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
+                              IndexedPointer, Macro)
 from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
 
@@ -621,6 +622,11 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     structs, which replace explicit Call arguments.
     """
 
+    def _make_msg(self, f, hse, key):
+        # Only retain the halos required by the Diag scheme
+        halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
+        return MPIMsgEnriched('msg%s' % key, f, halos)
+
     def _make_all(self, f, hse, key, msg):
         # Callables for asynchronous send/recv
         haloupdate = self._make_haloupdate(f, hse, key, msg=msg)
@@ -637,6 +643,46 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         self._efuncs[scatter] = [halowait.name]
 
         return haloupdate, halowait
+
+    def _make_haloupdate(self, f, hse, key='', msg=None):
+        comm = f.grid.distributor._obj_comm
+        nb = f.grid.distributor._obj_neighborhood
+
+        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+
+        dim = Dimension(name='i')
+
+        msgi = IndexedPointer(msg, dim)
+
+        bufg = FieldFromComposite(msg._C_field_bufg, msgi)
+        bufs = FieldFromComposite(msg._C_field_bufs, msgi)
+
+        fromrank = FieldFromPointer(msg._C_field_from, msgi)
+        torank = FieldFromPointer(msg._C_field_to, msgi)
+
+        sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
+                 for i in range(len(f._dist_dimensions))]
+        ofsg = [FieldFromComposite('%s[%d]' % (msg._C_field_ofsg, i), msgi)
+                for i in range(len(f._dist_dimensions))]
+        ofsg = [fixed.get(d) or ofsg.pop(0) for d in f.dimensions]
+
+        # The `gather` is unnecessary if sending to MPI.PROC_NULL
+        gather = Call('gather%s' % key, [bufg] + sizes + [f] + ofsg)
+        gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
+
+        # Make Irecv/Isend
+        count = reduce(mul, sizes, 1)
+        rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
+        rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
+        recv = Call('MPI_Irecv', [bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                                  fromrank, Integer(13), comm, rrecv])
+        send = Call('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                                  torank, Integer(13), comm, rsend])
+
+        iet = Iteration([recv, gather, send], dim, msg.npeers)
+        iet = List(body=iet_insert_C_decls(iet))
+        parameters = ([f, comm, msg])
+        return Callable('haloupdate%s' % key, iet, 'void', parameters, ('static',))
 
     def _make_sendrecv(self, *args):
         return
@@ -687,10 +733,10 @@ class MPIMsg(CompositeObject):
     else:
         c_mpirequest_p = type('MPI_Request', (c_void_p,), {})
 
-    def __init__(self, name, function, halos):
+    def __init__(self, name, function, halos, fields=None):
         self._function = function
         self._halos = halos
-        fields = [
+        fields = (fields or []) + [
             (MPIMsg._C_field_bufs, c_void_p),
             (MPIMsg._C_field_bufg, c_void_p),
             (MPIMsg._C_field_sizes, POINTER(c_int)),
@@ -753,3 +799,25 @@ class MPIMsg(CompositeObject):
 
     # Pickling support
     _pickle_args = ['name', 'function', 'halos']
+
+
+class MPIMsgEnriched(MPIMsg):
+
+    _C_field_ofss = 'ofss'
+    _C_field_ofsg = 'ofsg'
+    _C_field_from = 'from'
+    _C_field_to = 'to'
+
+    def __init__(self, name, function, halos):
+        fields = [
+            (MPIMsgEnriched._C_field_ofss, POINTER(c_int)),
+            (MPIMsgEnriched._C_field_ofsg, POINTER(c_int)),
+            (MPIMsgEnriched._C_field_from, c_int),
+            (MPIMsgEnriched._C_field_to, c_int)
+        ]
+        super(MPIMsgEnriched, self).__init__(name, function, halos, fields)
+
+    def _arg_values(self, **kwargs):
+        values = super(MPIMsgEnriched, self)._arg_values(**kwargs)
+        from IPython import embed; embed()
+        return values
