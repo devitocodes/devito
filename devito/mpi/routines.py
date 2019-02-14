@@ -80,28 +80,7 @@ class HaloExchangeBuilder(object):
             if (f.ndim, hse) not in self._cache:
                 df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
                                           dimensions=f.dimensions)
-
-                haloupdate = self._make_haloupdate(df, hse, key, msg=msg)
-                sendrecv = self._make_sendrecv(df, hse, key, msg=msg)
-                gather = self._make_copy(df, hse, key)
-
-                self._efuncs[haloupdate] = None
-                self._efuncs[sendrecv] = [haloupdate.name]
-                self._efuncs[gather] = [sendrecv.name]
-
-                halowait = self._make_halowait(df, hse, key, msg=msg)
-                wait = self._make_wait(df, hse, key, msg=msg)
-                scatter = self._make_copy(df, hse, key, swap=True)
-
-                if halowait is None:
-                    assert wait is None
-                    self._efuncs[scatter] = [sendrecv.name]
-                else:
-                    self._efuncs[halowait] = None
-                    self._efuncs[wait] = [halowait.name]
-                    self._efuncs[scatter] = [wait.name]
-
-                self._cache[(f.ndim, hse)] = (haloupdate, halowait)
+                self._cache[(f.ndim, hse)] = self._make_all(df, hse, key, msg)
 
         # Callable for compute over the OWNED region
         callcompute = self._call_compute(hs, compute)
@@ -128,6 +107,14 @@ class HaloExchangeBuilder(object):
         """
         Construct data structures carrying information about the HaloSpot
         ``hs``, to propagate information across the MPI Call stack.
+        """
+        return
+
+    @abc.abstractmethod
+    def _make_all(self, f, hse, key, msg):
+        """
+        Construct the Callables required to perform a halo update given a
+        DiscreteFunction and a set of halo requirements.
         """
         return
 
@@ -237,6 +224,22 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
     def _make_msg(self, f, hse, key):
         return
+
+    def _make_all(self, f, hse, key, msg):
+        haloupdate = self._make_haloupdate(f, hse, key, msg=msg)
+        sendrecv = self._make_sendrecv(f, hse, key, msg=msg)
+        gather = self._make_copy(f, hse, key)
+        scatter = self._make_copy(f, hse, key, swap=True)
+
+        self._efuncs[haloupdate] = None
+        self._efuncs[sendrecv] = [haloupdate.name]
+        self._efuncs[gather] = [sendrecv.name]
+        self._efuncs[scatter] = [sendrecv.name]
+
+        halowait = self._make_halowait(f, hse, key, msg=msg)
+        assert halowait is None
+
+        return haloupdate, halowait
 
     def _make_copy(self, f, hse, key='', swap=False):
         buf_dims = []
@@ -445,6 +448,27 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
         return MPIMsg('msg%s' % key, f, halos)
 
+    def _make_all(self, f, hse, key, msg):
+        # Callables for asynchronous send/recv
+        haloupdate = self._make_haloupdate(f, hse, key, msg=msg)
+        sendrecv = self._make_sendrecv(f, hse, key, msg=msg)
+        gather = self._make_copy(f, hse, key)
+
+        self._efuncs[haloupdate] = None
+        self._efuncs[sendrecv] = [haloupdate.name]
+        self._efuncs[gather] = [sendrecv.name]
+
+        # Callables for wait
+        halowait = self._make_halowait(f, hse, key, msg=msg)
+        wait = self._make_wait(f, hse, key, msg=msg)
+        scatter = self._make_copy(f, hse, key, swap=True)
+
+        self._efuncs[halowait] = None
+        self._efuncs[wait] = [halowait.name]
+        self._efuncs[scatter] = [wait.name]
+
+        return haloupdate, halowait
+
     def _make_sendrecv(self, f, hse, key='', msg=None):
         comm = f.grid.distributor._obj_comm
 
@@ -458,9 +482,9 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
-        gather = Call('gather%s' % key, [bufg] + sizes + [f] + ofsg)
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
+        gather = Call('gather%s' % key, [bufg] + sizes + [f] + ofsg)
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         count = reduce(mul, sizes, 1)
@@ -597,7 +621,34 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     structs, which replace explicit Call arguments.
     """
 
-    pass
+    def _make_all(self, f, hse, key, msg):
+        # Callables for asynchronous send/recv
+        haloupdate = self._make_haloupdate(f, hse, key, msg=msg)
+        gather = self._make_copy(f, hse, key)
+
+        self._efuncs[haloupdate] = None
+        self._efuncs[gather] = [haloupdate.name]
+
+        # Callables for wait
+        halowait = self._make_halowait(f, hse, key, msg=msg)
+        scatter = self._make_copy(f, hse, key, swap=True)
+
+        self._efuncs[halowait] = None
+        self._efuncs[scatter] = [halowait.name]
+
+        return haloupdate, halowait
+
+    def _make_sendrecv(self, *args):
+        return
+
+    def _call_sendrecv(self, *args):
+        return
+
+    def _make_wait(self, *args):
+        return
+
+    def _call_wait(self, *args):
+        return
 
 
 
