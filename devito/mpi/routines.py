@@ -646,7 +646,6 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
     def _make_haloupdate(self, f, hse, key='', msg=None):
         comm = f.grid.distributor._obj_comm
-        nb = f.grid.distributor._obj_neighborhood
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
@@ -657,8 +656,8 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         bufg = FieldFromComposite(msg._C_field_bufg, msgi)
         bufs = FieldFromComposite(msg._C_field_bufs, msgi)
 
-        fromrank = FieldFromPointer(msg._C_field_from, msgi)
-        torank = FieldFromPointer(msg._C_field_to, msgi)
+        fromrank = FieldFromComposite(msg._C_field_from, msgi)
+        torank = FieldFromComposite(msg._C_field_to, msgi)
 
         sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
                  for i in range(len(f._dist_dimensions))]
@@ -679,10 +678,15 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         send = Call('MPI_Isend', [bufg, count, Macro(dtype_to_mpitype(f.dtype)),
                                   torank, Integer(13), comm, rsend])
 
-        iet = Iteration([recv, gather, send], dim, msg.npeers)
+        # The -1 below is because an Iteration, by default, generates <=
+        iet = Iteration([recv, gather, send], dim, msg.npeers - 1)
         iet = List(body=iet_insert_C_decls(iet))
-        parameters = ([f, comm, msg])
+        parameters = ([f, comm, msg]) + list(fixed.values())
         return Callable('haloupdate%s' % key, iet, 'void', parameters, ('static',))
+
+    def _call_haloupdate(self, name, f, hse, msg):
+        comm = f.grid.distributor._obj_comm
+        return Call(name, [f, comm, msg] + list(hse.loc_indices.values()))
 
     def _make_sendrecv(self, *args):
         return
@@ -691,18 +695,15 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return
 
     def _make_halowait(self, f, hse, key='', msg=None):
-        nb = f.grid.distributor._obj_neighborhood
-
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
         dim = Dimension(name='i')
 
         msgi = IndexedPointer(msg, dim)
 
-        bufg = FieldFromComposite(msg._C_field_bufg, msgi)
         bufs = FieldFromComposite(msg._C_field_bufs, msgi)
 
-        fromrank = FieldFromPointer(msg._C_field_from, msgi)
+        fromrank = FieldFromComposite(msg._C_field_from, msgi)
 
         sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
                  for i in range(len(f._dist_dimensions))]
@@ -720,17 +721,20 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
         waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
-        iet = Iteration([waitsend, waitrecv, scatter], dim, msg.npeers)
+        # The -1 below is because an Iteration, by default, generates <=
+        iet = Iteration([waitsend, waitrecv, scatter], dim, msg.npeers - 1)
         iet = List(body=iet_insert_C_decls(iet))
-        parameters = ([f, msg])
+        parameters = ([f] + list(fixed.values()) + [msg])
         return Callable('halowait%s' % key, iet, 'void', parameters, ('static',))
+
+    def _call_halowait(self, name, f, hse, msg):
+        return Call(name, [f] + list(hse.loc_indices.values()) + [msg])
 
     def _make_wait(self, *args):
         return
 
     def _call_wait(self, *args):
         return
-
 
 
 class MPIStatusObject(LocalObject):
@@ -840,8 +844,8 @@ class MPIMsgEnriched(MPIMsg):
 
     _C_field_ofss = 'ofss'
     _C_field_ofsg = 'ofsg'
-    _C_field_from = 'from'
-    _C_field_to = 'to'
+    _C_field_from = 'fromrank'
+    _C_field_to = 'torank'
 
     def __init__(self, name, function, halos):
         fields = [
@@ -858,17 +862,27 @@ class MPIMsgEnriched(MPIMsg):
         neighborhood = function.grid.distributor.neighborhood
         for i, halo in enumerate(self.halos):
             entry = values[self.name][i]
-            # Peer ranks
+            # `torank` peer + gather offsets
             entry.torank = neighborhood[halo.side]
-            entry.fromrank = neighborhood[[i.flip() for i in halo.side]]
-            # Gather and scatter offsets
             ofsg = []
-            ofss = []
             for dim, side in zip(*halo):
                 try:
                     ofsg.append(getattr(function._offset_owned[dim], side.name))
                 except AttributeError:
                     assert side is CENTER
-                    shape.append(function._size_domain[dim])
-            # Scatter offsets
+                    ofsg.append(function._offset_owned[dim].left)
+            entry.ofsg = (c_int*len(ofsg))(*ofsg)
+            # `fromrank` peer + scatter offsets
+            entry.fromrank = neighborhood[tuple(i.flip() for i in halo.side)]
+            ofss = []
+            for dim, side in zip(*halo):
+                try:
+                    ofss.append(getattr(function._offset_halo[dim], side.flip().name))
+                except AttributeError:
+                    assert side is CENTER
+                    # Note `_offset_owned`, and not `_offset_halo`, is *not* a bug here.
+                    # If it's the CENTER we need, we can't use `_offset_halo[d].left`
+                    # as otherwise we would be picking the corner
+                    ofss.append(function._offset_owned[dim].left)
+            entry.ofss = (c_int*len(ofss))(*ofss)
         return values
