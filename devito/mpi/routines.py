@@ -690,6 +690,41 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     def _call_sendrecv(self, *args):
         return
 
+    def _make_halowait(self, f, hse, key='', msg=None):
+        nb = f.grid.distributor._obj_neighborhood
+
+        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+
+        dim = Dimension(name='i')
+
+        msgi = IndexedPointer(msg, dim)
+
+        bufg = FieldFromComposite(msg._C_field_bufg, msgi)
+        bufs = FieldFromComposite(msg._C_field_bufs, msgi)
+
+        fromrank = FieldFromPointer(msg._C_field_from, msgi)
+
+        sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
+                 for i in range(len(f._dist_dimensions))]
+        ofss = [FieldFromComposite('%s[%d]' % (msg._C_field_ofss, i), msgi)
+                for i in range(len(f._dist_dimensions))]
+        ofss = [fixed.get(d) or ofss.pop(0) for d in f.dimensions]
+
+        # The `scatter` must be guarded as we must not alter the halo values along
+        # the domain boundary, where the sender is actually MPI.PROC_NULL
+        scatter = Call('scatter%s' % key, [bufs] + sizes + [f] + ofss)
+        scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
+
+        rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
+        waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
+        rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
+        waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
+
+        iet = Iteration([waitsend, waitrecv, scatter], dim, msg.npeers)
+        iet = List(body=iet_insert_C_decls(iet))
+        parameters = ([f, msg])
+        return Callable('halowait%s' % key, iet, 'void', parameters, ('static',))
+
     def _make_wait(self, *args):
         return
 
@@ -819,5 +854,21 @@ class MPIMsgEnriched(MPIMsg):
 
     def _arg_values(self, **kwargs):
         values = super(MPIMsgEnriched, self)._arg_values(**kwargs)
-        from IPython import embed; embed()
+        function = kwargs.get(self.function.name, self.function)
+        neighborhood = function.grid.distributor.neighborhood
+        for i, halo in enumerate(self.halos):
+            entry = values[self.name][i]
+            # Peer ranks
+            entry.torank = neighborhood[halo.side]
+            entry.fromrank = neighborhood[[i.flip() for i in halo.side]]
+            # Gather and scatter offsets
+            ofsg = []
+            ofss = []
+            for dim, side in zip(*halo):
+                try:
+                    ofsg.append(getattr(function._offset_owned[dim], side.name))
+                except AttributeError:
+                    assert side is CENTER
+                    shape.append(function._size_domain[dim])
+            # Scatter offsets
         return values
