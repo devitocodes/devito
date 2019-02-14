@@ -60,7 +60,7 @@ class Differentiable(sympy.Expr):
 
     @cached_property
     def _symbolic_functions(self):
-        return [i for i in list(self._functions) if i.coefficients == 'symbolic']
+        return [i for i in self._functions if i.coefficients == 'symbolic']
 
     @cached_property
     def _symbolic_coefficients(self):

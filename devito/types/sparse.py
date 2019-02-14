@@ -1123,6 +1123,11 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     def gridpoints(self):
         return self._gridpoints
 
+    @property
+    def interpolation_coeffs(self):
+        """ The Precomputed interpolation coefficients."""
+        return self._interpolation_coeffs
+
     def _dist_scatter(self, data=None):
         data = data if data is not None else self.data
         distributor = self.grid.distributor
