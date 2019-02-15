@@ -5,6 +5,7 @@ from functools import reduce
 from itertools import product
 from operator import mul
 
+from cached_property import cached_property
 from sympy import Integer
 
 from devito.data import CORE, OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
@@ -37,6 +38,7 @@ class HaloExchangeBuilder(object):
             obj = object.__new__(Overlap2HaloExchangeBuilder)
         else:
             assert False, "unexpected value `mode=%s`" % mode
+        obj._regions = OrderedDict()
         obj._msgs = OrderedDict()
         obj._efuncs = OrderedDict()
         obj._cache = OrderedDict()
@@ -49,6 +51,14 @@ class HaloExchangeBuilder(object):
     @property
     def msgs(self):
         return [i for i in self._msgs.values() if i is not None]
+
+    @property
+    def regions(self):
+        return [i for i in self._regions.values() if i is not None]
+
+    @property
+    def objs(self):
+        return self.msgs + self.regions
 
     def make(self, hs, key):
         """
@@ -84,8 +94,10 @@ class HaloExchangeBuilder(object):
                 self._cache[(f.ndim, hse)] = self._make_all(df, hse, key, msg)
 
         # Callable for compute over the OWNED region
+        region = self._make_region(hs, key)
+        region = self._regions.setdefault(hs, region)
         callcompute = self._call_compute(hs, compute)
-        remainder = self._make_remainder(callcompute, hs, key)
+        remainder = self._make_remainder(callcompute, hs, key, region)
         if remainder is not None:
             self._efuncs[remainder] = None
             self._efuncs.setdefault(callcompute, []).append(remainder.name)
@@ -104,10 +116,17 @@ class HaloExchangeBuilder(object):
         return List(body=body)
 
     @abc.abstractmethod
+    def _make_region(self, hs, key):
+        """
+        Construct an MPIRegion describing the HaloSpot's OWNED DataRegion.
+        """
+        return
+
+    @abc.abstractmethod
     def _make_msg(self, f, hse, key):
         """
-        Construct data structures carrying information about the HaloSpot
-        ``hs``, to propagate information across the MPI Call stack.
+        Construct an MPIMsg, to propagate information such as buffers, sizes,
+        offsets, ..., across the MPI Call stack.
         """
         return
 
@@ -201,7 +220,7 @@ class HaloExchangeBuilder(object):
         return
 
     @abc.abstractmethod
-    def _make_remainder(self, compute, hs, key):
+    def _make_remainder(self, compute, hs, key, *args):
         """
         Construct a Callable performing computation over the OWNED region, that is
         the region requiring up-to-date halo values.
@@ -586,7 +605,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         nb = f.grid.distributor._obj_neighborhood
         return Call(name, [f] + list(hse.loc_indices.values()) + [nb, msg])
 
-    def _make_remainder(self, compute, hs, key):
+    def _make_remainder(self, compute, hs, key, *args):
         assert compute.is_Call
 
         items = []
@@ -621,6 +640,9 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     readability, achieved by supplying more values via Python-land-produced
     structs, which replace explicit Call arguments.
     """
+
+    def _make_region(self, hs, key):
+        return MPIRegion('reg%s' % key, hs.omapper)
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
@@ -735,6 +757,20 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
     def _call_wait(self, *args):
         return
+
+    def _make_remainder(self, compute, hs, key, region):
+        assert compute.is_Call
+
+        dim = Dimension(name='i')
+        regioni = IndexedPointer(region, dim)
+        dynamic_args_mapper = {d: (FieldFromComposite(d.min_name, regioni),
+                                   FieldFromComposite(d.max_name, regioni))
+                               for d in hs.dimensions}
+        iet = compute._rebuild(dynamic_args_mapper=dynamic_args_mapper)
+        # The -1 below is because an Iteration, by default, generates <=
+        iet = Iteration(iet, dim, region.nregions - 1)
+
+        return make_efunc('remainder%s' % key, iet)
 
 
 class MPIStatusObject(LocalObject):
@@ -886,3 +922,57 @@ class MPIMsgEnriched(MPIMsg):
                     ofss.append(function._offset_owned[dim].left)
             entry.ofss = (c_int*len(ofss))(*ofss)
         return values
+
+
+class MPIRegion(CompositeObject):
+
+    def __init__(self, name, omapper):
+        self._omapper = omapper
+        fields = []
+        for d in list(omapper):
+            fields.append((d.min_name, c_int))
+            fields.append((d.max_name, c_int))
+        super(MPIRegion, self).__init__(name, 'region', fields)
+
+    def __value_setup__(self, dtype, value):
+        # We eventually produce an array of `struct region` that is as big as
+        # the number of OWNED sub-regions we have to compute to complete a
+        # halo update
+        return (dtype._type_*self.nregions)()
+
+    @property
+    def omapper(self):
+        return self._omapper
+
+    @cached_property
+    def regions(self):
+        items = [((d, CORE, CENTER), (d, OWNED, LEFT), (d, OWNED, RIGHT))
+                 for d in self.omapper]
+        items = list(product(*items))
+        items = [i for i in items if not all(r is CORE for _, r, _ in i)]
+        return items
+
+    @property
+    def nregions(self):
+        return len(self.regions)
+
+    def _arg_values(self, args, **kwargs):
+        values = self._arg_defaults()
+        for i, region in enumerate(self.regions):
+            entry = values[self.name][i]
+            for d, r, s in region:
+                lofs, rofs = self.omapper[d]
+                if r is CORE:
+                    setattr(entry, d.min_name, args[d.min_name] + lofs)
+                    setattr(entry, d.max_name, args[d.max_name] + rofs)
+                else:
+                    if s is LEFT:
+                        setattr(entry, d.min_name, args[d.min_name])
+                        setattr(entry, d.max_name, args[d.min_name] + lofs)
+                    else:
+                        setattr(entry, d.min_name, args[d.max_name] + rofs)
+                        setattr(entry, d.max_name, args[d.max_name])
+        return values
+
+    # Pickling support
+    _pickle_args = ['name', 'omapper']

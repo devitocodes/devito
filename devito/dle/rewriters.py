@@ -363,10 +363,10 @@ class AdvancedRewriter(BasicRewriter):
             heb = user_heb if hs.is_Overlappable else sync_heb
             mapper[hs] = heb.make(hs, i)
         efuncs = OrderedDict(**sync_heb.efuncs, **user_heb.efuncs)
-        msgs = sync_heb.msgs + user_heb.msgs
+        objs = sync_heb.objs + user_heb.objs
         iet = Transformer(mapper, nested=True).visit(iet)
 
-        return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'input': msgs}
+        return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'input': objs}
 
     @dle_pass
     def _simdize(self, nodes):
