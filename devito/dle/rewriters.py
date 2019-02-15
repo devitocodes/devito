@@ -302,7 +302,7 @@ class AdvancedRewriter(BasicRewriter):
             interb = []
             intrab = []
             for i in iterations:
-                d = BlockDimension(i.dim, name="%s%d_block" % (i.dim.name, len(mapper)))
+                d = BlockDimension(i.dim, name="%s%d_blk" % (i.dim.name, len(mapper)))
                 # Build Iteration over blocks
                 interb.append(Iteration([], d, d.symbolic_max, offsets=i.offsets,
                                         properties=PARALLEL))

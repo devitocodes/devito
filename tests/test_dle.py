@@ -17,7 +17,7 @@ pytestmark = skipif(['yask', 'ops'])
 
 
 def get_blocksizes(op, dle, grid, blockshape):
-    blocksizes = {'%s0_block_size' % d: v for d, v in zip(grid.dimensions, blockshape)}
+    blocksizes = {'%s0_blk_size' % d: v for d, v in zip(grid.dimensions, blockshape)}
     blocksizes = {k: v for k, v in blocksizes.items() if k in op._known_arguments}
     # Sanity check
     if grid.dim == 1 or len(blockshape) == 0:
