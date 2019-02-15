@@ -200,13 +200,13 @@ Of all the gridpoints that one sparse point would be interpolated to, this is th
 grid point closest to the origin, i.e. the one with the lowest value of each
 coordinate dimension. Must be a two-dimensional array of shape
 <code class="docutils literal notranslate"><span class="pre">(npoint,</span> <span class="pre">grid.ndim)</span></code>.</li>
-<li><strong>coefficients</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
+<li><strong>interpolation_coeffs</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
 gridpoints that each sparse point will be interpolated to. The coefficient is
 split across the n dimensions such that the contribution of the point (i, j, k)
-will be multiplied by <code class="docutils literal notranslate"><span class="pre">coefficients[...,</span> <span class="pre">i]*coefficients[...,</span>
-<span class="pre">j]*coefficients[...,k]</span></code>. So for <code class="docutils literal notranslate"><span class="pre">r=6</span></code>, we will store 18 coefficients per
-sparse point (instead of potentially 216). Must be a three-dimensional array of
-shape <code class="docutils literal notranslate"><span class="pre">(npoint,</span> <span class="pre">grid.ndim,</span> <span class="pre">r)</span></code>.</li>
+will be multiplied by <code class="docutils literal notranslate"><span class="pre">interpolation_coeffs[...,</span> <span class="pre">i]*interpolation_coeffs[...,</span>
+<span class="pre">j]*interpolation_coeffs[...,k]</span></code>. So for <code class="docutils literal notranslate"><span class="pre">r=6</span></code>, we will store 18
+coefficients per sparse point (instead of potentially 216).
+Must be a three-dimensional array of shape <code class="docutils literal notranslate"><span class="pre">(npoint,</span> <span class="pre">grid.ndim,</span> <span class="pre">r)</span></code>.</li>
 <li><strong>space_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretisation order for space derivatives. Defaults to 0.</li>
 <li><strong>shape</strong> (<em>tuple of ints</em><em>, </em><em>optional</em>) – Shape of the object. Defaults to <code class="docutils literal notranslate"><span class="pre">(npoint,)</span></code>.</li>
 <li><strong>dimensions</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Dimensions associated with the object. Only necessary if the SparseFunction
