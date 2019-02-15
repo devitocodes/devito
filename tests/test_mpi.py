@@ -524,7 +524,8 @@ class TestOperatorSimple(object):
         else:
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
+                                (4, 'overlap2')])
     def test_trivial_eq_2d(self):
         grid = Grid(shape=(8, 8,))
         x, y = grid.dimensions
@@ -559,7 +560,8 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
-    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'diag'), (8, 'overlap')])
+    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'diag'), (8, 'overlap'),
+                                (8, 'overlap2')])
     def test_trivial_eq_3d(self):
         grid = Grid(shape=(8, 8, 8))
         x, y, z = grid.dimensions
@@ -1250,7 +1252,7 @@ class TestIsotropicAcoustic(object):
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
-                                (8, 'basic', True)])
+                                (4, 'overlap2'), (8, 'overlap2', True)])
     def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
                        Eu, Erec, Ev, Esrca):
         """
