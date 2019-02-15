@@ -24,6 +24,10 @@ class Differentiable(sympy.Expr):
     _state = ('space_order', 'time_order', 'indices')
 
     @cached_property
+    def _functions(self):
+        return frozenset().union(*[i._functions for i in self._args_diff])
+
+    @cached_property
     def _args_diff(self):
         ret = [i for i in self.args if isinstance(i, Differentiable)]
         ret.extend([i.function for i in self.args if i.is_Indexed])
@@ -53,6 +57,14 @@ class Differentiable(sympy.Expr):
     @cached_property
     def _fd(self):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
+
+    @cached_property
+    def _symbolic_functions(self):
+        return frozenset([i for i in self._functions if i.coefficients == 'symbolic'])
+
+    @cached_property
+    def _uses_symbolic_coefficients(self):
+        return bool(self._symbolic_functions)
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()

@@ -181,7 +181,7 @@ class Substitutions(object):
                                            side=None, stagger=stagger)
 
             for j in range(len(weights)):
-                subs.update({function.coeff_symbol
+                subs.update({function._coeff_symbol
                              (indices[j], deriv_order, function, dim): weights[j]})
 
             return subs
@@ -220,7 +220,7 @@ def default_rules(obj, functions):
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
         for j in range(len(coeffs)):
-            subs.update({function.coeff_symbol
+            subs.update({function._coeff_symbol
                          (indices[j], deriv_order, function, dim): coeffs[j]})
 
         return subs
@@ -249,11 +249,11 @@ def default_rules(obj, functions):
 
 
 def get_sym(functions):
-    for j in range(0, len(functions)):
+    for f in functions:
         try:
-            sym = functions[j].coeff_symbol
+            sym = f._coeff_symbol
             return sym
-        except:
+        except AttributeError:
             pass
     # Shouldn't arrive here
     raise TypeError("Failed to retreive symbol")
