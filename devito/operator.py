@@ -278,21 +278,24 @@ class Operator(Callable):
         args = args.reduce_all()
 
         # All DiscreteFunctions should be defined on the same Grid
-        functions = [kwargs.get(p, p) for p in self.input if p.is_DiscreteFunction]
-        mapper = ReducerMap([('grid', i.grid) for i in functions if i.grid])
+        grids = {getattr(p, 'grid', None) for p in datacarriers} - {None}
+        if len(grids) > 1 and configuration['mpi']:
+            raise ValueError("Multiple Grids found")
         try:
-            grid = mapper.unique('grid')
-        except (KeyError, ValueError):
-            if mapper and configuration['mpi']:
-                raise RuntimeError("Multiple `Grid`s found before `apply`")
+            grid = grids.pop()
+        except KeyError:
             grid = None
 
-        # Process dimensions (derived go after as they might need/affect their parents)
+        # Process Dimensions (derived go after as they might need/affect their parents)
         derived, main = split(self.dimensions, lambda i: i.is_Derived)
-        for p in main:
-            args.update(p._arg_values(args, self._dspace[p], grid, **kwargs))
-        for p in derived:
-            args.update(p._arg_values(args, self._dspace[p], grid, **kwargs))
+        for d in main:
+            args.update(d._arg_values(args, self._dspace[d], grid, **kwargs))
+        for d in derived:
+            args.update(d._arg_values(args, self._dspace[d], grid, **kwargs))
+
+        # Process Objects (which may need some `args`)
+        for o in objects:
+            args.update(o._arg_values(args, **kwargs))
 
         # Sanity check
         for p in self.input:

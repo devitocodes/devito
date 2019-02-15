@@ -806,7 +806,7 @@ class MPIMsg(CompositeObject):
     def npeers(self):
         return len(self._halos)
 
-    def _arg_values(self, **kwargs):
+    def _arg_values(self, args, **kwargs):
         values = self._arg_defaults()
         function = kwargs.get(self.function.name, self.function)
         for i, halo in enumerate(self.halos):
@@ -856,8 +856,8 @@ class MPIMsgEnriched(MPIMsg):
         ]
         super(MPIMsgEnriched, self).__init__(name, function, halos, fields)
 
-    def _arg_values(self, **kwargs):
-        values = super(MPIMsgEnriched, self)._arg_values(**kwargs)
+    def _arg_values(self, args, **kwargs):
+        values = super(MPIMsgEnriched, self)._arg_values(args, **kwargs)
         function = kwargs.get(self.function.name, self.function)
         neighborhood = function.grid.distributor.neighborhood
         for i, halo in enumerate(self.halos):
