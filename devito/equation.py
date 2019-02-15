@@ -61,7 +61,7 @@ class Eq(sympy.Eq):
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         obj._subdomain = subdomain
         obj._substitutions = substitutions
-        if obj._symbolic_coefficients:
+        if obj._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
             rules = default_rules(obj, obj._symbolic_functions)
@@ -82,13 +82,13 @@ class Eq(sympy.Eq):
         return self._substitutions
 
     @cached_property
-    def _symbolic_coefficients(self):
+    def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)
 
     @cached_property
     def _symbolic_functions(self):
         try:
-            return list(set(self.lhs._symbolic_functions+self.rhs._symbolic_functions))
+            return self.lhs._symbolic_functions.union(self.rhs._symbolic_functions)
         except AttributeError:
             pass
         try:
@@ -98,7 +98,7 @@ class Eq(sympy.Eq):
         try:
             return self.rhs._symbolic_functions
         except AttributeError:
-            return []
+            return frozenset()
         else:
             TypeError('Failed to retrieve symbolic functions')
 

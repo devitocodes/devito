@@ -249,9 +249,9 @@ def default_rules(obj, functions):
 
 
 def get_sym(functions):
-    for j in range(0, len(functions)):
+    for f in functions:
         try:
-            sym = functions[j]._coeff_symbol
+            sym = f._coeff_symbol
             return sym
         except AttributeError:
             pass

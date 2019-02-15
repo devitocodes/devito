@@ -25,7 +25,7 @@ class Differentiable(sympy.Expr):
 
     @cached_property
     def _functions(self):
-        return set().union(*[i._functions for i in self._args_diff])
+        return frozenset().union(*[i._functions for i in self._args_diff])
 
     @cached_property
     def _args_diff(self):
@@ -60,10 +60,10 @@ class Differentiable(sympy.Expr):
 
     @cached_property
     def _symbolic_functions(self):
-        return [i for i in self._functions if i.coefficients == 'symbolic']
+        return frozenset([i for i in self._functions if i.coefficients == 'symbolic'])
 
     @cached_property
-    def _symbolic_coefficients(self):
+    def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)
 
     def __hash__(self):
