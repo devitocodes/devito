@@ -20,7 +20,7 @@ from devito.ir.iet import (Call, Denormals, Expression, Iteration, List, HaloSpo
 from devito.logger import dle, perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
-from devito.tools import DAG, as_tuple, flatten
+from devito.tools import DAG, as_tuple, filter_ordered, flatten
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'SpeculativeRewriter',
            'AdvancedRewriterSafeMath', 'CustomRewriter']
@@ -51,9 +51,12 @@ class State(object):
         for i in self._call_graph.topological_sort():
             self._efuncs[i], metadata = func(self._efuncs[i])
 
-            # Track any new Dimensions and includes introduced by `func`
+            # Track any new Dimensions introduced by `func`
             self._dimensions.extend(list(metadata.get('dimensions', [])))
+
+            # Track any new #include required by `func`
             self._includes.extend(list(metadata.get('includes', [])))
+            self._includes = filter_ordered(self._includes)
 
             # If there's a change to the `input` and the `iet` is an efunc, then
             # we must update the call sites as well, as the arguments dropped down
