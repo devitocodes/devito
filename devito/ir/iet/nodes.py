@@ -792,6 +792,8 @@ class HaloSpot(Node):
             self._body = body
         elif isinstance(body, (list, tuple)) and len(body) == 1:
             self._body = body[0]
+        elif body is None:
+            self._body = List()
         else:
             raise ValueError("`body` is expected to be a single Node")
         self._properties = as_tuple(properties)
