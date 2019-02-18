@@ -4,7 +4,7 @@ import pytest
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator, norm, inner)
+                    SubDimension, Eq, Inc, Operator, norm, inner, switchconfig)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes
 from devito.mpi import MPI, HaloExchangeBuilder, HaloSchemeEntry
@@ -1246,15 +1246,8 @@ class TestIsotropicAcoustic(object):
         assert len(fwd_calls) == 2
         assert len(adj_calls) == 2
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
-        ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
-        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
-    ])
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
-                                (4, 'overlap2'), (8, 'overlap2', True)])
-    def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
-                       Eu, Erec, Ev, Esrca):
+    def run_adjoint_F(self, shape, kernel, space_order, nbpml, save,
+                      Eu, Erec, Ev, Esrca):
         """
         Unlike `test_adjoint_F` in test_adjoint.py, here we explicitly check the norms
         of all Operator-evaluated Functions. The numbers we check against are derived
@@ -1283,6 +1276,30 @@ class TestIsotropicAcoustic(object):
         term1 = inner(srca, solver.geometry.src)
         term2 = norm(rec)**2
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
+
+    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
+        ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
+        ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
+        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
+    ])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
+                                (4, 'overlap2')])
+    def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
+                       Eu, Erec, Ev, Esrca):
+        self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
+
+    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
+        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
+    ])
+    @pytest.mark.parallel(mode=[(8, 'diag'), (8, 'overlap2')])
+    @switchconfig(openmp=False)
+    def test_adjoint_F_no_omp(self, shape, kernel, space_order, nbpml, save,
+                              Eu, Erec, Ev, Esrca):
+        """
+        ``run_adjoint_F`` with OpenMP disabled. By disabling OpenMP, we can
+        practically scale up to higher process counts.
+        """
+        self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
 
 
 if __name__ == "__main__":
