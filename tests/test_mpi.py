@@ -632,7 +632,7 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
-    def test_nostencil_implies_nohaloupdate(self):
+    def test_avoid_haloupdate_as_nostencil_basic(self):
         grid = Grid(shape=(12,))
 
         f = TimeFunction(name='f', grid=grid)
@@ -641,6 +641,25 @@ class TestOperatorSimple(object):
         op = Operator([Eq(f.forward, f + 1.),
                        Eq(g, f + 1.)])
 
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
+
+    def test_avoid_haloupdate_as_nostencil_advanced(self):
+        grid = Grid(shape=(4, 4))
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2, save=None)
+        v = TimeFunction(name='v', grid=grid, space_order=0, time_order=0, save=5)
+        g = Function(name='g', grid=grid, space_order=0)
+        i = Function(name='i', grid=grid, space_order=0)
+
+        shift = Constant(name='shift', dtype=np.int32)
+
+        step = Eq(u.forward, u - u.backward + 1)
+        g_inc = Inc(g, u * v.subs(grid.time_dim, grid.time_dim - shift))
+        i_inc = Inc(i, (v*v).subs(grid.time_dim, grid.time_dim - shift))
+
+        op = Operator([step, g_inc, i_inc])
+
+        # No stencil in the expressions, so no halo update required!
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 0
 
@@ -688,6 +707,32 @@ class TestOperatorSimple(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
+    def test_avoid_haloupdate_with_subdims(self):
+        grid = Grid(shape=(4,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        thickness = 4
+
+        u = TimeFunction(name='u', grid=grid, time_order=1)
+
+        xleft = SubDimension.left(name='xleft', parent=x, thickness=thickness)
+        xi = SubDimension.middle(name='xi', parent=x,
+                                 thickness_left=thickness, thickness_right=thickness)
+
+        eq_centre = Eq(u[t+1, xi], u[t, xi-1] + u[t, xi+1] + 1.)
+        eq_left = Eq(u[t+1, xleft], u[t+1, xleft+1] + u[t, xleft+1] + 1.)
+
+        # There is only one halo update -- for the `eq_centre` expression.
+        # `eq_left` gets no halo update since it's a left-SubDimension, which by
+        # default (i.e., unless one passes `local=False` to SubDimension.left) is
+        # assumed to be a local Dimension.
+        op = Operator([eq_centre, eq_left])
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.parallel(mode=1)
     def test_stencil_nowrite_implies_haloupdate_anyway(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -726,25 +771,6 @@ class TestOperatorSimple(object):
             assert np.all(g.data_ro_domain[1, 1:] == 2.)
         else:
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
-
-    def test_haloupdate_not_requried(self):
-        grid = Grid(shape=(4, 4))
-        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2, save=None)
-        v = TimeFunction(name='v', grid=grid, space_order=0, time_order=0, save=5)
-        g = Function(name='g', grid=grid, space_order=0)
-        i = Function(name='i', grid=grid, space_order=0)
-
-        shift = Constant(name='shift', dtype=np.int32)
-
-        step = Eq(u.forward, u - u.backward + 1)
-        g_inc = Inc(g, u * v.subs(grid.time_dim, grid.time_dim - shift))
-        i_inc = Inc(i, (v*v).subs(grid.time_dim, grid.time_dim - shift))
-
-        op = Operator([step, g_inc, i_inc])
-
-        # No stencil in the expressions, so no halo update required!
-        calls = FindNodes(Call).visit(op)
-        assert len(calls) == 0
 
     @pytest.mark.parallel(mode=2)
     def test_reapply_with_different_functions(self):
