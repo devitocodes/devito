@@ -5,11 +5,15 @@ from devito.finite_differences.derivative import Diff
 
 
 def diff(expr, *dims, deriv_order=1, fd_order=1, side=centered, **kwargs):
-    return Diff(expr, *dims, deriv_order=deriv_order, fd_order=fd_order, side=centered, **kwargs)
+    return Diff(expr, *dims, deriv_order=deriv_order,
+                fd_order=fd_order, side=centered, **kwargs)
+
 
 def partial_derivative(expr, deriv_order, dims, fd_order, side=centered, **kwargs):
-    new_obj = Diff(expr, dims, deriv_order=deriv_order, fd_order=fd_order, side=centered, **kwargs)
+    new_obj = Diff(expr, dims, deriv_order=deriv_order,
+                   fd_order=fd_order, side=centered, **kwargs)
     return new_obj
+
 
 def generate_fd_shortcuts(function):
     """Create all legal finite-difference derivatives for the given Function."""
@@ -66,12 +70,14 @@ def generate_fd_shortcuts(function):
         else:
             # Left
             dim_order = time_fd_order if d.is_Time else space_fd_order
-            deriv = partial(partial_derivative, deriv_order=1, dims=d, fd_order=dim_order, side=left)
+            deriv = partial(partial_derivative, deriv_order=1,
+                            dims=d, fd_order=dim_order, side=left)
             name_fd = 'd%sl' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
             # Right
-            deriv = partial(partial_derivative, deriv_order=1, dims=d, fd_order=dim_order, side=right)
+            deriv = partial(partial_derivative, deriv_order=1,
+                            dims=d, fd_order=dim_order, side=right)
             name_fd = 'd%sr' % name
             desciption = 'right first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)

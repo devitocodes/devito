@@ -4,7 +4,7 @@ import sympy
 
 from cached_property import cached_property
 
-from devito.finite_differences import default_rules
+from devito.finite_differences import default_rules, to_differentiable
 
 __all__ = ['Eq', 'Inc', 'solve']
 
@@ -144,6 +144,12 @@ class Inc(Eq):
     def __str__(self):
         return "Inc(%s, %s)" % (self.lhs, self.rhs)
 
+    @property
+    def stencil(self):
+        lhs = getattr(self.lhs, 'stencil', self.lhs)
+        rhs = getattr(self.rhs, 'stencil', self.rhs)
+        return Inc(lhs, rhs, evaluate=False, subdomain=self._subdomain)
+
     __repr__ = __str__
 
 
@@ -168,5 +174,6 @@ def solve(eq, target, **kwargs):
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
+
     solved = sympy.solve(eq.stencil, target.stencil, **kwargs)[0]
-    return eq.__class__(*solved.args)
+    return to_differentiable(solved)

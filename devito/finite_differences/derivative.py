@@ -2,10 +2,14 @@ import sympy
 
 from cached_property import cached_property
 
-from devito.finite_differences.finite_difference import left, right, centered, generic_derivative, first_derivative, cross_derivative
+from devito.finite_differences.finite_difference import (left, right, centered,
+                                                         generic_derivative,
+                                                         first_derivative,
+                                                         cross_derivative)
 from devito.finite_differences.differentiable import Differentiable
 
 __all__ = ['Diff']
+
 
 class Diff(sympy.Derivative, Differentiable):
 
@@ -37,6 +41,7 @@ class Diff(sympy.Derivative, Differentiable):
         self._fd_order = fd_order
         self._deriv_order = deriv_order
         self._stagger = kwargs.get("stagger", self._stagger_setup)
+        self._side = kwargs.get("side", None)
 
     @cached_property
     def dims(self):
@@ -79,68 +84,16 @@ class Diff(sympy.Derivative, Differentiable):
 
         return side
 
-    @cached_property
-    def indices(self):
-        indices = dict()
-        for d in self.dims:
-            diff = d.spacing
-            stagger = self.stagger[d] or self.stagger
-            if stagger is None:
-                off = 0
-            elif stagger == left or not self.expr.is_Staggered:
-                off = -.5
-            elif stagger == right:
-                off = .5
-            else:
-                off = 0
-
-            if self.expr.is_Staggered:
-                indices[d] = list(set([(d + int(i+.5+off) * d.spacing)
-                                       for i in range(-self.fd_order//2, self.fd_order//2)]))
-                if fd_order < 2:
-                    indices[d] = [d + diff, d] if stagger == right else [d - diff, d]
-
-            else:
-                indices[d] = [(d + i * diff) for i in range(-self.fd_order//2, self.fd_order//2 + 1)]
-
-            if self.fd_order < 2:
-                indices[d] = [d, d + diff]
-
-        return list(indices[d] for d in self.dims)
-
-
-    @cached_property
-    def x0(self):
-        x0 = dict()
-        for d in self.dims:
-            diff = d.spacing
-            stagger = self.stagger[d] or self.stagger
-            if stagger is None:
-                off = 0
-            elif stagger == left or not self.expr.is_Staggered:
-                off = -.5
-            elif stagger == right:
-                off = .5
-            else:
-                off = 0
-            if self.expr.is_Staggered:
-                x0[d] = (d + off*diff)
-            else:
-                x0[d] = d
-        return list(x0[d] for d in self.dims)
-
-    @cached_property
+    @property
     def stencil(self):
-        # if self.side is not None:
-        #     return first_derivative(self.expr.stencil, self.dims[0], self.fd_order,
-        #                             side=self.side)
-        # if isinstance(self.dims, tuple):
-        #     return cross_derivative(self.expr.stencil, self.dims, self.fd_order,
-        #                             self.deriv_order, stagger=self.stagger)
-        # else:
-        #     return generic_derivative(self.expr.stencil, self.dims[0], self.fd_order,
-        #                               self.deriv_order, stagger=self.stagger)
-        res = self
-        for d, x0, i in zip(self.dims, self.x0, self.indices):
-            res = res.as_finite_difference(i, x0=x0, wrt=d)
+        if self.side is not None and self.deriv_order == 1:
+            res = first_derivative(self.expr, self.dims[0], self.fd_order,
+                                   side=self.side)
+        if len(self.dims) > 1:
+            res = cross_derivative(self.expr, self.dims, self.fd_order,
+                                   self.deriv_order, stagger=self.stagger)
+        else:
+            res = generic_derivative(self.expr, self.dims[0], self.fd_order,
+                                     self.deriv_order, stagger=self.stagger)
+
         return res
