@@ -2,6 +2,10 @@
 
 import sympy
 
+from cached_property import cached_property
+
+from devito.finite_differences import default_rules
+
 __all__ = ['Eq', 'Inc', 'solve']
 
 
@@ -24,6 +28,9 @@ class Eq(sympy.Eq):
     subdomain : SubDomain, optional
         To restrict the computation of the Eq to a particular sub-region in the
         computational domain.
+    coefficients : Substitutions, optional
+        Can be used to replace symbolic finite difference weights with user
+        defined weights.
 
     Examples
     --------
@@ -50,8 +57,19 @@ class Eq(sympy.Eq):
     def __new__(cls, *args, **kwargs):
         kwargs['evaluate'] = False
         subdomain = kwargs.pop('subdomain', None)
+        substitutions = kwargs.pop('coefficients', None)
         obj = sympy.Eq.__new__(cls, *args, **kwargs)
         obj._subdomain = subdomain
+        obj._substitutions = substitutions
+        if obj._uses_symbolic_coefficients:
+            # NOTE: As Coefficients.py is expanded we will not want
+            # all rules to be expunged during this procress.
+            rules = default_rules(obj, obj._symbolic_functions)
+            try:
+                obj = obj.xreplace({**substitutions.rules, **rules})
+            except AttributeError:
+                if bool(rules):
+                    obj = obj.xreplace(rules)
         return obj
 
     @property
@@ -64,6 +82,30 @@ class Eq(sympy.Eq):
         lhs = getattr(self.lhs, 'stencil', self.lhs)
         rhs = getattr(self.rhs, 'stencil', self.rhs)
         return Eq(lhs, rhs, evaluate=False, subdomain=self._subdomain)
+
+    def substitutions(self):
+        return self._substitutions
+
+    @cached_property
+    def _uses_symbolic_coefficients(self):
+        return bool(self._symbolic_functions)
+
+    @cached_property
+    def _symbolic_functions(self):
+        try:
+            return self.lhs._symbolic_functions.union(self.rhs._symbolic_functions)
+        except AttributeError:
+            pass
+        try:
+            return self.lhs._symbolic_functions
+        except AttributeError:
+            pass
+        try:
+            return self.rhs._symbolic_functions
+        except AttributeError:
+            return frozenset()
+        else:
+            TypeError('Failed to retrieve symbolic functions')
 
     def xreplace(self, rules):
         """"""

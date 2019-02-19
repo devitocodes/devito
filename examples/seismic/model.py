@@ -421,7 +421,7 @@ class GenericModel(object):
     General model class with common properties
     """
     def __init__(self, origin, spacing, shape, space_order, nbpml=20,
-                 dtype=np.float32):
+                 dtype=np.float32, subdomains=()):
         self.shape = shape
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
@@ -430,11 +430,12 @@ class GenericModel(object):
         # at the correct index
         origin_pml = tuple([dtype(o - s*nbpml) for o, s in zip(origin, spacing)])
         phydomain = PhysicalDomain(self.nbpml)
+        subdomains = subdomains + (phydomain, )
         shape_pml = np.array(shape) + 2 * self.nbpml
         # Physical extent is calculated per cell, so shape - 1
         extent = tuple(np.array(spacing) * (shape_pml - 1))
         self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml, dtype=dtype,
-                         subdomains=phydomain)
+                         subdomains=subdomains)
 
     def physical_params(self, **kwargs):
         """
@@ -508,15 +509,9 @@ class Model(GenericModel):
     """
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
-                 **kwargs):
-        super(Model, self).__init__(origin, spacing, shape, space_order, nbpml, dtype)
-
-        # Are we provided with an existing grid?
-        grid = kwargs.get('grid')
-        if grid is not None:
-            assert self.grid.extent == grid.extent
-            assert self.grid.shape == grid.shape
-            self.grid = grid
+                 subdomains=(), **kwargs):
+        super(Model, self).__init__(origin, spacing, shape, space_order, nbpml, dtype,
+                                    subdomains)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):

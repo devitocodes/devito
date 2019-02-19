@@ -47,25 +47,25 @@ def custom_points(grid, ranges, npoints, name='points'):
 
 def precompute_linear_interpolation(points, grid, origin):
     """ Sample precompute function that, given point and grid information
-        precomputes gridpoints and coefficients according to a linear
+        precomputes gridpoints and interpolation coefficients according to a linear
         scheme to be used in PrecomputedSparseFunction.
     """
     gridpoints = [tuple(floor((point[i]-origin[i])/grid.spacing[i])
                         for i in range(len(point))) for point in points]
 
-    coefficients = np.zeros((len(points), 2, 2))
+    interpolation_coeffs = np.zeros((len(points), 2, 2))
     for i, point in enumerate(points):
         for d in range(grid.dim):
-            coefficients[i, d, 0] = ((gridpoints[i][d] + 1)*grid.spacing[d] -
-                                     point[d])/grid.spacing[d]
-            coefficients[i, d, 1] = (point[d]-gridpoints[i][d]*grid.spacing[d])\
+            interpolation_coeffs[i, d, 0] = ((gridpoints[i][d] + 1)*grid.spacing[d] -
+                                             point[d])/grid.spacing[d]
+            interpolation_coeffs[i, d, 1] = (point[d]-gridpoints[i][d]*grid.spacing[d])\
                 / grid.spacing[d]
-    return gridpoints, coefficients
+    return gridpoints, interpolation_coeffs
 
 
 def test_precomputed_interpolation():
     """ Test interpolation with PrecomputedSparseFunction which accepts
-        precomputed values for coefficients
+        precomputed values for interpolation coefficients
     """
     shape = (101, 101)
     points = [(.05, .9), (.01, .8), (0.07, 0.84)]
@@ -83,10 +83,12 @@ def test_precomputed_interpolation():
 
     m = Function(name='m', grid=grid, initializer=init, space_order=0)
 
-    gridpoints, coefficients = precompute_linear_interpolation(points, grid, origin)
+    gridpoints, interpolation_coeffs = precompute_linear_interpolation(points,
+                                                                       grid, origin)
 
     sf = PrecomputedSparseFunction(name='s', grid=grid, r=r, npoint=len(points),
-                                   gridpoints=gridpoints, coefficients=coefficients)
+                                   gridpoints=gridpoints,
+                                   interpolation_coeffs=interpolation_coeffs)
     eqn = sf.interpolate(m)
     op = Operator(eqn)
     op()
@@ -96,7 +98,8 @@ def test_precomputed_interpolation():
 
 def test_precomputed_interpolation_time():
     """ Test interpolation with PrecomputedSparseFunction which accepts
-        precomputed values for coefficients, but this time with a TimeFunction
+        precomputed values for interpolation coefficients, but this time
+        with a TimeFunction
     """
     shape = (101, 101)
     points = [(.05, .9), (.01, .8), (0.07, 0.84)]
@@ -110,11 +113,12 @@ def test_precomputed_interpolation_time():
     for it in range(5):
         u.data[it, :] = it
 
-    gridpoints, coefficients = precompute_linear_interpolation(points, grid, origin)
+    gridpoints, interpolation_coeffs = precompute_linear_interpolation(points,
+                                                                       grid, origin)
 
     sf = PrecomputedSparseTimeFunction(name='s', grid=grid, r=r, npoint=len(points),
                                        nt=5, gridpoints=gridpoints,
-                                       coefficients=coefficients)
+                                       interpolation_coeffs=interpolation_coeffs)
 
     assert sf.data.shape == (5, 3)
 

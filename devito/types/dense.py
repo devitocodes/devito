@@ -4,6 +4,7 @@ from functools import wraps, reduce
 from operator import mul
 
 import numpy as np
+import sympy
 from psutil import virtual_memory
 from cached_property import cached_property
 from cgen import Struct, Value
@@ -59,6 +60,11 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
 
             # Staggering metadata
             self._staggered = self.__staggered_setup__(**kwargs)
+
+            # Symbolic (finite difference) coefficients
+            self._coefficients = kwargs.get('coefficients', 'standard')
+            if self._coefficients not in ('standard', 'symbolic'):
+                raise ValueError("coefficients must be `standard` or `symbolic`")
 
             # Data-related properties and data initialization
             self._data = None
@@ -154,6 +160,10 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         # DiscreteFunction is to be considered "local" to each MPI rank
         return kwargs.get('distributor') if grid is None else grid.distributor
 
+    @cached_property
+    def _functions(self):
+        return {self.function}
+
     @property
     def _data_buffer(self):
         """
@@ -182,6 +192,18 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     @property
     def stencil(self):
         return self
+
+    def coefficients(self):
+        """Form of the coefficients of the function."""
+        return self._coefficients
+
+    @cached_property
+    def _coeff_symbol(self):
+        if self.coefficients == 'symbolic':
+            return sympy.Function('W')
+        else:
+            raise ValueError("Function was not declared with symbolic "
+                             "coefficients.")
 
     @cached_property
     def shape(self):
