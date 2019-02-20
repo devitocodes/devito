@@ -274,32 +274,27 @@ def mark_halospot_hoistable(analysis):
             scope = analysis.scopes[i]
             for f, hse in hs.fmapper.items():
                 # The sufficient condition for `f`'s halo-update to be
-                # `hoistable` is that
-
-                # ... there are no anti-dependences along the `loc_indices`
-                test0 = not set(hse.loc_indices) & scope.d_anti.project(f).cause
-
-                # ... AND there are no `hs.dimensions`-induced flow-dependences
-                # touching the halo
-                test1 = True
+                # `hoistable` is that there are no `hs.dimensions`-induced
+                # flow-dependences touching the halo
+                test = True
                 for dep in scope.d_flow.project(f):
-                    test1 = not (dep.cause & set(hs.dimensions))
-                    if test1:
+                    test = not (dep.cause & set(hs.dimensions))
+                    if test:
                         continue
 
-                    test1 = dep.write.is_increment
-                    if test1:
+                    test = dep.write.is_increment
+                    if test:
                         continue
 
-                    test1 = all(not any(dep.read.touched_halo(c.root)) for c in dep.cause)
-                    if test1:
+                    test = all(not any(dep.read.touched_halo(c.root)) for c in dep.cause)
+                    if test:
                         continue
 
                     # `dep` is indeed a flow-dependence touching the halo of distributed
                     # Dimension, so we must assume it's non-hoistable
                     break
 
-                if all([test0, test1]):
+                if test:
                     found.append(f)
 
             if found:
