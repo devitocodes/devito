@@ -38,10 +38,10 @@ class HaloExchangeBuilder(object):
             obj = object.__new__(Overlap2HaloExchangeBuilder)
         else:
             assert False, "unexpected value `mode=%s`" % mode
+        obj._cache = OrderedDict()
         obj._regions = OrderedDict()
         obj._msgs = OrderedDict()
-        obj._efuncs = OrderedDict()
-        obj._cache = OrderedDict()
+        obj._efuncs = []
         return obj
 
     @property
@@ -82,7 +82,7 @@ class HaloExchangeBuilder(object):
         # Callable for compute over the CORE region
         compute = self._make_compute(hs, key)
         if compute is not None:
-            self._efuncs[compute] = [None]
+            self._efuncs.append(compute)
 
         # Callables for send/recv/wait
         for f, hse in hs.fmapper.items():
@@ -99,8 +99,7 @@ class HaloExchangeBuilder(object):
         callcompute = self._call_compute(hs, compute)
         remainder = self._make_remainder(callcompute, hs, key, region)
         if remainder is not None:
-            self._efuncs[remainder] = None
-            self._efuncs.setdefault(callcompute, []).append(remainder.name)
+            self._efuncs.append(remainder)
 
         # Now build up the HaloSpot body, with explicit Calls to the constructed Callables
         body = [callcompute]
@@ -251,10 +250,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         gather = self._make_copy(f, hse, key)
         scatter = self._make_copy(f, hse, key, swap=True)
 
-        self._efuncs[haloupdate] = None
-        self._efuncs[sendrecv] = [haloupdate.name]
-        self._efuncs[gather] = [sendrecv.name]
-        self._efuncs[scatter] = [sendrecv.name]
+        self._efuncs.extend([haloupdate, sendrecv, gather, scatter])
 
         halowait = self._make_halowait(f, hse, key, msg=msg)
         assert halowait is None
@@ -474,18 +470,12 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         sendrecv = self._make_sendrecv(f, hse, key, msg=msg)
         gather = self._make_copy(f, hse, key)
 
-        self._efuncs[haloupdate] = None
-        self._efuncs[sendrecv] = [haloupdate.name]
-        self._efuncs[gather] = [sendrecv.name]
-
         # Callables for wait
         halowait = self._make_halowait(f, hse, key, msg=msg)
         wait = self._make_wait(f, hse, key, msg=msg)
         scatter = self._make_copy(f, hse, key, swap=True)
 
-        self._efuncs[halowait] = None
-        self._efuncs[wait] = [halowait.name]
-        self._efuncs[scatter] = [wait.name]
+        self._efuncs.extend([haloupdate, sendrecv, gather, halowait, wait, scatter])
 
         return haloupdate, halowait
 
@@ -654,15 +644,11 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         haloupdate = self._make_haloupdate(f, hse, key, msg=msg)
         gather = self._make_copy(f, hse, key)
 
-        self._efuncs[haloupdate] = None
-        self._efuncs[gather] = [haloupdate.name]
-
         # Callables for wait
         halowait = self._make_halowait(f, hse, key, msg=msg)
         scatter = self._make_copy(f, hse, key, swap=True)
 
-        self._efuncs[halowait] = None
-        self._efuncs[scatter] = [halowait.name]
+        self._efuncs.extend([haloupdate, gather, halowait, scatter])
 
         return haloupdate, halowait
 

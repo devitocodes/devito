@@ -26,73 +26,21 @@ __all__ = ['BasicRewriter', 'AdvancedRewriter', 'SpeculativeRewriter',
            'AdvancedRewriterSafeMath', 'CustomRewriter']
 
 
-def dle_pass(func):
-    def wrapper(self, state, **kwargs):
-        tic = time()
-        state._process(partial(func, self))
-        toc = time()
-        self.timings[func.__name__] = toc - tic
-    return wrapper
-
-
 class State(object):
 
     def __init__(self, iet):
-        self._efuncs = OrderedDict([('main', iet)])
+        self._efuncs = OrderedDict([('root', iet)])
         self._dimensions = []
         self._input = []
         self._includes = []
 
-        self._call_graph = DAG(nodes=['main'])
-
-    def _process(self, func):
-        """Apply ``func`` to all tracked ``IETs``."""
-
-        for i in self._call_graph.topological_sort():
-            self._efuncs[i], metadata = func(self._efuncs[i])
-
-            # Track any new Dimensions introduced by `func`
-            self._dimensions.extend(list(metadata.get('dimensions', [])))
-
-            # Track any new #include required by `func`
-            self._includes.extend(list(metadata.get('includes', [])))
-            self._includes = filter_ordered(self._includes)
-
-            # If there's a change to the `input` and the `iet` is an efunc, then
-            # we must update the call sites as well, as the arguments dropped down
-            # to the efunc have just increased
-            _input = as_tuple(metadata.get('input'))
-            if _input:
-                # `extif` avoids redundant updates to the parameters list, due
-                # to multiple children wanting to add the same input argument
-                extif = lambda v: list(v) + [e for e in _input if e not in v]
-                stack = [i] + self._call_graph.all_downstreams(i)
-                for n in stack:
-                    efunc = self._efuncs[n]
-                    calls = [c for c in FindNodes(Call).visit(efunc) if c.name in stack]
-                    mapper = {c: c._rebuild(arguments=extif(c.arguments)) for c in calls}
-                    efunc = Transformer(mapper).visit(efunc)
-                    if efunc.is_Callable:
-                        efunc = efunc._rebuild(parameters=extif(efunc.parameters))
-                    self._efuncs[n] = efunc
-                self._input.extend(list(_input))
-
-            for k, v in metadata.get('efuncs', {}).items():
-                # Update the efuncs
-                if k.is_Callable:
-                    self._efuncs[k.name] = k
-                # Update the call graph
-                self._call_graph.add_node(k.name, ignore_existing=True)
-                for target in (v or [None]):
-                    self._call_graph.add_edge(k.name, target or 'main', force_add=True)
-
     @property
     def root(self):
-        return self._efuncs['main']
+        return self._efuncs['root']
 
     @property
     def efuncs(self):
-        return tuple(v for k, v in self._efuncs.items() if k != 'main')
+        return tuple(v for k, v in self._efuncs.items() if k != 'root')
 
     @property
     def dimensions(self):
@@ -105,6 +53,73 @@ class State(object):
     @property
     def includes(self):
         return self._includes
+
+
+def process(func, state):
+    """
+    Apply ``func`` to the IETs in ``state._efuncs``, and update ``state`` accordingly.
+    """
+    # Create a Call graph. `func` will be applied to each node in the Call graph.
+    # `func` might change an `efunc` signature; the Call graph will be used to
+    # propagate such change through the `efunc` callers
+    dag = DAG(nodes=['root'])
+    queue = ['root']
+    while queue:
+        caller = queue.pop(0)
+        callees = FindNodes(Call).visit(state._efuncs[caller])
+        for callee in filter_ordered([i.name for i in callees]):
+            if callee in state._efuncs:  # Exclude foreign Calls, e.g., MPI calls
+                try:
+                    dag.add_node(callee)
+                    queue.append(callee)
+                except KeyError:
+                    # `callee` already in `dag`
+                    pass
+                dag.add_edge(callee, caller)
+    assert dag.size == len(state._efuncs)
+
+    # Apply `func`
+    for i in dag.topological_sort():
+        state._efuncs[i], metadata = func(state._efuncs[i])
+
+        # Track any new Dimensions introduced by `func`
+        state._dimensions.extend(list(metadata.get('dimensions', [])))
+
+        # Track any new #include required by `func`
+        state._includes.extend(list(metadata.get('includes', [])))
+        state._includes = filter_ordered(state._includes)
+
+        # Track any new ElementalFunctions
+        state._efuncs.update(OrderedDict([(i.name, i)
+                                          for i in metadata.get('efuncs', [])]))
+
+        # If there's a change to the `input` and the `iet` is an efunc, then
+        # we must update the call sites as well, as the arguments dropped down
+        # to the efunc have just increased
+        _input = as_tuple(metadata.get('input'))
+        if _input:
+            # `extif` avoids redundant updates to the parameters list, due
+            # to multiple children wanting to add the same input argument
+            extif = lambda v: list(v) + [e for e in _input if e not in v]
+            stack = [i] + dag.all_downstreams(i)
+            for n in stack:
+                efunc = state._efuncs[n]
+                calls = [c for c in FindNodes(Call).visit(efunc) if c.name in stack]
+                mapper = {c: c._rebuild(arguments=extif(c.arguments)) for c in calls}
+                efunc = Transformer(mapper).visit(efunc)
+                if efunc.is_Callable:
+                    efunc = efunc._rebuild(parameters=extif(efunc.parameters))
+                state._efuncs[n] = efunc
+            state._input.extend(list(_input))
+
+
+def dle_pass(func):
+    def wrapper(self, state, **kwargs):
+        tic = time()
+        process(partial(func, self), state)
+        toc = time()
+        self.timings[func.__name__] = toc - tic
+    return wrapper
 
 
 class AbstractRewriter(object):
@@ -276,7 +291,7 @@ class AdvancedRewriter(BasicRewriter):
         iet = fold_blockable_tree(iet, blockinner)
 
         mapper = {}
-        efuncs = OrderedDict()
+        efuncs = []
         block_dims = []
         for tree in retrieve_iteration_tree(iet):
             # Is the Iteration tree blockable ?
@@ -343,8 +358,7 @@ class AdvancedRewriter(BasicRewriter):
 
             # Track everything to ultimately transform the input `iet`
             mapper[root] = efunc1.make_call()
-            efuncs[efunc1] = None
-            efuncs[efunc0] = [efunc1.name]
+            efuncs.extend([efunc1, efunc0])
 
         iet = Transformer(mapper).visit(iet)
 
@@ -362,7 +376,7 @@ class AdvancedRewriter(BasicRewriter):
         for i, hs in enumerate(FindNodes(HaloSpot).visit(iet)):
             heb = user_heb if hs.is_Overlappable else sync_heb
             mapper[hs] = heb.make(hs, i)
-        efuncs = OrderedDict(**sync_heb.efuncs, **user_heb.efuncs)
+        efuncs = sync_heb.efuncs + user_heb.efuncs
         objs = sync_heb.objs + user_heb.objs
         iet = Transformer(mapper, nested=True).visit(iet)
 
