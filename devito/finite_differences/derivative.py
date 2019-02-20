@@ -22,7 +22,7 @@ class Diff(sympy.Derivative, Differentiable):
 
         # expand the dimension depending on the derivative order
         # ie Diff(expr, x, 2) becomes Derivative(expr, (x, 2))
-        if int(deriv_order):
+        if not isinstance(deriv_order, tuple):
             new_dims = tuple([dims[0] for _ in range(deriv_order)])
         else:
             new_dims = []
@@ -86,14 +86,15 @@ class Diff(sympy.Derivative, Differentiable):
 
     @property
     def stencil(self):
+        expr = getattr(self.expr, 'stencil', self.expr)
         if self.side is not None and self.deriv_order == 1:
-            res = first_derivative(self.expr, self.dims[0], self.fd_order,
+            res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side)
         if len(self.dims) > 1:
-            res = cross_derivative(self.expr, self.dims, self.fd_order,
+            res = cross_derivative(expr, self.dims, self.fd_order,
                                    self.deriv_order, stagger=self.stagger)
         else:
-            res = generic_derivative(self.expr, self.dims[0], self.fd_order,
+            res = generic_derivative(expr, self.dims[0], self.fd_order,
                                      self.deriv_order, stagger=self.stagger)
 
         return res
