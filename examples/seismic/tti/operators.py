@@ -2,7 +2,7 @@ from sympy import cos, sin
 
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
-from devito.finite_differences import centered, first_derivative, right, transpose
+from devito.finite_differences import Diff
 
 
 def second_order_stencil(model, u, v, H0, Hz):
@@ -41,26 +41,14 @@ def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
     x, y, z = field.space_dimensions
     Gx1 = (costheta * cosphi * field.dx + costheta * sinphi * field.dyr -
            sintheta * field.dzr)
-    Gxx1 = (first_derivative(Gx1 * costheta * cosphi,
-                             dim=x, side=centered, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gx1 * costheta * sinphi,
-                             dim=y, side=right, fd_order=space_order,
-                             matvec=transpose) -
-            first_derivative(Gx1 * sintheta,
-                             dim=z, side=right, fd_order=space_order,
-                             matvec=transpose))
+    Gxx1 = ((Gx1 * costheta * cosphi).dx.T +
+            (Gx1 * costheta * sinphi).dyr.T -
+            (Gx1 * sintheta).dzr.T)
     Gx2 = (costheta * cosphi * field.dxr + costheta * sinphi * field.dy -
            sintheta * field.dz)
-    Gxx2 = (first_derivative(Gx2 * costheta * cosphi,
-                             dim=x, side=right, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gx2 * costheta * sinphi,
-                             dim=y, side=centered, fd_order=space_order,
-                             matvec=transpose) -
-            first_derivative(Gx2 * sintheta,
-                             dim=z, side=centered, fd_order=space_order,
-                             matvec=transpose))
+    Gxx2 = ((Gx2 * costheta * cosphi).dxr.T +
+            (Gx2 * costheta * sinphi).dy.T -
+            (Gx2 * sintheta).dz.T)
     return -.5 * (Gxx1 + Gxx2)
 
 
@@ -76,19 +64,9 @@ def Gxx_shifted_2d(field, costheta, sintheta, space_order):
     """
     x, y = field.space_dimensions[:2]
     Gx1 = (costheta * field.dxr - sintheta * field.dy)
-    Gxx1 = (first_derivative(Gx1 * costheta, dim=x,
-                             side=right, fd_order=space_order,
-                             matvec=transpose) -
-            first_derivative(Gx1 * sintheta, dim=y,
-                             side=centered, fd_order=space_order,
-                             matvec=transpose))
+    Gxx1 = (Gx1 * costheta).dxr.T - (Gx1 * sintheta).dy.T
     Gx2p = (costheta * field.dx - sintheta * field.dyr)
-    Gxx2 = (first_derivative(Gx2p * costheta, dim=x,
-                             side=centered, fd_order=space_order,
-                             matvec=transpose) -
-            first_derivative(Gx2p * sintheta, dim=y,
-                             side=right, fd_order=space_order,
-                             matvec=transpose))
+    Gxx2 = (Gx2p * costheta).dx.T - (Gx2p * sintheta).dyr.T
 
     return -.5 * (Gxx1 + Gxx2)
 
@@ -105,19 +83,10 @@ def Gyy_shifted(field, cosphi, sinphi, space_order):
     """
     x, y = field.space_dimensions[:2]
     Gyp = (sinphi * field.dx - cosphi * field.dyr)
-    Gyy = (first_derivative(Gyp * sinphi,
-                            dim=x, side=centered, fd_order=space_order,
-                            matvec=transpose) -
-           first_derivative(Gyp * cosphi,
-                            dim=y, side=right, fd_order=space_order,
-                            matvec=transpose))
+    Gyy = (Gyp * sinphi).dx.T - (Gyp * cosphi).dy.T
     Gyp2 = (sinphi * field.dxr - cosphi * field.dy)
-    Gyy2 = (first_derivative(Gyp2 * sinphi,
-                             dim=x, side=right, fd_order=space_order,
-                             matvec=transpose) -
-            first_derivative(Gyp2 * cosphi,
-                             dim=y, side=centered, fd_order=space_order,
-                             matvec=transpose))
+    Gyy2 = (Gyp2 * sinphi).dxr.T - (Gyp2 * cosphi).dy.T
+
     return -.5 * (Gyy + Gyy2)
 
 
@@ -136,26 +105,14 @@ def Gzz_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
     x, y, z = field.space_dimensions
     Gzr = (sintheta * cosphi * field.dx + sintheta * sinphi * field.dyr +
            costheta * field.dzr)
-    Gzz = (first_derivative(Gzr * sintheta * cosphi,
-                            dim=x, side=centered, fd_order=space_order,
-                            matvec=transpose) +
-           first_derivative(Gzr * sintheta * sinphi,
-                            dim=y, side=right, fd_order=space_order,
-                            matvec=transpose) +
-           first_derivative(Gzr * costheta,
-                            dim=z, side=right, fd_order=space_order,
-                            matvec=transpose))
+    Gzz = ((Gzr * sintheta * cosphi).dx.T +
+           (Gzr * sintheta * sinphi).dyr.T +
+           (Gzr * costheta).dzr.T)
     Gzr2 = (sintheta * cosphi * field.dxr + sintheta * sinphi * field.dy +
             costheta * field.dz)
-    Gzz2 = (first_derivative(Gzr2 * sintheta * cosphi,
-                             dim=x, side=right, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gzr2 * sintheta * sinphi,
-                             dim=y, side=centered, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gzr2 * costheta,
-                             dim=z, side=centered, fd_order=space_order,
-                             matvec=transpose))
+    Gzz2 = ((Gzr2 * sintheta * cosphi).dxr.T +
+            (Gzr2 * sintheta * sinphi).dy.T +
+            (Gzr2 * costheta).dzr.T)
     return -.5 * (Gzz + Gzz2)
 
 
@@ -171,19 +128,9 @@ def Gzz_shifted_2d(field, costheta, sintheta, space_order):
     """
     x, y = field.space_dimensions[:2]
     Gz1r = (sintheta * field.dxr + costheta * field.dy)
-    Gzz1 = (first_derivative(Gz1r * sintheta, dim=x,
-                             side=right, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gz1r * costheta, dim=y,
-                             side=centered, fd_order=space_order,
-                             matvec=transpose))
+    Gzz1 = (Gz1r * sintheta).dxr.T + (Gz1r * costheta).dy.T
     Gz2r = (sintheta * field.dx + costheta * field.dyr)
-    Gzz2 = (first_derivative(Gz2r * sintheta, dim=x,
-                             side=centered, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gz2r * costheta, dim=y,
-                             side=right, fd_order=space_order,
-                             matvec=transpose))
+    Gzz2 = (Gz2r * sintheta).dx.T + (Gz2r * costheta).dyr.T
 
     return -.5 * (Gzz1 + Gzz2)
 
