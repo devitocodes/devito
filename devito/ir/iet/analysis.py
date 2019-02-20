@@ -240,11 +240,6 @@ def mark_halospot_useless(analysis):
             properties[hs] = USELESS
             continue
 
-        # * ALL of its Dimensions are guaranteed to be local
-        if all(not d._maybe_distributed for d in hs.dimensions):
-            properties[hs] = USELESS
-            continue
-
         # * ALL reads pertain to an increment expression
         test = False
         scope = analysis.scopes[iterations[0]]
