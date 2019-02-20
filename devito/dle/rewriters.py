@@ -252,13 +252,13 @@ class AdvancedRewriter(BasicRewriter):
                 for i in g:
                     if i.is_HaloSpot:
                         root = i
+                        mapper[root] = [root.body]
                     elif root and all(j.is_Affine for j in FindNodes(Iteration).visit(i)):
-                        rebuilt = mapper.get(root, root)
-                        body = List(body=as_tuple(root.body) + (i,))
-                        mapper[root] = rebuilt._rebuild(body=body)
+                        mapper[root].append(i)
                         mapper[i] = None
                     else:
                         root = None
+        mapper = {k: k._rebuild(body=List(body=v)) if v else v for k, v in mapper.items()}
         iet = Transformer(mapper).visit(iet)
 
         return iet, {}
