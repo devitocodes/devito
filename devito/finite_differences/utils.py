@@ -6,12 +6,12 @@ from devito.finite_differences.derivative import Diff
 
 def diff(expr, *dims, deriv_order=1, fd_order=1, side=centered, **kwargs):
     return Diff(expr, *dims, deriv_order=deriv_order,
-                fd_order=fd_order, side=centered, **kwargs)
+                fd_order=fd_order, side=side, **kwargs)
 
 
 def partial_derivative(expr, deriv_order, dims, fd_order, side=centered, **kwargs):
     new_obj = Diff(expr, dims, deriv_order=deriv_order,
-                   fd_order=fd_order, side=centered, **kwargs)
+                   fd_order=fd_order, side=side, **kwargs)
     return new_obj
 
 

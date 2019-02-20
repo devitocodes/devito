@@ -3,8 +3,8 @@ import sympy
 from cached_property import cached_property
 
 from devito.finite_differences.finite_difference import (left, right, centered,
-                                                         generic_derivative,
-                                                         first_derivative,
+                                                         generic_derivative, transpose,
+                                                         first_derivative, direct,
                                                          cross_derivative)
 from devito.finite_differences.differentiable import Differentiable
 
@@ -19,7 +19,6 @@ class Diff(sympy.Derivative, Differentiable):
 
     def __new__(cls, expr, *dims, **kwargs):
         deriv_order = kwargs.get("deriv_order", 1)
-
         # expand the dimension depending on the derivative order
         # ie Diff(expr, x, 2) becomes Derivative(expr, (x, 2))
         if not isinstance(deriv_order, tuple):
@@ -42,6 +41,7 @@ class Diff(sympy.Derivative, Differentiable):
         self._deriv_order = deriv_order
         self._stagger = kwargs.get("stagger", self._stagger_setup)
         self._side = kwargs.get("side", None)
+        self._transpose = kwargs.get("transpose", direct)
 
     @cached_property
     def dims(self):
@@ -85,12 +85,26 @@ class Diff(sympy.Derivative, Differentiable):
         return side
 
     @property
+    def transpose(self):
+        return self._transpose
+
+    @property
+    def T(self):
+        """transpose of the derivative"""
+        if self._transpose == direct:
+            self._transpose = transpose
+        else:
+            self._transpose = direct
+
+        return self
+
+    @property
     def stencil(self):
         expr = getattr(self.expr, 'stencil', self.expr)
         if self.side is not None and self.deriv_order == 1:
             res = first_derivative(expr, self.dims[0], self.fd_order,
-                                   side=self.side)
-        if len(self.dims) > 1:
+                                   side=self.side, matvec=self.transpose)
+        elif len(self.dims) > 1:
             res = cross_derivative(expr, self.dims, self.fd_order,
                                    self.deriv_order, stagger=self.stagger)
         else:

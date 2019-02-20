@@ -68,18 +68,12 @@ class Differentiable(sympy.Expr):
 
     @property
     def stencil(self):
-        return self.func(*[getattr(a, 'stencil', a) for a in self.args])
+        return self.func(*[getattr(to_differentiable(a), 'stencil', to_differentiable(a))
+                           for a in self.args])
 
     def xreplace(self, rules):
         new = super(Differentiable, self).xreplace(rules)
-        if new.is_Add:
-            return Add(*new.args)
-        elif new.is_Mul:
-            return Mul(*new.args)
-        elif new.is_Pow:
-            return Pow(*new.args)
-        else:
-            return new
+        return to_differentiable(new)
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()
@@ -229,10 +223,10 @@ evalf_table[Pow] = evalf_table[sympy.Pow]
 
 def to_differentiable(expr):
     if expr.is_Pow:
-        return Pow(*expr.args)
+        return Pow(*[to_differentiable(a) for a in expr.args])
     elif expr.is_Add:
-        return Add(*expr.args)
+        return Add(*[to_differentiable(a) for a in expr.args])
     elif expr.is_Mul:
-        return Mul(*expr.args)
+        return Mul(*[to_differentiable(a) for a in expr.args])
     else:
         return expr
