@@ -6,7 +6,7 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
                     SubDimension, Eq, Inc, Operator, norm, inner, switchconfig)
 from devito.data import LEFT, RIGHT
-from devito.ir.iet import Call, Conditional, Iteration, FindNodes
+from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
 from devito.mpi import MPI
 from examples.seismic.acoustic import acoustic_setup
 
@@ -761,6 +761,40 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
         destinations = {i.arguments[-2].field for i in calls}
         assert destinations == expected
+
+    @pytest.mark.parallel(mode=[(1, 'full')])
+    def test_poke_progress(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+
+        eqn = Eq(f.forward, f[t, x-1, y] + f[t, x+1, y] + f[t, x, y-1] + f[t, x, y+1])
+        op = Operator(eqn)
+
+        trees = retrieve_iteration_tree(op._func_table['compute0'].root)
+        assert len(trees) == 2
+        tree = trees[1]
+        # Make sure `pokempi0` is within the outer Iteration
+        assert len(tree) == 2
+        assert len(tree.root.nodes) == 2
+        call = tree.root.nodes[0]
+        assert call.name == 'pokempi0'
+        assert call.arguments[0].name == 'msg0_0'
+
+        # Now we do as before, but enforcing loop blocking (by default off,
+        # as heuristically it is not enabled when the Iteration nest has depth < 3)
+        op = Operator(eqn, dle=('advanced', {'blockinner': True}))
+        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+        assert len(trees) == 2
+        tree = trees[1]
+        # Make sure `pokempi0` is within the inner Iteration over blocks
+        assert len(tree) == 4
+        assert len(tree.root.nodes[0].nodes) == 2
+        call = tree.root.nodes[0].nodes[0]
+        assert call.name == 'pokempi0'
+        assert call.arguments[0].name == 'msg0_0'
 
 
 class TestOperatorAdvanced(object):
