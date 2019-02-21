@@ -311,11 +311,6 @@ class TestFunction(object):
                    for i, j in zip(f.local_indices, expected[grid.distributor.myrank]))
 
 
-class TestCodeGeneration(object):
-
-    pass
-
-
 class TestSparseFunction(object):
 
     @pytest.mark.parallel(mode=4)
@@ -557,6 +552,26 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
+    @pytest.mark.parallel(mode=2)
+    def test_reapply_with_different_functions(self):
+        grid1 = Grid(shape=(30, 30, 30))
+        f1 = Function(name='f', grid=grid1, space_order=4)
+
+        op = Operator(Eq(f1, 1.))
+        op.apply()
+
+        grid2 = Grid(shape=(40, 40, 40))
+        f2 = Function(name='f', grid=grid2, space_order=4)
+
+        # Re-application
+        op.apply(f=f2)
+
+        assert np.all(f1.data == 1.)
+        assert np.all(f2.data == 1.)
+
+
+class TestCodeGeneration(object):
+
     def test_avoid_haloupdate_as_nostencil_basic(self):
         grid = Grid(shape=(12,))
 
@@ -722,23 +737,6 @@ class TestOperatorSimple(object):
             assert np.all(g.data_ro_domain[1, 1:] == 2.)
         else:
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
-
-    @pytest.mark.parallel(mode=2)
-    def test_reapply_with_different_functions(self):
-        grid1 = Grid(shape=(30, 30, 30))
-        f1 = Function(name='f', grid=grid1, space_order=4)
-
-        op = Operator(Eq(f1, 1.))
-        op.apply()
-
-        grid2 = Grid(shape=(40, 40, 40))
-        f2 = Function(name='f', grid=grid2, space_order=4)
-
-        # Re-application
-        op.apply(f=f2)
-
-        assert np.all(f1.data == 1.)
-        assert np.all(f2.data == 1.)
 
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
