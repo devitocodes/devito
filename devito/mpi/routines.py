@@ -36,6 +36,8 @@ class HaloExchangeBuilder(object):
             obj = object.__new__(OverlapHaloExchangeBuilder)
         elif mode == 'overlap2':
             obj = object.__new__(Overlap2HaloExchangeBuilder)
+        elif mode == 'full':
+            obj = object.__new__(FullHaloExchangeBuilder)
         else:
             assert False, "unexpected value `mode=%s`" % mode
         obj._cache = OrderedDict()
@@ -757,6 +759,16 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         iet = Iteration(iet, dim, region.nregions - 1)
 
         return make_efunc('remainder%s' % key, iet)
+
+
+class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
+
+    """
+    A Overlap2HaloExchangeBuilder which generates explicit Calls to MPI_Test
+    poking the MPI runtime to advance communication while computing.
+    """
+
+    pass
 
 
 class MPIStatusObject(LocalObject):
