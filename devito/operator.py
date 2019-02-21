@@ -177,7 +177,6 @@ class Operator(Callable):
         iet = iet_build(stree)
         iet, self._profiler = self._profile_sections(iet)
         iet = self._specialize_iet(iet, **kwargs)
-        iet = self._generate_mpi(iet, **kwargs)
         iet = iet_insert_C_decls(iet)
         iet = self._build_casts(iet)
 
@@ -224,7 +223,7 @@ class Operator(Callable):
         dle = kwargs.get("dle", configuration['dle'])
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
-        state = transform(iet, *set_dle_mode(dle))
+        iet, state = transform(iet, *set_dle_mode(dle))
 
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                              for i in state.efuncs]))
@@ -232,10 +231,6 @@ class Operator(Callable):
         self.input.extend(state.input)
         self._includes.extend(state.includes)
 
-        return state.nodes
-
-    def _generate_mpi(self, iet, **kwargs):
-        """Transform the IET adding nodes performing halo exchanges."""
         return iet
 
     def _build_casts(self, iet):
@@ -245,7 +240,11 @@ class Operator(Callable):
 
     def _build_parameters(self, iet):
         """Derive the Operator parameters."""
-        return derive_parameters(iet, True)
+        parameters = derive_parameters(iet, True)
+        # Hackish: add parameters not emebedded directly in any IET node,
+        # e.g. those produced by the DLE or by a backend
+        parameters.extend([i for i in self.input if i not in parameters])
+        return tuple(parameters)
 
     # Arguments processing
 
@@ -476,19 +475,20 @@ class Operator(Callable):
         symbolic expressions, one symbolic expression for each memory scope (external,
         stack, heap).
         """
-        tensors = [i for i in derive_parameters(self) if i.is_Tensor]
+        roots = [self] + [i.root for i in self._func_table.values()]
+        functions = [i for i in derive_parameters(roots) if i.is_Function]
 
         summary = {}
 
-        external = [i.symbolic_shape for i in tensors if i._mem_external]
+        external = [i.symbolic_shape for i in functions if i._mem_external]
         external = sum(reduce(mul, i, 1) for i in external)*self._dtype().itemsize
         summary['external'] = external
 
-        heap = [i.symbolic_shape for i in tensors if i._mem_heap]
+        heap = [i.symbolic_shape for i in functions if i._mem_heap]
         heap = sum(reduce(mul, i, 1) for i in heap)*self._dtype().itemsize
         summary['heap'] = heap
 
-        stack = [i.symbolic_shape for i in tensors if i._mem_stack]
+        stack = [i.symbolic_shape for i in functions if i._mem_stack]
         stack = sum(reduce(mul, i, 1) for i in stack)*self._dtype().itemsize
         summary['stack'] = stack
 

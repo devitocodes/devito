@@ -118,6 +118,12 @@ class PrintAST(Visitor):
         else:
             return self.indent + str(o)
 
+    def visit_ForeignExpression(self, o):
+        if self.verbose:
+            return self.indent + "<Expression %s>" % o.expr
+        else:
+            return self.indent + str(o)
+
     def visit_HaloSpot(self, o):
         self._depth += 1
         body = self._visit(o.children)
@@ -338,6 +344,8 @@ class FindSections(Visitor):
             ret = self._visit(i, ret=ret, queue=queue)
         return ret
 
+    visit_list = visit_tuple
+
     def visit_Node(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
@@ -491,6 +499,8 @@ class FindSymbols(Visitor):
         symbols = flatten([self._visit(i) for i in o])
         return filter_sorted(symbols, key=attrgetter('name'))
 
+    visit_list = visit_tuple
+
     def visit_Iteration(self, o):
         symbols = flatten([self._visit(i) for i in o.children])
         symbols += self.rule(o)
@@ -544,6 +554,8 @@ class FindNodes(Visitor):
             ret = self._visit(i, ret=ret)
         return ret
 
+    visit_list = visit_tuple
+
     def visit_Node(self, o, ret=None):
         if ret is None:
             ret = self.default_retval()
@@ -568,7 +580,7 @@ class FindAdjacent(Visitor):
 
     def __init__(self, match):
         super(FindAdjacent, self).__init__()
-        self.match = match
+        self.match = as_tuple(match)
 
     def handler(self, o, parent=None, ret=None):
         if ret is None:
@@ -602,7 +614,7 @@ class FindAdjacent(Visitor):
 
     def visit_Node(self, o, parent=None, ret=None):
         ret = self.handler(o.children, parent=o, ret=ret)
-        ret['seen_type'] = type(o) is self.match
+        ret['seen_type'] = type(o) in self.match
         return ret
 
 

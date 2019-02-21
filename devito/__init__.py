@@ -43,6 +43,17 @@ configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i), False)
 # (e.g., for educational purposes) by playing with the `codegen` configuration knob
 configuration.add('codegen', 'parametric', ['parametric', 'explicit'])
 
+# Escape hatch for custom kernels. The typical use case is as follows: one lets
+# Devito generate code for an Operator; then, once the session is over, the
+# generated file is manually modified (e.g., for debugging or for performance
+# experimentation); finally, when re-running the same program, Devito won't
+# overwrite the user-modified files (thus entirely bypassing code generation),
+# and will instead use the custom kernel
+configuration.add('jit-backdoor', 0, [0, 1], lambda i: bool(i), False)
+
+# (Undocumented) escape hatch for cross-compilation
+configuration.add('cross-compile', None)
+
 # Execution mode setup
 def _reinit_compiler(val):  # noqa
     # Force re-build the compiler
@@ -79,9 +90,6 @@ configuration.add('isa', 'cpp', ISAs)
 # Set the CPU architecture (only codename)
 PLATFORMs = ['intel64', 'snb', 'ivb', 'hsw', 'bdw', 'skx', 'knl']
 configuration.add('platform', 'intel64', PLATFORMs)
-
-# (Undocumented) escape hatch for cross-compilation
-configuration.add('cross-compile', None)
 
 
 def infer_cpu():

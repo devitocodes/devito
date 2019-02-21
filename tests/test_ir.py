@@ -6,8 +6,9 @@ from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
                     Operator, Dimension, SubDimension)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
-from devito.ir.iet.nodes import Conditional, Expression, Iteration
-from devito.ir.iet.visitors import FindNodes
+from devito.ir.iet import (ArrayCast, Conditional, Expression, Iteration, FindNodes,
+                           FindSymbols, retrieve_iteration_tree, filter_iterations,
+                           make_efunc)
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      AFFINE, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
@@ -15,6 +16,7 @@ from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
 from devito.ir.support.utils import detect_flow_directions
 from devito.symbolics import indexify
 from devito.types import Scalar
+from devito.tools import as_tuple
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -496,9 +498,9 @@ class TestDependenceAnalysis(object):
         assert all(mapper.get(i) == {Any} for i in grid.dimensions)
 
 
-class TestIET(object):
+class TestIETConstruction(object):
 
-    def test_nodes_conditional(self, fc):
+    def test_conditional(self, fc):
         then_body = Expression(DummyEq(fc[x, y], fc[x, y] + 1))
         else_body = Expression(DummyEq(fc[x, y], fc[x, y] + 2))
         conditional = Conditional(x < 3, then_body, else_body)
@@ -511,6 +513,63 @@ else
 {
   fc[x][y] = fc[x][y] + 2;
 }"""
+
+    @pytest.mark.parametrize("exprs,nfuncs,ntimeiters,nests", [
+        (('Eq(v[t+1,x,y], v[t,x,y] + 1)',), (1,), (2,), ('xy',)),
+        (('Eq(v[t,x,y], v[t,x-1,y] + 1)', 'Eq(v[t,x,y], v[t,x+1,y] + u[x,y])'),
+         (1, 2), (1, 1), ('xy', 'xy'))
+    ])
+    def test_make_efuncs(self, exprs, nfuncs, ntimeiters, nests):
+        """Test construction of ElementalFunctions."""
+        exprs = list(as_tuple(exprs))
+
+        grid = Grid(shape=(10, 10))
+        t = grid.stepping_dim  # noqa
+        x, y = grid.dimensions  # noqa
+
+        u = Function(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(exprs)):
+            exprs[i] = eval(e)
+
+        op = Operator(exprs)
+
+        # We create one ElementalFunction for each Iteration nest over space dimensions
+        efuncs = []
+        for n, tree in enumerate(retrieve_iteration_tree(op)):
+            root = filter_iterations(tree, key=lambda i: i.dim.is_Space, stop='asap')
+            efuncs.append(make_efunc('f%d' % n, root))
+
+        assert len(efuncs) == len(nfuncs) == len(ntimeiters) == len(nests)
+
+        for efunc, nf, nt, nest in zip(efuncs, nfuncs, ntimeiters, nests):
+            # Check the `efunc` parameters
+            assert all(i in efunc.parameters for i in (x.symbolic_min, x.symbolic_max))
+            assert all(i in efunc.parameters for i in (y.symbolic_min, y.symbolic_max))
+            functions = FindSymbols().visit(efunc)
+            assert len(functions) == nf
+            assert all(i in efunc.parameters for i in functions)
+            timeiters = [i for i in FindSymbols('free-symbols').visit(efunc)
+                         if i.is_Dimension and i.is_Time]
+            assert len(timeiters) == nt
+            assert all(i in efunc.parameters for i in timeiters)
+            assert len(efunc.parameters) == 4 + len(functions) + len(timeiters)
+
+            # Check there's exactly one ArrayCast for each Function
+            assert len(FindNodes(ArrayCast).visit(efunc)) == nf
+
+            # Check the loop nest structure
+            trees = retrieve_iteration_tree(efunc)
+            assert len(trees) == 1
+            tree = trees[0]
+            assert all(i.dim.name == j for i, j in zip(tree, nest))
+
+            assert efunc.make_call()
+
+
+class TestIETAnalysis(object):
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
         (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry], cx*cy*src)'],

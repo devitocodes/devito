@@ -4,10 +4,10 @@ import numpy as np
 import cgen as c
 import psutil
 
-from devito.ir.equations import DummyEq
-from devito.ir.iet import (FindSymbols, FindNodes, Transformer, Block, Expression,
-                           LocalExpression, List, Iteration, retrieve_iteration_tree,
-                           filter_iterations, IsPerfectIteration, COLLAPSED)
+from devito.ir.iet import (Conditional, Block, Element, Expression, List, FindSymbols,
+                           FindNodes, Transformer, IsPerfectIteration, COLLAPSED,
+                           retrieve_iteration_tree, filter_iterations)
+from devito.symbolics import CondEq
 from devito.parameters import configuration
 from devito.types import Constant, Symbol
 
@@ -22,7 +22,7 @@ def ncores():
 class NThreads(Constant):
 
     def __new__(cls, **kwargs):
-        return super(NThreads, cls).__new__(cls, name='nthreads', dtype=np.int32,
+        return super(NThreads, cls).__new__(cls, name=kwargs['name'], dtype=np.int32,
                                             value=ncores())
 
 
@@ -34,7 +34,7 @@ class Ompizer(object):
 
     lang = {
         'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
-        'par-region': lambda i: c.Pragma('omp parallel num_threads(nt) %s' % i),
+        'par-region': lambda nt, i: c.Pragma('omp parallel num_threads(%s) %s' % (nt, i)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
@@ -43,16 +43,33 @@ class Ompizer(object):
     Shortcuts for the OpenMP language.
     """
 
-    def __init__(self, key):
+    def __init__(self, key=None):
         """
         Parameters
         ----------
-        key : callable
+        key : callable, optional
             Return True if an Iteration can be parallelized, False otherwise.
         """
-        self.key = key
+        if key is not None:
+            self.key = key
+        else:
+            self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorizable
+        self.nthreads = NThreads(name='nthreads')
 
     def _ncollapse(self, root, candidates):
+        # The OpenMP specification forbids collapsed loops to use iteration variables
+        # in initializer expressions. For example, the following is forbidden:
+        #
+        # #pragma omp ... collapse(2)
+        # for (int i = ... )
+        #   for (int j = i ...)
+        #     ...
+        #
+        # Below, we make sure this won't happen
+        for n, i in enumerate(candidates):
+            if any(j.dim in i.symbolic_min.free_symbols for j in candidates[:n]):
+                break
+        candidates = candidates[:n]
         # Heuristic: if at least two parallel loops are available and the
         # physical core count is greater than COLLAPSE, then omp-collapse them
         nparallel = len(candidates)
@@ -63,7 +80,7 @@ class Ompizer(object):
             return nparallel
 
     def _make_parallel_tree(self, root, candidates):
-        """Return a mapper to parallelize the Iterations within ``root``."""
+        """Parallelize the IET rooted in `root`."""
         ncollapse = self._ncollapse(root, candidates)
         parallel = self.lang['for'](ncollapse)
 
@@ -82,55 +99,41 @@ class Ompizer(object):
         else:
             mapper[root] = root._rebuild(pragmas=pragmas, properties=properties)
 
-        return mapper
+        root = Transformer(mapper).visit(root)
+
+        return root
 
     def make_parallel(self, iet):
-        """
-        Transform ``iet`` by decorating its parallel Iterations with suitable
-        ``#pragma omp ...`` for thread-level parallelism.
-        """
-        # Group sequences of loops that should go within the same parallel region
-        was_tagged = False
-        groups = OrderedDict()
+        """Transform ``iet`` by introducing shared-memory parallelism."""
+        mapper = OrderedDict()
         for tree in retrieve_iteration_tree(iet):
-            # Determine the number of consecutive parallelizable Iterations
+            # Get the first omp-parallelizable Iteration in `tree`
             candidates = filter_iterations(tree, key=self.key, stop='asap')
             if not candidates:
-                was_tagged = False
                 continue
-            # Consecutive tagged Iteration go in the same group
-            is_tagged = any(i.tag is not None for i in tree)
-            key = len(groups) - (is_tagged & was_tagged)
-            handle = groups.setdefault(key, OrderedDict())
-            handle[candidates[0]] = candidates
-            was_tagged = is_tagged
+            root = candidates[0]
 
-        mapper = OrderedDict()
-        for group in groups.values():
-            private = []
-            for root, candidates in group.items():
-                mapper.update(self._make_parallel_tree(root, candidates))
+            # Build the `omp-for` tree
+            partree = self._make_parallel_tree(root, candidates)
 
-                # Track the thread-private and thread-shared variables
-                private.extend([i for i in FindSymbols('symbolics').visit(root)
-                                if i.is_Array and i._mem_stack])
+            # Find out the thread-private and thread-shared variables
+            private = [i for i in FindSymbols().visit(partree)
+                       if i.is_Array and i._mem_stack]
 
-            # Build the parallel region
+            # Build the `omp-parallel` region
             private = sorted(set([i.name for i in private]))
             private = ('private(%s)' % ','.join(private)) if private else ''
-            rebuilt = [v for k, v in mapper.items() if k in group]
-            par_region = Block(header=self.lang['par-region'](private), body=rebuilt)
-            for k, v in list(mapper.items()):
-                if isinstance(v, Iteration):
-                    mapper[k] = None if v.is_Remainder else par_region
-        processed = Transformer(mapper).visit(iet)
+            partree = Block(header=self.lang['par-region'](self.nthreads.name, private),
+                            body=partree)
 
-        # Hack/workaround to the fact that the OpenMP pragmas are not true
-        # IET nodes, so the `nthreads` variables won't be detected as a
-        # Callable parameter unless inserted in a mock Expression
-        if mapper:
-            nt = NThreads()
-            eq = LocalExpression(DummyEq(Symbol(name='nt', dtype=np.int32), nt))
-            return List(body=[eq, processed]), {'input': [nt]}
-        else:
-            return List(body=processed), {}
+            # Do not enter the parallel region if the step increment might be 0; this
+            # would raise a `Floating point exception (core dumped)` in some OpenMP
+            # implementation. Note that using an OpenMP `if` clause won't work
+            if isinstance(root.step, Symbol):
+                cond = Conditional(CondEq(root.step, 0), Element(c.Statement('return')))
+                partree = List(body=[cond, partree])
+
+            mapper[root] = partree
+        iet = Transformer(mapper).visit(iet)
+
+        return iet, {'input': [self.nthreads] if mapper else []}

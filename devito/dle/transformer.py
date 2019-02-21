@@ -1,5 +1,5 @@
 from devito.ir.iet import Node
-from devito.dle.backends import State, CustomRewriter
+from devito.dle.rewriters import CustomRewriter, State
 from devito.exceptions import DLEException
 from devito.logger import dle_warning
 from devito.parameters import configuration
@@ -56,6 +56,7 @@ def transform(iet, mode='basic', options=None):
                            performance.
     options : dict, optional
         - ``openmp``: Enable/disable OpenMP. Defaults to `configuration['openmp']`.
+        - ``mpi``: Enable/disable MPI. Defaults to `configuration['mpi']`.
         - ``blockinner``: Enable/disable blocking of innermost loops. By default,
                           this is disabled to maximize SIMD vectorization. Pass True
                           to override this heuristic.
@@ -75,6 +76,7 @@ def transform(iet, mode='basic', options=None):
     params.update({k: v for k, v in configuration['dle-options'].items()
                    if k not in params})
     params.setdefault('openmp', configuration['openmp'])
+    params.setdefault('mpi', configuration['mpi'])
 
     # Force OpenMP if parallelism was requested, even though mode is 'noop'
     if mode == 'noop' and params['openmp'] is True:
@@ -82,14 +84,14 @@ def transform(iet, mode='basic', options=None):
 
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':
-        return State(iet)
+        return iet, State(iet)
     elif mode not in default_modes:
         try:
-            rewriter = CustomRewriter(iet, mode, params)
-            return rewriter.run()
+            rewriter = CustomRewriter(mode, params)
+            return rewriter.run(iet)
         except DLEException:
             dle_warning("Unknown transformer mode(s) %s" % mode)
-            return State(iet)
+            return iet, State(iet)
     else:
-        rewriter = default_modes[mode](iet, params)
-        return rewriter.run()
+        rewriter = default_modes[mode](params)
+        return rewriter.run(iet)

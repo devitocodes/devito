@@ -320,8 +320,8 @@ class TestCodeGeneration(object):
 
         f = TimeFunction(name='f', grid=grid)
 
-        heb = HaloExchangeBuilder(False)
-        gather, _ = heb._make_copy(f, [t])
+        heb = HaloExchangeBuilder()
+        gather = heb._make_copy(f, [t])
         assert str(gather.parameters) == """\
 (buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
         assert """\
@@ -334,13 +334,13 @@ class TestCodeGeneration(object):
   }""" in str(gather)
 
     @pytest.mark.parallel(mode=1)
-    def test_iet_sendrecv(self):
+    def test_iet_basic_sendrecv(self):
         grid = Grid(shape=(4, 4))
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        heb = HaloExchangeBuilder(False)
+        heb = HaloExchangeBuilder()
         sendrecv = heb._make_sendrecv(f, [t])
         assert str(sendrecv.parameters) == """\
 (f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
@@ -368,16 +368,16 @@ free(bufs);
 free(bufg);"""
 
     @pytest.mark.parallel(mode=1)
-    def test_iet_haloupdate(self):
+    def test_iet_basic_haloupdate(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         t = grid.stepping_dim
 
         f = TimeFunction(name='f', grid=grid)
 
-        heb = HaloExchangeBuilder(False)
+        heb = HaloExchangeBuilder()
         mock_halo = {(x, LEFT): True, (x, RIGHT): True, (y, LEFT): True, (y, RIGHT): True}
-        haloupdate = heb._make_haloupdate(f, [t], mock_halo, uniquekey='')
+        haloupdate = heb._make_haloupdate(f, [t], mock_halo, key='')
         assert str(haloupdate.parameters) == """\
 (f(t, x, y), comm, nb, otime)"""
         assert str(haloupdate.body[0]) == """\
