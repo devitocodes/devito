@@ -12,14 +12,13 @@ from devito.cgen_utils import ccode
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
-                           USELESS)
+                           VECTOR, WRAPPABLE, AFFINE, USELESS)
 from devito.ir.support import Forward, detect_io
 from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
-from devito.types import Dimension, Symbol, Indexed
+from devito.types import Symbol, Indexed
 from devito.types.basic import AbstractFunction
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
@@ -208,9 +207,10 @@ class Call(Node):
         for p in self.params:
             if isinstance(p, numbers.Number):
                 continue
-            free.update(p.free_symbols)
-        # HACK: Filter dimensions to avoid them on popping onto outer parameters
-        free = tuple(s for s in free if not isinstance(s, Dimension))
+            elif isinstance(p, AbstractFunction):
+                free.add(p)
+            else:
+                free.update(p.free_symbols)
         return free
 
     @property
@@ -391,16 +391,8 @@ class Iteration(Node):
         return VECTOR in self.properties
 
     @property
-    def is_Elementizable(self):
-        return ELEMENTAL in self.properties
-
-    @property
     def is_Wrappable(self):
         return WRAPPABLE in self.properties
-
-    @property
-    def is_Remainder(self):
-        return REMAINDER in self.properties
 
     @property
     def ncollapsed(self):
@@ -408,25 +400,6 @@ class Iteration(Node):
             if i.name == 'collapsed':
                 return i.val
         return 0
-
-    @property
-    def tag(self):
-        for i in self.properties:
-            if i.name == 'tag':
-                return i.val
-        return None
-
-    def retag(self, tag_value=None):
-        """
-        Create a new Iteration object which is identical to ``self``, except
-        for the tag. If provided, ``tag_value`` is used as new tag; otherwise,
-        an internally generated tag is used.
-        """
-        if self.tag is None:
-            return self._rebuild()
-        properties = [tagger(tag_value or (ntags() + 1)) if i.name == 'tag' else i
-                      for i in self.properties]
-        return self._rebuild(properties=properties)
 
     @property
     def symbolic_bounds(self):
@@ -460,11 +433,6 @@ class Iteration(Node):
         """The symbolic max of the Iteration."""
         return self.symbolic_bounds[1]
 
-    @property
-    def symbolic_incr(self):
-        """The symbolic increment of the Iteration."""
-        return self.limits[2]
-
     def bounds(self, _min=None, _max=None):
         """
         The bounds [min, max] of the Iteration, as numbers if min/max are supplied,
@@ -477,6 +445,11 @@ class Iteration(Node):
         _max = _max + self.offsets[1]
 
         return (_min, _max)
+
+    @property
+    def step(self):
+        """The step value."""
+        return self.limits[2]
 
     def size(self, _min=None, _max=None):
         """The size of the iteration space if _min/_max are supplied, None otherwise."""

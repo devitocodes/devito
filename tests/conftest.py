@@ -20,8 +20,13 @@ except ImportError:
     MPI = None
 
 
-def skipif(items):
+def skipif(items, whole_module=False):
+    assert isinstance(whole_module, bool)
     items = as_tuple(items)
+    if whole_module is True:
+        skipper = lambda i, j: pytest.skip(j, allow_module_level=True)
+    else:
+        skipper = lambda i, j: pytest.mark.skipif(i, reason=j)
     # Sanity check
     accepted = set(configuration._accepted['backend'])
     accepted.update({'no%s' % i for i in configuration._accepted['backend']})
@@ -33,18 +38,18 @@ def skipif(items):
         # Skip if no MPI
         if i == 'nompi':
             if MPI is None:
-                return pytest.mark.skipif(True, reason="mpi4py/MPI not installed")
+                return skipper(True, "mpi4py/MPI not installed")
             continue
         # Skip if an unsupported backend
         if i == configuration['backend']:
-            return pytest.mark.skipif(True, reason="`%s` backend unsupported" % i)
+            return skipper(True, "`%s` backend unsupported" % i)
         try:
             _, noi = i.split('no')
             if noi != configuration['backend']:
-                return pytest.mark.skipif(True, reason="`%s` backend unsupported" % i)
+                return skipper(True, "`%s` backend unsupported" % i)
         except ValueError:
             pass
-    return pytest.mark.skipif(False, reason="")
+    return skipper(False, "")
 
 
 # Testing dimensions for space and time

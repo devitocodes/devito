@@ -30,12 +30,6 @@ COLLAPSED = lambda i: IterationProperty('collapsed', i)
 VECTOR = IterationProperty('vector-dim')
 """The Iteration can be SIMD-vectorized."""
 
-ELEMENTAL = IterationProperty('elemental')
-"""The Iteration can be pulled out to an elemental function."""
-
-REMAINDER = IterationProperty('remainder')
-"""The Iteration implements a remainder/peeler loop."""
-
 WRAPPABLE = IterationProperty('wrappable')
 """The Iteration implements modulo buffered iteration and its expressions are so that
 one or more buffer slots can be dropped without affecting correctness. For example,
@@ -45,15 +39,6 @@ AFFINE = IterationProperty('affine')
 """All Indexed access functions using the Iteration dimension ``d`` are
 affine in ``d``. Further, the Iteration does not contain any Indexed varying in
 ``d`` used to indirectly access some other Indexed."""
-
-
-def tagger(i):
-    return IterationProperty('tag', i)
-
-
-def ntags():
-    return len(IterationProperty._KNOWN) - ntags.n_original_properties
-ntags.n_original_properties = len(IterationProperty._KNOWN)  # noqa
 
 
 class HaloSpotProperty(Tag):

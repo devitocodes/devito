@@ -1,14 +1,17 @@
 import pytest
 
 from conftest import skipif
-
 from devito import Eq, Grid, Operator, TimeFunction, configuration  # noqa
-from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.transformer import make_ops_ast
 from devito.symbolics import indexify
 
+pytestmark = skipif('noops', whole_module=True)
 
-pytestmark = skipif('noops')
+# All ops-specific imports *must* be avoided if `backend != ops`, otherwise
+# a backend reinitialization would be triggered via `devito/ops/.__init__.py`,
+# thus invalidating all of the future tests. This is guaranteed by the
+# `pytestmark` above
+from devito.ops.node_factory import OPSNodeFactory  # noqa
+from devito.ops.transformer import make_ops_ast  # noqa
 
 
 class TestOPSExpression(object):

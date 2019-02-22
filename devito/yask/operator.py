@@ -114,12 +114,6 @@ class OperatorYASK(Operator):
 
         return iet
 
-    def _build_parameters(self, iet):
-        parameters = super(OperatorYASK, self)._build_parameters(iet)
-        # Add parameters "disappeared" due to offloading
-        parameters += tuple(i for i in self.input if i not in parameters)
-        return parameters
-
     @property
     def _local_grids(self):
         ret = {}
