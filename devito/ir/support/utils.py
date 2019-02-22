@@ -117,10 +117,9 @@ def align_accesses(expr, key=lambda i: False):
 
 def detect_flow_directions(exprs):
     """
-    Return a mapper from Dimensions to Iterables of
-    IterationDirections representing the theoretically necessary
-    directions to evaluate ``exprs`` so that the information "naturally
-    flows" from an iteration to another.
+    Return a mapper from Dimensions to Iterables of IterationDirections
+    representing the theoretically necessary directions to evaluate ``exprs``
+    so that the information "naturally flows" from an iteration to another.
     """
     exprs = as_tuple(exprs)
 
@@ -218,15 +217,15 @@ def force_directions(mapper, key):
 
 def detect_io(exprs, relax=False):
     """
-    ``{exprs} -> ({reads}, {writes})
+    ``{exprs} -> ({reads}, {writes})``
 
     Parameters
     ----------
     exprs : expr-like or list of expr-like
         The searched expressions.
     relax : bool, optional
-        If False, as by default, collect only Constants and
-        Functions. Otherwise, collect any :class:`types.Basic`s.
+        If False, as by default, collect only Constants and Functions.
+        Otherwise, collect any Basic object.
     """
     exprs = as_tuple(exprs)
     if relax is False:
@@ -234,11 +233,16 @@ def detect_io(exprs, relax=False):
     else:
         rule = lambda i: i.is_Scalar or i.is_Tensor
 
+    # Don't forget this nasty case, with indirections on the LHS:
+    # >>> u[t, a[x]] = f[x]  -> (reads={a, f}, writes={u})
+
     reads = []
-    for i in flatten(retrieve_terminals(i, deep=True) for i in exprs):
+    roots = [i.rhs for i in exprs] + flatten(i.lhs.indices for i in exprs)
+    terminals = flatten(retrieve_terminals(i, deep=True) for i in roots)
+    for i in terminals:
         candidates = i.free_symbols
         try:
-            candidates.update({i.base.function})
+            candidates.update({i.function})
         except AttributeError:
             pass
         for j in candidates:
@@ -251,7 +255,7 @@ def detect_io(exprs, relax=False):
     writes = []
     for i in exprs:
         try:
-            f = i.lhs.base.function
+            f = i.lhs.function
         except AttributeError:
             continue
         if rule(f):
