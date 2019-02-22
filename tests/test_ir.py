@@ -3,7 +3,7 @@ import numpy as np
 
 from conftest import EVAL, time, x, y, z, skipif  # noqa
 from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
-                    Operator, Dimension, SubDimension)
+                    Operator, Dimension, SubDimension, switchconfig)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import (ArrayCast, Conditional, Expression, Iteration, FindNodes,
@@ -519,6 +519,7 @@ else
         (('Eq(v[t,x,y], v[t,x-1,y] + 1)', 'Eq(v[t,x,y], v[t,x+1,y] + u[x,y])'),
          (1, 2), (1, 1), ('xy', 'xy'))
     ])
+    @switchconfig(openmp=False)
     def test_make_efuncs(self, exprs, nfuncs, ntimeiters, nests):
         """Test construction of ElementalFunctions."""
         exprs = list(as_tuple(exprs))

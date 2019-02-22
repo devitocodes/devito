@@ -102,7 +102,7 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     # Check code structure
     _, op = _new_operator1((10, 31, 45), dle=('blocking', {'blockalways': True,
                                                            'blockinner': blockinner}))
-    calls = FindNodes(Call).visit(op._func_table['f0'].root)
+    calls = FindNodes(Call).visit(op)
     assert len(calls) == exp_calls
     trees = retrieve_iteration_tree(op._func_table['bf0'].root)
     assert len(trees) == 1
