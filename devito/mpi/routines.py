@@ -285,7 +285,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         iet = Expression(eq)
         for i, d in reversed(list(zip(buf_indices, buf_dims))):
             # The -1 below is because an Iteration, by default, generates <=
-            iet = Iteration(iet, i, d.symbolic_size - 1, properties=PARALLEL)
+            iet = Iteration(iet, i, d.symbolic_size - 1)
+        iet = iet._rebuild(properties=PARALLEL)
         iet = List(body=[ArrayCast(f), ArrayCast(buf), iet])
 
         parameters = [buf] + list(buf.shape) + [f] + f_offsets

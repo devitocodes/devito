@@ -187,9 +187,9 @@ class AdvancedRewriter(BasicRewriter):
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._optimize_halospots(state)
-        self._loop_blocking(state)
         if self.params['mpi']:
             self._dist_parallelize(state)
+        self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp']:
             self._shm_parallelize(state)
@@ -279,7 +279,6 @@ class AdvancedRewriter(BasicRewriter):
         """
         blockinner = bool(self.params.get('blockinner'))
         blockalways = bool(self.params.get('blockalways'))
-        noinline = self._compiler_decoration('noinline', cgen.Comment('noinline?'))
 
         # Make sure loop blocking will span as many Iterations as possible
         iet = fold_blockable_tree(iet, blockinner)
@@ -300,7 +299,7 @@ class AdvancedRewriter(BasicRewriter):
             if not IsPerfectIteration().visit(root):
                 # Illegal/unsupported
                 continue
-            if not tree.root.is_Sequential and not blockalways:
+            if not (tree.root.is_Sequential or iet.is_Callable) and not blockalways:
                 # Heuristic: avoid polluting the generated code with blocked
                 # nests (thus increasing JIT compilation time and affecting
                 # readability) if the blockable tree isn't embedded in a
@@ -312,13 +311,12 @@ class AdvancedRewriter(BasicRewriter):
             intrab = []
             for i in iterations:
                 d = BlockDimension(i.dim, name="%s%d_blk" % (i.dim.name, len(mapper)))
+                block_dims.append(d)
                 # Build Iteration over blocks
                 interb.append(Iteration([], d, d.symbolic_max, offsets=i.offsets,
                                         properties=PARALLEL))
                 # Build Iteration within a block
                 intrab.append(i._rebuild([], limits=(d, d+d.step-1, 1), offsets=(0, 0)))
-                # Record that a new BlockDimension has been introduced
-                block_dims.append(d)
 
             # Construct the blocked tree
             blocked = compose_nodes(interb + intrab + [iterations[-1].nodes])
@@ -326,7 +324,8 @@ class AdvancedRewriter(BasicRewriter):
 
             # Promote to a separate Callable
             dynamic_parameters = flatten((bi.dim, bi.dim.symbolic_size) for bi in interb)
-            efunc0 = make_efunc("bf%d" % len(mapper), blocked, dynamic_parameters)
+            efunc = make_efunc("bf%d" % len(mapper), blocked, dynamic_parameters)
+            efuncs.append(efunc)
 
             # Compute the iteration ranges
             ranges = []
@@ -342,17 +341,10 @@ class AdvancedRewriter(BasicRewriter):
                 for bi, (m, M, b) in zip(interb, p):
                     dynamic_args_mapper[bi.dim] = (m, M)
                     dynamic_args_mapper[bi.dim.step] = (b,)
-                call = efunc0.make_call(dynamic_args_mapper)
-                body.append(List(header=noinline, body=call))
+                call = efunc.make_call(dynamic_args_mapper)
+                body.append(List(body=call))
 
-            # Build indirect Call to the `efunc0` Calls
-            dynamic_parameters = [i.dim.root for i in candidates]
-            dynamic_parameters.extend([bi.dim.step for bi in interb])
-            efunc1 = make_efunc("f%d" % len(mapper), body, dynamic_parameters)
-
-            # Track everything to ultimately transform the input `iet`
-            mapper[root] = efunc1.make_call()
-            efuncs.extend([efunc1, efunc0])
+            mapper[root] = List(body=body)
 
         iet = Transformer(mapper).visit(iet)
 
@@ -426,9 +418,9 @@ class AdvancedRewriterSafeMath(AdvancedRewriter):
     def _pipeline(self, state):
         self._optimize_halospots(state)
         self._loop_wrapping(state)
-        self._loop_blocking(state)
         if self.params['mpi']:
             self._dist_parallelize(state)
+        self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp']:
             self._shm_parallelize(state)
@@ -440,9 +432,9 @@ class SpeculativeRewriter(AdvancedRewriter):
         self._avoid_denormals(state)
         self._optimize_halospots(state)
         self._loop_wrapping(state)
-        self._loop_blocking(state)
         if self.params['mpi']:
             self._dist_parallelize(state)
+        self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp']:
             self._shm_parallelize(state)
