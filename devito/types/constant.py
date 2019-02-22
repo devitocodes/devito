@@ -2,7 +2,7 @@ import numpy as np
 
 from devito.exceptions import InvalidArgument
 from devito.logger import warning
-from devito.tools import ArgProvider, memoized_meth
+from devito.tools import ArgProvider
 from devito.types.basic import AbstractCachedSymbol
 
 __all__ = ['Constant']
@@ -70,7 +70,6 @@ class Constant(AbstractCachedSymbol, ArgProvider):
         """Tuple of argument names introduced by this symbol."""
         return (self.name,)
 
-    @memoized_meth
     def _arg_defaults(self, alias=None):
         """A map of default argument values defined by this symbol."""
         key = alias or self
