@@ -70,7 +70,6 @@ class Constant(AbstractCachedSymbol, ArgProvider):
         """Tuple of argument names introduced by this symbol."""
         return (self.name,)
 
-    @memoized_meth
     def _arg_defaults(self, alias=None):
         """A map of default argument values defined by this symbol."""
         key = alias or self
