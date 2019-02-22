@@ -160,9 +160,8 @@ class Operator(Callable):
         expressions = self._specialize_exprs(expressions)
 
         # Expression analysis
-        self.input = filter_sorted(flatten(e.reads for e in expressions))
-        self.output = filter_sorted(flatten(e.writes for e in expressions))
-        self.dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
+        self._output = filter_sorted(flatten(e.writes for e in expressions))
+        self._dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
 
         # Group expressions based on their iteration space and data dependences,
         # and apply the Devito Symbolic Engine (DSE) for flop optimization
@@ -177,14 +176,37 @@ class Operator(Callable):
         iet = iet_build(stree)
         iet, self._profiler = self._profile_sections(iet)
         iet = self._specialize_iet(iet, **kwargs)
-        iet = iet_insert_C_decls(iet)
-        iet = self._build_casts(iet)
 
-        # Derive parameters as symbols not defined in the kernel itself
-        parameters = self._build_parameters(iet)
+        # Derive all Operator parameters based on the IET
+        parameters = tuple(derive_parameters(iet, True))
+
+        # Finalization: introduce declarations
+        iet = iet_insert_C_decls(iet)
+
+        # Finalization: introduce data casts
+        casts = [ArrayCast(i) for i in parameters if i.is_Tensor and i._mem_external]
+        iet = List(body=casts + [iet])
 
         # Finish instantiation
         super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
+
+    # Read-only fields exposed to the outside world
+
+    @cached_property
+    def output(self):
+        return tuple(self._output)
+
+    @cached_property
+    def dimensions(self):
+        return tuple(self._dimensions)
+
+    @cached_property
+    def input(self):
+        return tuple(i for i in self.parameters if i.is_Input)
+
+    @cached_property
+    def objects(self):
+        return tuple(i for i in self.parameters if i.is_Object)
 
     # Compilation
 
@@ -227,24 +249,10 @@ class Operator(Callable):
 
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                              for i in state.efuncs]))
-        self.dimensions.extend(state.dimensions)
-        self.input.extend(state.input)
+        self._dimensions.extend(state.dimensions)
         self._includes.extend(state.includes)
 
         return iet
-
-    def _build_casts(self, iet):
-        """Introduce array casts."""
-        casts = [ArrayCast(f) for f in self.input if f.is_Tensor and f._mem_external]
-        return List(body=casts + [iet])
-
-    def _build_parameters(self, iet):
-        """Derive the Operator parameters."""
-        parameters = derive_parameters(iet, True)
-        # Hackish: add parameters not emebedded directly in any IET node,
-        # e.g. those produced by the DLE or by a backend
-        parameters.extend([i for i in self.input if i not in parameters])
-        return tuple(parameters)
 
     # Arguments processing
 
@@ -253,8 +261,7 @@ class Operator(Callable):
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
         """
-        objects, datacarriers = split(self.input, lambda p: p.is_Object)
-        overrides, defaults = split(datacarriers, lambda p: p.name in kwargs)
+        overrides, defaults = split(self.input, lambda p: p.name in kwargs)
         # Process data-carrier overrides
         args = ReducerMap()
         for p in overrides:
@@ -295,17 +302,17 @@ class Operator(Callable):
             args.update(d._arg_values(args, self._dspace[d], grid, **kwargs))
 
         # Process Objects (which may need some `args`)
-        for o in objects:
+        for o in self.objects:
             args.update(o._arg_values(args, **kwargs))
 
         # Sanity check
-        for p in self.input:
+        for p in self.parameters:
             p._arg_check(args, self._dspace[p])
 
         # Turn arguments into a format suitable for the generated code
         # E.g., instead of NumPy arrays for Functions, the generated code expects
         # pointers to ctypes.Struct
-        for p in self.input:
+        for p in self.parameters:
             try:
                 args.update(kwargs.get(p.name, p)._arg_as_ctype(args, alias=p))
             except AttributeError:
@@ -331,7 +338,7 @@ class Operator(Callable):
 
     def _postprocess_arguments(self, args, **kwargs):
         """Process runtime arguments upon returning from ``.apply()``."""
-        for p in self.input:
+        for p in self.parameters:
             p._arg_apply(args[p.name], kwargs.get(p.name))
 
     @cached_property

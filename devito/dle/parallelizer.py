@@ -26,6 +26,23 @@ class NThreads(Constant):
                                             value=ncores())
 
 
+class ParallelRegion(Block):
+
+    def __init__(self, body, nthreads, private=None):
+        header = ParallelRegion._make_header(nthreads, private)
+        super(ParallelRegion, self).__init__(header=header, body=body)
+        self.nthreads = nthreads
+
+    @classmethod
+    def _make_header(cls, nthreads, private):
+        private = ('private(%s)' % ','.join(private)) if private else ''
+        return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
+
+    @property
+    def functions(self):
+        return (self.nthreads,)
+
+
 class Ompizer(object):
 
     COLLAPSE = 32
@@ -34,7 +51,6 @@ class Ompizer(object):
 
     lang = {
         'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
-        'par-region': lambda nt, i: c.Pragma('omp parallel num_threads(%s) %s' % (nt, i)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
@@ -122,9 +138,7 @@ class Ompizer(object):
 
             # Build the `omp-parallel` region
             private = sorted(set([i.name for i in private]))
-            private = ('private(%s)' % ','.join(private)) if private else ''
-            partree = Block(header=self.lang['par-region'](self.nthreads.name, private),
-                            body=partree)
+            partree = ParallelRegion(partree, self.nthreads, private)
 
             # Do not enter the parallel region if the step increment might be 0; this
             # would raise a `Floating point exception (core dumped)` in some OpenMP
