@@ -34,7 +34,7 @@ class TestConst(object):
         eq_test = Eq(check, f[t, x, y])
         op_test = Operator([eq_test])
         for j in range(0, n+1):
-                t.data = j  # Ensure constant is being updated correctly
-                op_test.apply(t=t)
-                assert(np.amax(check.data[:], axis=None) == j)
-                assert(np.amin(check.data[:], axis=None) == j)
+            t.data = j  # Ensure constant is being updated correctly
+            op_test.apply(t=t)
+            assert(np.amax(check.data[:], axis=None) == j)
+            assert(np.amin(check.data[:], axis=None) == j)
