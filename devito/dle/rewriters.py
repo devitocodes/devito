@@ -13,7 +13,7 @@ from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
 from devito.dle.parallelizer import Ompizer
 from devito.dle.utils import complang_ALL, simdinfo, get_simd_flag, get_simd_items
 from devito.exceptions import DLEException
-from devito.ir.iet import (Call, Denormals, Expression, Iteration, List, HaloSpot,
+from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot,
                            PARALLEL, FindSymbols, FindNodes, FindAdjacent,
                            IsPerfectIteration, MapNodes, Transformer, compose_nodes,
                            retrieve_iteration_tree, make_efunc)
@@ -165,15 +165,18 @@ class BasicRewriter(AbstractRewriter):
         return complang.get(name, default)
 
     @dle_pass
-    def _avoid_denormals(self, nodes):
+    def _avoid_denormals(self, iet):
         """
         Introduce nodes in the Iteration/Expression tree that will expand to C
         macros telling the CPU to flush denormal numbers in hardware. Denormals
         are normally flushed when using SSE-based instruction sets, except when
         compiling shared objects.
         """
-        return (List(body=(Denormals(), nodes)),
-                {'includes': ('xmmintrin.h', 'pmmintrin.h')})
+        header = [cgen.Comment('Flush denormal numbers to zero in hardware'),
+                  cgen.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)'),
+                  cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)')]
+        iet = List(header=header, body=iet)
+        return (iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')})
 
 
 class AdvancedRewriter(BasicRewriter):

@@ -21,10 +21,10 @@ from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatt
 from devito.types import Symbol, Indexed
 from devito.types.basic import AbstractFunction
 
-__all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
-           'Call', 'Conditional', 'Iteration', 'List', 'LocalExpression', 'Section',
-           'TimedList', 'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot',
-           'IterationTree', 'ExpressionBundle', 'Increment']
+__all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
+           'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'MetaCall',
+           'ArrayCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
+           'ExpressionBundle', 'Increment']
 
 # First-class IET nodes
 
@@ -623,20 +623,6 @@ class TimedList(List):
     @property
     def free_symbols(self):
         return (self.timer,)
-
-
-class Denormals(List):
-
-    """Macros to make sure denormal numbers are flushed in hardware."""
-
-    def __init__(self, header=None, body=None, footer=None):
-        b = [Element(c.Comment('Flush denormal numbers to zero in hardware')),
-             Element(c.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)')),
-             Element(c.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)'))]
-        super(Denormals, self).__init__(header, b, footer)
-
-    def __repr__(self):
-        return "<DenormalsMacro>"
 
 
 class ArrayCast(Node):
