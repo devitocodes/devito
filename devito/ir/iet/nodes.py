@@ -226,12 +226,12 @@ class Expression(Node):
 
     @validate_type(('expr', ClusterizedEq))
     def __init__(self, expr):
-        self.expr = expr
-        self.__expr_finalize__()
+        self.__expr_finalize__(expr)
 
-    def __expr_finalize__(self):
+    def __expr_finalize__(self, expr):
         """Finalize the Expression initialization."""
-        self._functions = tuple(filter_ordered(flatten(detect_io(self.expr, relax=True))))
+        self._expr = expr
+        self._reads, _ = detect_io(expr, relax=True)
         self._dimensions = flatten(i.indices for i in self.functions if i.is_Indexed)
         self._dimensions = tuple(filter_ordered(self._dimensions))
 
@@ -240,17 +240,26 @@ class Expression(Node):
                              filter_ordered([f.func for f in self.functions]))
 
     @property
+    def expr(self):
+        return self._expr
+
+    @property
     def dtype(self):
         return self.expr.dtype
 
     @property
     def output(self):
-        """The symbol this Expression writes to."""
+        """The Symbol/Indexed this Expression writes to."""
         return self.expr.lhs
 
     @property
+    def reads(self):
+        """The Functions read by the Expression."""
+        return self._reads
+
+    @property
     def write(self):
-        """The Function this Expression writes to."""
+        """The Function written by the Expression."""
         return self.expr.lhs.function
 
     @property
@@ -280,9 +289,9 @@ class Expression(Node):
     def free_symbols(self):
         return tuple(self.expr.free_symbols)
 
-    @property
+    @cached_property
     def functions(self):
-        return self._functions
+        return tuple(filter_ordered([self.write] + self._reads))
 
 
 class Increment(Expression):
@@ -690,10 +699,9 @@ class ForeignExpression(Expression):
     @validate_type(('expr', FunctionFromPointer),
                    ('dtype', type))
     def __init__(self, expr, dtype, **kwargs):
-        self.expr = expr
         self._dtype = dtype
         self._is_increment = kwargs.get('is_Increment', False)
-        self.__expr_finalize__()
+        self.__expr_finalize__(expr)
 
     @property
     def dtype(self):
