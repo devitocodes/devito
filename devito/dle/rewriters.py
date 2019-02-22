@@ -31,7 +31,6 @@ class State(object):
     def __init__(self, iet):
         self._efuncs = OrderedDict([('root', iet)])
         self._dimensions = []
-        self._input = []
         self._includes = []
 
     @property
@@ -45,10 +44,6 @@ class State(object):
     @property
     def dimensions(self):
         return self._dimensions
-
-    @property
-    def input(self):
-        return self._input
 
     @property
     def includes(self):
@@ -93,14 +88,14 @@ def process(func, state):
         state._efuncs.update(OrderedDict([(i.name, i)
                                           for i in metadata.get('efuncs', [])]))
 
-        # If there's a change to the `input` and the `iet` is an efunc, then
+        # If there's a change to the `args` and the `iet` is an efunc, then
         # we must update the call sites as well, as the arguments dropped down
         # to the efunc have just increased
-        _input = as_tuple(metadata.get('input'))
-        if _input:
+        args = as_tuple(metadata.get('args'))
+        if args:
             # `extif` avoids redundant updates to the parameters list, due
             # to multiple children wanting to add the same input argument
-            extif = lambda v: list(v) + [e for e in _input if e not in v]
+            extif = lambda v: list(v) + [e for e in args if e not in v]
             stack = [i] + dag.all_downstreams(i)
             for n in stack:
                 efunc = state._efuncs[n]
@@ -110,7 +105,6 @@ def process(func, state):
                 if efunc.is_Callable:
                     efunc = efunc._rebuild(parameters=extif(efunc.parameters))
                 state._efuncs[n] = efunc
-            state._input.extend(list(_input))
 
 
 def dle_pass(func):
@@ -362,7 +356,8 @@ class AdvancedRewriter(BasicRewriter):
 
         iet = Transformer(mapper).visit(iet)
 
-        return iet, {'dimensions': block_dims, 'efuncs': efuncs}
+        return iet, {'dimensions': block_dims, 'efuncs': efuncs,
+                     'args': [i.step for i in block_dims]}
 
     @dle_pass
     def _dist_parallelize(self, iet):
@@ -380,7 +375,7 @@ class AdvancedRewriter(BasicRewriter):
         objs = sync_heb.objs + user_heb.objs
         iet = Transformer(mapper, nested=True).visit(iet)
 
-        return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'input': objs}
+        return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'args': objs}
 
     @dle_pass
     def _simdize(self, nodes):

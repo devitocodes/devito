@@ -150,4 +150,4 @@ class Ompizer(object):
             mapper[root] = partree
         iet = Transformer(mapper).visit(iet)
 
-        return iet, {'input': [self.nthreads] if mapper else []}
+        return iet, {'args': [self.nthreads] if mapper else []}
