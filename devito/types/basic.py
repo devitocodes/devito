@@ -13,8 +13,9 @@ from cgen import Struct, Value
 
 from devito.data import default_allocator
 from devito.symbolics import Add
-from devito.tools import (ArgProvider, EnrichedTuple, Pickable, ctypes_to_cstr,
-                          dtype_to_cstr, dtype_to_ctype)
+from devito.tools import (EnrichedTuple, Pickable, ctypes_to_cstr, dtype_to_cstr,
+                          dtype_to_ctype)
+from devito.types.args import ArgProvider
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object', 'LocalObject',
            'CompositeObject']

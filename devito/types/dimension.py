@@ -8,7 +8,8 @@ from cached_property import cached_property
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
-from devito.tools import ArgProvider, Pickable, dtype_to_cstr
+from devito.tools import Pickable, dtype_to_cstr
+from devito.types.args import ArgProvider
 from devito.types.basic import AbstractSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
