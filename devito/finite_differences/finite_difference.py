@@ -145,6 +145,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     for i in range(0, len(ind)):
         subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
         deriv += expr.subs(subs) * c[i]
+    
     return (matvec.val*deriv).evalf(_PRECISION)
 
 

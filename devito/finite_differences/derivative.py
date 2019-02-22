@@ -104,7 +104,7 @@ class Diff(sympy.Derivative, Differentiable):
         if self.side is not None and self.deriv_order == 1:
             res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side, matvec=self.transpose)
-        if len(self.dims) > 1:
+        elif len(self.dims) > 1:
             res = cross_derivative(expr, self.dims, self.fd_order,
                                    self.deriv_order, stagger=self.stagger)
         else:
