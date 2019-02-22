@@ -352,7 +352,7 @@ class Symbol(AbstractCachedSymbol):
         return kwargs.get('dtype', np.int32)
 
 
-class Scalar(Symbol):
+class Scalar(Symbol, ArgProvider):
     """
     Symbol representing a scalar.
 
