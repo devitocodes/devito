@@ -13,10 +13,9 @@ from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
 from devito.dle.parallelizer import Ompizer
 from devito.dle.utils import complang_ALL, simdinfo, get_simd_flag, get_simd_items
 from devito.exceptions import DLEException
-from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot,
-                           PARALLEL, FindSymbols, FindNodes, FindAdjacent,
-                           IsPerfectIteration, MapNodes, Transformer, compose_nodes,
-                           retrieve_iteration_tree, make_efunc)
+from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, PARALLEL,
+                           FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
+                           compose_nodes, retrieve_iteration_tree, make_efunc)
 from devito.logger import dle, perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
@@ -299,9 +298,6 @@ class AdvancedRewriter(BasicRewriter):
             if len(iterations) <= 1:
                 continue
             root = iterations[0]
-            if not IsPerfectIteration().visit(root):
-                # Illegal/unsupported
-                continue
             if not (tree.root.is_Sequential or iet.is_Callable) and not blockalways:
                 # Heuristic: avoid polluting the generated code with blocked
                 # nests (thus increasing JIT compilation time and affecting
