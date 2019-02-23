@@ -22,8 +22,8 @@ from devito.types import Symbol, Indexed
 from devito.types.basic import AbstractFunction
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
-           'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'MetaCall',
-           'ArrayCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
+           'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
+           'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
            'ExpressionBundle', 'Increment']
 
 # First-class IET nodes
@@ -763,6 +763,32 @@ class ExpressionBundle(List):
     @property
     def exprs(self):
         return self.body
+
+
+class Prodder(Call):
+
+    """
+    A Call promoting asynchronous progress, to minimize latency.
+
+    Example use cases:
+
+        * To trigger asynchronous progress in the case of distributed-memory
+          parallelism.
+        * Software prefetching.
+    """
+
+    _prop_singlethread = False
+    """
+    Subclasses should set this to True if the Call is to be performed by
+    a single thread.
+    """
+
+    _prop_periodic = False
+    """
+    Subclasses should set this to True if the Call should be performed
+    periodically, such as every N iterations. False if the Call is outside of
+    any Iteration or if it should be performed at every iteration.
+    """
 
 
 # Nodes required for distributed-memory halo exchange
