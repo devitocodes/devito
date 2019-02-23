@@ -13,9 +13,10 @@ from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
 from devito.dle.parallelizer import Ompizer
 from devito.dle.utils import complang_ALL, simdinfo, get_simd_flag, get_simd_items
 from devito.exceptions import DLEException
-from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, PARALLEL,
+from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder, PARALLEL,
                            FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
-                           compose_nodes, retrieve_iteration_tree, make_efunc)
+                           compose_nodes, filter_iterations, retrieve_iteration_tree,
+                           make_efunc)
 from devito.logger import dle, perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
@@ -195,6 +196,7 @@ class AdvancedRewriter(BasicRewriter):
         self._simdize(state)
         if self.params['openmp']:
             self._shm_parallelize(state)
+        self._hoist_prodders(state)
 
     @dle_pass
     def _loop_wrapping(self, iet):
@@ -405,6 +407,29 @@ class AdvancedRewriter(BasicRewriter):
         """
         return self._shm_parallelizer.make_parallel(iet)
 
+    @dle_pass
+    def _hoist_prodders(self, iet):
+        """
+        Move Prodders within the outer levels of an Iteration tree.
+        """
+        mapper = {}
+        for tree in retrieve_iteration_tree(iet):
+            for prodder in FindNodes(Prodder).visit(tree.root):
+                if prodder._prop_periodic:
+                    try:
+                        key = lambda i: isinstance(i.dim, BlockDimension)
+                        candidate = filter_iterations(tree, key, stop='asap')[-1]
+                    except IndexError:
+                        # Fallback: use the outermost Iteration
+                        candidate = tree.root
+                    mapper[candidate] = candidate._rebuild(nodes=((prodder._rebuild(),) +
+                                                                  candidate.nodes))
+                    mapper[prodder] = None
+
+        iet = Transformer(mapper, nested=True).visit(iet)
+
+        return iet, {}
+
 
 class AdvancedRewriterSafeMath(AdvancedRewriter):
 
@@ -422,6 +447,7 @@ class AdvancedRewriterSafeMath(AdvancedRewriter):
         self._simdize(state)
         if self.params['openmp']:
             self._shm_parallelize(state)
+        self._hoist_prodders(state)
 
 
 class SpeculativeRewriter(AdvancedRewriter):
@@ -437,6 +463,7 @@ class SpeculativeRewriter(AdvancedRewriter):
         if self.params['openmp']:
             self._shm_parallelize(state)
         self._minimize_remainders(state)
+        self._hoist_prodders(state)
 
     @dle_pass
     def _nontemporal_stores(self, nodes):
@@ -544,7 +571,8 @@ class CustomRewriter(SpeculativeRewriter):
         'openmp': SpeculativeRewriter._shm_parallelize,
         'mpi': SpeculativeRewriter._dist_parallelize,
         'simd': SpeculativeRewriter._simdize,
-        'minrem': SpeculativeRewriter._minimize_remainders
+        'minrem': SpeculativeRewriter._minimize_remainders,
+        'prodders': SpeculativeRewriter._hoist_prodders
     }
 
     def __init__(self, passes, params):
