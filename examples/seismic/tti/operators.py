@@ -2,7 +2,7 @@ from sympy import cos, sin
 
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
-from devito.finite_differences import Diff, first_derivative, centered, left, right, transpose
+from devito.finite_differences import first_derivative, centered, transpose
 
 
 def second_order_stencil(model, u, v, H0, Hz):
@@ -126,7 +126,7 @@ def Gzz_shifted_2d(field, costheta, sintheta):
     Gzz1 = (Gz1r * sintheta).dxr.T + (Gz1r * costheta).dy.T
     Gz2r = sintheta * field.dx + costheta * field.dyr
     Gzz2 = (Gz2r * sintheta).dx.T + (Gz2r * costheta).dyr.T
-    print(Gzz1.stencil, Gzz2.stencil)
+
     return -.5 * (Gzz1 + Gzz2)
 
 
