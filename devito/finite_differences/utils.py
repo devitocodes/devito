@@ -61,8 +61,10 @@ def generate_fd_shortcuts(function):
         name = 't' if d.is_Time else d.root.name
         if function.is_Staggered:
             # Add centered first derivatives if staggered
+            stagg = dict()
+            stagg[d] = centered
             deriv = partial(deriv_function, deriv_order=1, dims=d,
-                            fd_order=dim_order, stagger=centered)
+                            fd_order=dim_order, stagger=stagg)
             name_fd = 'd%sc' % name
             desciption = 'centered derivative staggered w.r.t dimension %s' % d
 

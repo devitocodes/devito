@@ -117,7 +117,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
 
     This is also more easily obtainable via:
 
-    >>> (f*g).dx
+    >>> (f*g).dx.stencil
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
 
     The adjoint mode
@@ -188,7 +188,7 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
 
     This is also more easily obtainable via:
 
-    >>> (f*g).dx2
+    >>> (f*g).dx2.stencil
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
@@ -236,7 +236,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
 
     This is also more easily obtainable via:
 
-    >>> (f*g).dxdy
+    >>> (f*g).dxdy.stencil
     -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
  0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
  0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
@@ -251,7 +251,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
 
 @check_input
 @check_symbolic
-def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=False):
+def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=False,
+                       matvec=direct):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -275,6 +276,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
         ``deriv-order`` derivative of ``expr``.
     """
     diff = dim.spacing
+    adjoint_val = matvec.val**deriv_order
 
     # Stencil positions
     indices, x0 = generate_indices(expr, dim, diff, fd_order, stagger=stagger)
@@ -293,7 +295,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
         deriv += expr.subs(subs) * c[i]
 
     # Evaluate up to _PRECISION digits
-    deriv = deriv.evalf(_PRECISION)
+    deriv = (adjoint_val*deriv).evalf(_PRECISION)
 
     return deriv
 

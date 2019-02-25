@@ -35,8 +35,8 @@ class Diff(sympy.Derivative, Differentiable):
         new_obj.setup_fd(expr, *dims, **kwargs)
         return new_obj
 
-    def setup_fd(self, expr, *dims, deriv_order=1, fd_order=1, **kwargs):
-        self._dims = dims
+    def setup_fd(self, expr, dims, deriv_order=1, fd_order=1, **kwargs):
+        self._dims = dims if isinstance(dims, tuple) else (dims,)
         self._fd_order = fd_order
         self._deriv_order = deriv_order
         self._stagger = kwargs.get("stagger", self._stagger_setup)
@@ -66,6 +66,14 @@ class Diff(sympy.Derivative, Differentiable):
     @cached_property
     def is_Staggered(self):
         return self.expr.is_Staggered
+
+    @cached_property
+    def indices(self):
+        return self.expr.indices
+
+    @cached_property
+    def staggered(self):
+        return self.expr.staggered
 
     @cached_property
     def _stagger_setup(self):
@@ -103,14 +111,14 @@ class Diff(sympy.Derivative, Differentiable):
     @property
     def stencil(self):
         expr = getattr(self.expr, 'stencil', self.expr)
-        if self.side is not None and self.deriv_order == 1:
+        if self.side in [left, right] and self.deriv_order == 1:
             res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side, matvec=self.transpose)
         elif len(self.dims) > 1:
-            res = cross_derivative(expr, self.dims, self.fd_order,
-                                   self.deriv_order, stagger=self.stagger)
+            res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
+                                   matvec=self.transpose, stagger=self.stagger)
         else:
             res = generic_derivative(expr, self.dims[0], self.fd_order,
-                                     self.deriv_order, stagger=self.stagger)
-
+                                     self.deriv_order, stagger=self.stagger[self.dims[0]],
+                                     matvec=self.transpose)
         return res

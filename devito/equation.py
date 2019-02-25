@@ -49,7 +49,7 @@ class Eq(sympy.Eq):
 
     >>> from sympy import sin
     >>> Eq(f, sin(f.dx)**2)
-    Eq(f(x, y), sin(f(x, y)/h_x - f(x + h_x, y)/h_x)**2)
+    Eq(f(x, y), sin(Derivative(f(x, y), x))**2)
 
     Notes
     -----
@@ -75,6 +75,7 @@ class Eq(sympy.Eq):
             except AttributeError:
                 if bool(rules):
                     obj = obj.xreplace(rules)
+
         return obj
 
     @property
@@ -86,7 +87,8 @@ class Eq(sympy.Eq):
     def stencil(self):
         lhs = getattr(self.lhs, 'stencil', self.lhs)
         rhs = getattr(self.rhs, 'stencil', self.rhs)
-        return Eq(lhs, rhs, evaluate=False, subdomain=self._subdomain)
+        eq = Eq(lhs, rhs, evaluate=False, subdomain=self._subdomain,
+                coefficients=self.substitutions)
 
     @property
     def substitutions(self):
@@ -179,9 +181,17 @@ class Inc(Eq):
     def stencil(self):
         lhs = getattr(self.lhs, 'stencil', self.lhs)
         rhs = getattr(self.rhs, 'stencil', self.rhs)
-        return Inc(lhs, rhs, evaluate=False, subdomain=self._subdomain)
+        return Inc(lhs, rhs, evaluate=False, subdomain=self._subdomain,
+                   coefficients=self.substitutions)
 
     __repr__ = __str__
+
+    def xreplace(self, rules):
+        """"""
+        eq = Inc(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
+                 subdomain=self._subdomain)
+        eq._substitutions = self._substitutions
+        return eq
 
 
 def solve(eq, target, **kwargs):
