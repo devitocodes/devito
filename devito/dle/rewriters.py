@@ -418,7 +418,7 @@ class AdvancedRewriter(BasicRewriter):
                 if prodder._prop_periodic:
                     try:
                         key = lambda i: isinstance(i.dim, BlockDimension)
-                        candidate = filter_iterations(tree, key, stop='asap')[-1]
+                        candidate = filter_iterations(tree, key)[-1]
                     except IndexError:
                         # Fallback: use the outermost Iteration
                         candidate = tree.root

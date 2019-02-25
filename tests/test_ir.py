@@ -540,7 +540,7 @@ else
         # We create one ElementalFunction for each Iteration nest over space dimensions
         efuncs = []
         for n, tree in enumerate(retrieve_iteration_tree(op)):
-            root = filter_iterations(tree, key=lambda i: i.dim.is_Space, stop='asap')
+            root = filter_iterations(tree, key=lambda i: i.dim.is_Space)[0]
             efuncs.append(make_efunc('f%d' % n, root))
 
         assert len(efuncs) == len(nfuncs) == len(ntimeiters) == len(nests)

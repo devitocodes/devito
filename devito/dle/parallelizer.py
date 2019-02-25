@@ -124,7 +124,7 @@ class Ompizer(object):
         mapper = OrderedDict()
         for tree in retrieve_iteration_tree(iet):
             # Get the first omp-parallelizable Iteration in `tree`
-            candidates = filter_iterations(tree, key=self.key, stop='asap')
+            candidates = filter_iterations(tree, key=self.key)
             if not candidates:
                 continue
             root = candidates[0]

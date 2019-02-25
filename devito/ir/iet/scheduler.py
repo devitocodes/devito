@@ -144,7 +144,7 @@ def iet_insert_C_decls(iet, external=None):
                     elif i._mem_stack:
                         # On the stack
                         key = lambda i: not i.is_Parallel
-                        site = filter_iterations(v, key=key, stop='asap') or [iet]
+                        site = filter_iterations(v, key=key) or [iet]
                         allocator.push_stack(site[-1], i)
                     else:
                         # On the heap, as a tensor that must be globally accessible
