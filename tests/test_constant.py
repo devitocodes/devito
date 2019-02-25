@@ -8,13 +8,12 @@ pytestmark = skipif(['yask', 'ops'])
 
 class TestConst(object):
     """
-    Class for testing symbolic coefficients functionality
+    Class for testing Constant
     """
 
     def test_const_change(self):
         """
-        Test that the default replacement rules return the same
-        as standard FD.
+        Test that Constand.data can be set as required.
         """
 
         n = 5
