@@ -270,3 +270,17 @@ class TestFD(object):
 
         for fd in g._fd:
             assert getattr(g, fd)
+
+    @pytest.mark.parametrize('so', [2, 4, 6, 8])
+    @pytest.mark.parametrize('derivative, adjoint_name, adjoint_coeff', [
+        ('dx', 'dx', -1),
+        ('dx2', 'dx2', 1),
+        ('dxl', 'dxr', 1),
+        ('dxr', 'dxl', 1)])
+    def test_fd_adjoint(self, so, derivative, adjoint_name, adjoint_coeff):
+        grid = Grid(shape=(10, 10, 10))
+        f = Function(name='f', grid=grid, space_order=so)
+
+        deriv = getattr(f, derivative)
+        expected = adjoint_coeff * getattr(f, adjoint_name).stencil
+        assert deriv.T.stencil ==  expected

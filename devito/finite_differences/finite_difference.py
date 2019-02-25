@@ -127,8 +127,9 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
     """
 
-    diff = dim.spacing
     side = side.adjoint(matvec)
+    diff = dim.spacing
+    adjoint_val = matvec.val if side == centered else 1
     order = fd_order or expr.space_order
 
     deriv = 0
@@ -145,8 +146,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     for i in range(0, len(ind)):
         subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
         deriv += expr.subs(subs) * c[i]
-    
-    return (matvec.val*deriv).evalf(_PRECISION)
+
+    return (adjoint_val*deriv).evalf(_PRECISION)
 
 
 @check_input
