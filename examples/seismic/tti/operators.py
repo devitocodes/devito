@@ -26,7 +26,7 @@ def second_order_stencil(model, u, v, H0, Hz):
     return stencils
 
 
-def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
+def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi):
     """
     3D rotated second order derivative in the direction x as an average of
     two non-centered rotated second order derivative in the direction x
@@ -51,7 +51,7 @@ def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
     return -.5 * (Gxx1 + Gxx2)
 
 
-def Gxx_shifted_2d(field, costheta, sintheta, space_order):
+def Gxx_shifted_2d(field, costheta, sintheta):
     """
     2D rotated second order derivative in the direction x as an average of
     two non-centered rotated second order derivative in the direction x
@@ -61,15 +61,15 @@ def Gxx_shifted_2d(field, costheta, sintheta, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt x
     """
-    Gx1 = (costheta * field.dxr - sintheta * field.dy)
+    Gx1 = costheta * field.dxr - sintheta * field.dy
     Gxx1 = (Gx1 * costheta).dxr.T - (Gx1 * sintheta).dy.T
-    Gx2p = (costheta * field.dx - sintheta * field.dyr)
+    Gx2p = costheta * field.dx - sintheta * field.dyr
     Gxx2 = (Gx2p * costheta).dx.T - (Gx2p * sintheta).dyr.T
 
     return -.5 * (Gxx1 + Gxx2)
 
 
-def Gyy_shifted(field, cosphi, sinphi, space_order):
+def Gyy_shifted(field, cosphi, sinphi):
     """
     3D rotated second order derivative in the direction y as an average of
     two non-centered rotated second order derivative in the direction y
@@ -79,15 +79,15 @@ def Gyy_shifted(field, cosphi, sinphi, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt y
     """
-    Gyp = (sinphi * field.dx - cosphi * field.dyr)
+    Gyp = sinphi * field.dx - cosphi * field.dyr
     Gyy = (Gyp * sinphi).dx.T - (Gyp * cosphi).dyr.T
-    Gyp2 = (sinphi * field.dxr - cosphi * field.dy)
+    Gyp2 = sinphi * field.dxr - cosphi * field.dy
     Gyy2 = (Gyp2 * sinphi).dxr.T - (Gyp2 * cosphi).dy.T
 
     return -.5 * (Gyy + Gyy2)
 
 
-def Gzz_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
+def Gzz_shifted(field, costheta, sintheta, cosphi, sinphi):
     """
     3D rotated second order derivative in the direction z as an average of
     two non-centered rotated second order derivative in the direction z
@@ -112,7 +112,7 @@ def Gzz_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
     return -.5 * (Gzz + Gzz2)
 
 
-def Gzz_shifted_2d(field, costheta, sintheta, space_order):
+def Gzz_shifted_2d(field, costheta, sintheta):
     """
     2D rotated second order derivative in the direction z as an average of
     two non-centered rotated second order derivative in the direction z
@@ -122,11 +122,11 @@ def Gzz_shifted_2d(field, costheta, sintheta, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt z
     """
-    Gz1r = (sintheta * field.dxr + costheta * field.dy)
+    Gz1r = sintheta * field.dxr + costheta * field.dy
     Gzz1 = (Gz1r * sintheta).dxr.T + (Gz1r * costheta).dy.T
-    Gz2r = (sintheta * field.dx + costheta * field.dyr)
+    Gz2r = sintheta * field.dx + costheta * field.dyr
     Gzz2 = (Gz2r * sintheta).dx.T + (Gz2r * costheta).dyr.T
-
+    print(Gzz1.stencil, Gzz2.stencil)
     return -.5 * (Gzz1 + Gzz2)
 
 
@@ -240,8 +240,8 @@ def kernel_shifted_2d(model, u, v, space_order):
     costheta = cos(model.theta)
     sintheta = sin(model.theta)
 
-    Gxx = Gxx_shifted_2d(u, costheta, sintheta, space_order)
-    Gzz = Gzz_shifted_2d(v, costheta, sintheta, space_order)
+    Gxx = Gxx_shifted_2d(u, costheta, sintheta)
+    Gzz = Gzz_shifted_2d(v, costheta, sintheta)
     return second_order_stencil(model, u, v, Gxx, Gzz)
 
 
@@ -266,9 +266,9 @@ def kernel_shifted_3d(model, u, v, space_order):
     sintheta = sin(model.theta)
     cosphi = cos(model.phi)
     sinphi = sin(model.phi)
-    Gxx = Gxx_shifted(u, costheta, sintheta, cosphi, sinphi, space_order)
-    Gyy = Gyy_shifted(u, cosphi, sinphi, space_order)
-    Gzz = Gzz_shifted(v, costheta, sintheta, cosphi, sinphi, space_order)
+    Gxx = Gxx_shifted(u, costheta, sintheta, cosphi, sinphi)
+    Gyy = Gyy_shifted(u, cosphi, sinphi)
+    Gzz = Gzz_shifted(v, costheta, sintheta, cosphi, sinphi)
     return second_order_stencil(model, u, v, Gxx + Gyy, Gzz)
 
 
