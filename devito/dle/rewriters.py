@@ -292,11 +292,9 @@ class AdvancedRewriter(BasicRewriter):
         block_dims = []
         for tree in retrieve_iteration_tree(iet):
             # Is the Iteration tree blockable ?
-            candidates = [i for i in tree if i.is_Parallel]
-            if blockinner:
-                iterations = candidates
-            else:
-                iterations = [i for i in candidates if not i.is_Vectorizable]
+            iterations = filter_iterations(tree, lambda i: i.is_Parallel)
+            if not blockinner:
+                iterations = iterations[:-1]
             if len(iterations) <= 1:
                 continue
             root = iterations[0]
