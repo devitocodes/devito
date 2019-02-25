@@ -947,6 +947,43 @@ class TestArguments(object):
 
         assert u_arg_shape == expected
 
+    def test_illegal_override(self):
+        grid0 = Grid(shape=(11, 11))
+        grid1 = Grid(shape=(13, 13))
+
+        a0 = Function(name='a', grid=grid0)
+        b0 = Function(name='b', grid=grid0)
+        a1 = Function(name='a', grid=grid1)
+        b1 = Function(name='b', grid=grid1)
+
+        op = Operator(Eq(a0, a0 + b0 + 1))
+        op.apply()
+
+        try:
+            op.apply(a=a1, b=b1)
+        except ValueError as e:
+            assert 'Override' in e.args[0]  # Check it's hitting the right error msg
+        except:
+            assert False
+
+    def test_incomplete_override(self):
+        grid0 = Grid(shape=(11, 11))
+        grid1 = Grid(shape=(13, 13))
+
+        a0 = Function(name='a', grid=grid0)
+        a1 = Function(name='a', grid=grid1)
+        b = Function(name='b', grid=grid0)
+
+        op = Operator(Eq(a0, a0 + b + 1))
+        op.apply()
+
+        try:
+            op.apply(a=a1)
+        except ValueError as e:
+            assert 'Default' in e.args[0]  # Check it's hitting the right error msg
+        except:
+            assert False
+
 
 class TestDeclarator(object):
 

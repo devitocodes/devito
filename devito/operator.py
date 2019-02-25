@@ -253,10 +253,28 @@ class Operator(Callable):
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
         """
-        # Process data-carriers (first overrides, then fill up with whatever is needed)
+        overrides, defaults = split(self.input, lambda p: p.name in kwargs)
+        # Process data-carrier overrides
         args = ReducerMap()
-        args.update([p._arg_values(**kwargs) for p in self.input if p.name in kwargs])
-        args.update([p._arg_values() for p in self.input if p.name not in args])
+        for p in overrides:
+            args.update(p._arg_values(**kwargs))
+            try:
+                args = ReducerMap(args.reduce_all())
+            except ValueError:
+                raise ValueError("Override `%s` is incompatible with overrides `%s`" %
+                                 (p, [i for i in overrides if i.name in args]))
+        # Process data-carrier defaults
+        for p in defaults:
+            if p.name in args:
+                # E.g., SubFunctions
+                continue
+            for k, v in p._arg_values(**kwargs).items():
+                if k in args and args[k] != v:
+                    raise ValueError("Default `%s` is incompatible with other args as "
+                                     "`%s=%s`, while `%s=%s` is expected. Perhaps you "
+                                     "forgot to override `%s`?" %
+                                     (p, k, args[k], k, v, p))
+                args[k] = v
         args = args.reduce_all()
 
         # All DiscreteFunctions should be defined on the same Grid
