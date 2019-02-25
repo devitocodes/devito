@@ -1226,13 +1226,13 @@ class TestIsotropicAcoustic(object):
     Test the isotropic acoustic wave equation with MPI.
     """
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save', [
-        ((60, ), 'OT2', 4, 10, False),
-        ((60, 70), 'OT2', 8, 10, False),
+    @pytest.mark.parametrize('shape,space_order,nbpml,save', [
+        ((60, ), 4, 10, False),
+        ((60, 70), 8, 10, False),
     ])
     @pytest.mark.parallel(mode=1)
-    def test_adjoint_codegen(self, shape, kernel, space_order, nbpml, save):
-        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+    def test_adjoint_codegen(self, shape, space_order, nbpml, save):
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape],
                                 nbpml=nbpml, tn=500, space_order=space_order, nrec=130,
                                 preset='layers-isotropic', dtype=np.float64)
         op_fwd = solver.op_fwd(save=save)
@@ -1244,13 +1244,13 @@ class TestIsotropicAcoustic(object):
         assert len(fwd_calls) == 2
         assert len(adj_calls) == 2
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
-        ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
-        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
+    @pytest.mark.parametrize('shape,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
+        ((60, ), 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
+        ((60, 70), 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
+        ((60, 70, 80), 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (8, 'basic')])
-    def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
+    def test_adjoint_F(self, shape, space_order, nbpml, save,
                        Eu, Erec, Ev, Esrca):
         """
         Unlike `test_adjoint_F` in test_adjoint.py, here we explicitly check the norms
@@ -1261,7 +1261,7 @@ class TestIsotropicAcoustic(object):
         nrec = 130  # Number of receivers
 
         # Create solver from preset
-        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape],
                                 nbpml=nbpml, tn=tn, space_order=space_order, nrec=nrec,
                                 preset='layers-isotropic', dtype=np.float64)
         # Run forward operator

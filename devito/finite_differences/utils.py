@@ -23,7 +23,6 @@ def generate_fd_shortcuts(function):
                                             function.is_SparseTimeFunction) else 0
 
     deriv_function = partial_derivative
-    c_deriv_function = partial_derivative
 
     derivatives = dict()
     done = []
@@ -48,7 +47,7 @@ def generate_fd_shortcuts(function):
                 dim_order2 = time_fd_order if d2.is_Time else space_fd_order
                 name2 = 't' if d2.is_Time else d2.root.name
                 for o2 in range(1, dim_order2 + 1):
-                    deriv = partial(c_deriv_function, deriv_order=(o, o2), dims=(d, d2),
+                    deriv = partial(deriv_function, deriv_order=(o, o2), dims=(d, d2),
                                     fd_order=(dim_order, dim_order2))
                     name_fd2 = 'd%s%d' % (name, o) if o > 1 else 'd%s' % name
                     name_fd2 += 'd%s%d' % (name2, o2) if o2 > 1 else 'd%s' % name2
@@ -70,13 +69,13 @@ def generate_fd_shortcuts(function):
         else:
             # Left
             dim_order = time_fd_order if d.is_Time else space_fd_order
-            deriv = partial(partial_derivative, deriv_order=1,
+            deriv = partial(deriv_function, deriv_order=1,
                             dims=d, fd_order=dim_order, side=left)
             name_fd = 'd%sl' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
             # Right
-            deriv = partial(partial_derivative, deriv_order=1,
+            deriv = partial(deriv_function, deriv_order=1,
                             dims=d, fd_order=dim_order, side=right)
             name_fd = 'd%sr' % name
             desciption = 'right first order derivative w.r.t dimension %s' % d

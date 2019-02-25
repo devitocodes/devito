@@ -20,9 +20,8 @@ class TestGradient(object):
         clear_cache()
 
     @pytest.mark.parametrize('space_order', [4])
-    @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(70, 80)])
-    def test_gradient_checkpointing(self, shape, kernel, space_order):
+    def test_gradient_checkpointing(self, shape, space_order):
         """
         This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
@@ -45,8 +44,7 @@ class TestGradient(object):
         """
         spacing = tuple(10. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
-                     kernel=kernel, space_order=space_order,
-                     nbpml=40)
+                     space_order=space_order, nbpml=40)
 
         m0 = Function(name='m0', grid=wave.model.grid, space_order=space_order)
         smooth(m0, wave.model.m)
@@ -67,10 +65,9 @@ class TestGradient(object):
         assert np.allclose(gradient.data, gradient2.data)
 
     @pytest.mark.parametrize('space_order', [4])
-    @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(70, 80)])
     @pytest.mark.parametrize('checkpointing', [True, False])
-    def test_gradientFWI(self, shape, kernel, space_order, checkpointing):
+    def test_gradientFWI(self, shape, space_order, checkpointing):
         """
         This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
@@ -93,8 +90,7 @@ class TestGradient(object):
         """
         spacing = tuple(10. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
-                     kernel=kernel, space_order=space_order,
-                     nbpml=40)
+                     space_order=space_order, nbpml=40)
 
         m0 = Function(name='m0', grid=wave.model.grid, space_order=space_order)
         smooth(m0, wave.model.m)
@@ -144,9 +140,8 @@ class TestGradient(object):
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 
     @pytest.mark.parametrize('space_order', [4])
-    @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(70, 80)])
-    def test_gradientJ(self, shape, kernel, space_order):
+    def test_gradientJ(self, shape, space_order):
         """
         This test ensures that the Jacobian computed with devito
         satisfies the Taylor expansion property:
@@ -163,7 +158,7 @@ class TestGradient(object):
         """
         spacing = tuple(15. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
-                     kernel=kernel, space_order=space_order,
+                     space_order=space_order,
                      tn=1000., nbpml=10+space_order/2)
 
         m0 = Function(name='m0', grid=wave.model.grid, space_order=space_order)
@@ -208,5 +203,4 @@ class TestGradient(object):
 
 
 if __name__ == "__main__":
-    TestGradient().test_gradientFWI(shape=(70, 80), kernel='OT2', space_order=4,
-                                    checkpointing=False)
+    TestGradient().test_gradientFWI(shape=(70, 80), space_order=4, checkpointing=False)

@@ -13,77 +13,82 @@ class AcousticWaveSolver(object):
     and encapsulates the time and space discretization for a given problem
     setup.
 
-    :param model: Physical model with domain parameters
-    :param source: Sparse point symbol providing the injected wave
-    :param receiver: Sparse point symbol describing an array of receivers
-    :param time_order: Order of the time-stepping scheme (default: 2, choices: 2,4)
-                       time_order=4 will not implement a 4th order FD discretization
-                       of the time-derivative as it is unstable. It implements instead
-                       a 4th order accurate wave-equation with only second order
-                       time derivative. Full derivation and explanation of the 4th order
-                       in time can be found at:
-                       http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf
-    :param space_order: Order of the spatial stencil discretisation (default: 4)
+    Parameters
+    ----------
+    model : Model
+        Physical model with domain parameters
+    geometry : AcquisitionGeometry
+        Source and receivers geometry
+    space_order : Int
+        Order of the spatial stencil discretisation (default: 2)
 
-    Note: space_order must always be greater than time_order
+    Note: space_order must always be an even number
     """
-    def __init__(self, model, geometry, kernel='OT2', space_order=2, **kwargs):
+    def __init__(self, model, geometry, space_order=2, **kwargs):
         self.model = model
         self.geometry = geometry
 
         assert self.model == geometry.model
 
         self.space_order = space_order
-        self.kernel = kernel
 
-        # Time step can be \sqrt{3}=1.73 bigger with 4th order
-        self.dt = self.model.critical_dt
-        if self.kernel == 'OT4':
-            self.dt *= 1.73
-
-        # Cache compiler options
         self._kwargs = kwargs
 
+    def dt(self, kernel):
+        dt = self.model.critical_dt
+        if kernel == 'OT4':
+            dt *= 1.73
+        return dt
+
     @memoized_meth
-    def op_fwd(self, save=None):
+    def op_fwd(self, save=None, kernel='OT2'):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
-                               kernel=self.kernel, space_order=self.space_order,
+                               kernel=kernel, space_order=self.space_order,
                                **self._kwargs)
 
     @memoized_meth
-    def op_adj(self):
+    def op_adj(self, kernel='OT2'):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=None, geometry=self.geometry,
-                               kernel=self.kernel, space_order=self.space_order,
+                               kernel=kernel, space_order=self.space_order,
                                **self._kwargs)
 
     @memoized_meth
-    def op_grad(self, save=True):
+    def op_grad(self, save=True, kernel='OT2'):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=save, geometry=self.geometry,
-                                kernel=self.kernel, space_order=self.space_order,
+                                kernel=kernel, space_order=self.space_order,
                                 **self._kwargs)
 
     @memoized_meth
-    def op_born(self):
+    def op_born(self, kernel='OT2'):
         """Cached operator for born runs"""
         return BornOperator(self.model, save=None, geometry=self.geometry,
-                            kernel=self.kernel, space_order=self.space_order,
+                            kernel=kernel, space_order=self.space_order,
                             **self._kwargs)
 
-    def forward(self, src=None, rec=None, u=None, m=None, save=None, **kwargs):
+    def forward(self, src=None, rec=None, u=None, m=None, save=None,
+                kernel='OT2', **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
 
-        :param src: Symbol with time series data for the injected source term
-        :param rec: Symbol to store interpolated receiver data
-        :param u: (Optional) Symbol to store the computed wavefield
-        :param m: (Optional) Symbol for the time-constant square slowness
-        :param save: Option to store the entire (unrolled) wavefield
-
-        :returns: Receiver, wavefield and performance summary
+        Parameters
+        ----------
+        src : SparseTimeFunction or Array
+            Symbol with time series data for the injected source term
+        rec : SparseTimeFunction or Array
+            Symbol to store interpolated receiver data (u+v)
+        u : SparseTimeFunction (Optional)
+            Symbol to store the computed wavefield
+        m : Function or Array or Float (Optional)
+            Symbol for the time-constant square slowness
+        save: Bool
+            Option to store the entire (unrolled) wavefield
+        kernel: OT2 or OT4
+            type of discretization
+        **kwargs : Compiler options (dle, dse,autotuning,...)
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
@@ -101,23 +106,29 @@ class AcousticWaveSolver(object):
         m = m or self.model.m
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, m=m,
-                                          dt=kwargs.pop('dt', self.dt), **kwargs)
+        dt = kwargs.pop('dt', self.dt(kernel))
+        summary = self.op_fwd(save, kernel=kernel).apply(src=src, rec=rec, u=u, m=m,
+                                                         dt=dt, **kwargs)
         return rec, u, summary
 
-    def adjoint(self, rec, srca=None, v=None, m=None, **kwargs):
+    def adjoint(self, rec, srca=None, v=None, m=None, kernel='OT2', **kwargs):
         """
         Adjoint modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
 
-        :param rec: Symbol with stored receiver data. Please note that
-                    these act as the source term in the adjoint run.
-        :param srca: Symbol to store the resulting data for the
-                     interpolated at the original source location.
-        :param v: (Optional) Symbol to store the computed wavefield
-        :param m: (Optional) Symbol for the time-constant square slowness
-
-        :returns: Adjoint source, wavefield and performance summary
+        Parameters
+        ----------
+        rec : SparseTimeFunction or Array
+            Symbol to store interpolated receiver data (u)
+        srca : SparseTimeFunction or Array
+            Symbol with time series data for the injected source term
+        v : SparseTimeFunction (Optional)
+            Symbol to store the computed wavefield
+        m : Function or Array or Float (Optional)
+            Symbol for the time-constant square slowness
+        kernel: OT2 or OT4
+            type of discretization
+        **kwargs : Compiler options (dle, dse,autotuning,...)
         """
         # Create a new adjoint source and receiver symbol
         srca = srca or PointSource(name='srca', grid=self.model.grid,
@@ -132,24 +143,35 @@ class AcousticWaveSolver(object):
         m = m or self.model.m
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_adj().apply(srca=srca, rec=rec, v=v, m=m,
-                                      dt=kwargs.pop('dt', self.dt), **kwargs)
+        dt = kwargs.pop('dt', self.dt(kernel))
+        summary = self.op_adj(kernel=kernel).apply(srca=srca, rec=rec, v=v, m=m,
+                                                   dt=dt, **kwargs)
         return srca, v, summary
 
-    def gradient(self, rec, u, v=None, grad=None, m=None, checkpointing=False, **kwargs):
+    def gradient(self, rec, u, v=None, grad=None, m=None, checkpointing=False,
+                 kernel='OT2', **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
         Linearized Born modelling function, ie. the action of the
         Jacobian adjoint on an input data.
 
-        :param recin: Receiver data as a numpy array
-        :param u: Symbol for full wavefield `u` (created with save=True)
-        :param v: (Optional) Symbol to store the computed wavefield
-        :param grad: (Optional) Symbol to store the gradient field
-
-        :returns: Gradient field and performance summary
+        Parameters
+        ----------
+        recin : SparseTimeFunction or Array
+            Adjoint source (at receiver locations)
+        u : SparseTimeFunction (Optional)
+            Symbol for the computed forward wavefield
+        v : SparseTimeFunction (Optional)
+            Symbol to store the computed adjoint wavefield
+        m : Function or Array or Float (Optional)
+            Symbol for the time-constant square slowness
+        grad : Function or Array or Float (Optional)
+            Symbol to store the gradient
+        kernel: OT2 or OT4
+            type of discretization
+        **kwargs : Compiler options (dle, dse,autotuning,...)
         """
-        dt = kwargs.pop('dt', self.dt)
+        dt = kwargs.pop('dt', self.dt(kernel))
         # Gradient symbol
         grad = grad or Function(name='grad', grid=self.model.grid)
 
@@ -175,20 +197,31 @@ class AcousticWaveSolver(object):
             wrp.apply_forward()
             summary = wrp.apply_reverse()
         else:
-            summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, m=m,
-                                           dt=dt, **kwargs)
+            summary = self.op_grad(kernel=kernel).apply(rec=rec, grad=grad, v=v, u=u,
+                                                        m=m, dt=dt, **kwargs)
         return grad, summary
 
-    def born(self, dmin, src=None, rec=None, u=None, U=None, m=None, **kwargs):
+    def born(self, dmin, src=None, rec=None, u=None, U=None, m=None,
+             kernel='OT2', **kwargs):
         """
         Linearized Born modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
 
-        :param src: Symbol with time series data for the injected source term
-        :param rec: Symbol to store interpolated receiver data
-        :param u: (Optional) Symbol to store the computed wavefield
-        :param U: (Optional) Symbol to store the computed wavefield
-        :param m: (Optional) Symbol for the time-constant square slowness
+        Parameters
+        ----------
+        src : SparseTimeFunction or Array
+            Symbol with time series data for the injected source term
+        rec : SparseTimeFunction or Array
+            Symbol to store interpolated receiver data (u+v)
+        u : SparseTimeFunction (Optional)
+            Symbol to store the computed wavefield
+        u : SparseTimeFunction (Optional)
+            Symbol to store the computed linearized (Born) wavefield
+        m : Function or Array or Float (Optional)
+            Symbol for the time-constant square slowness
+        kernel: OT2 or OT4
+            type of discretization
+        **kwargs : Compiler options (dle, dse,autotuning,...)
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
@@ -207,6 +240,7 @@ class AcousticWaveSolver(object):
         m = m or self.model.m
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_born().apply(dm=dmin, u=u, U=U, src=src, rec=rec,
-                                       m=m, dt=kwargs.pop('dt', self.dt), **kwargs)
+        dt = kwargs.pop('dt', self.dt(kernel))
+        summary = self.op_born(kernel=kernel).apply(dm=dmin, u=u, U=U, src=src, rec=rec,
+                                                    m=m, dt=dt, **kwargs)
         return rec, u, U, summary

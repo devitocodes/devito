@@ -51,7 +51,7 @@ class TestAdjoint(object):
         tn = 500.  # Final time
 
         # Create solver from preset
-        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape],
                                 nbpml=nbpml, tn=tn, space_order=space_order,
                                 **(presets[mkey]), dtype=np.float64)
 
@@ -61,8 +61,8 @@ class TestAdjoint(object):
                         coordinates=solver.geometry.src_positions)
 
         # Run forward and adjoint operators
-        rec, _, _ = solver.forward(save=False)
-        solver.adjoint(rec=rec, srca=srca)
+        rec, _, _ = solver.forward(save=False, kernel=kernel)
+        solver.adjoint(rec=rec, srca=srca, kernel=kernel)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(srca.data.reshape(-1), solver.geometry.src.data)

@@ -10,10 +10,15 @@ def laplacian(field, m, s, kernel):
     order in time formulation, the 4th order time derivative is replaced by a
     double laplacian:
     H = (laplacian + s**2/12 laplacian(1/m*laplacian))
-    :param field: Symbolic TimeFunction object, solution to be computed
-    :param m: square slowness
-    :param s: symbol for the time-step
-    :return: H
+
+    Parameters
+    ----------
+    field : TimeFunction
+        Symbolic TimeFunction object, solution to be computed
+    m : Function or Float
+        Square slowness
+    s : Symbol or Float
+        symbol for the time-step dt
     """
     if kernel not in ['OT2', 'OT4']:
         raise ValueError("Unrecognized kernel")
@@ -26,13 +31,21 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     """
     Stencil for the acoustic isotropic wave-equation:
     u.dt2 - H + damp*u.dt = 0
-    :param field: Symbolic TimeFunction object, solution to be computed
-    :param m: square slowness
-    :param s: symbol for the time-step
-    :param damp: ABC dampening field (Function)
-    :param kwargs: forwad/backward wave equation (sign of u.dt will change accordingly
-    as well as the updated time-step (u.forwad or u.backward)
-    :return: Stencil for the wave-equation
+
+    Parameters
+    ----------
+    field : TimeFunction
+        Symbolic TimeFunction object, solution to be computed
+    m : Function or Float
+        Square slowness
+    s : Symbol or Float
+        symbol for the time-step dt
+    damp: Function
+        ABC dampening field
+    **kwargs
+        * forward: forward ro backward
+            forwad/backward wave equation (sign of u.dt will change accordingly
+            as well as the updated time-step (u.forwad or u.backward)
     """
 
     # Creat a temporary symbol for H to avoid expensive sympy solve

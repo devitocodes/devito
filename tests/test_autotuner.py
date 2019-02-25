@@ -182,7 +182,7 @@ def test_mixed_blocking_nthreads():
 def test_tti_aggressive():
     from test_dse import tti_operator
     wave_solver = tti_operator(dse='aggressive', dle=('advanced', {'openmp': False}))
-    op = wave_solver.op_fwd(kernel='centered', save=False)
+    op = wave_solver.op_fwd(save=False)
     op.apply(time=0, autotune='aggressive')
     assert op._state['autotuning'][0]['runs'] == 33
 

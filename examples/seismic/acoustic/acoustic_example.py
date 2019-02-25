@@ -7,9 +7,8 @@ from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 
 
-def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
-                   tn=500., kernel='OT2', space_order=4, nbpml=10,
-                   preset='layers-isotropic', **kwargs):
+def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
+                   space_order=4, nbpml=10, preset='layers-isotropic', **kwargs):
     nrec = kwargs.pop('nrec', shape[0])
     model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
@@ -29,8 +28,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                                    t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
 
     # Create solver object to provide relevant operators
-    solver = AcousticWaveSolver(model, geometry, kernel=kernel,
-                                space_order=space_order, **kwargs)
+    solver = AcousticWaveSolver(model, geometry, space_order=space_order, **kwargs)
     return solver
 
 
@@ -39,8 +37,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         autotune=False, preset='layers-isotropic', checkpointing=False, **kwargs):
 
     solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
-                            space_order=space_order, kernel=kernel,
-                            preset=preset, **kwargs)
+                            space_order=space_order, preset=preset, **kwargs)
 
     # Smooth velocity
     initial_vp = Function(name='v0', grid=solver.model.grid, space_order=space_order)
@@ -53,24 +50,25 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     # checkpointing, PyRevolve will take care of the time history
     save = full_run and not checkpointing
     # Define receiver geometry (spread across x, just below surface)
-    rec, u, summary = solver.forward(save=save, autotune=autotune)
+    rec, u, summary = solver.forward(save=save, autotune=autotune, kernel=kernel)
 
     if preset == 'constant':
         # With  a new m as Constant
         m0 = Constant(name="m", value=.25, dtype=np.float32)
-        solver.forward(save=save, m=m0)
+        solver.forward(save=save, m=m0, kernel=kernel)
         # With a new m as a scalar value
-        solver.forward(save=save, m=.25)
+        solver.forward(save=save, m=.25, kernel=kernel)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
     info("Applying Adjoint")
-    solver.adjoint(rec, autotune=autotune)
+    solver.adjoint(rec, autotune=autotune, kernel=kernel)
     info("Applying Born")
-    solver.born(dm, autotune=autotune)
+    solver.born(dm, autotune=autotune, kernel=kernel)
     info("Applying Gradient")
-    solver.gradient(rec, u, autotune=autotune, checkpointing=checkpointing)
+    solver.gradient(rec, u, autotune=autotune,
+                    checkpointing=checkpointing, kernel=kernel)
 
 
 if __name__ == "__main__":

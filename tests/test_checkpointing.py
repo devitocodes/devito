@@ -113,9 +113,8 @@ def test_segmented_averaging():
 
 @switchconfig(log_level='WARNING')
 @pytest.mark.parametrize('space_order', [4])
-@pytest.mark.parametrize('kernel', ['OT2'])
 @pytest.mark.parametrize('shape', [(70, 80), (50, 50, 50)])
-def test_forward_with_breaks(shape, kernel, space_order):
+def test_forward_with_breaks(shape, space_order):
     """ Test running forward in one go and "with breaks"
     and ensure they produce the same result
     """
@@ -124,8 +123,7 @@ def test_forward_with_breaks(shape, kernel, space_order):
     time_order = 2
     nrec = shape[0]
 
-    solver = acoustic_setup(shape=shape, spacing=spacing, tn=tn,
-                            space_order=space_order, kernel=kernel)
+    solver = acoustic_setup(shape=shape, spacing=spacing, tn=tn, space_order=space_order)
 
     grid = solver.model.grid
 

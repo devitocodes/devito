@@ -290,7 +290,7 @@ class TestFD(object):
         # Check symbolic expressio nare expected oens for the adjoint .T
         deriv = getattr(f, derivative)
         expected = adjoint_coeff * getattr(f, adjoint_name).stencil
-        assert deriv.T.stencil ==  expected
+        assert deriv.T.stencil == expected
 
         # Compute numerical dervivatives and verify dot test
         #  i.e <f.dx, g> = <f, g.dx.T>

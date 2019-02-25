@@ -14,7 +14,7 @@ pytestmark = skipif(['yask', 'ops'])
 
 @pytest.mark.parametrize('shape', [(120, 140), (120, 140, 150)])
 @pytest.mark.parametrize('space_order', [4, 8])
-@pytest.mark.parametrize('kernel', ['centered', 'shifted'])
+@pytest.mark.parametrize('kernel', ['centered'])
 def test_tti(shape, space_order, kernel):
     """
     This first test compare the solution of the acoustic wave-equation and the

@@ -10,26 +10,31 @@ class AnisotropicWaveSolver(object):
     and encapsulates the time and space discretization for a given problem
     setup.
 
-    :param model: Physical model with domain parameters
-    :param source: Sparse point symbol providing the injected wave
-    :param receiver: Sparse point symbol describing an array of receivers
-    :param time_order: Order of the time-stepping scheme (default: 2)
-    :param space_order: Order of the spatial stencil discretisation (default: 4)
+    Parameters
+    ----------
+    model : Model
+        Physical model with domain parameters
+    geometry : AcquisitionGeometry
+        Source and receivers geometry
+    space_order : Int
+        Order of the spatial stencil discretisation (default: 2)
 
-    Note: space_order must always be greater than time_order
+    Note: space_order must always be an even number
     """
     def __init__(self, model, geometry, space_order=2, **kwargs):
         self.model = model
+        self.dt = model.critical_dt
+
         self.geometry = geometry
 
-        self.space_order = space_order
-        self.dt = self.model.critical_dt
+        assert self.model == geometry.model
 
-        # Cache compiler options
+        self.space_order = space_order
+
         self._kwargs = kwargs
 
     @memoized_meth
-    def op_fwd(self, kernel='shifted', save=False):
+    def op_fwd(self, kernel='centered', save=False):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order,
@@ -42,25 +47,32 @@ class AnisotropicWaveSolver(object):
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
 
-        :param src: Symbol with time series data for the injected source term
-        :param rec: Symbol to store interpolated receiver data (u+v)
-        :param u: (Optional) Symbol to store the computed wavefield first component
-        :param v: (Optional) Symbol to store the computed wavefield second component
-        :param m: (Optional) Symbol for the time-constant square slowness
-        :param epsilon: (Optional) Symbol for the time-constant first Thomsen parameter
-        :param delta: (Optional) Symbol for the time-constant second Thomsen parameter
-        :param theta: (Optional) Symbol for the time-constant Dip angle (radians)
-        :param phi: (Optional) Symbol for the time-constant Azimuth angle (radians)
-        :param save: Option to store the entire (unrolled) wavefield
-        :param kernel: type of discretization, centered or shifted
-
-        :returns: Receiver, wavefield and performance summary
+        Parameters
+        ----------
+        src : SparseTimeFunction or Array
+            Symbol with time series data for the injected source term
+        rec : SparseTimeFunction or Array
+            Symbol to store interpolated receiver data (u+v)
+        u : SparseTimeFunction (Optional)
+            Symbol to store the computed wavefield first component
+        v : SparseTimeFunction(Optional)
+            Symbol to store the computed wavefield second component
+        m : Function or Array or Float (Optional)
+            Symbol for the time-constant square slowness
+        epsilon : Function or Array or Float (Optional)
+            Symbol for the time-constant first Thomsen parameter
+        delta : Function or Array or Float (Optional)
+            Symbol for the time-constant second Thomsen parameter
+        theta : Function or Array or Float (Optional)
+            Symbol for the time-constant first Dip angle in radian
+        phi : Function or Array or Float (Optional)
+            Symbol for the time-constant Azimuth angle in radian
+        save: Bool
+            Option to store the entire (unrolled) wavefield
+        kernel: centered or staggred
+            type of discretization
+        **kwargs : Compiler options (dle, dse,autotuning,...)
         """
-
-        # Space order needs to be halved in the shifted case to have an
-        # overall space_order discretization
-        self.space_order = self.space_order // 2 if kernel == 'shifted' \
-            else self.space_order
 
         if kernel == 'staggered':
             time_order = 1
