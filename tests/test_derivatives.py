@@ -270,3 +270,37 @@ class TestFD(object):
 
         for fd in g._fd:
             assert getattr(g, fd)
+
+    @pytest.mark.parametrize('so', [2, 4, 8, 12])
+    @pytest.mark.parametrize('derivative, adjoint_name, adjoint_coeff', [
+        ('dx', 'dx', -1),
+        ('dx2', 'dx2', 1),
+        ('dxl', 'dxr', -1),
+        ('dxr', 'dxl', -1)])
+    def test_fd_adjoint(self, so, derivative, adjoint_name, adjoint_coeff):
+        clear_cache()
+        grid = Grid(shape=(50, 50, 50))
+        f = Function(name='f', grid=grid, space_order=so)
+        f_deriv = Function(name='f_deriv', grid=grid, space_order=so)
+        f.data[:, :] = np.random.rand(50, 50, 50)
+        g = Function(name='g', grid=grid, space_order=so)
+        g_deriv = Function(name='g_deriv', grid=grid, space_order=so)
+        g.data[:, :] = np.random.rand(50, 50, 50)
+
+        # Check symbolic expressio nare expected oens for the adjoint .T
+        deriv = getattr(f, derivative)
+        expected = adjoint_coeff * getattr(f, adjoint_name).stencil
+        assert deriv.T.stencil ==  expected
+
+        # Compute numerical dervivatives and verify dot test
+        #  i.e <f.dx, g> = <f, g.dx.T>
+
+        eq_f = Eq(f_deriv, deriv)
+        eq_g = Eq(g_deriv, getattr(g, derivative).T)
+
+        op = Operator([eq_f, eq_g])
+        op()
+
+        a = np.dot(f_deriv.data.reshape(-1), g.data.reshape(-1))
+        b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
+        assert np.isclose(a, b, atol=1e-3, rtol=1e-3)

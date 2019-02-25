@@ -126,8 +126,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     >>> first_derivative(f*g, dim=x, matvec=transpose)
     f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
     """
-    diff = dim.spacing
     side = side.adjoint(matvec)
+    diff = dim.spacing
     order = fd_order or expr.space_order
 
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging

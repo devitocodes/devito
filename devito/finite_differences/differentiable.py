@@ -71,6 +71,10 @@ class Differentiable(sympy.Expr):
         return self.func(*[getattr(to_differentiable(a), 'stencil', to_differentiable(a))
                            for a in self.args])
 
+    def subs(self, *args, **kwargs):
+        new = super(Differentiable, self).subs(*args, **kwargs)
+        return to_differentiable(new)
+
     def xreplace(self, rules):
         new = super(Differentiable, self).xreplace(rules)
         return to_differentiable(new)

@@ -92,11 +92,13 @@ class Diff(sympy.Derivative, Differentiable):
     def T(self):
         """transpose of the derivative"""
         if self._transpose == direct:
-            self._transpose = transpose
+            adjoint = transpose
         else:
-            self._transpose = direct
+            adjoint = direct
 
-        return self
+        return Diff(self.expr, *self.dims, deriv_order=self.deriv_order,
+                    fd_order=self.fd_order, side=self.side, stagger=self.stagger,
+                    transpose=adjoint)
 
     @property
     def stencil(self):
