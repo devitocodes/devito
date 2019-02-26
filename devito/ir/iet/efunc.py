@@ -1,10 +1,9 @@
 from cached_property import cached_property
 
-from devito.ir.iet.nodes import ArrayCast, Call, Callable, Expression, List
-from devito.ir.iet.scheduler import iet_insert_C_decls
+from devito.ir.iet.nodes import Call, Callable, Expression
 from devito.ir.iet.utils import derive_parameters
 from devito.ir.iet.visitors import FindNodes
-from devito.tools import as_tuple, filter_sorted
+from devito.tools import as_tuple
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc']
 
@@ -81,15 +80,6 @@ def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static
     exprs = FindNodes(Expression).visit(iet)
     write_arrays = {i.write for i in exprs if i.write.is_Array}
     rw_arrays = write_arrays.intersection(set().union(*[i.reads for i in exprs]))
-    functions = set().union(*[i.functions for i in exprs])
-    external = filter_sorted(i for i in functions - rw_arrays if i.is_Tensor)
-
-    # Insert array casts
-    casts = [ArrayCast(i) for i in external]
-    iet = List(body=casts + [iet])
-
-    # Insert declarations
-    iet = iet_insert_C_decls(iet, external)
 
     # The Callable parameters
     parameters = [i for i in derive_parameters(iet) if i not in rw_arrays]

@@ -1,15 +1,15 @@
 from collections import OrderedDict
 
 from devito.cgen_utils import Allocator
-from devito.ir.iet import (Expression, Increment, LocalExpression, Element, Iteration,
-                           List, Conditional, Section, HaloSpot, ExpressionBundle,
-                           MapExpressions, Transformer, FindNodes, FindSymbols, XSubs,
-                           iet_analyze, filter_iterations)
+from devito.ir.iet import (ArrayCast, Expression, Increment, LocalExpression, Element,
+                           Iteration, List, Conditional, Section, HaloSpot,
+                           ExpressionBundle, MapExpressions, Transformer, FindNodes,
+                           FindSymbols, XSubs, iet_analyze, filter_iterations)
 from devito.symbolics import IntDiv, xreplace_indices
-from devito.tools import as_mapper
+from devito.tools import as_mapper, as_tuple
 from devito.types import ConditionalDimension
 
-__all__ = ['iet_build', 'iet_insert_C_decls']
+__all__ = ['iet_build', 'iet_insert_decls', 'iet_insert_casts']
 
 
 def iet_build(stree):
@@ -103,9 +103,9 @@ def iet_lower_dimensions(iet):
     return iet
 
 
-def iet_insert_C_decls(iet, external=None):
+def iet_insert_decls(iet, external):
     """
-    Given an IET, build a new tree with the necessary symbol declarations.
+    Transform the input IET inserting the necessary symbol declarations.
     Declarations are placed as close as possible to the first symbol occurrence.
 
     Parameters
@@ -116,7 +116,7 @@ def iet_insert_C_decls(iet, external=None):
         The symbols defined in some outer Callable, which therefore must not
         be re-defined.
     """
-    external = external or []
+    iet = as_tuple(iet)
 
     # Classify and then schedule declarations to stack/heap
     allocator = Allocator()
@@ -135,16 +135,16 @@ def iet_insert_C_decls(iet, external=None):
             try:
                 if i.is_LocalObject:
                     # On the stack
-                    site = v[-1] if v else iet
-                    allocator.push_stack(site, i)
+                    site = v if v else iet
+                    allocator.push_stack(site[-1], i)
                 elif i.is_Array:
-                    if i in external:
-                        # The Array is to be defined in some foreign IET
+                    if i in as_tuple(external):
+                        # The Array is defined in some other IET
                         continue
                     elif i._mem_stack:
                         # On the stack
                         key = lambda i: not i.is_Parallel
-                        site = filter_iterations(v, key=key) or [iet]
+                        site = filter_iterations(v, key=key) or iet
                         allocator.push_stack(site[-1], i)
                     else:
                         # On the heap, as a tensor that must be globally accessible
@@ -163,4 +163,28 @@ def iet_insert_C_decls(iet, external=None):
         decls, allocs, frees = zip(*allocator.onheap)
         iet = List(header=decls + allocs, body=iet, footer=frees)
 
+    return iet
+
+
+def iet_insert_casts(iet, parameters):
+    """
+    Transform the input IET inserting the necessary type casts.
+    The type casts are placed at the top of the IET.
+
+    Parameters
+    ----------
+    iet : Node
+        The input Iteration/Expression tree.
+    parameters : tuple, optional
+        The symbol that might require casting.
+    """
+    # Make the generated code less verbose: if a non-Array parameter does not
+    # appear in any Expression, that is, if the parameter is merely propagated
+    # down to another Call, then there's no need to cast it
+    exprs = FindNodes(Expression).visit(iet)
+    need_cast = {i for i in set().union(*[i.functions for i in exprs]) if i.is_Tensor}
+    need_cast.update({i for i in parameters if i.is_Array})
+
+    casts = [ArrayCast(i) for i in parameters if i in need_cast]
+    iet = List(body=casts + [iet])
     return iet

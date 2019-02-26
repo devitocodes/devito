@@ -10,10 +10,9 @@ from sympy import Integer
 
 from devito.data import CORE, OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
-                           ExpressionBundle, Iteration, LocalExpression, List,
-                           Prodder, iet_insert_C_decls, PARALLEL, make_efunc,
-                           FindNodes, Transformer)
+from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
+                           Iteration, LocalExpression, List, Prodder, PARALLEL,
+                           make_efunc, FindNodes, Transformer)
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro)
@@ -301,7 +300,6 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             # The -1 below is because an Iteration, by default, generates <=
             iet = Iteration(iet, i, d.symbolic_size - 1)
         iet = iet._rebuild(properties=PARALLEL)
-        iet = List(body=[ArrayCast(f), ArrayCast(buf), iet])
 
         parameters = [buf] + list(buf.shape) + [f] + f_offsets
         return Callable(name, iet, 'void', parameters, ('static',))
@@ -341,7 +339,6 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
-        iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f] + list(bufs.shape) + ofsg + ofss + [fromrank, torank, comm])
         return Callable('sendrecv%s' % key, iet, 'void', parameters, ('static',))
 
@@ -529,7 +526,6 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
                                   torank, Integer(13), comm, rsend])
 
         iet = List(body=[recv, gather, send])
-        iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f] + ofsg + [fromrank, torank, comm, msg])
         return Callable('sendrecv%s' % key, iet, 'void', parameters, ('static',))
 
@@ -586,7 +582,6 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
         iet = List(body=[waitsend, waitrecv, scatter])
-        iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f] + ofss + [fromrank, msg])
         return Callable('wait%s' % key, iet, 'void', parameters, ('static',))
 
@@ -711,7 +706,6 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The -1 below is because an Iteration, by default, generates <=
         iet = Iteration([recv, gather, send], dim, msg.npeers - 1)
-        iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f, comm, msg]) + list(fixed.values())
         return Callable('haloupdate%s' % key, iet, 'void', parameters, ('static',))
 
@@ -754,7 +748,6 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The -1 below is because an Iteration, by default, generates <=
         iet = Iteration([waitsend, waitrecv, scatter], dim, msg.npeers - 1)
-        iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f] + list(fixed.values()) + [msg])
         return Callable('halowait%s' % key, iet, 'void', parameters, ('static',))
 

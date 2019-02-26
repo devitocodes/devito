@@ -13,8 +13,8 @@ from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
-from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
-                           ArrayCast, derive_parameters)
+from devito.ir.iet import (Callable, MetaCall, iet_build, iet_insert_decls,
+                           iet_insert_casts, derive_parameters)
 from devito.ir.stree import st_build
 from devito.parameters import configuration
 from devito.profiling import create_profile
@@ -180,14 +180,9 @@ class Operator(Callable):
         # Derive all Operator parameters based on the IET
         parameters = tuple(derive_parameters(iet, True))
 
-        # Finalization: introduce declarations
-        iet = iet_insert_C_decls(iet)
+        # Finalization: introduce declarations, type casts, etc
+        iet = self._finalize(iet, parameters)
 
-        # Finalization: introduce data casts
-        casts = [ArrayCast(i) for i in parameters if i.is_Tensor and i._mem_external]
-        iet = List(body=casts + [iet])
-
-        # Finish instantiation
         super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
 
     # Read-only fields exposed to the outside world
@@ -251,6 +246,19 @@ class Operator(Callable):
                                              for i in state.efuncs]))
         self._dimensions.extend(state.dimensions)
         self._includes.extend(state.includes)
+
+        return iet
+
+    def _finalize(self, iet, parameters):
+        iet = iet_insert_decls(iet, parameters)
+        iet = iet_insert_casts(iet, parameters)
+
+        # Now do the same to each ElementalFunction
+        for k, (root, local) in list(self._func_table.items()):
+            if local:
+                body = iet_insert_decls(root.body, root.parameters)
+                body = iet_insert_casts(body, root.parameters)
+                self._func_table[k] = MetaCall(root._rebuild(body=body), True)
 
         return iet
 
