@@ -123,5 +123,5 @@ def test_tti_staggered(shape):
     res2 = np.linalg.norm(v1.data.reshape(-1) - v2.data.reshape(-1))
     log("DSE/DLE introduces error %2.4e, %2.4e in %d dimensions" % (res1, res2,
                                                                     len(shape)))
-    assert np.isclose(res1, 0.0, atol=1e-8)
-    assert np.isclose(res2, 0.0, atol=1e-8)
+    assert np.isclose(res1, 0.0, atol=1e-5)
+    assert np.isclose(res2, 0.0, atol=1e-5)

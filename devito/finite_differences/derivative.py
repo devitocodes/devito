@@ -68,6 +68,14 @@ class Diff(sympy.Derivative, Differentiable):
         return self.expr.is_Staggered
 
     @cached_property
+    def indices(self):
+        return self.expr.indices
+
+    @cached_property
+    def staggered(self):
+        return self.expr.staggered
+
+    @cached_property
     def _stagger_setup(self):
         if not self.is_Staggered:
             side = dict((d, None) for d in self.dims)
@@ -111,6 +119,6 @@ class Diff(sympy.Derivative, Differentiable):
                                    matvec=self.transpose, stagger=self.stagger)
         else:
             res = generic_derivative(expr, self.dims[0], self.fd_order,
-                                     self.deriv_order, stagger=self.stagger,
+                                     self.deriv_order, stagger=self.stagger[self.dims[0]],
                                      matvec=self.transpose)
         return res
