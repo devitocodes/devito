@@ -273,7 +273,7 @@ class Operator(Callable):
                     raise ValueError("Default `%s` is incompatible with other args as "
                                      "`%s=%s`, while `%s=%s` is expected. Perhaps you "
                                      "forgot to override `%s`?" %
-                                     (p, k, args[k], k, v, p))
+                                     (p, k, v, k, args[k], p))
                 args[k] = v
         args = args.reduce_all()
 
