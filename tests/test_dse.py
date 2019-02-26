@@ -148,6 +148,17 @@ def test_tti_rewrite_aggressive(tti_nodse):
     assert len([i for i in arrays if i._mem_stack]) == 2
 
 
+@pytest.mark.parallel(mode=[(1, 'full')])
+def test_tti_rewrite_aggressive_wmpi():
+    tti_nodse = tti_operator(dse=None)
+    rec0, u0, v0, _ = tti_nodse.forward(kernel='centered', save=False)
+    tti_agg = tti_operator(dse='aggressive')
+    rec1, u1, v1, _ = tti_agg.forward(kernel='centered', save=False)
+
+    assert np.allclose(v0.data, v1.data, atol=10e-1)
+    assert np.allclose(rec0.data, rec1.data, atol=10e-1)
+
+
 @switchconfig(profiling='advanced')
 @pytest.mark.parametrize('kernel,space_order,expected', [
     ('centered', 8, 168), ('centered', 16, 300)
