@@ -291,7 +291,10 @@ class Expression(Node):
 
     @cached_property
     def functions(self):
-        return tuple(filter_ordered([self.write] + self._reads))
+        functions = list(self._reads)
+        if self.write is not None:
+            functions.append(self.write)
+        return tuple(filter_ordered(functions))
 
 
 class Increment(Expression):
