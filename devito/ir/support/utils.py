@@ -236,8 +236,16 @@ def detect_io(exprs, relax=False):
     # Don't forget this nasty case, with indirections on the LHS:
     # >>> u[t, a[x]] = f[x]  -> (reads={a, f}, writes={u})
 
+    roots = []
+    for i in exprs:
+        try:
+            roots.append(i.rhs)
+            roots.extend(list(i.lhs.indices))
+        except AttributeError:
+            # E.g., FunctionFromPointer
+            roots.append(i)
+
     reads = []
-    roots = [i.rhs for i in exprs] + flatten(i.lhs.indices for i in exprs)
     terminals = flatten(retrieve_terminals(i, deep=True) for i in roots)
     for i in terminals:
         candidates = i.free_symbols
