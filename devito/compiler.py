@@ -241,7 +241,7 @@ class IntelCompiler(Compiler):
     CC = 'icc'
     CPP = 'icpc'
     MPICC = 'mpiicc'
-    MPICXX = 'mpicxx'
+    MPICXX = 'mpiicpc'
 
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
