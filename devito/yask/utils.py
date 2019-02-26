@@ -75,9 +75,10 @@ def split_increment(expr):
     expr, indices = expr.params
     if not isinstance(indices, ListInitializer):
         raise ValueError
-    if not expr.is_Add or len(expr.args) != 2:
-        raise ValueError
-    values = [i for i in expr.args if not isinstance(i, FunctionFromPointer)]
+    if expr.is_Symbol:
+        values = [expr]
+    else:
+        values = [i for i in expr.args if not isinstance(i, FunctionFromPointer)]
     if not len(values) == 1:
         raise ValueError
     return target, values[0], indices

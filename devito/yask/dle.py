@@ -39,7 +39,9 @@ class YaskOmpizer(Ompizer):
         else:
             mapper[root] = root._rebuild(pragmas=root.pragmas + (parallel,))
 
-        return mapper
+        root = Transformer(mapper).visit(root)
+
+        return root
 
 
 class YaskRewriter(AdvancedRewriter):
