@@ -6,9 +6,8 @@ from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
                     Operator, Dimension, SubDimension, switchconfig)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
-from devito.ir.iet import (ArrayCast, Conditional, Expression, Iteration, FindNodes,
-                           FindSymbols, retrieve_iteration_tree, filter_iterations,
-                           make_efunc)
+from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes, FindSymbols,
+                           retrieve_iteration_tree, filter_iterations, make_efunc)
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      AFFINE, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
@@ -553,13 +552,10 @@ else
             assert len(functions) == nf
             assert all(i in efunc.parameters for i in functions)
             timeiters = [i for i in FindSymbols('free-symbols').visit(efunc)
-                         if i.is_Dimension and i.is_Time]
+                         if isinstance(i, Dimension) and i.is_Time]
             assert len(timeiters) == nt
             assert all(i in efunc.parameters for i in timeiters)
             assert len(efunc.parameters) == 4 + len(functions) + len(timeiters)
-
-            # Check there's exactly one ArrayCast for each Function
-            assert len(FindNodes(ArrayCast).visit(efunc)) == nf
 
             # Check the loop nest structure
             trees = retrieve_iteration_tree(efunc)
