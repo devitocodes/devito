@@ -7,6 +7,7 @@ from devito.finite_differences.finite_difference import (left, right, centered,
                                                          first_derivative, direct,
                                                          cross_derivative)
 from devito.finite_differences.differentiable import Differentiable
+from devito.types import Dimension
 
 __all__ = ['Diff']
 
@@ -36,12 +37,18 @@ class Diff(sympy.Derivative, Differentiable):
         return new_obj
 
     def setup_fd(self, expr, dims, deriv_order=1, fd_order=1, **kwargs):
-        self._dims = dims if isinstance(dims, tuple) else (dims,)
+        self._dims = self._setup_wrt(dims)
         self._fd_order = fd_order
         self._deriv_order = deriv_order
         self._stagger = kwargs.get("stagger", self._stagger_setup)
         self._side = kwargs.get("side", None)
         self._transpose = kwargs.get("transpose", direct)
+
+    def _setup_wrt(self, dims):
+        if not isinstance(dims, sympy.Tuple):
+            return (dims,) if isinstance(dims, Dimension) else tuple()
+        else:
+            return tuple(d for d in dims if isinstance(d, Dimension))
 
     @cached_property
     def dims(self):
