@@ -7,6 +7,7 @@ from devito.finite_differences.finite_difference import (left, right, centered,
                                                          first_derivative, direct,
                                                          cross_derivative)
 from devito.finite_differences.differentiable import Differentiable
+from devito.tools import as_tuple
 from devito.types import Dimension
 
 __all__ = ['Diff']
@@ -45,10 +46,8 @@ class Diff(sympy.Derivative, Differentiable):
         self._transpose = kwargs.get("transpose", direct)
 
     def _setup_wrt(self, dims):
-        if not isinstance(dims, sympy.Tuple):
-            return (dims,) if isinstance(dims, Dimension) else tuple()
-        else:
-            return tuple(d for d in dims if isinstance(d, Dimension))
+        dims = as_tuple(dims)
+        return tuple(d for d in dims if isinstance(d, Dimension))
 
     @cached_property
     def dims(self):
