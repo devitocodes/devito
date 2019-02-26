@@ -3,7 +3,7 @@ import pytest
 from numpy import linalg
 
 from conftest import skipif
-from devito import TimeFunction, configuration
+from devito import TimeFunction, switchconfig
 from devito.logger import log
 from examples.seismic import Model, demo_model, AcquisitionGeometry
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -113,11 +113,19 @@ def test_tti_staggered(shape):
     solver_tti2 = AnisotropicWaveSolver(model, geometry, time_order=2, space_order=8)
 
     # Solve
-    configuration['dse'] = 'aggressive'
-    configuration['dle'] = 'advanced'
-    rec1, u1, v1, _ = solver_tti.forward(kernel='staggered')
-    configuration['dle'] = 'basic'
-    rec2, u2, v2, _ = solver_tti2.forward(kernel='staggered')
+    @switchconfig(dse='aggressive', dle='advanced')
+    def run_tti(solver):
+        rec1, u1, v1, _ = solver.forward(kernel='staggered')
+        return rec1, u1, v1
+
+    rec1, u1, v1 = run_tti(solver_tti)
+
+    @switchconfig(dse='aggressive', dle='basic')
+    def run_tti2(solver):
+        rec1, u1, v1, _ = solver.forward(kernel='staggered')
+        return rec1, u1, v1
+
+    rec2, u2, v2 = run_tti2(solver_tti2)
 
     res1 = np.linalg.norm(u1.data.reshape(-1) - u2.data.reshape(-1))
     res2 = np.linalg.norm(v1.data.reshape(-1) - v2.data.reshape(-1))
