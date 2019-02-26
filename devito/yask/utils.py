@@ -5,7 +5,7 @@ from devito.ir.iet import Expression, ForeignExpression, FindNodes, Transformer
 from devito.symbolics import FunctionFromPointer, ListInitializer, retrieve_indexed
 from devito.tools import ctypes_pointer
 
-__all__ = ['make_grid_accesses', 'make_sharedptr_funcall', 'split_increment']
+__all__ = ['make_grid_accesses', 'make_sharedptr_funcall']
 
 
 def make_sharedptr_funcall(call, params, sharedptr):
@@ -53,35 +53,6 @@ def make_grid_accesses(node, yk_grid_objs):
         mapper.update({e: processed})
 
     return Transformer(mapper).visit(node)
-
-
-def split_increment(expr):
-    """
-    Split an increment of type: ::
-
-        u->set_element(v + u->get_element(indices), indices)
-
-    into its three main components, namely the target grid ``u``, the increment
-    value ``v``, and the :class:`ListInitializer` ``indices``.
-
-    Raises
-    ------
-    ValueError
-        If ``expr`` is not an increment or does not appear in the normal form above.
-    """
-    if not isinstance(expr, FunctionFromPointer) or len(expr.params) != 2:
-        raise ValueError
-    target = expr.pointer
-    expr, indices = expr.params
-    if not isinstance(indices, ListInitializer):
-        raise ValueError
-    if expr.is_Symbol:
-        values = [expr]
-    else:
-        values = [i for i in expr.args if not isinstance(i, FunctionFromPointer)]
-    if not len(values) == 1:
-        raise ValueError
-    return target, values[0], indices
 
 
 # YASK conventions
