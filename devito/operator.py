@@ -19,7 +19,8 @@ from devito.ir.stree import st_build
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
-from devito.tools import Signer, ReducerMap, as_tuple, flatten, filter_sorted, split
+from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_ordered,
+                          filter_sorted, split)
 
 __all__ = ['Operator']
 
@@ -160,6 +161,7 @@ class Operator(Callable):
         expressions = self._specialize_exprs(expressions)
 
         # Expression analysis
+        self._input = filter_sorted(flatten(e.reads + e.writes for e in expressions))
         self._output = filter_sorted(flatten(e.writes for e in expressions))
         self._dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
 
@@ -178,7 +180,7 @@ class Operator(Callable):
         iet = self._specialize_iet(iet, **kwargs)
 
         # Derive all Operator parameters based on the IET
-        parameters = tuple(derive_parameters(iet, True))
+        parameters = derive_parameters(iet, True)
 
         # Finalization: introduce declarations, type casts, etc
         iet = self._finalize(iet, parameters)
@@ -197,7 +199,8 @@ class Operator(Callable):
 
     @cached_property
     def input(self):
-        return tuple(i for i in self.parameters if i.is_Input)
+        ret = [i for i in self._input + list(self.parameters) if i.is_Input]
+        return tuple(filter_ordered(ret))
 
     @cached_property
     def objects(self):
