@@ -255,7 +255,7 @@
             <span class="n">support</span> <span class="o">=</span> <span class="p">[</span><span class="nb">range</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">j</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_radius</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="nb">min</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_radius</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
                        <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">M</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">shape</span><span class="p">)]</span>
             <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">product</span><span class="p">(</span><span class="o">*</span><span class="n">support</span><span class="p">)))</span>
-        <span class="k">return</span> <span class="n">ret</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_datamap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -282,7 +282,7 @@
         <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">dmap</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">dmap</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
         <span class="n">ret</span> <span class="o">=</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)]</span>
         <span class="n">ret</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span> <span class="o">=</span> <span class="n">mask</span>
-        <span class="k">return</span> <span class="n">ret</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_subfunc_scatter_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -305,7 +305,7 @@
         <span class="n">mask</span> <span class="o">=</span> <span class="n">ret</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
         <span class="n">ret</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">mask</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
                                       <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="n">mask</span><span class="p">)]</span>
-        <span class="k">return</span> <span class="n">ret</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_count</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -352,8 +352,8 @@
             <span class="n">rshape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
 
         <span class="c1"># Per-rank count of send/recv data</span>
-        <span class="n">scount</span> <span class="o">=</span> <span class="p">[</span><span class="n">prod</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sshape</span><span class="p">]</span>
-        <span class="n">rcount</span> <span class="o">=</span> <span class="p">[</span><span class="n">prod</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rshape</span><span class="p">]</span>
+        <span class="n">scount</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prod</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sshape</span><span class="p">)</span>
+        <span class="n">rcount</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prod</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rshape</span><span class="p">)</span>
 
         <span class="c1"># Per-rank displacement of send/recv data (it&#39;s actually all contiguous,</span>
         <span class="c1"># but the Alltoallv needs this information anyway)</span>
@@ -368,8 +368,8 @@
 
         <span class="c1"># May have to swap axes, as `MPI_Alltoallv` expects contiguous data, and</span>
         <span class="c1"># the sparse dimension may not be the outermost</span>
-        <span class="n">sshape</span> <span class="o">=</span> <span class="p">[</span><span class="n">sshape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">]</span>
-        <span class="n">rshape</span> <span class="o">=</span> <span class="p">[</span><span class="n">rshape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">]</span>
+        <span class="n">sshape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sshape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">)</span>
+        <span class="n">rshape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">rshape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span>
 
