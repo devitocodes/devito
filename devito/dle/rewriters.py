@@ -413,7 +413,7 @@ class AdvancedRewriter(BasicRewriter):
         mapper = {}
         for tree in retrieve_iteration_tree(iet):
             for prodder in FindNodes(Prodder).visit(tree.root):
-                if prodder._prop_periodic:
+                if prodder._periodic:
                     try:
                         key = lambda i: isinstance(i.dim, BlockDimension)
                         candidate = filter_iterations(tree, key)[-1]

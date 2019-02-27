@@ -780,18 +780,20 @@ class Prodder(Call):
         * Software prefetching.
     """
 
-    _prop_singlethread = False
-    """
-    Subclasses should set this to True if the Call is to be performed by
-    a single thread.
-    """
+    def __init__(self, name, arguments=None, single_thread=False, periodic=False):
+        super(Prodder, self).__init__(name, arguments)
 
-    _prop_periodic = False
-    """
-    Subclasses should set this to True if the Call should be performed
-    periodically, such as every N iterations. False if the Call is outside of
-    any Iteration or if it should be performed at every iteration.
-    """
+        # Prodder properties
+        self._single_thread = single_thread
+        self._periodic = periodic
+
+    @property
+    def single_thread(self):
+        return self._single_thread
+
+    @property
+    def periodic(self):
+        return self._periodic
 
 
 # Nodes required for distributed-memory halo exchange

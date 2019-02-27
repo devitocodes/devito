@@ -810,7 +810,7 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
         return make_efunc('pokempi%s' % key, body)
 
     def _call_poke(self, poke):
-        return PokeHaloUpdate(poke.name, poke.parameters)
+        return Prodder(poke.name, poke.parameters, single_thread=True, periodic=True)
 
 
 class MPIStatusObject(LocalObject):
@@ -1016,9 +1016,3 @@ class MPIRegion(CompositeObject):
 
     # Pickling support
     _pickle_args = ['name', 'omapper']
-
-
-class PokeHaloUpdate(Prodder):
-
-    _prop_singlethread = True
-    _prop_periodic = True
