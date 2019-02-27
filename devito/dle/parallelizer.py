@@ -3,10 +3,11 @@ from collections import OrderedDict
 import numpy as np
 import cgen as c
 import psutil
+from sympy import Function
 
-from devito.ir.iet import (Conditional, Block, Element, Expression, List, FindSymbols,
-                           FindNodes, Transformer, IsPerfectIteration, COLLAPSED,
-                           retrieve_iteration_tree, filter_iterations)
+from devito.ir.iet import (Call, Conditional, Block, Element, Expression, List, Prodder,
+                           FindSymbols, FindNodes, Transformer, IsPerfectIteration,
+                           COLLAPSED, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq
 from devito.parameters import configuration
 from devito.types import Constant, Symbol
@@ -41,6 +42,17 @@ class ParallelRegion(Block):
     @property
     def functions(self):
         return (self.nthreads,)
+
+
+class SingleThreadProdder(Conditional, Prodder):
+
+    _traversable = []
+
+    def __init__(self, prodder):
+        condition = CondEq(Function('omp_get_thread_num')(), 0)
+        then_body = Call(prodder.name, prodder.arguments)
+        Conditional.__init__(self, condition, then_body)
+        Prodder.__init__(self, prodder.name, prodder.arguments, periodic=prodder.periodic)
 
 
 class Ompizer(object):
@@ -114,7 +126,10 @@ class Ompizer(object):
             mapper[root] = handle._rebuild(pragmas=pragmas, properties=properties)
         else:
             mapper[root] = root._rebuild(pragmas=pragmas, properties=properties)
+        root = Transformer(mapper).visit(root)
 
+        # Atomic-ize any single-thread Prodders in the parallel tree
+        mapper = {i: SingleThreadProdder(i) for i in FindNodes(Prodder).visit(root)}
         root = Transformer(mapper).visit(root)
 
         return root
@@ -150,4 +165,5 @@ class Ompizer(object):
             mapper[root] = partree
         iet = Transformer(mapper).visit(iet)
 
-        return iet, {'args': [self.nthreads] if mapper else []}
+        return iet, {'args': [self.nthreads] if mapper else [],
+                     'includes': ['omp.h']}
