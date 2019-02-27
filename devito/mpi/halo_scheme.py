@@ -124,14 +124,16 @@ class HaloScheme(object):
             xxxx****------------****xxxx   v
 
         Where 'x' represents a HALO point, '*' a OWNED point, and '-' a CORE point.
-        Together, '*' and '-' constitute the DOMAIN, which is guaranteed to have
-        identical size across all Functions.
+        Together, '*' and '-' constitute the DOMAIN.
 
-        Now, in this case, the "cumulative" OWNED size is (4, 4), that is the max
-        on each DataSide across all Functions (``u`` and ``v`` here).
+        In this example, the "cumulative" OWNED size is (4, 4), that is the max
+        on each DataSide across all Functions, namely ``u`` and ``v``. Then, the
+        ``omapper``, which provides *relative offsets*, not sizes, will be
+        ``{d0: (4, -4)}``.
 
-        Then, the ``omapper``, which provides *relative offsets*, not sizes,
-        will be ``{d0: (4, -4)}``.
+        Note that, for each Function, the 'x' and '*' are exactly the same on
+        *all MPI ranks*, so the output of this method is guaranteed to be
+        consistent across *all MPI ranks*.
         """
         mapper = {}
         for f, v in self.halos.items():
