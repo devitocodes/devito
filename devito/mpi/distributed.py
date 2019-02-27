@@ -30,12 +30,14 @@ except ImportError:
         def Is_initialized(cls):
             return False
 
-        def _sizeof(comm):
+        def _sizeof(obj):
             return None
 
         @property
         def Comm(self):
             return None
+
+        Request = Comm
 
 
 __all__ = ['Distributor', 'SparseDistributor', 'MPI']

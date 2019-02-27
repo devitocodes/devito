@@ -2,8 +2,8 @@ from collections import OrderedDict
 from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, AFFINE, USELESS, hoistable, MapNodes,
-                           FindNodes, Transformer, retrieve_iteration_tree)
+                           VECTOR, WRAPPABLE, AFFINE, USELESS, OVERLAPPABLE, hoistable,
+                           MapNodes, FindNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import Scope
 from devito.tools import as_tuple, filter_ordered, flatten
 
@@ -48,6 +48,7 @@ def iet_analyze(iet):
     # Analyze HaloSpots
     analysis = mark_halospot_useless(analysis)
     analysis = mark_halospot_hoistable(analysis)
+    analysis = mark_halospot_overlappable(analysis)
 
     # Decorate the Iteration/Expression tree with the found properties
     mapper = OrderedDict()
@@ -266,5 +267,19 @@ def mark_halospot_hoistable(analysis):
             found = [f for f in hs.fmapper if not analysis.scopes[i].d_anti.project(f)]
             if found:
                 properties[hs] = hoistable(tuple(found))
+
+    analysis.update(properties)
+
+
+@propertizer
+def mark_halospot_overlappable(analysis):
+    """
+    Update the ``analysis`` detecting the OVERLAPPABLE HaloSpots within ``analysis.iet``.
+    """
+    properties = OrderedDict()
+    for hs, iterations in MapNodes(HaloSpot, Iteration).visit(analysis.iet).items():
+        # To be OVERLAPPABLE, all inner Iterations must be PARALLEL
+        if all(PARALLEL in analysis.properties.get(i) for i in iterations):
+            properties[hs] = OVERLAPPABLE
 
     analysis.update(properties)

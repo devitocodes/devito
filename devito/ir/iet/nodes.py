@@ -12,7 +12,7 @@ from devito.cgen_utils import ccode
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, AFFINE, USELESS)
+                           VECTOR, WRAPPABLE, AFFINE, USELESS, OVERLAPPABLE)
 from devito.ir.support import Forward, detect_io
 from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
@@ -190,27 +190,27 @@ class Call(Node):
 
     is_Call = True
 
-    def __init__(self, name, params=None):
+    def __init__(self, name, arguments=None):
         self.name = name
-        self.params = as_tuple(params)
+        self.arguments = as_tuple(arguments)
 
     def __repr__(self):
         return "Call::\n\t%s(...)" % self.name
 
     @property
     def functions(self):
-        return tuple(p for p in self.params if isinstance(p, AbstractFunction))
+        return tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
 
     @cached_property
     def free_symbols(self):
         free = set()
-        for p in self.params:
-            if isinstance(p, numbers.Number):
+        for i in self.arguments:
+            if isinstance(i, numbers.Number):
                 continue
-            elif isinstance(p, AbstractFunction):
-                free.add(p)
+            elif isinstance(i, AbstractFunction):
+                free.add(i)
             else:
-                free.update(p.free_symbols)
+                free.update(i.free_symbols)
         return free
 
     @property
@@ -797,15 +797,9 @@ class HaloSpot(Node):
         self._properties = as_tuple(properties)
 
     def __repr__(self):
-        properties = []
-        if self.is_Useless:
-            properties.append("useless")
-        if self.hoistable:
-            properties.append("hoistable[%s]" % ",".join(i.name for i in self.hoistable))
-        if properties:
-            properties = "[%s]" % ','.join(properties)
-        else:
-            properties = ""
+        properties = ""
+        if self.properties:
+            properties = "[%s]" % ','.join(str(i) for i in self.properties)
         functions = "(%s)" % ",".join(i.name for i in self.functions)
         return "<%s%s%s>" % (self.__class__.__name__, functions, properties)
 
@@ -816,6 +810,14 @@ class HaloSpot(Node):
     @property
     def fmapper(self):
         return self.halo_scheme.fmapper
+
+    @property
+    def omapper(self):
+        return self.halo_scheme.omapper
+
+    @property
+    def dimensions(self):
+        return self.halo_scheme.dimensions
 
     @property
     def is_empty(self):
@@ -839,6 +841,10 @@ class HaloSpot(Node):
     @property
     def is_Useless(self):
         return USELESS in self.properties
+
+    @property
+    def is_Overlappable(self):
+        return OVERLAPPABLE in self.properties
 
     @property
     def functions(self):

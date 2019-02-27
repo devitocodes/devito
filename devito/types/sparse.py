@@ -102,7 +102,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
             support = [range(max(0, j - self._radius + 1), min(M, j + self._radius + 1))
                        for j, M in zip(i, self.grid.shape)]
             ret.append(tuple(product(*support)))
-        return ret
+        return tuple(ret)
 
     @property
     def _dist_datamap(self):
@@ -129,7 +129,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
         ret = [slice(None) for i in range(self.ndim)]
         ret[self._sparse_position] = mask
-        return ret
+        return tuple(ret)
 
     @property
     def _dist_subfunc_scatter_mask(self):
@@ -152,7 +152,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         mask = ret[self._sparse_position]
         ret[self._sparse_position] = [mask.tolist().index(i)
                                       for i in filter_ordered(mask)]
-        return ret
+        return tuple(ret)
 
     @property
     def _dist_count(self):
@@ -199,8 +199,8 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
             rshape.append(tuple(handle))
 
         # Per-rank count of send/recv data
-        scount = [prod(i) for i in sshape]
-        rcount = [prod(i) for i in rshape]
+        scount = tuple(prod(i) for i in sshape)
+        rcount = tuple(prod(i) for i in rshape)
 
         # Per-rank displacement of send/recv data (it's actually all contiguous,
         # but the Alltoallv needs this information anyway)
@@ -215,8 +215,8 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
         # May have to swap axes, as `MPI_Alltoallv` expects contiguous data, and
         # the sparse dimension may not be the outermost
-        sshape = [sshape[i] for i in self._dist_reorder_mask]
-        rshape = [rshape[i] for i in self._dist_reorder_mask]
+        sshape = tuple(sshape[i] for i in self._dist_reorder_mask)
+        rshape = tuple(rshape[i] for i in self._dist_reorder_mask)
 
         return sshape, scount, sdisp, rshape, rcount, rdisp
 

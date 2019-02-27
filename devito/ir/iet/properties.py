@@ -54,6 +54,9 @@ USELESS = HaloSpotProperty('useless')
 """The HaloSpot can be ignored as an halo update at this point would be completely
 useless."""
 
+OVERLAPPABLE = HaloSpotProperty('overlappable')
+"""The HaloSpot supports computation-communication overlap."""
+
 
 def hoistable(i):
     """

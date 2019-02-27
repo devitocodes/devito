@@ -7,9 +7,9 @@ from frozendict import frozendict
 
 from devito.data import LEFT, CENTER, RIGHT
 from devito.ir.support import Scope
-from devito.tools import Tag, as_mapper, as_tuple, filter_ordered
+from devito.tools import Tag, as_mapper, as_tuple, filter_ordered, flatten
 
-__all__ = ['HaloScheme', 'HaloSchemeException']
+__all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException']
 
 
 class HaloSchemeException(Exception):
@@ -82,7 +82,8 @@ class HaloScheme(object):
                 dims = [i for i, hl in v.items() if hl is NONE]
                 loc_indices = hs_comp_locindices(f, dims, ispace, scope)
 
-                self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices), tuple(halos))
+                self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices),
+                                                  frozenset(halos))
 
         # A HaloScheme is immutable, so let's make it hashable
         self._mapper = frozendict(self._mapper)
@@ -106,8 +107,52 @@ class HaloScheme(object):
                             sorted(self._mapper, key=attrgetter('name'))])
 
     @cached_property
+    def omapper(self):
+        """
+        Mapper describing the OWNED ('o'-mapper) region offset from the DOMAIN
+        extremes, along each Dimension and DataSide.
+
+        Examples
+        --------
+        Consider a HaloScheme comprising two one-dimensional Functions, ``u``
+        and ``v``.  ``u``'s halo, on the LEFT and RIGHT DataSides respectively,
+        is (2, 2), while ``v``'s is (4, 4). The situation is depicted below.
+
+        .. code-block:: python
+
+              xx**----------------**xx     u
+            xxxx****------------****xxxx   v
+
+        Where 'x' represents a HALO point, '*' a OWNED point, and '-' a CORE point.
+        Together, '*' and '-' constitute the DOMAIN.
+
+        In this example, the "cumulative" OWNED size is (4, 4), that is the max
+        on each DataSide across all Functions, namely ``u`` and ``v``. Then, the
+        ``omapper``, which provides *relative offsets*, not sizes, will be
+        ``{d0: (4, -4)}``.
+
+        Note that, for each Function, the 'x' and '*' are exactly the same on
+        *all MPI ranks*, so the output of this method is guaranteed to be
+        consistent across *all MPI ranks*.
+        """
+        mapper = {}
+        for f, v in self.halos.items():
+            dimensions = filter_ordered(flatten(i.dim for i in v))
+            for d, s in zip(f.dimensions, f._size_owned):
+                if d in dimensions:
+                    mapper.setdefault(d, []).append(s)
+        for k, v in list(mapper.items()):
+            left, right = zip(*v)
+            mapper[k] = (max(left), -max(right))
+        return mapper
+
+    @cached_property
     def halos(self):
         return {f: v.halos for f, v in self.fmapper.items()}
+
+    @cached_property
+    def dimensions(self):
+        return filter_ordered(flatten(i.dim for i in set().union(*self.halos.values())))
 
     def union(self, others):
         """
@@ -121,8 +166,7 @@ class HaloScheme(object):
                 if hse.loc_indices != v.loc_indices:
                     raise ValueError("Cannot compute the union of one or more HaloScheme "
                                      "when the `loc_indices` differ")
-                halos = tuple(filter_ordered(hse.halos + v.halos))
-                fmapper[k] = HaloSchemeEntry(hse.loc_indices, halos)
+                fmapper[k] = HaloSchemeEntry(hse.loc_indices, hse.halos | v.halos)
 
         return HaloScheme(fmapper=fmapper)
 

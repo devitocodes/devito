@@ -222,7 +222,7 @@ class CGen(Visitor):
         return c.Statement(ccode(o.expr))
 
     def visit_Call(self, o):
-        arguments = self._args_call(o.params)
+        arguments = self._args_call(o.arguments)
         return c.Statement('%s(%s)' % (o.name, ','.join(arguments)))
 
     def visit_Conditional(self, o):
@@ -284,8 +284,7 @@ class CGen(Visitor):
 
     def visit_Callable(self, o):
         body = flatten(self._visit(i) for i in o.children)
-        params = o.parameters
-        decls = self._args_decl(params)
+        decls = self._args_decl(o.parameters)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
 
