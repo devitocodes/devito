@@ -14,10 +14,10 @@ First of all, read of [code of conduct](https://github.com/opesci/devito/blob/ma
 
 The protocol to propose a patch is:
 * [Recommended, but not compulsory] Talk to us on Slack about what you're trying to do. There is a great chance we can support you.
-* As soon as you know what you need to do, [fork](https://help.github.com/articles/fork-a-repo/) Devito. 
+* As soon as you know what you need to do, [fork](https://help.github.com/articles/fork-a-repo/) Devito.
 * Create a branch with a suitable name.
 * Write code following the guidelines below. Commit your changes as small logical units.
-* Commit messages should adhere to the format `<tag>: <msg>`, where `<tag>` could be, for example, "ir" (if the commit impacts the intermediate representation), "operator", "tests", etc. We may ask you to rebase the commit history if it looks too messy. 
+* Commit messages should adhere to the format `<tag>: <msg>`, where `<tag>` could be, for example, "ir" (if the commit impacts the intermediate representation), "operator", "tests", etc. We may ask you to rebase the commit history if it looks too messy.
 * Write tests to convince us and yourself that what you've done works as expected. Commit them.
 * Run **the entire test suite**, including the new tests, to make sure that you haven't accidentally broken anything else.
 * Push everything to your Devito fork.
