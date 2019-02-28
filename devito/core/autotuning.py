@@ -6,7 +6,8 @@ import psutil
 from devito.dle import BlockDimension, NThreads
 from devito.ir import Backward, retrieve_iteration_tree
 from devito.logger import perf, warning as _warning
-from devito.mpi import MPI
+from devito.mpi.distributed import MPI, MPINeighborhood
+from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration
 from devito.symbolics import evaluate
 from devito.tools import filter_ordered, flatten, prod
@@ -64,14 +65,21 @@ def autotune(operator, args, level, mode):
     # rank may be different. Also, this makes the autotuning runtimes reliable
     # regardless of whether the timed regions include the halo exchanges or not,
     # as now the halo exchanges become a no-op.
-    try:
-        nb = []
-        if mode != 'runtime':
-            for i, _ in at_args['nb']._obj._fields_:
-                nb.append((i, getattr(at_args['nb']._obj, i)))
-                setattr(at_args['nb']._obj, i, MPI.PROC_NULL)
-    except KeyError:
-        assert not configuration['mpi']
+    mpi_disabled = []
+    if mode != 'runtime':
+        for p in operator.parameters:
+            if isinstance(p, MPINeighborhood):
+                arg = args[p.name]
+                items = [(i, getattr(arg._obj, i)) for i, _ in arg._obj._fields_]
+                mpi_disabled.append((arg._obj, items))
+                for i, _ in arg._obj._fields_:
+                    setattr(arg._obj, i, MPI.PROC_NULL)
+            elif isinstance(p, MPIMsgEnriched):
+                for i in args[p.name]:
+                    mpi_disabled.append((i, [(p._C_field_from, i.fromrank),
+                                             (p._C_field_to, i.torank)]))
+                    i.fromrank = MPI.PROC_NULL
+                    i.torank = MPI.PROC_NULL
 
     roots = [operator.body] + [i.root for i in operator._func_table.values()]
     trees = retrieve_iteration_tree(roots)
@@ -159,9 +167,10 @@ def autotune(operator, args, level, mode):
     assert operator._profiler.name in args
     args[operator._profiler.name] = operator._profiler.timer.reset()
 
-    # Reinstate MPI neighbourhood
-    for i, v in nb:
-        setattr(args['nb']._obj, i, v)
+    # Reinstate MPI neighborhood
+    for obj, items in mpi_disabled:
+        for k, v in items:
+            setattr(obj, k, v)
 
     # Autotuning summary
     summary = {}
