@@ -104,7 +104,7 @@ class Diff(sympy.Derivative, Differentiable):
 
     @property
     def T(self):
-        """transpose of the derivative"""
+        """Transpose of the Derivative."""
         if self._transpose == direct:
             adjoint = transpose
         else:

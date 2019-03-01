@@ -12,11 +12,12 @@ __all__ = ['Differentiable', 'to_differentiable']
 
 
 class Differentiable(sympy.Expr):
+
     """
-    This class represents Devito differentiable objects such as functions,
-    sum of functions, product of function, or any FD approximation. Differentiable
-    objects provide FD shortcuts to easily compute FD approximations.
+    A Differentiable is an algebric expression involving Functions, which can
+    be derived w.r.t. one or more Dimensions.
     """
+
     # Set the operator priority higher than SymPy (10.0) to force the overridden
     # operators to be used
     _op_priority = sympy.Expr._op_priority + 1.
@@ -86,9 +87,9 @@ class Differentiable(sympy.Expr):
         """
         Try calling a dynamically created FD shortcut.
 
-        .. note::
-
-            This method acts as a fallback for __getattribute__
+        Notes
+        -----
+        This method acts as a fallback for __getattribute__
         """
         if name in self._fd:
             return self._fd[name][0](self)
@@ -160,7 +161,7 @@ class Differentiable(sympy.Expr):
     def laplace(self):
         """
         Generates a symbolic expression for the Laplacian, the second
-        derivative wrt. all spatial dimensions.
+        derivative w.r.t all spatial Dimensions.
         """
         space_dims = [d for d in self.indices if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
@@ -168,8 +169,8 @@ class Differentiable(sympy.Expr):
 
     def laplace2(self, weight=1):
         """
-        Generates a symbolic expression for the double Laplacian
-        wrt. all spatial dimensions.
+        Generates a symbolic expression for the double Laplacian w.r.t.
+        all spatial Dimensions.
         """
         space_dims = [d for d in self.indices if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
