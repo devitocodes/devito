@@ -1,0 +1,8 @@
+[ ] repr (or not just repr) inconsistencies: (f*g).dx.dx.dx.dy  vs  (f*g).dx.dy
+[ ] lack of tests (lazy -> evaluation -> check expected "stencil")
+[ ] first_derivative, cross_derivative, etc, should return a Derivative object
+    (ie they would become ~one-liner functions); Derivative.evaluate should
+    do the bulk of the work and implement what first_derivative/cross_derivative/
+    etc are currently doing. Otherwise, all existing code making use of
+    first_derivative/cross_derivative etc would *not* use lazy evaluation
+[ ] 
