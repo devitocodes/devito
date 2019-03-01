@@ -10,19 +10,18 @@ from devito.finite_differences.differentiable import Differentiable
 from devito.tools import as_tuple
 from devito.types import Dimension
 
-__all__ = ['Diff']
 
-
-class Diff(sympy.Derivative, Differentiable):
+class Derivative(sympy.Derivative, Differentiable):
 
     """
-    Represents an unevaluated  derivative of an input expression
+    An unevaluated Derivative, which carries metadata (Dimensions,
+    derivative order, etc) to be evaluated.
     """
 
     def __new__(cls, expr, *dims, **kwargs):
         deriv_order = kwargs.get("deriv_order", 1)
         # expand the dimension depending on the derivative order
-        # ie Diff(expr, x, 2) becomes Derivative(expr, (x, 2))
+        # ie Derivative(expr, x, 2) becomes Derivative(expr, (x, 2))
         if not isinstance(deriv_order, tuple):
             new_dims = tuple([dims[0] for _ in range(deriv_order)])
         else:
@@ -110,13 +109,13 @@ class Diff(sympy.Derivative, Differentiable):
         else:
             adjoint = direct
 
-        return Diff(self.expr, *self.dims, deriv_order=self.deriv_order,
-                    fd_order=self.fd_order, side=self.side, stagger=self.stagger,
-                    transpose=adjoint)
+        return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
+                          fd_order=self.fd_order, side=self.side, stagger=self.stagger,
+                          transpose=adjoint)
 
     @property
-    def stencil(self):
-        expr = getattr(self.expr, 'stencil', self.expr)
+    def evaluate(self):
+        expr = getattr(self.expr, 'evaluate', self.expr)
         if self.side in [left, right] and self.deriv_order == 1:
             res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side, matvec=self.transpose)

@@ -190,7 +190,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         return self._staggered
 
     @property
-    def stencil(self):
+    def evaluate(self):
         return self
 
     @property

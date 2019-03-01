@@ -60,8 +60,9 @@ class Differentiable(sympy.Expr):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
 
     @property
-    def stencil(self):
-        return self.func(*[getattr(to_differentiable(a), 'stencil', to_differentiable(a))
+    def evaluate(self):
+        return self.func(*[getattr(to_differentiable(a), 'evaluate',
+                                   to_differentiable(a))
                            for a in self.args])
 
     def subs(self, *args, **kwargs):
