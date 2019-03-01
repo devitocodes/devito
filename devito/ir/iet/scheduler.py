@@ -129,7 +129,7 @@ def iet_insert_C_decls(iet, external=None):
                 continue
             objs = [k.write]
         elif k.is_Call:
-            objs = k.params
+            objs = k.arguments
 
         for i in objs:
             try:

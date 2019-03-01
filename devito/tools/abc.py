@@ -71,20 +71,19 @@ class ArgProvider(object):
                                   self.__class__)
 
     @abc.abstractmethod
-    def _arg_apply(self, *args, **kwargs):
-        """
-        Postprocess arguments upon returning from dynamically executed code. May be
-        called if self's state needs to be updated.
-        """
-        pass  # no-op
-
-    @abc.abstractmethod
     def _arg_check(self, *args, **kwargs):
         """
         Raises
         ------
         InvalidArgument
             If an argument value is illegal.
+        """
+        pass  # no-op
+
+    def _arg_apply(self, *args, **kwargs):
+        """
+        Postprocess arguments upon returning from dynamically executed code. May be
+        called if self's state needs to be updated.
         """
         pass  # no-op
 
