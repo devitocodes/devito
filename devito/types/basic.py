@@ -13,8 +13,8 @@ from cgen import Struct, Value
 
 from devito.data import default_allocator
 from devito.symbolics import Add
-from devito.tools import (ArgProvider, EnrichedTuple, Pickable, ctypes_to_cstr,
-                          dtype_to_cstr, dtype_to_ctype)
+from devito.tools import (ArgProvider, EnrichedTuple, Evaluable, Pickable,
+                          ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object', 'LocalObject',
            'CompositeObject']
@@ -191,7 +191,7 @@ class Cached(object):
         return hash(type(self))
 
 
-class AbstractSymbol(sympy.Symbol, Basic, Pickable):
+class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     """
     Base class for dimension-free symbols, only cached by SymPy.
 
@@ -435,7 +435,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
     is_AbstractFunction = True
 
 
-class AbstractCachedFunction(AbstractFunction, Cached):
+class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
     """
     Base class for tensor symbols, cached by both Devito and Sympy.
 
