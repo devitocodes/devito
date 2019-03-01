@@ -268,6 +268,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable):
     def function(self):
         return self
 
+    @property
+    def evaluate(self):
+        return self
+
     def indexify(self):
         return self
 
@@ -717,6 +721,10 @@ class AbstractCachedFunction(AbstractFunction, Cached):
         of the alignment.
         """
         return default_allocator().guaranteed_alignment
+
+    @property
+    def evaluate(self):
+        return self
 
     def indexify(self, indices=None):
         """Create a types.Indexed from the current object."""

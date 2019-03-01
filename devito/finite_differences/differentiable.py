@@ -8,7 +8,7 @@ from cached_property import cached_property
 
 from devito.tools import filter_ordered, flatten
 
-__all__ = ['Differentiable', 'to_differentiable']
+__all__ = ['Differentiable']
 
 
 class Differentiable(sympy.Expr):
@@ -69,17 +69,17 @@ class Differentiable(sympy.Expr):
 
     @property
     def evaluate(self):
-        return self.func(*[getattr(to_differentiable(a), 'evaluate',
-                                   to_differentiable(a))
-                           for a in self.args])
-
-    def subs(self, *args, **kwargs):
-        new = super(Differentiable, self).subs(*args, **kwargs)
-        return to_differentiable(new)
-
-    def xreplace(self, rules):
-        new = super(Differentiable, self).xreplace(rules)
-        return to_differentiable(new)
+        evaluated = []
+        for i in self.args:
+            try:
+                evaluated.append(i.evaluate)
+            except AttributeError:
+                if i.is_Number:
+                    evaluated.append(i)
+                else:
+                    # E.g., a plain SymPy obj, which might embed some evaluable args
+                    evaluated.append(i.func(*[getattr(a, 'evaluate', a) for a in i.args]))
+        return self.func(*evaluated)
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()
@@ -225,14 +225,3 @@ class Mod(sympy.Mod, Differentiable):
 evalf_table[Add] = evalf_table[sympy.Add]
 evalf_table[Mul] = evalf_table[sympy.Mul]
 evalf_table[Pow] = evalf_table[sympy.Pow]
-
-
-def to_differentiable(expr):
-    if expr.is_Pow:
-        return Pow(*[to_differentiable(a) for a in expr.args])
-    elif expr.is_Add:
-        return Add(*[to_differentiable(a) for a in expr.args])
-    elif expr.is_Mul:
-        return Mul(*[to_differentiable(a) for a in expr.args])
-    else:
-        return expr

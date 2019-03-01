@@ -4,7 +4,7 @@ import sympy
 
 from cached_property import cached_property
 
-from devito.finite_differences import default_rules, to_differentiable
+from devito.finite_differences import default_rules
 from devito.tools import as_tuple
 
 __all__ = ['Eq', 'Inc', 'solve']
@@ -202,5 +202,4 @@ def solve(eq, target, **kwargs):
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
 
-    solved = sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
-    return to_differentiable(solved)
+    return sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
