@@ -50,4 +50,4 @@ class TestSC(object):
         eq = Eq(eval(expr), coefficients=Substitutions(coeffs))
 
         assert isinstance(eq.lhs, Differentiable)
-        assert expected == str(eq.stencil.lhs)
+        assert expected == str(eq.evaluate.lhs)

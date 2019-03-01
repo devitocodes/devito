@@ -71,7 +71,7 @@ class TestFD(object):
         """Test the stencil expressions provided by devito objects"""
         u = SymbolType(name='u', grid=self.grid, time_order=2, space_order=2)
         expr = getattr(u, derivative)
-        assert(len(expr.stencil.args) == dim)
+        assert(len(expr.evaluate.args) == dim)
 
     @pytest.mark.parametrize('derivative, dim', [
         ('dx', x), ('dy', y), ('dz', z)
@@ -81,7 +81,7 @@ class TestFD(object):
         """Test first derivative expressions against native sympy"""
         dim = dim(self.grid)
         u = TimeFunction(name='u', grid=self.grid, time_order=2, space_order=order)
-        expr = getattr(u, derivative).stencil
+        expr = getattr(u, derivative).evaluate
         # Establish native sympy derivative expression
         width = int(order / 2)
         if order == 1:
@@ -101,7 +101,7 @@ class TestFD(object):
         """Test second derivative expressions against native sympy"""
         dim = dim(self.grid)
         u = TimeFunction(name='u', grid=self.grid, time_order=2, space_order=order)
-        expr = getattr(u, derivative).stencil
+        expr = getattr(u, derivative).evaluate
         # Establish native sympy derivative expression
         width = int(order / 2)
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
@@ -254,7 +254,7 @@ class TestFD(object):
         expr = eval(expr)
 
         assert isinstance(expr, Differentiable)
-        assert expected == str(expr.stencil)
+        assert expected == str(expr.evaluate)
 
     @pytest.mark.parametrize('so', [2, 5, 8])
     def test_all_shortcuts(self, so):
@@ -289,8 +289,8 @@ class TestFD(object):
 
         # Check symbolic expressio nare expected oens for the adjoint .T
         deriv = getattr(f, derivative)
-        expected = adjoint_coeff * getattr(f, adjoint_name).stencil
-        assert deriv.T.stencil ==  expected
+        expected = adjoint_coeff * getattr(f, adjoint_name).evaluate
+        assert deriv.T.evaluate == expected
 
         # Compute numerical dervivatives and verify dot test
         #  i.e <f.dx, g> = <f, g.dx.T>

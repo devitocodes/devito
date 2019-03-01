@@ -117,7 +117,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
 
     This is also more easily obtainable via:
 
-    >>> (f*g).dx.stencil
+    >>> (f*g).dx.evaluate
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
 
     The adjoint mode
@@ -188,7 +188,7 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
 
     This is also more easily obtainable via:
 
-    >>> (f*g).dx2.stencil
+    >>> (f*g).dx2.evaluate
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
@@ -236,7 +236,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
 
     This is also more easily obtainable via:
 
-    >>> (f*g).dxdy.stencil
+    >>> (f*g).dxdy.evaluate
     -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
  0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
  0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\

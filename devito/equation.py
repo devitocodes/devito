@@ -83,10 +83,10 @@ class Eq(sympy.Eq):
         """The SubDomain in which the Eq is defined."""
         return self._subdomain
 
-    @property
-    def stencil(self):
-        lhs = getattr(self.lhs, 'stencil', self.lhs)
-        rhs = getattr(self.rhs, 'stencil', self.rhs)
+    @cached_property
+    def evaluate(self):
+        lhs = getattr(self.lhs, 'evaluate', self.lhs)
+        rhs = getattr(self.rhs, 'evaluate', self.rhs)
         return self.func(lhs, rhs, subdomain=self.subdomain,
                          coefficients=self.substitutions)
 
@@ -202,5 +202,5 @@ def solve(eq, target, **kwargs):
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
 
-    solved = sympy.solve(eq.stencil, target.stencil, **kwargs)[0]
+    solved = sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
     return to_differentiable(solved)

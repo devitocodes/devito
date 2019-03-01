@@ -68,8 +68,9 @@ class Differentiable(sympy.Expr):
         return bool(self._symbolic_functions)
 
     @property
-    def stencil(self):
-        return self.func(*[getattr(to_differentiable(a), 'stencil', to_differentiable(a))
+    def evaluate(self):
+        return self.func(*[getattr(to_differentiable(a), 'evaluate',
+                                   to_differentiable(a))
                            for a in self.args])
 
     def subs(self, *args, **kwargs):
