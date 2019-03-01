@@ -29,24 +29,18 @@ class Derivative(sympy.Derivative, Differentiable):
             for d, o in zip(*dims, deriv_order):
                 for _ in range(o):
                     new_dims.append(d)
-
             new_dims = tuple(new_dims)
 
-        new_obj = sympy.Derivative.__new__(cls, expr, *new_dims)
-        new_obj.setup_fd(expr, *dims, **kwargs)
-        return new_obj
+        obj = sympy.Derivative.__new__(cls, expr, *new_dims)
 
-    def setup_fd(self, expr, dims, deriv_order=1, fd_order=1, **kwargs):
-        self._dims = self._setup_wrt(dims)
-        self._fd_order = fd_order
-        self._deriv_order = deriv_order
-        self._stagger = kwargs.get("stagger", self._stagger_setup)
-        self._side = kwargs.get("side", None)
-        self._transpose = kwargs.get("transpose", direct)
+        obj._dims = tuple(d for d in as_tuple(dims) if isinstance(d, Dimension))
+        obj._fd_order = kwargs.get('fd_order', 1)
+        obj._deriv_order = kwargs.get('deriv_order', 1)
+        obj._stagger = kwargs.get("stagger", obj._stagger_setup)
+        obj._side = kwargs.get("side", None)
+        obj._transpose = kwargs.get("transpose", direct)
 
-    def _setup_wrt(self, dims):
-        dims = as_tuple(dims)
-        return tuple(d for d in dims if isinstance(d, Dimension))
+        return obj
 
     @cached_property
     def dims(self):

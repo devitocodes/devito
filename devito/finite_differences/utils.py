@@ -10,9 +10,8 @@ def diff(expr, *dims, deriv_order=1, fd_order=1, side=centered, **kwargs):
 
 
 def partial_derivative(expr, deriv_order, dims, fd_order, side=centered, **kwargs):
-    new_obj = Derivative(expr, dims, deriv_order=deriv_order,
-                         fd_order=fd_order, side=side, **kwargs)
-    return new_obj
+    return  Derivative(expr, dims, deriv_order=deriv_order,
+                       fd_order=fd_order, side=side, **kwargs)
 
 
 def generate_fd_shortcuts(function):
