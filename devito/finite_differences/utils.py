@@ -4,16 +4,6 @@ from devito.finite_differences.finite_difference import left, right, centered
 from devito.finite_differences.derivative import Derivative
 
 
-def diff(expr, *dims, deriv_order=1, fd_order=1, side=centered, **kwargs):
-    return Derivative(expr, *dims, deriv_order=deriv_order,
-                      fd_order=fd_order, side=side, **kwargs)
-
-
-def partial_derivative(expr, deriv_order, dims, fd_order, side=centered, **kwargs):
-    return  Derivative(expr, dims, deriv_order=deriv_order,
-                       fd_order=fd_order, side=side, **kwargs)
-
-
 def generate_fd_shortcuts(function):
     """Create all legal finite-difference derivatives for the given Function."""
     dimensions = function.indices
@@ -21,7 +11,9 @@ def generate_fd_shortcuts(function):
     time_fd_order = function.time_order if (function.is_TimeFunction or
                                             function.is_SparseTimeFunction) else 0
 
-    deriv_function = partial_derivative
+    def deriv_function(expr, deriv_order, dims, fd_order, side=centered, **kwargs):
+        return Derivative(expr, dims, deriv_order=deriv_order, fd_order=fd_order,
+                          side=side, **kwargs)
 
     derivatives = dict()
     done = []
