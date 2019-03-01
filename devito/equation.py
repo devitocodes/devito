@@ -74,7 +74,7 @@ class Eq(sympy.Eq):
                 obj = obj.xreplace({**coefficients.rules, **rules})
             except AttributeError:
                 if bool(rules):
-                    obj = obj.xreplace(rules)
+                    obj = super(Eq, obj).xreplace(rules)
 
         return obj
 
@@ -87,8 +87,8 @@ class Eq(sympy.Eq):
     def stencil(self):
         lhs = getattr(self.lhs, 'stencil', self.lhs)
         rhs = getattr(self.rhs, 'stencil', self.rhs)
-        eq = Eq(lhs, rhs, evaluate=False, subdomain=self._subdomain,
-                coefficients=self.substitutions)
+        return self.func(lhs, rhs, subdomain=self.subdomain,
+                         coefficients=self.substitutions)
 
     @property
     def substitutions(self):
@@ -177,21 +177,7 @@ class Inc(Eq):
     def __str__(self):
         return "Inc(%s, %s)" % (self.lhs, self.rhs)
 
-    @property
-    def stencil(self):
-        lhs = getattr(self.lhs, 'stencil', self.lhs)
-        rhs = getattr(self.rhs, 'stencil', self.rhs)
-        return Inc(lhs, rhs, evaluate=False, subdomain=self._subdomain,
-                   coefficients=self.substitutions)
-
     __repr__ = __str__
-
-    def xreplace(self, rules):
-        """"""
-        eq = Inc(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
-                 subdomain=self._subdomain)
-        eq._substitutions = self._substitutions
-        return eq
 
 
 def solve(eq, target, **kwargs):
