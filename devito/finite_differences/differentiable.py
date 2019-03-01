@@ -6,12 +6,12 @@ from sympy.core.evalf import evalf_table
 
 from cached_property import cached_property
 
-from devito.tools import filter_ordered, flatten
+from devito.tools import Evaluable, filter_ordered, flatten
 
 __all__ = ['Differentiable']
 
 
-class Differentiable(sympy.Expr):
+class Differentiable(sympy.Expr, Evaluable):
 
     """
     A Differentiable is an algebric expression involving Functions, which can
@@ -59,27 +59,13 @@ class Differentiable(sympy.Expr):
     def _fd(self):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
 
-    @cached_property
+    @property
     def _symbolic_functions(self):
         return frozenset([i for i in self._functions if i.coefficients == 'symbolic'])
 
     @cached_property
     def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)
-
-    @property
-    def evaluate(self):
-        evaluated = []
-        for i in self.args:
-            try:
-                evaluated.append(i.evaluate)
-            except AttributeError:
-                if i.is_Number:
-                    evaluated.append(i)
-                else:
-                    # E.g., a plain SymPy obj, which might embed some evaluable args
-                    evaluated.append(i.func(*[getattr(a, 'evaluate', a) for a in i.args]))
-        return self.func(*evaluated)
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()

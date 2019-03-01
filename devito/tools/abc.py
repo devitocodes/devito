@@ -1,7 +1,8 @@
 import abc
 from hashlib import sha1
 
-__all__ = ['Tag', 'Signer', 'Pickable']
+
+__all__ = ['Tag', 'ArgProvider', 'Signer', 'Pickable', 'Evaluable']
 
 
 class Tag(abc.ABC):
@@ -127,3 +128,39 @@ class Pickable(object):
     def __getnewargs_ex__(self):
         return (tuple(getattr(self, i) for i in self._pickle_args),
                 {i.lstrip('_'): getattr(self, i) for i in self._pickle_kwargs})
+
+
+class Evaluable(object):
+
+    """
+    A mixin class for types that may carry nested unevaluated arguments.
+
+    This mixin is useful to implement systems based upon lazy evaluation.
+    """
+
+    @property
+    def args(self):
+        return ()
+
+    @property
+    def func(self):
+        return self.__class__
+
+    @property
+    def _evaluate_args(self):
+        evaluated = []
+        for i in self.args:
+            try:
+                evaluated.append(i.evaluate)
+            except AttributeError:
+                if i.is_Number:
+                    evaluated.append(i)
+                else:
+                    # E.g., a plain SymPy obj, which might embed some evaluable args
+                    evaluated.append(i.func(*[getattr(a, 'evaluate', a) for a in i.args]))
+        return evaluated
+
+    @property
+    def evaluate(self):
+        """Return a new object from the evaluation of ``self``."""
+        return self.func(*self._evaluate_args)

@@ -5,12 +5,12 @@ import sympy
 from cached_property import cached_property
 
 from devito.finite_differences import default_rules
-from devito.tools import as_tuple
+from devito.tools import Evaluable
 
 __all__ = ['Eq', 'Inc', 'solve']
 
 
-class Eq(sympy.Eq):
+class Eq(sympy.Eq, Evaluable):
 
     """
     An equal relation between two objects, the left-hand side and the
@@ -85,9 +85,7 @@ class Eq(sympy.Eq):
 
     @cached_property
     def evaluate(self):
-        lhs = getattr(self.lhs, 'evaluate', self.lhs)
-        rhs = getattr(self.rhs, 'evaluate', self.rhs)
-        return self.func(lhs, rhs, subdomain=self.subdomain,
+        return self.func(*self._evaluate_args, subdomain=self.subdomain,
                          coefficients=self.substitutions)
 
     @property
