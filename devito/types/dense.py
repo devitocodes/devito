@@ -190,10 +190,6 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         return self._staggered
 
     @property
-    def evaluate(self):
-        return self
-
-    @property
     def coefficients(self):
         """Form of the coefficients of the function."""
         return self._coefficients
