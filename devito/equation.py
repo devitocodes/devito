@@ -66,10 +66,10 @@ class Eq(sympy.Eq):
             # all rules to be expunged during this procress.
             rules = default_rules(obj, obj._symbolic_functions)
             try:
-                obj = obj.xreplace({**substitutions.rules, **rules})
+                obj = super(Eq, obj).xreplace({**substitutions.rules, **rules})
             except AttributeError:
                 if bool(rules):
-                    obj = obj.xreplace(rules)
+                    obj = super(Eq, obj).xreplace(rules)
 
         return obj
 
@@ -122,11 +122,8 @@ class Eq(sympy.Eq):
             TypeError('Failed to retrieve symbolic functions')
 
     def xreplace(self, rules):
-        """"""
-        eq = Eq(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
-                subdomain=self._subdomain)
-        eq._substitutions = self._substitutions
-        return eq
+        return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
+                         subdomain=self.subdomain, coefficients=self.substitutions)
 
 
 class Inc(Eq):
@@ -168,13 +165,6 @@ class Inc(Eq):
                    coefficients=self.substitutions)
 
     __repr__ = __str__
-
-    def xreplace(self, rules):
-        """"""
-        eq = Inc(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
-                 subdomain=self._subdomain)
-        eq._substitutions = self._substitutions
-        return eq
 
 
 def solve(eq, target, **kwargs):
