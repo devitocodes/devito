@@ -150,14 +150,19 @@ class Evaluable(object):
     def _evaluate_args(self):
         evaluated = []
         for i in self.args:
-            try:
+            if isinstance(i, Evaluable):
                 evaluated.append(i.evaluate)
-            except AttributeError:
-                if i.is_Number:
+            else:
+                # There might still be nested Evaluable args
+                try:
+                    args = [getattr(a, 'evaluate', a) for a in i.args]
+                    if args:
+                        evaluated.append(i.func(*args))
+                    else:
+                        evaluated.append(i)
+                except AttributeError:
+                    # An "unknown" arg that has no `args`
                     evaluated.append(i)
-                else:
-                    # E.g., a plain SymPy obj, which might embed some evaluable args
-                    evaluated.append(i.func(*[getattr(a, 'evaluate', a) for a in i.args]))
         return evaluated
 
     @property
