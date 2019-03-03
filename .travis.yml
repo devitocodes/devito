@@ -39,7 +39,7 @@ matrix:
           packages:
             - gcc-4.9
             - g++-4.9
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2 RUN_EXAMPLES=True INSTALL_TYPE=conda MPI_INSTALL=1
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2 RUN_EXAMPLES=True INSTALL_TYPE=conda MPI_INSTALL=1 MPI_RESTRAIN=1
     - os: linux
       python: "3.6"
       addons:

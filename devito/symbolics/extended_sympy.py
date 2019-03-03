@@ -11,20 +11,20 @@ from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
-           'ListInitializer', 'Byref', 'Macro', 'taylor_sin', 'taylor_cos',
-           'bhaskara_sin', 'bhaskara_cos']
+           'ListInitializer', 'Byref', 'IndexedPointer', 'Macro', 'taylor_sin',
+           'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
 
 
 class FrozenExpr(Expr):
 
     """
-    Use :class:`FrozenExpr` in place of :class:`sympy.Expr` to make sure than
-    an expression is no longer transformable; that is, standard manipulations
-    such as xreplace, collect, expand, ... have no effect, thus building a
-    new expression identical to self.
+    Use FrozenExpr in place of sympy.Expr to make sure than an e an expression
+    is no longer transformable; that is, standard manipulations such as
+    xreplace, collect, expand, ... have no effect, thus building a new
+    expression identical to self.
 
-    :Notes:
-
+    Notes
+    -----
     At the moment, only xreplace is overridded (to prevent unpicking factorizations)
     """
 
@@ -49,15 +49,18 @@ class FrozenExpr(Expr):
 
 class Eq(sympy.Eq, FrozenExpr):
 
-    """A customized version of :class:`sympy.Eq` which suppresses evaluation."""
+    """A customized version of sympy.Eq which suppresses evaluation."""
 
     def __new__(cls, *args, **kwargs):
         return sympy.Eq.__new__(cls, *args, evaluate=False)
 
 
 class CondEq(sympy.Eq, FrozenExpr):
-    """A customized version of :class:`sympy.Eq` representing a conditional
-    equality. It suppresses evaluation."""
+
+    """
+    A customized version of sympy.Eq representing a conditional equality.
+    It suppresses evaluation.
+    """
 
     def __new__(cls, *args, **kwargs):
         return sympy.Eq.__new__(cls, *args, evaluate=False)
@@ -68,8 +71,11 @@ class CondEq(sympy.Eq, FrozenExpr):
 
 
 class CondNe(sympy.Ne, FrozenExpr):
-    """A customized version of :class:`sympy.Ne` representing a conditional
-    inequality. It suppresses evaluation."""
+
+    """
+    A customized version of sympy.Ne representing a conditional inequality.
+    It suppresses evaluation.
+    """
 
     def __new__(cls, *args, **kwargs):
         return sympy.Ne.__new__(cls, *args, evaluate=False)
@@ -104,6 +110,7 @@ class IntDiv(sympy.Expr):
     denominator (e.g., ``a*3.args -> (a, 1/3)), which ends up generating
     "weird" C code.
     """
+
     is_Atom = True
 
     def __new__(cls, lhs, rhs, params=None):
@@ -256,28 +263,76 @@ class ListInitializer(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class Byref(sympy.Symbol, Pickable):
+class Byref(sympy.Expr, Pickable):
 
     """
-    Symbolic representation of the C++ notation ``&symbol``.
+    Symbolic representation of the C notation ``&symbol``.
     """
 
-    def __new__(cls, name):
-        return sympy.Symbol.__new__(cls, name)
+    def __new__(cls, base):
+        if isinstance(base, str):
+            base = Symbol(base)
+        elif not isinstance(base, sympy.Expr):
+            raise ValueError("`base` must be sympy.Expr or str")
+        obj = sympy.Expr.__new__(cls, base)
+        obj._base = base
+        return obj
+
+    @property
+    def base(self):
+        return self._base
 
     def __str__(self):
-        return "&%s" % self.name
+        return "&%s" % self.base
 
     __repr__ = __str__
 
     # Pickling support
-    _pickle_args = ['name']
+    _pickle_args = ['base']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class IndexedPointer(sympy.Expr):
+
+    """
+    Symbolic representation of the C notation ``symbol[...]``
+
+    Unlike a sympy.Indexed, an IndexedPointer accepts, as base, objects that
+    are not necessarily a Symbol or an IndexedBase, such as a FieldFromPointer.
+    """
+
+    def __new__(cls, base, index):
+        if isinstance(base, (str, sympy.IndexedBase, sympy.Symbol)):
+            return sympy.Indexed(base, index)
+        elif not isinstance(base, sympy.Basic):
+            raise ValueError("`base` must be of type sympy.Basic")
+        obj = sympy.Expr.__new__(cls, base)
+        obj._base = base
+        obj._index = as_tuple(index)
+        return obj
+
+    @property
+    def base(self):
+        return self._base
+
+    @property
+    def index(self):
+        return self._index
+
+    def __str__(self):
+        return "%s%s" % (self.base, ''.join('[%s]' % i for i in self.index))
+
+    __repr__ = __str__
+
+    # Pickling support
+    _pickle_args = ['base', 'index']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class Macro(sympy.Symbol):
+
     """
-    Symbolic representation of a C++ macro.
+    Symbolic representation of a C macro.
     """
     pass
 

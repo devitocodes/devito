@@ -12,14 +12,13 @@ from devito.cgen_utils import ccode
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE, AFFINE, tagger, ntags,
-                           REDUNDANT)
+                           VECTOR, WRAPPABLE, AFFINE, USELESS, OVERLAPPABLE)
 from devito.ir.support import Forward, detect_io
 from devito.parameters import configuration
 from devito.symbolics import FunctionFromPointer, as_symbol
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
-from devito.types import Dimension, Symbol, Indexed
+from devito.types import Symbol, Indexed
 from devito.types.basic import AbstractFunction
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
@@ -52,7 +51,7 @@ class Node(Signer):
     _traversable = []
     """
     :attr:`_traversable`. The traversable fields of the Node; that is, fields
-    walked over by a :class:`Visitor`. All arguments in __init__ whose name
+    walked over by a Visitor. All arguments in __init__ whose name
     appears in this list are treated as traversable fields.
     """
 
@@ -65,7 +64,7 @@ class Node(Signer):
         return obj
 
     def _rebuild(self, *args, **kwargs):
-        """Reconstruct self. None of the embedded Sympy expressions are rebuilt."""
+        """Reconstruct ``self``."""
         handle = self._args.copy()  # Original constructor arguments
         argnames = [i for i in self._traversable if i not in kwargs]
         handle.update(OrderedDict([(k, v) for k, v in zip(argnames, args)]))
@@ -113,17 +112,17 @@ class Node(Signer):
 
     @abc.abstractproperty
     def functions(self):
-        """All :class:`AbstractFunction` objects used by this node."""
+        """All AbstractFunction objects used by this node."""
         raise NotImplementedError()
 
     @abc.abstractproperty
     def free_symbols(self):
-        """All :class:`Symbol` objects used by this node."""
+        """All Symbol objects used by this node."""
         raise NotImplementedError()
 
     @abc.abstractproperty
     def defines(self):
-        """All :class:`Symbol` objects defined by this node."""
+        """All Symbol objects defined by this node."""
         raise NotImplementedError()
 
     def _signature_items(self):
@@ -191,26 +190,27 @@ class Call(Node):
 
     is_Call = True
 
-    def __init__(self, name, params=None):
+    def __init__(self, name, arguments=None):
         self.name = name
-        self.params = as_tuple(params)
+        self.arguments = as_tuple(arguments)
 
     def __repr__(self):
         return "Call::\n\t%s(...)" % self.name
 
     @property
     def functions(self):
-        return tuple(p for p in self.params if isinstance(p, AbstractFunction))
+        return tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
 
     @cached_property
     def free_symbols(self):
         free = set()
-        for p in self.params:
-            if isinstance(p, numbers.Number):
+        for i in self.arguments:
+            if isinstance(i, numbers.Number):
                 continue
-            free.update(p.free_symbols)
-        # HACK: Filter dimensions to avoid them on popping onto outer parameters
-        free = tuple(s for s in free if not isinstance(s, Dimension))
+            elif isinstance(i, AbstractFunction):
+                free.add(i)
+            else:
+                free.update(i.free_symbols)
         return free
 
     @property
@@ -220,7 +220,7 @@ class Call(Node):
 
 class Expression(Node):
 
-    """A node encapsulating a :class:`ClusterizedEq`."""
+    """A node encapsulating a ClusterizedEq."""
 
     is_Expression = True
 
@@ -250,7 +250,7 @@ class Expression(Node):
 
     @property
     def write(self):
-        """The :class:`Function` this Expression writes to."""
+        """The Function this Expression writes to."""
         return self.expr.lhs.function
 
     @property
@@ -391,16 +391,8 @@ class Iteration(Node):
         return VECTOR in self.properties
 
     @property
-    def is_Elementizable(self):
-        return ELEMENTAL in self.properties
-
-    @property
     def is_Wrappable(self):
         return WRAPPABLE in self.properties
-
-    @property
-    def is_Remainder(self):
-        return REMAINDER in self.properties
 
     @property
     def ncollapsed(self):
@@ -408,25 +400,6 @@ class Iteration(Node):
             if i.name == 'collapsed':
                 return i.val
         return 0
-
-    @property
-    def tag(self):
-        for i in self.properties:
-            if i.name == 'tag':
-                return i.val
-        return None
-
-    def retag(self, tag_value=None):
-        """
-        Create a new Iteration object which is identical to ``self``, except
-        for the tag. If provided, ``tag_value`` is used as new tag; otherwise,
-        an internally generated tag is used.
-        """
-        if self.tag is None:
-            return self._rebuild()
-        properties = [tagger(tag_value or (ntags() + 1)) if i.name == 'tag' else i
-                      for i in self.properties]
-        return self._rebuild(properties=properties)
 
     @property
     def symbolic_bounds(self):
@@ -460,11 +433,6 @@ class Iteration(Node):
         """The symbolic max of the Iteration."""
         return self.symbolic_bounds[1]
 
-    @property
-    def symbolic_incr(self):
-        """The symbolic increment of the Iteration."""
-        return self.limits[2]
-
     def bounds(self, _min=None, _max=None):
         """
         The bounds [min, max] of the Iteration, as numbers if min/max are supplied,
@@ -478,6 +446,11 @@ class Iteration(Node):
 
         return (_min, _max)
 
+    @property
+    def step(self):
+        """The step value."""
+        return self.limits[2]
+
     def size(self, _min=None, _max=None):
         """The size of the iteration space if _min/_max are supplied, None otherwise."""
         _min, _max = self.bounds(_min, _max)
@@ -485,12 +458,12 @@ class Iteration(Node):
 
     @property
     def functions(self):
-        """All :class:`Function`s appearing in the Iteration header."""
+        """All Functions appearing in the Iteration header."""
         return ()
 
     @property
     def free_symbols(self):
-        """All :class:`Symbol`s appearing in the Iteration header."""
+        """All Symbols appearing in the Iteration header."""
         return tuple(self.symbolic_min.free_symbols) \
             + tuple(self.symbolic_max.free_symbols) \
             + self.uindices \
@@ -499,17 +472,17 @@ class Iteration(Node):
 
     @property
     def defines(self):
-        """All :class:`Symbol`s defined in the Iteration header."""
+        """All Symbols defined in the Iteration header."""
         return self.dimensions
 
     @property
     def dimensions(self):
-        """All :class:`Dimension`s appearing in the Iteration header."""
+        """All Dimensions appearing in the Iteration header."""
         return tuple(self.dim._defines) + self.uindices
 
     @property
     def write(self):
-        """All :class:`Function`s written to in this :class:`Iteration`"""
+        """All Functions written to in this Iteration"""
         return []
 
 
@@ -526,7 +499,7 @@ class Callable(Node):
         The Callable body.
     retval : str
         The return type of Callable.
-    parameters : list of :class:`Basic`, optional
+    parameters : list of Basic, optional
         The objects in input to the Callable.
     prefix : list of str, optional
         Qualifiers to prepend to the Callable signature. Defaults to ``('static',
@@ -710,7 +683,7 @@ class LocalExpression(Expression):
 
 class ForeignExpression(Expression):
 
-    """A node representing a SymPy :class:`FunctionFromPointer` expression."""
+    """A node representing a SymPy FunctionFromPointer expression."""
 
     is_ForeignExpression = True
 
@@ -755,7 +728,7 @@ class Section(List):
     """
     A sequence of nodes.
 
-    Functionally, a :class:`Section` is identical to a :class:`List`; that is,
+    Functionally, a Section is identical to a List; that is,
     they generate the same code (i.e., their ``body``). However, a Section should
     be used to define sub-trees that, for some reasons, have a relevance within
     the IET (e.g., groups of statements that logically represent the same
@@ -776,40 +749,10 @@ class Section(List):
         return self.body
 
 
-class HaloSpot(List):
-
-    """
-    A node representing an MPI halo exchange.
-    """
-
-    is_HaloSpot = True
-
-    def __init__(self, halo_scheme, body=None, properties=None):
-        super(HaloSpot, self).__init__(body=body)
-        self.halo_scheme = halo_scheme
-        self.properties = as_tuple(properties)
-
-    @property
-    def fmapper(self):
-        return self.halo_scheme.fmapper
-
-    @property
-    def mask(self):
-        return self.halo_scheme.mask
-
-    @property
-    def is_Redundant(self):
-        return REDUNDANT in self.properties
-
-    def __repr__(self):
-        redundant = "[redundant]" if self.is_Redundant else ""
-        return "<HaloSpot%s>" % redundant
-
-
 class ExpressionBundle(List):
 
     """
-    A sequence of :class:`Expression`s.
+    A sequence of Expressions.
     """
 
     is_ExpressionBundle = True
@@ -828,13 +771,101 @@ class ExpressionBundle(List):
         return self.body
 
 
+# Nodes required for distributed-memory halo exchange
+
+
+class HaloSpot(Node):
+
+    """
+    A halo exchange operation (e.g., send, recv, wait, ...) required to
+    correctly execute the subtree in the case of distributed-memory parallelism.
+    """
+
+    is_HaloSpot = True
+
+    _traversable = ['body']
+
+    def __init__(self, halo_scheme, body=None, properties=None):
+        super(HaloSpot, self).__init__()
+        self._halo_scheme = halo_scheme
+        if isinstance(body, Node):
+            self._body = body
+        elif isinstance(body, (list, tuple)) and len(body) == 1:
+            self._body = body[0]
+        else:
+            raise ValueError("`body` is expected to be a single Node")
+        self._properties = as_tuple(properties)
+
+    def __repr__(self):
+        properties = ""
+        if self.properties:
+            properties = "[%s]" % ','.join(str(i) for i in self.properties)
+        functions = "(%s)" % ",".join(i.name for i in self.functions)
+        return "<%s%s%s>" % (self.__class__.__name__, functions, properties)
+
+    @property
+    def halo_scheme(self):
+        return self._halo_scheme
+
+    @property
+    def fmapper(self):
+        return self.halo_scheme.fmapper
+
+    @property
+    def omapper(self):
+        return self.halo_scheme.omapper
+
+    @property
+    def dimensions(self):
+        return self.halo_scheme.dimensions
+
+    @property
+    def is_empty(self):
+        return len(self.halo_scheme) == 0
+
+    @property
+    def body(self):
+        return self._body
+
+    @property
+    def properties(self):
+        return self._properties
+
+    @property
+    def hoistable(self):
+        for i in self.properties:
+            if i.name == 'hoistable':
+                return i.val
+        return ()
+
+    @property
+    def is_Useless(self):
+        return USELESS in self.properties
+
+    @property
+    def is_Overlappable(self):
+        return OVERLAPPABLE in self.properties
+
+    @property
+    def functions(self):
+        return tuple(self.fmapper)
+
+    @property
+    def free_symbols(self):
+        return ()
+
+    @property
+    def defines(self):
+        return ()
+
+
 # Utility classes
 
 
 class IterationTree(tuple):
 
     """
-    Represent a sequence of nested :class:`Iteration`s.
+    Represent a sequence of nested Iterations.
     """
 
     @property
@@ -859,7 +890,7 @@ class IterationTree(tuple):
 
 MetaCall = namedtuple('MetaCall', 'root local')
 """
-Metadata for :class:`Callable`s. ``root`` is a pointer to the callable
+Metadata for Callables. ``root`` is a pointer to the callable
 Iteration/Expression tree. ``local`` is a boolean indicating whether the
 definition of the callable is known or not.
 """

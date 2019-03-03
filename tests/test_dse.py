@@ -135,12 +135,17 @@ def test_tti_rewrite_aggressive(tti_nodse):
     block_dims = [i for i in op.dimensions if isinstance(i, BlockDimension)]
     assert len(block_dims) == 2
 
-    # Also, in this operator, we expect six temporary Arrays, two on the stack and
-    # four on the heap
+    # Also, in this operator, we expect six temporary Arrays:
+    # * four Arrays are allocated on the heap
+    # * two Arrays are allocated on the stack and only appear within an efunc
     arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-    assert len([i for i in arrays if i._mem_stack]) == 2
+    assert len(arrays) == 4
+    assert all(i._mem_heap and not i._mem_external for i in arrays)
+    arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root) if i.is_Array]
+    assert len(arrays) == 6
+    assert all(not i._mem_external for i in arrays)
     assert len([i for i in arrays if i._mem_heap]) == 4
-    assert len([i for i in arrays if i._mem_external]) == 0
+    assert len([i for i in arrays if i._mem_stack]) == 2
 
 
 @switchconfig(profiling='advanced')

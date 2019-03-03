@@ -4,7 +4,7 @@ from devito.tools import Tag
 class IterationProperty(Tag):
 
     """
-    An :class:`Iteration` decorator.
+    An Iteration decorator.
     """
 
     _KNOWN = []
@@ -30,41 +30,37 @@ COLLAPSED = lambda i: IterationProperty('collapsed', i)
 VECTOR = IterationProperty('vector-dim')
 """The Iteration can be SIMD-vectorized."""
 
-ELEMENTAL = IterationProperty('elemental')
-"""The Iteration can be pulled out to an elemental function."""
-
-REMAINDER = IterationProperty('remainder')
-"""The Iteration implements a remainder/peeler loop."""
-
 WRAPPABLE = IterationProperty('wrappable')
 """The Iteration implements modulo buffered iteration and its expressions are so that
 one or more buffer slots can be dropped without affecting correctness. For example,
 u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --> u[t-1, ...] = f(u[t, ...], u[t-1, ...])."""
 
 AFFINE = IterationProperty('affine')
-"""All :class:`Indexed`s' access functions using the Iteration dimension ``d`` are
+"""All Indexed access functions using the Iteration dimension ``d`` are
 affine in ``d``. Further, the Iteration does not contain any Indexed varying in
 ``d`` used to indirectly access some other Indexed."""
-
-
-def tagger(i):
-    return IterationProperty('tag', i)
-
-
-def ntags():
-    return len(IterationProperty._KNOWN) - ntags.n_original_properties
-ntags.n_original_properties = len(IterationProperty._KNOWN)  # noqa
 
 
 class HaloSpotProperty(Tag):
 
     """
-    A :class:`HaloSpot` decorator.
+    A HaloSpot decorator.
     """
 
     pass
 
 
-REDUNDANT = HaloSpotProperty('redundant')
-"""The HaloSpot is redundant given that some other HaloSpots already take care
-of updating the data accessed in the sub-tree."""
+USELESS = HaloSpotProperty('useless')
+"""The HaloSpot can be ignored as an halo update at this point would be completely
+useless."""
+
+OVERLAPPABLE = HaloSpotProperty('overlappable')
+"""The HaloSpot supports computation-communication overlap."""
+
+
+def hoistable(i):
+    """
+    The HaloSpot can be squashed with a previous HaloSpot as all data dependences
+    would still be honored.
+    """
+    return HaloSpotProperty('hoistable', i)

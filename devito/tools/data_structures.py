@@ -1,4 +1,4 @@
-from collections import Callable, Iterable, OrderedDict, Mapping
+from collections import Callable, Iterable, OrderedDict, Mapping, deque
 from functools import reduce
 
 import numpy as np
@@ -8,7 +8,7 @@ from devito.tools.utils import as_tuple, filter_ordered
 from devito.tools.algorithms import toposort
 
 __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'PartialOrderTuple']
+           'PartialOrderTuple', 'DAG']
 
 
 class Bunch(object):
@@ -188,3 +188,119 @@ class PartialOrderTuple(tuple):
 
     def generate_ordering(self):
         raise NotImplementedError
+
+
+class DAG(object):
+    """
+    A trivial implementation of a directed acyclic graph (DAG).
+
+    Originally extracted from:
+
+        https://github.com/thieman/py-dag/
+    """
+
+    def __init__(self, nodes=None, edges=None):
+        self.graph = OrderedDict()
+        for node in as_tuple(nodes):
+            self.add_node(node)
+        for ind_node, dep_node in as_tuple(edges):
+            self.add_edge(ind_node, dep_node)
+
+    def add_node(self, node_name, ignore_existing=False):
+        """Add a node if it does not exist yet, or error out."""
+        if node_name in self.graph:
+            if ignore_existing is True:
+                return
+            raise KeyError('node %s already exists' % node_name)
+        self.graph[node_name] = set()
+
+    def delete_node(self, node_name):
+        """Delete a node and all edges referencing it."""
+        if node_name not in self.graph:
+            raise KeyError('node %s does not exist' % node_name)
+        self.graph.pop(node_name)
+        for node, edges in self.graph.items():
+            if node_name in edges:
+                edges.remove(node_name)
+
+    def add_edge(self, ind_node, dep_node, force_add=False):
+        """Add an edge (dependency) between the specified nodes."""
+        if force_add is True:
+            self.add_node(ind_node, True)
+            self.add_node(dep_node, True)
+        if ind_node not in self.graph or dep_node not in self.graph:
+            raise KeyError('one or more nodes do not exist in graph')
+        self.graph[ind_node].add(dep_node)
+
+    def delete_edge(self, ind_node, dep_node):
+        """Delete an edge from the graph."""
+        if dep_node not in self.graph.get(ind_node, []):
+            raise KeyError('this edge does not exist in graph')
+        self.graph[ind_node].remove(dep_node)
+
+    def predecessors(self, node):
+        """Return a list of all predecessors of the given node."""
+        return [key for key in self.graph if node in self.graph[key]]
+
+    def downstream(self, node):
+        """Return a list of all nodes this node has edges towards."""
+        if node not in self.graph:
+            raise KeyError('node %s is not in graph' % node)
+        return list(self.graph[node])
+
+    def all_downstreams(self, node):
+        """
+        Return a list of all nodes ultimately downstream of the given node
+        in the dependency graph, in topological order."""
+        nodes = [node]
+        nodes_seen = set()
+        i = 0
+        while i < len(nodes):
+            downstreams = self.downstream(nodes[i])
+            for downstream_node in downstreams:
+                if downstream_node not in nodes_seen:
+                    nodes_seen.add(downstream_node)
+                    nodes.append(downstream_node)
+            i += 1
+        return list(filter(lambda node: node in nodes_seen,
+                           self.topological_sort()))
+
+    def size(self):
+        return len(self.graph)
+
+    def topological_sort(self):
+        """
+        Return a topological ordering of the DAG.
+
+        Raises
+        ------
+        ValueError
+            If it is not possible to compute a topological ordering, as the graph
+            is invalid.
+        """
+        in_degree = {}
+        for u in self.graph:
+            in_degree[u] = 0
+
+        for u in self.graph:
+            for v in self.graph[u]:
+                in_degree[v] += 1
+
+        queue = deque()
+        for u in in_degree:
+            if in_degree[u] == 0:
+                queue.appendleft(u)
+
+        l = []
+        while queue:
+            u = queue.pop()
+            l.append(u)
+            for v in self.graph[u]:
+                in_degree[v] -= 1
+                if in_degree[v] == 0:
+                    queue.appendleft(v)
+
+        if len(l) == len(self.graph):
+            return l
+        else:
+            raise ValueError('graph is not acyclic')

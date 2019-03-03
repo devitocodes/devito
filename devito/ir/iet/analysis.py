@@ -1,11 +1,11 @@
 from collections import OrderedDict
 from functools import cmp_to_key
 
-from devito.ir.iet import (HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, AFFINE, REDUNDANT, MapIteration, FindNodes,
-                           Transformer, retrieve_iteration_tree)
+from devito.ir.iet import (Iteration, HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
+                           VECTOR, WRAPPABLE, AFFINE, USELESS, OVERLAPPABLE, hoistable,
+                           MapNodes, FindNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import Scope
-from devito.tools import as_mapper, as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, filter_ordered, flatten
 
 __all__ = ['iet_analyze']
 
@@ -18,7 +18,7 @@ class Analysis(object):
 
         self.trees = retrieve_iteration_tree(iet, mode='superset')
         self.scopes = OrderedDict([(k, Scope([i.expr for i in v]))
-                                   for k, v in MapIteration().visit(iet).items()])
+                                   for k, v in MapNodes().visit(iet).items()])
 
     def update(self, properties):
         for k, v in properties.items():
@@ -39,11 +39,16 @@ def iet_analyze(iet):
     relevant computational properties (e.g., if an Iteration is parallelizable or not).
     This function performs actual data dependence analysis.
     """
-    analysis = mark_parallel(iet)
-    analysis = mark_vectorizable(analysis)
-    analysis = mark_wrappable(analysis)
-    analysis = mark_affine(analysis)
-    analysis = mark_halospots(analysis)
+    # Analyze Iterations
+    analysis = mark_iteration_parallel(iet)
+    analysis = mark_iteration_vectorizable(analysis)
+    analysis = mark_iteration_wrappable(analysis)
+    analysis = mark_iteration_affine(analysis)
+
+    # Analyze HaloSpots
+    analysis = mark_halospot_useless(analysis)
+    analysis = mark_halospot_hoistable(analysis)
+    analysis = mark_halospot_overlappable(analysis)
 
     # Decorate the Iteration/Expression tree with the found properties
     mapper = OrderedDict()
@@ -57,9 +62,11 @@ def iet_analyze(iet):
 
 
 @propertizer
-def mark_parallel(analysis):
-    """Update the ``analysis`` detecting the ``SEQUENTIAL`` and ``PARALLEL``
-    Iterations within ``analysis.iet``."""
+def mark_iteration_parallel(analysis):
+    """
+    Update the ``analysis`` detecting the SEQUENTIAL and PARALLEL Iterations
+    within ``analysis.iet``.
+    """
     properties = OrderedDict()
     for tree in analysis.trees:
         for depth, i in enumerate(tree):
@@ -122,16 +129,15 @@ def mark_parallel(analysis):
 
 
 @propertizer
-def mark_vectorizable(analysis):
-    """Update the ``analysis`` detecting the ``VECTOR`` Iterations within
-    ``analysis.iet``. An Iteration is VECTOR iff:
-
-        * it's the innermost in an Iteration tree, AND
-        * it's got at least an outer PARALLEL Iteration, AND
-        * it's been marked as PARALLEL or all the accesses along its dimension
-          are unit-strided.
-        """
+def mark_iteration_vectorizable(analysis):
+    """
+    Update the ``analysis`` detecting the VECTOR Iterations within ``analysis.iet``.
+    """
     for tree in analysis.trees:
+        # An Iteration is VECTOR iff:
+        # * it's the innermost in an Iteration tree, AND
+        # * it's got at least an outer PARALLEL Iteration, AND
+        # * it's known to be PARALLEL or all accesses along its Dimension are unit-strided
         if len(tree) == 1:
             continue
         else:
@@ -149,9 +155,10 @@ def mark_vectorizable(analysis):
 
 
 @propertizer
-def mark_wrappable(analysis):
-    """Update the ``analysis`` detecting the ``WRAPPABLE`` Iterations within
-    ``analysis.iet``."""
+def mark_iteration_wrappable(analysis):
+    """
+    Update the ``analysis`` detecting the WRAPPABLE Iterations within ``analysis.iet``.
+    """
     for i, scope in analysis.scopes.items():
         if not i.dim.is_Time:
             continue
@@ -202,9 +209,10 @@ def mark_wrappable(analysis):
 
 
 @propertizer
-def mark_affine(analysis):
-    """Update the ``analysis`` detecting the ``AFFINE`` Iterations within
-    ``analysis.iet``."""
+def mark_iteration_affine(analysis):
+    """
+    Update the ``analysis`` detecting the AFFINE Iterations within ``analysis.iet``.
+    """
     properties = OrderedDict()
     for tree in analysis.trees:
         for i in tree:
@@ -218,23 +226,60 @@ def mark_affine(analysis):
 
 
 @propertizer
-def mark_halospots(analysis):
-    """Update the ``analysis`` detecting the ``REDUNDANT`` HaloSpots within
-    ``analysis.iet``."""
+def mark_halospot_useless(analysis):
+    """
+    Update the ``analysis`` detecting the USELESS HaloSpots within ``analysis.iet``.
+    """
     properties = OrderedDict()
-
-    def analyze(fmapper, scope):
-        for f, hse in fmapper.items():
-            if any(dep.cause & set(hse.loc_indices) for dep in scope.d_anti.project(f)):
-                return False
-        return True
-
     for i, scope in analysis.scopes.items():
-        mapper = as_mapper(FindNodes(HaloSpot).visit(i), lambda hs: hs.halo_scheme)
-        for k, v in mapper.items():
-            if len(v) == 1:
+        for hs in FindNodes(HaloSpot).visit(i):
+            # A HaloSpot is USELESS if *all* reads along the HaloSpot's `loc_indices`
+            # pertain to an increment expression
+            test = False
+            for f, hse in hs.fmapper.items():
+                for d, v in hse.loc_indices.items():
+                    readat = v.origin if d.is_Stepping else v
+                    reads = [r for r in scope.reads[f] if r[d] == readat]
+                    if any(not r.is_increment for r in reads):
+                        test = True
+                        break
+            if not test:
+                properties[hs] = USELESS
+
+    analysis.update(properties)
+
+
+@propertizer
+def mark_halospot_hoistable(analysis):
+    """
+    Update the ``analysis`` detecting the HOISTABLE HaloSpots within ``analysis.iet``.
+    """
+    properties = OrderedDict()
+    for i, halo_spots in MapNodes(Iteration, HaloSpot).visit(analysis.iet).items():
+        for hs in halo_spots:
+            if hs in properties:
+                # Already went through this HaloSpot, let's save some analysis time
                 continue
-            if analyze(k.fmapper, scope):
-                properties.update({i: REDUNDANT for i in v[1:]})
+            # A sufficient condition to be `hoistable` is that, for a given Function,
+            # there are no anti-dependences in the entire scope.
+            # TODO: This condition can actually be relaxed, by considering smaller
+            # sections of the scope
+            found = [f for f in hs.fmapper if not analysis.scopes[i].d_anti.project(f)]
+            if found:
+                properties[hs] = hoistable(tuple(found))
+
+    analysis.update(properties)
+
+
+@propertizer
+def mark_halospot_overlappable(analysis):
+    """
+    Update the ``analysis`` detecting the OVERLAPPABLE HaloSpots within ``analysis.iet``.
+    """
+    properties = OrderedDict()
+    for hs, iterations in MapNodes(HaloSpot, Iteration).visit(analysis.iet).items():
+        # To be OVERLAPPABLE, all inner Iterations must be PARALLEL
+        if all(PARALLEL in analysis.properties.get(i) for i in iterations):
+            properties[hs] = OVERLAPPABLE
 
     analysis.update(properties)

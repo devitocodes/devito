@@ -11,13 +11,14 @@ import cgen as c
 
 from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
+from devito.ir.iet.nodes import Node, Iteration, Expression, Call
 from devito.ir.support.space import Backward
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype_to_cstr
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
-           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen',
-           'Transformer', 'FindAdjacent', 'MapIteration']
+           'MapNodes', 'IsPerfectIteration', 'XSubs', 'printAST', 'CGen',
+           'Transformer', 'FindAdjacent']
 
 
 class Visitor(GenericVisitor):
@@ -117,6 +118,18 @@ class PrintAST(Visitor):
         else:
             return self.indent + str(o)
 
+    def visit_ForeignExpression(self, o):
+        if self.verbose:
+            return self.indent + "<Expression %s>" % o.expr
+        else:
+            return self.indent + str(o)
+
+    def visit_HaloSpot(self, o):
+        self._depth += 1
+        body = self._visit(o.children)
+        self._depth -= 1
+        return self.indent + "%s\n%s" % (o.__repr__(), body)
+
     def visit_Conditional(self, o):
         self._depth += 1
         then_body = self._visit(o.then_body)
@@ -209,7 +222,7 @@ class CGen(Visitor):
         return c.Statement(ccode(o.expr))
 
     def visit_Call(self, o):
-        arguments = self._args_call(o.params)
+        arguments = self._args_call(o.arguments)
         return c.Statement('%s(%s)' % (o.name, ','.join(arguments)))
 
     def visit_Conditional(self, o):
@@ -271,10 +284,13 @@ class CGen(Visitor):
 
     def visit_Callable(self, o):
         body = flatten(self._visit(i) for i in o.children)
-        params = o.parameters
-        decls = self._args_decl(params)
+        decls = self._args_decl(o.parameters)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
+
+    def visit_HaloSpot(self, o):
+        body = flatten(self._visit(i) for i in o.children)
+        return c.Collection(body)
 
     def visit_Operator(self, o):
         # Kernel signature and body
@@ -327,6 +343,8 @@ class FindSections(Visitor):
             ret = self._visit(i, ret=ret, queue=queue)
         return ret
 
+    visit_list = visit_tuple
+
     def visit_Node(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
@@ -372,22 +390,80 @@ class MapExpressions(FindSections):
     visit_Element = FindSections.visit_Node
 
 
-class MapIteration(FindSections):
+class MapNodes(Visitor):
+
+    @classmethod
+    def default_retval(cls):
+        return OrderedDict()
 
     """
-    Map each :class:`Iteration` object in the Iteration/Expression tree to the
-    enclosed :class:`Expression` and :class:`Call` objects.
+    Given an Iteration/Expression tree, build a mapper between parent and
+    children nodes of given type.
+
+    Parameters
+    ----------
+    parent_type : Node or str, optional
+        By default, parents are of type Iteration. One can alternatively supply
+        a different type. Optionally, the keyword 'any' can be supplied, in which
+        case the parent can be a generic Node.
+    child_types : Node or list of Node, optional
+        By default, children of type Call and Expression are retrieved.
+        One can alternatively supply one or more different types.
+    mode : str, optional
+        By default, all ancestors matching the ``parent_type`` are mapped to
+        the nodes of type ``child_types`` retrieved by the search. This behaviour
+        can be changed through this parameter. Accepted values are:
+        - 'immediate': only the closest matching ancestor is mapped.
+        - 'groupby': the matching ancestors are grouped together as a single key.
     """
 
-    def visit_Call(self, o, ret=None, queue=None):
-        if ret is None:
-            ret = self.default_retval()
-        for i in as_tuple(queue):
-            ret.setdefault(i, []).append(o)
+    def __init__(self, parent_type=None, child_types=None, mode=None):
+        super(MapNodes, self).__init__()
+        if parent_type is None:
+            self.parent_type = Iteration
+        elif parent_type == 'any':
+            self.parent_type = Node
+        else:
+            assert issubclass(parent_type, Node)
+            self.parent_type = parent_type
+        self.child_types = as_tuple(child_types) or (Call, Expression)
+        assert mode in (None, 'immediate', 'groupby')
+        self.mode = mode
+
+    def visit_object(self, o, ret=None, **kwargs):
         return ret
 
-    visit_Expression = visit_Call
-    visit_Element = FindSections.visit_Node
+    def visit_tuple(self, o, ret=None, parents=None, in_parent=False):
+        for i in o:
+            ret = self._visit(i, ret=ret, parents=parents, in_parent=in_parent)
+        return ret
+
+    def visit_Node(self, o, ret=None, parents=None, in_parent=False):
+        if ret is None:
+            ret = self.default_retval()
+        if parents is None:
+            parents = []
+        if isinstance(o, self.child_types):
+            if self.mode == 'groupby':
+                ret.setdefault(as_tuple(parents), []).append(o)
+            elif self.mode == 'immediate':
+                if in_parent:
+                    ret.setdefault(parents[-1], []).append(o)
+                else:
+                    ret.setdefault(None, []).append(o)
+            else:
+                for i in parents:
+                    ret.setdefault(i, []).append(o)
+        if isinstance(o, self.parent_type):
+            parents.append(o)
+            for i in o.children:
+                ret = self._visit(i, ret=ret, parents=parents, in_parent=True)
+            parents.remove(o)
+        else:
+            for i in o.children:
+                ret = self._visit(i, ret=ret, parents=parents, in_parent=in_parent)
+
+        return ret
 
 
 class FindSymbols(Visitor):
@@ -422,6 +498,8 @@ class FindSymbols(Visitor):
         symbols = flatten([self._visit(i) for i in o])
         return filter_sorted(symbols, key=attrgetter('name'))
 
+    visit_list = visit_tuple
+
     def visit_Iteration(self, o):
         symbols = flatten([self._visit(i) for i in o.children])
         symbols += self.rule(o)
@@ -444,7 +522,7 @@ class FindNodes(Visitor):
         return []
 
     """
-    Find all :class:`Node` instances of given type.
+    Find all instances of given type.
 
     Parameters
     ----------
@@ -475,6 +553,8 @@ class FindNodes(Visitor):
             ret = self._visit(i, ret=ret)
         return ret
 
+    visit_list = visit_tuple
+
     def visit_Node(self, o, ret=None):
         if ret is None:
             ret = self.default_retval()
@@ -499,7 +579,7 @@ class FindAdjacent(Visitor):
 
     def __init__(self, match):
         super(FindAdjacent, self).__init__()
-        self.match = match
+        self.match = as_tuple(match)
 
     def handler(self, o, parent=None, ret=None):
         if ret is None:
@@ -533,7 +613,7 @@ class FindAdjacent(Visitor):
 
     def visit_Node(self, o, parent=None, ret=None):
         ret = self.handler(o.children, parent=o, ret=ret)
-        ret['seen_type'] = type(o) is self.match
+        ret['seen_type'] = type(o) in self.match
         return ret
 
 

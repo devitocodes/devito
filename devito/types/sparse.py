@@ -102,7 +102,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
             support = [range(max(0, j - self._radius + 1), min(M, j + self._radius + 1))
                        for j, M in zip(i, self.grid.shape)]
             ret.append(tuple(product(*support)))
-        return ret
+        return tuple(ret)
 
     @property
     def _dist_datamap(self):
@@ -129,7 +129,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         mask = np.array(flatten(dmap[i] for i in sorted(dmap)), dtype=int)
         ret = [slice(None) for i in range(self.ndim)]
         ret[self._sparse_position] = mask
-        return ret
+        return tuple(ret)
 
     @property
     def _dist_subfunc_scatter_mask(self):
@@ -152,7 +152,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         mask = ret[self._sparse_position]
         ret[self._sparse_position] = [mask.tolist().index(i)
                                       for i in filter_ordered(mask)]
-        return ret
+        return tuple(ret)
 
     @property
     def _dist_count(self):
@@ -199,8 +199,8 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
             rshape.append(tuple(handle))
 
         # Per-rank count of send/recv data
-        scount = [prod(i) for i in sshape]
-        rcount = [prod(i) for i in rshape]
+        scount = tuple(prod(i) for i in sshape)
+        rcount = tuple(prod(i) for i in rshape)
 
         # Per-rank displacement of send/recv data (it's actually all contiguous,
         # but the Alltoallv needs this information anyway)
@@ -215,8 +215,8 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
         # May have to swap axes, as `MPI_Alltoallv` expects contiguous data, and
         # the sparse dimension may not be the outermost
-        sshape = [sshape[i] for i in self._dist_reorder_mask]
-        rshape = [rshape[i] for i in self._dist_reorder_mask]
+        sshape = tuple(sshape[i] for i in self._dist_reorder_mask)
+        rshape = tuple(rshape[i] for i in self._dist_reorder_mask)
 
         return sshape, scount, sdisp, rshape, rcount, rdisp
 
@@ -495,7 +495,7 @@ class SparseFunction(AbstractSparseFunction):
         return self.coordinates.data.view(np.ndarray)
 
     @property
-    def _coefficients(self):
+    def _interpolation_coeffs(self):
         """
         Symbolic expression for the coefficients for sparse point interpolation
         according to:
@@ -649,9 +649,9 @@ class SparseFunction(AbstractSparseFunction):
         # List of indirection indices for all adjacent grid points
         idx_subs, eqns = self._interpolation_indices(variables, offset)
 
-        # Substitute coordinate base symbols into the coefficients
+        # Substitute coordinate base symbols into the interpolation coefficients
         args = [expr.subs(v_sub) * b.subs(v_sub)
-                for b, v_sub in zip(self._coefficients, idx_subs)]
+                for b, v_sub in zip(self._interpolation_coeffs, idx_subs)]
 
         # Accumulate point-wise contributions into a temporary
         rhs = Scalar(name='sum', dtype=self.dtype)
@@ -682,9 +682,9 @@ class SparseFunction(AbstractSparseFunction):
         # List of indirection indices for all adjacent grid points
         idx_subs, eqns = self._interpolation_indices(variables, offset)
 
-        # Substitute coordinate base symbols into the coefficients
+        # Substitute coordinate base symbols into the interpolation coefficients
         eqns.extend([Inc(field.subs(vsub), expr.subs(vsub) * b)
-                     for b, vsub in zip(self._coefficients, idx_subs)])
+                     for b, vsub in zip(self._interpolation_coeffs, idx_subs)])
 
         return eqns
 
@@ -991,14 +991,14 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         grid point closest to the origin, i.e. the one with the lowest value of each
         coordinate dimension. Must be a two-dimensional array of shape
         ``(npoint, grid.ndim)``.
-    coefficients : np.ndarray, optional
+    interpolation_coeffs : np.ndarray, optional
         An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
         gridpoints that each sparse point will be interpolated to. The coefficient is
         split across the n dimensions such that the contribution of the point (i, j, k)
-        will be multiplied by ``coefficients[..., i]*coefficients[...,
-        j]*coefficients[...,k]``. So for ``r=6``, we will store 18 coefficients per
-        sparse point (instead of potentially 216). Must be a three-dimensional array of
-        shape ``(npoint, grid.ndim, r)``.
+        will be multiplied by ``interpolation_coeffs[..., i]*interpolation_coeffs[...,
+        j]*interpolation_coeffs[...,k]``. So for ``r=6``, we will store 18
+        coefficients per sparse point (instead of potentially 216).
+        Must be a three-dimensional array of shape ``(npoint, grid.ndim, r)``.
     space_order : int, optional
         Discretisation order for space derivatives. Defaults to 0.
     shape : tuple of ints, optional
@@ -1024,7 +1024,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
     is_PrecomputedSparseFunction = True
 
-    _sub_functions = ('gridpoints', 'coefficients')
+    _sub_functions = ('gridpoints', 'interpolation_coeffs')
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -1048,17 +1048,20 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             gridpoints.data[:] = gridpoints_data[:]
             self._gridpoints = gridpoints
 
-            coefficients = SubFunction(name="%s_coefficients" % self.name,
-                                       dimensions=(self.indices[-1], Dimension(name='d'),
-                                                   Dimension(name='i')),
-                                       shape=(self.npoint, self.grid.dim, self.r),
-                                       dtype=self.dtype, space_order=0, parent=self)
-            coefficients_data = kwargs.get('coefficients', None)
+            interpolation_coeffs = SubFunction(name="%s_interpolation_coeffs" % self.name,
+                                               dimensions=(self.indices[-1],
+                                                           Dimension(name='d'),
+                                                           Dimension(name='i')),
+                                               shape=(self.npoint, self.grid.dim,
+                                                      self.r),
+                                               dtype=self.dtype, space_order=0,
+                                               parent=self)
+            coefficients_data = kwargs.get('interpolation_coeffs', None)
             assert(coefficients_data is not None)
-            coefficients.data[:] = coefficients_data[:]
-            self._coefficients = coefficients
-            warning("Ensure that the provided coefficient and grid point values are " +
-                    "computed on the final grid that will be used for other " +
+            interpolation_coeffs.data[:] = coefficients_data[:]
+            self._interpolation_coeffs = interpolation_coeffs
+            warning("Ensure that the provided interpolation coefficient and grid point " +
+                    "values are computed on the final grid that will be used for other " +
                     "computations.")
 
     def interpolate(self, expr, offset=0, increment=False, self_subs={}):
@@ -1076,13 +1079,13 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         """
         expr = indexify(expr)
 
-        p, _, _ = self.coefficients.indices
+        p, _, _ = self.interpolation_coeffs.indices
         dim_subs = []
         coeffs = []
         for i, d in enumerate(self.grid.dimensions):
             rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
             dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
-            coeffs.append(self.coefficients[p, i, rd])
+            coeffs.append(self.interpolation_coeffs[p, i, rd])
         # Apply optional time symbol substitutions to lhs of assignment
         lhs = self.subs(self_subs)
         rhs = prod(coeffs) * expr.subs(dim_subs)
@@ -1111,7 +1114,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         for i, d in enumerate(self.grid.dimensions):
             rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
             dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
-            coeffs.append(self.coefficients[p, i, rd])
+            coeffs.append(self.interpolation_coeffs[p, i, rd])
         rhs = prod(coeffs) * expr
         field = field.subs(dim_subs)
         return [Eq(field, field + rhs.subs(dim_subs))]
@@ -1121,8 +1124,9 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         return self._gridpoints
 
     @property
-    def coefficients(self):
-        return self._coefficients
+    def interpolation_coeffs(self):
+        """ The Precomputed interpolation coefficients."""
+        return self._interpolation_coeffs
 
     def _dist_scatter(self, data=None):
         data = data if data is not None else self.data
@@ -1131,7 +1135,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         # If not using MPI, don't waste time
         if distributor.nprocs == 1:
             return {self: data, self.gridpoints: self.gridpoints.data,
-                    self.coefficients: self.coefficients.data}
+                    self._interpolation_coeffs: self._interpolation_coeffs.data}
 
         raise NotImplementedError
 
@@ -1169,14 +1173,14 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         grid point closest to the origin, i.e. the one with the lowest value of each
         coordinate dimension. Must be a two-dimensional array of shape
         ``(npoint, grid.ndim)``.
-    coefficients : np.ndarray, optional
+    interpolation_coeffs : np.ndarray, optional
         An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
         gridpoints that each sparse point will be interpolated to. The coefficient is
         split across the n dimensions such that the contribution of the point (i, j, k)
-        will be multiplied by ``coefficients[..., i]*coefficients[...,
-        j]*coefficients[...,k]``. So for ``r=6``, we will store 18 coefficients per
-        sparse point (instead of potentially 216). Must be a three-dimensional array of
-        shape ``(npoint, grid.ndim, r)``.
+        will be multiplied by ``interpolation_coeffs[..., i]*interpolation_coeffs[...,
+        j]*interpolation_coeffs[...,k]``. So for ``r=6``, we will store 18 coefficients
+        per sparse point (instead of potentially 216). Must be a three-dimensional array
+        of shape ``(npoint, grid.ndim, r)``.
     space_order : int, optional
         Discretisation order for space derivatives. Defaults to 0.
     time_order : int, optional

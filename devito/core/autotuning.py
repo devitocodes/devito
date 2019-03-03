@@ -73,7 +73,8 @@ def autotune(operator, args, level, mode):
     except KeyError:
         assert not configuration['mpi']
 
-    trees = retrieve_iteration_tree(operator.body)
+    roots = [operator.body] + [i.root for i in operator._func_table.values()]
+    trees = retrieve_iteration_tree(roots)
 
     # Shrink the time dimension's iteration range for quick autotuning
     steppers = {i for i in flatten(trees) if i.dim.is_Time}
@@ -229,15 +230,18 @@ def finalize_time_bounds(stepper, at_args, args, mode):
 
 
 def make_calculate_parblocks(trees, blockable, nthreads):
-    blocks_per_threads = []
-    main_block_trees = [i for i in trees if set(blockable) < set(i.dimensions)]
-    for tree, nt in product(main_block_trees, nthreads):
-        block_iters = [i for i in tree if i.dim in blockable]
-        par_block_iters = block_iters[:block_iters[0].ncollapsed]
-        niterations = prod(i.size() for i in par_block_iters)
-        block_size = prod(i.dim.step for i in par_block_iters)
-        blocks_per_threads.append((niterations / block_size) / nt)
-    return blocks_per_threads
+    trees = [i for i in trees if any(d in i.dimensions for d in blockable)]
+    nblocks_per_threads = []
+    for tree, nt in product(trees, nthreads):
+        collapsed = tree[:tree[0].ncollapsed]
+        blocked = [i.dim for i in collapsed if i.dim in blockable]
+        remainders = [(d.root.symbolic_max-d.root.symbolic_min+1) % d.step
+                      for d in blocked]
+        niters = [d.root.symbolic_max - i for d, i in zip(blocked, remainders)]
+        nblocks = prod((i - d.root.symbolic_min + 1) / d.step
+                       for d, i in zip(blocked, niters))
+        nblocks_per_threads.append(nblocks / nt)
+    return nblocks_per_threads
 
 
 def generate_block_shapes(blockable, args, level):

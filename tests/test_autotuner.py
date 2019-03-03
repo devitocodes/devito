@@ -188,7 +188,7 @@ def test_tti_aggressive():
 
 
 @switchconfig(develop_mode=False, cross_compile=MockArch)
-@patch("devito.dle.backends.parallelizer.Ompizer.COLLAPSE", 1)
+@patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
 def test_discarding_runs():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
@@ -211,7 +211,7 @@ def test_discarding_runs():
 
 
 @skipif('nompi')
-@pytest.mark.parallel(nprocs=2)
+@pytest.mark.parallel(mode=2)
 def test_at_w_mpi():
     """Make sure autotuning works in presence of MPI. MPI ranks work
     in isolation to determine the best block size, locally."""

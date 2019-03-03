@@ -14,7 +14,8 @@ __all__ = ['iet_build', 'iet_insert_C_decls']
 
 def iet_build(stree):
     """
-    Create an Iteration/Expression tree (IET) from a :class:`ScheduleTree`.
+    Create an Iteration/Expression tree (IET) from a ScheduleTree.
+
     The nodes in the returned IET are decorated with properties deriving from
     data dependence analysis.
     """
@@ -31,7 +32,7 @@ def iet_build(stree):
 
 
 def iet_make(stree):
-    """Create an IET from a :class:`ScheduleTree`."""
+    """Create an IET from a ScheduleTree."""
     nsections = 0
     queues = OrderedDict()
     for i in stree.visit():
@@ -41,39 +42,38 @@ def iet_make(stree):
 
         elif i.is_Exprs:
             exprs = [Increment(e) if e.is_Increment else Expression(e) for e in i.exprs]
-            body = [ExpressionBundle(i.shape, i.ops, i.traffic, body=exprs)]
+            body = ExpressionBundle(i.shape, i.ops, i.traffic, body=exprs)
 
         elif i.is_Conditional:
-            body = [Conditional(i.guard, queues.pop(i))]
+            body = Conditional(i.guard, queues.pop(i))
 
         elif i.is_Iteration:
             # Order to ensure deterministic code generation
             uindices = sorted(i.sub_iterators, key=lambda d: d.name)
             # Generate Iteration
-            body = [Iteration(queues.pop(i), i.dim, i.dim._limits, offsets=i.limits,
-                              direction=i.direction, uindices=uindices)]
+            body = Iteration(queues.pop(i), i.dim, i.dim._limits, offsets=i.limits,
+                             direction=i.direction, uindices=uindices)
 
         elif i.is_Section:
-            body = [Section('section%d' % nsections, body=queues.pop(i))]
+            body = Section('section%d' % nsections, body=queues.pop(i))
             nsections += 1
 
         elif i.is_Halo:
-            body = [HaloSpot(hs) for hs in i.halo_scheme.components] + queues.pop(i)
+            body = HaloSpot(i.halo_scheme, body=queues.pop(i))
 
-        queues.setdefault(i.parent, []).extend(body)
+        queues.setdefault(i.parent, []).append(body)
 
     assert False
 
 
 def iet_lower_dimensions(iet):
     """
-    Replace all :class:`DerivedDimension`s within the ``iet``'s expressions with
-    lower-level symbolic objects (other :class:`Dimension`s, or :class:`sympy.Symbol`).
+    Replace all DerivedDimensions within the ``iet``'s expressions with
+    lower-level symbolic objects (other Dimensions or Symbols).
 
-        * Array indices involving :class:`SteppingDimension`s are turned into
-          :class:`ModuloDimension`s.
+        * Array indices involving SteppingDimensions are turned into ModuloDimensions.
           Example: ``u[t+1, x] = u[t, x] + 1 >>> u[t1, x] = u[t0, x] + 1``
-        * Array indices involving :class:`ConditionalDimension`s used are turned into
+        * Array indices involving ConditionalDimensions used are turned into
           integer-division expressions.
           Example: ``u[t_sub, x] = u[time, x] >>> u[time / 4, x] = u[time, x]``
     """
@@ -129,7 +129,7 @@ def iet_insert_C_decls(iet, external=None):
                 continue
             objs = [k.write]
         elif k.is_Call:
-            objs = k.params
+            objs = k.arguments
 
         for i in objs:
             try:

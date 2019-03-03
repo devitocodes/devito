@@ -176,7 +176,6 @@ class Operator(Callable):
         # Lower Schedule tree to an Iteration/Expression tree (IET)
         iet = iet_build(stree)
         iet, self._profiler = self._profile_sections(iet)
-        iet = self._generate_mpi(iet, **kwargs)
         iet = self._specialize_iet(iet, **kwargs)
         iet = iet_insert_C_decls(iet)
         iet = self._build_casts(iet)
@@ -224,7 +223,7 @@ class Operator(Callable):
         dle = kwargs.get("dle", configuration['dle'])
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
-        state = transform(iet, *set_dle_mode(dle))
+        iet, state = transform(iet, *set_dle_mode(dle))
 
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                              for i in state.efuncs]))
@@ -232,10 +231,6 @@ class Operator(Callable):
         self.input.extend(state.input)
         self._includes.extend(state.includes)
 
-        return state.nodes
-
-    def _generate_mpi(self, iet, **kwargs):
-        """Transform the IET adding nodes performing halo exchanges."""
         return iet
 
     def _build_casts(self, iet):
@@ -245,7 +240,11 @@ class Operator(Callable):
 
     def _build_parameters(self, iet):
         """Derive the Operator parameters."""
-        return derive_parameters(iet, True)
+        parameters = derive_parameters(iet, True)
+        # Hackish: add parameters not emebedded directly in any IET node,
+        # e.g. those produced by the DLE or by a backend
+        parameters.extend([i for i in self.input if i not in parameters])
+        return tuple(parameters)
 
     # Arguments processing
 
@@ -254,10 +253,28 @@ class Operator(Callable):
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
         """
-        # Process data-carriers (first overrides, then fill up with whatever is needed)
+        overrides, defaults = split(self.input, lambda p: p.name in kwargs)
+        # Process data-carrier overrides
         args = ReducerMap()
-        args.update([p._arg_values(**kwargs) for p in self.input if p.name in kwargs])
-        args.update([p._arg_values() for p in self.input if p.name not in args])
+        for p in overrides:
+            args.update(p._arg_values(**kwargs))
+            try:
+                args = ReducerMap(args.reduce_all())
+            except ValueError:
+                raise ValueError("Override `%s` is incompatible with overrides `%s`" %
+                                 (p, [i for i in overrides if i.name in args]))
+        # Process data-carrier defaults
+        for p in defaults:
+            if p.name in args:
+                # E.g., SubFunctions
+                continue
+            for k, v in p._arg_values(**kwargs).items():
+                if k in args and args[k] != v:
+                    raise ValueError("Default `%s` is incompatible with other args as "
+                                     "`%s=%s`, while `%s=%s` is expected. Perhaps you "
+                                     "forgot to override `%s`?" %
+                                     (p, k, v, k, args[k], p))
+                args[k] = v
         args = args.reduce_all()
 
         # All DiscreteFunctions should be defined on the same Grid
@@ -310,7 +327,7 @@ class Operator(Callable):
 
     def _postprocess_arguments(self, args, **kwargs):
         """Process runtime arguments upon returning from ``.apply()``."""
-        for p in self.output:
+        for p in self.input:
             p._arg_apply(args[p.name], kwargs.get(p.name))
 
     @cached_property
@@ -476,19 +493,20 @@ class Operator(Callable):
         symbolic expressions, one symbolic expression for each memory scope (external,
         stack, heap).
         """
-        tensors = [i for i in derive_parameters(self) if i.is_Tensor]
+        roots = [self] + [i.root for i in self._func_table.values()]
+        functions = [i for i in derive_parameters(roots) if i.is_Function]
 
         summary = {}
 
-        external = [i.symbolic_shape for i in tensors if i._mem_external]
+        external = [i.symbolic_shape for i in functions if i._mem_external]
         external = sum(reduce(mul, i, 1) for i in external)*self._dtype().itemsize
         summary['external'] = external
 
-        heap = [i.symbolic_shape for i in tensors if i._mem_heap]
+        heap = [i.symbolic_shape for i in functions if i._mem_heap]
         heap = sum(reduce(mul, i, 1) for i in heap)*self._dtype().itemsize
         summary['heap'] = heap
 
-        stack = [i.symbolic_shape for i in tensors if i._mem_stack]
+        stack = [i.symbolic_shape for i in functions if i._mem_stack]
         stack = sum(reduce(mul, i, 1) for i in stack)*self._dtype().itemsize
         summary['stack'] = stack
 

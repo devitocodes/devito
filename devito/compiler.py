@@ -366,9 +366,25 @@ def jit_compile(soname, code, compiler):
     target = str(get_jit_dir().joinpath(soname))
     src_file = "%s.%s" % (target, compiler.src_ext)
 
-    # This makes a suite of cache directories based on the soname
     cache_dir = get_codepy_dir().joinpath(soname[:7])
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    if configuration['jit-backdoor'] is False:
+        # Typically we end up here
+        # Make a suite of cache directories based on the soname
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        # Warning: dropping `code` on the floor in favor to whatever is written
+        # within `src_file`
+        try:
+            with open(src_file, 'r') as f:
+                code = f.read()
+            # Bypass the devito JIT cache
+            # Note: can't simply use Python's `mkdtemp()` as, with MPI, different
+            # ranks would end up creating different cache dirs
+            cache_dir = cache_dir.joinpath('jit-backdoor')
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        except FileNotFoundError:
+            raise ValueError("Trying to use the JIT backdoor for `%s`, but "
+                             "the file isn't present" % src_file)
 
     # `catch_warnings` suppresses codepy complaining that it's taking
     # too long to acquire the cache lock. This warning can only appear
