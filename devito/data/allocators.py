@@ -78,7 +78,7 @@ class MemoryAllocator(object):
         # cast to 1D array of the specified size
         ctype_1d = ctype * size
         buf = ctypes.cast(c_pointer, ctypes.POINTER(ctype_1d)).contents
-        pointer = np.frombuffer(buf, dtype=dtype).reshape(shape)
+        pointer = np.array(c_pointer, dtype=dtype, copy=False, order='C', subok=True)
 
         return (pointer, memfree_args)
 
