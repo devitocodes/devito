@@ -1,5 +1,6 @@
 from pyrevolve import Checkpoint, Operator
 from devito import TimeFunction
+from devito.tools import flatten
 
 
 class CheckpointOperator(Operator):
@@ -62,25 +63,20 @@ class DevitoCheckpoint(Checkpoint):
     def dtype(self):
         return self._dtype
 
-    def save(self, ptr):
-        """Overwrite live-data in this Checkpoint object with data found at
-        the ptr location."""
-        i_ptr_lo = 0
-        i_ptr_hi = 0
-        for o in self.objects:
-            i_ptr_hi = i_ptr_hi + o.size
-            ptr[i_ptr_lo:i_ptr_hi] = o.data.flatten()[:]
-            i_ptr_lo = i_ptr_hi
+    def get_symbol_data(self, symbol, timestep):
+        timestep += symbol.time_order - 1
+        ptrs = []
+        for i in range(symbol.time_order):
+            ptr = symbol._data[timestep -i, :, :]
+            ptrs.append(ptr)
+        return ptrs
 
-    def load(self, ptr):
-        """Copy live-data from this Checkpoint object into the memory given by
-        the ptr."""
-        i_ptr_lo = 0
-        i_ptr_hi = 0
-        for o in self.objects:
-            i_ptr_hi = i_ptr_hi + o.size
-            o.data[:] = ptr[i_ptr_lo:i_ptr_hi].reshape(o.shape)
-            i_ptr_lo = i_ptr_hi
+    def get_data(self, timestep):
+        data = flatten([self.get_symbol_data(s, timestep) for s in self.objects])
+        return data
+
+    def get_data_location(self, timestep):
+        return self.get_data(timestep)
 
     @property
     def size(self):
