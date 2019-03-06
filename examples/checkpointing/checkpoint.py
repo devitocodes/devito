@@ -63,6 +63,14 @@ class DevitoCheckpoint(Checkpoint):
     def dtype(self):
         return self._dtype
 
+    def get_symbol_data(self, symbol, timestep):
+        timestep += symbol.time_order - 1
+        ptrs = []
+        for i in range(symbol.time_order):
+            ptr = symbol._data[timestep -i, :, :]
+            ptrs.append(ptr)
+        return ptrs
+
     def get_data(self, timestep):
         data = flatten([self.get_symbol_data(s, timestep) for s in self.objects])
         return data
