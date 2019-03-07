@@ -32,8 +32,7 @@ class Derivative(sympy.Derivative, Differentiable):
             new_dims = tuple(new_dims)
 
         obj = sympy.Derivative.__new__(cls, expr, *new_dims)
-
-        obj._dims = tuple(d for d in as_tuple(dims) if isinstance(d, Dimension))
+        obj._dims = tuple(d for d in as_tuple(*dims) if isinstance(d, Dimension))
         obj._fd_order = kwargs.get('fd_order', 1)
         obj._deriv_order = kwargs.get('deriv_order', 1)
         obj._stagger = kwargs.get("stagger", obj._stagger_setup)
@@ -117,7 +116,7 @@ class Derivative(sympy.Derivative, Differentiable):
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
                                    matvec=self.transpose, stagger=self.stagger)
         else:
-            res = generic_derivative(expr, self.dims[0], self.fd_order,
-                                     self.deriv_order, stagger=self.stagger[self.dims[0]],
+            res = generic_derivative(expr, *self.dims, self.fd_order,
+                                     self.deriv_order, stagger=self.stagger,
                                      matvec=self.transpose)
         return res
