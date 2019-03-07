@@ -702,6 +702,12 @@ def test_oob_guard():
     Operator(Eq(u[2000, 0], 1.0)).apply()
 
 
+def test_numpy_flags():
+    grid = Grid(shape=(4, 4))
+    u = Function(name='u', grid=grid, space_order=0)
+    assert(u.data.flags.c_contiguous)
+
+
 if __name__ == "__main__":
     from devito import configuration
     configuration['mpi'] = True

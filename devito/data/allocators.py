@@ -78,7 +78,13 @@ class MemoryAllocator(object):
         # cast to 1D array of the specified size
         ctype_1d = ctype * size
         buf = ctypes.cast(c_pointer, ctypes.POINTER(ctype_1d)).contents
-        pointer = np.array(c_pointer, dtype=dtype, copy=False, order='C', subok=True)
+        pointer = np.frombuffer(buf, dtype=dtype)
+        # pointer.reshape should not be used here because it may introduce a copy
+        # From https://docs.scipy.org/doc/numpy/reference/generated/numpy.reshape.html:
+        # It is not always possible to change the shape of an array without copying the
+        # data. If you want an error to be raised when the data is copied, you should
+        # assign the new shape to the shape attribute of the array:
+        pointer.shape = shape
 
         return (pointer, memfree_args)
 

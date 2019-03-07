@@ -67,7 +67,7 @@ class DevitoCheckpoint(Checkpoint):
         timestep += symbol.time_order - 1
         ptrs = []
         for i in range(symbol.time_order):
-            ptr = symbol._data[timestep -i, :, :]
+            ptr = symbol._data[timestep - i, :, :]
             ptrs.append(ptr)
         return ptrs
 
