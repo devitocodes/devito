@@ -797,8 +797,8 @@ class MPIRequestObject(LocalObject):
 
 class MPIMsg(CompositeObject):
 
-    _C_field_bufs = 'bufs'
-    _C_field_bufg = 'bufg'
+    _C_field_bufs = 'buf_scatter'
+    _C_field_bufg = 'buf_gather'
     _C_field_sizes = 'sizes'
     _C_field_rrecv = 'rrecv'
     _C_field_rsend = 'rsend'
@@ -855,12 +855,14 @@ class MPIMsg(CompositeObject):
                 except AttributeError:
                     assert side is CENTER
                     shape.append(function._size_domain[dim])
-            entry.sizes = (c_int*len(shape))(*shape)
+            setattr(entry, self._C_field_sizes, (c_int*len(shape))(*shape))
             # Allocate the send/recv buffers
             size = reduce(mul, shape)
             ctype = dtype_to_ctype(function.dtype)
-            entry.bufg, bufg_memfree_args = self._allocator._alloc_C_libcall(size, ctype)
-            entry.bufs, bufs_memfree_args = self._allocator._alloc_C_libcall(size, ctype)
+            c_pointer, bufg_memfree_args = self._allocator._alloc_C_libcall(size, ctype)
+            setattr(entry, self._C_field_bufg, c_pointer)
+            c_pointer, bufs_memfree_args = self._allocator._alloc_C_libcall(size, ctype)
+            setattr(entry, self._C_field_bufs, c_pointer)
             # The `memfree_args` will be used to deallocate the buffer upon returning
             # from C-land
             self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
@@ -878,10 +880,10 @@ class MPIMsg(CompositeObject):
 
 class MPIMsgEnriched(MPIMsg):
 
-    _C_field_ofss = 'ofss'
-    _C_field_ofsg = 'ofsg'
-    _C_field_from = 'fromrank'
-    _C_field_to = 'torank'
+    _C_field_ofss = 'ofs_scatter'
+    _C_field_ofsg = 'ofs_gather'
+    _C_field_from = 'from_rank'
+    _C_field_to = 'to_rank'
 
     def __init__(self, name, function, halos):
         fields = [
@@ -899,7 +901,7 @@ class MPIMsgEnriched(MPIMsg):
         for i, halo in enumerate(self.halos):
             entry = values[self.name][i]
             # `torank` peer + gather offsets
-            entry.torank = neighborhood[halo.side]
+            setattr(entry, self._C_field_to, neighborhood[halo.side])
             ofsg = []
             for dim, side in zip(*halo):
                 try:
@@ -907,9 +909,10 @@ class MPIMsgEnriched(MPIMsg):
                 except AttributeError:
                     assert side is CENTER
                     ofsg.append(function._offset_owned[dim].left)
-            entry.ofsg = (c_int*len(ofsg))(*ofsg)
+            setattr(entry, self._C_field_ofsg, (c_int*len(ofsg))(*ofsg))
             # `fromrank` peer + scatter offsets
-            entry.fromrank = neighborhood[tuple(i.flip() for i in halo.side)]
+            setattr(entry, self._C_field_from,
+                    neighborhood[tuple(i.flip() for i in halo.side)])
             ofss = []
             for dim, side in zip(*halo):
                 try:
@@ -920,7 +923,7 @@ class MPIMsgEnriched(MPIMsg):
                     # If it's the CENTER we need, we can't use `_offset_halo[d].left`
                     # as otherwise we would be picking the corner
                     ofss.append(function._offset_owned[dim].left)
-            entry.ofss = (c_int*len(ofss))(*ofss)
+            setattr(entry, self._C_field_ofss, (c_int*len(ofss))(*ofss))
         return values
 
 

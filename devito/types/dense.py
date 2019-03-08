@@ -588,11 +588,11 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     _C_typename = 'struct %s *' % _C_structname
     _C_field_data = 'data'
     _C_field_size = 'size'
-    _C_field_nopad_size = 'npsize'
-    _C_field_domain_size = 'dsize'
-    _C_field_halo_size = 'hsize'
-    _C_field_halo_ofs = 'hofs'
-    _C_field_owned_ofs = 'oofs'
+    _C_field_nopad_size = 'size_nopad'
+    _C_field_domain_size = 'size_domain'
+    _C_field_halo_size = 'size_halo'
+    _C_field_owned_ofs = 'ofs_owned'
+    _C_field_halo_ofs = 'ofs_halo'
 
     _C_typedecl = Struct(_C_structname,
                          [Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
@@ -620,13 +620,24 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         dataobj = byref(self._C_ctype._type_())
         dataobj._obj.data = data.ctypes.data_as(c_void_p)
         dataobj._obj.size = (c_int*self.ndim)(*data.shape)
+
         # MPI-related fields
-        dataobj._obj.npsize = (c_int*self.ndim)(*[i - sum(j) for i, j in
-                                                  zip(data.shape, self._size_padding)])
-        dataobj._obj.dsize = (c_int*self.ndim)(*self._size_domain)
-        dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
-        dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
-        dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
+        val = (c_int*self.ndim)(*[i - sum(j) for i, j in
+                                  zip(data.shape, self._size_padding)])
+        setattr(dataobj._obj, self._C_field_nopad_size, val)
+
+        val = (c_int*self.ndim)(*self._size_domain)
+        setattr(dataobj._obj, self._C_field_domain_size, val)
+
+        val = (c_int*(self.ndim*2))(*flatten(self._size_halo))
+        setattr(dataobj._obj, self._C_field_halo_size, val)
+
+        val = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
+        setattr(dataobj._obj, self._C_field_halo_ofs, val)
+
+        val = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
+        setattr(dataobj._obj, self._C_field_owned_ofs, val)
+
         return dataobj
 
     def _C_as_ndarray(self, dataobj):

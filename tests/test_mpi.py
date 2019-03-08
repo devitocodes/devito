@@ -381,14 +381,14 @@ free(bufg);"""
         assert str(haloupdate.parameters) == """\
 (f(t, x, y), comm, nb, otime)"""
         assert str(haloupdate.body[0]) == """\
-sendrecv(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
-f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->rc,nb->lc,comm);
-sendrecv(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
-f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->lc,nb->rc,comm);
-sendrecv(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
-f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->cr,nb->cl,comm);
-sendrecv(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
-f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->cl,nb->cr,comm);"""
+sendrecv(f_vec,f_vec->size_halo[3],f_vec->size_nopad[2],otime,f_vec->ofs_owned[2],\
+f_vec->ofs_halo[4],otime,f_vec->ofs_halo[3],f_vec->ofs_halo[4],nb->rc,nb->lc,comm);
+sendrecv(f_vec,f_vec->size_halo[2],f_vec->size_nopad[2],otime,f_vec->ofs_owned[3],\
+f_vec->ofs_halo[4],otime,f_vec->ofs_halo[2],f_vec->ofs_halo[4],nb->lc,nb->rc,comm);
+sendrecv(f_vec,f_vec->size_nopad[1],f_vec->size_halo[5],otime,f_vec->ofs_halo[2],\
+f_vec->ofs_owned[4],otime,f_vec->ofs_halo[2],f_vec->ofs_halo[5],nb->cr,nb->cl,comm);
+sendrecv(f_vec,f_vec->size_nopad[1],f_vec->size_halo[4],otime,f_vec->ofs_halo[2],\
+f_vec->ofs_owned[5],otime,f_vec->ofs_halo[2],f_vec->ofs_halo[4],nb->cl,nb->cr,comm);"""
 
 
 class TestSparseFunction(object):
