@@ -24,14 +24,18 @@ class Eq(sympy.Eq):
     ----------
     lhs : Function or SparseFunction
         The left-hand side.
-    rhs : expr-like
-        The right-hand side.
+    rhs : expr-like, optional
+        The right-hand side. Defaults to 0.
     subdomain : SubDomain, optional
         To restrict the computation of the Eq to a particular sub-region in the
         computational domain.
     coefficients : Substitutions, optional
         Can be used to replace symbolic finite difference weights with user
         defined weights.
+    implicit_dims : Dimension or list of Dimension, optional
+        An ordered list of Dimensions that do not explicitly appear in either the
+        left-hand side or in the right-hand side, but that should be honored when
+        constructing an Operator.
 
     Examples
     --------
@@ -55,9 +59,11 @@ class Eq(sympy.Eq):
 
     is_Increment = False
 
-    def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, **kwargs):
+    def __new__(cls, lhs, rhs=0, implicit_dims=None, subdomain=None, coefficients=None,
+                **kwargs):
         kwargs['evaluate'] = False
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
+        obj._implicit_dims = as_tuple(implicit_dims)
         obj._subdomain = subdomain
         obj._substitutions = coefficients
         if obj._uses_symbolic_coefficients:
@@ -81,8 +87,8 @@ class Eq(sympy.Eq):
         return self._substitutions
 
     @property
-    def _implicit_dims(self):
-        return ()
+    def implicit_dims(self):
+        return self._implicit_dims
 
     @cached_property
     def _uses_symbolic_coefficients(self):
@@ -107,8 +113,8 @@ class Eq(sympy.Eq):
 
     def xreplace(self, rules):
         """"""
-        return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
-                         subdomain=self._subdomain)
+        return self.func(self.lhs.xreplace(rules), rhs=self.rhs.xreplace(rules),
+                         implicit_dims=self._implicit_dims, subdomain=self._subdomain)
 
     def __str__(self):
         return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
@@ -134,6 +140,10 @@ class Inc(Eq):
     coefficients : Substitutions, optional
         Can be used to replace symbolic finite difference weights with user
         defined weights.
+    implicit_dims : Dimension or list of Dimension, optional
+        An ordered list of Dimensions that do not explicitly appear in either the
+        left-hand side or in the right-hand side, but that should be honored when
+        constructing an Operator.
 
     Examples
     --------
@@ -156,41 +166,6 @@ class Inc(Eq):
     """
 
     is_Increment = True
-
-
-class Step(Eq):
-
-    """
-    An equal relation between two objects, the left-hand side and the right-hand
-    side.
-
-    Unlike an Eq, a Step has no subdomain or subtitution rules attached. However,
-    it may carry one or more implicit Dimensions.
-
-    Parameters
-    ----------
-    lhs : Function or SparseFunction
-        The left-hand side.
-    rhs : expr-like
-        The right-hand side.
-    implicit_dims : Dimension or list of Dimension, optional
-        Dimensions that do not explicitly appear in either the left-had side
-        or in the right-hand side.
-
-    Notes
-    -----
-    A Step isn't expected to be needed in user code. It may instead be used by
-    the compiler to explicitly introduce temporaries.
-    """
-
-    def __new__(cls, lhs, rhs=0, implicit_dims=None, **kwargs):
-        obj = Eq.__new__(cls, lhs, rhs, **kwargs)
-        obj.__implicit_dims = as_tuple(implicit_dims)
-        return obj
-
-    @property
-    def _implicit_dims(self):
-        return self.__implicit_dims
 
 
 def solve(eq, target, **kwargs):

@@ -6,7 +6,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.cgen_utils import INT, cast_mapper
-from devito.equation import Eq, Inc, Step
+from devito.equation import Eq, Inc
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
@@ -614,10 +614,10 @@ class SparseFunction(AbstractSparseFunction):
                                          if v.function is not self]))
 
         # Temporaries for the indirection dimensions
-        temps = [Step(v, k, self.dimensions) for k, v in points.items()]
+        temps = [Eq(v, k, implicit_dims=self.dimensions) for k, v in points.items()]
         # Temporaries for the coefficients
-        temps.extend([Step(p, c, self.dimensions) for p, c in
-                      zip(self._point_symbols, self._coordinate_bases)])
+        temps.extend([Eq(p, c, implicit_dims=self.dimensions)
+                      for p, c in zip(self._point_symbols, self._coordinate_bases)])
 
         return idx_subs, temps
 
@@ -655,7 +655,8 @@ class SparseFunction(AbstractSparseFunction):
 
         # Accumulate point-wise contributions into a temporary
         rhs = Scalar(name='sum', dtype=self.dtype)
-        summands = [Step(rhs, 0., self.dimensions)] + [Inc(rhs, i) for i in args]
+        summands = [Eq(rhs, 0., implicit_dims=self.dimensions)]
+        summands.extend([Inc(rhs, i, implicit_dims=self.dimensions) for i in args])
 
         # Write/Incr `self`
         lhs = self.subs(self_subs)
@@ -683,7 +684,7 @@ class SparseFunction(AbstractSparseFunction):
         idx_subs, temps = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the interpolation coefficients
-        eqns = [Inc(field.subs(vsub), expr.subs(vsub) * b)
+        eqns = [Inc(field.subs(vsub), expr.subs(vsub) * b, implicit_dims=self.dimensions)
                 for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
 
         return temps + eqns
@@ -724,7 +725,7 @@ class SparseFunction(AbstractSparseFunction):
             out = indexify(expr).xreplace({f._sparse_dim: cd for f in functions})
 
         # Temporaries for the indirection dimensions
-        temps = [Step(v, k, self.dimensions)
+        temps = [Eq(v, k, implicit_dims=self.dimensions)
                  for k, v in points.items() if v in conditions]
 
         return out, temps
