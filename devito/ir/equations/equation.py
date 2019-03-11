@@ -1,5 +1,6 @@
-from sympy import Eq
+import sympy
 
+from devito.equation import Eq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Any, Stencil, detect_accesses, detect_oobs, detect_io,
@@ -68,16 +69,16 @@ class IREq(object):
         return {i: getattr(self, i) for i in self._state}
 
 
-class LoweredEq(Eq, IREq):
+class LoweredEq(sympy.Eq, IREq):
 
     """
-    LoweredEq(sympy.Eq)
+    LoweredEq(devito.Eq)
     LoweredEq(devito.LoweredEq, **kwargs)
     LoweredEq(lhs, rhs, **kwargs)
 
     A SymPy equation with associated IterationSpace and DataSpace.
 
-    When created as ``LoweredEq(sympy.Eq)``, the iteration and data spaces are
+    When created as ``LoweredEq(devito.Eq)``, the iteration and data spaces are
     automatically derived from analysis of ``expr``.
 
     When created as ``LoweredEq(devito.LoweredEq, **kwargs)``, the keyword
@@ -94,15 +95,15 @@ class LoweredEq(Eq, IREq):
         if len(args) == 1 and isinstance(args[0], LoweredEq):
             # origin: LoweredEq(devito.LoweredEq, **kwargs)
             input_expr = args[0]
-            expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
+            expr = sympy.Eq.__new__(cls, *input_expr.args, evaluate=False)
             for i in cls._state:
                 setattr(expr, '_%s' % i, kwargs.get(i) or getattr(input_expr, i))
             return expr
         elif len(args) == 1 and isinstance(args[0], Eq):
-            # origin: LoweredEq(sympy.Eq)
+            # origin: LoweredEq(devito.Eq)
             input_expr = expr = args[0]
         elif len(args) == 2:
-            expr = Eq.__new__(cls, *args, evaluate=False)
+            expr = sympy.Eq.__new__(cls, *args, evaluate=False)
             for i in cls._state:
                 setattr(expr, '_%s' % i, kwargs.pop(i))
             return expr
@@ -160,7 +161,7 @@ class LoweredEq(Eq, IREq):
         return super(LoweredEq, self).func(*args, **self.state, evaluate=False)
 
 
-class ClusterizedEq(Eq, IREq, FrozenExpr, Pickable):
+class ClusterizedEq(sympy.Eq, IREq, FrozenExpr, Pickable):
 
     """
     ClusterizedEq(devito.IREq, **kwargs)
@@ -184,13 +185,13 @@ class ClusterizedEq(Eq, IREq, FrozenExpr, Pickable):
         if len(args) == 1:
             # origin: ClusterizedEq(expr, **kwargs)
             input_expr = args[0]
-            expr = Eq.__new__(cls, *input_expr.args, evaluate=False)
+            expr = sympy.Eq.__new__(cls, *input_expr.args, evaluate=False)
             for i in cls._state:
                 v = kwargs[i] if i in kwargs else getattr(input_expr, i, None)
                 setattr(expr, '_%s' % i, v)
         elif len(args) == 2:
             # origin: ClusterizedEq(lhs, rhs, **kwargs)
-            expr = Eq.__new__(cls, *args, evaluate=False)
+            expr = sympy.Eq.__new__(cls, *args, evaluate=False)
             for i in cls._state:
                 setattr(expr, '_%s' % i, kwargs.pop(i))
         else:
