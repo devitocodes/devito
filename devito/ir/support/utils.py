@@ -36,8 +36,9 @@ def detect_accesses(expr):
                 mapper[f][d].update(off or [0])
 
     # Compute M[None]
-    mapper[None] = Stencil([(i, 0) for i in retrieve_terminals(expr)
-                            if isinstance(i, Dimension)])
+    other_dims = [i for i in retrieve_terminals(expr) if isinstance(i, Dimension)]
+    other_dims.extend(list(expr.implicit_dims))
+    mapper[None] = Stencil([(i, 0) for i in other_dims])
 
     return mapper
 
@@ -169,10 +170,14 @@ def detect_flow_directions(exprs):
     mapper.update({k.parent: set(v) for k, v in mapper.items()
                    if k.is_Derived and mapper.get(k.parent, {Any}) == {Any}})
 
-    # Add in "free" Dimensions, ie Dimensions used as symbols rather than as
-    # array indices
-    mapper.update({d: {Any} for d in flatten(i.free_symbols for i in exprs)
-                   if isinstance(d, Dimension) and d not in mapper})
+    # Add in:
+    # - free Dimensions, ie Dimensions used as symbols rather than as array indices
+    # - implicit Dimensions, ie Dimensions that do not explicitly appear in `exprs`
+    #   (typically used for inline temporaries)
+    for i in exprs:
+        candidates = {s for s in i.free_symbols if isinstance(s, Dimension)}
+        candidates.update(set(i.implicit_dims))
+        mapper.update({d: {Any} for d in candidates if d not in mapper})
 
     return mapper
 

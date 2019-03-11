@@ -89,7 +89,7 @@ class LoweredEq(sympy.Eq, IREq):
     ``LoweredEq._state`` must appear in ``kwargs``.
     """
 
-    _state = IREq._state + ('reads', 'writes')
+    _state = IREq._state + ('reads', 'writes', 'implicit_dims')
 
     def __new__(cls, *args, **kwargs):
         if len(args) == 1 and isinstance(args[0], LoweredEq):
@@ -138,11 +138,14 @@ class LoweredEq(sympy.Eq, IREq):
 
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
-        expr._is_Increment = getattr(input_expr, 'is_Increment', False)
+
         expr._dspace = dspace
         expr._ispace = ispace
         expr._conditionals = tuple(conditionals)
         expr._reads, expr._writes = detect_io(expr)
+
+        expr._is_Increment = input_expr.is_Increment
+        expr._implicit_dims = input_expr.implicit_dims
 
         return expr
 
@@ -153,6 +156,10 @@ class LoweredEq(sympy.Eq, IREq):
     @property
     def writes(self):
         return self._writes
+
+    @property
+    def implicit_dims(self):
+        return self._implicit_dims
 
     def xreplace(self, rules):
         return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), **self.state)
