@@ -1064,12 +1064,12 @@ class TestDeclarator(object):
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
+  float t1 = 2.00000000000000F;
+  float t0 = 1.00000000000000F;
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
   for (int i = i_m; i <= i_M; i += 1)
   {
-    float t0 = 1.00000000000000F;
-    float t1 = 2.00000000000000F;
     a[i] = 3.0F*t0*t1;
   }
   gettimeofday(&end_section0, NULL);
@@ -1433,8 +1433,8 @@ class TestLoopScheduler(object):
 
         u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
         u2 = TimeFunction(name="u2", grid=grid, time_order=2)
-        sf1 = SparseFunction(name='sf1', grid=grid, npoint=1, ntime=10)
-        sf2 = SparseFunction(name='sf2', grid=grid, npoint=1, ntime=10)
+        sf1 = SparseTimeFunction(name='sf1', grid=grid, npoint=1, nt=10)
+        sf2 = SparseTimeFunction(name='sf2', grid=grid, npoint=1, nt=10)
 
         # Deliberately inject into u1, rather than u1.forward, to create a WAR w/ eqn3
         eqn1 = Eq(u1.forward, u1 + 2.0 - u1.backward)
