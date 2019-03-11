@@ -54,19 +54,17 @@ class Eq(sympy.Eq):
 
     is_Increment = False
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, **kwargs):
         kwargs['evaluate'] = False
-        subdomain = kwargs.pop('subdomain', None)
-        substitutions = kwargs.pop('coefficients', None)
-        obj = sympy.Eq.__new__(cls, *args, **kwargs)
+        obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
-        obj._substitutions = substitutions
+        obj._substitutions = coefficients
         if obj._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
             rules = default_rules(obj, obj._symbolic_functions)
             try:
-                obj = obj.xreplace({**substitutions.rules, **rules})
+                obj = obj.xreplace({**coefficients.rules, **rules})
             except AttributeError:
                 if bool(rules):
                     obj = obj.xreplace(rules)
@@ -107,12 +105,30 @@ class Eq(sympy.Eq):
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules),
                          subdomain=self._subdomain)
 
+    def __str__(self):
+        return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
+
+    __repr__ = __str__
+
 
 class Inc(Eq):
 
     """
     An increment relation between two objects, the left-hand side and the
     right-hand side.
+
+    Parameters
+    ----------
+    lhs : Function or SparseFunction
+        The left-hand side.
+    rhs : expr-like
+        The right-hand side.
+    subdomain : SubDomain, optional
+        To restrict the computation of the Eq to a particular sub-region in the
+        computational domain.
+    coefficients : Substitutions, optional
+        Can be used to replace symbolic finite difference weights with user
+        defined weights.
 
     Examples
     --------
@@ -135,11 +151,6 @@ class Inc(Eq):
     """
 
     is_Increment = True
-
-    def __str__(self):
-        return "Inc(%s, %s)" % (self.lhs, self.rhs)
-
-    __repr__ = __str__
 
 
 def solve(eq, target, **kwargs):

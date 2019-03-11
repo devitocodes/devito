@@ -169,13 +169,13 @@ class ClusterizedEq(Eq, IREq, FrozenExpr, Pickable):
     A SymPy equation with associated IterationSpace and DataSpace.
 
     There are two main differences between a LoweredEq and a
-    ClusterizedEq: ::
+    ClusterizedEq:
 
-        * In a ClusterizedEq, the iteration and data spaces must *always*
-          be provided by the caller.
-        * A ClusterizedEq is "frozen", meaning that any call to ``xreplace``
-          will not trigger re-evaluation (e.g., mathematical simplification)
-          of the expression.
+    * In a ClusterizedEq, the iteration and data spaces must *always*
+      be provided by the caller.
+    * A ClusterizedEq is "frozen", meaning that any call to ``xreplace``
+      will not trigger re-evaluation (e.g., mathematical simplification)
+      of the expression.
 
     These two properties make a ClusterizedEq suitable for use in a Cluster.
     """
@@ -214,7 +214,7 @@ class DummyEq(ClusterizedEq):
     DummyEq(expr)
     DummyEq(lhs, rhs)
 
-    A special ClusterizedEq that tracks no iteration or data spaces.
+    A special ClusterizedEq with void iteration and data spaces.
     """
 
     def __new__(cls, *args, **kwargs):

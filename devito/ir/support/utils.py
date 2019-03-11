@@ -21,7 +21,7 @@ def detect_accesses(expr):
     # Compute M : F -> S
     mapper = defaultdict(Stencil)
     for e in retrieve_indexed(expr, mode='all', deep=True):
-        f = e.base.function
+        f = e.function
         for a in e.indices:
             if isinstance(a, Dimension):
                 mapper[f][a].update([0])
