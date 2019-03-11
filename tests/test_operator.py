@@ -10,6 +10,7 @@ from devito.ir.iet import (ArrayCast, Expression, Iteration, FindNodes,
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
 from devito.tools import flatten
+from devito.types import Scalar
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -1258,22 +1259,35 @@ class TestLoopScheduler(object):
         mapper = {'+': Forward, '-': Backward, '*': Any}
         assert all(i.direction == mapper[j] for i, j in zip(iters, directions))
 
-    def test_expressions_imperfect_loops(self, ti0, ti1, ti2, t0):
+    def test_expressions_imperfect_loops(self):
         """
         Test that equations depending only on a subset of all indices
         appearing across all equations are placed within earlier loops
         in the loop nest tree.
         """
-        eq1 = Eq(ti2, t0*3.)
-        eq2 = Eq(ti0, ti1 + 4. + ti2*5.)
-        op = Operator([eq1, eq2], dse='noop', dle='noop')
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+
+        t0 = Constant(name='t0')
+        t1 = Scalar(name='t1')
+        e = Function(name='e', shape=(3,), dimensions=(x,), space_order=0)
+        f = Function(name='f', shape=(3, 3), dimensions=(x, y), space_order=0)
+        g = Function(name='g', grid=grid, space_order=0)
+        h = Function(name='h', grid=grid, space_order=0)
+
+        eq0 = Eq(t1, e*1.)
+        eq1 = Eq(f, t0*3. + t1)
+        eq2 = Eq(h, g + 4. + f*5.)
+        op = Operator([eq0, eq1, eq2], dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        outer, inner = trees
-        assert len(outer) == 2 and len(inner) == 3
-        assert all(i == j for i, j in zip(outer, inner[:-1]))
-        assert outer[-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
-        assert inner[-1].nodes[0].exprs[0].expr.rhs == eq2.rhs
+        assert len(trees) == 3
+        outer, middle, inner = trees
+        assert len(outer) == 1 and len(middle) == 2 and len(inner) == 3
+        assert outer[0] == middle[0] == inner[0]
+        assert middle[1] == inner[1]
+        assert outer[-1].nodes[0].exprs[0].expr.rhs == indexify(eq0.rhs)
+        assert middle[-1].nodes[0].exprs[0].expr.rhs == indexify(eq1.rhs)
+        assert inner[-1].nodes[0].exprs[0].expr.rhs == indexify(eq2.rhs)
 
     def test_equations_emulate_bc(self, t0):
         """
