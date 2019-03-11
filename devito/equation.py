@@ -5,6 +5,7 @@ import sympy
 from cached_property import cached_property
 
 from devito.finite_differences import default_rules
+from devito.tools import as_tuple
 
 __all__ = ['Eq', 'Inc', 'solve']
 
@@ -79,6 +80,10 @@ class Eq(sympy.Eq):
     def substitutions(self):
         return self._substitutions
 
+    @property
+    def _implicit_dims(self):
+        return ()
+
     @cached_property
     def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)
@@ -151,6 +156,41 @@ class Inc(Eq):
     """
 
     is_Increment = True
+
+
+class Step(Eq):
+
+    """
+    An equal relation between two objects, the left-hand side and the right-hand
+    side.
+
+    Unlike an Eq, a Step has no subdomain or subtitution rules attached. However,
+    it may carry one or more implicit Dimensions.
+
+    Parameters
+    ----------
+    lhs : Function or SparseFunction
+        The left-hand side.
+    rhs : expr-like
+        The right-hand side.
+    implicit_dims : Dimension or list of Dimension, optional
+        Dimensions that do not explicitly appear in either the left-had side
+        or in the right-hand side.
+
+    Notes
+    -----
+    A Step isn't expected to be needed in user code. It may instead be used by
+    the compiler to explicitly introduce temporaries.
+    """
+
+    def __new__(cls, lhs, rhs=0, implicit_dims=None, **kwargs):
+        obj = Eq.__new__(cls, lhs, rhs, **kwargs)
+        obj.__implicit_dims = as_tuple(implicit_dims)
+        return obj
+
+    @property
+    def _implicit_dims(self):
+        return self.__implicit_dims
 
 
 def solve(eq, target, **kwargs):
