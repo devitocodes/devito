@@ -6,7 +6,7 @@ import pytest
 
 from conftest import EVAL, skipif
 from devito import Grid, Function, TimeFunction, Eq, Operator, solve
-from devito.dle import transform
+from devito.dle import NThreads, transform
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, FindNodes, iet_analyze,
                            retrieve_iteration_tree)
@@ -266,7 +266,7 @@ def test_dynamic_nthreads():
 
     # Check the actual value assumed by `nthreads`
     from devito.dle.parallelizer import ncores
-    assert op.arguments(time=0)['nthreads'] == ncores()  # default value
+    assert op.arguments(time=0)['nthreads'] == NThreads.default_value()
     assert op.arguments(time=0, nthreads=123)['nthreads'] == 123  # user supplied
 
 
