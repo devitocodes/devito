@@ -1,3 +1,5 @@
+import sympy
+
 from functools import partial
 
 from devito.finite_differences.finite_difference import left, right, centered
@@ -12,6 +14,9 @@ def generate_fd_shortcuts(function):
                                             function.is_SparseTimeFunction) else 0
 
     def deriv_function(expr, deriv_order, dims, fd_order, side=centered, **kwargs):
+        if isinstance(dims, (tuple, sympy.Tuple)):
+            return Derivative(expr, *dims, deriv_order=deriv_order, fd_order=fd_order,
+                              side=side, **kwargs)
         return Derivative(expr, dims, deriv_order=deriv_order, fd_order=fd_order,
                           side=side, **kwargs)
 
