@@ -242,6 +242,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
  0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
  0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
     """
+
     stagger = stagger or [None]*len(dims)
     for d, fd, dim, s in zip(deriv_order, fd_order, dims, stagger):
         expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
