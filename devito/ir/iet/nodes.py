@@ -653,7 +653,7 @@ class ArrayCast(Node):
     @property
     def castshape(self):
         """The shape used in the left-hand side and right-hand side of the ArrayCast."""
-        if configuration['codegen'] == 'explicit' or self.function.is_Array:
+        if self.function.is_Array:
             return self.function.symbolic_shape[1:]
         else:
             return tuple(self.function._C_get_field(FULL, d).size
@@ -670,7 +670,7 @@ class ArrayCast(Node):
 
         This may include DiscreteFunctions as well as Dimensions.
         """
-        if configuration['codegen'] == 'explicit' or self.function.is_Array:
+        if self.function.is_Array:
             sizes = flatten(s.free_symbols for s in self.function.symbolic_shape[1:])
             return (self.function, ) + as_tuple(sizes)
         else:

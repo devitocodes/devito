@@ -36,13 +36,6 @@ configuration.add('first-touch', 0, [0, 1], lambda i: bool(i), False)
 # or rather raise an exception (the default behaviour)?
 configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i), False)
 
-# By default, the Devito compiler generates parameters, rather than numbers, for
-# things such as array casts, loop bounds, etc. This maximises Operator reusability,
-# as the same Operator can be applied to Functions that only different in the shape.
-# It is also the only viable way when using MPI. One can change this behaviour
-# (e.g., for educational purposes) by playing with the `codegen` configuration knob
-configuration.add('codegen', 'parametric', ['parametric', 'explicit'])
-
 # Escape hatch for custom kernels. The typical use case is as follows: one lets
 # Devito generate code for an Operator; then, once the session is over, the
 # generated file is manually modified (e.g., for debugging or for performance
