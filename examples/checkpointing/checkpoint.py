@@ -75,6 +75,15 @@ class DevitoCheckpoint(Checkpoint):
         """The memory consumption of the data contained in a checkpoint."""
         return sum([o.size for o in self.objects])
 
+    def save(*args):
+        raise RuntimeError("Invalid method called. Did you check your version" +
+                           " of pyrevolve?")
+
+    def load(*args):
+        raise RuntimeError("Invalid method called. Did you check your version" +
+                           " of pyrevolve?")
+
+
 def get_symbol_data(self, symbol, timestep):
     timestep += symbol.time_order - 1
     ptrs = []
