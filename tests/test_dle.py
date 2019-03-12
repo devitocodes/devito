@@ -265,7 +265,6 @@ def test_dynamic_nthreads():
     assert np.all(f.data[0] == 2.)
 
     # Check the actual value assumed by `nthreads`
-    from devito.dle.parallelizer import ncores
     assert op.arguments(time=0)['nthreads'] == NThreads.default_value()
     assert op.arguments(time=0, nthreads=123)['nthreads'] == 123  # user supplied
 

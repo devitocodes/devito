@@ -4,9 +4,9 @@ import pytest
 from conftest import skipif, EVAL, time, x, y, z
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, configuration, switchconfig)
-from devito.ir.iet import (ArrayCast, Expression, Iteration, FindNodes,
-                           IsPerfectIteration, retrieve_iteration_tree)
+                    NODE, CELL, configuration)
+from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
+                           retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
 from devito.tools import flatten
