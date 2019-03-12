@@ -20,12 +20,14 @@ class Derivative(sympy.Derivative, Differentiable):
     """
 
     def __new__(cls, expr, *dims, **kwargs):
+        print(expr, dims, kwargs)
         # Verifies that there is one order per dimension if
         # deriv_order is provided
         deriv_order = kwargs.get('deriv_order', None)
-        ndim = len(dims) if isinstance(deriv_order, tuple) else 1
-        norder = len(deriv_order) if isinstance(deriv_order, tuple) else 1
-        if ndim != norder:
+        ndim = len(as_tuple(dims))
+        norder = len(as_tuple(deriv_order)) if deriv_order is not None else 0
+
+        if deriv_order is not None and ndim != norder:
             raise ValueError("Different number of Dimensions and derivative orders")
     
         if deriv_order is not None:
@@ -33,13 +35,19 @@ class Derivative(sympy.Derivative, Differentiable):
         else:
             orders = dict()
             for i, d in enumerate(dims):
-                if int(d) == d:
+                if isinstance(d, (tuple, sympy.Tuple)):
+                    orders[d[0]] = d[1]
+                elif int(d) == d:
                     orders[dims[i-1]] = d
+                elif d in orders:
+                    orders[d] =+ 1
                 else:
                     orders[d] = 1
-        # expand the dimension depending on the derivative order
-        # ie Derivative(expr, x, 2) becomes Derivative(expr, (x, 2))
-        new_dims = tuple(orders.keys())
+
+        new_dims = []
+        for k, v in orders.items():
+            new_dims += [k for _ in range(v)]
+        new_dims = tuple(new_dims)
 
         obj = sympy.Derivative.__new__(cls, expr, *new_dims, evaluate=False)
         obj._dims = new_dims
