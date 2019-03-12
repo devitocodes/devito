@@ -148,6 +148,7 @@ def test_tti_rewrite_aggressive(tti_nodse):
     assert len([i for i in arrays if i._mem_stack]) == 2
 
 
+@skipif(['nompi'])
 @pytest.mark.parallel(mode=[(1, 'full')])
 def test_tti_rewrite_aggressive_wmpi():
     tti_nodse = tti_operator(dse=None)
