@@ -704,7 +704,7 @@ def test_oob_guard():
 
 
 # Skip for YASK because we can't guarantee contiguous memory
-@skipif('yask', 'ops)
+@skipif('yask')
 def test_numpy_c_contiguous():
     """
     Test that devito.Data is correctly reported by NumPy as being C-contiguous
