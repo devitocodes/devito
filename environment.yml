@@ -26,8 +26,9 @@ dependencies:
   - pytest-cov
   - multidict
   - frozendict
+  - gcc
   - pip:
     - "git+https://github.com/inducer/codepy"
-    - "git+https://github.com/opesci/pyrevolve"
+    - pyrevolve==1.0.2
     - py-cpuinfo
     - anytree>=2.4.3
