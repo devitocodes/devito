@@ -225,20 +225,6 @@ class GNUCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
-class GNUCompilerNoAVX(GNUCompiler):
-
-    """
-    GNU JIT compiler with AVX suppressed.
-
-    This may be used on MAC OS to work around a known gcc bug when compiling with
-    AVX enabled.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(GNUCompilerNoAVX, self).__init__(*args, **kwargs)
-        self.cflags += ['-mno-avx']
-
-
 class ClangCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
@@ -480,8 +466,6 @@ compiler_registry = {
     'custom': CustomCompiler,
     'gnu': GNUCompiler,
     'gcc': GNUCompiler,
-    'gcc-noavx': GNUCompilerNoAVX,
-    'gnu-noavx': GNUCompilerNoAVX,
     'clang': ClangCompiler,
     'osx': ClangCompiler,
     'intel': IntelCompiler,
