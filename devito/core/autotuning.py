@@ -254,6 +254,9 @@ def make_calculate_parblocks(trees, blockable, nthreads):
 
 
 def generate_block_shapes(blockable, args, level):
+    if not blockable:
+        return []
+
     # Max attemptable block shape
     max_bs = tuple((d.step.name, d.max_step.subs(args)) for d in blockable)
 
