@@ -129,6 +129,19 @@ class Node(Signer):
         return (str(self.ccode),)
 
 
+# Some useful mixins
+
+
+class Simple(object):
+
+    """
+    A mixin to decorate Nodes that do *not* contain other Nodes (IOW,
+    their ``_traversable`` list is empty).
+    """
+
+    pass
+
+
 class Block(Node):
 
     """A sequence of nodes, wrapped in a block {...}."""
@@ -184,7 +197,7 @@ class Element(Node):
         return "Element::\n\t%s" % (self.element)
 
 
-class Call(Node):
+class Call(Simple, Node):
 
     """A function call."""
 
@@ -218,7 +231,7 @@ class Call(Node):
         return ()
 
 
-class Expression(Node):
+class Expression(Simple, Node):
 
     """A node encapsulating a ClusterizedEq."""
 

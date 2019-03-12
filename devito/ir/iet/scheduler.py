@@ -3,7 +3,7 @@ from collections import OrderedDict
 from devito.cgen_utils import Allocator
 from devito.ir.iet import (ArrayCast, Expression, Increment, LocalExpression, Element,
                            Iteration, List, Conditional, Section, HaloSpot,
-                           ExpressionBundle, MapExpressions, Transformer, FindNodes,
+                           ExpressionBundle, MapSections, Transformer, FindNodes,
                            FindSymbols, XSubs, iet_analyze, filter_iterations)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper, as_tuple
@@ -121,7 +121,7 @@ def iet_insert_decls(iet, external):
     # Classify and then schedule declarations to stack/heap
     allocator = Allocator()
     mapper = OrderedDict()
-    for k, v in MapExpressions().visit(iet).items():
+    for k, v in MapSections().visit(iet).items():
         if k.is_Expression:
             if k.is_scalar_assign:
                 # Inline declaration

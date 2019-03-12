@@ -16,9 +16,9 @@ from devito.ir.support.space import Backward
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype_to_cstr
 
 
-__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExpressions',
-           'MapNodes', 'IsPerfectIteration', 'XSubs', 'printAST', 'CGen',
-           'Transformer', 'FindAdjacent']
+__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapSections', 'MapNodes',
+           'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer',
+           'FindAdjacent']
 
 
 class Visitor(GenericVisitor):
@@ -337,9 +337,8 @@ class FindSections(Visitor):
 
     """
     Find all sections in an Iteration/Expression tree. A section is a map
-    from an iteration space (ie, a sequence of :class:`Iteration` obects) to
-    a set of expressions (ie, the :class:`Expression` objects enclosed by the
-    iteration space).
+    from an Iteration nest to the enclosed statements (e.g., Expressions,
+    Conditionals, Calls, ...).
     """
 
     def visit_tuple(self, o, ret=None, queue=None):
@@ -368,32 +367,38 @@ class FindSections(Visitor):
         queue.remove(o)
         return ret
 
-    def visit_Expression(self, o, ret=None, queue=None):
+    def visit_Simple(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         if queue is not None:
             ret.setdefault(tuple(queue), []).append(o)
         return ret
 
-    visit_Element = visit_Expression
-    visit_Call = visit_Expression
+    def visit_Conditional(self, o, ret=None, queue=None):
+        # Essentially like visit_Simple, but also go down through the children
+        if ret is None:
+            ret = self.default_retval()
+        if queue is not None:
+            ret.setdefault(tuple(queue), []).append(o)
+        for i in o.children:
+            ret = self._visit(i, ret=ret, queue=queue)
+        return ret
 
 
-class MapExpressions(FindSections):
+class MapSections(FindSections):
 
     """
-    Map :class:`Expression` and :class:`Call` objects in the Iteration/Expression
-    tree to their respective section.
+    Construct a mapper from Simple Nodes (i.e., Nodes that do *not* contain
+    other Nodes, such as Expressions and Calls) to the enclosing Iteration nest.
     """
 
-    def visit_Call(self, o, ret=None, queue=None):
+    def visit_Simple(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         ret[o] = as_tuple(queue)
         return ret
 
-    visit_Expression = visit_Call
-    visit_Element = FindSections.visit_Node
+    visit_Conditional = FindSections.visit_Node
 
 
 class MapNodes(Visitor):
