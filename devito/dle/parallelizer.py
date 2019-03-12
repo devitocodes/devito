@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import os
 
 import numpy as np
 import cgen as c
@@ -22,9 +23,13 @@ def ncores():
 
 class NThreads(Constant):
 
+    @classmethod
+    def default_value(cls):
+        return int(os.environ.get('OMP_NUM_THREADS', ncores()))
+
     def __new__(cls, **kwargs):
         return super(NThreads, cls).__new__(cls, name=kwargs['name'], dtype=np.int32,
-                                            value=ncores())
+                                            value=NThreads.default_value())
 
 
 class ParallelRegion(Block):
