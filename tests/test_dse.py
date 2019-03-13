@@ -392,21 +392,23 @@ def test_makeit_ssa(exprs, exp_u, exp_v):
     assert np.all(v.data == exp_v)
 
 
-def test_time_dependent_split():
-    grid = Grid(shape=(4, 4))
-    u = TimeFunction(name='u', grid=grid, time_order=2, space_order=1, save=3)
+@pytest.mark.parametrize('dse', ['noop', 'basic', 'advanced', 'aggressive'])
+@pytest.mark.parametrize('dle', ['noop', 'basic', 'advanced', 'speculative'])
+def test_time_dependent_split(dse, dle):
+    grid = Grid(shape=(10, 10))
+    u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2, save=3)
     v = TimeFunction(name='v', grid=grid, time_order=2, space_order=0, save=3)
 
     # The second equation needs a full loop over x/y for u then
     # a full one over x.y for v
     eq = [Eq(u.forward, 2 + grid.time_dim),
           Eq(v.forward, u.forward.dx + u.forward.dy + 1)]
-    op = Operator(eq, dse='advanced', dle='basic')
+    op = Operator(eq, dse=dse, dle=dle)
 
     trees = retrieve_iteration_tree(op)
     assert len(trees) == 2
 
     op()
 
-    assert np.allclose(u.data[1, 2:-2, 2:-2], 3.0)
-    assert np.allclose(v.data[1, :, :], 1.0)
+    assert np.allclose(u.data[2, :, :], 3.0)
+    assert np.allclose(v.data[1, 1:-1, 1:-1], 1.0)
