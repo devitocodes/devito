@@ -29,7 +29,7 @@ class AnisotropicWaveSolver(object):
         self._kwargs = kwargs
 
     @memoized_meth
-    def op_fwd(self, kernel='shifted', save=False):
+    def op_fwd(self, kernel='centered', save=False):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order,
@@ -56,11 +56,6 @@ class AnisotropicWaveSolver(object):
 
         :returns: Receiver, wavefield and performance summary
         """
-
-        # Space order needs to be halved in the shifted case to have an
-        # overall space_order discretization
-        self.space_order = self.space_order // 2 if kernel == 'shifted' \
-            else self.space_order
 
         if kernel == 'staggered':
             time_order = 1
