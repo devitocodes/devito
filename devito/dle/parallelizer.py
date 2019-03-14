@@ -4,11 +4,11 @@ import os
 import numpy as np
 import cgen as c
 import psutil
-from sympy import Function
+from sympy import Function, Or
 
-from devito.ir.iet import (Call, Conditional, Block, Element, Expression, List, Prodder,
-                           FindSymbols, FindNodes, Transformer, IsPerfectIteration,
-                           COLLAPSED, retrieve_iteration_tree, filter_iterations)
+from devito.ir.iet import (Call, Conditional, Block, Expression, List, Prodder,
+                           FindSymbols, FindNodes, Return, COLLAPSED, Transformer,
+                           IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq
 from devito.parameters import configuration
 from devito.types import Constant, Symbol
@@ -63,8 +63,10 @@ class SingleThreadProdder(Conditional, Prodder):
 class Ompizer(object):
 
     COLLAPSE = 32
-    """Use a collapse clause if the number of available physical cores is
-    greater than this threshold."""
+    """
+    Use a collapse clause if the number of available physical cores is greater
+    than this threshold.
+    """
 
     lang = {
         'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
@@ -89,7 +91,15 @@ class Ompizer(object):
             self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorizable
         self.nthreads = NThreads(name='nthreads')
 
-    def _ncollapse(self, root, candidates):
+    def _find_collapsable(self, root, candidates):
+        # Apply heuristic
+        if ncores() < Ompizer.COLLAPSE:
+            return [root]
+
+        # To be collapsable, two Iterations must be perfectly nested
+        if not IsPerfectIteration().visit(root):
+            return [root]
+
         # The OpenMP specification forbids collapsed loops to use iteration variables
         # in initializer expressions. For example, the following is forbidden:
         #
@@ -99,22 +109,16 @@ class Ompizer(object):
         #     ...
         #
         # Below, we make sure this won't happen
+        collapsable = []
         for n, i in enumerate(candidates):
             if any(j.dim in i.symbolic_min.free_symbols for j in candidates[:n]):
                 break
-        candidates = candidates[:n]
-        # Heuristic: if at least two parallel loops are available and the
-        # physical core count is greater than COLLAPSE, then omp-collapse them
-        nparallel = len(candidates)
-        isperfect = IsPerfectIteration().visit(root)
-        if ncores() < Ompizer.COLLAPSE or nparallel < 2 or not isperfect:
-            return 1
-        else:
-            return nparallel
+            collapsable.append(i)
+        return collapsable
 
-    def _make_parallel_tree(self, root, candidates):
+    def _make_parallel_tree(self, root, collapsable):
         """Parallelize the IET rooted in `root`."""
-        ncollapse = self._ncollapse(root, candidates)
+        ncollapse = len(collapsable)
         parallel = self.lang['for'](ncollapse)
 
         pragmas = root.pragmas + (parallel,)
@@ -149,8 +153,11 @@ class Ompizer(object):
                 continue
             root = candidates[0]
 
+            # Determine the number of collapsable Iterations
+            collapsable = self._find_collapsable(root, candidates)
+
             # Build the `omp-for` tree
-            partree = self._make_parallel_tree(root, candidates)
+            partree = self._make_parallel_tree(root, collapsable)
 
             # Find out the thread-private and thread-shared variables
             private = [i for i in FindSymbols().visit(partree)
@@ -160,12 +167,13 @@ class Ompizer(object):
             private = sorted(set([i.name for i in private]))
             partree = ParallelRegion(partree, self.nthreads, private)
 
-            # Do not enter the parallel region if the step increment might be 0; this
+            # Do not enter the parallel region if the step increment is 0; this
             # would raise a `Floating point exception (core dumped)` in some OpenMP
-            # implementation. Note that using an OpenMP `if` clause won't work
-            if isinstance(root.step, Symbol):
-                cond = Conditional(CondEq(root.step, 0), Element(c.Statement('return')))
-                partree = List(body=[cond, partree])
+            # implementations. Note that using an OpenMP `if` clause won't work
+            cond = [CondEq(i.step, 0) for i in collapsable if isinstance(i.step, Symbol)]
+            cond = Or(*cond)
+            if cond != False:  # noqa: `cond` may be a sympy.False which would be == False
+                partree = List(body=[Conditional(cond, Return()), partree])
 
             mapper[root] = partree
         iet = Transformer(mapper).visit(iet)
