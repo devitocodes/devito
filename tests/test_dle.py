@@ -11,6 +11,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
                            iet_analyze, retrieve_iteration_tree)
 from devito.tools import as_tuple
+from devito.types import Scalar
 from unittest.mock import patch
 
 pytestmark = skipif(['yask', 'ops'])
@@ -316,7 +317,7 @@ def test_loops_collapsed(eq, expected, blocking):
 class TestNestedParallelism(object):
 
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
-    def test_nested_parallelism_simple(self):
+    def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid)
@@ -335,10 +336,9 @@ class TestNestedParallelism(object):
         assert iterations[2].pragmas[0].value ==\
             'omp parallel for collapse(1) schedule(static)'
 
-
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
     @patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
-    def test_nested_parallelism_with_collapsing(self):
+    def test_collapsing(self):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid)
@@ -356,6 +356,35 @@ class TestNestedParallelism(object):
         assert iterations[0].pragmas[0].value == 'omp for collapse(2) schedule(static)'
         assert iterations[2].pragmas[0].value ==\
             'omp parallel for collapse(2) schedule(static)'
+
+    @patch("devito.dse.backends.advanced.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
+    def test_multiple_subnests(self):
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid)
+        t0 = Scalar(name='t0')
+        t1 = Scalar(name='t1')
+        t2 = Scalar(name='t2')
+
+        eqns = [Eq(t0, u*3),
+                Eq(t1, f[x, y, z]*f[x+1, y+1, z+1]*t0),
+                Eq(t2, f[x+2, y+2, z+2]*f[x+3, y+3, z+3]*t0),
+                Eq(u.forward, t1*2 + t2*u + 1)]
+        op = Operator(eqns, dse='aggressive', dle=('blocking', 'openmp'))
+
+        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+        assert len(trees) == 2
+
+        assert trees[0][0] is trees[1][0]
+        assert trees[0][0].pragmas[0].value ==\
+            'omp for collapse(1) schedule(static)'
+        assert trees[0][2].pragmas[0].value ==\
+            'omp parallel for collapse(1) schedule(static)'
+        assert trees[1][2].pragmas[0].value ==\
+            'omp parallel for collapse(1) schedule(static)'
 
 
 @pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
