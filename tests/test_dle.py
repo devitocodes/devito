@@ -279,14 +279,6 @@ def test_dynamic_nthreads():
     assert op.arguments(time=0, nthreads=123)['nthreads'] == 123  # user supplied
 
 
-@pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
-def test_composite_transformation(shape):
-    wo_blocking, _ = _new_operator1(shape, dle='noop')
-    w_blocking, _ = _new_operator1(shape, dle='advanced')
-
-    assert np.equal(wo_blocking.data, w_blocking.data).all()
-
-
 @pytest.mark.parametrize('eq,expected,blocking', [
     ('Eq(f, 2*f)', [2, 0, 0], False),
     ('Eq(u, 2*u)', [0, 2, 0, 0], False),
@@ -319,3 +311,56 @@ def test_loops_collapsed(eq, expected, blocking):
         else:
             for k in i.pragmas:
                 assert 'omp for collapse' not in k.value
+
+
+class TestNestedParallelism(object):
+
+    @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
+    def test_nested_parallelism_simple(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u + 1), dle=('blocking', 'openmp'))
+
+        # Does it compile? Honoring the OpenMP specification isn't trivial
+        assert op.cfunction
+
+        # Does it produce the right result
+        op.apply(t_M=9)
+        assert np.all(u.data[0] == 10)
+
+        iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
+        assert iterations[0].pragmas[0].value == 'omp for collapse(1) schedule(static)'
+        assert iterations[2].pragmas[0].value ==\
+            'omp parallel for collapse(1) schedule(static)'
+
+
+    @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
+    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
+    def test_nested_parallelism_with_collapsing(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u + 1), dle=('blocking', 'openmp'))
+
+        # Does it compile? Honoring the OpenMP specification isn't trivial
+        assert op.cfunction
+
+        # Does it produce the right result
+        op.apply(t_M=9)
+        assert np.all(u.data[0] == 10)
+
+        iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
+        assert iterations[0].pragmas[0].value == 'omp for collapse(2) schedule(static)'
+        assert iterations[2].pragmas[0].value ==\
+            'omp parallel for collapse(2) schedule(static)'
+
+
+@pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
+def test_composite_transformation(shape):
+    wo_blocking, _ = _new_operator1(shape, dle='noop')
+    w_blocking, _ = _new_operator1(shape, dle='advanced')
+
+    assert np.equal(wo_blocking.data, w_blocking.data).all()
