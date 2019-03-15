@@ -133,9 +133,7 @@ class Derivative(sympy.Derivative, Differentiable):
 
     @cached_property
     def _stagger_setup(self):
-        if not self.is_Staggered:
-            side = dict((d, None) for d in self.dims)
-        else:
+        if self.is_Staggered:
             dims = self.indices
             side = dict()
             for (d, s) in zip(dims, self.staggered):
@@ -145,6 +143,8 @@ class Derivative(sympy.Derivative, Differentiable):
                     side[d] = right
                 else:
                     side[d] = centered
+        else:
+            side = (dict(d, None) for d in self.dims)
 
         return side
 
