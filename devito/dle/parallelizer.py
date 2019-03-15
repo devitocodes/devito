@@ -11,14 +11,30 @@ from devito.ir.iet import (Call, Conditional, Block, Expression, List, Prodder,
                            IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq
 from devito.parameters import configuration
+from devito.tools import memoized_func
 from devito.types import Constant, Symbol
 
 
+@memoized_func
 def ncores():
     try:
-        return configuration['cross-compile'].cpu_count()
+        return configuration['cross-compile'].cpu_count(logical=False)
     except AttributeError:
         return psutil.cpu_count(logical=False)
+
+
+@memoized_func
+def nhyperthreads():
+    try:
+        logical = configuration['cross-compile'].cpu_count(logical=True)
+    except AttributeError:
+        logical = psutil.cpu_count(logical=True)
+    physical = ncores()
+    if logical % physical > 0:
+        dle_warning("Couldn't detect number of hyperthreads per core, assuming 1")
+        return 1
+    else:
+        return logical // physical
 
 
 class NThreads(Constant):
