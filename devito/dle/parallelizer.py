@@ -6,15 +6,14 @@ import cgen as c
 import psutil
 from sympy import Function, Or
 
-from devito.ir import (DummyEq, Call, Conditional, Block, Expression, List, Prodder,
+from devito.ir import (Call, Conditional, Block, Expression, List, Prodder,
                        FindSymbols, FindNodes, Return, COLLAPSED, Transformer,
-                       IsPerfectIteration, retrieve_iteration_tree, filter_iterations,
-                       compose_nodes)
+                       IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.logger import dle_warning
 from devito.symbolics import CondEq
 from devito.parameters import configuration
 from devito.tools import is_integer, memoized_func
-from devito.types import Constant, Dimension, Symbol
+from devito.types import Constant, Symbol
 
 
 @memoized_func
@@ -217,22 +216,7 @@ class Ompizer(object):
                 continue
 
             # Introduce nested parallelism
-            subroot, _, collapsed = self._make_partree(candidates, self.lang['par-for'])
-
-            # The OpenMP specification forbids that nested parallel loops' iteration
-            # variables depend on any of the outer parallel loops' iteration variables.
-            # Therefore, we here apply the following transformation:
-            #
-            # for (i = ...)  // outer parallelism              for (i = ...)
-            #   for (j = i ...)  // nested parallelism  ---->    for (j = 0 ...)
-            #     ...                                              j' = i + j
-            #                                                      ...
-            rebuilt = [i._rebuild(dimension=Dimension(name='n%s' % i.dim.name),
-                                  limits=(0, i.symbolic_size - 1, 1), offsets=(0, 0))
-                       for i in collapsed]
-            exprs = [Expression(DummyEq(i.dim, i.symbolic_min + j.dim))
-                     for i, j in zip(collapsed, rebuilt)]
-            subpartree = compose_nodes(rebuilt + [exprs + list(rebuilt[-1].nodes)])
+            subroot, subpartree, _ = self._make_partree(candidates, self.lang['par-for'])
 
             mapper[subroot] = subpartree
 
