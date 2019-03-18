@@ -3,9 +3,9 @@ import pytest
 from numpy import linalg
 
 from conftest import skipif
-from devito import TimeFunction, configuration
+from devito import TimeFunction
 from devito.logger import log
-from examples.seismic import Model, demo_model, AcquisitionGeometry
+from examples.seismic import Model, AcquisitionGeometry
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
 
@@ -14,7 +14,7 @@ pytestmark = skipif(['yask', 'ops'])
 
 @pytest.mark.parametrize('shape', [(120, 140), (120, 140, 150)])
 @pytest.mark.parametrize('space_order', [4, 8])
-@pytest.mark.parametrize('kernel', ['centered', 'shifted'])
+@pytest.mark.parametrize('kernel', ['centered'])
 def test_tti(shape, space_order, kernel):
     """
     This first test compare the solution of the acoustic wave-equation and the
@@ -24,7 +24,7 @@ def test_tti(shape, space_order, kernel):
     if kernel == 'shifted':
         space_order *= 2
     to = 2
-    so = space_order // 2 if kernel == 'shifted' else space_order
+    so = space_order
     nbpml = 10
     origin = [0. for _ in shape]
     spacing = [10. for _ in shape]
@@ -87,41 +87,3 @@ def test_tti(shape, space_order, kernel):
 
     log("Difference between acoustic and TTI with all coefficients to 0 %2.4e" % res)
     assert np.isclose(res, 0.0, atol=1e-4)
-
-
-@pytest.mark.parametrize('shape', [(50, 60), (50, 60, 70)])
-def test_tti_staggered(shape):
-    spacing = [10. for _ in shape]
-    nrec = 1
-    # Model
-    model = demo_model('layers-tti', shape=shape, spacing=spacing)
-
-    # Source and receiver geometries
-    src_coordinates = np.empty((1, len(spacing)))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
-    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
-
-    rec_coordinates = np.empty((nrec, len(spacing)))
-    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
-
-    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=0.0, tn=250., src_type='Ricker', f0=0.010)
-
-    # Solvers
-    solver_tti = AnisotropicWaveSolver(model, geometry, time_order=2, space_order=8)
-    solver_tti2 = AnisotropicWaveSolver(model, geometry, time_order=2, space_order=8)
-
-    # Solve
-    configuration['dse'] = 'aggressive'
-    configuration['dle'] = 'advanced'
-    rec1, u1, v1, _ = solver_tti.forward(kernel='staggered')
-    configuration['dle'] = 'basic'
-    rec2, u2, v2, _ = solver_tti2.forward(kernel='staggered')
-
-    res1 = np.linalg.norm(u1.data.reshape(-1) - u2.data.reshape(-1))
-    res2 = np.linalg.norm(v1.data.reshape(-1) - v2.data.reshape(-1))
-    log("DSE/DLE introduces error %2.4e, %2.4e in %d dimensions" % (res1, res2,
-                                                                    len(shape)))
-    assert np.isclose(res1, 0.0, atol=1e-8)
-    assert np.isclose(res2, 0.0, atol=1e-8)

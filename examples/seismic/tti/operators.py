@@ -2,7 +2,7 @@ from sympy import cos, sin
 
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
-from devito.finite_differences import centered, first_derivative, right, transpose
+from devito.finite_differences import centered, first_derivative, transpose
 
 
 def second_order_stencil(model, u, v, H0, Hz):
@@ -24,168 +24,6 @@ def second_order_stencil(model, u, v, H0, Hz):
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
     return stencils
-
-
-def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
-    """
-    3D rotated second order derivative in the direction x as an average of
-    two non-centered rotated second order derivative in the direction x
-    :param field: symbolic data whose derivative we are computing
-    :param costheta: cosine of the tilt angle
-    :param sintheta:  sine of the tilt angle
-    :param cosphi: cosine of the azymuth angle
-    :param sinphi: sine of the azymuth angle
-    :param space_order: discretization order
-    :return: rotated second order derivative wrt x
-    """
-    x, y, z = field.space_dimensions
-    Gx1 = (costheta * cosphi * field.dx + costheta * sinphi * field.dyr -
-           sintheta * field.dzr)
-    Gxx1 = (first_derivative(Gx1 * costheta * cosphi,
-                             dim=x, side=centered, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gx1 * costheta * sinphi,
-                             dim=y, side=right, fd_order=space_order,
-                             matvec=transpose) -
-            first_derivative(Gx1 * sintheta,
-                             dim=z, side=right, fd_order=space_order,
-                             matvec=transpose))
-    Gx2 = (costheta * cosphi * field.dxr + costheta * sinphi * field.dy -
-           sintheta * field.dz)
-    Gxx2 = (first_derivative(Gx2 * costheta * cosphi,
-                             dim=x, side=right, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gx2 * costheta * sinphi,
-                             dim=y, side=centered, fd_order=space_order,
-                             matvec=transpose) -
-            first_derivative(Gx2 * sintheta,
-                             dim=z, side=centered, fd_order=space_order,
-                             matvec=transpose))
-    return -.5 * (Gxx1 + Gxx2)
-
-
-def Gxx_shifted_2d(field, costheta, sintheta, space_order):
-    """
-    2D rotated second order derivative in the direction x as an average of
-    two non-centered rotated second order derivative in the direction x
-    :param field: symbolic data whose derivative we are computing
-    :param costheta: cosine of the tilt angle
-    :param sintheta:  sine of the tilt angle
-    :param space_order: discretization order
-    :return: rotated second order derivative wrt x
-    """
-    x, y = field.space_dimensions[:2]
-    Gx1 = (costheta * field.dxr - sintheta * field.dy)
-    Gxx1 = (first_derivative(Gx1 * costheta, dim=x,
-                             side=right, fd_order=space_order,
-                             matvec=transpose) -
-            first_derivative(Gx1 * sintheta, dim=y,
-                             side=centered, fd_order=space_order,
-                             matvec=transpose))
-    Gx2p = (costheta * field.dx - sintheta * field.dyr)
-    Gxx2 = (first_derivative(Gx2p * costheta, dim=x,
-                             side=centered, fd_order=space_order,
-                             matvec=transpose) -
-            first_derivative(Gx2p * sintheta, dim=y,
-                             side=right, fd_order=space_order,
-                             matvec=transpose))
-
-    return -.5 * (Gxx1 + Gxx2)
-
-
-def Gyy_shifted(field, cosphi, sinphi, space_order):
-    """
-    3D rotated second order derivative in the direction y as an average of
-    two non-centered rotated second order derivative in the direction y
-    :param field: symbolic data whose derivative we are computing
-    :param cosphi: cosine of the azymuth angle
-    :param sinphi: sine of the azymuth angle
-    :param space_order: discretization order
-    :return: rotated second order derivative wrt y
-    """
-    x, y = field.space_dimensions[:2]
-    Gyp = (sinphi * field.dx - cosphi * field.dyr)
-    Gyy = (first_derivative(Gyp * sinphi,
-                            dim=x, side=centered, fd_order=space_order,
-                            matvec=transpose) -
-           first_derivative(Gyp * cosphi,
-                            dim=y, side=right, fd_order=space_order,
-                            matvec=transpose))
-    Gyp2 = (sinphi * field.dxr - cosphi * field.dy)
-    Gyy2 = (first_derivative(Gyp2 * sinphi,
-                             dim=x, side=right, fd_order=space_order,
-                             matvec=transpose) -
-            first_derivative(Gyp2 * cosphi,
-                             dim=y, side=centered, fd_order=space_order,
-                             matvec=transpose))
-    return -.5 * (Gyy + Gyy2)
-
-
-def Gzz_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
-    """
-    3D rotated second order derivative in the direction z as an average of
-    two non-centered rotated second order derivative in the direction z
-    :param field: symbolic data whose derivative we are computing
-    :param costheta: cosine of the tilt angle
-    :param sintheta:  sine of the tilt angle
-    :param cosphi: cosine of the azymuth angle
-    :param sinphi: sine of the azymuth angle
-    :param space_order: discretization order
-    :return: rotated second order derivative wrt z
-    """
-    x, y, z = field.space_dimensions
-    Gzr = (sintheta * cosphi * field.dx + sintheta * sinphi * field.dyr +
-           costheta * field.dzr)
-    Gzz = (first_derivative(Gzr * sintheta * cosphi,
-                            dim=x, side=centered, fd_order=space_order,
-                            matvec=transpose) +
-           first_derivative(Gzr * sintheta * sinphi,
-                            dim=y, side=right, fd_order=space_order,
-                            matvec=transpose) +
-           first_derivative(Gzr * costheta,
-                            dim=z, side=right, fd_order=space_order,
-                            matvec=transpose))
-    Gzr2 = (sintheta * cosphi * field.dxr + sintheta * sinphi * field.dy +
-            costheta * field.dz)
-    Gzz2 = (first_derivative(Gzr2 * sintheta * cosphi,
-                             dim=x, side=right, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gzr2 * sintheta * sinphi,
-                             dim=y, side=centered, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gzr2 * costheta,
-                             dim=z, side=centered, fd_order=space_order,
-                             matvec=transpose))
-    return -.5 * (Gzz + Gzz2)
-
-
-def Gzz_shifted_2d(field, costheta, sintheta, space_order):
-    """
-    2D rotated second order derivative in the direction z as an average of
-    two non-centered rotated second order derivative in the direction z
-    :param field: symbolic data whose derivative we are computing
-    :param costheta: cosine of the tilt
-    :param sintheta:  sine of the tilt
-    :param space_order: discretization order
-    :return: rotated second order derivative wrt z
-    """
-    x, y = field.space_dimensions[:2]
-    Gz1r = (sintheta * field.dxr + costheta * field.dy)
-    Gzz1 = (first_derivative(Gz1r * sintheta, dim=x,
-                             side=right, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gz1r * costheta, dim=y,
-                             side=centered, fd_order=space_order,
-                             matvec=transpose))
-    Gz2r = (sintheta * field.dx + costheta * field.dyr)
-    Gzz2 = (first_derivative(Gz2r * sintheta, dim=x,
-                             side=centered, fd_order=space_order,
-                             matvec=transpose) +
-            first_derivative(Gz2r * costheta, dim=y,
-                             side=right, fd_order=space_order,
-                             matvec=transpose))
-
-    return -.5 * (Gzz1 + Gzz2)
 
 
 def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
@@ -276,58 +114,6 @@ def Gxx_centered_2d(field, costheta, sintheta, space_order):
     :return: Sum of the 3D rotated second order derivative in the direction x
     """
     return field.laplace - Gzz_centered_2d(field, costheta, sintheta, space_order)
-
-
-def kernel_shifted_2d(model, u, v, space_order):
-    """
-    TTI finite difference kernel. The equation we solve is:
-
-    u.dt2 = (1+2 *epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
-    v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)
-
-    where epsilon and delta are the thomsen parameters. This function computes
-    H0 = Gxx(u) + Gyy(u)
-    Hz = Gzz(v)
-
-    :param u: first TTI field
-    :param v: second TTI field
-    :param space_order: discretization order
-    :return: u and v component of the rotated Laplacian in 2D
-    """
-    # Tilt and azymuth setup
-    costheta = cos(model.theta)
-    sintheta = sin(model.theta)
-
-    Gxx = Gxx_shifted_2d(u, costheta, sintheta, space_order)
-    Gzz = Gzz_shifted_2d(v, costheta, sintheta, space_order)
-    return second_order_stencil(model, u, v, Gxx, Gzz)
-
-
-def kernel_shifted_3d(model, u, v, space_order):
-    """
-    TTI finite difference kernel. The equation we solve is:
-
-    u.dt2 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
-    v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
-
-    where epsilon and delta are the thomsen parameters. This function computes
-    H0 = Gxx(u) + Gyy(u)
-    Hz = Gzz(v)
-
-    :param u: first TTI field
-    :param v: second TTI field
-    :param space_order: discretization order
-    :return: u and v component of the rotated Laplacian in 3D
-    """
-    # Tilt and azymuth setup
-    costheta = cos(model.theta)
-    sintheta = sin(model.theta)
-    cosphi = cos(model.phi)
-    sinphi = sin(model.phi)
-    Gxx = Gxx_shifted(u, costheta, sintheta, cosphi, sinphi, space_order)
-    Gyy = Gyy_shifted(u, cosphi, sinphi, space_order)
-    Gzz = Gzz_shifted(v, costheta, sintheta, cosphi, sinphi, space_order)
-    return second_order_stencil(model, u, v, Gxx + Gyy, Gzz)
 
 
 def kernel_centered_2d(model, u, v, space_order):
@@ -538,6 +324,5 @@ def ForwardOperator(model, geometry, space_order=4,
     return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
 
 
-kernels = {('shifted', 3): kernel_shifted_3d, ('shifted', 2): kernel_shifted_2d,
-           ('centered', 3): kernel_centered_3d, ('centered', 2): kernel_centered_2d,
+kernels = {('centered', 3): kernel_centered_3d, ('centered', 2): kernel_centered_2d,
            ('staggered', 3): kernel_staggered_3d, ('staggered', 2): kernel_staggered_2d}

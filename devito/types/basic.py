@@ -884,7 +884,17 @@ class Object(AbstractObject, ArgProvider):
         else:
             return {self.name: self.value}
 
-    def _arg_values(self, **kwargs):
+    def _arg_values(self, args, **kwargs):
+        """
+        Produce runtime values for this Object after evaluating user input.
+
+        Parameters
+        ----------
+        args : dict
+            Known argument values.
+        **kwargs
+            Dictionary of user-provided argument overrides.
+        """
         if self.name in kwargs:
             return {self.name: kwargs.pop(self.name)}
         else:

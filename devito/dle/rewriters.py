@@ -20,7 +20,7 @@ from devito.ir.iet import (Call, Denormals, Expression, Iteration, List, HaloSpo
 from devito.logger import dle, perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
-from devito.tools import DAG, as_tuple, flatten
+from devito.tools import DAG, as_tuple, filter_ordered, flatten
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'SpeculativeRewriter',
            'AdvancedRewriterSafeMath', 'CustomRewriter']
@@ -51,9 +51,12 @@ class State(object):
         for i in self._call_graph.topological_sort():
             self._efuncs[i], metadata = func(self._efuncs[i])
 
-            # Track any new Dimensions and includes introduced by `func`
+            # Track any new Dimensions introduced by `func`
             self._dimensions.extend(list(metadata.get('dimensions', [])))
+
+            # Track any new #include required by `func`
             self._includes.extend(list(metadata.get('includes', [])))
+            self._includes = filter_ordered(self._includes)
 
             # If there's a change to the `input` and the `iet` is an efunc, then
             # we must update the call sites as well, as the arguments dropped down
@@ -299,7 +302,7 @@ class AdvancedRewriter(BasicRewriter):
             interb = []
             intrab = []
             for i in iterations:
-                d = BlockDimension(i.dim, name="%s%d_block" % (i.dim.name, len(mapper)))
+                d = BlockDimension(i.dim, name="%s%d_blk" % (i.dim.name, len(mapper)))
                 # Build Iteration over blocks
                 interb.append(Iteration([], d, d.symbolic_max, offsets=i.offsets,
                                         properties=PARALLEL))
@@ -360,10 +363,10 @@ class AdvancedRewriter(BasicRewriter):
             heb = user_heb if hs.is_Overlappable else sync_heb
             mapper[hs] = heb.make(hs, i)
         efuncs = OrderedDict(**sync_heb.efuncs, **user_heb.efuncs)
-        msgs = sync_heb.msgs + user_heb.msgs
+        objs = sync_heb.objs + user_heb.objs
         iet = Transformer(mapper, nested=True).visit(iet)
 
-        return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'input': msgs}
+        return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'input': objs}
 
     @dle_pass
     def _simdize(self, nodes):
