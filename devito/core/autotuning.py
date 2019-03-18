@@ -113,8 +113,8 @@ def autotune(operator, args, level, mode):
         if not check_time_bounds(stepper, at_args, args, mode):
             break
 
-        # Update `at_args` to use the new tunable values
-        at_args = {k: mapper.get(k, v) for k, v in at_args.items()}
+        # Update `at_args` to use the new tunable arguments
+        at_args.update(mapper)
 
         if heuristically_discard_run(calculate_parblocks, at_args):
             continue
@@ -130,18 +130,19 @@ def autotune(operator, args, level, mode):
         except AttributeError:
             assert stack_footprint == 0
 
-        # Use fresh profiling data
-        timer = operator._profiler.timer.reset()
-        at_args[operator._profiler.name] = timer
-
+        # Run the Operator
         operator.cfunction(*list(at_args.values()))
-        elapsed = sum(getattr(timer._obj, k) for k, _ in timer._obj._fields_)
-        timings[run] = elapsed
+
+        timings[run] = operator._profiler.timer.total
         log("run <%s> took %f (s) in %d timesteps" %
-            (','.join('%s=%s' % (k, v) for k, v in mapper.items()), elapsed, timesteps))
+            (','.join('%s=%s' % (k, v) for k, v in mapper.items()),
+             timings[run], timesteps))
 
         # Prepare for the next autotuning run
         update_time_bounds(stepper, at_args, timesteps, mode)
+
+        # Reset profiling timers
+        operator._profiler.timer.reset()
 
     try:
         best = dict(min(timings, key=timings.get))
@@ -150,16 +151,12 @@ def autotune(operator, args, level, mode):
         warning("couldn't perform any runs")
         return args, {}
 
-    # Build the new argument list
-    args = {k: best.get(k, v) for k, v in args.items()}
+    # Update the argument list with the tuned arguments
+    args.update(best)
 
-    # In `runtime` mode, some timesteps have been executed already, so we
-    # get to adjust the time range
+    # In `runtime` mode, some timesteps have been executed already, so we must
+    # adjust the time range
     finalize_time_bounds(stepper, at_args, args, mode)
-
-    # Reset profiling data
-    assert operator._profiler.name in args
-    args[operator._profiler.name] = operator._profiler.timer.reset()
 
     # Autotuning summary
     summary = {}
