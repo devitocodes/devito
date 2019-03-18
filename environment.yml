@@ -27,6 +27,6 @@ dependencies:
   - nb_conda_kernels
   - pip:
     - "git+https://github.com/inducer/codepy"
-    - pyrevolve==2.1
+    - pyrevolve==2.1.1
     - py-cpuinfo
     - anytree>=2.4.3
