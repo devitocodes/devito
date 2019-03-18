@@ -204,7 +204,7 @@ def test_discarding_runs():
 
 
 @skipif('nompi')
-@pytest.mark.parallel(mode=2)
+@pytest.mark.parallel(mode=[(2, 'diag'), (2, 'full')])
 def test_at_w_mpi():
     """Make sure autotuning works in presence of MPI. MPI ranks work
     in isolation to determine the best block size, locally."""
@@ -235,3 +235,15 @@ def test_at_w_mpi():
         assert np.all(f._data_ro_with_inhalo[:, :, -1] == 1)
     else:
         assert np.all(f._data_ro_with_inhalo[:, :, 0] == 1)
+
+    # Finally, try running w/o AT, just to be sure nothing was broken
+    f.data_with_halo[:] = 1.
+    op.apply(time=2)
+    if LEFT in glb_pos_map[y]:
+        assert np.all(f.data_ro_domain[1, :, 0] == 5.)
+        assert np.all(f.data_ro_domain[1, :, 1] == 7.)
+        assert np.all(f.data_ro_domain[1, :, 2:4] == 8.)
+    else:
+        assert np.all(f.data_ro_domain[1, :, 4:6] == 8)
+        assert np.all(f.data_ro_domain[1, :, 6] == 7)
+        assert np.all(f.data_ro_domain[1, :, 7] == 5)
