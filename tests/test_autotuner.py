@@ -247,3 +247,46 @@ def test_at_w_mpi():
         assert np.all(f.data_ro_domain[1, :, 4:6] == 8)
         assert np.all(f.data_ro_domain[1, :, 6] == 7)
         assert np.all(f.data_ro_domain[1, :, 7] == 5)
+
+
+def test_multiple_blocking():
+    """
+    Test that if there are more than one blocked Iteration nests, then
+    the autotuner works "incrementally" -- it starts determining the best block
+    shape for the first Iteration nest, then it moves on to the second one,
+    then the third, etc. IOW, the autotuner must not be attempting the
+    cartesian product of all possible block shapes across the various
+    blocked nests.
+    """
+    grid = Grid(shape=(64, 64, 64))
+
+    u = TimeFunction(name='u', grid=grid, space_order=2)
+    v = TimeFunction(name='v', grid=grid)
+
+    op = Operator([Eq(u.forward, u + 1), Eq(v.forward, u.forward.dx2 + v + 1)],
+                  dle=('blocking', {'openmp': False}))
+
+    # First of all, make sure there are indeed two different loop nests
+    assert 'bf0' in op._func_table
+    assert 'bf1' in op._func_table
+
+    # 'basic' mode
+    op.apply(time_M=0, autotune='basic')
+    assert op._state['autotuning'][0]['runs'] == 12  # 6 for each Iteration nest
+    assert op._state['autotuning'][0]['tpr'] == 5
+    assert len(op._state['autotuning'][0]['tuned']) == 4
+
+    # 'aggressive' mode
+    op.apply(time_M=0, autotune='aggressive')
+    assert op._state['autotuning'][1]['runs'] == 60
+    assert op._state['autotuning'][1]['tpr'] == 5
+    assert len(op._state['autotuning'][1]['tuned']) == 4
+
+    # With OpenMP, we tune over one more argument (`nthreads`), though the AT
+    # will only attempt one value
+    op = Operator([Eq(u.forward, u + 1), Eq(v.forward, u.forward.dx2 + v + 1)],
+                  dle=('blocking', {'openmp': True}))
+    op.apply(time_M=0, autotune='basic')
+    assert op._state['autotuning'][0]['runs'] == 12
+    assert op._state['autotuning'][0]['tpr'] == 5
+    assert len(op._state['autotuning'][0]['tuned']) == 5
