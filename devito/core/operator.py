@@ -1,4 +1,5 @@
 from devito.core.autotuning import autotune
+from devito.dle import NThreads
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
 from devito.operator import Operator
@@ -36,3 +37,12 @@ class OperatorCore(Operator):
         self._state.setdefault('autotuning', []).append(summary)
 
         return args
+
+    @property
+    def nthreads(self):
+        nthreads = [i for i in self.input if isinstance(i, NThreads)]
+        if len(nthreads) == 0:
+            return 1
+        else:
+            assert len(nthreads) == 1
+            return nthreads.pop()
