@@ -89,6 +89,7 @@ before_install:
   - conda info -a
   - if [[ "$MPI_INSTALL" == '1' ]]; then
       sudo apt-get install -y -q mpich libmpich-dev;
+      export MPICH_CC=$DEVITO_ARCH;
     fi
 
 install:
