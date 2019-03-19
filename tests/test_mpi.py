@@ -1293,7 +1293,7 @@ class TestIsotropicAcoustic(object):
     ])
     @pytest.mark.parallel(mode=[(4, 'basic', True), (4, 'diag', True),
                                 (4, 'overlap', True), (4, 'overlap2', True),
-                                (4, 'full')])
+                                (4, 'full', True)])
     def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
                        Eu, Erec, Ev, Esrca):
         self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
@@ -1301,7 +1301,7 @@ class TestIsotropicAcoustic(object):
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
-    @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
+    @pytest.mark.parallel(mode=[(8, 'diag'), (8, 'full')])
     @switchconfig(openmp=False)
     def test_adjoint_F_no_omp(self, shape, kernel, space_order, nbpml, save,
                               Eu, Erec, Ev, Esrca):
