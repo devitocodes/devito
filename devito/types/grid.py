@@ -11,7 +11,7 @@ from devito.types.constant import Constant
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
 
-__all__ = ['Grid', 'SubDomain']
+__all__ = ['Grid', 'SubDomain', 'SubDomains']
 
 
 class Grid(ArgProvider):
@@ -422,3 +422,63 @@ class Interior(SubDomain):
 
     def define(self, dimensions):
         return {d: ('middle', 1, 1) for d in dimensions}
+
+
+class SubDomains(SubDomain):
+    
+    def __init__(self, **kwargs):
+        super(SubDomains, self).__init__()
+        n_domains = kwargs.get('n_domains', 1)
+        extent = kwargs.get('extent')
+        self._n_domains = n_domains
+        self._extent = extent
+
+    def __subdomain_finalize__(self, dimensions, shape):
+        super(SubDomains, self).__subdomain_finalize__(dimensions, shape)
+        n_domains = self.n_domains
+        n = Dimension(name = 'n')
+        self._implicit_dimension = n
+        implicit_equations = self.__generate_implicit_equations__(
+            self.dimensions, self._implicit_dimension, self.extent)
+        self._implicit_equations = implicit_equations
+
+    @property
+    def n_domains(self):
+        return self._n_domains
+
+    @property
+    def extent(self):
+        return self._extent
+    
+    @classmethod
+    def __generate_implicit_equations__(self, dimensions, implicit_dimension, extent):
+        for d in dimensions:
+            pass
+        
+
+    #@classmethod
+    #def __indices_setup__(self, n_domains):
+        #if n_domains > 1:
+
+            #class DimN(Dimension):
+
+                #def __new__(cls, name, spacing=None, dim_size=None):
+                    #self = super().__new__(cls, name, spacing=None)
+                    #self._dim_size = dim_size
+                    #return self
+                
+                #def _arg_defaults(self, _min=None, size=None, alias=None):
+                    #size = self._dim_size
+                    #dim = alias or self
+                    #return {dim.min_name: _min or 0, dim.size_name: size,
+                            #dim.max_name: size if size is None else size-1}
+            #indices = DimN(name='n', spacing=1, dim_size=n_domains)
+            #return indices
+        #else:
+            ## NOTE: Error maybe?
+            #return ()
+
+    #@property
+    #def indices(self):
+        #"""The indices (aka dimensions) of the object."""
+        #return self._indices
