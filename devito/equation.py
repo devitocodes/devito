@@ -66,15 +66,6 @@ class Eq(sympy.Eq, Evaluable):
         obj._subdomain = subdomain
         obj._substitutions = coefficients
         obj._implicit_dims = as_tuple(implicit_dims)
-        if obj._uses_symbolic_coefficients:
-            # NOTE: As Coefficients.py is expanded we will not want
-            # all rules to be expunged during this procress.
-            rules = default_rules(obj, obj._symbolic_functions)
-            try:
-                obj = obj.xreplace({**coefficients.rules, **rules})
-            except AttributeError:
-                if bool(rules):
-                    obj = obj.xreplace(rules)
 
         return obj
 
@@ -85,8 +76,19 @@ class Eq(sympy.Eq, Evaluable):
 
     @cached_property
     def evaluate(self):
-        return self.func(*self._evaluate_args, subdomain=self.subdomain,
-                         coefficients=self.substitutions, implicit_dims=self._implicit_dims)
+        eq = self.func(*self._evaluate_args, subdomain=self.subdomain,
+                       coefficients=self.substitutions, implicit_dims=self._implicit_dims)
+        if eq._uses_symbolic_coefficients:
+            # NOTE: As Coefficients.py is expanded we will not want
+            # all rules to be expunged during this procress.
+            rules = default_rules(eq, eq._symbolic_functions)
+            try:
+                eq = eq.xreplace({**eq.substitutions.rules, **rules})
+            except AttributeError:
+                if bool(rules):
+                    eq = eq.xreplace(rules)
+
+        return eq
 
     @property
     def substitutions(self):

@@ -48,6 +48,8 @@ class TestSC(object):
         coeffs = Coefficient(order, u, dim, weights)
 
         eq = Eq(eval(expr), coefficients=Substitutions(coeffs))
-
+        print("test")
+        print(expected)
+        print(eq.evaluate.lhs)
         assert isinstance(eq.lhs, Differentiable)
         assert expected == str(eq.evaluate.lhs)
