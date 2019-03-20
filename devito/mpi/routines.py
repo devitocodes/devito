@@ -10,8 +10,9 @@ from sympy import Integer
 
 from devito.data import CORE, OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (ArrayCast, Call, Callable, Conditional, Expression,
-                           Iteration, List, iet_insert_C_decls, PARALLEL, make_efunc)
+from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
+                           Iteration, LocalExpression, List, Prodder, PARALLEL,
+                           make_efunc, FindNodes, Transformer)
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro)
@@ -36,12 +37,14 @@ class HaloExchangeBuilder(object):
             obj = object.__new__(OverlapHaloExchangeBuilder)
         elif mode == 'overlap2':
             obj = object.__new__(Overlap2HaloExchangeBuilder)
+        elif mode == 'full':
+            obj = object.__new__(FullHaloExchangeBuilder)
         else:
             assert False, "unexpected value `mode=%s`" % mode
+        obj._cache = OrderedDict()
         obj._regions = OrderedDict()
         obj._msgs = OrderedDict()
-        obj._efuncs = OrderedDict()
-        obj._cache = OrderedDict()
+        obj._efuncs = []
         return obj
 
     @property
@@ -64,25 +67,9 @@ class HaloExchangeBuilder(object):
         """
         Construct Callables and Calls implementing distributed-memory halo
         exchange for the HaloSpot ``hs``.
-
-        At least three Callables are constructed:
-
-            * ``update_halo``, to be called to trigger the halo exchange,
-            * ``sendrecv``, called from within ``update_halo``.
-            * ``copy``, called from within ``sendrecv``, to implement, for example,
-              data gathering prior to an MPI_Send, and data scattering following
-              an MPI recv.
-
-        Additional Callables may be constructed if the halo exchange is asynchronous
-        (which depends on the specific HaloExchangeBuilder implementation).
         """
         # Sanity check
         assert all(f.is_Function and f.grid is not None for f in hs.fmapper)
-
-        # Callable for compute over the CORE region
-        compute = self._make_compute(hs, key)
-        if compute is not None:
-            self._efuncs[compute] = [None]
 
         # Callables for send/recv/wait
         for f, hse in hs.fmapper.items():
@@ -93,14 +80,26 @@ class HaloExchangeBuilder(object):
                                           dimensions=f.dimensions)
                 self._cache[(f.ndim, hse)] = self._make_all(df, hse, key, msg)
 
+        msgs = [self._msgs[(f, hse)] for f, hse in hs.fmapper.items()]
+
+        # Callable for poking the asynchronous progress engine
+        poke = self._make_poke(hs, key, msgs)
+        if poke is not None:
+            self._efuncs.append(poke)
+
+        # Callable for compute over the CORE region
+        callpoke = self._call_poke(poke)
+        compute = self._make_compute(hs, key, msgs, callpoke)
+        if compute is not None:
+            self._efuncs.append(compute)
+
         # Callable for compute over the OWNED region
         region = self._make_region(hs, key)
         region = self._regions.setdefault(hs, region)
-        callcompute = self._call_compute(hs, compute)
-        remainder = self._make_remainder(callcompute, hs, key, region)
+        callcompute = self._call_compute(hs, compute, msgs)
+        remainder = self._make_remainder(hs, key, callcompute, region)
         if remainder is not None:
-            self._efuncs[remainder] = None
-            self._efuncs.setdefault(callcompute, []).append(remainder.name)
+            self._efuncs.append(remainder)
 
         # Now build up the HaloSpot body, with explicit Calls to the constructed Callables
         body = [callcompute]
@@ -181,7 +180,7 @@ class HaloExchangeBuilder(object):
         return
 
     @abc.abstractmethod
-    def _make_compute(self, hs, key):
+    def _make_compute(self, hs, key, *args):
         """
         Construct a Callable performing computation over the CORE region, that is
         the region that does *not* require up-to-date halo values. The Callable
@@ -193,6 +192,21 @@ class HaloExchangeBuilder(object):
     def _call_compute(self, hs, *args):
         """
         Construct a Call to ``compute``, the Callable produced by :meth:`_make_compute`.
+        """
+        return
+
+    @abc.abstractmethod
+    def _make_poke(self, hs, key, msgs):
+        """
+        Construct a Callable poking the MPI engine for asynchronous progress (e.g.,
+        by calling MPI_Test)
+        """
+        return
+
+    @abc.abstractmethod
+    def _call_poke(self, poke):
+        """
+        Construct a Call to ``poke``, the Callable produced by :meth:`_make_poke`.
         """
         return
 
@@ -220,7 +234,7 @@ class HaloExchangeBuilder(object):
         return
 
     @abc.abstractmethod
-    def _make_remainder(self, compute, hs, key, *args):
+    def _make_remainder(self, hs, key, callcompute, *args):
         """
         Construct a Callable performing computation over the OWNED region, that is
         the region requiring up-to-date halo values.
@@ -251,10 +265,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         gather = self._make_copy(f, hse, key)
         scatter = self._make_copy(f, hse, key, swap=True)
 
-        self._efuncs[haloupdate] = None
-        self._efuncs[sendrecv] = [haloupdate.name]
-        self._efuncs[gather] = [sendrecv.name]
-        self._efuncs[scatter] = [sendrecv.name]
+        self._efuncs.extend([haloupdate, sendrecv, gather, scatter])
 
         halowait = self._make_halowait(f, hse, key, msg=msg)
         assert halowait is None
@@ -287,8 +298,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         iet = Expression(eq)
         for i, d in reversed(list(zip(buf_indices, buf_dims))):
             # The -1 below is because an Iteration, by default, generates <=
-            iet = Iteration(iet, i, d.symbolic_size - 1, properties=PARALLEL)
-        iet = List(body=[ArrayCast(f), ArrayCast(buf), iet])
+            iet = Iteration(iet, i, d.symbolic_size - 1)
+        iet = iet._rebuild(properties=PARALLEL)
 
         parameters = [buf] + list(buf.shape) + [f] + f_offsets
         return Callable(name, iet, 'void', parameters, ('static',))
@@ -328,7 +339,6 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
-        iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f] + list(bufs.shape) + ofsg + ofss + [fromrank, torank, comm])
         return Callable('sendrecv%s' % key, iet, 'void', parameters, ('static',))
 
@@ -394,7 +404,13 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         args = [f, comm, nb] + list(hse.loc_indices.values())
         return Call(name, flatten(args))
 
-    def _make_compute(self, hs, key):
+    def _make_compute(self, *args):
+        return
+
+    def _make_poke(self, *args):
+        return
+
+    def _call_poke(self, *args):
         return
 
     def _call_compute(self, hs, *args):
@@ -474,18 +490,12 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         sendrecv = self._make_sendrecv(f, hse, key, msg=msg)
         gather = self._make_copy(f, hse, key)
 
-        self._efuncs[haloupdate] = None
-        self._efuncs[sendrecv] = [haloupdate.name]
-        self._efuncs[gather] = [sendrecv.name]
-
         # Callables for wait
         halowait = self._make_halowait(f, hse, key, msg=msg)
         wait = self._make_wait(f, hse, key, msg=msg)
         scatter = self._make_copy(f, hse, key, swap=True)
 
-        self._efuncs[halowait] = None
-        self._efuncs[wait] = [halowait.name]
-        self._efuncs[scatter] = [wait.name]
+        self._efuncs.extend([haloupdate, sendrecv, gather, halowait, wait, scatter])
 
         return haloupdate, halowait
 
@@ -516,7 +526,6 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
                                   torank, Integer(13), comm, rsend])
 
         iet = List(body=[recv, gather, send])
-        iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f] + ofsg + [fromrank, torank, comm, msg])
         return Callable('sendrecv%s' % key, iet, 'void', parameters, ('static',))
 
@@ -539,13 +548,13 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         call = call._rebuild(arguments=call.arguments + (msg,))
         return call
 
-    def _make_compute(self, hs, key):
+    def _make_compute(self, hs, key, *args):
         if hs.body.is_Call:
             return None
         else:
             return make_efunc('compute%s' % key, hs.body, hs.dimensions)
 
-    def _call_compute(self, hs, compute):
+    def _call_compute(self, hs, compute, *args):
         if compute is None:
             assert hs.body.is_Call
             return hs.body._rebuild(dynamic_args_mapper=hs.omapper, incr=True)
@@ -573,7 +582,6 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
         iet = List(body=[waitsend, waitrecv, scatter])
-        iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f] + ofss + [fromrank, msg])
         return Callable('wait%s' % key, iet, 'void', parameters, ('static',))
 
@@ -605,13 +613,13 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         nb = f.grid.distributor._obj_neighborhood
         return Call(name, [f] + list(hse.loc_indices.values()) + [nb, msg])
 
-    def _make_remainder(self, compute, hs, key, *args):
-        assert compute.is_Call
+    def _make_remainder(self, hs, key, callcompute, *args):
+        assert callcompute.is_Call
 
         items = []
         mapper = OrderedDict()
         for d, (left, right) in hs.omapper.items():
-            defleft, defright = compute.dynamic_defaults[d]
+            defleft, defright = callcompute.dynamic_defaults[d]
             dmapper = OrderedDict()
             dmapper[(d, CORE, CENTER)] = (defleft, defright)
             dmapper[(d, OWNED, LEFT)] = (defleft - left, defleft)
@@ -624,8 +632,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             if all(r is CORE for _, r, _ in i):
                 continue
             dynamic_args_mapper = {d: mapper[(d, r, s)] for d, r, s in i}
-            body.append(compute._rebuild(dynamic_args_mapper=dynamic_args_mapper,
-                                         incr=False))
+            body.append(callcompute._rebuild(dynamic_args_mapper=dynamic_args_mapper,
+                                             incr=False))
 
         return make_efunc('remainder%s' % key, body)
 
@@ -654,15 +662,11 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         haloupdate = self._make_haloupdate(f, hse, key, msg=msg)
         gather = self._make_copy(f, hse, key)
 
-        self._efuncs[haloupdate] = None
-        self._efuncs[gather] = [haloupdate.name]
-
         # Callables for wait
         halowait = self._make_halowait(f, hse, key, msg=msg)
         scatter = self._make_copy(f, hse, key, swap=True)
 
-        self._efuncs[halowait] = None
-        self._efuncs[scatter] = [halowait.name]
+        self._efuncs.extend([haloupdate, gather, halowait, scatter])
 
         return haloupdate, halowait
 
@@ -702,7 +706,6 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The -1 below is because an Iteration, by default, generates <=
         iet = Iteration([recv, gather, send], dim, msg.npeers - 1)
-        iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f, comm, msg]) + list(fixed.values())
         return Callable('haloupdate%s' % key, iet, 'void', parameters, ('static',))
 
@@ -745,7 +748,6 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The -1 below is because an Iteration, by default, generates <=
         iet = Iteration([waitsend, waitrecv, scatter], dim, msg.npeers - 1)
-        iet = List(body=iet_insert_C_decls(iet))
         parameters = ([f] + list(fixed.values()) + [msg])
         return Callable('halowait%s' % key, iet, 'void', parameters, ('static',))
 
@@ -758,19 +760,57 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     def _call_wait(self, *args):
         return
 
-    def _make_remainder(self, compute, hs, key, region):
-        assert compute.is_Call
+    def _make_remainder(self, hs, key, callcompute, region):
+        assert callcompute.is_Call
 
         dim = Dimension(name='i')
         regioni = IndexedPointer(region, dim)
         dynamic_args_mapper = {d: (FieldFromComposite(d.min_name, regioni),
                                    FieldFromComposite(d.max_name, regioni))
                                for d in hs.dimensions}
-        iet = compute._rebuild(dynamic_args_mapper=dynamic_args_mapper)
+        iet = callcompute._rebuild(dynamic_args_mapper=dynamic_args_mapper)
         # The -1 below is because an Iteration, by default, generates <=
         iet = Iteration(iet, dim, region.nregions - 1)
 
         return make_efunc('remainder%s' % key, iet)
+
+
+class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
+
+    """
+    A Overlap2HaloExchangeBuilder which generates explicit Calls to MPI_Test
+    poking the MPI runtime to advance communication while computing.
+    """
+
+    def _make_compute(self, hs, key, msgs, callpoke):
+        if hs.body.is_Call:
+            return None
+        else:
+            mapper = {i: List(body=[callpoke, i]) for i in
+                      FindNodes(ExpressionBundle).visit(hs.body)}
+            iet = Transformer(mapper).visit(hs.body)
+            return make_efunc('compute%s' % key, iet, hs.dimensions)
+
+    def _make_poke(self, hs, key, msgs):
+        flag = Symbol(name='flag')
+        initflag = LocalExpression(DummyEq(flag, 0))
+
+        body = [initflag]
+        for msg in msgs:
+            dim = Dimension(name='i')
+            msgi = IndexedPointer(msg, dim)
+
+            rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
+            rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
+            testrecv = Call('MPI_Test', [rrecv, Byref(flag), Macro('MPI_STATUS_IGNORE')])
+            testsend = Call('MPI_Test', [rsend, Byref(flag), Macro('MPI_STATUS_IGNORE')])
+
+            body.append(Iteration([testsend, testrecv], dim, msg.npeers - 1))
+
+        return make_efunc('pokempi%s' % key, body)
+
+    def _call_poke(self, poke):
+        return Prodder(poke.name, poke.parameters, single_thread=True, periodic=True)
 
 
 class MPIStatusObject(LocalObject):
