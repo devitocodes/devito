@@ -1,13 +1,14 @@
 from collections import OrderedDict
 
+from devito.equation import Eq
 from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Cluster,
                        ClusterGroup, detect_accesses, build_intervals, groupby)
 from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
-from devito.symbolics import Eq, estimate_cost, xreplace_constrained, iq_timeinvariant
+from devito.symbolics import estimate_cost, xreplace_constrained, iq_timeinvariant
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
-from devito.types import Array, Indexed, Scalar
+from devito.types import Array, Scalar
 
 
 class AdvancedRewriter(BasicRewriter):
@@ -143,7 +144,7 @@ class AdvancedRewriter(BasicRewriter):
             halo = [(abs(intervals[i].lower), abs(intervals[i].upper)) for i in indices]
             function = Array(name=template(), dimensions=indices, halo=halo)
             access = tuple(i - intervals[i].lower for i in indices)
-            expression = Eq(Indexed(function.indexed, *access), origin)
+            expression = Eq(function[access], origin)
 
             # Construct a data space suitable for /alias/
             mapper = detect_accesses(expression)
@@ -157,9 +158,8 @@ class AdvancedRewriter(BasicRewriter):
             # Add substitution rules
             for aliased, distance in alias.with_distance:
                 access = [i - intervals[i].lower + j for i, j in distance if i in indices]
-                temporary = Indexed(function.indexed, *tuple(access))
-                rules[candidates[aliased]] = temporary
-                rules[aliased] = temporary
+                rules[candidates[aliased]] = function[access]
+                rules[aliased] = function[access]
 
         # Group clusters together if possible
         alias_clusters = groupby(alias_clusters).finalize()

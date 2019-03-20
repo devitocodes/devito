@@ -73,6 +73,12 @@ class CodePrinter(C99CodePrinter):
         C99CodePrinter.__init__(self, settings)
         self.known_functions.update(self.custom_functions)
 
+    def _print_Function(self, expr):
+        # There exist no unknown Functions
+        if expr.func.__name__ not in self.known_functions:
+            self.known_functions[expr.func.__name__] = expr.func.__name__
+        return super(CodePrinter, self)._print_Function(expr)
+
     def _print_CondEq(self, expr):
         return "%s == %s" % (self._print(expr.lhs), self._print(expr.rhs))
 

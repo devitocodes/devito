@@ -1,6 +1,6 @@
 import sympy
 
-from devito.ir.support import (Scope, DataSpace, IterationSpace, detect_flow_directions,
+from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
                                force_directions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, xreplace_indices
@@ -234,22 +234,16 @@ def bump_and_contract(targets, source, sink):
 def clusterize(exprs):
     """Group a sequence of LoweredEqs into one or more Clusters."""
     clusters = ClusterGroup()
-    flowmap = detect_flow_directions(exprs)
-    prev = None
-    for idx, e in enumerate(exprs):
-        if e.is_Tensor:
-            scalars = [i for i in exprs[prev:idx] if i.is_Scalar]
-            # Iteration space
-            ispace = IterationSpace.merge(e.ispace, *[i.ispace for i in scalars])
-            # Enforce iteration directions
-            fdirs, _ = force_directions(flowmap, lambda d: ispace.directions.get(d))
-            ispace = IterationSpace(ispace.intervals, ispace.sub_iterators, fdirs)
-            # Data space
-            dspace = DataSpace.merge(e.dspace, *[i.dspace for i in scalars])
-            # Prepare for next range
-            prev = idx
 
-            clusters.append(PartialCluster(scalars + [e], ispace, dspace))
+    # Wrap each LoweredEq in `exprs` within a PartialCluster. The PartialCluster's
+    # iteration direction is enforced based on the iteration direction of the
+    # surrounding LoweredEqs
+    flowmap = detect_flow_directions(exprs)
+    for e in exprs:
+        directions, _ = force_directions(flowmap, lambda d: e.ispace.directions.get(d))
+        ispace = IterationSpace(e.ispace.intervals, e.ispace.sub_iterators, directions)
+
+        clusters.append(PartialCluster(e, ispace, e.dspace))
 
     # Group PartialClusters together where possible
     clusters = groupby(clusters)

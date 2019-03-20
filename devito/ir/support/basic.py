@@ -291,12 +291,21 @@ class IterationInstance(Vector):
         Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
         means that the halo is touched along that DataSide.
         """
-        # Given `d` \in findices, iterating over [0, size_d):
+        aindex = self.aindices[findex]
+
+        # If the iterator is *not* a distributed Dimension, then surely the
+        # halo isn't touched
+        try:
+            if not aindex._maybe_distributed:
+                return (False, False)
+        except AttributeError:
+            pass
+
+        # Given `d` \in aindices, iterating over [0, size_d):
         # * if `self[d] - d < self.function._size_halo[d].left`, then `self` will
         #   definitely touch the left-halo when `d=0`
         # * if `self[d] - d > self.function._size_halo[d].left`, then `self` will
         #   definitely touch the right-halo when `d=size_d-1`
-        aindex = self.aindices[findex]
         size_halo_left = self.function._size_halo[findex].left
         try:
             touch_halo_left = bool(self[findex] - aindex < size_halo_left)

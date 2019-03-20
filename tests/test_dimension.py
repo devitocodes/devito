@@ -203,7 +203,7 @@ class TestSubDimension(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs)
+        op = Operator(exprs, dle='noop')
         iterations = FindNodes(Iteration).visit(op)
         assert all(i.is_Sequential for i in iterations if i.dim.name != expected)
         assert all(i.is_Parallel for i in iterations if i.dim.name == expected)
@@ -229,7 +229,7 @@ class TestSubDimension(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs)
+        op = Operator(exprs, dle='noop')
         iterations = FindNodes(Iteration).visit(op)
         vectorizable = [i.dim.name for i in iterations if i.is_Vectorizable]
         assert set(vectorizable) == set(expected)

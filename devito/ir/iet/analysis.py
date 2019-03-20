@@ -3,7 +3,7 @@ from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, WRAPPABLE, AFFINE, USELESS, OVERLAPPABLE, hoistable,
-                           MapNodes, FindNodes, Transformer, retrieve_iteration_tree)
+                           MapNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import Scope
 from devito.tools import as_tuple, filter_ordered, flatten
 
@@ -231,20 +231,24 @@ def mark_halospot_useless(analysis):
     Update the ``analysis`` detecting the USELESS HaloSpots within ``analysis.iet``.
     """
     properties = OrderedDict()
-    for i, scope in analysis.scopes.items():
-        for hs in FindNodes(HaloSpot).visit(i):
-            # A HaloSpot is USELESS if *all* reads along the HaloSpot's `loc_indices`
-            # pertain to an increment expression
-            test = False
-            for f, hse in hs.fmapper.items():
-                for d, v in hse.loc_indices.items():
-                    readat = v.origin if d.is_Stepping else v
-                    reads = [r for r in scope.reads[f] if r[d] == readat]
-                    if any(not r.is_increment for r in reads):
-                        test = True
-                        break
-            if not test:
-                properties[hs] = USELESS
+    for hs, iterations in MapNodes(HaloSpot, Iteration).visit(analysis.iet).items():
+        # `hs` is USELESS if ...
+
+        # * ANY of its Dimensions turn out to be SEQUENTIAL
+        if any(SEQUENTIAL in analysis.properties[i]
+               for i in iterations if i.dim.root in hs.dimensions):
+            properties[hs] = USELESS
+            continue
+
+        # * ALL reads pertain to an increment expression
+        test = False
+        scope = analysis.scopes[iterations[0]]
+        for f in hs.fmapper:
+            if any(not r.is_increment for r in scope.reads[f]):
+                test = True
+                break
+        if not test:
+            properties[hs] = USELESS
 
     analysis.update(properties)
 
@@ -258,13 +262,36 @@ def mark_halospot_hoistable(analysis):
     for i, halo_spots in MapNodes(Iteration, HaloSpot).visit(analysis.iet).items():
         for hs in halo_spots:
             if hs in properties:
-                # Already went through this HaloSpot, let's save some analysis time
+                # Already went through this HaloSpot
                 continue
-            # A sufficient condition to be `hoistable` is that, for a given Function,
-            # there are no anti-dependences in the entire scope.
-            # TODO: This condition can actually be relaxed, by considering smaller
-            # sections of the scope
-            found = [f for f in hs.fmapper if not analysis.scopes[i].d_anti.project(f)]
+
+            found = []
+            scope = analysis.scopes[i]
+            for f, hse in hs.fmapper.items():
+                # The sufficient condition for `f`'s halo-update to be
+                # `hoistable` is that there are no `hs.dimensions`-induced
+                # flow-dependences touching the halo
+                test = True
+                for dep in scope.d_flow.project(f):
+                    test = not (dep.cause & set(hs.dimensions))
+                    if test:
+                        continue
+
+                    test = dep.write.is_increment
+                    if test:
+                        continue
+
+                    test = all(not any(dep.read.touched_halo(c.root)) for c in dep.cause)
+                    if test:
+                        continue
+
+                    # `dep` is indeed a flow-dependence touching the halo of distributed
+                    # Dimension, so we must assume it's non-hoistable
+                    break
+
+                if test:
+                    found.append(f)
+
             if found:
                 properties[hs] = hoistable(tuple(found))
 

@@ -321,7 +321,7 @@ def parallel(item):
         if restrain and os.environ.get('MPI_RESTRAIN', False):
             # A computationally expensive test that would take too long to
             # run on the current machine
-            return
+            continue
 
         # Only spew tracebacks on rank 0.
         # Run xfailing tests to ensure that errors are reported to calling process
