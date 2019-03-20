@@ -274,7 +274,6 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
     expr-like
         ``deriv-order`` derivative of ``expr``.
     """
-
     diff = dim.spacing
     adjoint_val = matvec.val**deriv_order
     indices, x0 = generate_indices(expr, dim, diff, fd_order, stagger=stagger)
