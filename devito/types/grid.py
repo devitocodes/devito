@@ -2,7 +2,9 @@ from collections import namedtuple
 
 from sympy import prod
 import numpy as np
+import sympy
 
+#from devito import Eq
 from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ReducerMap, as_tuple
@@ -435,12 +437,9 @@ class SubDomains(SubDomain):
 
     def __subdomain_finalize__(self, dimensions, shape):
         super(SubDomains, self).__subdomain_finalize__(dimensions, shape)
-        n_domains = self.n_domains
         n = Dimension(name = 'n')
         self._implicit_dimension = n
-        implicit_equations = self.__generate_implicit_equations__(
-            self.dimensions, self._implicit_dimension, self.extent)
-        self._implicit_equations = implicit_equations
+        self._implicit_e_dat = self._generate_implicit_e_dat()
 
     @property
     def n_domains(self):
@@ -449,36 +448,15 @@ class SubDomains(SubDomain):
     @property
     def extent(self):
         return self._extent
+
+    def _generate_implicit_e_dat(self):
+        implicit_e_dat = ()
+        # FIXME: Horrible method for testing.
+        counter = 0
+        for d in self.dimensions:
+            e1 = (d.root, d.thickness[0][0], self._extent[counter])
+            e2 = (d.root, d.thickness[1][0], self._extent[counter+1])
+            counter += 2
+            implicit_e_dat += (e1, e2)
+        return implicit_e_dat
     
-    @classmethod
-    def __generate_implicit_equations__(self, dimensions, implicit_dimension, extent):
-        for d in dimensions:
-            pass
-        
-
-    #@classmethod
-    #def __indices_setup__(self, n_domains):
-        #if n_domains > 1:
-
-            #class DimN(Dimension):
-
-                #def __new__(cls, name, spacing=None, dim_size=None):
-                    #self = super().__new__(cls, name, spacing=None)
-                    #self._dim_size = dim_size
-                    #return self
-                
-                #def _arg_defaults(self, _min=None, size=None, alias=None):
-                    #size = self._dim_size
-                    #dim = alias or self
-                    #return {dim.min_name: _min or 0, dim.size_name: size,
-                            #dim.max_name: size if size is None else size-1}
-            #indices = DimN(name='n', spacing=1, dim_size=n_domains)
-            #return indices
-        #else:
-            ## NOTE: Error maybe?
-            #return ()
-
-    #@property
-    #def indices(self):
-        #"""The indices (aka dimensions) of the object."""
-        #return self._indices
