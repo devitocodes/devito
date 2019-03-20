@@ -8,6 +8,7 @@ from unittest.mock import patch
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
                     switchconfig)
+from devito.core.autotuning import options
 from devito.data import LEFT
 
 pytestmark = skipif(['yask', 'ops'])
@@ -63,8 +64,6 @@ def test_timesteps_per_at_run():
     ``autotuning.core.options['squeezer']`` timesteps, for an operator
     performing the increment ``a[t + timeorder, ...] = f(a[t, ...], ...)``.
     """
-    from devito.core.autotuning import options
-
     shape = (30, 30, 30)
     grid = Grid(shape=shape)
     x, y, z = grid.dimensions
@@ -92,7 +91,7 @@ def test_timesteps_per_at_run():
         op = Operator(stencil, dle=('blocking', {'openmp': False, 'blockalways': True}))
         op(infield=infield, outfield=outfield, time=20, autotune=True)
         assert op._state['autotuning'][-1]['runs'] == 4
-        assert op._state['autotuning'][-1]['tpr'] == options['squeezer']+1
+        assert op._state['autotuning'][-1]['tpr'] == options['squeezer'] + 1
 
 
 @switchconfig(profiling='advanced')
@@ -107,8 +106,8 @@ def test_mode_runtime_forward():
     # AT is expected to have attempted 6 block shapes
     assert op._state['autotuning'][0]['runs'] == 6
 
-    # AT is expected to have executed 30 timesteps
-    assert summary['section0'].itershapes[0][0] == 101-30
+    # AT is expected to have executed 18 timesteps
+    assert summary['section0'].itershapes[0][0] == 101-18
     assert np.all(f.data[0] == 100)
     assert np.all(f.data[1] == 101)
 
@@ -125,8 +124,8 @@ def test_mode_runtime_backward():
     # AT is expected to have attempted 6 block shapes
     assert op._state['autotuning'][0]['runs'] == 6
 
-    # AT is expected to have executed 30 timesteps
-    assert summary['section0'].itershapes[0][0] == 101-30
+    # AT is expected to have executed 18 timesteps
+    assert summary['section0'].itershapes[0][0] == 101-18
     assert np.all(f.data[0] == 101)
     assert np.all(f.data[1] == 100)
 
@@ -140,10 +139,10 @@ def test_mode_destructive():
     op = Operator(Eq(f, f + 1.), dle=('advanced', {'openmp': False}))
     op.apply(time=100, autotune=('basic', 'destructive'))
 
-    # AT is expected to have executed 30 timesteps (6 block shapes, 5 timesteps each)
+    # AT is expected to have executed 18 timesteps (6 block shapes, 3 timesteps each)
     # The operator runs for 101 timesteps
-    # So, overall, f.data[0] is incremented 131 times
-    assert np.all(f.data == 131)
+    # So, overall, f.data[0] is incremented 119 times
+    assert np.all(f.data == 119)
 
 
 def test_blocking_only():
@@ -154,7 +153,7 @@ def test_blocking_only():
     op.apply(time=0, autotune=True)
 
     assert op._state['autotuning'][0]['runs'] == 6
-    assert op._state['autotuning'][0]['tpr'] == 5
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 2
     assert 'nthreads' not in op._state['autotuning'][0]['tuned']
 
@@ -167,7 +166,7 @@ def test_mixed_blocking_nthreads():
     op.apply(time=100, autotune=True)
 
     assert op._state['autotuning'][0]['runs'] == 6
-    assert op._state['autotuning'][0]['tpr'] == 5
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 3
     assert 'nthreads' in op._state['autotuning'][0]['tuned']
 
@@ -190,7 +189,7 @@ def test_discarding_runs():
     op.apply(time=100, nthreads=4, autotune='aggressive')
 
     assert op._state['autotuning'][0]['runs'] == 20
-    assert op._state['autotuning'][0]['tpr'] == 5
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 3
     assert op._state['autotuning'][0]['tuned']['nthreads'] == 4
 
@@ -198,7 +197,7 @@ def test_discarding_runs():
     op.apply(time=100, nthreads=1, autotune='aggressive')
 
     assert op._state['autotuning'][1]['runs'] == 30
-    assert op._state['autotuning'][1]['tpr'] == 5
+    assert op._state['autotuning'][1]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][1]['tuned']) == 3
     assert op._state['autotuning'][1]['tuned']['nthreads'] == 1
 
@@ -227,7 +226,7 @@ def test_at_w_mpi():
     # to perform the autotuning. Eventually, the result is complete garbage; note
     # also that this autotuning mode disables the halo exchanges
     op.apply(time=-1, autotune=('basic', 'destructive'))
-    assert np.all(f._data_ro_with_inhalo.sum() == 904)
+    assert np.all(f._data_ro_with_inhalo.sum() == 360)
 
     # Check the halo hasn't been touched during AT
     glb_pos_map = grid.distributor.glb_pos_map
@@ -273,13 +272,13 @@ def test_multiple_blocking():
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
     assert op._state['autotuning'][0]['runs'] == 12  # 6 for each Iteration nest
-    assert op._state['autotuning'][0]['tpr'] == 5
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 4
 
     # 'aggressive' mode
     op.apply(time_M=0, autotune='aggressive')
     assert op._state['autotuning'][1]['runs'] == 60
-    assert op._state['autotuning'][1]['tpr'] == 5
+    assert op._state['autotuning'][1]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][1]['tuned']) == 4
 
     # With OpenMP, we tune over one more argument (`nthreads`), though the AT
@@ -288,5 +287,5 @@ def test_multiple_blocking():
                   dle=('blocking', {'openmp': True}))
     op.apply(time_M=0, autotune='basic')
     assert op._state['autotuning'][0]['runs'] == 12
-    assert op._state['autotuning'][0]['tpr'] == 5
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 5

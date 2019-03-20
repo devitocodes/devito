@@ -300,7 +300,7 @@ def generate_nthreads(nthreads, args, level):
 
 
 options = {
-    'squeezer': 4,
+    'squeezer': 2,
     'blocksize': sorted({8, 16, 24, 32, 40, 64, 128}),
     'stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }
