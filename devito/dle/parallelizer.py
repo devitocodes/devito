@@ -93,8 +93,8 @@ class Ompizer(object):
 
     lang = {
         'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
-        'par-for': lambda i: c.Pragma('omp parallel for collapse(%d) schedule(static)'
-                                      % i),
+        'par-for': lambda i, j: c.Pragma('omp parallel for collapse(%d) '
+                                         'schedule(static) num_threads(%d)' % (i, j)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
@@ -216,7 +216,8 @@ class Ompizer(object):
                 continue
 
             # Introduce nested parallelism
-            subroot, subpartree, _ = self._make_partree(candidates, self.lang['par-for'])
+            omp_pragma = lambda i: self.lang['par-for'](i, nhyperthreads())
+            subroot, subpartree, _ = self._make_partree(candidates, omp_pragma)
 
             mapper[subroot] = subpartree
 
