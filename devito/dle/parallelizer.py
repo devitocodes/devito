@@ -92,9 +92,9 @@ class Ompizer(object):
     """
 
     lang = {
-        'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
+        'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static,1)' % i),
         'par-for': lambda i, j: c.Pragma('omp parallel for collapse(%d) '
-                                         'schedule(static) num_threads(%d)' % (i, j)),
+                                         'schedule(static,1) num_threads(%d)' % (i, j)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
