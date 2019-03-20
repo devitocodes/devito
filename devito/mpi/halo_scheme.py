@@ -21,7 +21,6 @@ class HaloLabel(Tag):
 
 
 NONE = HaloLabel('none')
-POINTLESS = HaloLabel('pointless')
 IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
 
@@ -205,23 +204,11 @@ def hs_classify(scope):
         for i in r:
             v = {}
             for d in i.findices:
-                # Note: if `i` makes use of SubDimensions, we might end up adding useless
-                # (yet harmless) halo exchanges.  This depends on the size of a
-                # SubDimension; e.g., in rare circumstances, a SubDimension might span a
-                # region that falls completely within a single MPI rank, thus requiring
-                # no communication whatsoever. However, the SubDimension size is only
-                # known at runtime (op.apply time), so unless one starts messing up with
-                # the generated code (by adding explicit `if-then-else`s to dynamically
-                # prevent a halo exchange), there is no escape from conservatively
-                # assuming that some halo exchanges will be required
                 if f.grid.is_distributed(d):
                     if i.affine(d):
-                        if d in scope.d_from_access(i).cause:
-                            v[d] = POINTLESS
-                        else:
-                            bl, br = i.touched_halo(d)
-                            v[(d, LEFT)] = (bl and STENCIL) or IDENTITY
-                            v[(d, RIGHT)] = (br and STENCIL) or IDENTITY
+                        bl, br = i.touched_halo(d)
+                        v[(d, LEFT)] = (bl and STENCIL) or IDENTITY
+                        v[(d, RIGHT)] = (br and STENCIL) or IDENTITY
                     else:
                         v[(d, LEFT)] = STENCIL
                         v[(d, RIGHT)] = STENCIL
@@ -245,8 +232,6 @@ def hs_classify(scope):
             unique_hl = set(hl)
             if unique_hl == {STENCIL, IDENTITY}:
                 halo_labels[i] = STENCIL
-            elif POINTLESS in unique_hl:
-                halo_labels[i] = POINTLESS
             elif len(unique_hl) == 1:
                 halo_labels[i] = unique_hl.pop()
             else:

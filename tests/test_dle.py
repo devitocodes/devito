@@ -6,7 +6,7 @@ import pytest
 
 from conftest import EVAL, skipif
 from devito import Grid, Function, TimeFunction, Eq, Operator, solve
-from devito.dle import transform
+from devito.dle import NThreads, transform
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, FindNodes, iet_analyze,
                            retrieve_iteration_tree)
@@ -17,7 +17,7 @@ pytestmark = skipif(['yask', 'ops'])
 
 
 def get_blocksizes(op, dle, grid, blockshape):
-    blocksizes = {'%s0_block_size' % d: v for d, v in zip(grid.dimensions, blockshape)}
+    blocksizes = {'%s0_blk_size' % d: v for d, v in zip(grid.dimensions, blockshape)}
     blocksizes = {k: v for k, v in blocksizes.items() if k in op._known_arguments}
     # Sanity check
     if grid.dim == 1 or len(blockshape) == 0:
@@ -102,7 +102,7 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     # Check code structure
     _, op = _new_operator1((10, 31, 45), dle=('blocking', {'blockalways': True,
                                                            'blockinner': blockinner}))
-    calls = FindNodes(Call).visit(op._func_table['f0'].root)
+    calls = FindNodes(Call).visit(op)
     assert len(calls) == exp_calls
     trees = retrieve_iteration_tree(op._func_table['bf0'].root)
     assert len(trees) == 1
@@ -265,8 +265,7 @@ def test_dynamic_nthreads():
     assert np.all(f.data[0] == 2.)
 
     # Check the actual value assumed by `nthreads`
-    from devito.dle.parallelizer import ncores
-    assert op.arguments(time=0)['nthreads'] == ncores()  # default value
+    assert op.arguments(time=0)['nthreads'] == NThreads.default_value()
     assert op.arguments(time=0, nthreads=123)['nthreads'] == 123  # user supplied
 
 

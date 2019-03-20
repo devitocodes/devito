@@ -13,13 +13,6 @@ from devito.data import LEFT
 pytestmark = skipif(['yask', 'ops'])
 
 
-# To enforce cross-compilation for a 4-core architecture
-class MockArch(object):
-    @classmethod
-    def cpu_count(cls):
-        return 4
-
-
 @switchconfig(log_level='DEBUG')
 @pytest.mark.parametrize("shape,expected", [
     ((30, 30), 13),
@@ -187,14 +180,14 @@ def test_tti_aggressive():
     assert op._state['autotuning'][0]['runs'] == 33
 
 
-@switchconfig(develop_mode=False, cross_compile=MockArch)
+@switchconfig(develop_mode=False)
 @patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
 def test_discarding_runs():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
 
     op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': True}))
-    op.apply(time=100, autotune='aggressive')
+    op.apply(time=100, nthreads=4, autotune='aggressive')
 
     assert op._state['autotuning'][0]['runs'] == 20
     assert op._state['autotuning'][0]['tpr'] == 5
