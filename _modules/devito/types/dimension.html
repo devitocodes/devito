@@ -163,7 +163,8 @@
 <span class="kn">from</span> <span class="nn">devito.data</span> <span class="k">import</span> <span class="n">LEFT</span><span class="p">,</span> <span class="n">RIGHT</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ArgProvider</span><span class="p">,</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">dtype_to_cstr</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Pickable</span><span class="p">,</span> <span class="n">dtype_to_cstr</span>
+<span class="kn">from</span> <span class="nn">devito.types.args</span> <span class="k">import</span> <span class="n">ArgProvider</span>
 <span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="k">import</span> <span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">Scalar</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;DefaultDimension&#39;</span><span class="p">,</span>
@@ -293,6 +294,11 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_maybe_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Could it be a distributed Dimension?&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">True</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_limits</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -596,36 +602,45 @@
 <span class="sd">        SubDimension.</span>
 <span class="sd">    thickness : 2-tuple of 2-tuples</span>
 <span class="sd">        The thickness of the left and right regions, respectively.</span>
+<span class="sd">    local : bool</span>
+<span class="sd">        True if, in case of domain decomposition, the SubDimension is</span>
+<span class="sd">        guaranteed not to span more than one domains, False otherwise.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
-<span class="sd">    Apart from rare circumstances, SubDimensions should *not* be created</span>
-<span class="sd">    directly in user code; SubDomains should be used instead.</span>
+<span class="sd">    SubDimensions should *not* be created directly in user code; SubDomains</span>
+<span class="sd">    should be used instead. Exceptions are rare.</span>
 
-<span class="sd">    To create a SubDimension, one typically uses the shortcut methods ``left``,</span>
+<span class="sd">    To create a SubDimension, one should use the shortcut methods ``left``,</span>
 <span class="sd">    ``right``, ``middle``. For example, to create a SubDimension that spans</span>
-<span class="sd">    the entire space of the parent Dimension except for the two extremes, one</span>
-<span class="sd">    could proceed as follows</span>
+<span class="sd">    the entire space of the parent Dimension except for the two extremes:</span>
 
 <span class="sd">    &gt;&gt;&gt; from devito import Dimension, SubDimension</span>
 <span class="sd">    &gt;&gt;&gt; x = Dimension(&#39;x&#39;)</span>
 <span class="sd">    &gt;&gt;&gt; xi = SubDimension.middle(&#39;xi&#39;, x, 1, 1)</span>
 
 <span class="sd">    For a SubDimension that only spans the three leftmost points of its</span>
-<span class="sd">    parent Dimension, instead</span>
+<span class="sd">    parent Dimension, instead:</span>
 
 <span class="sd">    &gt;&gt;&gt; xl = SubDimension.left(&#39;xl&#39;, x, 3)</span>
+
+<span class="sd">    SubDimensions created via the ``left`` and ``right`` shortcuts are, by default,</span>
+<span class="sd">    local (i.e., non-distributed) Dimensions, as they are assumed to fit entirely</span>
+<span class="sd">    within a single domain. This is the most typical use case (e.g., to set up</span>
+<span class="sd">    boundary conditions). To drop this assumption, pass ``local=False``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Sub</span> <span class="o">=</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">thickness</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">SubDimension</span><span class="o">.</span><span class="n">__xnew_cached_</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">thickness</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span> <span class="n">local</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">SubDimension</span><span class="o">.</span><span class="n">__xnew_cached_</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span>
+                                           <span class="n">thickness</span><span class="p">,</span> <span class="n">local</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">__new_stage2__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">thickness</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__new_stage2__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span> <span class="n">local</span><span class="p">):</span>
         <span class="n">newobj</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">__xnew__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">_interval</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Interval</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">_thickness</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_Thickness</span><span class="p">(</span><span class="o">*</span><span class="n">thickness</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">_local</span> <span class="o">=</span> <span class="n">local</span>
         <span class="k">return</span> <span class="n">newobj</span>
 
     <span class="n">__xnew_cached_</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">cacheit</span><span class="p">(</span><span class="n">__new_stage2__</span><span class="p">))</span>
@@ -633,28 +648,31 @@
     <span class="n">_Thickness</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Thickness&#39;</span><span class="p">,</span> <span class="s1">&#39;left right&#39;</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">left</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">thickness</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">left</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span> <span class="n">local</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="n">lst</span><span class="p">,</span> <span class="n">rst</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_symbolic_thickness</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span>
                    <span class="n">left</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span><span class="p">,</span>
                    <span class="n">right</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span><span class="o">+</span><span class="n">lst</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span>
-                   <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="n">thickness</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span>
+                   <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="n">thickness</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span>
+                   <span class="n">local</span><span class="o">=</span><span class="n">local</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">right</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">thickness</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">right</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span> <span class="n">local</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="n">lst</span><span class="p">,</span> <span class="n">rst</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_symbolic_thickness</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span>
                    <span class="n">left</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span><span class="o">-</span><span class="n">rst</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span>
                    <span class="n">right</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span><span class="p">,</span>
-                   <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">thickness</span><span class="p">)))</span>
+                   <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">thickness</span><span class="p">)),</span>
+                   <span class="n">local</span><span class="o">=</span><span class="n">local</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">middle</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">thickness_left</span><span class="p">,</span> <span class="n">thickness_right</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">middle</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">thickness_left</span><span class="p">,</span> <span class="n">thickness_right</span><span class="p">,</span> <span class="n">local</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="n">lst</span><span class="p">,</span> <span class="n">rst</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_symbolic_thickness</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span>
                    <span class="n">left</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span><span class="o">+</span><span class="n">lst</span><span class="p">,</span>
                    <span class="n">right</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span><span class="o">-</span><span class="n">rst</span><span class="p">,</span>
-                   <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="n">thickness_left</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">thickness_right</span><span class="p">)))</span>
+                   <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="n">thickness_left</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">thickness_right</span><span class="p">)),</span>
+                   <span class="n">local</span><span class="o">=</span><span class="n">local</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">symbolic_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -665,8 +683,16 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interval</span><span class="o">.</span><span class="n">right</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">local</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">thickness</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_thickness</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_maybe_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_symbolic_thickness</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
@@ -719,7 +745,7 @@
 
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_args</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">_pickle_args</span> <span class="o">+</span>\
-        <span class="p">[</span><span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_max&#39;</span><span class="p">,</span> <span class="s1">&#39;thickness&#39;</span><span class="p">]</span>
+        <span class="p">[</span><span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_max&#39;</span><span class="p">,</span> <span class="s1">&#39;thickness&#39;</span><span class="p">,</span> <span class="s1">&#39;local&#39;</span><span class="p">]</span>
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span></div>
 
 

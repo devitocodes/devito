@@ -183,7 +183,7 @@
 <dl class="class">
 <dt id="devito.types.dimension.Dimension">
 <em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">Dimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.basic.AbstractSymbol</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.ArgProvider</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.basic.AbstractSymbol</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.args.ArgProvider</span></code></p>
 <p>Symbol defining an iteration space.</p>
 <p>A Dimension represents a problem dimension. It is typically used to index
 into Functions, but it can also appear in the middle of a symbolic expression
@@ -390,28 +390,33 @@ SubDimension.</li>
 <li><strong>right</strong> (<em>expr-like</em>) – Symbolic expression providing the right (upper) bound of the
 SubDimension.</li>
 <li><strong>thickness</strong> (<em>2-tuple of 2-tuples</em>) – The thickness of the left and right regions, respectively.</li>
+<li><strong>local</strong> (<em>bool</em>) – True if, in case of domain decomposition, the SubDimension is
+guaranteed not to span more than one domains, False otherwise.</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
 <p class="rubric">Examples</p>
-<p>Apart from rare circumstances, SubDimensions should <em>not</em> be created
-directly in user code; SubDomains should be used instead.</p>
-<p>To create a SubDimension, one typically uses the shortcut methods <code class="docutils literal notranslate"><span class="pre">left</span></code>,
+<p>SubDimensions should <em>not</em> be created directly in user code; SubDomains
+should be used instead. Exceptions are rare.</p>
+<p>To create a SubDimension, one should use the shortcut methods <code class="docutils literal notranslate"><span class="pre">left</span></code>,
 <code class="docutils literal notranslate"><span class="pre">right</span></code>, <code class="docutils literal notranslate"><span class="pre">middle</span></code>. For example, to create a SubDimension that spans
-the entire space of the parent Dimension except for the two extremes, one
-could proceed as follows</p>
+the entire space of the parent Dimension except for the two extremes:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">SubDimension</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">xi</span> <span class="o">=</span> <span class="n">SubDimension</span><span class="o">.</span><span class="n">middle</span><span class="p">(</span><span class="s1">&#39;xi&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>For a SubDimension that only spans the three leftmost points of its
-parent Dimension, instead</p>
+parent Dimension, instead:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">xl</span> <span class="o">=</span> <span class="n">SubDimension</span><span class="o">.</span><span class="n">left</span><span class="p">(</span><span class="s1">&#39;xl&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
 </pre></div>
 </div>
+<p>SubDimensions created via the <code class="docutils literal notranslate"><span class="pre">left</span></code> and <code class="docutils literal notranslate"><span class="pre">right</span></code> shortcuts are, by default,
+local (i.e., non-distributed) Dimensions, as they are assumed to fit entirely
+within a single domain. This is the most typical use case (e.g., to set up
+boundary conditions). To drop this assumption, pass <code class="docutils literal notranslate"><span class="pre">local=False</span></code>.</p>
 <dl class="attribute">
 <dt id="devito.types.dimension.SubDimension.symbolic_max">
 <code class="descname">symbolic_max</code><a class="headerlink" href="#devito.types.dimension.SubDimension.symbolic_max" title="Permalink to this definition">¶</a></dt>
