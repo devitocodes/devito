@@ -93,6 +93,7 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._dims = tuple(set(new_dims))
         obj._fd_order = kwargs.get('fd_order', 1)
         obj._deriv_order = orders
+
         obj._stagger = kwargs.get("stagger", obj._stagger_setup)
         obj._side = kwargs.get("side", None)
         obj._transpose = kwargs.get("transpose", direct)
@@ -129,7 +130,7 @@ class Derivative(sympy.Derivative, Differentiable):
 
     @property
     def staggered(self):
-        return self.expr.staggered
+        return self._staggered
 
     @cached_property
     def _stagger_setup(self):
@@ -145,7 +146,6 @@ class Derivative(sympy.Derivative, Differentiable):
                     side[d] = right
                 else:
                     side[d] = centered
-
         return side
 
     @property

@@ -4,7 +4,7 @@ from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
                                force_directions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, xreplace_indices
-from devito.tools import flatten
+from devito.tools import flatten, as_tuple
 from devito.types import Scalar
 
 __all__ = ['clusterize', 'groupby']
@@ -98,6 +98,7 @@ def guard(clusters):
                 for d in e.conditionals:
                     condition = guards.setdefault(d.parent, [])
                     condition.append(d.condition or CondEq(d.parent % d.factor, 0))
+
                 guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
                 processed.append(PartialCluster(e, c.ispace, c.dspace, c.atomics, guards))
             else:
