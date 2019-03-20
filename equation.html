@@ -184,11 +184,14 @@ Functions and SparseFunctions as operands.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>lhs</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a><em> or </em><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction" title="devito.types.SparseFunction"><em>SparseFunction</em></a>) – The left-hand side.</li>
-<li><strong>rhs</strong> (<em>expr-like</em>) – The right-hand side.</li>
+<li><strong>rhs</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – The right-hand side. Defaults to 0.</li>
 <li><strong>subdomain</strong> (<a class="reference internal" href="subdomain.html#devito.types.SubDomain" title="devito.types.SubDomain"><em>SubDomain</em></a><em>, </em><em>optional</em>) – To restrict the computation of the Eq to a particular sub-region in the
 computational domain.</li>
 <li><strong>coefficients</strong> (<em>Substitutions</em><em>, </em><em>optional</em>) – Can be used to replace symbolic finite difference weights with user
 defined weights.</li>
+<li><strong>implicit_dims</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimension</em><em>, </em><em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in either the
+left-hand side or in the right-hand side, but that should be honored when
+constructing an Operator.</li>
 </ul>
 </td>
 </tr>
@@ -225,6 +228,25 @@ defined weights.</li>
 <dd><p>Bases: <a class="reference internal" href="#devito.equation.Eq" title="devito.equation.Eq"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.equation.Eq</span></code></a></p>
 <p>An increment relation between two objects, the left-hand side and the
 right-hand side.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>lhs</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a><em> or </em><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction" title="devito.types.SparseFunction"><em>SparseFunction</em></a>) – The left-hand side.</li>
+<li><strong>rhs</strong> (<em>expr-like</em>) – The right-hand side.</li>
+<li><strong>subdomain</strong> (<a class="reference internal" href="subdomain.html#devito.types.SubDomain" title="devito.types.SubDomain"><em>SubDomain</em></a><em>, </em><em>optional</em>) – To restrict the computation of the Eq to a particular sub-region in the
+computational domain.</li>
+<li><strong>coefficients</strong> (<em>Substitutions</em><em>, </em><em>optional</em>) – Can be used to replace symbolic finite difference weights with user
+defined weights.</li>
+<li><strong>implicit_dims</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimension</em><em>, </em><em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in either the
+left-hand side or in the right-hand side, but that should be honored when
+constructing an Operator.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 <p class="rubric">Examples</p>
 <p>Inc may be used to express tensor contractions. Below, a summation along
 the user-defined Dimension <code class="docutils literal notranslate"><span class="pre">i</span></code>.</p>
