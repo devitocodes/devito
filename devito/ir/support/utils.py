@@ -21,7 +21,7 @@ def detect_accesses(expr):
     # Compute M : F -> S
     mapper = defaultdict(Stencil)
     for e in retrieve_indexed(expr, mode='all', deep=True):
-        f = e.base.function
+        f = e.function
         for a in e.indices:
             if isinstance(a, Dimension):
                 mapper[f][a].update([0])
@@ -36,8 +36,9 @@ def detect_accesses(expr):
                 mapper[f][d].update(off or [0])
 
     # Compute M[None]
-    mapper[None] = Stencil([(i, 0) for i in retrieve_terminals(expr)
-                            if isinstance(i, Dimension)])
+    other_dims = [i for i in retrieve_terminals(expr) if isinstance(i, Dimension)]
+    other_dims.extend(list(expr.implicit_dims))
+    mapper[None] = Stencil([(i, 0) for i in other_dims])
 
     return mapper
 
@@ -117,10 +118,9 @@ def align_accesses(expr, key=lambda i: False):
 
 def detect_flow_directions(exprs):
     """
-    Return a mapper from Dimensions to Iterables of
-    IterationDirections representing the theoretically necessary
-    directions to evaluate ``exprs`` so that the information "naturally
-    flows" from an iteration to another.
+    Return a mapper from Dimensions to Iterables of IterationDirections
+    representing the theoretically necessary directions to evaluate ``exprs``
+    so that the information "naturally flows" from an iteration to another.
     """
     exprs = as_tuple(exprs)
 
@@ -169,10 +169,14 @@ def detect_flow_directions(exprs):
     mapper.update({k.parent: set(v) for k, v in mapper.items()
                    if k.is_Derived and mapper.get(k.parent, {Any}) == {Any}})
 
-    # Add in "free" Dimensions, ie Dimensions used as symbols rather than as
-    # array indices
-    mapper.update({d: {Any} for d in flatten(i.free_symbols for i in exprs)
-                   if isinstance(d, Dimension) and d not in mapper})
+    # Add in:
+    # - free Dimensions, ie Dimensions used as symbols rather than as array indices
+    # - implicit Dimensions, ie Dimensions that do not explicitly appear in `exprs`
+    #   (typically used for inline temporaries)
+    for i in exprs:
+        candidates = {s for s in i.free_symbols if isinstance(s, Dimension)}
+        candidates.update(set(i.implicit_dims))
+        mapper.update({d: {Any} for d in candidates if d not in mapper})
 
     return mapper
 
@@ -218,15 +222,15 @@ def force_directions(mapper, key):
 
 def detect_io(exprs, relax=False):
     """
-    ``{exprs} -> ({reads}, {writes})
+    ``{exprs} -> ({reads}, {writes})``
 
     Parameters
     ----------
     exprs : expr-like or list of expr-like
         The searched expressions.
     relax : bool, optional
-        If False, as by default, collect only Constants and
-        Functions. Otherwise, collect any :class:`types.Basic`s.
+        If False, as by default, collect only Constants and Functions.
+        Otherwise, collect any Basic object.
     """
     exprs = as_tuple(exprs)
     if relax is False:
@@ -234,11 +238,24 @@ def detect_io(exprs, relax=False):
     else:
         rule = lambda i: i.is_Scalar or i.is_Tensor
 
+    # Don't forget this nasty case, with indirections on the LHS:
+    # >>> u[t, a[x]] = f[x]  -> (reads={a, f}, writes={u})
+
+    roots = []
+    for i in exprs:
+        try:
+            roots.append(i.rhs)
+            roots.extend(list(i.lhs.indices))
+        except AttributeError:
+            # E.g., FunctionFromPointer
+            roots.append(i)
+
     reads = []
-    for i in flatten(retrieve_terminals(i, deep=True) for i in exprs):
+    terminals = flatten(retrieve_terminals(i, deep=True) for i in roots)
+    for i in terminals:
         candidates = i.free_symbols
         try:
-            candidates.update({i.base.function})
+            candidates.update({i.function})
         except AttributeError:
             pass
         for j in candidates:
@@ -251,7 +268,7 @@ def detect_io(exprs, relax=False):
     writes = []
     for i in exprs:
         try:
-            f = i.lhs.base.function
+            f = i.lhs.function
         except AttributeError:
             continue
         if rule(f):

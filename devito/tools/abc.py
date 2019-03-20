@@ -1,8 +1,7 @@
 import abc
 from hashlib import sha1
 
-
-__all__ = ['Tag', 'ArgProvider', 'Signer', 'Pickable']
+__all__ = ['Tag', 'Signer', 'Pickable']
 
 
 class Tag(abc.ABC):
@@ -10,9 +9,9 @@ class Tag(abc.ABC):
     """
     An abstract class to define categories of object decorators.
 
-    .. note::
-
-        This class must be subclassed for each new category.
+    Notes
+    -----
+    This class must be subclassed for each new category.
     """
 
     def __init__(self, name, val=None):
@@ -37,65 +36,6 @@ class Tag(abc.ABC):
     __repr__ = __str__
 
 
-class ArgProvider(object):
-
-    """
-    A base class for types that can provide runtime values for dynamically
-    executed (JIT-compiled) code.
-    """
-
-    @abc.abstractproperty
-    def _arg_names(self):
-        raise NotImplementedError('%s does not provide any default argument names' %
-                                  self.__class__)
-
-    @abc.abstractmethod
-    def _arg_defaults(self):
-        """
-        A map of default argument values defined by this type.
-        """
-        raise NotImplementedError('%s does not provide any default arguments' %
-                                  self.__class__)
-
-    @abc.abstractmethod
-    def _arg_values(self, **kwargs):
-        """
-        A map of argument values after evaluating user input.
-
-        Parameters
-        ----------
-        **kwargs
-            User-provided argument overrides.
-        """
-        raise NotImplementedError('%s does not provide argument value derivation' %
-                                  self.__class__)
-
-    @abc.abstractmethod
-    def _arg_check(self, *args, **kwargs):
-        """
-        Raises
-        ------
-        InvalidArgument
-            If an argument value is illegal.
-        """
-        pass  # no-op
-
-    def _arg_apply(self, *args, **kwargs):
-        """
-        Postprocess arguments upon returning from dynamically executed code. May be
-        called if self's state needs to be updated.
-        """
-        pass  # no-op
-
-    def _arg_as_ctype(self, *args, **kwargs):
-        """
-        Cast the argument values into a format suitable for the dynamically
-        executed code.
-        """
-        # By default, this is a no-op
-        return {}
-
-
 class Signer(object):
 
     """
@@ -103,14 +43,12 @@ class Signer(object):
     string representing their internal state. Subclasses may be mutable or
     immutable.
 
-    .. note::
+    Notes
+    -----
+    Subclasses must implement the method :meth:`__signature_items___`.
 
-        Subclasses must implement the method :meth:`__signature_items___`.
-
-    .. note::
-
-        Regardless of whether an object is mutable or immutable, the returned
-        signature must be immutable, and thus hashable.
+    Regardless of whether an object is mutable or immutable, the returned
+    signature must be immutable, and thus hashable.
     """
 
     @classmethod
@@ -154,10 +92,10 @@ class Pickable(object):
           simply end up ignoring ``__getnewargs_ex__``, the function responsible
           for processing __new__'s kwargs.
 
-    .. note::
-
-        All sub-classes using multiple inheritance may have to explicitly set
-        ``__reduce_ex__ = Pickable.__reduce_ex__`` depending on the MRO.
+    Notes
+    -----
+    All sub-classes using multiple inheritance may have to explicitly set
+    ``__reduce_ex__ = Pickable.__reduce_ex__`` depending on the MRO.
     """
 
     _pickle_args = []

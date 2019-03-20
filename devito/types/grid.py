@@ -5,7 +5,8 @@ import numpy as np
 
 from devito.mpi import Distributor
 from devito.parameters import configuration
-from devito.tools import ArgProvider, ReducerMap, as_tuple
+from devito.tools import ReducerMap, as_tuple
+from devito.types.args import ArgProvider
 from devito.types.constant import Constant
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)

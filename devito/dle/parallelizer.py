@@ -1,12 +1,14 @@
 from collections import OrderedDict
+import os
 
 import numpy as np
 import cgen as c
 import psutil
+from sympy import Function
 
-from devito.ir.iet import (Conditional, Block, Element, Expression, List, FindSymbols,
-                           FindNodes, Transformer, IsPerfectIteration, COLLAPSED,
-                           retrieve_iteration_tree, filter_iterations)
+from devito.ir.iet import (Call, Conditional, Block, Element, Expression, List, Prodder,
+                           FindSymbols, FindNodes, Transformer, IsPerfectIteration,
+                           COLLAPSED, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq
 from devito.parameters import configuration
 from devito.types import Constant, Symbol
@@ -21,9 +23,41 @@ def ncores():
 
 class NThreads(Constant):
 
+    @classmethod
+    def default_value(cls):
+        return int(os.environ.get('OMP_NUM_THREADS', ncores()))
+
     def __new__(cls, **kwargs):
         return super(NThreads, cls).__new__(cls, name=kwargs['name'], dtype=np.int32,
-                                            value=ncores())
+                                            value=NThreads.default_value())
+
+
+class ParallelRegion(Block):
+
+    def __init__(self, body, nthreads, private=None):
+        header = ParallelRegion._make_header(nthreads, private)
+        super(ParallelRegion, self).__init__(header=header, body=body)
+        self.nthreads = nthreads
+
+    @classmethod
+    def _make_header(cls, nthreads, private):
+        private = ('private(%s)' % ','.join(private)) if private else ''
+        return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
+
+    @property
+    def functions(self):
+        return (self.nthreads,)
+
+
+class SingleThreadProdder(Conditional, Prodder):
+
+    _traversable = []
+
+    def __init__(self, prodder):
+        condition = CondEq(Function('omp_get_thread_num')(), 0)
+        then_body = Call(prodder.name, prodder.arguments)
+        Conditional.__init__(self, condition, then_body)
+        Prodder.__init__(self, prodder.name, prodder.arguments, periodic=prodder.periodic)
 
 
 class Ompizer(object):
@@ -34,7 +68,6 @@ class Ompizer(object):
 
     lang = {
         'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
-        'par-region': lambda nt, i: c.Pragma('omp parallel num_threads(%s) %s' % (nt, i)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
@@ -92,13 +125,16 @@ class Ompizer(object):
         if root.is_ParallelAtomic:
             # Introduce the `omp atomic` pragmas
             exprs = FindNodes(Expression).visit(root)
-            subs = {i: List(header=self.lang['atomic'], body=i)
-                    for i in exprs if i.is_Increment}
+            exprs = [i for i in exprs if i.is_Increment and not i.is_ForeignExpression]
+            subs = {i: List(header=self.lang['atomic'], body=i) for i in exprs}
             handle = Transformer(subs).visit(root)
             mapper[root] = handle._rebuild(pragmas=pragmas, properties=properties)
         else:
             mapper[root] = root._rebuild(pragmas=pragmas, properties=properties)
+        root = Transformer(mapper).visit(root)
 
+        # Atomic-ize any single-thread Prodders in the parallel tree
+        mapper = {i: SingleThreadProdder(i) for i in FindNodes(Prodder).visit(root)}
         root = Transformer(mapper).visit(root)
 
         return root
@@ -108,7 +144,7 @@ class Ompizer(object):
         mapper = OrderedDict()
         for tree in retrieve_iteration_tree(iet):
             # Get the first omp-parallelizable Iteration in `tree`
-            candidates = filter_iterations(tree, key=self.key, stop='asap')
+            candidates = filter_iterations(tree, key=self.key)
             if not candidates:
                 continue
             root = candidates[0]
@@ -122,9 +158,7 @@ class Ompizer(object):
 
             # Build the `omp-parallel` region
             private = sorted(set([i.name for i in private]))
-            private = ('private(%s)' % ','.join(private)) if private else ''
-            partree = Block(header=self.lang['par-region'](self.nthreads.name, private),
-                            body=partree)
+            partree = ParallelRegion(partree, self.nthreads, private)
 
             # Do not enter the parallel region if the step increment might be 0; this
             # would raise a `Floating point exception (core dumped)` in some OpenMP
@@ -136,4 +170,5 @@ class Ompizer(object):
             mapper[root] = partree
         iet = Transformer(mapper).visit(iet)
 
-        return iet, {'input': [self.nthreads] if mapper else []}
+        return iet, {'args': [self.nthreads] if mapper else [],
+                     'includes': ['omp.h']}
