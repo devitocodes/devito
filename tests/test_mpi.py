@@ -6,8 +6,8 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
                     SubDimension, Eq, Inc, Operator, norm, inner, switchconfig)
 from devito.data import LEFT, RIGHT
-from devito.ir.iet import Call, Conditional, Iteration, FindNodes
-from devito.mpi import MPI, HaloExchangeBuilder, HaloSchemeEntry
+from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
+from devito.mpi import MPI
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['yask', 'ops', 'nompi'])
@@ -311,86 +311,6 @@ class TestFunction(object):
                    for i, j in zip(f.local_indices, expected[grid.distributor.myrank]))
 
 
-class TestCodeGeneration(object):
-
-    @pytest.mark.parallel(mode=1)
-    def test_iet_copy(self):
-        grid = Grid(shape=(4, 4))
-        t = grid.stepping_dim
-
-        f = TimeFunction(name='f', grid=grid)
-
-        heb = HaloExchangeBuilder()
-        gather = heb._make_copy(f, HaloSchemeEntry([t], []))
-        assert str(gather.parameters) == """\
-(buf(buf_x, buf_y), buf_x_size, buf_y_size, f(t, x, y), otime, ox, oy)"""
-        assert """\
-  for (int x = 0; x <= buf_x_size - 1; x += 1)
-  {
-    for (int y = 0; y <= buf_y_size - 1; y += 1)
-    {
-      buf[x][y] = f[otime][x + ox][y + oy];
-    }
-  }""" in str(gather)
-
-    @pytest.mark.parallel(mode=1)
-    def test_iet_basic_sendrecv(self):
-        grid = Grid(shape=(4, 4))
-        t = grid.stepping_dim
-
-        f = TimeFunction(name='f', grid=grid)
-
-        heb = HaloExchangeBuilder()
-        sendrecv = heb._make_sendrecv(f, HaloSchemeEntry([t], []))
-        assert str(sendrecv.parameters) == """\
-(f(t, x, y), buf_x_size, buf_y_size, ogtime, ogx, ogy, ostime, osx, osy,\
- fromrank, torank, comm)"""
-        assert str(sendrecv.body[0]) == """\
-float (*bufs)[buf_y_size];
-float (*bufg)[buf_y_size];
-posix_memalign((void**)&bufs, 64, sizeof(float[buf_x_size][buf_y_size]));
-posix_memalign((void**)&bufg, 64, sizeof(float[buf_x_size][buf_y_size]));
-MPI_Request rrecv;
-MPI_Request rsend;
-MPI_Irecv((float *)bufs,buf_x_size*buf_y_size,MPI_FLOAT,fromrank,13,comm,&rrecv);
-if (torank != MPI_PROC_NULL)
-{
-  gather((float *)bufg,buf_x_size,buf_y_size,f_vec,ogtime,ogx,ogy);
-}
-MPI_Isend((float *)bufg,buf_x_size*buf_y_size,MPI_FLOAT,torank,13,comm,&rsend);
-MPI_Wait(&rsend,MPI_STATUS_IGNORE);
-MPI_Wait(&rrecv,MPI_STATUS_IGNORE);
-if (fromrank != MPI_PROC_NULL)
-{
-  scatter((float *)bufs,buf_x_size,buf_y_size,f_vec,ostime,osx,osy);
-}
-free(bufs);
-free(bufg);"""
-
-    @pytest.mark.parallel(mode=1)
-    def test_iet_basic_haloupdate(self):
-        grid = Grid(shape=(4, 4))
-        x, y = grid.dimensions
-        t = grid.stepping_dim
-
-        f = TimeFunction(name='f', grid=grid)
-
-        heb = HaloExchangeBuilder()
-        halos = [(x, LEFT), (x, RIGHT), (y, LEFT), (y, RIGHT)]
-        haloupdate = heb._make_haloupdate(f, HaloSchemeEntry([t], halos))
-        assert str(haloupdate.parameters) == """\
-(f(t, x, y), comm, nb, otime)"""
-        assert str(haloupdate.body[0]) == """\
-sendrecv(f_vec,f_vec->hsize[3],f_vec->npsize[2],otime,f_vec->oofs[2],\
-f_vec->hofs[4],otime,f_vec->hofs[3],f_vec->hofs[4],nb->rc,nb->lc,comm);
-sendrecv(f_vec,f_vec->hsize[2],f_vec->npsize[2],otime,f_vec->oofs[3],\
-f_vec->hofs[4],otime,f_vec->hofs[2],f_vec->hofs[4],nb->lc,nb->rc,comm);
-sendrecv(f_vec,f_vec->npsize[1],f_vec->hsize[5],otime,f_vec->hofs[2],\
-f_vec->oofs[4],otime,f_vec->hofs[2],f_vec->hofs[5],nb->cr,nb->cl,comm);
-sendrecv(f_vec,f_vec->npsize[1],f_vec->hsize[4],otime,f_vec->hofs[2],\
-f_vec->oofs[5],otime,f_vec->hofs[2],f_vec->hofs[4],nb->cl,nb->cr,comm);"""
-
-
 class TestSparseFunction(object):
 
     @pytest.mark.parallel(mode=4)
@@ -525,7 +445,7 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
-                                (4, 'overlap2')])
+                                (4, 'overlap2'), (4, 'full')])
     def test_trivial_eq_2d(self):
         grid = Grid(shape=(8, 8,))
         x, y = grid.dimensions
@@ -561,7 +481,7 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
     @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'diag'), (8, 'overlap'),
-                                (8, 'overlap2')])
+                                (8, 'overlap2'), (8, 'full')])
     def test_trivial_eq_3d(self):
         grid = Grid(shape=(8, 8, 8))
         x, y, z = grid.dimensions
@@ -632,7 +552,27 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
-    def test_nostencil_implies_nohaloupdate(self):
+    @pytest.mark.parallel(mode=2)
+    def test_reapply_with_different_functions(self):
+        grid1 = Grid(shape=(30, 30, 30))
+        f1 = Function(name='f', grid=grid1, space_order=4)
+
+        op = Operator(Eq(f1, 1.))
+        op.apply()
+
+        grid2 = Grid(shape=(40, 40, 40))
+        f2 = Function(name='f', grid=grid2, space_order=4)
+
+        # Re-application
+        op.apply(f=f2)
+
+        assert np.all(f1.data == 1.)
+        assert np.all(f2.data == 1.)
+
+
+class TestCodeGeneration(object):
+
+    def test_avoid_haloupdate_as_nostencil_basic(self):
         grid = Grid(shape=(12,))
 
         f = TimeFunction(name='f', grid=grid)
@@ -641,6 +581,25 @@ class TestOperatorSimple(object):
         op = Operator([Eq(f.forward, f + 1.),
                        Eq(g, f + 1.)])
 
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
+
+    def test_avoid_haloupdate_as_nostencil_advanced(self):
+        grid = Grid(shape=(4, 4))
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2, save=None)
+        v = TimeFunction(name='v', grid=grid, space_order=0, time_order=0, save=5)
+        g = Function(name='g', grid=grid, space_order=0)
+        i = Function(name='i', grid=grid, space_order=0)
+
+        shift = Constant(name='shift', dtype=np.int32)
+
+        step = Eq(u.forward, u - u.backward + 1)
+        g_inc = Inc(g, u * v.subs(grid.time_dim, grid.time_dim - shift))
+        i_inc = Inc(i, (v*v).subs(grid.time_dim, grid.time_dim - shift))
+
+        op = Operator([step, g_inc, i_inc])
+
+        # No stencil in the expressions, so no halo update required!
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 0
 
@@ -688,6 +647,58 @@ class TestOperatorSimple(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
+    def test_avoid_haloupdate_with_subdims(self):
+        grid = Grid(shape=(4,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        thickness = 4
+
+        u = TimeFunction(name='u', grid=grid, time_order=1)
+
+        xleft = SubDimension.left(name='xleft', parent=x, thickness=thickness)
+        xi = SubDimension.middle(name='xi', parent=x,
+                                 thickness_left=thickness, thickness_right=thickness)
+
+        eq_centre = Eq(u[t+1, xi], u[t, xi-1] + u[t, xi+1] + 1.)
+        eq_left = Eq(u[t+1, xleft], u[t+1, xleft+1] + u[t, xleft+1] + 1.)
+
+        # There is only one halo update -- for the `eq_centre` expression.
+        # `eq_left` gets no halo update since it's a left-SubDimension, which by
+        # default (i.e., unless one passes `local=False` to SubDimension.left) is
+        # assumed to be a local Dimension.
+        op = Operator([eq_centre, eq_left])
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.parallel(mode=1)
+    def test_hoist_haloupdate_if_no_flowdep(self):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        i = Dimension(name='i')
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+
+        op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
+                       Inc(g[i], f[t, h[i]] + 1.)])
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+        # Below, there is a flow-dependence along `x`, so a further halo update
+        # before the Inc is required
+        op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
+                       Inc(g[i], f[t+1, h[i]] + 1.)])
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+
+    @pytest.mark.parallel(mode=1)
     def test_stencil_nowrite_implies_haloupdate_anyway(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -727,42 +738,6 @@ class TestOperatorSimple(object):
         else:
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
 
-    def test_haloupdate_not_requried(self):
-        grid = Grid(shape=(4, 4))
-        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2, save=None)
-        v = TimeFunction(name='v', grid=grid, space_order=0, time_order=0, save=5)
-        g = Function(name='g', grid=grid, space_order=0)
-        i = Function(name='i', grid=grid, space_order=0)
-
-        shift = Constant(name='shift', dtype=np.int32)
-
-        step = Eq(u.forward, u - u.backward + 1)
-        g_inc = Inc(g, u * v.subs(grid.time_dim, grid.time_dim - shift))
-        i_inc = Inc(i, (v*v).subs(grid.time_dim, grid.time_dim - shift))
-
-        op = Operator([step, g_inc, i_inc])
-
-        # No stencil in the expressions, so no halo update required!
-        calls = FindNodes(Call).visit(op)
-        assert len(calls) == 0
-
-    @pytest.mark.parallel(mode=2)
-    def test_reapply_with_different_functions(self):
-        grid1 = Grid(shape=(30, 30, 30))
-        f1 = Function(name='f', grid=grid1, space_order=4)
-
-        op = Operator(Eq(f1, 1.))
-        op.apply()
-
-        grid2 = Grid(shape=(40, 40, 40))
-        f2 = Function(name='f', grid=grid2, space_order=4)
-
-        # Re-application
-        op.apply(f=f2)
-
-        assert np.all(f1.data == 1.)
-        assert np.all(f2.data == 1.)
-
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
         ('f[t,x,y-1] + f[t,x,y+1]', {'cr', 'cl'}),
@@ -786,6 +761,40 @@ class TestOperatorSimple(object):
         calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
         destinations = {i.arguments[-2].field for i in calls}
         assert destinations == expected
+
+    @pytest.mark.parallel(mode=[(1, 'full')])
+    def test_poke_progress(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+
+        eqn = Eq(f.forward, f[t, x-1, y] + f[t, x+1, y] + f[t, x, y-1] + f[t, x, y+1])
+        op = Operator(eqn)
+
+        trees = retrieve_iteration_tree(op._func_table['compute0'].root)
+        assert len(trees) == 2
+        tree = trees[1]
+        # Make sure `pokempi0` is within the outer Iteration
+        assert len(tree) == 2
+        assert len(tree.root.nodes) == 2
+        call = tree.root.nodes[0]
+        assert call.name == 'pokempi0'
+        assert call.arguments[0].name == 'msg0_0'
+
+        # Now we do as before, but enforcing loop blocking (by default off,
+        # as heuristically it is not enabled when the Iteration nest has depth < 3)
+        op = Operator(eqn, dle=('advanced', {'blockinner': True}))
+        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+        assert len(trees) == 2
+        tree = trees[1]
+        # Make sure `pokempi0` is within the inner Iteration over blocks
+        assert len(tree) == 4
+        assert len(tree.root.nodes[0].nodes) == 2
+        call = tree.root.nodes[0].nodes[0]
+        assert call.name == 'pokempi0'
+        assert call.arguments[0].name == 'msg0_0'
 
 
 class TestOperatorAdvanced(object):
@@ -1282,8 +1291,9 @@ class TestIsotropicAcoustic(object):
         ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
-                                (4, 'overlap2')])
+    @pytest.mark.parallel(mode=[(4, 'basic', True), (4, 'diag', True),
+                                (4, 'overlap', True), (4, 'overlap2', True),
+                                (4, 'full', True)])
     def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
                        Eu, Erec, Ev, Esrca):
         self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
@@ -1291,7 +1301,7 @@ class TestIsotropicAcoustic(object):
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
-    @pytest.mark.parallel(mode=[(8, 'diag'), (8, 'overlap2')])
+    @pytest.mark.parallel(mode=[(8, 'diag'), (8, 'full')])
     @switchconfig(openmp=False)
     def test_adjoint_F_no_omp(self, shape, kernel, space_order, nbpml, save,
                               Eu, Erec, Ev, Esrca):

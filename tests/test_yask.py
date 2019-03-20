@@ -8,7 +8,8 @@ pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
 from conftest import skipif  # noqa
 from devito import (Eq, Grid, Dimension, ConditionalDimension, Operator, Constant,
-                    Function, TimeFunction,  SparseTimeFunction, configuration, clear_cache)  # noqa
+                    Function, TimeFunction, SparseTimeFunction, configuration,
+                    clear_cache, switchconfig)  # noqa
 from devito.ir.iet import FindNodes, ForeignExpression, retrieve_iteration_tree  # noqa
 from examples.seismic.acoustic import iso_stencil  # noqa
 from examples.seismic import demo_model, TimeAxis, RickerSource, Receiver  # noqa
@@ -573,6 +574,16 @@ class TestIsotropicAcoustic(object):
     def test_acoustic_adjoint(self):
         """
         Full acoustic wave test, forward + adjoint operators
+        """
+        from test_adjoint import TestAdjoint
+        TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel,
+                                     self.space_order, self.nbpml)
+
+    @switchconfig(openmp=True)
+    def test_acoustic_adjoint_omp(self):
+        """
+        Full acoustic wave test, forward + adjoint operators, with OpenMP-ized
+        sparse loops.
         """
         from test_adjoint import TestAdjoint
         TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel,

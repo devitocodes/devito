@@ -4,9 +4,9 @@ import pytest
 from conftest import skipif, EVAL, time, x, y, z
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, configuration, switchconfig)
-from devito.ir.iet import (ArrayCast, Expression, Iteration, FindNodes,
-                           IsPerfectIteration, retrieve_iteration_tree)
+                    NODE, CELL, configuration)
+from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
+                           retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
 from devito.tools import flatten
@@ -73,28 +73,6 @@ class TestCodeGen(object):
         expr = eval(expr)
         expr = Operator(expr)._specialize_exprs([indexify(expr)])[0]
         assert str(expr).replace(' ', '') == expected
-
-    @switchconfig(codegen='explicit')
-    @pytest.mark.parametrize('so, to, padding, expected', [
-        (0, 1, 0, '(float(*)[x_size][y_size][z_size])u_vec->data'),
-        (2, 1, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec->data'),
-        (4, 1, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec->data'),
-        (4, 3, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec->data'),
-        (4, 1, 3, '(float(*)[x_size+4+4+3][y_size+4+4+3][z_size+4+4+3])u_vec->data'),
-        ((2, 5, 2), 1, 0, '(float(*)[x_size+2+5][y_size+2+5][z_size+2+5])u_vec->data'),
-        ((2, 5, 4), 1, 3,
-         '(float(*)[x_size+4+5+3][y_size+4+5+3][z_size+4+5+3])u_vec->data'),
-    ])
-    def test_array_casts(self, so, to, padding, expected):
-        """Tests that data casts are generated correctly."""
-        grid = Grid(shape=(4, 4, 4))
-        u = TimeFunction(name='u', grid=grid,
-                         space_order=so, time_order=to, padding=padding)
-        op = Operator(Eq(u, 1), dse='noop', dle='noop')
-        casts = FindNodes(ArrayCast).visit(op)
-        assert len(casts) == 1
-        cast = casts[0]
-        assert cast.ccode.data.replace(' ', '') == expected
 
     @pytest.mark.parametrize('expr,exp_uindices,exp_mods', [
         ('Eq(v.forward, u[0, x, y, z] + v + 1)', [(0, 5), (2, 5)], {'v': 5}),
@@ -1004,10 +982,12 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
+  /* Begin section0 */
   for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
+  /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
@@ -1021,6 +1001,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
+  /* Begin section0 */
   for (int i = i_m; i <= i_M; i += 1)
   {
     for (int j = j_m; j <= j_M; j += 1)
@@ -1029,6 +1010,7 @@ class TestDeclarator(object):
       c[i][j] = sa0*c[i][j];
     }
   }
+  /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
@@ -1044,6 +1026,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
+  /* Begin section0 */
   for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = 0.0F;
@@ -1052,6 +1035,7 @@ class TestDeclarator(object):
       c[i][j] = a[i]*c[i][j];
     }
   }
+  /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
@@ -1069,10 +1053,12 @@ class TestDeclarator(object):
   float t0 = 1.00000000000000F;
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
+  /* Begin section0 */
   for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = 3.0F*t0*t1;
   }
+  /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
@@ -1085,6 +1071,7 @@ class TestDeclarator(object):
   float c_stack[i_size][j_size] __attribute__((aligned(64)));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
+  /* Begin section0 */
   for (int k = k_m; k <= k_M; k += 1)
   {
     for (int s = s_m; s <= s_M; s += 1)
@@ -1101,6 +1088,7 @@ class TestDeclarator(object):
       }
     }
   }
+  /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;

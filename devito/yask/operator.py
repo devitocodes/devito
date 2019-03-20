@@ -105,7 +105,8 @@ class OperatorYASK(Operator):
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences
         # in storage layout employed by Devito and YASK
-        yk_grid_objs = {i.name: YaskGridObject(i.name) for i in self.input if i.from_YASK}
+        yk_grid_objs = {i.name: YaskGridObject(i.name) for i in self._input
+                        if i.from_YASK}
         yk_grid_objs.update({i: YaskGridObject(i) for i in self._local_grids})
         iet = make_grid_accesses(iet, yk_grid_objs)
 
