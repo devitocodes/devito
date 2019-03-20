@@ -74,7 +74,7 @@ class Eq(sympy.Eq, Evaluable):
                 obj = obj.xreplace({**coefficients.rules, **rules})
             except AttributeError:
                 if bool(rules):
-                    obj = super(Eq, obj).xreplace(rules)
+                    obj = obj.xreplace(rules)
 
         return obj
 
@@ -86,7 +86,7 @@ class Eq(sympy.Eq, Evaluable):
     @cached_property
     def evaluate(self):
         return self.func(*self._evaluate_args, subdomain=self.subdomain,
-                         coefficients=self.substitutions)
+                         coefficients=self.substitutions, implicit_dims=self._implicit_dims)
 
     @property
     def substitutions(self):

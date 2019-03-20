@@ -59,7 +59,7 @@ class Differentiable(sympy.Expr, Evaluable):
     def _fd(self):
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
 
-    @property
+    @cached_property
     def _symbolic_functions(self):
         return frozenset([i for i in self._functions if i.coefficients == 'symbolic'])
 
