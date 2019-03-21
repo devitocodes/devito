@@ -129,9 +129,9 @@ class Eq(sympy.Eq):
             for i in unordered:
                 if isinstance(i, Dimension):
                     if i.is_Space:
-                        ordered_sp.append(i)
+                        ordered_sp.append(i.root)
                     else:
-                        ordered_ns.append(i)
+                        ordered_ns.append(i.root)
                 if bool(i.args):
                     dim = [d for d in i.args if isinstance(d, Dimension)]
                     if len(dim) > 1:
@@ -158,6 +158,7 @@ class Eq(sympy.Eq):
         i_dim = obj._subdomain._implicit_dimension
         # FIXME: Nasty temp hack
         dims = list(obj.expr_free_symbols)[::-1] + [i_dim, ]
+        #from IPython import embed; embed()
         implicit_dims = order_relations(dims)
         subdims = obj._subdomain.dimensions
         implicit_dims = implicit_dims[0:2] + subdims
