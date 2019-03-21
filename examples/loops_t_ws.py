@@ -24,9 +24,9 @@ for j in range(0,n_domains):
     bounds_ym[j] = floor(j/2)
     bounds_yM[j] = floor(j/2)
     
-extent=(bounds_xm, bounds_xM, bounds_ym, bounds_yM)
+bounds=(bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
-inner_sd = Inner(n_domains=n_domains, extent=extent)
+inner_sd = Inner(N=n_domains, bounds=bounds)
 
 grid = Grid(extent=(10, 10), shape=(10, 10), subdomains=(inner_sd, ))
 t = grid.time_dim

@@ -62,14 +62,14 @@ class Eq(sympy.Eq):
 
     is_Increment = False
 
-    def __new__(cls, lhs, rhs=0, implicit_dims=None, subdomain=None, coefficients=None,
+    def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None,
                 **kwargs):
         kwargs['evaluate'] = False
+        implicit_dims = kwargs.pop('implicit_dims', None)
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
         if bool(implicit_dims):
             obj._implicit_dims = as_tuple(implicit_dims)
-            obj._implicit_equations = None
         else:
             implicit_equations, implicit_dims = obj._form_implicit_structs()
             obj._implicit_equations = implicit_equations
@@ -121,7 +121,7 @@ class Eq(sympy.Eq):
             TypeError('Failed to retrieve symbolic functions')
 
     def _form_implicit_structs(obj):
-        
+
         def order_relations(unordered):
             unordered = list(unordered)
             ordered_ns = []
@@ -142,17 +142,16 @@ class Eq(sympy.Eq):
                         ordered_ns.append(i)
             ordered = ordered_ns + ordered_sp
             return tuple(ordered)
-        
-        
+
         if bool(obj._subdomain):
             try:
-                e_dat = obj._subdomain._implicit_e_dat
+                ie_dat = obj._subdomain._ie_dat
             except AttributeError:
                 return None, None
         else:
             return None, None
         # Form implicit equations and dimensions
-        # FIXME: Suboject e_dat
+        # FIXME: Suboject ie_dat
         # FIXME: Dodgy. Tighten up.
         n_domains = obj._subdomain.n_domains
         i_dim = obj._subdomain._implicit_dimension
@@ -165,8 +164,7 @@ class Eq(sympy.Eq):
         d = {}
         eq = []
         count = 0
-        
-        for i in e_dat:
+        for i in ie_dat:
             fname = i[0].name +str(count)
             d[fname] = Function(name=fname, shape=(n_domains, ),
                                 dimensions=(i_dim, ), dtype=np.int32)
