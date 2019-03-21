@@ -1,10 +1,12 @@
 from collections import namedtuple
 
-from sympy import prod
 import numpy as np
 import sympy
+from sympy import prod
+from math import floor
 
-#from devito import Eq
+from cached_property import cached_property
+
 from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ReducerMap, as_tuple
@@ -427,37 +429,53 @@ class Interior(SubDomain):
 
 
 class SubDomains(SubDomain):
-    
+    """
+    Class to define a set of N (a positive integer) subdomains.
+
+    Parameters
+    ----------
+    **kwargs
+        * N : int
+            Number of subdomains.
+        * bounds : tuple
+            Tuple of numpy int32 arrays representing the bounds of 
+            each subdomain.
+
+    Examples
+    --------
+    Include full example + example of shorthand notation here.
+    """
+
     def __init__(self, **kwargs):
         super(SubDomains, self).__init__()
-        n_domains = kwargs.get('n_domains', 1)
-        extent = kwargs.get('extent')
-        self._n_domains = n_domains
-        self._extent = extent
+        self._n_domains = kwargs.get('N', 1)
+        self._bounds = kwargs.get('bounds', None)
 
     def __subdomain_finalize__(self, dimensions, shape):
         super(SubDomains, self).__subdomain_finalize__(dimensions, shape)
         n = Dimension(name = 'n')
         self._implicit_dimension = n
-        self._implicit_e_dat = self._generate_implicit_e_dat()
 
     @property
     def n_domains(self):
         return self._n_domains
 
     @property
-    def extent(self):
-        return self._extent
+    def bounds(self):
+        return self._bounds
 
-    def _generate_implicit_e_dat(self):
-        implicit_e_dat = ()
-        # FIXME: Horrible method for testing.
-        # FIXME: Suboject e_dat
-        counter = 0
-        for d in self.dimensions:
-            e1 = (d.root, d.thickness[0][0], self._extent[counter])
-            e2 = (d.root, d.thickness[1][0], self._extent[counter+1])
-            counter += 2
-            implicit_e_dat += (e1, e2)
-        return implicit_e_dat
-    
+    @cached_property
+    def _ie_dat(self):
+        if not len(self._bounds) == 2*len(self.dimensions):
+            raise ValueError("Left and right bounds must be supplied for each dimension")
+        # FIXME: Should ie_dat be a specialised object?
+        ie_dat = []
+        for j in range(0, len(self._bounds)):
+            index = floor(j/2)
+            d = self.dimensions[index]
+            if isinstance(self._bounds[j], int):
+                bounds = np.zeros((self.n_domains,), dtype=np.int32)
+                ie_dat.append([d.root, d.thickness[j%2][0], bounds])
+            else:
+                ie_dat.append([d.root, d.thickness[j%2][0], self._bounds[j]])
+        return tuple(ie_dat)
