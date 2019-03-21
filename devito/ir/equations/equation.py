@@ -116,6 +116,7 @@ class LoweredEq(sympy.Eq, IREq):
 
         # Analyze the expression
         mapper = detect_accesses(expr)
+        from IPython import embed; embed()
         oobs = detect_oobs(mapper)
         conditionals = [i for i in ordering if i.is_Conditional]
 

@@ -452,6 +452,7 @@ class SubDomains(SubDomain):
     def _generate_implicit_e_dat(self):
         implicit_e_dat = ()
         # FIXME: Horrible method for testing.
+        # FIXME: Suboject e_dat
         counter = 0
         for d in self.dimensions:
             e1 = (d.root, d.thickness[0][0], self._extent[counter])

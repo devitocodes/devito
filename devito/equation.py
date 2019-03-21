@@ -1,9 +1,12 @@
 """User API to specify equations."""
 
+import numpy as np
 import sympy
 
 from cached_property import cached_property
 
+from devito.types import Dimension
+from devito.types.dense import Function
 from devito.finite_differences import default_rules
 from devito.tools import as_tuple
 
@@ -63,8 +66,14 @@ class Eq(sympy.Eq):
                 **kwargs):
         kwargs['evaluate'] = False
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
-        obj._implicit_dims = as_tuple(implicit_dims)
         obj._subdomain = subdomain
+        if bool(implicit_dims):
+            obj._implicit_dims = as_tuple(implicit_dims)
+            obj._implicit_equations = None
+        else:
+            implicit_equations, implicit_dims = obj._form_implicit_structs()
+            obj._implicit_equations = implicit_equations
+            obj._implicit_dims = implicit_dims
         obj._substitutions = coefficients
         if obj._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
@@ -110,6 +119,61 @@ class Eq(sympy.Eq):
             return frozenset()
         else:
             TypeError('Failed to retrieve symbolic functions')
+
+    def _form_implicit_structs(obj):
+        
+        def order_relations(unordered):
+            unordered = list(unordered)
+            ordered_ns = []
+            ordered_sp = []
+            for i in unordered:
+                if isinstance(i, Dimension):
+                    if i.is_Space:
+                        ordered_sp.append(i)
+                    else:
+                        ordered_ns.append(i)
+                if bool(i.args):
+                    dim = [d for d in i.args if isinstance(d, Dimension)]
+                    if len(dim) > 1:
+                        raise ValueError("More than one dimension present. Broken.")
+                    if dim[0].is_Space:
+                        ordered_sp.append(i)
+                    else:
+                        ordered_ns.append(i)
+            ordered = ordered_ns + ordered_sp
+            return tuple(ordered)
+        
+        
+        if bool(obj._subdomain):
+            try:
+                e_dat = obj._subdomain._implicit_e_dat
+            except AttributeError:
+                return None, None
+        else:
+            return None, None
+        # Form implicit equations and dimensions
+        # FIXME: Suboject e_dat
+        # FIXME: Dodgy. Tighten up.
+        n_domains = obj._subdomain.n_domains
+        i_dim = obj._subdomain._implicit_dimension
+        # FIXME: Nasty temp hack
+        dims = list(obj.expr_free_symbols)[::-1] + [i_dim, ]
+        implicit_dims = order_relations(dims)
+        subdims = obj._subdomain.dimensions
+        implicit_dims = implicit_dims[0:2] + subdims
+        d = {}
+        eq = []
+        count = 0
+        
+        for i in e_dat:
+            fname = i[0].name +str(count)
+            d[fname] = Function(name=fname, shape=(n_domains, ),
+                                dimensions=(i_dim, ), dtype=np.int32)
+            d[fname].data[:] = i[2]
+            count += 1
+            # FIXME: Fix implicit dimension selection
+            eq.append(Eq(i[1], d[fname][i_dim], implicit_dims=list(implicit_dims[0:2])))
+        return eq, implicit_dims
 
     def xreplace(self, rules):
         """"""
