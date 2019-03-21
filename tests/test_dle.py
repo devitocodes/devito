@@ -7,6 +7,7 @@ import pytest
 from conftest import EVAL, skipif
 from devito import Grid, Function, TimeFunction, Eq, Operator, solve
 from devito.dle import NThreads, transform
+from devito.dle.parallelizer import nhyperthreads
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
                            iet_analyze, retrieve_iteration_tree)
@@ -331,9 +332,10 @@ class TestNestedParallelism(object):
         assert np.all(u.data[0] == 10)
 
         iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
-        assert iterations[0].pragmas[0].value == 'omp for collapse(1) schedule(static)'
+        assert iterations[0].pragmas[0].value == 'omp for collapse(1) schedule(static,1)'
         assert iterations[2].pragmas[0].value ==\
-            'omp parallel for collapse(1) schedule(static)'
+            ('omp parallel for collapse(1) schedule(static,1) num_threads(%d)'
+             % nhyperthreads())
 
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
     @patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
@@ -352,9 +354,10 @@ class TestNestedParallelism(object):
         assert np.all(u.data[0] == 10)
 
         iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
-        assert iterations[0].pragmas[0].value == 'omp for collapse(2) schedule(static)'
+        assert iterations[0].pragmas[0].value == 'omp for collapse(2) schedule(static,1)'
         assert iterations[2].pragmas[0].value ==\
-            'omp parallel for collapse(2) schedule(static)'
+            ('omp parallel for collapse(2) schedule(static,1) num_threads(%d)'
+             % nhyperthreads())
 
     @patch("devito.dse.backends.advanced.AdvancedRewriter.MIN_COST_ALIAS", 1)
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
@@ -375,11 +378,13 @@ class TestNestedParallelism(object):
 
         assert trees[0][0] is trees[1][0]
         assert trees[0][0].pragmas[0].value ==\
-            'omp for collapse(1) schedule(static)'
+            'omp for collapse(1) schedule(static,1)'
         assert trees[0][2].pragmas[0].value ==\
-            'omp parallel for collapse(1) schedule(static)'
+            ('omp parallel for collapse(1) schedule(static,1) num_threads(%d)'
+             % nhyperthreads())
         assert trees[1][2].pragmas[0].value ==\
-            'omp parallel for collapse(1) schedule(static)'
+            ('omp parallel for collapse(1) schedule(static,1) num_threads(%d)'
+             % nhyperthreads())
 
 
 @pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
