@@ -11,7 +11,6 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
                            iet_analyze, retrieve_iteration_tree)
 from devito.tools import as_tuple
-from devito.types import Scalar
 from unittest.mock import patch
 
 pytestmark = skipif(['yask', 'ops'])
@@ -362,18 +361,14 @@ class TestNestedParallelism(object):
     def test_multiple_subnests(self):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
+        t = grid.stepping_dim
 
         f = Function(name='f', grid=grid)
         u = TimeFunction(name='u', grid=grid)
-        t0 = Scalar(name='t0')
-        t1 = Scalar(name='t1')
-        t2 = Scalar(name='t2')
 
-        eqns = [Eq(t0, u*3),
-                Eq(t1, f[x, y, z]*f[x+1, y+1, z+1]*t0),
-                Eq(t2, f[x+2, y+2, z+2]*f[x+3, y+3, z+3]*t0),
-                Eq(u.forward, t1*2 + t2*u + 1)]
-        op = Operator(eqns, dse='aggressive', dle=('blocking', 'openmp'))
+        eqn = Eq(u.forward, (u[t, x, y, z]*u[t, x+1, y+1, z+1]*3*f +
+                             u[t, x+2, y+2, z+2]*u[t, x+3, y+3, z+3]*3*f + 1))
+        op = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
