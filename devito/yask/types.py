@@ -259,6 +259,10 @@ class YaskGridObject(basic.Object):
         self.mapped_function_name = mapped_function_name
         self.name = namespace['code-grid-name'](mapped_function_name)
 
+    def _arg_values(self, args=None, **kwargs):
+        # The C-pointer to a YASK grid is provided directly by Function/TimeFunction
+        return {}
+
     # Pickling support
     _pickle_args = ['mapped_function_name']
     _pickle_kwargs = []
