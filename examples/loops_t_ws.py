@@ -41,6 +41,6 @@ stencil = Eq(f.forward, solve(Eq(f.dt, 1), f.forward),
 op = Operator(stencil)
 
 #print(op.ccode)
-#op(time_m=0, time_M=0, dt=1)
+op(time_m=0, time_M=0, dt=5)
 
 from IPython import embed; embed()
