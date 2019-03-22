@@ -129,11 +129,11 @@ class Operator(Callable):
 
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
-        
+
         # Get implicit expressions
         implicit_expressions = []
         for e in expressions:
-            ie = e._implicit_equations
+            ie = list(e._implicit_equations)
             if bool(ie):
                 for i in ie:
                     implicit_expressions.append(i)

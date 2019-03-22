@@ -1,7 +1,6 @@
 from collections import namedtuple
 
 import numpy as np
-import sympy
 from sympy import prod
 from math import floor
 
@@ -12,6 +11,7 @@ from devito.parameters import configuration
 from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
 from devito.types.constant import Constant
+from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
 
@@ -438,7 +438,7 @@ class SubDomains(SubDomain):
         * N : int
             Number of subdomains.
         * bounds : tuple
-            Tuple of numpy int32 arrays representing the bounds of 
+            Tuple of numpy int32 arrays representing the bounds of
             each subdomain.
 
     Examples
@@ -453,7 +453,7 @@ class SubDomains(SubDomain):
 
     def __subdomain_finalize__(self, dimensions, shape):
         super(SubDomains, self).__subdomain_finalize__(dimensions, shape)
-        n = Dimension(name = 'n')
+        n = Dimension(name='n')
         self._implicit_dimension = n
 
     @property
@@ -468,14 +468,21 @@ class SubDomains(SubDomain):
     def _ie_dat(self):
         if not len(self._bounds) == 2*len(self.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
-        # FIXME: Should ie_dat be a specialised object?
-        ie_dat = []
+        n_domains = self.n_domains
+        i_dim = self._implicit_dimension
+        b_f = {}
+        mMstring = ['_m', '_M']
+        dat = []
         for j in range(0, len(self._bounds)):
             index = floor(j/2)
             d = self.dimensions[index]
+            fname = d.name + mMstring[j % 2]
+            b_f[fname] = Function(name=fname, shape=(n_domains, ),
+                                  dimensions=(i_dim, ), dtype=np.int32)
             if isinstance(self._bounds[j], int):
-                bounds = np.zeros((self.n_domains,), dtype=np.int32)
-                ie_dat.append([d.root, d.thickness[j%2][0], bounds])
+                bounds = np.zeros((n_domains,), dtype=np.int32)
+                b_f[fname].data[:] = bounds
             else:
-                ie_dat.append([d.root, d.thickness[j%2][0], self._bounds[j]])
-        return tuple(ie_dat)
+                b_f[fname].data[:] = self._bounds[j]
+            dat.append({'rhs': d.thickness[j % 2][0], 'lhs': b_f[fname][i_dim]})
+        return as_tuple(dat)
