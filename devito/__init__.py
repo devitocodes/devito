@@ -7,7 +7,7 @@ from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.equation import *  # noqa
 from devito.finite_differences import *  # noqa
-from devito.types import NODE, CELL, Buffer, SubDomain  # noqa
+from devito.types import NODE, CELL, Buffer, SubDomain, SubDomainSet  # noqa
 from devito.types.dimension import *  # noqa
 
 # Imports required to initialize Devito

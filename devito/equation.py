@@ -68,10 +68,11 @@ class Eq(sympy.Eq):
         obj._subdomain = subdomain
         if bool(implicit_dims):
             obj._implicit_dims = as_tuple(implicit_dims)
+            obj._implicit_equations = None
         else:
             implicit_equations, implicit_dims = obj._form_implicit_structs()
             obj._implicit_equations = implicit_equations
-            obj._implicit_dims = implicit_dims
+            obj._implicit_dims = as_tuple(implicit_dims)
         obj._substitutions = coefficients
         if obj._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
@@ -144,7 +145,7 @@ class Eq(sympy.Eq):
         i_eq = []
         for i in ie_dat:
             i_eq.append(Eq(i['rhs'], i['lhs'], implicit_dims=ie_dims))
-        return as_tuple(i_eq), as_tuple(implicit_dims)
+        return as_tuple(i_eq), implicit_dims
 
     def xreplace(self, rules):
         """"""
