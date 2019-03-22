@@ -1,12 +1,10 @@
 """User API to specify equations."""
 
-import numpy as np
 import sympy
 
 from cached_property import cached_property
 
 from devito.types import Dimension
-from devito.types.dense import Function
 from devito.finite_differences import default_rules
 from devito.tools import as_tuple
 
@@ -122,26 +120,16 @@ class Eq(sympy.Eq):
 
     def _form_implicit_structs(obj):
 
-        def order_relations(unordered):
-            unordered = list(unordered)
-            ordered_ns = []
-            ordered_sp = []
-            for i in unordered:
-                if isinstance(i, Dimension):
-                    if i.is_Space:
-                        ordered_sp.append(i.root)
-                    else:
-                        ordered_ns.append(i.root)
-                if bool(i.args):
-                    dim = [d for d in i.args if isinstance(d, Dimension)]
-                    if len(dim) > 1:
-                        raise ValueError("More than one dimension present. Broken.")
-                    if dim[0].is_Space:
-                        ordered_sp.append(i)
-                    else:
-                        ordered_ns.append(i)
-            ordered = ordered_ns + ordered_sp
-            return tuple(ordered)
+        def generate_i_dims(obj):
+            dims = [d for d in obj.free_symbols if isinstance(d, Dimension)]
+            dims = [d.root for d in dims if d.is_Time]
+            if len(dims) > 1:
+                ValueError('More than one time dimensions detected')
+            i_dim = obj._subdomain._implicit_dimension
+            dims.append(i_dim)
+            ie_dims = dims
+            implicit_dims = dims+list(obj._subdomain.dimensions)
+            return implicit_dims, ie_dims
 
         if bool(obj._subdomain):
             try:
@@ -150,29 +138,13 @@ class Eq(sympy.Eq):
                 return None, None
         else:
             return None, None
-        # Form implicit equations and dimensions
-        # FIXME: Suboject ie_dat
-        # FIXME: Dodgy. Tighten up.
-        n_domains = obj._subdomain.n_domains
-        i_dim = obj._subdomain._implicit_dimension
-        # FIXME: Nasty temp hack
-        dims = list(obj.expr_free_symbols)[::-1] + [i_dim, ]
-        #from IPython import embed; embed()
-        implicit_dims = order_relations(dims)
-        subdims = obj._subdomain.dimensions
-        implicit_dims = implicit_dims[0:2] + subdims
-        d = {}
-        eq = []
-        count = 0
+
+        implicit_dims, ie_dims = generate_i_dims(obj)
+
+        i_eq = []
         for i in ie_dat:
-            fname = i[0].name +str(count)
-            d[fname] = Function(name=fname, shape=(n_domains, ),
-                                dimensions=(i_dim, ), dtype=np.int32)
-            d[fname].data[:] = i[2]
-            count += 1
-            # FIXME: Fix implicit dimension selection
-            eq.append(Eq(i[1], d[fname][i_dim], implicit_dims=list(implicit_dims[0:2])))
-        return eq, implicit_dims
+            i_eq.append(Eq(i['rhs'], i['lhs'], implicit_dims=ie_dims))
+        return as_tuple(i_eq), as_tuple(implicit_dims)
 
     def xreplace(self, rules):
         """"""
