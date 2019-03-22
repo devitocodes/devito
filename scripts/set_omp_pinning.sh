@@ -16,7 +16,6 @@ platforms="snb ivb hsw bdw skx knl"
 if [[ -z $1 || $1 == "--help" ]]; then
     help
 elif [[ $1 == "reset" ]]; then
-    exe unset OMP_DISPLAY_AFFINITY
     exe unset OMP_NESTED
     exe unset OMP_MAX_ACTIVE_LEVELS
     exe unset OMP_PLACES
@@ -63,13 +62,11 @@ KMP_HOT_TEAMS_MAX_LEVEL:
   as a hot team.
 EOF
 elif [[ $1 == @(snb|ivb|hsw|bdw|skx) ]]; then
-    exe export OMP_DISPLAY_AFFINITY=true
     exe unset OMP_NESTED
     exe export OMP_PLACES=cores
     exe export OMP_PROC_BIND=close
 elif [[ $1 == "knl" ]]; then
     echo "Setting for nested parallelism"
-    exe export OMP_DISPLAY_AFFINITY=true
     exe export OMP_NESTED=true
     exe export OMP_MAX_ACTIVE_LEVELS=2
     exe export OMP_PLACES=threads
