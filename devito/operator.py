@@ -225,7 +225,6 @@ class Operator(Callable):
             * Replacing Dimensions with SubDimensions based on expression SubDomains.
         """
         processed = []
-        from IPython import embed; embed()
         for e in expressions:
             mapper = subs.copy()
             if e.subdomain:
