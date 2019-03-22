@@ -130,10 +130,10 @@ class Operator(Callable):
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
 
-        # Get implicit expressions
+        # Gather implicit expressions
         implicit_expressions = []
         for e in expressions:
-            ie = list(e._implicit_equations)
+            ie = e._implicit_equations
             if bool(ie):
                 for i in ie:
                     implicit_expressions.append(i)
@@ -225,6 +225,7 @@ class Operator(Callable):
             * Replacing Dimensions with SubDimensions based on expression SubDomains.
         """
         processed = []
+        from IPython import embed; embed()
         for e in expressions:
             mapper = subs.copy()
             if e.subdomain:
