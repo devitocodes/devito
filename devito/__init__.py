@@ -130,13 +130,15 @@ def infer_cpu():
 # - Some optimizations may not be applied to the generated code.
 # - The compiler performs more type and value checking
 def _switch_cpu(develop_mode):
-    if bool(develop_mode) is False:
-        isa, platform = infer_cpu()
-        configuration['isa'] = os.environ.get('DEVITO_ISA', isa)
-        configuration['platform'] = os.environ.get('DEVITO_PLATFORM', platform)
+    isa = os.environ.get('DEVITO_ISA')
+    platform = os.environ.get('DEVITO_PLATFORM')
+    if bool(develop_mode) is True:
+        configuration['isa'] = isa or 'cpp'
+        configuration['platform'] = platform or 'intel64'
     else:
-        configuration['isa'] = 'cpp'
-        configuration['platform'] = 'intel64'
+        default_isa, default_platform = infer_cpu()
+        configuration['isa'] = isa or default_isa
+        configuration['platform'] = platform or default_platform
 configuration.add('develop-mode', True, [False, True], _switch_cpu)  # noqa
 
 # Initialize the configuration, either from the environment or

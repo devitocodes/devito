@@ -55,15 +55,6 @@ class AbstractRewriter(object):
     """
     tempname = 'r'
 
-    """
-    Bag of thresholds, used to trigger or prevent certain transformations.
-    """
-    thresholds = {
-        'min-cost-alias': 10,
-        'min-cost-factorize': 100,
-        'max-operands': 40,
-    }
-
     def __init__(self, profile=True, template=None):
         self.profile = profile
 

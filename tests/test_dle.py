@@ -8,8 +8,8 @@ from conftest import EVAL, skipif
 from devito import Grid, Function, TimeFunction, Eq, Operator, solve
 from devito.dle import NThreads, transform
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Expression, Iteration, FindNodes, iet_analyze,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
+                           iet_analyze, retrieve_iteration_tree)
 from devito.tools import as_tuple
 from unittest.mock import patch
 
@@ -98,6 +98,7 @@ def _new_operator3(shape, blockshape=None, dle=None):
     (False, 4, 5),
     (True, 8, 6)
 ])
+@patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
 def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     # Check code structure
     _, op = _new_operator1((10, 31, 45), dle=('blocking', {'blockalways': True,
@@ -118,6 +119,15 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     tree = trees[0]
     assert len(tree.root.pragmas) == 1
     assert 'omp for' in tree.root.pragmas[0].value
+    # Also, with omp parallelism enabled, the step increment must be != 0
+    # to avoid omp segfaults at scheduling time (only certain omp implementations,
+    # including Intel's)
+    conditionals = FindNodes(Conditional).visit(op._func_table['bf0'].root)
+    assert len(conditionals) == 1
+    conds = conditionals[0].condition.args
+    expected_guarded = tree[:2+blockinner]
+    assert len(conds) == len(expected_guarded)
+    assert all(i.lhs == j.step for i, j in zip(conds, expected_guarded))
 
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (10, 31, 45)])
@@ -269,38 +279,112 @@ def test_dynamic_nthreads():
     assert op.arguments(time=0, nthreads=123)['nthreads'] == 123  # user supplied
 
 
+@pytest.mark.parametrize('eq,expected,blocking', [
+    ('Eq(f, 2*f)', [2, 0, 0], False),
+    ('Eq(u, 2*u)', [0, 2, 0, 0], False),
+    ('Eq(u, 2*u)', [3, 0, 0, 0, 0, 0], True)
+])
+@patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
+def test_loops_collapsed(eq, expected, blocking):
+    grid = Grid(shape=(3, 3, 3))
+
+    f = Function(name='f', grid=grid)  # noqa
+    u = TimeFunction(name='u', grid=grid)  # noqa
+
+    eq = eval(eq)
+
+    if blocking:
+        op = Operator(eq, dle=('blocking', 'openmp', {'blockinner': True}))
+        iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
+    else:
+        op = Operator(eq, dle='openmp')
+        iterations = FindNodes(Iteration).visit(op)
+
+    assert len(iterations) == len(expected)
+
+    # Check for presence of pragma omp + collapse clause
+    for i, j in zip(iterations, expected):
+        if j > 0:
+            assert len(i.pragmas) == 1
+            pragma = i.pragmas[0]
+            assert 'omp for collapse(%d)' % j in pragma.value
+        else:
+            for k in i.pragmas:
+                assert 'omp for collapse' not in k.value
+
+
+class TestNestedParallelism(object):
+
+    @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
+    def test_basic(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u + 1), dle=('blocking', 'openmp'))
+
+        # Does it compile? Honoring the OpenMP specification isn't trivial
+        assert op.cfunction
+
+        # Does it produce the right result
+        op.apply(t_M=9)
+        assert np.all(u.data[0] == 10)
+
+        iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
+        assert iterations[0].pragmas[0].value == 'omp for collapse(1) schedule(static)'
+        assert iterations[2].pragmas[0].value ==\
+            'omp parallel for collapse(1) schedule(static)'
+
+    @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
+    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
+    def test_collapsing(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u + 1), dle=('blocking', 'openmp'))
+
+        # Does it compile? Honoring the OpenMP specification isn't trivial
+        assert op.cfunction
+
+        # Does it produce the right result
+        op.apply(t_M=9)
+        assert np.all(u.data[0] == 10)
+
+        iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
+        assert iterations[0].pragmas[0].value == 'omp for collapse(2) schedule(static)'
+        assert iterations[2].pragmas[0].value ==\
+            'omp parallel for collapse(2) schedule(static)'
+
+    @patch("devito.dse.backends.advanced.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
+    def test_multiple_subnests(self):
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid)
+
+        eqn = Eq(u.forward, (u[t, x, y, z]*u[t, x+1, y+1, z+1]*3*f +
+                             u[t, x+2, y+2, z+2]*u[t, x+3, y+3, z+3]*3*f + 1))
+        op = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
+
+        trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+        assert len(trees) == 2
+
+        assert trees[0][0] is trees[1][0]
+        assert trees[0][0].pragmas[0].value ==\
+            'omp for collapse(1) schedule(static)'
+        assert trees[0][2].pragmas[0].value ==\
+            'omp parallel for collapse(1) schedule(static)'
+        assert trees[1][2].pragmas[0].value ==\
+            'omp parallel for collapse(1) schedule(static)'
+
+
 @pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
 def test_composite_transformation(shape):
     wo_blocking, _ = _new_operator1(shape, dle='noop')
     w_blocking, _ = _new_operator1(shape, dle='advanced')
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()
-
-
-@pytest.mark.parametrize('exprs,expected', [
-    # trivial 1D
-    (['Eq(fe[x,y,z], fe[x,y,z] + fe[x,y,z])'],
-     (True, False, False))
-])
-@patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
-def test_loops_collapsed(fe, t0, t1, t2, t3, exprs, expected, iters):
-    scope = [fe, t0, t1, t2, t3]
-    node_exprs = [Expression(DummyEq(EVAL(i, *scope))) for i in exprs]
-    ast = iters[6](iters[7](iters[8](node_exprs)))
-
-    ast = iet_analyze(ast)
-
-    iet, _ = transform(ast, mode='openmp')
-    iterations = FindNodes(Iteration).visit(iet)
-    assert len(iterations) == len(expected)
-
-    # Check for presence of pragma omp
-    for i, j in zip(iterations, expected):
-        pragmas = i.pragmas
-        if j is True:
-            assert len(pragmas) == 1
-            pragma = pragmas[0]
-            assert 'omp for collapse' in pragma.value
-        else:
-            for k in pragmas:
-                assert 'omp for collapse' not in k.value

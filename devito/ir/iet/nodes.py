@@ -23,7 +23,7 @@ from devito.types.basic import AbstractFunction
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
-           'ExpressionBundle', 'Increment']
+           'ExpressionBundle', 'Increment', 'Return']
 
 # First-class IET nodes
 
@@ -806,6 +806,9 @@ class Prodder(Call):
     @property
     def periodic(self):
         return self._periodic
+
+
+Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))
 
 
 # Nodes required for distributed-memory halo exchange
