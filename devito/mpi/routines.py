@@ -865,6 +865,15 @@ class MPIMsg(CompositeObject):
         self._allocator = default_allocator()
         self._memfree_args = []
 
+    def __del__(self):
+        self._C_memfree()
+
+    def _C_memfree(self):
+        # Deallocate the MPI buffers
+        for i in self._memfree_args:
+            self._allocator.free(*i)
+        self._memfree_args[:] = []
+
     def __value_setup__(self, dtype, value):
         # We eventually produce an array of `struct msg` that is as big as
         # the number of peers we have to communicate with
@@ -882,11 +891,10 @@ class MPIMsg(CompositeObject):
     def npeers(self):
         return len(self._halos)
 
-    def _arg_values(self, args, **kwargs):
-        values = self._arg_defaults()
-        function = kwargs.get(self.function.name, self.function)
+    def _arg_defaults(self, alias=None):
+        function = alias or self.function
         for i, halo in enumerate(self.halos):
-            entry = values[self.name][i]
+            entry = self.value[i]
             # Buffer size for this peer
             shape = []
             for dim, side in zip(*halo):
@@ -904,13 +912,14 @@ class MPIMsg(CompositeObject):
             # The `memfree_args` will be used to deallocate the buffer upon returning
             # from C-land
             self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
-        return values
+
+        return {self.name: self.value}
+
+    def _arg_values(self, args=None, **kwargs):
+        return self._arg_defaults(alias=kwargs.get(self.function.name, self.function))
 
     def _arg_apply(self, *args, **kwargs):
-        # Deallocate the buffers
-        for i in self._memfree_args:
-            self._allocator.free(*i)
-        self._memfree_args[:] = []
+        self._C_memfree()
 
     # Pickling support
     _pickle_args = ['name', 'function', 'halos']
@@ -932,12 +941,13 @@ class MPIMsgEnriched(MPIMsg):
         ]
         super(MPIMsgEnriched, self).__init__(name, function, halos, fields)
 
-    def _arg_values(self, args, **kwargs):
-        values = super(MPIMsgEnriched, self)._arg_values(args, **kwargs)
-        function = kwargs.get(self.function.name, self.function)
+    def _arg_defaults(self, alias=None):
+        super(MPIMsgEnriched, self)._arg_defaults(alias)
+
+        function = alias or self.function
         neighborhood = function.grid.distributor.neighborhood
         for i, halo in enumerate(self.halos):
-            entry = values[self.name][i]
+            entry = self.value[i]
             # `torank` peer + gather offsets
             entry.torank = neighborhood[halo.side]
             ofsg = []
@@ -961,7 +971,8 @@ class MPIMsgEnriched(MPIMsg):
                     # as otherwise we would be picking the corner
                     ofss.append(function._offset_owned[dim].left)
             entry.ofss = (c_int*len(ofss))(*ofss)
-        return values
+
+        return {self.name: self.value}
 
 
 class MPIRegion(CompositeObject):

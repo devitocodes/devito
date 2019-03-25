@@ -42,11 +42,6 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
                             space_order=space_order, kernel=kernel,
                             preset=preset, **kwargs)
 
-    # Smooth velocity
-    initial_vp = Function(name='v0', grid=solver.model.grid, space_order=space_order)
-    smooth(initial_vp, solver.model.m)
-    dm = np.float32(initial_vp.data**2 - solver.model.m.data)
-
     info("Applying Forward")
     # Whether or not we save the whole time history. We only need the full wavefield
     # with 'save=True' if we compute the gradient without checkpointing, if we use
@@ -64,6 +59,11 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
+
+    # Smooth velocity
+    initial_vp = Function(name='v0', grid=solver.model.grid, space_order=space_order)
+    smooth(initial_vp, solver.model.m)
+    dm = np.float32(initial_vp.data**2 - solver.model.m.data)
 
     info("Applying Adjoint")
     solver.adjoint(rec, autotune=autotune)
