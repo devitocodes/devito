@@ -381,33 +381,26 @@ class AdvancedRewriter(BasicRewriter):
         return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'args': objs}
 
     @dle_pass
-    def _simdize(self, nodes):
+    def _simdize(self, iet):
         """
-        Add compiler-specific or, if not available, OpenMP pragmas to the
-        Iteration/Expression tree to emit SIMD-friendly code.
+        Add pragmas to the Iteration/Expression tree to enforce SIMD auto-vectorization
+        by the backend compiler.
         """
         isa = configuration['isa']
         ignore_deps = as_tuple(self._backend_compiler_pragma('ignore-deps'))
 
         mapper = {}
-        for tree in retrieve_iteration_tree(nodes):
+        for tree in retrieve_iteration_tree(iet):
             vector_iterations = [i for i in tree if i.is_Vectorizable]
             for i in vector_iterations:
-                handle = FindSymbols('symbolics').visit(i)
-                try:
-                    aligned = [j for j in handle if j.is_Tensor and
-                               j.shape[-1] % get_simd_items_per_reg(isa, j.dtype) == 0]
-                except KeyError:
-                    aligned = []
-                if aligned:
-                    simd = Ompizer.lang['simd-for-aligned']
-                    simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                    get_simd_reg_size(isa)))
-                else:
-                    simd = as_tuple(Ompizer.lang['simd-for'])
+                aligned = [j for j in FindSymbols('symbolics').visit(i)
+                           if j.is_DiscreteFunction]
+                simd = Ompizer.lang['simd-for-aligned']
+                simd = as_tuple(simd(','.join([j.name for j in aligned]),
+                                get_simd_reg_size(isa)))
                 mapper[i] = i._rebuild(pragmas=i.pragmas + ignore_deps + simd)
 
-        processed = Transformer(mapper).visit(nodes)
+        processed = Transformer(mapper).visit(iet)
 
         return processed, {}
 
