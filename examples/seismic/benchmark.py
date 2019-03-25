@@ -4,8 +4,8 @@ import sys
 import numpy as np
 import click
 
-from devito import clear_cache, configuration, sweep, mode_develop, mode_benchmark
-from devito.logger import warning
+from devito import clear_cache, configuration, mode_develop, mode_benchmark, warning
+from devito.tools import sweep
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run
 from examples.seismic.tti.tti_example import run as tti_run
 

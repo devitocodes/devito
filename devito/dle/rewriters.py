@@ -7,11 +7,11 @@ from time import time
 import cgen
 import numpy as np
 
+from devito.archinfo import simdinfo, get_simd_isa, get_simd_items
 from devito.cgen_utils import ccode
 from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
                                        unfold_blocked_tree)
 from devito.dle.parallelizer import Ompizer
-from devito.dle.utils import complang_ALL, simdinfo, get_simd_flag, get_simd_items
 from devito.exceptions import DLEException
 from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder, PARALLEL,
                            FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
@@ -156,13 +156,27 @@ class AbstractRewriter(object):
 
 class BasicRewriter(AbstractRewriter):
 
+    lang_intel_common = {
+        'ignore-deps': cgen.Pragma('ivdep'),
+        'ntstores': cgen.Pragma('vector nontemporal'),
+        'storefence': cgen.Statement('_mm_sfence()'),
+        'noinline': cgen.Pragma('noinline')
+    }
+
+    lang = {
+        'IntelCompiler': lang_intel_common,
+        'IntelKNLCompiler': lang_intel_common
+    }
+    """
+    Collection of backend-compiler-specific pragmas.
+    """
+
     def _pipeline(self, state):
         self._avoid_denormals(state)
 
-    def _compiler_decoration(self, name, default=None):
+    def _backend_compiler_pragma(self, name, default=None):
         key = configuration['compiler'].__class__.__name__
-        complang = complang_ALL.get(key, {})
-        return complang.get(name, default)
+        return self.lang.get(key, {}).get(name, default)
 
     @dle_pass
     def _avoid_denormals(self, iet):
@@ -373,7 +387,7 @@ class AdvancedRewriter(BasicRewriter):
         Add compiler-specific or, if not available, OpenMP pragmas to the
         Iteration/Expression tree to emit SIMD-friendly code.
         """
-        ignore_deps = as_tuple(self._compiler_decoration('ignore-deps'))
+        ignore_deps = as_tuple(self._backend_compiler_pragma('ignore-deps'))
 
         mapper = {}
         for tree in retrieve_iteration_tree(nodes):
@@ -388,7 +402,7 @@ class AdvancedRewriter(BasicRewriter):
                 if aligned:
                     simd = Ompizer.lang['simd-for-aligned']
                     simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                    simdinfo[get_simd_flag()]))
+                                    simdinfo[get_simd_isa()]))
                 else:
                     simd = as_tuple(Ompizer.lang['simd-for'])
                 mapper[i] = i._rebuild(pragmas=i.pragmas + ignore_deps + simd)
@@ -469,8 +483,8 @@ class SpeculativeRewriter(AdvancedRewriter):
         Add compiler-specific pragmas and instructions to generate nontemporal
         stores (ie, non-cached stores).
         """
-        pragma = self._compiler_decoration('ntstores')
-        fence = self._compiler_decoration('storefence')
+        pragma = self._backend_compiler_pragma('ntstores')
+        fence = self._backend_compiler_pragma('storefence')
         if not pragma or not fence:
             return {}
 
