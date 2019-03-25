@@ -1,7 +1,7 @@
-import os
 from collections import namedtuple
 from itertools import product
 
+from devito.archinfo import known_isas, known_platforms, get_isa, get_platform
 from devito.base import *  # noqa
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
@@ -73,29 +73,16 @@ configuration.add('autotuning', 'off', at_accepted, callback=_at_callback,  # no
 # Should Devito emit the JIT compilation commands?
 configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i), False)
 
-# Set the Instruction Set Architecture (ISA)
-ISAs = ['cpp', 'sse', 'avx', 'avx2', 'avx512']
-configuration.add('isa', 'cpp', ISAs)
+# Instruction Set Architecture (ISA)
+configuration.add('isa', get_isa(), known_isas)
 
-# Set the CPU architecture (only codename)
-PLATFORMs = ['intel64', 'snb', 'ivb', 'hsw', 'bdw', 'skx', 'knl']
-configuration.add('platform', 'intel64', PLATFORMs)
-
+# Codename of the underlying architecture
+configuration.add('platform', get_platform(), known_platforms)
 
 # In develop-mode:
 # - Some optimizations may not be applied to the generated code.
 # - The compiler performs more type and value checking
-def _switch_cpu(develop_mode):
-    isa = os.environ.get('DEVITO_ISA')
-    platform = os.environ.get('DEVITO_PLATFORM')
-    if bool(develop_mode) is True:
-        configuration['isa'] = isa or 'cpp'
-        configuration['platform'] = platform or 'intel64'
-    else:
-        from devito.archinfo import get_simd_isa, get_platform
-        configuration['isa'] = isa or get_simd_isa()
-        configuration['platform'] = platform or get_platform()
-configuration.add('develop-mode', True, [False, True], _switch_cpu)  # noqa
+configuration.add('develop-mode', True, [False, True])
 
 # Initialize the configuration, either from the environment or
 # defaults. This will also trigger the backend initialization

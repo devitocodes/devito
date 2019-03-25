@@ -5,9 +5,8 @@ from functools import partial
 from time import time
 
 import cgen
-import numpy as np
 
-from devito.archinfo import simdinfo, get_simd_isa, get_simd_items
+from devito.archinfo import get_simd_reg_size, get_simd_items_per_reg
 from devito.cgen_utils import ccode
 from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
                                        unfold_blocked_tree)
@@ -387,6 +386,7 @@ class AdvancedRewriter(BasicRewriter):
         Add compiler-specific or, if not available, OpenMP pragmas to the
         Iteration/Expression tree to emit SIMD-friendly code.
         """
+        isa = configuration['isa']
         ignore_deps = as_tuple(self._backend_compiler_pragma('ignore-deps'))
 
         mapper = {}
@@ -396,13 +396,13 @@ class AdvancedRewriter(BasicRewriter):
                 handle = FindSymbols('symbolics').visit(i)
                 try:
                     aligned = [j for j in handle if j.is_Tensor and
-                               j.shape[-1] % get_simd_items(j.dtype) == 0]
+                               j.shape[-1] % get_simd_items_per_reg(isa, j.dtype) == 0]
                 except KeyError:
                     aligned = []
                 if aligned:
                     simd = Ompizer.lang['simd-for-aligned']
                     simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                    simdinfo[get_simd_isa()]))
+                                    get_simd_reg_size(isa)))
                 else:
                     simd = as_tuple(Ompizer.lang['simd-for'])
                 mapper[i] = i._rebuild(pragmas=i.pragmas + ignore_deps + simd)
@@ -506,16 +506,18 @@ class SpeculativeRewriter(AdvancedRewriter):
         return processed, {}
 
     @dle_pass
-    def _minimize_remainders(self, nodes):
+    def _minimize_remainders(self, iet):
         """
         Reshape temporary tensors and adjust loop trip counts to prevent as many
         compiler-generated remainder loops as possible.
         """
+        isa = configuration['isa']
+
         # The innermost dimension is the one that might get padded
         p_dim = -1
 
         mapper = {}
-        for tree in retrieve_iteration_tree(nodes):
+        for tree in retrieve_iteration_tree(iet):
             vector_iterations = [i for i in tree if i.is_Vectorizable]
             if not vector_iterations or len(vector_iterations) > 1:
                 continue
@@ -527,10 +529,9 @@ class SpeculativeRewriter(AdvancedRewriter):
             padding = []
             for i in writes:
                 try:
-                    simd_items = get_simd_items(i.dtype)
+                    simd_items = get_simd_items_per_reg(isa, i.dtype)
                 except KeyError:
-                    # Fallback to 16 (maximum expectable padding, for AVX512 registers)
-                    simd_items = simdinfo['avx512f'] / np.dtype(i.dtype).itemsize
+                    return iet, {}
                 padding.append(simd_items - i.shape[-1] % simd_items)
             if len(set(padding)) == 1:
                 padding = padding[0]
@@ -568,7 +569,7 @@ class SpeculativeRewriter(AdvancedRewriter):
 
             mapper[tree[0]] = List(header=init, body=compose_nodes(rebuilt))
 
-        processed = Transformer(mapper).visit(nodes)
+        processed = Transformer(mapper).visit(iet)
 
         return processed, {}
 
