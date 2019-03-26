@@ -10,7 +10,13 @@ from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
                     switchconfig)
 from devito.data import LEFT
 
-pytestmark = skipif(['yask', 'ops'])
+pytestmark = skipif(['yask', 'ops'], whole_module=True)
+
+# All core-specific imports *must* be avoided if `backend != core`, otherwise
+# a backend reinitialization would be triggered via `devito/core/.__init__.py`,
+# thus invalidating all of the future tests. This is guaranteed by the
+# `pytestmark` above
+from devito.core.autotuning import options  # noqa
 
 
 @switchconfig(log_level='DEBUG')
@@ -63,8 +69,6 @@ def test_timesteps_per_at_run():
     ``autotuning.core.options['squeezer']`` timesteps, for an operator
     performing the increment ``a[t + timeorder, ...] = f(a[t, ...], ...)``.
     """
-    from devito.core.autotuning import options
-
     shape = (30, 30, 30)
     grid = Grid(shape=shape)
     x, y, z = grid.dimensions
@@ -92,7 +96,7 @@ def test_timesteps_per_at_run():
         op = Operator(stencil, dle=('blocking', {'openmp': False, 'blockalways': True}))
         op(infield=infield, outfield=outfield, time=20, autotune=True)
         assert op._state['autotuning'][-1]['runs'] == 4
-        assert op._state['autotuning'][-1]['tpr'] == options['squeezer']+1
+        assert op._state['autotuning'][-1]['tpr'] == options['squeezer'] + 1
 
 
 @switchconfig(profiling='advanced')
@@ -154,7 +158,7 @@ def test_blocking_only():
     op.apply(time=0, autotune=True)
 
     assert op._state['autotuning'][0]['runs'] == 6
-    assert op._state['autotuning'][0]['tpr'] == 5
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 2
     assert 'nthreads' not in op._state['autotuning'][0]['tuned']
 
@@ -167,7 +171,7 @@ def test_mixed_blocking_nthreads():
     op.apply(time=100, autotune=True)
 
     assert op._state['autotuning'][0]['runs'] == 6
-    assert op._state['autotuning'][0]['tpr'] == 5
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 3
     assert 'nthreads' in op._state['autotuning'][0]['tuned']
 
@@ -190,7 +194,7 @@ def test_discarding_runs():
     op.apply(time=100, nthreads=4, autotune='aggressive')
 
     assert op._state['autotuning'][0]['runs'] == 20
-    assert op._state['autotuning'][0]['tpr'] == 5
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 3
     assert op._state['autotuning'][0]['tuned']['nthreads'] == 4
 
@@ -198,7 +202,7 @@ def test_discarding_runs():
     op.apply(time=100, nthreads=1, autotune='aggressive')
 
     assert op._state['autotuning'][1]['runs'] == 30
-    assert op._state['autotuning'][1]['tpr'] == 5
+    assert op._state['autotuning'][1]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][1]['tuned']) == 3
     assert op._state['autotuning'][1]['tuned']['nthreads'] == 1
 
@@ -273,13 +277,13 @@ def test_multiple_blocking():
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
     assert op._state['autotuning'][0]['runs'] == 12  # 6 for each Iteration nest
-    assert op._state['autotuning'][0]['tpr'] == 5
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 4
 
     # 'aggressive' mode
     op.apply(time_M=0, autotune='aggressive')
     assert op._state['autotuning'][1]['runs'] == 60
-    assert op._state['autotuning'][1]['tpr'] == 5
+    assert op._state['autotuning'][1]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][1]['tuned']) == 4
 
     # With OpenMP, we tune over one more argument (`nthreads`), though the AT
@@ -288,5 +292,5 @@ def test_multiple_blocking():
                   dle=('blocking', {'openmp': True}))
     op.apply(time_M=0, autotune='basic')
     assert op._state['autotuning'][0]['runs'] == 12
-    assert op._state['autotuning'][0]['tpr'] == 5
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 5

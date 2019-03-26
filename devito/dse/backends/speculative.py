@@ -8,7 +8,7 @@ class SpeculativeRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._extract_time_varying(state)
-        self._extract_time_invariants(state, costmodel=lambda e: e.is_Function)
+        self._extract_time_invariants(state)
         self._eliminate_inter_stencil_redundancies(state)
         self._eliminate_intra_stencil_redundancies(state)
         self._factorize(state)
@@ -34,8 +34,7 @@ class AggressiveRewriter(SpeculativeRewriter):
     def _pipeline(self, state):
         # Three CIRE phases, progressively searching for less structure
         self._extract_time_varying(state)
-        self._extract_time_invariants(state, with_cse=False,
-                                      costmodel=lambda e: e.is_Function)
+        self._extract_time_invariants(state, with_cse=False)
         self._eliminate_inter_stencil_redundancies(state)
 
         self._extract_sum_of_products(state)
