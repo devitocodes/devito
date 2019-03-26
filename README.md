@@ -127,5 +127,5 @@ flag `autotune=True` to an `Operator`. Auto-tuning parameters can be set
 through the special environment variable `DEVITO_AUTOTUNING`.
 
 For more information on how to drive Devito for maximum run-time performance,
-see [here](benchmarking/user/README.md) or ask the developers on the Slack
+see [here](benchmarks/user/README.md) or ask the developers on the Slack
 channel linked above.
