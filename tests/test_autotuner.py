@@ -106,8 +106,8 @@ def test_mode_runtime_forward():
     # AT is expected to have attempted 6 block shapes
     assert op._state['autotuning'][0]['runs'] == 6
 
-    # AT is expected to have executed 18 timesteps
-    assert summary['section0'].itershapes[0][0] == 101-18
+    # AT is expected to have executed 30 timesteps
+    assert summary['section0'].itershapes[0][0] == 101-30
     assert np.all(f.data[0] == 100)
     assert np.all(f.data[1] == 101)
 
@@ -124,8 +124,8 @@ def test_mode_runtime_backward():
     # AT is expected to have attempted 6 block shapes
     assert op._state['autotuning'][0]['runs'] == 6
 
-    # AT is expected to have executed 18 timesteps
-    assert summary['section0'].itershapes[0][0] == 101-18
+    # AT is expected to have executed 30 timesteps
+    assert summary['section0'].itershapes[0][0] == 101-30
     assert np.all(f.data[0] == 101)
     assert np.all(f.data[1] == 100)
 
@@ -139,10 +139,10 @@ def test_mode_destructive():
     op = Operator(Eq(f, f + 1.), dle=('advanced', {'openmp': False}))
     op.apply(time=100, autotune=('basic', 'destructive'))
 
-    # AT is expected to have executed 18 timesteps (6 block shapes, 3 timesteps each)
+    # AT is expected to have executed 30 timesteps (6 block shapes, 5 timesteps each)
     # The operator runs for 101 timesteps
-    # So, overall, f.data[0] is incremented 119 times
-    assert np.all(f.data == 119)
+    # So, overall, f.data[0] is incremented 131 times
+    assert np.all(f.data == 131)
 
 
 def test_blocking_only():
@@ -226,7 +226,7 @@ def test_at_w_mpi():
     # to perform the autotuning. Eventually, the result is complete garbage; note
     # also that this autotuning mode disables the halo exchanges
     op.apply(time=-1, autotune=('basic', 'destructive'))
-    assert np.all(f._data_ro_with_inhalo.sum() == 360)
+    assert np.all(f._data_ro_with_inhalo.sum() == 904)
 
     # Check the halo hasn't been touched during AT
     glb_pos_map = grid.distributor.glb_pos_map
