@@ -395,9 +395,12 @@ class AdvancedRewriter(BasicRewriter):
             for i in vector_iterations:
                 aligned = [j for j in FindSymbols('symbolics').visit(i)
                            if j.is_DiscreteFunction]
-                simd = Ompizer.lang['simd-for-aligned']
-                simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                get_simd_reg_size(isa)))
+                if aligned:
+                    simd = Ompizer.lang['simd-for-aligned']
+                    simd = as_tuple(simd(','.join([j.name for j in aligned]),
+                                    get_simd_reg_size(isa)))
+                else:
+                    simd = as_tuple(Ompizer.lang['simd-for'])
                 mapper[i] = i._rebuild(pragmas=i.pragmas + ignore_deps + simd)
 
         processed = Transformer(mapper).visit(iet)
