@@ -22,18 +22,16 @@ If you are tempted to use your laptop to run a benchmark, you may want to
 reconsider: heat and power management may affect the results you get in an
 unpredictable way.
 
-It is important that *both* the Python process running Devito (processES if
+It is important that *both* the Python process running Devito (process*es* if
 running with MPI) and the OpenMP threads spawned while running an Operator are
 pinned to specific CPU cores, to get reliable and determinisic results. There
 are several ways to achieve this.
 
-* Through environment variables: all MPI distributions as well as the OpenMP
-  specification provide a set of environment variables to control pinning and/or
-  affinity. Devito helps with pinning and setting the affinity of OpenMP threads
-  providing the `set_omp_pinning.sh` program under `/scripts`, which contains a
-  number of preset configurations for Intel architectures. 
-* Through a program such as `numactl` or `taskset`. If not interested in MPI,
-  probably using `numactl` is the way to go, as it is the simplest.
+* Through environment variables. All MPI/OpenMP distributions provide a set of
+  environment variables to control process/thread pinning.  Devito also
+  supplies the `set_omp_pinning.sh` program (under `/scripts`), which helps
+  with thread pinning (though, currently, only limited to Intel architectures).
+* Through a program such as `numactl` or `taskset`.
 
 If running on a NUMA system, where multiple nodes of CPU cores ("sockets") and
 memory are available, pinning becomes even more important (and therefore
@@ -52,8 +50,8 @@ working set). There are multiple scenarios that are worth considering:
   `OMP_NUM_THREADS` environment variable to a different value. When might we
   want to do this?
   - Unless on a hyperthreads-centerd system, such as an Intel Knights Landing,
-    spawning only as many threads as *physical* cores might result in a little
-    performance improvement due to less contention for hardware resources.
+    spawning only as many threads as *physical* cores usually results in
+    slightly better performance due to less contention for hardware resources.
   - Since, here, we are merely interested in benchmarking, when running on a
     NUMA system we should restrain an Operator to run on a single node of CPU
     cores (i.e., a single socket), as in practice one should always use MPI
@@ -63,20 +61,15 @@ working set). There are multiple scenarios that are worth considering:
     on remote memory. For this, `numactl` or `taskset` are our friends.
 * MPI-only run. Process pinning should be implemented exploiting the proper MPI
   environment variables.
-* MPI+OpenMP. The typical execution mode is: one MPI process per socket, which
-  spawns a set of OpenMP threads upon entering an OpenMP parallel region.
-  Pinning can typically be enforced via environment variables (both MPI's and
-  OpenMP's).
-
-Note that on many clusters pinning has already been set up for you, though the
-OpenMP-only scenario described above may still require the `numactl/taskset`
-precaution when running on a NUMA system.
+* MPI+OpenMP. The typical execution mode is: one MPI process per socket, and
+  each MPI process spawns a set of OpenMP threads upon entering an OpenMP
+  parallel region.  Pinning is typically enforced via environment variables.
 
 Some more information about pinning is available
 [here](https://perf.readthedocs.io/en/latest/system.html).
 
 There are many ways one can check that pinning is working as expected. A
-recommend tool for rapid visual inspection is [htop](http://hisham.hm/htop/).
+recommended tool for rapid visual inspection is [htop](http://hisham.hm/htop/).
 
 ## Enabling OpenMP
 
@@ -111,7 +104,7 @@ below.
 `benchmark.py` offers three preset optimization modes:
 
  * 'O1': DSE=basic, DLE=basic.
-   Minimum set of optimizations
+   Minimum set of optimizations.
  * 'O2': DSE=advanced, DLE=advanced.
    The default setting when compiling an Operator. Switches on some
    flop-reduction transformations as well as fundamental loop-level
@@ -219,7 +212,7 @@ Do not forget to pin processes, especially on NUMA systems; below, we do so with
 numactl --cpubind=0 --membind=0 python benchmark.py ...
 ```
 While a benchmark is running, you can have some useful programs running in
-background in other shells. For example, to monitor pinning and affinity:
+background in other shells. For example, to monitor pinning:
 ```
 htop
 ```
