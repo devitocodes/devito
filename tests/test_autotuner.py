@@ -8,10 +8,15 @@ from unittest.mock import patch
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
                     switchconfig)
-from devito.core.autotuning import options
 from devito.data import LEFT
 
-pytestmark = skipif(['yask', 'ops'])
+pytestmark = skipif(['yask', 'ops'], whole_module=True)
+
+# All core-specific imports *must* be avoided if `backend != core`, otherwise
+# a backend reinitialization would be triggered via `devito/core/.__init__.py`,
+# thus invalidating all of the future tests. This is guaranteed by the
+# `pytestmark` above
+from devito.core.autotuning import options  # noqa
 
 
 @switchconfig(log_level='DEBUG')
