@@ -46,6 +46,9 @@ except ImportError:
         def Comm(self):
             return None
 
+        def __getattr__(self, name):
+            return None
+
         Request = Comm
 
 
