@@ -75,7 +75,7 @@ expressions. Examples of how to define operators are provided:
 * An advanced example of a Tilted Transverse Isotropy forward operator
   for use in FWI can be found in `examples/seismic/tti`.
 * A benchmark script for the acoustic and TTI forward operators can be
-  found in `examples/seismic/benchmark.py`.
+  found in `benchmarks/user/benchmark.py`.
 
 
 ## Compilation
