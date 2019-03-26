@@ -1,4 +1,4 @@
-from devito import memoized_meth
+from devito.tools import memoized_meth
 from examples.seismic import Receiver
 from examples.seismic.elastic.operators import (ForwardOperator, stress_fields,
                                                 particle_velocity_fields)
