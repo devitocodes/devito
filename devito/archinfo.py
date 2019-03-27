@@ -14,7 +14,9 @@ __all__ = ['known_isas', 'known_platforms', 'get_cpu_info', 'get_isa',
 known_isas = ['cpp', 'sse', 'avx', 'avx2', 'avx512']
 """All known Instruction Set Architectures."""
 
-known_platforms = ['intel64', 'snb', 'ivb', 'hsw', 'bdw', 'skx', 'knl']
+known_platforms = ['intel64', 'snb', 'ivb', 'hsw', 'bdw', 'skx', 'knl',
+                   'arm',
+                   'power8', 'power9']
 """All known platforms."""
 
 
@@ -56,6 +58,8 @@ def get_platform():
     """
     Retrieve the target architecture's codename.
     """
+    # TODO: cannot autodetect the following platforms yet:
+    # ['arm', 'power8', 'power9']
     try:
         # First, try leveraging `gcc`
         p1 = Popen(['gcc', '-march=native', '-Q', '--help=target'],

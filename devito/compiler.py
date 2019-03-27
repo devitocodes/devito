@@ -229,7 +229,12 @@ class ClangCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
-        self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable']
+        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
+        if configuration['platform'] in ['power8', 'power9']:
+            # -march isn't supported on power architectures
+            self.cflags += ['-mcpu=native']
+        else:
+            self.cflags += ['-march=native']
 
     def __lookup_cmds__(self):
         self.CC = 'clang'
