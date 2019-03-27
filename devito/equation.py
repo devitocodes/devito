@@ -64,7 +64,6 @@ class Eq(sympy.Eq):
     def __new__(cls, lhs, rhs=0, implicit_dims=None, subdomain=None,
                 coefficients=None, **kwargs):
         kwargs['evaluate'] = False
-        #implicit_dims = kwargs.pop('implicit_dims', None)
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
         if bool(implicit_dims):
