@@ -299,7 +299,7 @@ class CustomCompiler(Compiler):
     Notes
     -----
     Currently honours CC, CFLAGS and LDFLAGS, with defaults similar to the
-    default GNU settings. If DEVITO_ARCH is enabled, the OpenMP linker
+    default GNU/gcc settings. If DEVITO_ARCH is enabled, the OpenMP linker
     flags are read from OMP_LDFLAGS or otherwise default to ``-fopenmp``.
     """
 
