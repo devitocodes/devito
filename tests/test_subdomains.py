@@ -49,7 +49,6 @@ class TestSubdomains(object):
                      subdomain=grid.subdomains['inner'])
 
         op = Operator(stencil)
-        #from IPython import embed; embed()
 
         op(time_m=0, time_M=9, dt=1)
         result = f.data[0]

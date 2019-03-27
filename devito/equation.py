@@ -69,11 +69,10 @@ class Eq(sympy.Eq):
         obj._subdomain = subdomain
         if bool(implicit_dims):
             obj._implicit_dims = as_tuple(implicit_dims)
-            #obj._implicit_equations = None
+            obj._implicit_equations = None
         else:
-            _, implicit_dims = obj._form_implicit_structs()
-            #implicit_equations, implicit_dims = obj._form_implicit_structs()
-            #obj._implicit_equations = implicit_equations
+            implicit_equations, implicit_dims = obj._form_implicit_structs()
+            obj._implicit_equations = implicit_equations
             obj._implicit_dims = as_tuple(implicit_dims)
         obj._substitutions = coefficients
         if obj._uses_symbolic_coefficients:

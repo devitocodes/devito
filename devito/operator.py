@@ -130,14 +130,14 @@ class Operator(Callable):
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
 
-        ## Gather implicit expressions
-        #implicit_expressions = []
-        #for e in expressions:
-            #ie = e._implicit_equations
-            #if bool(ie):
-                #for i in ie:
-                    #implicit_expressions.append(i)
-        #expressions = as_tuple(implicit_expressions) + expressions
+        # Gather implicit expressions
+        implicit_expressions = []
+        for e in expressions:
+            ie = e._implicit_equations
+            if bool(ie):
+                for i in ie:
+                    implicit_expressions.append(i)
+        expressions = as_tuple(implicit_expressions) + expressions
 
         # Input check
         if any(not isinstance(i, Eq) for i in expressions):
