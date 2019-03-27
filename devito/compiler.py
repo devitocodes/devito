@@ -135,7 +135,7 @@ class Compiler(GCCToolchain):
 
         self.suffix = kwargs.get('suffix')
         if not kwargs.get('mpi'):
-            self.cc = self.CC if kwargs.get('cpp', False) is False else self.CPP
+            self.cc = self.CC if kwargs.get('cpp', False) is False else self.CXX
             self.cc = self.cc if self.suffix is None else ('%s-%s' %
                                                            (self.cc, self.suffix))
         else:
@@ -173,7 +173,7 @@ class Compiler(GCCToolchain):
 
     def __lookup_cmds__(self):
         self.CC = 'unknown'
-        self.CPP = 'unknown'
+        self.CXX = 'unknown'
         self.MPICC = 'unknown'
         self.MPICXX = 'unknown'
 
@@ -220,7 +220,7 @@ class GNUCompiler(Compiler):
 
     def __lookup_cmds__(self):
         self.CC = 'gcc'
-        self.CPP = 'g++'
+        self.CXX = 'g++'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
 
@@ -233,7 +233,7 @@ class ClangCompiler(Compiler):
 
     def __lookup_cmds__(self):
         self.CC = 'clang'
-        self.CPP = 'clang++'
+        self.CXX = 'clang++'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
 
@@ -266,7 +266,7 @@ class IntelCompiler(Compiler):
 
     def __lookup_cmds__(self):
         self.CC = 'icc'
-        self.CPP = 'icpc'
+        self.CXX = 'icpc'
 
         # On some systems, the Intel distribution of MPI may be available, in
         # which case the MPI compiler may be shipped either as `mpiicc` or `mpicc`.
@@ -304,7 +304,7 @@ class CustomCompiler(Compiler):
     """
 
     CC = environ.get('CC', 'gcc')
-    CPP = environ.get('CPP', 'g++')
+    CXX = environ.get('CXX', 'g++')
     MPICC = environ.get('MPICC', 'mpicc')
     MPICXX = environ.get('MPICXX', 'mpicxx')
 
@@ -318,7 +318,7 @@ class CustomCompiler(Compiler):
 
     def __lookup_cmds__(self):
         self.CC = 'gcc'
-        self.CPP = 'g++'
+        self.CXX = 'g++'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
 
