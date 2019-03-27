@@ -3,11 +3,9 @@ import sympy
 from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
                                force_directions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
-from devito.ir.equations import LoweredEq
 from devito.symbolics import CondEq, xreplace_indices
-from devito.tools import flatten, as_tuple
-from devito.types import Scalar, Dimension
-from devito.equation import Eq
+from devito.tools import flatten
+from devito.types import Scalar
 
 __all__ = ['clusterize', 'groupby']
 # clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
@@ -232,51 +230,9 @@ def bump_and_contract(targets, source, sink):
     sink.exprs = processed
 
 
-def form_implicit_equations(expr):
-
-    def generate_i_dims(expr):
-        dims = [d for d in expr.free_symbols if isinstance(d, Dimension)]
-        dims = [d.root for d in dims if d.is_Time]
-        if len(dims) > 1:
-            ValueError('More than one time dimensions detected')
-        i_dim = expr._subdomain._implicit_dimension
-        dims.append(i_dim)
-        ie_dims = dims
-        implicit_dims = dims+list(expr._subdomain.dimensions)
-        return implicit_dims, ie_dims
-
-    if bool(expr._subdomain):
-        try:
-            ie_dat = expr._subdomain._ie_dat
-        except AttributeError:
-            return None
-    else:
-        return None
-
-    implicit_dims, ie_dims = generate_i_dims(expr)
-
-    #from IPython import embed; embed()
-
-    i_eq = []
-    for i in ie_dat:
-        i_eq.append(Eq(i['rhs'], i['lhs'], implicit_dims=ie_dims))
-    #return as_tuple(i_eq), implicit_dims
-    #return as_tuple(i_eq)
-    #return i_eq
-    return [LoweredEq(i) for i in i_eq]
-
-
 def clusterize(exprs):
     """Group a sequence of LoweredEqs into one or more Clusters."""
     clusters = ClusterGroup()
-    
-    # Form the implicit equations here?
-    implicit_exprs = flatten([form_implicit_equations(expr)
-                      for expr in exprs if bool(expr._subdomain)])
-    #from IPython import embed; embed()
-    exprs = implicit_exprs + exprs
-    
-    from IPython import embed; embed()
 
     # Wrap each LoweredEq in `exprs` within a PartialCluster. The PartialCluster's
     # iteration direction is enforced based on the iteration direction of the
