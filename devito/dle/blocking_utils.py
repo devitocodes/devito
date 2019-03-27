@@ -283,7 +283,7 @@ class BlockDimension(IncrDimension):
     def _arg_values(self, args, interval, grid, **kwargs):
         if self.step.name in kwargs:
             value = kwargs.pop(self.step.name)
-            if value <= args[self.root.max_name] - args[self.root.min_name]:
+            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
                 return {self.step.name: value}
             elif value < 0:
                 raise ValueError("Illegale block size `%s=%d` (it should be > 0)"
@@ -296,7 +296,7 @@ class BlockDimension(IncrDimension):
                 return {self.step.name: 1}
         else:
             value = self._arg_defaults()[self.step.name]
-            if value <= args[self.root.max_name] - args[self.root.min_name]:
+            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
                 return {self.step.name: value}
             else:
                 # Avoid OOB

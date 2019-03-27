@@ -5,9 +5,9 @@ import numpy as np
 import click
 
 from devito import clear_cache, configuration, mode_develop, mode_benchmark, warning
-from devito.tools import sweep
-from examples.seismic.acoustic.acoustic_example import run as acoustic_run
-from examples.seismic.tti.tti_example import run as tti_run
+from devito.tools import as_tuple, sweep
+from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
+from examples.seismic.tti.tti_example import run as tti_run, tti_setup
 
 
 @click.group()
@@ -86,6 +86,8 @@ def option_performance(f):
         click.option('--dle', callback=from_value,
                      type=click.Choice(['noop'] + configuration._accepted['dle']),
                      help='Devito loop engine (DLE) mode'),
+        click.option('-a', '--autotune', is_flag=True,
+                     help='Switch auto tuning on/off')
     ]
     for option in reversed(options):
         f = option(f)
@@ -95,8 +97,8 @@ def option_performance(f):
 @benchmark.command(name='run')
 @option_simulation
 @option_performance
-@click.option('-a', '--autotune', is_flag=True,
-              help='Switch auto tuning on/off')
+@click.option('-bs', '--block-shape', default=(0, 0, 0),
+              help='Loop-blocking shape, bypass autotuning')
 def cli_run(problem, **kwargs):
     """
     A single run with a specific set of performance parameters.
@@ -109,17 +111,32 @@ def run(problem, **kwargs):
     """
     A single run with a specific set of performance parameters.
     """
-    run = tti_run if problem == 'tti' else acoustic_run
+    setup = tti_setup if problem == 'tti' else acoustic_setup
+    options = {}
+
     time_order = kwargs.pop('time_order')[0]
     space_order = kwargs.pop('space_order')[0]
-    run(space_order=space_order, time_order=time_order, **kwargs)
+    autotune = kwargs.pop('autotune')
+
+    # Should a specific block-shape be used? Useful if one wants to skip
+    # the autotuning pass as a good block-shape is already known
+    block_shape = as_tuple(kwargs.pop('block_shape'))
+    if all(block_shape):
+        if autotune:
+            warning("Skipping autotuning (using explicit block-shape `%s`)"
+                    % str(block_shape))
+            autotune = False
+        # This is quite hacky, but it does the trick
+        for d, bs in zip(['x', 'y', 'z'], block_shape):
+            options['%s0_blk_size' % d] = bs
+
+    solver = setup(space_order=space_order, time_order=time_order, **kwargs)
+    solver.forward(autotune=autotune, **options)
 
 
 @benchmark.command(name='test')
 @option_simulation
 @option_performance
-@click.option('-a', '--autotune', is_flag=True,
-              help='Switch auto tuning on/off')
 def cli_test(problem, **kwargs):
     """
     Test numerical correctness with different parameters.
@@ -182,7 +199,6 @@ def bench(problem, **kwargs):
 @benchmark.command(name='plot')
 @option_simulation
 @option_performance
-@click.option('--autotune', type=str, help='Used auto-tuning level')
 @click.option('--backend', default='core',
               type=click.Choice(configuration._accepted['backend']),
               help='Used execution backend (e.g., core, yask)')

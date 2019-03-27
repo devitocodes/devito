@@ -106,6 +106,9 @@ def mode_performance():
     configuration['develop-mode'] = False
     configuration['autotuning'] = ['aggressive',
                                    at_default_mode[configuration['backend']]]
+    # With the autotuner in `aggressive` mode, a more aggressive blocking strategy
+    # which also tiles the innermost loop) is beneficial
+    configuration['dle-options']['blockinner'] = True
 
 
 def mode_benchmark():

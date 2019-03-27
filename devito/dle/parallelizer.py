@@ -92,9 +92,9 @@ class Ompizer(object):
     """
 
     lang = {
-        'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
-        'par-for': lambda i: c.Pragma('omp parallel for collapse(%d) schedule(static)'
-                                      % i),
+        'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static,1)' % i),
+        'par-for': lambda i, j: c.Pragma('omp parallel for collapse(%d) '
+                                         'schedule(static,1) num_threads(%d)' % (i, j)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
@@ -140,18 +140,23 @@ class Ompizer(object):
         # Get the collapsable Iterations
         collapsable = []
         if ncores() >= Ompizer.COLLAPSE and IsPerfectIteration().visit(root):
-            # The OpenMP specification forbids collapsed loops to use iteration variables
-            # in initializer expressions. For example, the following is forbidden:
-            #
-            # #pragma omp ... collapse(2)
-            # for (i = ... )
-            #   for (j = i ...)
-            #     ...
-            #
-            # Below, we make sure this won't happen
             for n, i in enumerate(candidates[1:], 1):
+                # The OpenMP specification forbids collapsed loops to use iteration
+                # variables in initializer expressions. E.g., the following is forbidden:
+                #
+                # #pragma omp ... collapse(2)
+                # for (i = ... )
+                #   for (j = i ...)
+                #     ...
+                #
+                # Here, we make sure this won't happen
                 if any(j.dim in i.symbolic_min.free_symbols for j in candidates[:n]):
                     break
+
+                # Also, we do not want to collapse vectorizable Iterations
+                if i.is_Vectorizable:
+                    break
+
                 collapsable.append(i)
 
         # Attach an OpenMP pragma-for with a collapse clause
@@ -216,7 +221,8 @@ class Ompizer(object):
                 continue
 
             # Introduce nested parallelism
-            subroot, subpartree, _ = self._make_partree(candidates, self.lang['par-for'])
+            omp_pragma = lambda i: self.lang['par-for'](i, nhyperthreads())
+            subroot, subpartree, _ = self._make_partree(candidates, omp_pragma)
 
             mapper[subroot] = subpartree
 

@@ -26,20 +26,19 @@ class AdvancedRewriter(BasicRewriter):
     """
 
     def _pipeline(self, state):
-        self._extract_time_invariants(state, costmodel=lambda e: e.is_Function)
+        self._extract_time_invariants(state)
         self._eliminate_inter_stencil_redundancies(state)
         self._eliminate_intra_stencil_redundancies(state)
         self._factorize(state)
 
     @dse_pass
-    def _extract_time_invariants(self, cluster, template, with_cse=True,
-                                 costmodel=None, **kwargs):
+    def _extract_time_invariants(self, cluster, template, with_cse=True, **kwargs):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = iq_timeinvariant(cluster.trace)
-        costmodel = costmodel or (lambda e: estimate_cost(e) > 0)
+        costmodel = lambda e: estimate_cost(e) > 0
         processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
         if with_cse:
