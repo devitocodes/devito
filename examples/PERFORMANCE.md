@@ -166,22 +166,6 @@ on how auto-tuning is getting along.
 
 # Known limitations and possible work arounds
 
- * At the moment, there is no support for MPI parallelism. This is perhaps the
-   biggest limitation, because it significantly affects execution on
-   multi-socket nodes.  The ideal setting on multi-socket nodes would be to
-   have 1 MPI process per socket, and OpenMP (or, why not, MPI itself in
-   shared-memory mode) for the processes within a socket. One can still use
-   OpenMP across all available sockets (the default case if `OMP_NUM_THREADS` is
-   unset and more than one sockets are available), but the final performance
-   will be very far from the attainable machine peak, due to the well known
-   NUMA effect.
-   The good news is that MPI support is under development, and will be released
-   in the upcoming months; the expectation is way before the end of 2017. Thus,
-   if you have a multi-socket machine and you are simply trying to understand
-   how Devito ideally performs, the recommendation is to run the experiments on
-   a single socket. This can be achieved through suitable thread pinning.  The
-   reader is invited to get in touch with the development team if struggling
-   with this matter.
  * The DSE `aggressive` mode will not work with backend compilers that are not
    Intel. This is a known
    issue[https://github.com/opesci/devito/issues/320] in devito.

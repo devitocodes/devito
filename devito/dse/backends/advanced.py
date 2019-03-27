@@ -13,21 +13,32 @@ from devito.types import Array, Scalar
 
 class AdvancedRewriter(BasicRewriter):
 
+    MIN_COST_ALIAS = 10
+    """
+    Minimum operation count of a non-scalar alias (i.e., "redundant") expression
+    to be lifted into a vector temporary (thus increasing the memory footprint)
+    """
+
+    MIN_COST_FACTORIZE = 100
+    """
+    Minimum operation count of an expression so that aggressive factorization
+    is applied.
+    """
+
     def _pipeline(self, state):
-        self._extract_time_invariants(state, costmodel=lambda e: e.is_Function)
+        self._extract_time_invariants(state)
         self._eliminate_inter_stencil_redundancies(state)
         self._eliminate_intra_stencil_redundancies(state)
         self._factorize(state)
 
     @dse_pass
-    def _extract_time_invariants(self, cluster, template, with_cse=True,
-                                 costmodel=None, **kwargs):
+    def _extract_time_invariants(self, cluster, template, with_cse=True, **kwargs):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = iq_timeinvariant(cluster.trace)
-        costmodel = costmodel or (lambda e: estimate_cost(e) > 0)
+        costmodel = lambda e: estimate_cost(e) > 0
         processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
         if with_cse:
@@ -49,7 +60,7 @@ class AdvancedRewriter(BasicRewriter):
             * Collect all literals;
             * Collect all temporaries produced by CSE;
             * If the expression has an operation count higher than
-              self.threshold, then this is applied recursively until
+              ``self.MIN_COST_FACTORIZE``, then this is applied recursively until
               no more factorization opportunities are available.
         """
 
@@ -58,7 +69,7 @@ class AdvancedRewriter(BasicRewriter):
             handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
-            if cost_handle >= self.thresholds['min-cost-factorize']:
+            if cost_handle >= self.MIN_COST_FACTORIZE:
                 handle_prev = handle
                 cost_prev = estimate_cost(expr)
                 while cost_handle < cost_prev:
@@ -116,8 +127,7 @@ class AdvancedRewriter(BasicRewriter):
             # Cost check (to keep the memory footprint under control)
             naliases = len(mapper.get(v.rhs, []))
             cost = estimate_cost(v, True)*naliases
-            if cost >= self.thresholds['min-cost-alias'] and\
-                    (naliases > 1 or time_invariants[v.rhs]):
+            if cost >= self.MIN_COST_ALIAS and (naliases > 1 or time_invariants[v.rhs]):
                 candidates[v.rhs] = k
             else:
                 processed.append(v)
