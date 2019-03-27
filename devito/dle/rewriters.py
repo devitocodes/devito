@@ -6,7 +6,6 @@ from time import time
 
 import cgen
 
-from devito.archinfo import get_simd_reg_size, get_simd_items_per_reg
 from devito.cgen_utils import ccode
 from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
                                        unfold_blocked_tree)
@@ -125,8 +124,9 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, params):
+    def __init__(self, params, target):
         self.params = params
+        self.target = target
         self.timings = OrderedDict()
 
     def run(self, iet):
@@ -196,8 +196,8 @@ class AdvancedRewriter(BasicRewriter):
 
     _shm_parallelizer_type = Ompizer
 
-    def __init__(self, params):
-        super(AdvancedRewriter, self).__init__(params)
+    def __init__(self, params, target):
+        super(AdvancedRewriter, self).__init__(params, target)
         self._shm_parallelizer = self._shm_parallelizer_type()
 
     def _pipeline(self, state):
@@ -386,7 +386,6 @@ class AdvancedRewriter(BasicRewriter):
         Add pragmas to the Iteration/Expression tree to enforce SIMD auto-vectorization
         by the backend compiler.
         """
-        isa = configuration['isa']
         ignore_deps = as_tuple(self._backend_compiler_pragma('ignore-deps'))
 
         mapper = {}
@@ -398,7 +397,7 @@ class AdvancedRewriter(BasicRewriter):
                 if aligned:
                     simd = Ompizer.lang['simd-for-aligned']
                     simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                    get_simd_reg_size(isa)))
+                                    self.target.simd_reg_size))
                 else:
                     simd = as_tuple(Ompizer.lang['simd-for'])
                 mapper[i] = i._rebuild(pragmas=i.pragmas + ignore_deps + simd)
@@ -507,8 +506,6 @@ class SpeculativeRewriter(AdvancedRewriter):
         Reshape temporary tensors and adjust loop trip counts to prevent as many
         compiler-generated remainder loops as possible.
         """
-        isa = configuration['isa']
-
         # The innermost dimension is the one that might get padded
         p_dim = -1
 
@@ -525,7 +522,7 @@ class SpeculativeRewriter(AdvancedRewriter):
             padding = []
             for i in writes:
                 try:
-                    simd_items = get_simd_items_per_reg(isa, i.dtype)
+                    simd_items = self.target.simd_items_per_reg(i.dtype)
                 except KeyError:
                     return iet, {}
                 padding.append(simd_items - i.shape[-1] % simd_items)
@@ -584,7 +581,7 @@ class CustomRewriter(SpeculativeRewriter):
         'prodders': SpeculativeRewriter._hoist_prodders
     }
 
-    def __init__(self, passes, params):
+    def __init__(self, passes, params, target):
         try:
             passes = passes.split(',')
             if 'openmp' not in passes and params['openmp']:
@@ -594,7 +591,7 @@ class CustomRewriter(SpeculativeRewriter):
             if not all(i in CustomRewriter.passes_mapper for i in passes):
                 raise DLEException
         self.passes = passes
-        super(CustomRewriter, self).__init__(params)
+        super(CustomRewriter, self).__init__(params, target)
 
     def _pipeline(self, state):
         for i in self.passes:

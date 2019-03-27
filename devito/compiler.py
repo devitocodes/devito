@@ -230,7 +230,7 @@ class ClangCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
-        if configuration['platform'] in ['power8', 'power9']:
+        if configuration['platform'].name in ['power8', 'power9']:
             # -march isn't supported on power architectures
             self.cflags += ['-mcpu=native']
         else:
@@ -248,7 +248,7 @@ class IntelCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
         self.cflags += ["-xhost"]
-        if configuration['platform'] == 'skx':
+        if configuration['platform'].name == 'skx':
             # Systematically use 512-bit vectors on skylake
             self.cflags += ["-qopt-zmm-usage=high"]
         try:
@@ -471,8 +471,6 @@ def make(loc, args):
     debug("Make <%s>: run in [%.2f s]" % (" ".join(args), toc-tic))
 
 
-# Registry dict for deriving Compiler classes according to the environment variable
-# DEVITO_ARCH. Developers should add new compiler classes here.
 compiler_registry = {
     'custom': CustomCompiler,
     'gnu': GNUCompiler,
@@ -485,5 +483,9 @@ compiler_registry = {
     'intel-knl': IntelKNLCompiler,
     'knl': IntelKNLCompiler,
 }
+"""
+Registry dict for deriving Compiler classes according to the environment variable
+DEVITO_ARCH. Developers should add new compiler classes here.
+"""
 compiler_registry.update({'gcc-%s' % i: partial(GNUCompiler, suffix=i)
                           for i in ['4.9', '5', '6', '7', '8']})

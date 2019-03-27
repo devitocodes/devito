@@ -1,7 +1,7 @@
 from collections import namedtuple
 from itertools import product
 
-from devito.archinfo import known_isas, known_platforms, get_isa, get_platform
+from devito.archinfo import platform_registry
 from devito.base import *  # noqa
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
@@ -40,9 +40,6 @@ configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i), False)
 # and will instead use the custom kernel
 configuration.add('jit-backdoor', 0, [0, 1], lambda i: bool(i), False)
 
-# (Undocumented) escape hatch for cross-compilation
-configuration.add('cross-compile', None)
-
 # Execution mode setup
 def _reinit_compiler(val):  # noqa
     # Force re-build the compiler
@@ -73,11 +70,9 @@ configuration.add('autotuning', 'off', at_accepted, callback=_at_callback,  # no
 # Should Devito emit the JIT compilation commands?
 configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i), False)
 
-# Instruction Set Architecture (ISA)
-configuration.add('isa', get_isa(), known_isas)
-
-# Codename of the underlying architecture
-configuration.add('platform', get_platform(), known_platforms)
+# JIT-compilation target platform
+configuration.add('platform', 'cpu64', list(platform_registry),
+                  callback=lambda i: platform_registry[i]())
 
 # In develop-mode:
 # - Some optimizations may not be applied to the generated code.

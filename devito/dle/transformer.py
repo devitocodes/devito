@@ -82,16 +82,19 @@ def transform(iet, mode='basic', options=None):
     if mode == 'noop' and params['openmp'] is True:
         mode = 'openmp'
 
+    # What is the target platform for which the optimizations are applied?
+    target = configuration['platform']
+
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':
         return iet, State(iet)
     elif mode not in default_modes:
         try:
-            rewriter = CustomRewriter(mode, params)
+            rewriter = CustomRewriter(mode, params, target)
             return rewriter.run(iet)
         except DLEException:
             dle_warning("Unknown transformer mode(s) %s" % mode)
             return iet, State(iet)
     else:
-        rewriter = default_modes[mode](params)
+        rewriter = default_modes[mode](params, target)
         return rewriter.run(iet)

@@ -3,39 +3,23 @@ import os
 
 import numpy as np
 import cgen as c
-import psutil
 from sympy import Function, Or
 
 from devito.ir import (Call, Conditional, Block, Expression, List, Prodder,
                        FindSymbols, FindNodes, Return, COLLAPSED, Transformer,
                        IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
-from devito.logger import dle_warning
 from devito.symbolics import CondEq
 from devito.parameters import configuration
-from devito.tools import is_integer, memoized_func
+from devito.tools import is_integer
 from devito.types import Constant, Symbol
 
 
-@memoized_func
 def ncores():
-    try:
-        return configuration['cross-compile'].cpu_count(logical=False)
-    except AttributeError:
-        return psutil.cpu_count(logical=False)
+    return configuration['platform'].cores_physical
 
 
-@memoized_func
 def nhyperthreads():
-    try:
-        logical = configuration['cross-compile'].cpu_count(logical=True)
-    except AttributeError:
-        logical = psutil.cpu_count(logical=True)
-    physical = ncores()
-    if logical % physical > 0:
-        dle_warning("Couldn't detect number of hyperthreads per core, assuming 1")
-        return 1
-    else:
-        return logical // physical
+    return configuration['platform'].threads_per_core
 
 
 class NThreads(Constant):
