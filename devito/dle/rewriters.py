@@ -20,8 +20,8 @@ from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
 from devito.tools import DAG, as_tuple, filter_ordered, flatten
 
-__all__ = ['BasicRewriter', 'AdvancedRewriter', 'SpeculativeRewriter',
-           'AdvancedRewriterSafeMath', 'CustomRewriter']
+__all__ = ['CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter', 'ArmRewriter',
+           'SpeculativeRewriter', 'CustomRewriter']
 
 
 class State(object):
@@ -153,25 +153,29 @@ class AbstractRewriter(object):
         dle("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
 
 
-class BasicRewriter(AbstractRewriter):
+class CPU64Rewriter(AbstractRewriter):
 
-    lang_intel_common = {
-        'ignore-deps': cgen.Pragma('ivdep'),
-        'ntstores': cgen.Pragma('vector nontemporal'),
-        'storefence': cgen.Statement('_mm_sfence()'),
-        'noinline': cgen.Pragma('noinline')
-    }
-
-    lang = {
-        'IntelCompiler': lang_intel_common,
-        'IntelKNLCompiler': lang_intel_common
-    }
+    lang = {}
     """
     Collection of backend-compiler-specific pragmas.
     """
 
+    _shm_parallelizer_type = Ompizer
+
+    def __init__(self, params, target):
+        super(CPU64Rewriter, self).__init__(params, target)
+        self._shm_parallelizer = self._shm_parallelizer_type()
+
     def _pipeline(self, state):
         self._avoid_denormals(state)
+        self._optimize_halospots(state)
+        if self.params['mpi']:
+            self._dist_parallelize(state)
+        self._loop_blocking(state)
+        self._simdize(state)
+        if self.params['openmp']:
+            self._shm_parallelize(state)
+        self._hoist_prodders(state)
 
     def _backend_compiler_pragma(self, name, default=None):
         key = configuration['compiler'].__class__.__name__
@@ -190,26 +194,6 @@ class BasicRewriter(AbstractRewriter):
                   cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)')]
         iet = List(header=header, body=iet)
         return (iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')})
-
-
-class AdvancedRewriter(BasicRewriter):
-
-    _shm_parallelizer_type = Ompizer
-
-    def __init__(self, params, target):
-        super(AdvancedRewriter, self).__init__(params, target)
-        self._shm_parallelizer = self._shm_parallelizer_type()
-
-    def _pipeline(self, state):
-        self._avoid_denormals(state)
-        self._optimize_halospots(state)
-        if self.params['mpi']:
-            self._dist_parallelize(state)
-        self._loop_blocking(state)
-        self._simdize(state)
-        if self.params['openmp']:
-            self._shm_parallelize(state)
-        self._hoist_prodders(state)
 
     @dle_pass
     def _loop_wrapping(self, iet):
@@ -438,16 +422,28 @@ class AdvancedRewriter(BasicRewriter):
         return iet, {}
 
 
-class AdvancedRewriterSafeMath(AdvancedRewriter):
+class Intel64Rewriter(CPU64Rewriter):
 
+    lang_intel_common = {
+        'ignore-deps': cgen.Pragma('ivdep'),
+        'ntstores': cgen.Pragma('vector nontemporal'),
+        'storefence': cgen.Statement('_mm_sfence()'),
+        'noinline': cgen.Pragma('noinline')
+    }
+    lang = {
+        'IntelCompiler': lang_intel_common,
+        'IntelKNLCompiler': lang_intel_common
+    }
     """
-    This Rewriter is slightly less aggressive than AdvancedRewriter, as it
-    doesn't drop denormal numbers, which may sometimes harm the numerical precision.
+    Collection of backend-compiler-specific pragmas.
     """
+
+
+class PowerRewriter(CPU64Rewriter):
 
     def _pipeline(self, state):
+        self._avoid_denormals(state)
         self._optimize_halospots(state)
-        self._loop_wrapping(state)
         if self.params['mpi']:
             self._dist_parallelize(state)
         self._loop_blocking(state)
@@ -457,7 +453,10 @@ class AdvancedRewriterSafeMath(AdvancedRewriter):
         self._hoist_prodders(state)
 
 
-class SpeculativeRewriter(AdvancedRewriter):
+ArmRewriter = PowerRewriter
+
+
+class SpeculativeRewriter(CPU64Rewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)

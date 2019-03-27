@@ -6,7 +6,7 @@ JIT-compile, and run kernels.
 import os
 import sys
 
-from devito.dle import BasicRewriter, init_dle
+from devito.dle import init_dle
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.parameters import Parameters, configuration, add_sub_configuration
@@ -89,9 +89,7 @@ env_vars_mapper = {
 add_sub_configuration(yask_configuration, env_vars_mapper)
 
 # Initialize the DLE
-modes = {'basic': BasicRewriter,
-         'advanced': YaskRewriter,
-         'advanced-safemath': YaskRewriter,
+modes = {'advanced': YaskRewriter,
          'speculative': YaskRewriter}
 init_dle(modes)
 

@@ -1,4 +1,4 @@
-from devito.dle import AdvancedRewriter, Ompizer
+from devito.dle import Intel64Rewriter, Ompizer
 
 __all__ = ['YaskRewriter']
 
@@ -8,7 +8,7 @@ class YaskOmpizer(Ompizer):
     pass
 
 
-class YaskRewriter(AdvancedRewriter):
+class YaskRewriter(Intel64Rewriter):
 
     _shm_parallelizer_type = YaskOmpizer
 

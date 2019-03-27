@@ -8,9 +8,7 @@ __all__ = ['init_dle', 'transform']
 
 
 default_modes = {
-    'basic': None,
     'advanced': None,
-    'advanced-safemath': None,
     'speculative': None
 }
 """The DLE transformation modes.
