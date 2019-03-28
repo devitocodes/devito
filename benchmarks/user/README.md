@@ -3,16 +3,16 @@
 ## Running benchmarks
 
 `benchmark.py` implements a minimalist framework to evaluate the performance of
-a Devito Operator while varying
+a Devito Operator while varying:
 
-* the problem size (e.g., shape of the computational grid)
-* the discretization (e.g., space- and time-order of the input/output fields),
-* the simulation time,
+* the problem size (e.g., shape of the computational grid);
+* the discretization (e.g., space- and time-order of the input/output fields);
+* the simulation time (in milliseconds);
 * the performance optimizations applied by the Devito compiler, including:
   - the Devito Symbolic Engine (DSE) optimizations for flop reduction,
   - the Devito Loop Engine (DLE) optimizations for parallelism and cache
-    locality
-* the autotuning level
+    locality;
+* the autotuning level.
 
 Running `python benchmark.py --help` will display a list of useful options.
 
@@ -25,7 +25,7 @@ unpredictable way.
 It is important that *both* the Python process running Devito (process*es* if
 running with MPI) and the OpenMP threads spawned while running an Operator are
 pinned to specific CPU cores, to get reliable and determinisic results. There
-are several ways to achieve this.
+are several ways to achieve this:
 
 * Through environment variables. All MPI/OpenMP distributions provide a set of
   environment variables to control process/thread pinning.  Devito also
@@ -223,8 +223,8 @@ watch numastat -m
 
 ## Known limitations and possible work arounds
 
- * The DSE `aggressive` mode will not work with backend compilers that are not
-   `icc`. This is a known
+ * The DSE `aggressive` mode might not work in combination with OpenMP if the
+   backend compiler is `gcc` version `< 8.3`. This is a known
    [issue](https://github.com/opesci/devito/issues/320).
 
 ## Do not hesitate to contact us
