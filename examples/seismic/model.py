@@ -3,7 +3,7 @@ import os
 import numpy as np
 
 from examples.seismic.utils import scipy_smooth
-from devito import Grid, SubDomain, Function, Constant, warning
+from devito import Grid, SubDomain, Function, Constant, warning, mmin, mmax
 
 __all__ = ['Model', 'ModelElastic', 'demo_model']
 
@@ -260,7 +260,7 @@ def demo_model(preset, **kwargs):
         # Cut the model to make it slightly cheaper
         v = v[301:-300, :]
         vs = .5 * v[:]
-        rho = v[:]/np.max(v[:])
+        rho = v[:]/mmax(v[:])
 
         return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
                             origin=origin, shape=v.shape,
@@ -535,8 +535,8 @@ class Model(GenericModel):
                 self.epsilon = Function(name="epsilon", grid=self.grid)
                 initialize_function(self.epsilon, 1 + 2 * epsilon, self.nbpml)
                 # Maximum velocity is scale*max(vp) if epsilon > 0
-                if np.max(self.epsilon.data_with_halo[:]) > 0:
-                    self.scale = np.sqrt(np.max(self.epsilon.data_with_halo[:]))
+                if mmax(self.epsilon) > 0:
+                    self.scale = np.sqrt(mmax(self.epsilon))
             else:
                 self.epsilon = 1 + 2 * epsilon
                 self.scale = epsilon
@@ -585,7 +585,7 @@ class Model(GenericModel):
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
-        dt = self.dtype(coeff * np.min(self.spacing) / (self.scale*np.max(self.vp)))
+        dt = self.dtype(coeff * mmin(self.spacing) / (self.scale*mmax(self.vp)))
         return .001 * int(1000 * dt)
 
     @property
@@ -667,4 +667,4 @@ class ModelElastic(GenericModel):
         #
         # The CFL condtion is then given by
         # dt < h / (sqrt(2) * max(vp)))
-        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*np.max(self.vp.data)))
+        return self.dtype(.5*mmin(self.spacing) / (np.sqrt(2)*mmax(self.vp)))
