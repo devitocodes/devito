@@ -7,7 +7,10 @@ from devito.exceptions import DLEException
 from devito.logger import dle_warning
 from devito.parameters import configuration
 
-__all__ = ['modes', 'transform']
+__all__ = ['dle_registry', 'modes', 'transform']
+
+
+dle_registry = ('advanced', 'speculative')
 
 
 class DLEModes(OrderedDict):
@@ -24,7 +27,7 @@ class DLEModes(OrderedDict):
     def add(self, platform, mapper):
         assert issubclass(platform, Platform)
         assert isinstance(mapper, dict)
-        assert all(i in mapper for i in ['advanced', 'speculative'])
+        assert all(i in mapper for i in dle_registry)
         super(DLEModes, self).__setitem__(platform, mapper)
 
     def fetch(self, platform, mode):

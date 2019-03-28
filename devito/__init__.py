@@ -1,19 +1,24 @@
 from collections import namedtuple
 from itertools import product
 
-from devito.archinfo import platform_registry
+# API imports
 from devito.base import *  # noqa
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.equation import *  # noqa
 from devito.finite_differences import *  # noqa
-from devito.logger import error, warning, info, set_log_level  # noqa
-from devito.parameters import *  # noqa
 from devito.types import NODE, CELL, Buffer, SubDomain  # noqa
 from devito.types.dimension import *  # noqa
 
-from devito.compiler import compiler_registry
+# Imports required to initialize Devito
+from devito.archinfo import platform_registry
 from devito.backends import backends_registry, init_backend
+from devito.compiler import compiler_registry
+from devito.dle import dle_registry
+from devito.dse import dse_registry
+from devito.logger import error, warning, info, logger_registry, set_log_level  # noqa
+from devito.parameters import *  # noqa
+from devito.profiling import profiler_registry
 
 
 from ._version import get_versions  # noqa
@@ -33,6 +38,10 @@ configuration.add('first-touch', 0, [0, 1], lambda i: bool(i), False)
 # Should Devito ignore any unknown runtime arguments supplied to Operator.apply(),
 # or rather raise an exception (the default behaviour)?
 configuration.add('ignore-unknowns', 0, [0, 1], lambda i: bool(i), False)
+
+# Setup log level
+configuration.add('log-level', 'INFO', list(logger_registry),
+                  lambda i: set_log_level(i), False)
 
 # Escape hatch for custom kernels. The typical use case is as follows: one lets
 # Devito generate code for an Operator; then, once the session is over, the
@@ -57,7 +66,7 @@ AT_LEVELs = ['off', 'basic', 'aggressive', 'max']
 AT_MODEs = ['preemptive', 'destructive', 'runtime']
 at_default_mode = {'core': 'preemptive', 'yask': 'runtime', 'ops': 'runtime'}
 at_setup = namedtuple('at_setup', 'level mode')
-at_accepted = AT_LEVELs + [list(i) for i in product(AT_LEVELs, AT_MODEs)]
+at_accepted = at_levels + [list(i) for i in product(at_levels, at_modes)]
 def _at_callback(val):  # noqa
     if isinstance(val, str):
         level, mode = val, at_default_mode[configuration['backend']]
@@ -77,9 +86,15 @@ configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i), False)
 # - The compiler performs more type and value checking
 configuration.add('develop-mode', True, [False, True])
 
-# DLE configuration
-configuration.add('dle', 'advanced', ['advanced', 'speculative'])
+# Setup DSE
+configuration.add('dse', 'advanced', list(dse_registry))
+
+# Setup DLE
+configuration.add('dle', 'advanced', list(dle_registry))
 configuration.add('dle-options', {})
+
+# Setup Operator profiling
+configuration.add('profiling', 'basic', list(profiler_registry), impacts_jit=False)
 
 # Initialize the configuration, either from the environment or
 # defaults. This will also trigger the backend initialization
