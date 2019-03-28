@@ -229,7 +229,8 @@ class ClangCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
-        self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable']
+        self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
+                        '-ffast-math']
 
     def __lookup_cmds__(self):
         self.CC = 'clang'
