@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from itertools import chain, combinations, product
+from itertools import combinations, product
 import resource
 
 import psutil
@@ -149,9 +149,8 @@ def autotune(operator, args, level, mode):
         for k, v in timings.items():
             for i in v.values():
                 runs += len(i)
-                mapper.setdefault(nt, []).append(min(i, key=i.get))
-        best = min(mapper, key=mapper.get)
-        best = OrderedDict(chain(best, *mapper[best]))
+                mapper[k + min(i, key=i.get)] = min(i.values())
+        best = OrderedDict(min(mapper, key=mapper.get))
         best.pop(None, None)
         log("selected <%s>" % (','.join('%s=%s' % i for i in best.items())))
     except ValueError:
