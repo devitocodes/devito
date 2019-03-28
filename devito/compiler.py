@@ -206,7 +206,7 @@ class GNUCompiler(Compiler):
         super(GNUCompiler, self).__init__(*args, **kwargs)
 
         self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
-                        '-Wno-unused-but-set-variable']
+                        '-Wno-unused-but-set-variable', '--fast-math']
 
         try:
             if self.version >= version.StrictVersion("4.9.0"):
