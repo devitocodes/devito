@@ -6,7 +6,8 @@ JIT-compile, and run kernels.
 import os
 import sys
 
-from devito.dle import init_dle
+from devito.archinfo import Cpu64
+from devito.dle import modes
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.parameters import Parameters, configuration, add_sub_configuration
@@ -88,10 +89,8 @@ env_vars_mapper = {
 
 add_sub_configuration(yask_configuration, env_vars_mapper)
 
-# Initialize the DLE
-modes = {'advanced': YaskRewriter,
-         'speculative': YaskRewriter}
-init_dle(modes)
+# Add YASK-specific DLE modes
+modes.add(Cpu64, {'advanced': YaskRewriter, 'speculative': YaskRewriter})
 
 # The following used by backends.backendSelector
 from devito.types import SparseFunction, SparseTimeFunction  # noqa

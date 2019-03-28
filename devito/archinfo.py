@@ -1,6 +1,5 @@
 """Collection of utilities to detect properties of the underlying architecture."""
 
-from functools import partial
 from subprocess import PIPE, Popen
 
 import numpy as np
@@ -10,7 +9,10 @@ import psutil
 from devito.logger import warning
 from devito.tools.memoization import memoized_func
 
-__all__ = ['platform_registry']
+__all__ = ['platform_registry',
+           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',
+           'ARM',
+           'POWER8', 'POWER9']
 
 
 @memoized_func
@@ -71,7 +73,7 @@ def get_platform():
         # https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
         platform = {'sandybridge': 'snb', 'ivybridge': 'ivb', 'haswell': 'hsw',
                     'broadwell': 'bdw', 'skylake': 'skx', 'knl': 'knl'}[platform]
-        return platform_registry[platform]()
+        return platform_registry[platform]
     except:
         pass
 
@@ -80,53 +82,45 @@ def get_platform():
         cpu_info = get_cpu_info()
         platform = cpu_info['brand'].split()[4]
         platform = {'v2': 'ivb', 'v3': 'hsw', 'v4': 'bdw', 'v5': 'skx'}[platform]
-        return platform_registry[platform]()
+        return platform_registry[platform]
     except:
         pass
 
     # Stick to default
-    return CPU64('cpu64')
+    return CPU64
 
 
 class Platform(object):
 
-    def __init__(self, name):
+    def __init__(self, name, **kwargs):
         self.name = name
 
-        self.cores_logical = 1
-        self.cores_physical = 1
+        cpu_info = get_cpu_info()
 
-        self.isa = 'cpp'
+        self.cores_logical = kwargs.get('cores_logical', cpu_info['logical'])
+        self.cores_physical = kwargs.get('cores_physical', cpu_info['physical'])
+        self.isa = kwargs.get('isa', self._detect_isa())
+
+    def __call__(self):
+        return self
 
     def __str__(self):
         return self.name
 
     def __repr__(self):
-        return "DevitoTargetPlatform[%s]" % self.name
+        return "TargetPlatform[%s]" % self.name
+
+    def _detect_isa(self):
+        return 'unknown'
 
     @property
     def threads_per_core(self):
         return self.cores_logical // self.cores_physical
 
-
-class CPU64(Platform):
-
-    def __init__(self, name):
-        self.name = name
-
-        cpu_info = get_cpu_info()
-        self.cores_logical = cpu_info['logical']
-        self.cores_physical = cpu_info['physical']
-
-        self.isa = self._detect_isa()
-
-    def _detect_isa(self):
-        return 'cpp'
-
     @property
     def simd_reg_size(self):
         """Size in bytes of a SIMD register."""
-        return isa_registry[self.isa]
+        return isa_registry.get(self.isa, 0)
 
     def simd_items_per_reg(self, dtype):
         """Number of items of type ``dtype`` that can fit in a SIMD register."""
@@ -134,7 +128,13 @@ class CPU64(Platform):
         return int(self.simd_reg_size / np.dtype(dtype).itemsize)
 
 
-class Intel64(CPU64):
+class Cpu64(Platform):
+
+    def _detect_isa(self):
+        return 'cpp'
+
+
+class Intel64(Cpu64):
 
     def _detect_isa(self):
         known_isas = ['cpp', 'sse', 'avx', 'avx2', 'avx512']
@@ -146,23 +146,48 @@ class Intel64(CPU64):
         return 'cpp'
 
 
-class KNL7210(Intel64):
-
-    def __init__(self, name):
-        self.name = name
-        self.cores_logical = 256
-        self.cores_physical = 64
-        self.isa = 'avx512'
-
-
-class Arm(CPU64):
+class Arm(Cpu64):
     pass
 
 
-class Power(CPU64):
+class Power(Cpu64):
 
     def _detect_isa(self):
         return 'altivec'
+
+
+CPU64 = Cpu64('cpu64')
+INTEL64 = Intel64('intel64')
+SNB = Intel64('snb')
+IVB = Intel64('ivb')
+HSW = Intel64('hsw')
+BDW = Intel64('bdw')
+SKX = Intel64('skx')
+KNL = Intel64('knl')
+KNL7210 = Intel64('knl', cores_logical=256, cores_physical=64, isa='avx512')
+ARM = Arm('arm')
+POWER8 = Power('power8')
+POWER9 = Power('power9')
+
+
+platform_registry = {
+    'intel64': INTEL64,
+    'snb': SNB,
+    'ivb': IVB,
+    'hsw': HSW,
+    'bdw': BDW,
+    'skx': SKX,
+    'knl': KNL,
+    'knl7210': KNL7210,
+    'arm': ARM,
+    'power8': POWER8,
+    'power9': POWER9
+}
+"""
+Registry dict for deriving Platform classes according to the environment variable
+DEVITO_PLATFORM. Developers should add new platform classes here.
+"""
+platform_registry['cpu64'] = get_platform  # Autodetection
 
 
 isa_registry = {
@@ -174,23 +199,3 @@ isa_registry = {
     'altivec': 16
 }
 """Size in bytes of a SIMD register in known ISAs."""
-
-
-platform_registry = {
-    'cpu64': get_platform,  # Trigger autodetection
-    'intel64': partial(Intel64, 'intel64'),
-    'snb': partial(Intel64, 'snb'),
-    'ivb': partial(Intel64, 'ivb'),
-    'hsw': partial(Intel64, 'hsw'),
-    'bdw': partial(Intel64, 'bdw'),
-    'skx': partial(Intel64, 'skx'),
-    'knl': partial(Intel64, 'knl'),
-    'knl7210': partial(KNL7210, name='knl'),
-    'arm': partial(Arm, name='arm'),
-    'power8': partial(Power, name='power'),
-    'power9': partial(Power, name='power')
-}
-"""
-Registry dict for deriving Platform classes according to the environment variable
-DEVITO_PLATFORM. Developers should add new platform classes here.
-"""

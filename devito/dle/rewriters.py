@@ -20,8 +20,8 @@ from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
 from devito.tools import DAG, as_tuple, filter_ordered, flatten
 
-__all__ = ['CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter', 'ArmRewriter',
-           'SpeculativeRewriter', 'CustomRewriter']
+__all__ = ['PlatformRewriter', 'CPU64Rewriter', 'Intel64Rewriter',
+           'PowerRewriter', 'ArmRewriter', 'SpeculativeRewriter', 'CustomRewriter']
 
 
 class State(object):
@@ -124,9 +124,9 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, params, target):
+    def __init__(self, params, platform):
         self.params = params
-        self.target = target
+        self.platform = platform
         self.timings = OrderedDict()
 
     def run(self, iet):
@@ -153,6 +153,14 @@ class AbstractRewriter(object):
         dle("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
 
 
+class PlatformRewriter(AbstractRewriter):
+
+    """No-op rewriter."""
+
+    def _pipeline(self, state):
+        return
+
+
 class CPU64Rewriter(AbstractRewriter):
 
     lang = {}
@@ -162,8 +170,8 @@ class CPU64Rewriter(AbstractRewriter):
 
     _shm_parallelizer_type = Ompizer
 
-    def __init__(self, params, target):
-        super(CPU64Rewriter, self).__init__(params, target)
+    def __init__(self, params, platform):
+        super(CPU64Rewriter, self).__init__(params, platform)
         self._shm_parallelizer = self._shm_parallelizer_type()
 
     def _pipeline(self, state):
@@ -189,11 +197,7 @@ class CPU64Rewriter(AbstractRewriter):
         are normally flushed when using SSE-based instruction sets, except when
         compiling shared objects.
         """
-        header = [cgen.Comment('Flush denormal numbers to zero in hardware'),
-                  cgen.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)'),
-                  cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)')]
-        iet = List(header=header, body=iet)
-        return (iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')})
+        return iet, {}
 
     @dle_pass
     def _loop_wrapping(self, iet):
@@ -381,7 +385,7 @@ class CPU64Rewriter(AbstractRewriter):
                 if aligned:
                     simd = Ompizer.lang['simd-for-aligned']
                     simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                    self.target.simd_reg_size))
+                                    self.platform.simd_reg_size))
                 else:
                     simd = as_tuple(Ompizer.lang['simd-for'])
                 mapper[i] = i._rebuild(pragmas=i.pragmas + ignore_deps + simd)
@@ -438,22 +442,17 @@ class Intel64Rewriter(CPU64Rewriter):
     Collection of backend-compiler-specific pragmas.
     """
 
-
-class PowerRewriter(CPU64Rewriter):
-
-    def _pipeline(self, state):
-        self._avoid_denormals(state)
-        self._optimize_halospots(state)
-        if self.params['mpi']:
-            self._dist_parallelize(state)
-        self._loop_blocking(state)
-        self._simdize(state)
-        if self.params['openmp']:
-            self._shm_parallelize(state)
-        self._hoist_prodders(state)
+    @dle_pass
+    def _avoid_denormals(self, iet):
+        header = [cgen.Comment('Flush denormal numbers to zero in hardware'),
+                  cgen.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)'),
+                  cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)')]
+        iet = List(header=header, body=iet)
+        return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}
 
 
-ArmRewriter = PowerRewriter
+PowerRewriter = CPU64Rewriter
+ArmRewriter = CPU64Rewriter
 
 
 class SpeculativeRewriter(CPU64Rewriter):
@@ -521,7 +520,7 @@ class SpeculativeRewriter(CPU64Rewriter):
             padding = []
             for i in writes:
                 try:
-                    simd_items = self.target.simd_items_per_reg(i.dtype)
+                    simd_items = self.platform.simd_items_per_reg(i.dtype)
                 except KeyError:
                     return iet, {}
                 padding.append(simd_items - i.shape[-1] % simd_items)
@@ -580,7 +579,7 @@ class CustomRewriter(SpeculativeRewriter):
         'prodders': SpeculativeRewriter._hoist_prodders
     }
 
-    def __init__(self, passes, params, target):
+    def __init__(self, passes, params, platform):
         try:
             passes = passes.split(',')
             if 'openmp' not in passes and params['openmp']:
@@ -590,7 +589,7 @@ class CustomRewriter(SpeculativeRewriter):
             if not all(i in CustomRewriter.passes_mapper for i in passes):
                 raise DLEException
         self.passes = passes
-        super(CustomRewriter, self).__init__(params, target)
+        super(CustomRewriter, self).__init__(params, platform)
 
     def _pipeline(self, state):
         for i in self.passes:

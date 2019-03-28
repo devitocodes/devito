@@ -8,6 +8,7 @@ import numpy as np
 import ctypes
 from ctypes.util import find_library
 
+from devito.archinfo import KNL
 from devito.logger import logger
 from devito.parameters import configuration
 from devito.tools import dtype_to_ctype
@@ -342,7 +343,7 @@ def default_allocator():
     if configuration['develop-mode']:
         return ALLOC_GUARD
     elif NumaAllocator.available():
-        if configuration['platform'].name == 'knl' and infer_knl_mode() == 'flat':
+        if configuration['platform'] is KNL and infer_knl_mode() == 'flat':
             return ALLOC_KNL_MCDRAM
         else:
             return ALLOC_NUMA_LOCAL

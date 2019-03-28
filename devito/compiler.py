@@ -12,6 +12,7 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
+from devito.archinfo import SKX, POWER8, POWER9
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -181,7 +182,7 @@ class Compiler(GCCToolchain):
         return self.__class__.__name__
 
     def __repr__(self):
-        return "DevitoJITCompiler[%s]" % self.__class__.__name__
+        return "JITCompiler[%s]" % self.__class__.__name__
 
     def __getstate__(self):
         # The superclass would otherwise only return a subset of attributes
@@ -230,7 +231,7 @@ class ClangCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
-        if configuration['platform'].name in ['power8', 'power9']:
+        if configuration['platform'] in [POWER8, POWER9]:
             # -march isn't supported on power architectures
             self.cflags += ['-mcpu=native']
         else:
@@ -248,7 +249,7 @@ class IntelCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
         self.cflags += ["-xhost"]
-        if configuration['platform'].name == 'skx':
+        if configuration['platform'] is SKX:
             # Systematically use 512-bit vectors on skylake
             self.cflags += ["-qopt-zmm-usage=high"]
         try:

@@ -5,6 +5,7 @@ import resource
 
 import psutil
 
+from devito.archinfo import KNL
 from devito.dle import BlockDimension
 from devito.ir import Backward, retrieve_iteration_tree
 from devito.logger import perf, warning as _warning
@@ -317,7 +318,7 @@ def generate_nthreads(nthreads, args, level):
         # Be sure to try with:
         # 1) num_threads == num_physical_cores
         # 2) num_threads == num_hyperthreads
-        if configuration['platform'] == 'knl':
+        if configuration['platform'] is KNL:
             ret.extend([((nthreads.name, psutil.cpu_count() // 4),),
                         ((nthreads.name, psutil.cpu_count() // 2),),
                         ((nthreads.name, psutil.cpu_count()),)])

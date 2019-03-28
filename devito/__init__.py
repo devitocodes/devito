@@ -20,7 +20,9 @@ from ._version import get_versions  # noqa
 __version__ = get_versions()['version']
 del get_versions
 
-# Setup compiler and backend
+# Setup target platform, compiler, and backend
+configuration.add('platform', 'cpu64', list(platform_registry),
+                  callback=lambda i: platform_registry[i]())
 configuration.add('compiler', 'custom', list(compiler_registry),
                   callback=lambda i: compiler_registry[i]())
 configuration.add('backend', 'core', list(backends_registry), callback=init_backend)
@@ -70,14 +72,14 @@ configuration.add('autotuning', 'off', at_accepted, callback=_at_callback,  # no
 # Should Devito emit the JIT compilation commands?
 configuration.add('debug-compiler', 0, [0, 1], lambda i: bool(i), False)
 
-# JIT-compilation target platform
-configuration.add('platform', 'cpu64', list(platform_registry),
-                  callback=lambda i: platform_registry[i]())
-
 # In develop-mode:
 # - Some optimizations may not be applied to the generated code.
 # - The compiler performs more type and value checking
 configuration.add('develop-mode', True, [False, True])
+
+# DLE configuration
+configuration.add('dle', 'advanced', ['advanced', 'speculative'])
+configuration.add('dle-options', {})
 
 # Initialize the configuration, either from the environment or
 # defaults. This will also trigger the backend initialization

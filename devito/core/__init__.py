@@ -4,17 +4,20 @@ common to all other backends. The ``core`` backend (and therefore the ``base``
 backend as well) are used to run Devito on standard CPU architectures.
 """
 
-from devito.dle import CPU64Rewriter, SpeculativeRewriter, init_dle
+from devito.archinfo import Cpu64, Intel64, Arm, Power
+from devito.dle import (CPU64Rewriter, Intel64Rewriter, ArmRewriter, PowerRewriter,
+                        SpeculativeRewriter, modes)
 from devito.parameters import Parameters, add_sub_configuration
 
 core_configuration = Parameters('core')
 env_vars_mapper = {}
 add_sub_configuration(core_configuration, env_vars_mapper)
 
-# Initialize the DLE
-modes = {'advanced': CPU64Rewriter,
-         'speculative': SpeculativeRewriter}
-init_dle(modes)
+# Add core-specific DLE modes
+modes.add(Cpu64, {'advanced': CPU64Rewriter, 'speculative': SpeculativeRewriter})
+modes.add(Intel64, {'advanced': Intel64Rewriter, 'speculative': SpeculativeRewriter})
+modes.add(Arm, {'advanced': ArmRewriter, 'speculative': SpeculativeRewriter})
+modes.add(Power, {'advanced': PowerRewriter, 'speculative': SpeculativeRewriter})
 
 # The following used by backends.backendSelector
 from devito.core.operator import OperatorCore as Operator  # noqa
