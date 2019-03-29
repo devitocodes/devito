@@ -316,6 +316,12 @@ class CustomCompiler(Compiler):
         if configuration['openmp']:
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
 
+    def __lookup_cmds__(self):
+        self.CC = 'gcc'
+        self.CPP = 'g++'
+        self.MPICC = 'mpicc'
+        self.MPICXX = 'mpicxx'
+
 
 @memoized_func
 def get_jit_dir():
