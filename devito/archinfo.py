@@ -183,6 +183,17 @@ class Power(Cpu64):
         return 'altivec'
 
 
+class Device(Platform):
+
+    def __init__(self, name, cores_logical=1, cores_physical=1, isa='cpp'):
+        self.name = name
+
+        self.cores_logical = cores_logical
+        self.cores_physical = cores_physical
+        self.isa = isa
+
+
+# CPUs
 CPU64 = Cpu64('cpu64')
 INTEL64 = Intel64('intel64')
 SNB = Intel64('snb')
@@ -196,6 +207,9 @@ ARM = Arm('arm')
 POWER8 = Power('power8')
 POWER9 = Power('power9')
 
+# Devices
+NVIDIAX = Device('nvidiax')
+
 
 platform_registry = {
     'intel64': INTEL64,
@@ -208,7 +222,8 @@ platform_registry = {
     'knl7210': KNL7210,
     'arm': ARM,
     'power8': POWER8,
-    'power9': POWER9
+    'power9': POWER9,
+    'nvidiaX': NVIDIAX
 }
 """
 Registry dict for deriving Platform classes according to the environment variable
