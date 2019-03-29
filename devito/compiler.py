@@ -12,7 +12,7 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.archinfo import SKX, POWER8, POWER9
+from devito.archinfo import NVIDIAX, SKX, POWER8, POWER9
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -231,13 +231,19 @@ class ClangCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
-        if configuration['platform'] in [POWER8, POWER9]:
-            # -march isn't supported on power architectures
-            self.cflags += ['-mcpu=native']
+
+        if configuration['platform'] == NVIDIAX:
+            # clang has offloading support via OpenMP
+            # TODO: add in the required flags
+            self.cflags += ['-fopenmp']
         else:
-            self.cflags += ['-march=native']
-        if configuration['openmp']:
-            self.ldflags += ['-fopenmp']
+            if configuration['platform'] in [POWER8, POWER9]:
+                # -march isn't supported on power architectures
+                self.cflags += ['-mcpu=native']
+            else:
+                self.cflags += ['-march=native']
+            if configuration['openmp']:
+                self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
         self.CC = 'clang'
