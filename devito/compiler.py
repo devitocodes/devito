@@ -236,6 +236,8 @@ class ClangCompiler(Compiler):
             self.cflags += ['-mcpu=native']
         else:
             self.cflags += ['-march=native']
+        if configuration['openmp']:
+            self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
         self.CC = 'clang'
