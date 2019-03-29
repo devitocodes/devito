@@ -58,7 +58,8 @@ def get_platform():
     """
     try:
         # First, try leveraging `gcc`
-        p1 = Popen(['gcc', '-march=native', '-Q', '--help=target'], stdout=PIPE)
+        p1 = Popen(['gcc', '-march=native', '-Q', '--help=target'],
+                   stdout=PIPE, stderr=PIPE)
         p2 = Popen(['grep', 'march'], stdin=p1.stdout, stdout=PIPE)
         p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
         output, _ = p2.communicate()
