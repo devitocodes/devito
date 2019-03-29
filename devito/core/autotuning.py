@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from itertools import combinations, product
+from functools import total_ordering
 import resource
 
 import psutil
@@ -149,8 +150,10 @@ def autotune(operator, args, level, mode):
         for k, v in timings.items():
             for i in v.values():
                 runs += len(i)
-                mapper[k + min(i, key=i.get)] = min(i.values())
-        best = OrderedDict(min(mapper, key=mapper.get))
+                record = mapper.setdefault(k, Record())
+                record.add(min(i, key=i.get), min(i.values()))
+        best = min(mapper, key=mapper.get)
+        best = OrderedDict(best + tuple(mapper[best].args))
         best.pop(None, None)
         log("selected <%s>" % (','.join('%s=%s' % i for i in best.items())))
     except ValueError:
@@ -171,6 +174,27 @@ def autotune(operator, args, level, mode):
     summary['tuned'] = dict(best)
 
     return args, summary
+
+
+@total_ordering
+class Record(object):
+
+    def __init__(self):
+        self.args = []
+        self.time = 0
+
+    def __repr__(self):
+        return str((self.args, self.time))
+
+    def add(self, args, time):
+        self.args.extend(list(args))
+        self.time += time
+
+    def __eq__(self, other):
+        return self.time == other.time
+
+    def __lt__(self, other):
+        return self.time < other.time
 
 
 def init_time_bounds(stepper, at_args):
