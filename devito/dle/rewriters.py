@@ -469,8 +469,7 @@ class DeviceOffloadingRewriter(PlatformRewriter):
         if self.params['mpi']:
             self._dist_parallelize(state)
         self._simdize(state)
-        if self.params['openmp']:
-            self._node_parallelize(state)
+        self._node_parallelize(state)
         self._hoist_prodders(state)
 
     @dle_pass
