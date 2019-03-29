@@ -162,7 +162,7 @@
 
 <span class="kn">import</span> <span class="nn">devito</span> <span class="k">as</span> <span class="nn">dv</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;assign&#39;</span><span class="p">,</span> <span class="s1">&#39;smooth&#39;</span><span class="p">,</span> <span class="s1">&#39;norm&#39;</span><span class="p">,</span> <span class="s1">&#39;sumall&#39;</span><span class="p">,</span> <span class="s1">&#39;inner&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;assign&#39;</span><span class="p">,</span> <span class="s1">&#39;smooth&#39;</span><span class="p">,</span> <span class="s1">&#39;norm&#39;</span><span class="p">,</span> <span class="s1">&#39;sumall&#39;</span><span class="p">,</span> <span class="s1">&#39;inner&#39;</span><span class="p">,</span> <span class="s1">&#39;mmin&#39;</span><span class="p">,</span> <span class="s1">&#39;mmax&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="assign"><a class="viewcode-back" href="../../builtins.html#devito.builtins.assign">[docs]</a><span class="k">def</span> <span class="nf">assign</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
@@ -215,7 +215,7 @@
 <span class="sd">    A context manager to build MPI-aware reduction Operators.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">functions</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">functions</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">dv</span><span class="o">.</span><span class="n">mpi</span><span class="o">.</span><span class="n">MPI</span><span class="o">.</span><span class="n">SUM</span><span class="p">):</span>
         <span class="n">grids</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="o">.</span><span class="n">grid</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">functions</span><span class="p">}</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">grids</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="o">=</span> <span class="kc">None</span>
@@ -229,6 +229,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal mixed data types&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">v</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">op</span> <span class="o">=</span> <span class="n">op</span>
 
     <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">i</span> <span class="o">=</span> <span class="n">dv</span><span class="o">.</span><span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;i&#39;</span><span class="p">,)</span>
@@ -243,7 +244,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">comm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">comm</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">v</span> <span class="o">=</span> <span class="n">comm</span><span class="o">.</span><span class="n">allreduce</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="o">.</span><span class="n">data</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">v</span> <span class="o">=</span> <span class="n">comm</span><span class="o">.</span><span class="n">allreduce</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="o">.</span><span class="n">data</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="norm"><a class="viewcode-back" href="../../builtins.html#devito.builtins.norm">[docs]</a><span class="k">def</span> <span class="nf">norm</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
@@ -346,6 +347,40 @@
         <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">(</span><span class="n">mr</span><span class="o">.</span><span class="n">v</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="mmin"><a class="viewcode-back" href="../../builtins.html#devito.builtins.mmin">[docs]</a><span class="k">def</span> <span class="nf">mmin</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Retrieve the minimum.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f : array_like or Function</span>
+<span class="sd">        Input operand.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">dv</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">MPIReduction</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">dv</span><span class="o">.</span><span class="n">mpi</span><span class="o">.</span><span class="n">MPI</span><span class="o">.</span><span class="n">MIN</span><span class="p">)</span> <span class="k">as</span> <span class="n">mr</span><span class="p">:</span>
+        <span class="n">mr</span><span class="o">.</span><span class="n">n</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asscalar</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">data_ro_domain</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asscalar</span><span class="p">(</span><span class="n">mr</span><span class="o">.</span><span class="n">v</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="mmax"><a class="viewcode-back" href="../../builtins.html#devito.builtins.mmax">[docs]</a><span class="k">def</span> <span class="nf">mmax</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Retrieve the maximum.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f : array_like or Function</span>
+<span class="sd">        Input operand.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">dv</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">MPIReduction</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">dv</span><span class="o">.</span><span class="n">mpi</span><span class="o">.</span><span class="n">MPI</span><span class="o">.</span><span class="n">MAX</span><span class="p">)</span> <span class="k">as</span> <span class="n">mr</span><span class="p">:</span>
+        <span class="n">mr</span><span class="o">.</span><span class="n">n</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asscalar</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">data_ro_domain</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asscalar</span><span class="p">(</span><span class="n">mr</span><span class="o">.</span><span class="n">v</span><span class="p">)</span></div>
 </pre></div>
 
            </div>
