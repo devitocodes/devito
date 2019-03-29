@@ -54,7 +54,7 @@ configuration.add('mpi', 0, [0, 1, 'basic', 'diag', 'overlap', 'overlap2', 'full
                   callback=_reinit_compiler)
 
 # Autotuning setup
-AT_LEVELs = ['off', 'basic', 'aggressive']
+AT_LEVELs = ['off', 'basic', 'aggressive', 'max']
 AT_MODEs = ['preemptive', 'destructive', 'runtime']
 at_default_mode = {'core': 'preemptive', 'yask': 'runtime', 'ops': 'runtime'}
 at_setup = namedtuple('at_setup', 'level mode')

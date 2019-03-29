@@ -28,9 +28,9 @@ def autotune(operator, args, level, mode):
     args : dict_like
         The runtime arguments with which `operator` is run.
     level : str
-        The autotuning aggressiveness (basic, aggressive). A more aggressive
-        autotuning might eventually result in higher performance, though in
-        some circumstances it might instead increase the actual runtime.
+        The autotuning aggressiveness (basic, aggressive, max). A more
+        aggressive autotuning might eventually result in higher runtime
+        performance, but the autotuning phase will take longer.
     mode : str
         The autotuning mode (preemptive, runtime). In preemptive mode, the
         output runtime values supplied by the user to `operator.apply` are
@@ -277,7 +277,7 @@ def generate_block_shapes(blockable, args, level):
     # 2) Always try the entire iteration space (degenerate block)
     ret.append(max_bs)
     # 3) More attempts if auto-tuning in aggressive mode
-    if level == 'aggressive':
+    if level in ['aggressive', 'max']:
         # Ramp up to larger block shapes
         handle = tuple((i, options['blocksize'][-1]) for i, _ in ret[0])
         for i in range(3):
@@ -313,11 +313,17 @@ def generate_nthreads(nthreads, args, level):
 
     ret = [((nthreads.name, args[nthreads.name]),)]
 
-    # On the KNL, also try running with a different number of hyperthreads
-    if level == 'aggressive' and configuration['platform'] == 'knl':
-        ret.extend([((nthreads.name, psutil.cpu_count()),),
-                    ((nthreads.name, psutil.cpu_count() // 2),),
-                    ((nthreads.name, psutil.cpu_count() // 4),)])
+    if level == 'max':
+        # Be sure to try with:
+        # 1) num_threads == num_physical_cores
+        # 2) num_threads == num_hyperthreads
+        if configuration['platform'] == 'knl':
+            ret.extend([((nthreads.name, psutil.cpu_count() // 4),),
+                        ((nthreads.name, psutil.cpu_count() // 2),),
+                        ((nthreads.name, psutil.cpu_count()),)])
+        else:
+            ret.extend([((nthreads.name, psutil.cpu_count() // 2),),
+                        ((nthreads.name, psutil.cpu_count()),)])
 
     return filter_ordered(ret)
 
