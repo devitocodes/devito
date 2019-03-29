@@ -30,28 +30,55 @@ def get_cpu_info():
         # Fallback: rely on the slower `cpuinfo`
         cpu_info = cpuinfo.get_cpu_info()
 
-    # Distinguish between *physical* and *logical* cores
+    # At this point we have some information about the CPU, but we can't distinguish
+    # between physical and logical cores yet, as:
+    # 1) `/proc/cpuinfo` isn't as detailed on Power architectures as on Xeons
+    # 2) `cpuinfo.get_cpu_info` only gives the logical core count
+    # So below we try another approach
+
+    # Detect number of logical cores
     logical = psutil.cpu_count(logical=True)
     if logical:
         cpu_info['logical'] = logical
-        cpu_info['physical'] = psutil.cpu_count(logical=False)
+    else:
+        # Never bumped into a platform that make us end up here, yet
+        # But we try to cover this case anyway, with `lscpu`
+        try:
+            cpu_info['logical'] = lscpu()['CPU(s)']
+        except KeyError:
+            warning("Logical core count autodetection failed")
+            cpu_info['logical'] = 1
+
+    # Detect number of physical cores
+    physical = psutil.cpu_count(logical=False)
+    if physical:
+        cpu_info['physical'] = physical
     else:
         # Fallback: we might end up here on more exotic platforms such a Power8
-        # We attempt to use `lscpu` -- it's a bit sad because we have to spawn
-        # a new process, or simply `lscpu` won't be available
-        p1 = Popen(['lscpu'], stdout=PIPE, stderr=PIPE)
-        output, _ = p1.communicate()
-        if output:
-            lines = output.decode("utf-8").split('\n')
-            get = lambda k: [i for i in lines if i.startswith(k)][0].split(':')[1].strip()
-            cpu_info['logical'] = int(get('CPU(s)'))
-            cpu_info['physical'] = int(get('Core(s)')) * int(get('Socket(s)'))
-        else:
-            warning("Physical/logical core count autodetection failed")
-            cpu_info['logical'] = 1
+        try:
+            cpu_info['physical'] = lscpu()['Core(s) per socket'] * lscpu()['Socket(s)']
+        except KeyError:
+            warning("Physical core count autodetection failed")
             cpu_info['physical'] = 1
 
     return cpu_info
+
+
+@memoized_func
+def lscpu():
+    p1 = Popen(['lscpu'], stdout=PIPE, stderr=PIPE)
+    output, _ = p1.communicate()
+    if output:
+        lines = output.decode("utf-8").strip().split('\n')
+        mapper = {}
+        for k, v in [tuple(i.split(':')) for i in lines]:
+            try:
+                mapper[k] = int(v)
+            except ValueError:
+                mapper[k] = v.strip()
+        return mapper
+    else:
+        return {}
 
 
 @memoized_func
