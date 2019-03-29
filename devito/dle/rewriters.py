@@ -20,8 +20,9 @@ from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
 from devito.tools import DAG, as_tuple, filter_ordered, flatten
 
-__all__ = ['PlatformRewriter', 'CPU64Rewriter', 'Intel64Rewriter',
-           'PowerRewriter', 'ArmRewriter', 'SpeculativeRewriter', 'CustomRewriter']
+__all__ = ['PlatformRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter',
+           'ArmRewriter', 'SpeculativeRewriter', 'DeviceOffloadingRewriter',
+           'CustomRewriter']
 
 
 class State(object):
@@ -124,10 +125,15 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
+    _node_parallelizer_type = None
+    """The local-node IET parallelizer. To be specified by subclasses."""
+
     def __init__(self, params, platform):
         self.params = params
         self.platform = platform
         self.timings = OrderedDict()
+
+        self._node_parallelizer = self._node_parallelizer_type()
 
     def run(self, iet):
         """The optimization pipeline, as a sequence of AST transformation passes."""
@@ -157,33 +163,13 @@ class PlatformRewriter(AbstractRewriter):
 
     """No-op rewriter."""
 
-    def _pipeline(self, state):
-        return
-
-
-class CPU64Rewriter(AbstractRewriter):
-
     lang = {}
     """
     Collection of backend-compiler-specific pragmas.
     """
 
-    _shm_parallelizer_type = Ompizer
-
-    def __init__(self, params, platform):
-        super(CPU64Rewriter, self).__init__(params, platform)
-        self._shm_parallelizer = self._shm_parallelizer_type()
-
     def _pipeline(self, state):
-        self._avoid_denormals(state)
-        self._optimize_halospots(state)
-        if self.params['mpi']:
-            self._dist_parallelize(state)
-        self._loop_blocking(state)
-        self._simdize(state)
-        if self.params['openmp']:
-            self._shm_parallelize(state)
-        self._hoist_prodders(state)
+        return
 
     def _backend_compiler_pragma(self, name, default=None):
         key = configuration['compiler'].__class__.__name__
@@ -395,12 +381,12 @@ class CPU64Rewriter(AbstractRewriter):
         return processed, {}
 
     @dle_pass
-    def _shm_parallelize(self, iet):
+    def _node_parallelize(self, iet):
         """
         Add OpenMP pragmas to the Iteration/Expression tree to emit shared-memory
         parallel code.
         """
-        return self._shm_parallelizer.make_parallel(iet)
+        return self._node_parallelizer.make_parallel(iet)
 
     @dle_pass
     def _hoist_prodders(self, iet):
@@ -424,6 +410,25 @@ class CPU64Rewriter(AbstractRewriter):
         iet = Transformer(mapper, nested=True).visit(iet)
 
         return iet, {}
+
+
+class CPU64Rewriter(PlatformRewriter):
+
+    _node_parallelizer_type = Ompizer
+
+    def __init__(self, params, platform):
+        super(CPU64Rewriter, self).__init__(params, platform)
+
+    def _pipeline(self, state):
+        self._avoid_denormals(state)
+        self._optimize_halospots(state)
+        if self.params['mpi']:
+            self._dist_parallelize(state)
+        self._loop_blocking(state)
+        self._simdize(state)
+        if self.params['openmp']:
+            self._node_parallelize(state)
+        self._hoist_prodders(state)
 
 
 class Intel64Rewriter(CPU64Rewriter):
@@ -455,6 +460,29 @@ PowerRewriter = CPU64Rewriter
 ArmRewriter = CPU64Rewriter
 
 
+class DeviceOffloadingRewriter(PlatformRewriter):
+
+    _node_parallelizer_type = Ompizer
+
+    def _pipeline(self, state):
+        self._optimize_halospots(state)
+        if self.params['mpi']:
+            self._dist_parallelize(state)
+        self._simdize(state)
+        if self.params['openmp']:
+            self._node_parallelize(state)
+        self._hoist_prodders(state)
+
+    @dle_pass
+    def _node_parallelize(self, iet):
+        """
+        Add OpenMP pragmas to offload PARALLEL Iteration nests onto a device.
+        """
+        # TODO: this is still to be implemented -- something other than
+        # `.make_parallel` will have to be used, e.g., `.make_offloadable`
+        return self._node_parallelizer.make_parallel(iet)
+
+
 class SpeculativeRewriter(CPU64Rewriter):
 
     def _pipeline(self, state):
@@ -466,7 +494,7 @@ class SpeculativeRewriter(CPU64Rewriter):
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp']:
-            self._shm_parallelize(state)
+            self._node_parallelize(state)
         self._minimize_remainders(state)
         self._hoist_prodders(state)
 
@@ -572,7 +600,7 @@ class CustomRewriter(SpeculativeRewriter):
         'optcomms': SpeculativeRewriter._optimize_halospots,
         'wrapping': SpeculativeRewriter._loop_wrapping,
         'blocking': SpeculativeRewriter._loop_blocking,
-        'openmp': SpeculativeRewriter._shm_parallelize,
+        'openmp': SpeculativeRewriter._node_parallelize,
         'mpi': SpeculativeRewriter._dist_parallelize,
         'simd': SpeculativeRewriter._simdize,
         'minrem': SpeculativeRewriter._minimize_remainders,

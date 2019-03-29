@@ -90,7 +90,8 @@ env_vars_mapper = {
 add_sub_configuration(yask_configuration, env_vars_mapper)
 
 # Add YASK-specific DLE modes
-modes.add(Cpu64, {'advanced': YaskRewriter, 'speculative': YaskRewriter})
+modes.add(Cpu64, {'advanced': YaskRewriter,
+                  'speculative': YaskRewriter})
 
 # The following used by backends.backendSelector
 from devito.types import SparseFunction, SparseTimeFunction  # noqa
