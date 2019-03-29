@@ -56,12 +56,11 @@ def option_performance(f):
 
     _preset = {
         # Fixed
-        'O1': {'dse': 'basic', 'dle': 'basic'},
+        'O1': {'dse': 'basic', 'dle': 'advanced'},
         'O2': {'dse': 'advanced', 'dle': 'advanced'},
         'O3': {'dse': 'aggressive', 'dle': 'advanced'},
         # Parametric
         'dse': {'dse': ['basic', 'advanced', 'aggressive'], 'dle': 'advanced'},
-        'dle': {'dse': 'advanced', 'dle': ['basic', 'advanced']}
     }
 
     def from_preset(ctx, param, value):
@@ -76,7 +75,7 @@ def option_performance(f):
     options = [
         click.option('-bm', '--bench-mode', is_eager=True,
                      callback=from_preset, expose_value=False, default='O2',
-                     type=click.Choice(['O1', 'O2', 'O3', 'dse', 'dle']),
+                     type=click.Choice(['O1', 'O2', 'O3', 'dse']),
                      help='Choose what to benchmark; ignored if execmode=run'),
         click.option('--arch', default='unknown',
                      help='Architecture on which the simulation is/was run'),
