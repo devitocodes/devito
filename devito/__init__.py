@@ -96,8 +96,7 @@ configuration.add('dle-options', {})
 # Setup Operator profiling
 configuration.add('profiling', 'basic', list(profiler_registry), impacts_jit=False)
 
-# Initialize the configuration, either from the environment or
-# defaults. This will also trigger the backend initialization
+# Initialize `configuration`. This will also trigger the backend initialization
 init_configuration()
 
 # Expose a mechanism to clean up the symbol caches (SymPy's, Devito's)
