@@ -416,9 +416,6 @@ class CPU64Rewriter(PlatformRewriter):
 
     _node_parallelizer_type = Ompizer
 
-    def __init__(self, params, platform):
-        super(CPU64Rewriter, self).__init__(params, platform)
-
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._optimize_halospots(state)
