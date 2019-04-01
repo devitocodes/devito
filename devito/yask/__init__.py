@@ -6,7 +6,7 @@ JIT-compile, and run kernels.
 import os
 import sys
 
-from devito.archinfo import Cpu64
+from devito.archinfo import Arm, Cpu64, CPU64, Power
 from devito.dle import modes
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
@@ -25,6 +25,16 @@ def exit(emsg):
 
 
 log("Backend initialization...")
+
+# Not all devito `platform`s are supported by YASK
+if isinstance(configuration['platform'], (Arm, Power)):
+    raise ValueError("The YASK backend doesn't support platform `%s`" %
+                     configuration['platform'])
+# Some of the supported devito `platform`s (e.g., AMDs) may still be run through
+# YASK -- as they are x86-64 just like Intels -- but a proper `Platform` must be used
+if configuration['platform'] is CPU64:
+    configuration['platform'] = 'intel64'
+
 try:
     import yask as yc
     # YASK compiler factories
