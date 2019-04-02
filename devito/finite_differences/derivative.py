@@ -1,5 +1,7 @@
 import sympy
 
+from collections import OrderedDict
+
 from devito.finite_differences.finite_difference import (generic_derivative,
                                                          cross_derivative)
 from devito.finite_differences.differentiable import Differentiable
@@ -87,7 +89,7 @@ class Derivative(sympy.Derivative, Differentiable):
         kwargs["evaluate"] = False
         kwargs["simplify"] = False
         obj = sympy.Derivative.__new__(cls, expr, *new_dims, **kwargs)
-        obj._dims = tuple(set(new_dims))
+        obj._dims = tuple(OrderedDict.fromkeys(new_dims))
         obj._fd_order = kwargs.get('fd_order', 1)
         obj._deriv_order = orders
         obj._side = kwargs.get("side", None)
