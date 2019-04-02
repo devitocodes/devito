@@ -12,6 +12,7 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
+from devito.archinfo import NVIDIAX, SKX, POWER8, POWER9
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -135,7 +136,7 @@ class Compiler(GCCToolchain):
 
         self.suffix = kwargs.get('suffix')
         if not kwargs.get('mpi'):
-            self.cc = self.CC if kwargs.get('cpp', False) is False else self.CPP
+            self.cc = self.CC if kwargs.get('cpp', False) is False else self.CXX
             self.cc = self.cc if self.suffix is None else ('%s-%s' %
                                                            (self.cc, self.suffix))
         else:
@@ -173,7 +174,7 @@ class Compiler(GCCToolchain):
 
     def __lookup_cmds__(self):
         self.CC = 'unknown'
-        self.CPP = 'unknown'
+        self.CXX = 'unknown'
         self.MPICC = 'unknown'
         self.MPICXX = 'unknown'
 
@@ -181,7 +182,7 @@ class Compiler(GCCToolchain):
         return self.__class__.__name__
 
     def __repr__(self):
-        return "DevitoJITCompiler[%s]" % self.__class__.__name__
+        return "JITCompiler[%s]" % self.__class__.__name__
 
     def __getstate__(self):
         # The superclass would otherwise only return a subset of attributes
@@ -220,7 +221,7 @@ class GNUCompiler(Compiler):
 
     def __lookup_cmds__(self):
         self.CC = 'gcc'
-        self.CPP = 'g++'
+        self.CXX = 'g++'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
 
@@ -229,11 +230,24 @@ class ClangCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
-        self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable']
+        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
+
+        if configuration['platform'] == NVIDIAX:
+            # clang has offloading support via OpenMP
+            # TODO: add in the required flags
+            self.cflags += ['-fopenmp']
+        else:
+            if configuration['platform'] in [POWER8, POWER9]:
+                # -march isn't supported on power architectures
+                self.cflags += ['-mcpu=native']
+            else:
+                self.cflags += ['-march=native']
+            if configuration['openmp']:
+                self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
         self.CC = 'clang'
-        self.CPP = 'clang++'
+        self.CXX = 'clang++'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
 
@@ -243,7 +257,7 @@ class IntelCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
         self.cflags += ["-xhost"]
-        if configuration['platform'] == 'skx':
+        if configuration['platform'] is SKX:
             # Systematically use 512-bit vectors on skylake
             self.cflags += ["-qopt-zmm-usage=high"]
         try:
@@ -266,7 +280,7 @@ class IntelCompiler(Compiler):
 
     def __lookup_cmds__(self):
         self.CC = 'icc'
-        self.CPP = 'icpc'
+        self.CXX = 'icpc'
 
         # On some systems, the Intel distribution of MPI may be available, in
         # which case the MPI compiler may be shipped either as `mpiicc` or `mpicc`.
@@ -299,12 +313,12 @@ class CustomCompiler(Compiler):
     Notes
     -----
     Currently honours CC, CFLAGS and LDFLAGS, with defaults similar to the
-    default GNU settings. If DEVITO_ARCH is enabled, the OpenMP linker
+    default GNU/gcc settings. If DEVITO_ARCH is enabled, the OpenMP linker
     flags are read from OMP_LDFLAGS or otherwise default to ``-fopenmp``.
     """
 
     CC = environ.get('CC', 'gcc')
-    CPP = environ.get('CPP', 'g++')
+    CXX = environ.get('CXX', 'g++')
     MPICC = environ.get('MPICC', 'mpicc')
     MPICXX = environ.get('MPICXX', 'mpicxx')
 
@@ -318,7 +332,7 @@ class CustomCompiler(Compiler):
 
     def __lookup_cmds__(self):
         self.CC = 'gcc'
-        self.CPP = 'g++'
+        self.CXX = 'g++'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
 
@@ -466,8 +480,6 @@ def make(loc, args):
     debug("Make <%s>: run in [%.2f s]" % (" ".join(args), toc-tic))
 
 
-# Registry dict for deriving Compiler classes according to the environment variable
-# DEVITO_ARCH. Developers should add new compiler classes here.
 compiler_registry = {
     'custom': CustomCompiler,
     'gnu': GNUCompiler,
@@ -480,5 +492,9 @@ compiler_registry = {
     'intel-knl': IntelKNLCompiler,
     'knl': IntelKNLCompiler,
 }
+"""
+Registry dict for deriving Compiler classes according to the environment variable
+DEVITO_ARCH. Developers should add new compiler classes here.
+"""
 compiler_registry.update({'gcc-%s' % i: partial(GNUCompiler, suffix=i)
                           for i in ['4.9', '5', '6', '7', '8']})
