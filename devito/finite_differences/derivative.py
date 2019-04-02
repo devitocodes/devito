@@ -1,12 +1,9 @@
 import sympy
 
-from cached_property import cached_property
-
-from devito.finite_differences.finite_difference import (left, right, centered,
-                                                         generic_derivative, transpose,
-                                                         first_derivative, direct,
+from devito.finite_differences.finite_difference import (generic_derivative,
                                                          cross_derivative)
 from devito.finite_differences.differentiable import Differentiable
+from devito.finite_differences.tools import centered, direct, transpose
 from devito.tools import as_tuple
 
 
@@ -93,9 +90,8 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._dims = tuple(set(new_dims))
         obj._fd_order = kwargs.get('fd_order', 1)
         obj._deriv_order = orders
-
-        obj._stagger = kwargs.get("stagger", obj._stagger_setup)
         obj._side = kwargs.get("side", None)
+        obj._stagger = kwargs.get("stagger", tuple([centered]*len(obj._dims)))
         obj._transpose = kwargs.get("transpose", direct)
 
         return obj
@@ -130,23 +126,7 @@ class Derivative(sympy.Derivative, Differentiable):
 
     @property
     def staggered(self):
-        return self._staggered
-
-    @cached_property
-    def _stagger_setup(self):
-        if not self.is_Staggered:
-            side = dict((d, None) for d in self.dims)
-        else:
-            dims = self.indices
-            side = dict()
-            for (d, s) in zip(dims, self.staggered):
-                if s == 0:
-                    side[d] = left
-                elif s == 1:
-                    side[d] = right
-                else:
-                    side[d] = centered
-        return side
+        return self.expr.staggered
 
     @property
     def transpose(self):
@@ -167,10 +147,7 @@ class Derivative(sympy.Derivative, Differentiable):
     @property
     def evaluate(self):
         expr = getattr(self.expr, 'evaluate', self.expr)
-        if self.side in [left, right] and self.deriv_order == 1:
-            res = first_derivative(expr, self.dims[0], self.fd_order,
-                                   side=self.side, matvec=self.transpose)
-        elif len(self.dims) > 1:
+        if len(self.dims) > 1:
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
                                    matvec=self.transpose, stagger=self.stagger)
         else:
