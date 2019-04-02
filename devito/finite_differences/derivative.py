@@ -1,11 +1,11 @@
 import sympy
 
 from collections import OrderedDict
-
 from devito.finite_differences.finite_difference import (generic_derivative,
+                                                         first_derivative,
                                                          cross_derivative)
 from devito.finite_differences.differentiable import Differentiable
-from devito.finite_differences.tools import centered, direct, transpose
+from devito.finite_differences.tools import centered, direct, transpose, left, right
 from devito.tools import as_tuple
 
 
@@ -149,7 +149,10 @@ class Derivative(sympy.Derivative, Differentiable):
     @property
     def evaluate(self):
         expr = getattr(self.expr, 'evaluate', self.expr)
-        if len(self.dims) > 1:
+        if self.side in [left, right] and self.deriv_order == 1:
+            res = first_derivative(expr, self.dims[0], self.fd_order,
+                                   side=self.side, matvec=self.transpose)
+        elif len(self.dims) > 1:
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
                                    matvec=self.transpose, stagger=self.stagger)
         else:
