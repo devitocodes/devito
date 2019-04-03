@@ -145,7 +145,7 @@ class LoweredEq(sympy.Eq, IREq):
         expr._reads, expr._writes = detect_io(expr)
 
         expr._is_Increment = input_expr.is_Increment
-        expr._implicit_dims = input_expr.implicit_dims
+        expr._implicit_dims = input_expr._implicit_dims
 
         return expr
 

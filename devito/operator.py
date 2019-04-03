@@ -21,7 +21,8 @@ from devito.profiling import create_profile
 from devito.symbolics import indexify
 from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
-#from devito.ir import Cluster
+from devito.types import Dimension
+from devito.ir import Cluster
 
 __all__ = ['Operator']
 
@@ -133,15 +134,6 @@ class Operator(Callable):
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
 
-        # Gather implicit expressions
-        implicit_expressions = []
-        for e in expressions:
-            ie = e._implicit_equations
-            if bool(ie):
-                for i in ie:
-                    implicit_expressions.append(i)
-        expressions = as_tuple(implicit_expressions) + expressions
-
         # Input check
         if any(not isinstance(i, Eq) for i in expressions):
             raise InvalidOperator("Only `devito.Eq` expressions are allowed.")
@@ -166,6 +158,9 @@ class Operator(Callable):
         # Internal state. May be used to store information about previous runs,
         # autotuning reports, etc
         self._state = {}
+
+        # Form and gather any required implicit expressions
+        expressions = self._add_implicit(expressions)
 
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
@@ -219,6 +214,35 @@ class Operator(Callable):
         return tuple(i for i in self.parameters if i.is_Object)
 
     # Compilation
+
+    def _add_implicit(self, expressions):
+        """
+        Create and add any associated implicit expressions.
+
+        Implicit expressions are those not explicitly defined by the user
+        but instead are requisites of some specified functionality.
+        """
+        processed = []
+        seen = set()
+        for e in expressions:
+            if e.subdomain:
+                try:
+                    dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
+                    sub_dims = [d.root for d in e.subdomain.dimensions]
+                    dims = [d for d in dims if d not in frozenset(sub_dims)]
+                    dims.append(e.subdomain.implicit_dimension)
+                    if e.subdomain not in seen:
+                        processed.extend([i.func(*i.args, implicit_dims=dims) for i in
+                                          e.subdomain._create_implicit_exprs()])
+                        seen.add(e.subdomain)
+                    dims.extend(e.subdomain.dimensions)
+                    new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
+                    processed.append(new_e)
+                except AttributeError:
+                    processed.append(e)
+            else:
+                processed.append(e)
+        return processed
 
     def _apply_substitutions(self, expressions, subs):
         """
@@ -556,7 +580,6 @@ class Operator(Callable):
     def __getstate__(self):
         if self._lib:
             state = dict(self.__dict__)
-            state.pop('_soname')
             # The compiled shared-object will be pickled; upon unpickling, it
             # will be restored into a potentially different temporary directory,
             # so the entire process during which the shared-object is loaded and
@@ -597,6 +620,8 @@ class Operator(Callable):
                         "this might be a bug, or simply a harmless difference in "
                         "`configuration`. You may check they produce the same code.")
             save(self._soname, binary, self._compiler)
+            self._lib = load(self._soname)
+            self._lib.name = self._soname
 
 
 # Misc helpers

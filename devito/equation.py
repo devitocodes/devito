@@ -4,9 +4,7 @@ import sympy
 
 from cached_property import cached_property
 
-from devito.types import Dimension
 from devito.finite_differences import default_rules
-from devito.tools import as_tuple
 
 __all__ = ['Eq', 'Inc', 'solve']
 
@@ -61,18 +59,10 @@ class Eq(sympy.Eq):
     is_Increment = False
 
     # FIXME: Remove implicit_dims from ags list and adjust connected tests.
-    def __new__(cls, lhs, rhs=0, implicit_dims=None, subdomain=None,
-                coefficients=None, **kwargs):
+    def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, **kwargs):
         kwargs['evaluate'] = False
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
-        if bool(implicit_dims):
-            obj._implicit_dims = as_tuple(implicit_dims)
-            obj._implicit_equations = None
-        else:
-            implicit_equations, implicit_dims = obj._form_implicit_structs()
-            obj._implicit_equations = implicit_equations
-            obj._implicit_dims = as_tuple(implicit_dims)
         obj._substitutions = coefficients
         if obj._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
@@ -119,38 +109,15 @@ class Eq(sympy.Eq):
         else:
             TypeError('Failed to retrieve symbolic functions')
 
-    def _form_implicit_structs(obj):
-
-        def generate_i_dims(obj):
-            dims = [d for d in obj.free_symbols if isinstance(d, Dimension)]
-            dims = [d.root for d in dims if d.is_Time]
-            if len(dims) > 1:
-                ValueError('More than one time dimensions detected')
-            i_dim = obj._subdomain._implicit_dimension
-            dims.append(i_dim)
-            ie_dims = dims
-            implicit_dims = dims+list(obj._subdomain.dimensions)
-            return implicit_dims, ie_dims
-
-        if bool(obj._subdomain):
-            try:
-                ie_dat = obj._subdomain._ie_dat
-            except AttributeError:
-                return None, None
-        else:
-            return None, None
-
-        implicit_dims, ie_dims = generate_i_dims(obj)
-
-        i_eq = []
-        for i in ie_dat:
-            i_eq.append(Eq(i['rhs'], i['lhs'], implicit_dims=ie_dims))
-        return as_tuple(i_eq), implicit_dims
-
     def xreplace(self, rules):
-        """"""
-        return self.func(self.lhs.xreplace(rules), rhs=self.rhs.xreplace(rules),
-                         implicit_dims=self._implicit_dims, subdomain=self._subdomain)
+        eq = Eq(self.lhs.xreplace(rules), rhs=self.rhs.xreplace(rules),
+                subdomain=self._subdomain)
+        eq._substitutions = self._substitutions
+        try:
+            eq._implicit_dims = self._implicit_dims
+        except AttributeError:
+            pass
+        return eq
 
     def __str__(self):
         return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
@@ -193,7 +160,7 @@ class Inc(Eq):
     >>> f = Function(name='f', grid=grid)
     >>> g = Function(name='g', shape=(10, 4, 4), dimensions=(i, x, y))
     >>> Inc(f, g)
-    Inc(f(x, y), g(i, x, y))
+    Inc(f(x, y), g(i, x, y))eq
 
     Notes
     -----
