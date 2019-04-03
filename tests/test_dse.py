@@ -46,7 +46,7 @@ def run_acoustic_forward(dse=None):
     geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
                                    t0=t0, tn=tn, src_type='Ricker', f0=0.010)
 
-    solver = AcousticWaveSolver(model, geometry, dse=dse, dle='basic')
+    solver = AcousticWaveSolver(model, geometry, dse=dse, dle='noop')
     rec, u, _ = solver.forward(save=False)
 
     return u, rec
@@ -409,7 +409,7 @@ def test_makeit_ssa(exprs, exp_u, exp_v):
 
 
 @pytest.mark.parametrize('dse', ['noop', 'basic', 'advanced', 'aggressive'])
-@pytest.mark.parametrize('dle', ['noop', 'basic', 'advanced', 'speculative'])
+@pytest.mark.parametrize('dle', ['noop', 'advanced', 'speculative'])
 def test_time_dependent_split(dse, dle):
     grid = Grid(shape=(10, 10))
     u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2, save=3)

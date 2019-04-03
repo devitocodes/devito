@@ -68,7 +68,8 @@ class YaskKernel(object):
 
             # Write out the stencil file
             yk_codegen_file = os.path.join(yk_codegen, namespace['yask-codegen-file'])
-            yc_soln.format(configuration['isa'], ofac.new_file_output(yk_codegen_file))
+            yc_soln.format(configuration['platform'].isa,
+                           ofac.new_file_output(yk_codegen_file))
 
             # JIT-compile it
             compiler = configuration.yask['compiler']
@@ -132,7 +133,7 @@ class YaskKernel(object):
         # Redirect stdout to a string or file
         if configuration.yask['dump']:
             filename = 'yk_dump.%s.%s.%s.txt' % (name, configuration['platform'],
-                                                 configuration['isa'])
+                                                 configuration['platform'].isa)
             filename = os.path.join(configuration.yask['dump'], filename)
             self.output = yk.yask_output_factory().new_file_output(filename)
         else:
@@ -346,7 +347,7 @@ class YaskContext(Signer):
         # Redirect stdout/strerr to a string or file
         if configuration.yask['dump']:
             filename = 'yc_dump.%s.%s.%s.txt' % (name, configuration['platform'],
-                                                 configuration['isa'])
+                                                 configuration['platform'].isa)
             filename = os.path.join(configuration.yask['dump'], filename)
             yc_soln.set_debug_output(ofac.new_file_output(filename))
         else:
@@ -356,7 +357,7 @@ class YaskContext(Signer):
         yc_soln.set_element_bytes(self.dtype().itemsize)
 
         # Apply compile-time optimizations
-        if configuration['isa'] != 'cpp':
+        if configuration['platform'].isa != 'cpp':
             dimensions = [make_yask_ast(i, yc_soln) for i in self.space_dimensions]
             # Vector folding
             for i, j in zip(dimensions, configuration.yask['folding']):
@@ -395,7 +396,7 @@ class ContextManager(OrderedDict):
         self._ncontexts = 0
 
     def _getkey(self, grid, dtype, dimensions=None):
-        base = (configuration['isa'], dtype)
+        base = (configuration['platform'].isa, dtype)
         if grid is not None:
             dims = filter_sorted((grid.time_dim, grid.stepping_dim) + grid.dimensions)
             return base + (tuple(dims),)

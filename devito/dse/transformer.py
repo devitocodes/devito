@@ -3,11 +3,12 @@ from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRew
                                  AggressiveRewriter)
 from devito.dse.manipulation import cross_cluster_cse
 from devito.logger import dse_warning
-from devito.parameters import configuration
 from devito.tools import flatten
 
-__all__ = ['rewrite']
+__all__ = ['dse_registry', 'rewrite']
 
+
+dse_registry = ('basic', 'advanced', 'speculative', 'aggressive')
 
 modes = {
     'basic': BasicRewriter,
@@ -16,8 +17,6 @@ modes = {
     'aggressive': AggressiveRewriter
 }
 """The DSE transformation modes."""
-
-configuration.add('dse', 'advanced', list(modes))
 
 
 def rewrite(clusters, mode='advanced'):
@@ -55,7 +54,7 @@ def rewrite(clusters, mode='advanced'):
 
     if mode is None or mode == 'noop':
         return clusters
-    elif mode not in modes:
+    elif mode not in dse_registry:
         dse_warning("Unknown rewrite mode(s) %s" % mode)
         return clusters
 
