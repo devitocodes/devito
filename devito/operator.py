@@ -21,6 +21,7 @@ from devito.profiling import create_profile
 from devito.symbolics import indexify
 from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
+from devito.types import Dimension
 
 __all__ = ['Operator']
 
@@ -130,15 +131,6 @@ class Operator(Callable):
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
 
-        # Gather implicit expressions
-        implicit_expressions = []
-        for e in expressions:
-            ie = e._implicit_equations
-            if bool(ie):
-                for i in ie:
-                    implicit_expressions.append(i)
-        expressions = as_tuple(implicit_expressions) + expressions
-
         # Input check
         if any(not isinstance(i, Eq) for i in expressions):
             raise InvalidOperator("Only `devito.Eq` expressions are allowed.")
@@ -163,6 +155,9 @@ class Operator(Callable):
         # Internal state. May be used to store information about previous runs,
         # autotuning reports, etc
         self._state = {}
+
+        # Form and gather any required implicit expressions
+        expressions = self._add_implicit(expressions)
 
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
@@ -216,6 +211,37 @@ class Operator(Callable):
         return tuple(i for i in self.parameters if i.is_Object)
 
     # Compilation
+
+    def _add_implicit(self, expressions):
+        """
+        Create and add to the expression tree any associated implicit
+        expressions.
+        """
+        updated_expressions = []
+        for e in expressions:
+            subdomain = e.subdomain
+            if bool(subdomain):
+                try:
+                    dat = e._subdomain._ie_dat
+                except AttributeError:
+                    dat = None
+                if bool(dat):
+                    dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
+                    sub_dims = [d.root for d in subdomain.dimensions]
+                    dims = list(set(dims).symmetric_difference(set(sub_dims)))
+                    dims.append(subdomain._implicit_dimension)
+                    implicit_expressions = []
+                    for i in dat:
+                        eq = Eq(i['rhs'], i['lhs'])
+                        eq._implicit_dims = as_tuple(dims)
+                        implicit_expressions.append(eq)
+                    for ie in implicit_expressions:
+                        updated_expressions.append(ie)
+                    for d in subdomain.dimensions:
+                        dims.append(d)
+                    e._implicit_dims = as_tuple(dims)
+            updated_expressions.append(e)
+        return updated_expressions
 
     def _apply_substitutions(self, expressions, subs):
         """
