@@ -61,6 +61,8 @@ class Derivative(sympy.Derivative, Differentiable):
     >> u.dx2
     """
 
+    _state = ('expr', 'dims', 'side', 'stagger')
+
     def __new__(cls, expr, *dims, **kwargs):
         # Check dims, can be a dimensions, multiple dimensions as a tuple
         # or a tuple of tuple (ie ((x,1),))
@@ -134,6 +136,12 @@ class Derivative(sympy.Derivative, Differentiable):
     def transpose(self):
         return self._transpose
 
+    def __str__(self):
+        string = super(Derivative, self).__str__()[:-1]
+        return string + ", " + str(self.side) + ")"
+        
+    __repr__ = __str__
+        
     @property
     def T(self):
         """Transpose of the Derivative."""
