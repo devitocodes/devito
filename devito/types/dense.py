@@ -147,17 +147,17 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         staggered = kwargs.get('staggered')
         if staggered is None:
             self.is_Staggered = False
-            return tuple(0 for _ in self.indices)
+            return tuple(0 for _ in self.dimensions)
         else:
             self.is_Staggered = True
             if staggered is NODE:
                 staggered = ()
             elif staggered is CELL:
-                staggered = self.indices
+                staggered = self.dimensions
             else:
                 staggered = as_tuple(staggered)
             mask = []
-            for d in self.indices:
+            for d in self.dimensions:
                 if d in staggered:
                     mask.append(1)
                 elif -d in staggered:
@@ -567,14 +567,14 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     @cached_property
     def space_dimensions(self):
         """Tuple of Dimensions defining the physical space."""
-        return tuple(d for d in self.indices if d.is_Space)
+        return tuple(d for d in self.dimensions if d.is_Space)
 
     @cached_property
     def _dist_dimensions(self):
         """Tuple of MPI-distributed Dimensions."""
         if self._distributor is None:
             return ()
-        return tuple(d for d in self.indices if d in self._distributor.dimensions)
+        return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
 
     @property
     def initializer(self):
@@ -788,7 +788,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
                 # We've been provided a pure-data replacement (array)
                 values = {self.name: new}
                 # Add value overrides for all associated dimensions
-                for i, s, o in zip(self.indices, new.shape, self.staggered):
+                for i, s, o in zip(self.dimensions, new.shape, self.staggered):
                     size = s + o - sum(self._size_nodomain[i])
                     values.update(i._arg_defaults(size=size))
                 # Add MPI-related data structures
@@ -815,11 +815,12 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         key = args[self.name]
         if len(key.shape) != self.ndim:
             raise InvalidArgument("Shape %s of runtime value `%s` does not match "
-                                  "dimensions %s" % (key.shape, self.name, self.indices))
+                                  "dimensions %s" %
+                                  (key.shape, self.name, self.dimensions))
         if key.dtype != self.dtype:
             warning("Data type %s of runtime value `%s` does not match the "
                     "Function data type %s" % (key.dtype, self.name, self.dtype))
-        for i, s in zip(self.indices, key.shape):
+        for i, s in zip(self.dimensions, key.shape):
             i._arg_check(args, s, intervals[i])
 
     def _arg_as_ctype(self, args, alias=None):
@@ -1004,12 +1005,12 @@ class Function(DiscreteFunction, Differentiable):
                 halo = (left_points, right_points)
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
-            return tuple(halo if i.is_Space else (0, 0) for i in self.indices)
+            return tuple(halo if i.is_Space else (0, 0) for i in self.dimensions)
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding', 0)
         if isinstance(padding, int):
-            return tuple((0, padding) if i.is_Space else (0, 0) for i in self.indices)
+            return tuple((0, padding) if i.is_Space else (0, 0) for i in self.dimensions)
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             return tuple((0, i) if isinstance(i, int) else i for i in padding)
         else:
@@ -1181,7 +1182,7 @@ class TimeFunction(Function):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
+            self.time_dim = kwargs.get('time_dim', self.dimensions[self._time_position])
             self._time_order = kwargs.get('time_order', 1)
             super(TimeFunction, self).__init__(*args, **kwargs)
 
@@ -1247,7 +1248,7 @@ class TimeFunction(Function):
     def forward(self):
         """Symbol for the time-forward state of the TimeFunction."""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[self._time_position]
+        _t = self.dimensions[self._time_position]
 
         return self.subs(_t, _t + i * _t.spacing)
 
@@ -1255,7 +1256,7 @@ class TimeFunction(Function):
     def backward(self):
         """Symbol for the time-backward state of the TimeFunction."""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[self._time_position]
+        _t = self.dimensions[self._time_position]
 
         return self.subs(_t, _t - i * _t.spacing)
 
