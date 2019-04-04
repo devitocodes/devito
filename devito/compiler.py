@@ -6,13 +6,15 @@ from distutils import version
 from subprocess import DEVNULL, CalledProcessError, check_output, check_call
 import platform
 import warnings
+import sys
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
+from devito.archinfo import NVIDIAX, SKX, POWER8, POWER9
 from devito.exceptions import CompilationError
-from devito.logger import debug, warning
+from devito.logger import debug, warning, error
 from devito.parameters import configuration
 from devito.tools import (as_tuple, change_directory, filter_ordered,
                           memoized_func, make_tempdir)
@@ -32,6 +34,9 @@ def sniff_compiler_version(cc):
         ver = check_output([cc, "--version"]).decode("utf-8")
     except (CalledProcessError, UnicodeDecodeError):
         return version.LooseVersion("unknown")
+    except FileNotFoundError:
+        error("The `%s` compiler isn't available on this system" % cc)
+        sys.exit(1)
 
     if ver.startswith("gcc"):
         compiler = "gcc"
@@ -86,7 +91,8 @@ def sniff_mpi_distro(mpiexec):
 
 
 class Compiler(GCCToolchain):
-    """Base class for all compiler classes.
+    """
+    Base class for all compiler classes.
 
     The base class defaults all compiler specific settings to empty lists.
     Preset configurations can be built by inheriting from `Compiler` and setting
@@ -123,17 +129,14 @@ class Compiler(GCCToolchain):
 
     fields = {'cc', 'ld'}
 
-    CC = 'unknown'
-    CPP = 'unknown'
-    MPICC = 'unknown'
-    MPICXX = 'unknown'
-
     def __init__(self, **kwargs):
         super(Compiler, self).__init__(**kwargs)
 
+        self.__lookup_cmds__()
+
         self.suffix = kwargs.get('suffix')
         if not kwargs.get('mpi'):
-            self.cc = self.CC if kwargs.get('cpp', False) is False else self.CPP
+            self.cc = self.CC if kwargs.get('cpp', False) is False else self.CXX
             self.cc = self.cc if self.suffix is None else ('%s-%s' %
                                                            (self.cc, self.suffix))
         else:
@@ -169,11 +172,17 @@ class Compiler(GCCToolchain):
             # Knowing the version may still be useful to pick supported flags
             self.version = sniff_compiler_version(self.CC)
 
+    def __lookup_cmds__(self):
+        self.CC = 'unknown'
+        self.CXX = 'unknown'
+        self.MPICC = 'unknown'
+        self.MPICXX = 'unknown'
+
     def __str__(self):
         return self.__class__.__name__
 
     def __repr__(self):
-        return "DevitoJITCompiler[%s]" % self.__class__.__name__
+        return "JITCompiler[%s]" % self.__class__.__name__
 
     def __getstate__(self):
         # The superclass would otherwise only return a subset of attributes
@@ -193,17 +202,13 @@ class Compiler(GCCToolchain):
 
 
 class GNUCompiler(Compiler):
-    """Set of standard compiler flags for the GCC toolchain."""
-
-    CC = 'gcc'
-    CPP = 'g++'
-    MPICC = 'mpicc'
-    MPICXX = 'mpicxx'
 
     def __init__(self, *args, **kwargs):
         super(GNUCompiler, self).__init__(*args, **kwargs)
+
         self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
                         '-Wno-unused-but-set-variable']
+
         try:
             if self.version >= version.StrictVersion("4.9.0"):
                 # Append the openmp flag regardless of configuration['openmp'],
@@ -214,44 +219,50 @@ class GNUCompiler(Compiler):
             if configuration['openmp']:
                 self.ldflags += ['-fopenmp']
 
-
-class GNUCompilerNoAVX(GNUCompiler):
-    """Set of compiler flags for GCC but with AVX suppressed. This is
-    a work around for a known gcc bug on MAC OS."""
-
-    def __init__(self, *args, **kwargs):
-        super(GNUCompilerNoAVX, self).__init__(*args, **kwargs)
-        self.cflags += ['-mno-avx']
+    def __lookup_cmds__(self):
+        self.CC = 'gcc'
+        self.CXX = 'g++'
+        self.MPICC = 'mpicc'
+        self.MPICXX = 'mpicxx'
 
 
 class ClangCompiler(Compiler):
-    """Set of standard compiler flags for the clang toolchain."""
-
-    CC = 'clang'
-    CPP = 'clang++'
 
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
-        self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable']
+        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
+
+        if configuration['platform'] == NVIDIAX:
+            # clang has offloading support via OpenMP
+            # TODO: add in the required flags
+            self.cflags += ['-fopenmp']
+        else:
+            if configuration['platform'] in [POWER8, POWER9]:
+                # -march isn't supported on power architectures
+                self.cflags += ['-mcpu=native']
+            else:
+                self.cflags += ['-march=native']
+            if configuration['openmp']:
+                self.ldflags += ['-fopenmp']
+
+    def __lookup_cmds__(self):
+        self.CC = 'clang'
+        self.CXX = 'clang++'
+        self.MPICC = 'mpicc'
+        self.MPICXX = 'mpicxx'
 
 
 class IntelCompiler(Compiler):
-    """Set of standard compiler flags for the Intel toolchain."""
-
-    CC = 'icc'
-    CPP = 'icpc'
-    MPICC = 'mpiicc'
-    MPICXX = 'mpicxx'
 
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
         self.cflags += ["-xhost"]
-        if configuration['platform'] == 'skx':
+        if configuration['platform'] is SKX:
             # Systematically use 512-bit vectors on skylake
             self.cflags += ["-qopt-zmm-usage=high"]
         try:
             if self.version >= version.StrictVersion("15.0.0"):
-                # Append the openmp flag regardless of configuration['openmp'],
+                # Append the OpenMP flag regardless of configuration['openmp'],
                 # since icc15 and later versions implement OpenMP 4.0, hence
                 # they support `#pragma omp simd`
                 self.ldflags += ['-qopenmp']
@@ -260,9 +271,33 @@ class IntelCompiler(Compiler):
                 # Note: fopenmp, not qopenmp, is what is needed by icc versions < 15.0
                 self.ldflags += ['-fopenmp']
 
+        # Make sure the MPI compiler uses `icc` underneath -- whatever the MPI distro is
+        if kwargs.get('mpi'):
+            ver = check_output([self.MPICC, "--version"]).decode("utf-8")
+            if not ver.startswith("icc"):
+                warning("The MPI compiler `%s` doesn't use the Intel "
+                        "C/C++ compiler underneath" % self.MPICC)
+
+    def __lookup_cmds__(self):
+        self.CC = 'icc'
+        self.CXX = 'icpc'
+
+        # On some systems, the Intel distribution of MPI may be available, in
+        # which case the MPI compiler may be shipped either as `mpiicc` or `mpicc`.
+        # On other systems, there may be no Intel distribution of MPI available,
+        # thus the MPI compiler is expected to be the classic `mpicc`. Here,
+        # we try to use `mpiicc` first, while `mpicc` is our fallback, which may
+        # or may not be an Intel distribution
+        try:
+            check_output(["mpiicc", "--version"]).decode("utf-8")
+            self.MPICC = 'mpiicc'
+            self.MPICXX = 'mpiicpc'
+        except FileNotFoundError:
+            self.MPICC = 'mpicc'
+            self.MPICXX = 'mpicxx'
+
 
 class IntelKNLCompiler(IntelCompiler):
-    """Set of standard compiler flags for the Intel toolchain on a KNL system."""
 
     def __init__(self, *args, **kwargs):
         super(IntelKNLCompiler, self).__init__(*args, **kwargs)
@@ -272,15 +307,18 @@ class IntelKNLCompiler(IntelCompiler):
 
 
 class CustomCompiler(Compiler):
-    """Custom compiler based on standard environment flags
+    """
+    Custom compiler based on standard environment flags.
 
-    Note: Currently honours CC, CFLAGS and LDFLAGS, with defaults similar
-    to the default GNU settings. If DEVITO_ARCH is enabled, the OpenMP linker
+    Notes
+    -----
+    Currently honours CC, CFLAGS and LDFLAGS, with defaults similar to the
+    default GNU/gcc settings. If DEVITO_ARCH is enabled, the OpenMP linker
     flags are read from OMP_LDFLAGS or otherwise default to ``-fopenmp``.
     """
 
     CC = environ.get('CC', 'gcc')
-    CPP = environ.get('CPP', 'g++')
+    CXX = environ.get('CXX', 'g++')
     MPICC = environ.get('MPICC', 'mpicc')
     MPICXX = environ.get('MPICXX', 'mpicxx')
 
@@ -291,6 +329,12 @@ class CustomCompiler(Compiler):
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
         if configuration['openmp']:
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
+
+    def __lookup_cmds__(self):
+        self.CC = 'gcc'
+        self.CXX = 'g++'
+        self.MPICC = 'mpicc'
+        self.MPICXX = 'mpicxx'
 
 
 @memoized_func
@@ -436,14 +480,10 @@ def make(loc, args):
     debug("Make <%s>: run in [%.2f s]" % (" ".join(args), toc-tic))
 
 
-# Registry dict for deriving Compiler classes according to the environment variable
-# DEVITO_ARCH. Developers should add new compiler classes here.
 compiler_registry = {
     'custom': CustomCompiler,
     'gnu': GNUCompiler,
     'gcc': GNUCompiler,
-    'gcc-noavx': GNUCompilerNoAVX,
-    'gnu-noavx': GNUCompilerNoAVX,
     'clang': ClangCompiler,
     'osx': ClangCompiler,
     'intel': IntelCompiler,
@@ -452,5 +492,9 @@ compiler_registry = {
     'intel-knl': IntelKNLCompiler,
     'knl': IntelKNLCompiler,
 }
+"""
+Registry dict for deriving Compiler classes according to the environment variable
+DEVITO_ARCH. Developers should add new compiler classes here.
+"""
 compiler_registry.update({'gcc-%s' % i: partial(GNUCompiler, suffix=i)
                           for i in ['4.9', '5', '6', '7', '8']})

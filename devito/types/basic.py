@@ -13,8 +13,9 @@ from cgen import Struct, Value
 
 from devito.data import default_allocator
 from devito.symbolics import Add
-from devito.tools import (ArgProvider, EnrichedTuple, Pickable, ctypes_to_cstr,
-                          dtype_to_cstr, dtype_to_ctype)
+from devito.tools import (EnrichedTuple, Pickable, ctypes_to_cstr, dtype_to_cstr,
+                          dtype_to_ctype)
+from devito.types.args import ArgProvider
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object', 'LocalObject',
            'CompositeObject']
@@ -351,7 +352,7 @@ class Symbol(AbstractCachedSymbol):
         return kwargs.get('dtype', np.int32)
 
 
-class Scalar(Symbol):
+class Scalar(Symbol, ArgProvider):
     """
     Symbol representing a scalar.
 
@@ -884,13 +885,13 @@ class Object(AbstractObject, ArgProvider):
         else:
             return {self.name: self.value}
 
-    def _arg_values(self, args, **kwargs):
+    def _arg_values(self, args=None, **kwargs):
         """
         Produce runtime values for this Object after evaluating user input.
 
         Parameters
         ----------
-        args : dict
+        args : dict, optional
             Known argument values.
         **kwargs
             Dictionary of user-provided argument overrides.
@@ -898,7 +899,7 @@ class Object(AbstractObject, ArgProvider):
         if self.name in kwargs:
             return {self.name: kwargs.pop(self.name)}
         else:
-            return {}
+            return self._arg_defaults()
 
 
 class CompositeObject(Object):

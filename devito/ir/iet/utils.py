@@ -55,44 +55,17 @@ def retrieve_iteration_tree(node, mode='normal'):
         return IterationTree(match)
 
 
-def filter_iterations(tree, key=lambda i: i, stop=lambda: False):
+def filter_iterations(tree, key=lambda i: i):
     """
-    Given an iterable of :class:`Iteration`s, produce a list containing
-    all Iterations such that ``key(iteration)`` is True.
-
-    This function accepts an optional argument ``stop``. This may be either a
-    lambda function, specifying a stop criterium, or any of the following
-    special keywords: ::
-
-        * 'any': Return as soon as ``key(o)`` is False and at least one
-                 item has been collected.
-        * 'asap': Return as soon as at least one item has been collected and
-                  all items for which ``key(o)`` is False have been encountered.
-
-    It is useful to specify a ``stop`` criterium when one is searching the
-    first Iteration in an Iteration/Expression tree which does not honour a
-    given property.
+    Return the first sub-sequence of consecutive Iterations such that
+    ``key(iteration)`` is True.
     """
-    assert callable(stop) or stop in ['any', 'asap']
-
-    tree = list(tree)
     filtered = []
-    off = []
-
-    if stop == 'any':
-        stop = lambda: len(filtered) > 0
-    elif stop == 'asap':
-        hits = [i for i in tree if not key(i)]
-        stop = lambda: len(filtered) > 0 and len(off) == len(hits)
-
     for i in tree:
         if key(i):
             filtered.append(i)
-        else:
-            off.append(i)
-        if stop():
+        elif len(filtered) > 0:
             break
-
     return filtered
 
 

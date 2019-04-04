@@ -21,11 +21,22 @@ try:
     import mpi4py
     mpi4py.rc(initialize=False, finalize=False)
     from mpi4py import MPI  # noqa
+
+    # From the `atexit` documentation: "At normal program termination [...]
+    # all functions registered are in last in, first out order.". So, MPI.Finalize
+    # will be called only at the very end, after all cloned communicators
+    # will have been freed
+    def cleanup():
+        if MPI.Is_initialized():
+            MPI.Finalize()
+    atexit.register(cleanup)
 except ImportError:
     # Dummy fallback in case mpi4py/MPI aren't available
-    class MPI(object):
-        COMM_NULL = None
+    class NoneMetaclass(type):
+        def __getattr__(self, name):
+            return None
 
+    class MPI(object, metaclass=NoneMetaclass):
         @classmethod
         def Is_initialized(cls):
             return False
@@ -33,11 +44,8 @@ except ImportError:
         def _sizeof(obj):
             return None
 
-        @property
-        def Comm(self):
+        def __getattr__(self, name):
             return None
-
-        Request = Comm
 
 
 __all__ = ['Distributor', 'SparseDistributor', 'MPI']
@@ -173,12 +181,13 @@ class Distributor(AbstractDistributor):
             if not MPI.Is_initialized():
                 MPI.Init()
 
-                # Make sure Finalize will be called upon exit
-                def finalize_mpi():
-                    MPI.Finalize()
-                atexit.register(finalize_mpi)
-
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
+
+            # Make sure the cloned communicator will be freed up upon exit
+            def cleanup():
+                if self._input_comm is not None:
+                    self._input_comm.Free()
+            atexit.register(cleanup)
 
             # `MPI.Compute_dims` sets the dimension sizes to be as close to each other
             # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
@@ -210,10 +219,6 @@ class Distributor(AbstractDistributor):
         # The domain decomposition
         self._decomposition = [Decomposition(np.array_split(range(i), j), c)
                                for i, j, c in zip(shape, self.topology, self.mycoords)]
-
-    def __del__(self):
-        if self._input_comm is not None:
-            self._input_comm.Free()
 
     @property
     def comm(self):

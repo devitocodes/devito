@@ -1,6 +1,6 @@
 import click
 
-from devito import Eq, Operator, Function, dimensions, info
+from devito import Inc, Operator, Function, dimensions, info
 from devito.tools import as_tuple
 
 __all__ = ['mat_vec', 'transpose_mat_vec', 'mat_mat', 'mat_mat_sum',
@@ -101,7 +101,7 @@ def cli_chain_contractions(mat_shape, optimize, **kwargs):
 
 def mat_vec(A, x, b, optimize):
     """``Ax = b``."""
-    op = Operator(Eq(b, A*x), dle=optimize)
+    op = Operator(Inc(b, A*x), dle=optimize)
     op.apply()
     info('Executed `Ax = b`')
 
@@ -109,28 +109,28 @@ def mat_vec(A, x, b, optimize):
 def transpose_mat_vec(A, x, b, optimize):
     """``A -> A^T, A^Tx = b``."""
     i, j = A.indices
-    op = Operator([Eq(b, A[j, i]*x)], dle=optimize)
+    op = Operator([Inc(b, A[j, i]*x)], dle=optimize)
     op.apply()
     info('Executed `A^Tx = b`')
 
 
 def mat_mat(A, B, C, optimize):
     """``AB = C``."""
-    op = Operator(Eq(C, A*B), dle=optimize)
+    op = Operator(Inc(C, A*B), dle=optimize)
     op.apply()
     info('Executed `AB = C`')
 
 
 def mat_mat_sum(A, B, C, D, optimize):
     """``AB + AC = D``."""
-    op = Operator(Eq(D, A*B + A*C), dle=optimize)
+    op = Operator(Inc(D, A*B + A*C), dle=optimize)
     op.apply()
     info('Executed `AB + AC = D`')
 
 
 def chain_contractions(A, B, C, D, E, F, optimize):
     """``AB + AC = D, DE = F``."""
-    op = Operator([Eq(D, A*B + A*C), Eq(F, D*E)], dle=optimize)
+    op = Operator([Inc(D, A*B + A*C), Inc(F, D*E)], dle=optimize)
     op.apply()
     info('Executed `AB + AC = D, DE = F`')
 

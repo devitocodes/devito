@@ -1,12 +1,16 @@
 from collections import OrderedDict
-from itertools import chain, combinations, product
+from itertools import combinations, product
+from functools import total_ordering
 import resource
+
 import psutil
 
-from devito.dle import BlockDimension, NThreads
+from devito.archinfo import KNL
+from devito.dle import BlockDimension
 from devito.ir import Backward, retrieve_iteration_tree
 from devito.logger import perf, warning as _warning
-from devito.mpi import MPI
+from devito.mpi.distributed import MPI, MPINeighborhood
+from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration
 from devito.symbolics import evaluate
 from devito.tools import filter_ordered, flatten, prod
@@ -25,9 +29,9 @@ def autotune(operator, args, level, mode):
     args : dict_like
         The runtime arguments with which `operator` is run.
     level : str
-        The autotuning aggressiveness (basic, aggressive). A more aggressive
-        autotuning might eventually result in higher performance, though in
-        some circumstances it might instead increase the actual runtime.
+        The autotuning aggressiveness (basic, aggressive, max). A more
+        aggressive autotuning might eventually result in higher runtime
+        performance, but the autotuning phase will take longer.
     mode : str
         The autotuning mode (preemptive, runtime). In preemptive mode, the
         output runtime values supplied by the user to `operator.apply` are
@@ -38,14 +42,6 @@ def autotune(operator, args, level, mode):
     if key not in accepted:
         raise ValueError("The accepted `(level, mode)` combinations are `%s`; "
                          "provided `%s` instead" % (accepted, key))
-
-    # Tunable objects
-    blockable = [i for i in operator.dimensions if isinstance(i, BlockDimension)]
-    nthreads = [i for i in operator.input if isinstance(i, NThreads)]
-
-    if len(nthreads + blockable) == 0:
-        # Nothing to tune for
-        return args, {}
 
     # We get passed all the arguments, but the cfunction only requires a subset
     at_args = OrderedDict([(p.name, args[p.name]) for p in operator.parameters])
@@ -60,23 +56,24 @@ def autotune(operator, args, level, mode):
         # free the shadow copies handed over to C-land
         at_args.update({k: output[k]._C_make_dataobj(v) for k, v in copies.items()})
 
-    # Disable halo exchanges as the number of autotuning steps performed on each
-    # rank may be different. Also, this makes the autotuning runtimes reliable
-    # regardless of whether the timed regions include the halo exchanges or not,
-    # as now the halo exchanges become a no-op.
-    try:
-        nb = []
-        if mode != 'runtime':
-            for i, _ in at_args['nb']._obj._fields_:
-                nb.append((i, getattr(at_args['nb']._obj, i)))
-                setattr(at_args['nb']._obj, i, MPI.PROC_NULL)
-    except KeyError:
-        assert not configuration['mpi']
+    # Disable halo exchanges through MPI_PROC_NULL
+    if mode in ['preemptive', 'destructive']:
+        for p in operator.parameters:
+            if isinstance(p, MPINeighborhood):
+                at_args.update(MPINeighborhood(p.fields)._arg_values())
+                for i in p.fields:
+                    setattr(at_args[p.name]._obj, i, MPI.PROC_NULL)
+            elif isinstance(p, MPIMsgEnriched):
+                at_args.update(MPIMsgEnriched(p.name, p.function, p.halos)._arg_values())
+                for i in at_args[p.name]:
+                    i.fromrank = MPI.PROC_NULL
+                    i.torank = MPI.PROC_NULL
 
     roots = [operator.body] + [i.root for i in operator._func_table.values()]
-    trees = retrieve_iteration_tree(roots)
+    trees = filter_ordered(retrieve_iteration_tree(roots), key=lambda i: i.root)
 
-    # Shrink the time dimension's iteration range for quick autotuning
+    # Detect the time-stepping Iteration; shrink its iteration range so that
+    # each autotuning run only takes a few iterations
     steppers = {i for i in flatten(trees) if i.dim.is_Time}
     if len(steppers) == 0:
         stepper = None
@@ -90,86 +87,115 @@ def autotune(operator, args, level, mode):
         warning("cannot perform autotuning unless there is one time loop; skipping")
         return args, {}
 
-    # Formula to calculate the number of parallel blocks given block shape,
-    # number of threads, and size of the parallel iteration space
-    calculate_parblocks = make_calculate_parblocks(trees, blockable, nthreads)
+    # Perform autotuning
+    timings = {}
+    for n, tree in enumerate(trees):
+        blockable = [i.dim for i in tree if isinstance(i.dim, BlockDimension)]
 
-    # Generated loop-blocking attempts
-    block_shapes = generate_block_shapes(blockable, args, level)
-
-    # Generate nthreads attempts
-    nthreads = generate_nthreads(nthreads, args, level)
-
-    generators = [i for i in [block_shapes, nthreads] if i]
-
-    timings = OrderedDict()
-    for i in product(*generators):
-        run = tuple(chain(*i))
-        mapper = OrderedDict(run)
-
-        # Can we safely autotune over the given time range?
-        if not check_time_bounds(stepper, at_args, args, mode):
-            break
-
-        # Update `at_args` to use the new tunable values
-        at_args = {k: mapper.get(k, v) for k, v in at_args.items()}
-
-        if heuristically_discard_run(calculate_parblocks, at_args):
-            continue
-
-        # Make sure we remain within stack bounds, otherwise skip run
+        # Tunable arguments
         try:
-            stack_footprint = operator._mem_summary['stack']
-            if int(evaluate(stack_footprint, **at_args)) > options['stack_limit']:
-                continue
-        except TypeError:
-            warning("couldn't determine stack size; skipping run %s" % str(i))
+            tunable = []
+            tunable.append(generate_block_shapes(blockable, args, level))
+            tunable.append(generate_nthreads(operator.nthreads, args, level))
+            tunable = list(product(*tunable))
+        except ValueError:
+            # Some arguments are cumpolsory, otherwise autotuning is skipped
             continue
-        except AttributeError:
-            assert stack_footprint == 0
 
-        # Use fresh profiling data
-        timer = operator._profiler.timer.reset()
-        at_args[operator._profiler.name] = timer
+        # Symbolic number of loop-blocking blocks per thread
+        nblocks_per_thread = calculate_nblocks(tree, blockable) / operator.nthreads
 
-        operator.cfunction(*list(at_args.values()))
-        elapsed = sum(getattr(timer._obj, k) for k, _ in timer._obj._fields_)
-        timings[run] = elapsed
-        log("run <%s> took %f (s) in %d timesteps" %
-            (','.join('%s=%s' % (k, v) for k, v in mapper.items()), elapsed, timesteps))
+        for bs, nt in tunable:
+            # Can we safely autotune over the given time range?
+            if not check_time_bounds(stepper, at_args, args, mode):
+                break
 
-        # Prepare for the next autotuning run
-        update_time_bounds(stepper, at_args, timesteps, mode)
+            # Update `at_args` to use the new tunable arguments
+            run = [(k, v) for k, v in bs + nt if k in at_args]
+            at_args.update(dict(run))
 
+            # Drop run if not at least one block per thread
+            if not configuration['develop-mode'] and nblocks_per_thread.subs(at_args) < 1:
+                continue
+
+            # Make sure we remain within stack bounds, otherwise skip run
+            try:
+                stack_footprint = operator._mem_summary['stack']
+                if int(evaluate(stack_footprint, **at_args)) > options['stack_limit']:
+                    continue
+            except TypeError:
+                warning("couldn't determine stack size; skipping run %s" % str(i))
+                continue
+            except AttributeError:
+                assert stack_footprint == 0
+
+            # Run the Operator
+            operator.cfunction(*list(at_args.values()))
+            elapsed = operator._profiler.timer.total
+
+            timings.setdefault(nt, OrderedDict()).setdefault(n, {})[bs] = elapsed
+            log("run <%s> took %f (s) in %d timesteps" %
+                (','.join('%s=%s' % i for i in run), elapsed, timesteps))
+
+            # Prepare for the next autotuning run
+            update_time_bounds(stepper, at_args, timesteps, mode)
+
+            # Reset profiling timers
+            operator._profiler.timer.reset()
+
+    # The best variant is the one that for a given number of threads had the minium
+    # turnaround time
     try:
-        best = dict(min(timings, key=timings.get))
-        log("selected best: %s" % best)
+        runs = 0
+        mapper = {}
+        for k, v in timings.items():
+            for i in v.values():
+                runs += len(i)
+                record = mapper.setdefault(k, Record())
+                record.add(min(i, key=i.get), min(i.values()))
+        best = min(mapper, key=mapper.get)
+        best = OrderedDict(best + tuple(mapper[best].args))
+        best.pop(None, None)
+        log("selected <%s>" % (','.join('%s=%s' % i for i in best.items())))
     except ValueError:
         warning("couldn't perform any runs")
         return args, {}
 
-    # Build the new argument list
-    args = {k: best.get(k, v) for k, v in args.items()}
+    # Update the argument list with the tuned arguments
+    args.update(best)
 
-    # In `runtime` mode, some timesteps have been executed already, so we
-    # get to adjust the time range
+    # In `runtime` mode, some timesteps have been executed already, so we must
+    # adjust the time range
     finalize_time_bounds(stepper, at_args, args, mode)
-
-    # Reset profiling data
-    assert operator._profiler.name in args
-    args[operator._profiler.name] = operator._profiler.timer.reset()
-
-    # Reinstate MPI neighbourhood
-    for i, v in nb:
-        setattr(args['nb']._obj, i, v)
 
     # Autotuning summary
     summary = {}
-    summary['runs'] = len(timings)
+    summary['runs'] = runs
     summary['tpr'] = timesteps  # tpr -> timesteps per run
     summary['tuned'] = dict(best)
 
     return args, summary
+
+
+@total_ordering
+class Record(object):
+
+    def __init__(self):
+        self.args = []
+        self.time = 0
+
+    def __repr__(self):
+        return str((self.args, self.time))
+
+    def add(self, args, time):
+        self.args.extend(list(args))
+        self.time += time
+
+    def __eq__(self, other):
+        return self.time == other.time
+
+    def __lt__(self, other):
+        return self.time < other.time
 
 
 def init_time_bounds(stepper, at_args):
@@ -229,22 +255,20 @@ def finalize_time_bounds(stepper, at_args, args, mode):
         args[dim.max_name] = args[dim.max_name]
 
 
-def make_calculate_parblocks(trees, blockable, nthreads):
-    trees = [i for i in trees if any(d in i.dimensions for d in blockable)]
-    nblocks_per_threads = []
-    for tree, nt in product(trees, nthreads):
-        collapsed = tree[:tree[0].ncollapsed]
-        blocked = [i.dim for i in collapsed if i.dim in blockable]
-        remainders = [(d.root.symbolic_max-d.root.symbolic_min+1) % d.step
-                      for d in blocked]
-        niters = [d.root.symbolic_max - i for d, i in zip(blocked, remainders)]
-        nblocks = prod((i - d.root.symbolic_min + 1) / d.step
-                       for d, i in zip(blocked, niters))
-        nblocks_per_threads.append(nblocks / nt)
-    return nblocks_per_threads
+def calculate_nblocks(tree, blockable):
+    collapsed = tree[:(tree[0].ncollapsed or 1)]
+    blocked = [i.dim for i in collapsed if i.dim in blockable]
+    remainders = [(d.root.symbolic_max-d.root.symbolic_min+1) % d.step for d in blocked]
+    niters = [d.root.symbolic_max - i for d, i in zip(blocked, remainders)]
+    nblocks = prod((i - d.root.symbolic_min + 1) / d.step
+                   for d, i in zip(blocked, niters))
+    return nblocks
 
 
 def generate_block_shapes(blockable, args, level):
+    if not blockable:
+        raise ValueError
+
     # Max attemptable block shape
     max_bs = tuple((d.step.name, d.max_step.subs(args)) for d in blockable)
 
@@ -254,7 +278,7 @@ def generate_block_shapes(blockable, args, level):
     # 2) Always try the entire iteration space (degenerate block)
     ret.append(max_bs)
     # 3) More attempts if auto-tuning in aggressive mode
-    if level == 'aggressive':
+    if level in ['aggressive', 'max']:
         # Ramp up to larger block shapes
         handle = tuple((i, options['blocksize'][-1]) for i, _ in ret[0])
         for i in range(3):
@@ -285,22 +309,24 @@ def generate_block_shapes(blockable, args, level):
 
 
 def generate_nthreads(nthreads, args, level):
-    ret = [((i.name, args[i.name]),) for i in nthreads]
+    if nthreads == 1:
+        return [((None, 1),)]
 
-    # On the KNL, also try running with a different number of hyperthreads
-    if level == 'aggressive' and configuration['platform'] == 'knl':
-        ret.extend([((i.name, psutil.cpu_count()),) for i in nthreads])
-        ret.extend([((i.name, psutil.cpu_count() // 2),) for i in nthreads])
-        ret.extend([((i.name, psutil.cpu_count() // 4),) for i in nthreads])
+    ret = [((nthreads.name, args[nthreads.name]),)]
+
+    if level == 'max':
+        # Be sure to try with:
+        # 1) num_threads == num_physical_cores
+        # 2) num_threads == num_hyperthreads
+        if configuration['platform'] is KNL:
+            ret.extend([((nthreads.name, psutil.cpu_count() // 4),),
+                        ((nthreads.name, psutil.cpu_count() // 2),),
+                        ((nthreads.name, psutil.cpu_count()),)])
+        else:
+            ret.extend([((nthreads.name, psutil.cpu_count() // 2),),
+                        ((nthreads.name, psutil.cpu_count()),)])
 
     return filter_ordered(ret)
-
-
-def heuristically_discard_run(calculate_parblocks, at_args):
-    if configuration['develop-mode']:
-        return False
-    # Drop run if not at least one block per thread
-    return all(i.subs(at_args) < 1 for i in calculate_parblocks)
 
 
 options = {

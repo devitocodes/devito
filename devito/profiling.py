@@ -191,9 +191,13 @@ class Timer(CompositeObject):
         super(Timer, self).__init__(name, 'profiler', [(i, c_double) for i in sections])
 
     def reset(self):
-        for i, _ in self.pfields:
+        for i in self.fields:
             setattr(self.value._obj, i, 0.0)
         return self.value
+
+    @property
+    def total(self):
+        return sum(getattr(self.value._obj, i) for i in self.fields)
 
     @property
     def sections(self):
@@ -251,13 +255,12 @@ def create_profile(name):
         return profiler
 
 
-# Set up profiling levels
 profiler_registry = {
     'basic': Profiler,
     'advanced': AdvancedProfiler,
     'advisor': AdvisorProfiler
 }
-configuration.add('profiling', 'basic', list(profiler_registry), impacts_jit=False)
+"""Profiling levels."""
 
 
 def locate_intel_advisor():

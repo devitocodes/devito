@@ -2,11 +2,13 @@ import abc
 from functools import reduce
 from operator import mul
 import mmap
+import os
 
 import numpy as np
 import ctypes
 from ctypes.util import find_library
 
+from devito.archinfo import KNL
 from devito.logger import logger
 from devito.parameters import configuration
 from devito.tools import dtype_to_ctype
@@ -307,6 +309,11 @@ ALLOC_NUMA_ANY = NumaAllocator('any')
 ALLOC_NUMA_LOCAL = NumaAllocator('local')
 
 
+def infer_knl_mode():
+    path = os.path.join('sys', 'bus', 'node', 'devices', 'node1')
+    return 'flat' if os.path.exists(path) else 'cache'
+
+
 def default_allocator():
     """
     Return a suitable MemoryAllocator for the architecture on which the process
@@ -336,7 +343,7 @@ def default_allocator():
     if configuration['develop-mode']:
         return ALLOC_GUARD
     elif NumaAllocator.available():
-        if configuration['platform'] == 'knl':
+        if configuration['platform'] is KNL and infer_knl_mode() == 'flat':
             return ALLOC_KNL_MCDRAM
         else:
             return ALLOC_NUMA_LOCAL

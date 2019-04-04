@@ -1,5 +1,6 @@
 # coding: utf-8
-from devito import TimeFunction, memoized_meth
+from devito import TimeFunction
+from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, particle_velocity_fields
 from examples.seismic import Receiver
 

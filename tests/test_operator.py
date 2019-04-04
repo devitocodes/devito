@@ -4,12 +4,13 @@ import pytest
 from conftest import skipif, EVAL, time, x, y, z
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, configuration, switchconfig)
-from devito.ir.iet import (ArrayCast, Expression, Iteration, FindNodes,
-                           IsPerfectIteration, retrieve_iteration_tree)
+                    NODE, CELL, configuration)
+from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
+                           retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
 from devito.tools import flatten
+from devito.types import Scalar
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -72,28 +73,6 @@ class TestCodeGen(object):
         expr = eval(expr)
         expr = Operator(expr)._specialize_exprs([indexify(expr)])[0]
         assert str(expr).replace(' ', '') == expected
-
-    @switchconfig(codegen='explicit')
-    @pytest.mark.parametrize('so, to, padding, expected', [
-        (0, 1, 0, '(float(*)[x_size][y_size][z_size])u_vec->data'),
-        (2, 1, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec->data'),
-        (4, 1, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec->data'),
-        (4, 3, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec->data'),
-        (4, 1, 3, '(float(*)[x_size+4+4+3][y_size+4+4+3][z_size+4+4+3])u_vec->data'),
-        ((2, 5, 2), 1, 0, '(float(*)[x_size+2+5][y_size+2+5][z_size+2+5])u_vec->data'),
-        ((2, 5, 4), 1, 3,
-         '(float(*)[x_size+4+5+3][y_size+4+5+3][z_size+4+5+3])u_vec->data'),
-    ])
-    def test_array_casts(self, so, to, padding, expected):
-        """Tests that data casts are generated correctly."""
-        grid = Grid(shape=(4, 4, 4))
-        u = TimeFunction(name='u', grid=grid,
-                         space_order=so, time_order=to, padding=padding)
-        op = Operator(Eq(u, 1), dse='noop', dle='noop')
-        casts = FindNodes(ArrayCast).visit(op)
-        assert len(casts) == 1
-        cast = casts[0]
-        assert cast.ccode.data.replace(' ', '') == expected
 
     @pytest.mark.parametrize('expr,exp_uindices,exp_mods', [
         ('Eq(v.forward, u[0, x, y, z] + v + 1)', [(0, 5), (2, 5)], {'v': 5}),
@@ -1003,10 +982,12 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
+  /* Begin section0 */
   for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
+  /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
@@ -1020,6 +1001,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
+  /* Begin section0 */
   for (int i = i_m; i <= i_M; i += 1)
   {
     for (int j = j_m; j <= j_M; j += 1)
@@ -1028,6 +1010,7 @@ class TestDeclarator(object):
       c[i][j] = sa0*c[i][j];
     }
   }
+  /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
@@ -1043,6 +1026,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
+  /* Begin section0 */
   for (int i = i_m; i <= i_M; i += 1)
   {
     a[i] = 0.0F;
@@ -1051,6 +1035,7 @@ class TestDeclarator(object):
       c[i][j] = a[i]*c[i][j];
     }
   }
+  /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
@@ -1064,14 +1049,16 @@ class TestDeclarator(object):
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
+  float t1 = 2.00000000000000F;
+  float t0 = 1.00000000000000F;
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
+  /* Begin section0 */
   for (int i = i_m; i <= i_M; i += 1)
   {
-    float t0 = 1.00000000000000F;
-    float t1 = 2.00000000000000F;
     a[i] = 3.0F*t0*t1;
   }
+  /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
@@ -1084,6 +1071,7 @@ class TestDeclarator(object):
   float c_stack[i_size][j_size] __attribute__((aligned(64)));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
+  /* Begin section0 */
   for (int k = k_m; k <= k_M; k += 1)
   {
     for (int s = s_m; s <= s_M; s += 1)
@@ -1100,6 +1088,7 @@ class TestDeclarator(object):
       }
     }
   }
+  /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
@@ -1258,22 +1247,35 @@ class TestLoopScheduler(object):
         mapper = {'+': Forward, '-': Backward, '*': Any}
         assert all(i.direction == mapper[j] for i, j in zip(iters, directions))
 
-    def test_expressions_imperfect_loops(self, ti0, ti1, ti2, t0):
+    def test_expressions_imperfect_loops(self):
         """
         Test that equations depending only on a subset of all indices
         appearing across all equations are placed within earlier loops
         in the loop nest tree.
         """
-        eq1 = Eq(ti2, t0*3.)
-        eq2 = Eq(ti0, ti1 + 4. + ti2*5.)
-        op = Operator([eq1, eq2], dse='noop', dle='noop')
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+
+        t0 = Constant(name='t0')
+        t1 = Scalar(name='t1')
+        e = Function(name='e', shape=(3,), dimensions=(x,), space_order=0)
+        f = Function(name='f', shape=(3, 3), dimensions=(x, y), space_order=0)
+        g = Function(name='g', grid=grid, space_order=0)
+        h = Function(name='h', grid=grid, space_order=0)
+
+        eq0 = Eq(t1, e*1.)
+        eq1 = Eq(f, t0*3. + t1)
+        eq2 = Eq(h, g + 4. + f*5.)
+        op = Operator([eq0, eq1, eq2], dse='noop', dle='noop')
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        outer, inner = trees
-        assert len(outer) == 2 and len(inner) == 3
-        assert all(i == j for i, j in zip(outer, inner[:-1]))
-        assert outer[-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
-        assert inner[-1].nodes[0].exprs[0].expr.rhs == eq2.rhs
+        assert len(trees) == 3
+        outer, middle, inner = trees
+        assert len(outer) == 1 and len(middle) == 2 and len(inner) == 3
+        assert outer[0] == middle[0] == inner[0]
+        assert middle[1] == inner[1]
+        assert outer[-1].nodes[0].exprs[0].expr.rhs == indexify(eq0.rhs)
+        assert middle[-1].nodes[0].exprs[0].expr.rhs == indexify(eq1.rhs)
+        assert inner[-1].nodes[0].exprs[0].expr.rhs == indexify(eq2.rhs)
 
     def test_equations_emulate_bc(self, t0):
         """
@@ -1433,8 +1435,8 @@ class TestLoopScheduler(object):
 
         u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
         u2 = TimeFunction(name="u2", grid=grid, time_order=2)
-        sf1 = SparseFunction(name='sf1', grid=grid, npoint=1, ntime=10)
-        sf2 = SparseFunction(name='sf2', grid=grid, npoint=1, ntime=10)
+        sf1 = SparseTimeFunction(name='sf1', grid=grid, npoint=1, nt=10)
+        sf2 = SparseTimeFunction(name='sf2', grid=grid, npoint=1, nt=10)
 
         # Deliberately inject into u1, rather than u1.forward, to create a WAR w/ eqn3
         eqn1 = Eq(u1.forward, u1 + 2.0 - u1.backward)

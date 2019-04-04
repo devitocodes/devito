@@ -3,12 +3,11 @@ import numpy as np
 
 from conftest import EVAL, time, x, y, z, skipif  # noqa
 from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
-                    Operator, Dimension, SubDimension)
+                    Operator, Dimension, SubDimension, switchconfig)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
-from devito.ir.iet import (ArrayCast, Conditional, Expression, Iteration, FindNodes,
-                           FindSymbols, retrieve_iteration_tree, filter_iterations,
-                           make_efunc)
+from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes, FindSymbols,
+                           retrieve_iteration_tree, filter_iterations, make_efunc)
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      AFFINE, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
@@ -519,6 +518,7 @@ else
         (('Eq(v[t,x,y], v[t,x-1,y] + 1)', 'Eq(v[t,x,y], v[t,x+1,y] + u[x,y])'),
          (1, 2), (1, 1), ('xy', 'xy'))
     ])
+    @switchconfig(openmp=False)
     def test_make_efuncs(self, exprs, nfuncs, ntimeiters, nests):
         """Test construction of ElementalFunctions."""
         exprs = list(as_tuple(exprs))
@@ -539,7 +539,7 @@ else
         # We create one ElementalFunction for each Iteration nest over space dimensions
         efuncs = []
         for n, tree in enumerate(retrieve_iteration_tree(op)):
-            root = filter_iterations(tree, key=lambda i: i.dim.is_Space, stop='asap')
+            root = filter_iterations(tree, key=lambda i: i.dim.is_Space)[0]
             efuncs.append(make_efunc('f%d' % n, root))
 
         assert len(efuncs) == len(nfuncs) == len(ntimeiters) == len(nests)
@@ -552,13 +552,10 @@ else
             assert len(functions) == nf
             assert all(i in efunc.parameters for i in functions)
             timeiters = [i for i in FindSymbols('free-symbols').visit(efunc)
-                         if i.is_Dimension and i.is_Time]
+                         if isinstance(i, Dimension) and i.is_Time]
             assert len(timeiters) == nt
             assert all(i in efunc.parameters for i in timeiters)
             assert len(efunc.parameters) == 4 + len(functions) + len(timeiters)
-
-            # Check there's exactly one ArrayCast for each Function
-            assert len(FindNodes(ArrayCast).visit(efunc)) == nf
 
             # Check the loop nest structure
             trees = retrieve_iteration_tree(efunc)

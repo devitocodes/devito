@@ -23,10 +23,6 @@ except ImportError:
 def skipif(items, whole_module=False):
     assert isinstance(whole_module, bool)
     items = as_tuple(items)
-    if whole_module is True:
-        skipper = lambda i, j: pytest.skip(j, allow_module_level=True)
-    else:
-        skipper = lambda i, j: pytest.mark.skipif(i, reason=j)
     # Sanity check
     accepted = set(configuration._accepted['backend'])
     accepted.update({'no%s' % i for i in configuration._accepted['backend']})
@@ -34,22 +30,32 @@ def skipif(items, whole_module=False):
     unknown = sorted(set(items) - accepted)
     if unknown:
         raise ValueError("Illegal skipif argument(s) `%s`" % unknown)
+    skipit = False
     for i in items:
         # Skip if no MPI
         if i == 'nompi':
             if MPI is None:
-                return skipper(True, "mpi4py/MPI not installed")
+                skipit = "mpi4py/MPI not installed"
+                break
             continue
         # Skip if an unsupported backend
         if i == configuration['backend']:
-            return skipper(True, "`%s` backend unsupported" % i)
+            skipit = "`%s` backend unsupported" % i
+            break
         try:
             _, noi = i.split('no')
             if noi != configuration['backend']:
-                return skipper(True, "`%s` backend unsupported" % i)
+                skipit = "`%s` backend unsupported" % i
+                break
         except ValueError:
             pass
-    return skipper(False, "")
+    if skipit is False:
+        return pytest.mark.skipif(False, reason='')
+    else:
+        if whole_module:
+            return pytest.skip(skipit, allow_module_level=True)
+        else:
+            return pytest.mark.skip(skipit)
 
 
 # Testing dimensions for space and time
@@ -321,7 +327,7 @@ def parallel(item):
         if restrain and os.environ.get('MPI_RESTRAIN', False):
             # A computationally expensive test that would take too long to
             # run on the current machine
-            return
+            continue
 
         # Only spew tracebacks on rank 0.
         # Run xfailing tests to ensure that errors are reported to calling process
