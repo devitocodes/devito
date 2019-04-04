@@ -249,7 +249,6 @@ class Operator(Callable):
             * Applying any user-provided symbolic substitution;
             * Replacing Dimensions with SubDimensions based on expression SubDomains.
         """
-        from IPython import embed; embed()
         processed = []
         for e in expressions:
             mapper = subs.copy()
