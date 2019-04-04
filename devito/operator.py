@@ -228,6 +228,7 @@ class Operator(Callable):
             if e.subdomain:
                 try:
                     dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
+<<<<<<< HEAD
                     sub_dims = [d.root for d in e.subdomain.dimensions]
                     dims = [d for d in dims if d not in frozenset(sub_dims)]
                     dims.append(e.subdomain.implicit_dimension)
@@ -243,6 +244,22 @@ class Operator(Callable):
             else:
                 processed.append(e)
         return processed
+=======
+                    sub_dims = [d.root for d in subdomain.dimensions]
+                    dims = list(set(dims).symmetric_difference(set(sub_dims)))
+                    dims.append(subdomain._implicit_dimension)
+                    implicit_expressions = []
+                    for i in dat:
+                        eq = Eq(i['rhs'], i['lhs'], implicit_dims=dims)
+                        implicit_expressions.append(eq)
+                    for ie in implicit_expressions:
+                        updated_expressions.append(ie)
+                    for d in subdomain.dimensions:
+                        dims.append(d)
+                    e._implicit_dims = as_tuple(dims)
+            updated_expressions.append(e)
+        return updated_expressions
+>>>>>>> Fixes.
 
     def _apply_substitutions(self, expressions, subs):
         """
