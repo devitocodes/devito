@@ -232,8 +232,7 @@ class Operator(Callable):
                     dims.append(subdomain._implicit_dimension)
                     implicit_expressions = []
                     for i in dat:
-                        eq = Eq(i['rhs'], i['lhs'])
-                        eq._implicit_dims = as_tuple(dims)
+                        eq = Eq(i['rhs'], i['lhs'], implicit_dims=dims)
                         implicit_expressions.append(eq)
                     for ie in implicit_expressions:
                         updated_expressions.append(ie)
