@@ -136,12 +136,6 @@ class Derivative(sympy.Derivative, Differentiable):
     def transpose(self):
         return self._transpose
 
-    def __str__(self):
-        string = super(Derivative, self).__str__()[:-1]
-        return string + ", " + str(self.side) + ")"
-        
-    __repr__ = __str__
-        
     @property
     def T(self):
         """Transpose of the Derivative."""

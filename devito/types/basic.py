@@ -14,8 +14,10 @@ from cgen import Struct, Value
 
 from devito.data import default_allocator
 from devito.symbolics import Add
-from devito.tools import (ArgProvider, EnrichedTuple, Evaluable, Pickable,
+from devito.tools import (EnrichedTuple, Evaluable, Pickable,
                           ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
+
+from devito.types.args import ArgProvider
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object', 'LocalObject',
            'CompositeObject']
@@ -372,7 +374,7 @@ class Symbol(AbstractSymbol):
     is_Symbol = True
 
 
-class Scalar(Symbol):
+class Scalar(Symbol, ArgProvider):
     """
     Like a Symbol, but in addition it can pass runtime values to an Operator.
 
@@ -915,7 +917,7 @@ class Object(AbstractObject, ArgProvider):
         else:
             return {self.name: self.value}
 
-    def _arg_values(self, **kwargs):
+    def _arg_values(self, args=None, **kwargs):
         if self.name in kwargs:
             return {self.name: kwargs.pop(self.name)}
         else:
