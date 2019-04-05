@@ -15,7 +15,7 @@ from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
 
-__all__ = ['Grid', 'SubDomain', 'SubDomains']
+__all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
 
 class Grid(ArgProvider):
@@ -428,8 +428,7 @@ class Interior(SubDomain):
         return {d: ('middle', 1, 1) for d in dimensions}
 
 
-# FIXME: Name + example.
-class SubDomains(SubDomain):
+class SubDomainSet(SubDomain):
     """
     Class to define a set of N (a positive integer) subdomains.
 
@@ -444,16 +443,74 @@ class SubDomains(SubDomain):
 
     Examples
     --------
-    Include full example + example of shorthand notation here.
+    Set up an iterate upon a set of two subomains:
+
+    >>> import numpy as np
+    >>> from devito import Grid, Function, Eq, Operator, SubDomainSet
+    >>> Nx = 10
+    >>> Ny = Nx
+    >>> n_domains = 2
+
+    Create a 'SubDomainSet object':
+
+    >>> class MySubdomains(SubDomainSet):
+    ...     name = 'mydomains'
+    ...     def define(self, dimensions):
+    ...         return {d: ('middle', 0, 0) for d in dimensions}
+
+    Set the bounds of the subdomains. The required format is:
+    (xm, xM, ym, yM, ...) where xm is a vector specifying
+    the number of grid points inwards from the 'left' boundary in the
+    first grid dimension that each subdomain starts. xM is a vector
+    specifying the number of grid points inwards from the 'right' of
+    the domain in the first grid dimension that each subdomain ends.
+    ym and yM are the equivalents for the second grid dimension.
+
+    >>> xm = np.array([1, Nx/2+1], dtype=np.int32)
+    >>> xM = np.array([Nx/2+1, 1], dtype=np.int32)
+
+    Along a dimension where all bounds are the same we can use the
+    following shorthand:
+
+    >>> ym = 1 # which is equivalent to 'np.array([1, 1], dtype=np.int32)'
+    >>> yM = 1
+
+    Combine the data into the required form:
+
+    >>> bounds = (xm, xM, ym, yM)
+
+    Create our set of subdomains passing the number of domains and the
+    bounds:
+
+    >>> my_sd = MySubdomains(N=n_domains, bounds=bounds)
+
+    Create a grid and iterate a function within the define subdomains:
+
+    >>> grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd, ))
+    >>> f = Function(name='f', grid=grid, dtype=np.int32)
+    >>> eq = Eq(f, f+1, subdomain=grid.subdomains['mydomains'])
+    >>> op = Operator(eq)
+    >>> summary = op.apply()
+    >>> f.data
+    Data([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=int32)
     """
 
     def __init__(self, **kwargs):
-        super(SubDomains, self).__init__()
+        super(SubDomainSet, self).__init__()
         self._n_domains = kwargs.get('N', 1)
         self._bounds = kwargs.get('bounds', None)
 
     def __subdomain_finalize__(self, dimensions, shape):
-        super(SubDomains, self).__subdomain_finalize__(dimensions, shape)
+        super(SubDomainSet, self).__subdomain_finalize__(dimensions, shape)
         n = Dimension(name='n')
         self._implicit_dimension = n
 
@@ -485,7 +542,7 @@ class SubDomains(SubDomain):
             b_f[fname] = Function(name=fname, shape=(n_domains, ),
                                   dimensions=(i_dim, ), dtype=np.int32)
             if isinstance(self._bounds[j], int):
-                bounds = np.zeros((n_domains,), dtype=np.int32)
+                bounds = np.full((n_domains,), self._bounds[j], dtype=np.int32)
                 b_f[fname].data[:] = bounds
             else:
                 b_f[fname].data[:] = self._bounds[j]
