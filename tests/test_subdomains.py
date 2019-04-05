@@ -2,7 +2,7 @@ import numpy as np
 from math import floor
 
 from conftest import skipif
-from devito import Grid, TimeFunction, Eq, solve, Operator, SubDomains
+from devito import Grid, Function, TimeFunction, Eq, solve, Operator, SubDomainSet
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -19,7 +19,7 @@ class TestSubdomains(object):
 
         n_domains = 10
 
-        class Inner(SubDomains):
+        class Inner(SubDomainSet):
             name = 'inner'
 
             def define(self, dimensions):
@@ -43,7 +43,7 @@ class TestSubdomains(object):
         grid = Grid(extent=(10, 10), shape=(10, 10), subdomains=(inner_sd, ))
 
         f = TimeFunction(name='f', grid=grid, dtype=np.int32)
-        f.data[:] = 0.0
+        f.data[:] = 0
 
         stencil = Eq(f.forward, solve(Eq(f.dt, 1), f.forward),
                      subdomain=grid.subdomains['inner'])
@@ -58,3 +58,56 @@ class TestSubdomains(object):
             expected[j, bounds_ym[j]:n_domains-bounds_yM[j]] = 10
 
         assert((np.array(result) == expected).all())
+
+    def test_multi_eq(self):
+        """
+        Test SubDomainSet functionality when multiple equations are
+        present.
+        """
+
+        Nx = 10
+        Ny = Nx
+        n_domains = 2
+
+        class MySubdomains(SubDomainSet):
+            name = 'mydomains'
+
+            def define(self, dimensions):
+                return {d: ('middle', 0, 0) for d in dimensions}
+
+        bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
+        bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
+        bounds_ym = 1
+        bounds_yM = 1
+        bounds = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
+        my_sd = MySubdomains(N=n_domains, bounds=bounds)
+        grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd, ))
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        g = Function(name='g', grid=grid, dtype=np.int32)
+        h = Function(name='h', grid=grid, dtype=np.int32)
+
+        eq1 = Eq(f, f+1, subdomain=grid.subdomains['mydomains'])
+        eq2 = Eq(g, g+1)
+        eq3 = Eq(h, h+2, subdomain=grid.subdomains['mydomains'])
+
+        op = Operator([eq1, eq2, eq3])
+
+        op.apply()
+
+        expected1 = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                              [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                              [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                              [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                              [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                              [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                              [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int32)
+        expected2 = np.full((10, 10), 1, dtype=np.int32)
+        expected3 = 2*expected1
+
+        assert((np.array(f.data) == expected1).all())
+        assert((np.array(g.data) == expected2).all())
+        assert((np.array(h.data) == expected3).all())

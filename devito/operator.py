@@ -221,22 +221,21 @@ class Operator(Callable):
         processed = []
         for e in expressions:
             if e.subdomain:
-                # FIXME: Need to modify to avoid duplication of implicit equations for
-                # certain equation sets. Also add test for this.
                 try:
                     dat = e._subdomain._implicit_eq_dat
                     dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
                     sub_dims = [d.root for d in e.subdomain.dimensions]
                     dims = list(set(dims).symmetric_difference(set(sub_dims)))
                     dims.append(e.subdomain._implicit_dimension)
-                    implicit_expressions = [Eq(i['rhs'], i['lhs'], implicit_dims=dims) for i in dat]
+                    implicit_expressions = [Eq(i['rhs'], i['lhs'], implicit_dims=dims)
+                                            for i in dat]
                     processed.extend(implicit_expressions)
                     dims.extend(e.subdomain.dimensions)
                     e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
                 except AttributeError:
                     pass
             processed.append(e)
-        return processed
+        return list(dict.fromkeys(processed))
 
     def _apply_substitutions(self, expressions, subs):
         """
