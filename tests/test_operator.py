@@ -38,7 +38,7 @@ class TestCodeGen(object):
     def test_parameters(self):
         """Tests code generation for Operator parameters."""
         grid = Grid(shape=(3,))
-        a_dense = Function(name='a_dense', grid=grid)
+        a_dense = Function(name='a_dense', grid=grid, padding=0)
         const = Constant(name='constant')
         eqn = Eq(a_dense, a_dense + 2.*const)
         op = Operator(eqn, dle=('advanced', {'openmp': False}))
@@ -68,8 +68,8 @@ class TestCodeGen(object):
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
         t = grid.stepping_dim  # noqa
-        u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to)  # noqa
-        m = Function(name='m', grid=grid, space_order=0)  # noqa
+        u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to, padding=0)  # noqa
+        m = Function(name='m', grid=grid, space_order=0, padding=0)  # noqa
         expr = eval(expr)
         expr = Operator(expr)._specialize_exprs([indexify(expr)])[0]
         assert str(expr).replace(' ', '') == expected
@@ -419,11 +419,11 @@ class TestAllocation(object):
         Test the "deformed" allocation for staggered functions
         """
         grid = Grid(shape=tuple([11]*ndim))
-        f = Function(name='f', grid=grid, staggered=stagg)
+        f = Function(name='f', grid=grid, staggered=stagg, padding=0)
         assert f.data.shape == tuple(11-i for i in f.staggered)
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
-        g = Function(name='g', grid=grid)
+        g = Function(name='g', grid=grid, padding=0)
         # Test insertion into a central point
         index = tuple(5 for _ in f.staggered)
         set_f = Eq(f[index], 2.)
@@ -442,11 +442,11 @@ class TestAllocation(object):
         Test the "deformed" allocation for staggered functions
         """
         grid = Grid(shape=tuple([11]*ndim))
-        f = TimeFunction(name='f', grid=grid, staggered=stagg)
+        f = TimeFunction(name='f', grid=grid, staggered=stagg, padding=0)
         assert f.data.shape[1:] == tuple(11-i for i in f.staggered[1:])
         # Add a non-staggered field to ensure that the auto-derived
         # dimension size arguments are at maximum
-        g = TimeFunction(name='g', grid=grid)
+        g = TimeFunction(name='g', grid=grid, padding=0)
         # Test insertion into a central point
         index = tuple([0] + [5 for _ in f.staggered[1:]])
         set_f = Eq(f[index], 2.)
@@ -469,7 +469,8 @@ class TestArguments(object):
         """
         for name, v in expected.items():
             if isinstance(v, (Function, SparseFunction)):
-                condition = (v._C_as_ndarray(arguments[name]) == v.data_with_halo).all()
+                condition = v._C_as_ndarray(arguments[name])[v._mask_domain] == v.data
+                condition = condition.all()
             else:
                 condition = arguments[name] == v
 
@@ -649,7 +650,7 @@ class TestArguments(object):
         assert (a2.data[:] == 6.).all()
 
         # Override with user-allocated numpy data
-        a3 = np.zeros_like(a.data_with_halo)
+        a3 = np.zeros_like(a._data_allocated)
         a3[:] = 4.
         op(a=a3)
         assert (a3[a._mask_domain] == 7.).all()
@@ -682,7 +683,7 @@ class TestArguments(object):
         assert (a2.data[:] == 6.).all()
 
         # Override with user-allocated numpy data
-        a3 = np.zeros_like(a.data_with_halo)
+        a3 = np.zeros_like(a._data_allocated)
         a3[:] = 4.
         op(time_m=0, time=1, a=a3)
         assert (a3[a._mask_domain] == 7.).all()
