@@ -375,8 +375,6 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
 
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
 
-    assert all(damp._offset_domain[0] == i for i in damp._offset_domain)
-
     for i in range(damp.ndim):
         for j in range(nbpml):
             # Dampening coefficient
