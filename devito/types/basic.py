@@ -2,9 +2,10 @@ import weakref
 import abc
 import gc
 from collections import namedtuple
-from operator import mul
-from functools import reduce
 from ctypes import POINTER, Structure, byref
+from functools import reduce
+from math import ceil
+from operator import mul
 
 import numpy as np
 import sympy
@@ -13,6 +14,7 @@ from cached_property import cached_property
 from cgen import Struct, Value
 
 from devito.data import default_allocator
+from devito.parameters import configuration
 from devito.symbolics import Add
 from devito.tools import (EnrichedTuple, Evaluable, Pickable,
                           ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
@@ -781,8 +783,6 @@ class Array(AbstractCachedFunction):
         to ``np.float32``.
     halo : iterable of 2-tuples, optional
         The halo region of the object.
-    padding : iterable of 2-tuples, optional
-        The padding region of the object.
     scope : str, optional
         Control memory allocation. Allowed values: 'heap', 'stack'. Defaults
         to 'heap'.
@@ -806,6 +806,32 @@ class Array(AbstractCachedFunction):
 
             self._scope = kwargs.get('scope', 'heap')
             assert self._scope in ['heap', 'stack']
+
+    def __halo_setup__(self, **kwargs):
+        halo = kwargs.get('halo')
+        if halo is None:
+            halo = [(0, 0) for i in range(self.ndim)]
+        halo = list(halo)
+        # Heuristic: the halo along the Fastest Varying Dimension is rounded
+        # up to the nearest multiple of the SIMD vector length, this will help
+        # if at runtime the shape of an Array turns out to be a multiple of
+        # the SIMD vector length too. This is the case, for example, of the
+        # Arrays introduced by the CIRE algorithm
+        fvd_halo_left, fvd_halo_right = halo[-1]
+        # Let UB be a function that rounds up a value `x` to the nearest
+        # multiple of the SIMD vector length
+        vl = configuration['platform'].simd_items_per_reg(self.dtype)
+        ub = lambda x: int(ceil(x / vl)) * vl
+        # The left-halo is rounded up so that the first domain grid point
+        # is cache-aligned
+        if fvd_halo_left > 0:
+            fvd_halo_left += ub(fvd_halo_left) - fvd_halo_left
+        # The right-halo is rounded up so that *hopefully* each first grid point
+        # along the `fvd` will be cache-aligned
+        if fvd_halo_right > 0:
+            fvd_halo_right += ub(fvd_halo_right) - fvd_halo_right
+        halo[-1] = (fvd_halo_left, fvd_halo_right)
+        return tuple(halo)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

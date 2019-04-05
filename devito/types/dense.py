@@ -1,6 +1,7 @@
 from collections import namedtuple
 from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
 from functools import wraps, reduce
+from math import ceil
 from operator import mul
 
 import numpy as np
@@ -50,16 +51,18 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(DiscreteFunction, self).__init__(*args, **kwargs)
-
-            # There may or may not be a `Grid` attached to the DiscreteFunction
-            self._grid = kwargs.get('grid')
-
             # A `Distributor` to handle domain decomposition (only relevant for MPI)
             self._distributor = self.__distributor_setup__(**kwargs)
 
             # Staggering metadata
             self._staggered = self.__staggered_setup__(**kwargs)
+
+            # Now that *all* __X_setup__ hooks have been called, we can let the
+            # superclass constructor do its job
+            super(DiscreteFunction, self).__init__(*args, **kwargs)
+
+            # There may or may not be a `Grid` attached to the DiscreteFunction
+            self._grid = kwargs.get('grid')
 
             # Symbolic (finite difference) coefficients
             self._coefficients = kwargs.get('coefficients', 'standard')
@@ -1008,9 +1011,28 @@ class Function(DiscreteFunction, Differentiable):
             return tuple(halo if i.is_Space else (0, 0) for i in self.dimensions)
 
     def __padding_setup__(self, **kwargs):
-        padding = kwargs.get('padding', 0)
-        if isinstance(padding, int):
-            return tuple((0, padding) if i.is_Space else (0, 0) for i in self.dimensions)
+        padding = kwargs.get('padding')
+        if padding is None:
+            # Auto-padding
+            # 0-padding in all Dimensions except in the Fastest Varying Dimension,
+            # which is the innermost one
+            padding = [(0, 0) for i in self.dimensions[:-1]]
+            fvd = self.dimensions[-1]
+            # Let UB be a function that rounds up a value `x` to the nearest
+            # multiple of the SIMD vector length
+            vl = configuration['platform'].simd_items_per_reg(self.dtype)
+            ub = lambda x: int(ceil(x / vl)) * vl
+            # The left-padding `pl` is so that the first domain grid point
+            # is cache-aligned
+            pl = ub(self._size_halo[fvd].left) - self._size_halo[fvd].left
+            # Given the left-padding, the right-padding `pr` is so that each
+            # first grid point along the `fvd` is cache-aligned
+            before_pr = pl + self._size_nopad[fvd]
+            pr = ub(before_pr) - before_pr
+            padding.append((pl, pr))
+            return tuple(padding)
+        elif isinstance(padding, int):
+            return tuple((0, padding) if d.is_Space else (0, 0) for d in self.dimensions)
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             return tuple((0, i) if isinstance(i, int) else i for i in padding)
         else:
@@ -1296,6 +1318,10 @@ class SubFunction(Function):
         if not self._cached():
             super(SubFunction, self).__init__(*args, **kwargs)
             self._parent = kwargs['parent']
+
+    def __padding_setup__(self, **kwargs):
+        # SubFunctions aren't expected to be used in time-consuming loops
+        return tuple((0, 0) for i in range(self.ndim))
 
     def _halo_exchange(self):
         return

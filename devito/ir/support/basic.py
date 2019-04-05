@@ -357,11 +357,11 @@ class TimedAccess(IterationInstance):
             else:
                 assert False
 
-        # If `m + (self[d] - d) < self.function._size_halo[d].left`, then `self`
+        # If `m + (self[d] - d) < self.function._size_nodomain[d].left`, then `self`
         # will definitely touch the left-halo, at least when `d=0`
-        size_halo_left = self.function._size_halo[findex].left
+        size_nodomain_left = self.function._size_nodomain[findex].left
         try:
-            touch_halo_left = bool(m + (self[findex] - d) < size_halo_left)
+            touch_halo_left = bool(m + (self[findex] - d) < size_nodomain_left)
         except TypeError:
             # Two reasons we might end up here:
             # * `d` is a constant integer
@@ -371,10 +371,10 @@ class TimedAccess(IterationInstance):
             #         assuming, conservatively, `touch_halo_left = True`
             touch_halo_left = True
 
-        # If `M + (self[d] - d) > self.function._size_halo[d].left`, then
+        # If `M + (self[d] - d) > self.function._size_nodomain[d].left`, then
         # `self` will definitely touch the right-halo, at least when `d=d_M`
         try:
-            touch_halo_right = bool(M + (self[findex] - d) > size_halo_left)
+            touch_halo_right = bool(M + (self[findex] - d) > size_nodomain_left)
         except TypeError:
             # See comments in the except block above
             touch_halo_right = True
