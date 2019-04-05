@@ -428,6 +428,7 @@ class Interior(SubDomain):
         return {d: ('middle', 1, 1) for d in dimensions}
 
 
+# FIXME: Name + example.
 class SubDomains(SubDomain):
     """
     Class to define a set of N (a positive integer) subdomains.
@@ -465,18 +466,22 @@ class SubDomains(SubDomain):
         return self._bounds
 
     @cached_property
-    def _ie_dat(self):
+    def _implicit_eq_dat(self):
         if not len(self._bounds) == 2*len(self.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
         n_domains = self.n_domains
         i_dim = self._implicit_dimension
         b_f = {}
-        mMstring = ['_m', '_M']
         dat = []
+        # Organise the data contained in 'bounds' into a form such that the
+        # associated implicit equations can easily be created.
         for j in range(0, len(self._bounds)):
             index = floor(j/2)
             d = self.dimensions[index]
-            fname = d.name + mMstring[j % 2]
+            if j % 2 == 0:
+                fname = d.min_name
+            else:
+                fname = d.max_name
             b_f[fname] = Function(name=fname, shape=(n_domains, ),
                                   dimensions=(i_dim, ), dtype=np.int32)
             if isinstance(self._bounds[j], int):

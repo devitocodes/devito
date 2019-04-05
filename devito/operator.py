@@ -159,7 +159,11 @@ class Operator(Callable):
         # autotuning reports, etc
         self._state = {}
 
-        # Form and gather any required implicit expressions
+        # Form and gather any required implicit expressions.
+        # Implicit expressions are those not explicitly defined by the user
+        # but instead are requisites of some specified functionality. Since they
+        # must be treated in a similar manner to user specified expressions
+        # they are added prior to the creation of the IET.
         expressions = self._add_implicit(expressions)
 
         # Expression lowering: indexification, substitution rules, specialization
@@ -216,6 +220,7 @@ class Operator(Callable):
     # Compilation
 
     def _add_implicit(self, expressions):
+<<<<<<< HEAD
         """
         Create and add any associated implicit expressions.
 
@@ -260,6 +265,28 @@ class Operator(Callable):
             updated_expressions.append(e)
         return updated_expressions
 >>>>>>> Fixes.
+=======
+        """Create and add any associated implicit expressions."""
+        processed = []
+        for e in expressions:
+            if e.subdomain:
+                # FIXME: Need to modify to avoid duplication of implicit equations for
+                # certain equation sets. Also add test for this.
+                try:
+                    dat = e._subdomain._implicit_eq_dat
+                    dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
+                    sub_dims = [d.root for d in e.subdomain.dimensions]
+                    dims = list(set(dims).symmetric_difference(set(sub_dims)))
+                    dims.append(e.subdomain._implicit_dimension)
+                    implicit_expressions = [Eq(i['rhs'], i['lhs'], implicit_dims=dims) for i in dat]
+                    processed.extend(implicit_expressions)
+                    dims.extend(e.subdomain.dimensions)
+                    e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
+                except AttributeError:
+                    pass
+            processed.append(e)
+        return processed
+>>>>>>> Tweaks/tyding.
 
     def _apply_substitutions(self, expressions, subs):
         """
