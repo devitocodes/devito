@@ -5,7 +5,6 @@ channels:
 dependencies:
   - python>=3.6
   - numpy>=1.14
-  - sympy==1.2
   - cgen
   - scipy
   - matplotlib
@@ -27,6 +26,7 @@ dependencies:
   - multidict
   - frozendict
   - pip:
+    - "git+https://github.com/opesci/sympy"
     - "git+https://github.com/inducer/codepy"
     - pyrevolve==1.0.2
     - py-cpuinfo
