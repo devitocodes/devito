@@ -227,14 +227,15 @@ class Operator(Callable):
                     sub_dims = [d.root for d in e.subdomain.dimensions]
                     dims = list(set(dims).symmetric_difference(set(sub_dims)))
                     dims.append(e.subdomain._implicit_dimension)
-                    implicit_expressions = [Eq(i['rhs'], i['lhs'], implicit_dims=dims)
-                                            for i in dat]
+                    implicit_expressions = [eq.func(*eq.args, implicit_dims=dims) for eq in dat]
                     processed.extend(implicit_expressions)
                     dims.extend(e.subdomain.dimensions)
-                    e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
+                    new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
+                    processed.append(new_e)
                 except AttributeError:
-                    pass
-            processed.append(e)
+                    processed.append(e)
+            else:
+                processed.append(e)
         return list(dict.fromkeys(processed))
 
     def _apply_substitutions(self, expressions, subs):

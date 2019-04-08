@@ -14,6 +14,7 @@ from devito.types.constant import Constant
 from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
+from devito.equation import Eq
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -443,7 +444,7 @@ class SubDomainSet(SubDomain):
 
     Examples
     --------
-    Set up an iterate upon a set of two subomains:
+    Set up an iterate upon a set of two subdomains:
 
     >>> import numpy as np
     >>> from devito import Grid, Function, Eq, Operator, SubDomainSet
@@ -484,7 +485,7 @@ class SubDomainSet(SubDomain):
 
     >>> my_sd = MySubdomains(N=n_domains, bounds=bounds)
 
-    Create a grid and iterate a function within the define subdomains:
+    Create a grid and iterate a function within the defined subdomains:
 
     >>> grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd, ))
     >>> f = Function(name='f', grid=grid, dtype=np.int32)
@@ -528,23 +529,22 @@ class SubDomainSet(SubDomain):
             raise ValueError("Left and right bounds must be supplied for each dimension")
         n_domains = self.n_domains
         i_dim = self._implicit_dimension
-        b_f = {}
         dat = []
         # Organise the data contained in 'bounds' into a form such that the
         # associated implicit equations can easily be created.
-        for j in range(0, len(self._bounds)):
+        for j in range(len(self._bounds)):
             index = floor(j/2)
             d = self.dimensions[index]
             if j % 2 == 0:
                 fname = d.min_name
             else:
                 fname = d.max_name
-            b_f[fname] = Function(name=fname, shape=(n_domains, ),
-                                  dimensions=(i_dim, ), dtype=np.int32)
+            func = Function(name=fname, shape=(n_domains, ), dimensions=(i_dim, ), dtype=np.int32)
+            # Check if shorthand notation has been provided:
             if isinstance(self._bounds[j], int):
                 bounds = np.full((n_domains,), self._bounds[j], dtype=np.int32)
-                b_f[fname].data[:] = bounds
+                func.data[:] = bounds
             else:
-                b_f[fname].data[:] = self._bounds[j]
-            dat.append({'rhs': d.thickness[j % 2][0], 'lhs': b_f[fname][i_dim]})
+                func.data[:] = self._bounds[j]
+            dat.append(Eq(d.thickness[j % 2][0], func[i_dim]))
         return as_tuple(dat)
