@@ -200,8 +200,8 @@ def test_sparse_function_hash(FunctionType):
 
 def test_dimension_cache():
     """
-    Test that :class:`Dimension`s with same name but different attributes do not
-    alias to the same Dimension.
+    Test that Dimensions with same name but different attributes do not alias to
+    the same Dimension.
     """
     d0 = Dimension(name='d')
     d1 = Dimension(name='d')
@@ -223,8 +223,7 @@ def test_dimension_cache():
 
 def test_operator_leakage_function():
     """
-    Test to ensure that :class:`Operator` creation does not cause
-    memory leaks.
+    Test to ensure that Operator creation does not cause memory leaks for (Time)Functions.
     """
     grid = Grid(shape=(5, 6))
     f = Function(name='f', grid=grid)
@@ -250,8 +249,8 @@ def test_operator_leakage_function():
 
 def test_operator_leakage_sparse():
     """
-    Test to ensure that :class:`Operator` creation does not cause
-    memory leaks for :class:`SparseTimeFunction` symbols.
+    Test to ensure that Operator creation does not cause memory leaks for
+    SparseTimeFunctions.
     """
     grid = Grid(shape=(5, 6))
     a = Function(name='a', grid=grid)
