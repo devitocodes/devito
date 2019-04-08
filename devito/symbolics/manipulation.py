@@ -13,7 +13,7 @@ __all__ = ['freeze', 'unfreeze', 'evaluate', 'xreplace_constrained', 'xreplace_i
 
 def freeze(expr):
     """
-    Reconstruct ``expr`` turning all sympy.Mul` and sympy.Add
+    Reconstruct ``expr`` turning all sympy.Mul and sympy.Add
     into FrozenExpr equivalents.
     """
     if expr.is_Atom or expr.is_Indexed:
