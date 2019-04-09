@@ -2,6 +2,7 @@
 Extended SymPy hierarchy.
 """
 
+import numpy as np
 import sympy
 from sympy import Expr, Integer, Float, Symbol
 from sympy.core.basic import _aresame
@@ -122,16 +123,23 @@ class IntDiv(sympy.Expr):
     is_Atom = True
 
     def __new__(cls, lhs, rhs, params=None):
-        rhs = Integer(rhs)
-        if rhs == 0:
-            raise ValueError("Cannot divide by 0")
-        elif rhs == 1:
-            return lhs
-        else:
-            obj = sympy.Expr.__new__(cls, lhs, rhs)
-            obj.lhs = lhs
-            obj.rhs = rhs
-            return obj
+        try:
+            rhs = Integer(rhs)
+            if rhs == 0:
+                raise ValueError("Cannot divide by 0")
+            elif rhs == 1:
+                return lhs
+        except TypeError:
+            # We must be sure the symbolic RHS is of type int
+            if not hasattr(rhs, 'dtype'):
+                raise ValueError("Symbolic RHS `%s` lacks dtype" % rhs)
+            if not issubclass(rhs.dtype, np.integer):
+                raise ValueError("Symbolic RHS `%s` must be of type `int`, found "
+                                 "`%s` instead" % (rhs, rhs.dtype))
+        obj = sympy.Expr.__new__(cls, lhs, rhs)
+        obj.lhs = lhs
+        obj.rhs = rhs
+        return obj
 
     def __str__(self):
         return "%s / %s" % (self.lhs, self.rhs)

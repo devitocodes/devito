@@ -5,7 +5,8 @@ import pytest
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
-                    Constant, Operator, Eq, Dimension, clear_cache)
+                    ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
+                    clear_cache)
 from devito.types.basic import _SymbolCache, Scalar
 
 pytestmark = skipif(['yask', 'ops'])
@@ -198,10 +199,28 @@ def test_sparse_function_hash(FunctionType):
     assert hash(u0) != hash(u2)
 
 
+def test_scalar_cache():
+    """
+    Test that Scalars with same name but different attributes do not alias to
+    the same Scalar. Conversely, if the name and the attributes are the same,
+    they must alias to the same Scalar.
+    """
+    s0 = Scalar(name='s0')
+    s1 = Scalar(name='s0')
+    assert s0 is s1
+
+    s2 = Scalar(name='s0', dtype=np.int32)
+    assert s2 is not s1
+
+    s3 = Scalar(name='s0', is_const=True)
+    assert s3 is not s1
+
+
 def test_dimension_cache():
     """
-    Test that :class:`Dimension`s with same name but different attributes do not
-    alias to the same Dimension.
+    Test that Dimensions with same name but different attributes do not alias to
+    the same Dimension. Conversely, if the name and the attributes are the same,
+    they must alias to the same Dimension.
     """
     d0 = Dimension(name='d')
     d1 = Dimension(name='d')
@@ -221,10 +240,56 @@ def test_dimension_cache():
     assert d2 is not d5
 
 
+def test_conditional_dimension_cache():
+    """
+    Test that ConditionalDimensions with same name but different attributes do not
+    alias to the same ConditionalDimension. Conversely, if the name and the attributes
+    are the same, they must alias to the same ConditionalDimension.
+    """
+    i = Dimension(name='i')
+    ci0 = ConditionalDimension(name='ci', parent=i, factor=4)
+    ci1 = ConditionalDimension(name='ci', parent=i, factor=4)
+    assert ci0 is ci1
+
+    ci2 = ConditionalDimension(name='ci', parent=i, factor=8)
+    assert ci2 is not ci1
+
+    ci3 = ConditionalDimension(name='ci', parent=i, factor=4, indirect=True)
+    assert ci3 is not ci1
+
+    s = Scalar(name='s')
+    ci4 = ConditionalDimension(name='ci', parent=i, factor=4, condition=s > 3)
+    assert ci4 is not ci1
+    ci5 = ConditionalDimension(name='ci', parent=i, factor=4, condition=s > 3)
+    assert ci5 is ci4
+
+
+def test_sub_dimension_cache():
+    """
+    Test that SubDimensions with same name but different attributes do not
+    alias to the same SubDimension. Conversely, if the name and the attributes
+    are the same, they must alias to the same SubDimension.
+    """
+    x = Dimension('x')
+    xi0 = SubDimension.middle('xi', x, 1, 1)
+    xi1 = SubDimension.middle('xi', x, 1, 1)
+    assert xi0 is xi1
+
+    xl0 = SubDimension.left('xl', x, 2)
+    xl1 = SubDimension.left('xl', x, 2)
+    assert xl0 is xl1
+    xl2asxi = SubDimension.left('xi', x, 2)
+    assert xl2asxi is not xl1
+    assert xl2asxi is not xi1
+
+    xr0 = SubDimension.right('xr', x, 1)
+    xr1 = SubDimension.right('xr', x, 1)
+    assert xr0 is xr1
+
+
 def test_operator_leakage_function():
     """
-    Test to ensure that :class:`Operator` creation does not cause
-    memory leaks.
+    Test to ensure that Operator creation does not cause memory leaks for (Time)Functions.
     """
     grid = Grid(shape=(5, 6))
     f = Function(name='f', grid=grid)
@@ -250,8 +315,8 @@ def test_operator_leakage_function():
 
 def test_operator_leakage_sparse():
     """
-    Test to ensure that :class:`Operator` creation does not cause
-    memory leaks for :class:`SparseTimeFunction` symbols.
+    Test to ensure that Operator creation does not cause memory leaks for
+    SparseTimeFunctions.
     """
     grid = Grid(shape=(5, 6))
     a = Function(name='a', grid=grid)
