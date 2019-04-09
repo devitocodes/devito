@@ -18,7 +18,7 @@ from devito.ir.stree import st_build
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
-from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_ordered,
+from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
 from devito.types import Dimension
 
@@ -343,11 +343,13 @@ class Operator(Callable):
         except KeyError:
             grid = None
 
-        # Process Dimensions (derived go after as they might need/affect their parents)
-        derived, main = split(self.dimensions, lambda i: i.is_Derived)
-        for d in main:
-            args.update(d._arg_values(args, self._dspace[d], grid, **kwargs))
-        for d in derived:
+        # Process Dimensions
+        # A topological sorting is used so that derived Dimensions are processed after
+        # their parents (note that a leaf Dimension can have an arbitrary long list of
+        # ancestors)
+        dag = DAG(self.dimensions,
+                  [(i, i.parent) for i in self.dimensions if i.is_Derived])
+        for d in reversed(dag.topological_sort()):
             args.update(d._arg_values(args, self._dspace[d], grid, **kwargs))
 
         # Process Objects (which may need some `args`)
