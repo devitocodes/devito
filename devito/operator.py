@@ -162,6 +162,7 @@ class Operator(Callable):
         # must be treated in a similar manner to user specified expressions
         # they are added prior to expression lowering.
         expressions = self._add_implicit(expressions)
+        #from IPython import embed; embed()
 
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
