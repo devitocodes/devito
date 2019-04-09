@@ -160,7 +160,7 @@ class Operator(Callable):
         # Implicit expressions are those not explicitly defined by the user
         # but instead are requisites of some specified functionality. Since they
         # must be treated in a similar manner to user specified expressions
-        # they are added prior to the creation of the IET.
+        # they are added prior to expression lowering.
         expressions = self._add_implicit(expressions)
 
         # Expression lowering: indexification, substitution rules, specialization
@@ -227,7 +227,8 @@ class Operator(Callable):
                     sub_dims = [d.root for d in e.subdomain.dimensions]
                     dims = list(set(dims).symmetric_difference(set(sub_dims)))
                     dims.append(e.subdomain._implicit_dimension)
-                    implicit_expressions = [eq.func(*eq.args, implicit_dims=dims) for eq in dat]
+                    implicit_expressions = [eq.func(*eq.args, implicit_dims=dims)
+                                            for eq in dat]
                     processed.extend(implicit_expressions)
                     dims.extend(e.subdomain.dimensions)
                     new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)

@@ -539,7 +539,8 @@ class SubDomainSet(SubDomain):
                 fname = d.min_name
             else:
                 fname = d.max_name
-            func = Function(name=fname, shape=(n_domains, ), dimensions=(i_dim, ), dtype=np.int32)
+            func = Function(name=fname, shape=(n_domains, ), dimensions=(i_dim, ),
+                            dtype=np.int32)
             # Check if shorthand notation has been provided:
             if isinstance(self._bounds[j], int):
                 bounds = np.full((n_domains,), self._bounds[j], dtype=np.int32)
