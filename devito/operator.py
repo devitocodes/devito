@@ -359,6 +359,9 @@ class Operator(Callable):
         # Sanity check
         for p in self.parameters:
             p._arg_check(args, self._dspace[p])
+        for d in self.dimensions:
+            if d.is_Derived:
+                d._arg_check(args, self._dspace[p])
 
         # Turn arguments into a format suitable for the generated code
         # E.g., instead of NumPy arrays for Functions, the generated code expects
