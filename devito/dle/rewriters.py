@@ -129,18 +129,9 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    _node_parallelizer_type = None
-    """The local-node IET parallelizer. To be specified by subclasses."""
-
     def __init__(self, params, platform):
         self.params = params
         self.platform = platform
-
-        # Iteration blocker (i.e., for "loop blocking")
-        self._node_blocker = Blocker(params.get('blockinner'), params.get('blockalways'))
-
-        # Shared-memory parallelizer
-        self._node_parallelizer = self._node_parallelizer_type()
 
     def run(self, iet):
         """The optimization pipeline, as a sequence of AST transformation passes."""
@@ -163,6 +154,28 @@ class PlatformRewriter(AbstractRewriter):
     """
     Collection of backend-compiler-specific pragmas.
     """
+
+    _node_parallelizer_type = None
+    """The local-node IET parallelizer. To be specified by subclasses."""
+
+    _default_blocking_levels = 1
+    """
+    Depth of the loop blocking hierarchy. 1 => "blocks", 2 => "blocks" and "sub-blocks",
+    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
+    """
+
+    def __init__(self, params, platform):
+        super(PlatformRewriter, self).__init__(params, platform)
+
+        # Iteration blocker (i.e., for "loop blocking")
+        self._node_blocker = Blocker(
+            params.get('blockinner'),
+            params.get('blockalways'),
+            params.get('blocklevels') or self._default_blocking_levels
+        )
+
+        # Shared-memory parallelizer
+        self._node_parallelizer = self._node_parallelizer_type()
 
     def _pipeline(self, state):
         return

@@ -7,7 +7,7 @@ from cached_property import cached_property
 from devito.ir.iet import (Expression, Iteration, List, FindAdjacent, FindNodes,
                            IsPerfectIteration, Transformer, PARALLEL, AFFINE, make_efunc,
                            compose_nodes, filter_iterations, retrieve_iteration_tree)
-from devito.logger import warning
+from devito.exceptions import InvalidArgument
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple, flatten
 from devito.types import IncrDimension, Scalar
@@ -17,9 +17,10 @@ __all__ = ['Blocker', 'BlockDimension']
 
 class Blocker(object):
 
-    def __init__(self, blockinner, blockalways):
+    def __init__(self, blockinner, blockalways, nlevels):
         self.blockinner = bool(blockinner)
         self.blockalways = bool(blockalways)
+        self.nlevels = nlevels
 
         self.nblocked = 0
 
@@ -59,39 +60,44 @@ class Blocker(object):
                 continue
 
             # Apply hierarchical loop blocking to `tree`
-            level0 = []  # Outermost blocks ("the biggest blocks")
-            level1 = []  # Lower-level blocks ("sub-blocks")
+            level_0 = []  # Outermost level of blocking
+            level_i = [[] for i in range(1, self.nlevels)]  # Inner levels of blocking
             intra = []  # Within the smallest block
             for i in iterations:
+                template = "%s%d_blk%s" % (i.dim.name, len(mapper), '%d')
                 properties = (PARALLEL,) + ((AFFINE,) if i.is_Affine else ())
 
-                # Build Iteration across level0 blocks
-                d0 = BlockDimension(i.dim, name="%s%d_blk0" % (i.dim.name, len(mapper)))
-                level0.append(Iteration([], d0, d0.symbolic_max, properties=properties))
+                # Build Iteration across `level_0` blocks
+                d = BlockDimension(i.dim, name=template % 0)
+                level_0.append(Iteration([], d, d.symbolic_max, properties=properties))
 
-                # Build Iteration across level1 blocks
-                d1 = BlockDimension(d0, name="%s%d_blk1" % (i.dim.name, len(mapper)))
-                level1.append(Iteration([], d1, limits=(d0, d0+d0.step-1, d1.step),
+                # Build Iteration across all `level_i` blocks, `i` in (1, self.nlevels]
+                for n, li in enumerate(level_i, 1):
+                    di = BlockDimension(d, name=template % n)
+                    li.append(Iteration([], di, limits=(d, d+d.step-1, di.step),
                                         properties=properties))
+                    d = di
 
-                # Build Iteration within a level1 block
-                intra.append(i._rebuild([], limits=(d1, d1+d1.step-1, 1), offsets=(0, 0)))
+                # Build Iteration within the smallest block
+                intra.append(i._rebuild([], limits=(d, d+d.step-1, 1), offsets=(0, 0)))
+            level_i = flatten(level_i)
 
-                block_dims.extend([d0, d1])
+            # Track all constructed BlockDimensions
+            block_dims.extend(i.dim for i in level_0 + level_i)
 
             # Construct the blocked tree
-            blocked = compose_nodes(level0 + level1 + intra + [iterations[-1].nodes])
+            blocked = compose_nodes(level_0 + level_i + intra + [iterations[-1].nodes])
             blocked = unfold_blocked_tree(blocked)
 
             # Promote to a separate Callable
-            dynamic_parameters = flatten((l0.dim, l0.step) for l0 in level0)
-            dynamic_parameters.extend([l1.step for l1 in level1])
+            dynamic_parameters = flatten((l0.dim, l0.step) for l0 in level_0)
+            dynamic_parameters.extend([li.step for li in level_i])
             efunc = make_efunc("bf%d" % self.nblocked, blocked, dynamic_parameters)
             efuncs.append(efunc)
 
             # Compute the iteration ranges
             ranges = []
-            for i, l0 in zip(iterations, level0):
+            for i, l0 in zip(iterations, level_0):
                 maxb = i.symbolic_max - (i.symbolic_size % l0.step)
                 ranges.append(((i.symbolic_min, maxb, l0.step),
                                (maxb + 1, i.symbolic_max, i.symbolic_max - maxb)))
@@ -100,10 +106,13 @@ class Blocker(object):
             body = []
             for p in product(*ranges):
                 dynamic_args_mapper = {}
-                for l0, l1, (m, M, b) in zip(level0, level1, p):
+                for l0, (m, M, b) in zip(level_0, p):
                     dynamic_args_mapper[l0.dim] = (m, M)
                     dynamic_args_mapper[l0.step] = (b,)
-                    dynamic_args_mapper[l1.step] = (l1.step if b is l0.step else b,)
+                    for li in level_i:
+                        if li.dim.root is l0.dim.root:
+                            value = li.step if b is l0.step else b
+                            dynamic_args_mapper[li.step] = (value,)
                 call = efunc.make_call(dynamic_args_mapper)
                 body.append(List(body=call))
 
@@ -402,26 +411,36 @@ class BlockDimension(IncrDimension):
 
     def _arg_values(self, args, interval, grid, **kwargs):
         if self.step.name in kwargs:
-            value = kwargs.pop(self.step.name)
-            if value <= args[self.parent.max_name] - args[self.parent.min_name] + 1:
-                return {self.step.name: value}
-            elif value < 0:
-                raise ValueError("Illegale block size `%s=%d` (it should be > 0)"
-                                 % (self.step.name, value))
-            else:
-                # Avoid OOB
-                warning("The specified block size `%s=%d` is bigger than the "
-                        "iteration range; shrinking it to `%s=1`."
-                        % (self.step.name, value, self.step.name))
-                return {self.step.name: 1}
+            return {self.step.name: kwargs.pop(self.step.name)}
         elif isinstance(self.parent, BlockDimension):
-            # `self` is a BlockDimension within an outer BlockDimension
-            # No value supplied -> the sub-block spans the entire block
+            # `self` is a BlockDimension within an outer BlockDimension, but
+            # no value supplied -> the sub-block will span the entire block
             return {self.step.name: args[self.parent.step.name]}
         else:
             value = self._arg_defaults()[self.step.name]
-            if value <= args[self.parent.max_name] - args[self.parent.min_name] + 1:
+            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
                 return {self.step.name: value}
             else:
-                # Avoid OOB
+                # Avoid OOB (will end up here only in case of tiny iteration spaces)
                 return {self.step.name: 1}
+
+    def _arg_check(self, args, interval):
+        """Check the block size won't cause OOB accesses."""
+        value = args[self.step.name]
+        if isinstance(self.parent, BlockDimension):
+            # sub-BlockDimensions must be perfect divisors of their parent
+            parent_value = args[self.parent.step.name]
+            if parent_value % value > 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
+                                      "must divide the parent block size evenly (`%s=%d`)"
+                                      % (self.step.name, value,
+                                         self.parent.step.name, parent_value))
+        else:
+            if value < 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
+                                      % (self.step.name, value))
+            if value > args[self.root.max_name] - args[self.root.min_name] + 1:
+                # Avoid OOB
+                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
+                                      "iteration range and it will cause an OOB access"
+                                      % (self.step.name, value))

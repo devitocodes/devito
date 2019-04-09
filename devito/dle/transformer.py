@@ -69,6 +69,9 @@ def transform(iet, mode='advanced', options=None):
         - ``blockalways``: Pass True to unconditionally apply loop blocking, even when
                            the compiler heuristically thinks that it might not be
                            profitable and/or dangerous for performance.
+        - ``blocklevels``: Levels of blocking for hierarchical tiling (blocks,
+                           sub-blocks, sub-sub-blocks, ...). Different Platforms have
+                           different default values.
     """
     assert isinstance(iet, Node)
 
@@ -76,6 +79,7 @@ def transform(iet, mode='advanced', options=None):
     params = {}
     params['blockinner'] = configuration['dle-options'].get('blockinner', False)
     params['blockalways'] = configuration['dle-options'].get('blockalways', False)
+    params['blocklevels'] = configuration['dle-options'].get('blocklevels', None)
     params['openmp'] = configuration['openmp']
     params['mpi'] = configuration['mpi']
 
