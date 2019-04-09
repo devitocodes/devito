@@ -58,41 +58,52 @@ class Blocker(object):
                 # Don't know how to block non-perfect nests
                 continue
 
-            # Apply loop blocking to `tree`
-            interb = []
-            intrab = []
+            # Apply hierarchical loop blocking to `tree`
+            level0 = []  # Outermost blocks ("the biggest blocks")
+            level1 = []  # Lower-level blocks ("sub-blocks")
+            intra = []  # Within the smallest block
             for i in iterations:
-                d = BlockDimension(i.dim, name="%s%d_blk" % (i.dim.name, self.nblocked))
-                block_dims.append(d)
-                # Build Iteration over blocks
                 properties = (PARALLEL,) + ((AFFINE,) if i.is_Affine else ())
-                interb.append(Iteration([], d, d.symbolic_max, properties=properties))
-                # Build Iteration within a block
-                intrab.append(i._rebuild([], limits=(d, d+d.step-1, 1), offsets=(0, 0)))
+
+                # Build Iteration across level0 blocks
+                d0 = BlockDimension(i.dim, name="%s%d_blk0" % (i.dim.name, len(mapper)))
+                level0.append(Iteration([], d0, d0.symbolic_max, properties=properties))
+
+                # Build Iteration across level1 blocks
+                d1 = BlockDimension(d0, name="%s%d_blk1" % (i.dim.name, len(mapper)))
+                level1.append(Iteration([], d1, limits=(d0, d0+d0.step-1, d1.step),
+                                        properties=properties))
+
+                # Build Iteration within a level1 block
+                intra.append(i._rebuild([], limits=(d1, d1+d1.step-1, 1), offsets=(0, 0)))
+
+                block_dims.extend([d0, d1])
 
             # Construct the blocked tree
-            blocked = compose_nodes(interb + intrab + [iterations[-1].nodes])
+            blocked = compose_nodes(level0 + level1 + intra + [iterations[-1].nodes])
             blocked = unfold_blocked_tree(blocked)
 
             # Promote to a separate Callable
-            dynamic_parameters = flatten((bi.dim, bi.dim.symbolic_size) for bi in interb)
+            dynamic_parameters = flatten((l0.dim, l0.step) for l0 in level0)
+            dynamic_parameters.extend([l1.step for l1 in level1])
             efunc = make_efunc("bf%d" % self.nblocked, blocked, dynamic_parameters)
             efuncs.append(efunc)
 
             # Compute the iteration ranges
             ranges = []
-            for i, bi in zip(iterations, interb):
-                maxb = i.symbolic_max - (i.symbolic_size % bi.dim.step)
-                ranges.append(((i.symbolic_min, maxb, bi.dim.step),
+            for i, l0 in zip(iterations, level0):
+                maxb = i.symbolic_max - (i.symbolic_size % l0.step)
+                ranges.append(((i.symbolic_min, maxb, l0.step),
                                (maxb + 1, i.symbolic_max, i.symbolic_max - maxb)))
 
             # Build Calls to the `efunc`
             body = []
             for p in product(*ranges):
                 dynamic_args_mapper = {}
-                for bi, (m, M, b) in zip(interb, p):
-                    dynamic_args_mapper[bi.dim] = (m, M)
-                    dynamic_args_mapper[bi.dim.step] = (b,)
+                for l0, l1, (m, M, b) in zip(level0, level1, p):
+                    dynamic_args_mapper[l0.dim] = (m, M)
+                    dynamic_args_mapper[l0.step] = (b,)
+                    dynamic_args_mapper[l1.step] = (l1.step if b is l0.step else b,)
                 call = efunc.make_call(dynamic_args_mapper)
                 body.append(List(body=call))
 
@@ -383,7 +394,7 @@ class BlockDimension(IncrDimension):
 
     @property
     def _arg_names(self):
-        return (self.step.name,) + self.parent._arg_names
+        return (self.step.name,)
 
     def _arg_defaults(self, **kwargs):
         # TODO: need a heuristic to pick a default block size
@@ -392,7 +403,7 @@ class BlockDimension(IncrDimension):
     def _arg_values(self, args, interval, grid, **kwargs):
         if self.step.name in kwargs:
             value = kwargs.pop(self.step.name)
-            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
+            if value <= args[self.parent.max_name] - args[self.parent.min_name] + 1:
                 return {self.step.name: value}
             elif value < 0:
                 raise ValueError("Illegale block size `%s=%d` (it should be > 0)"
@@ -403,9 +414,13 @@ class BlockDimension(IncrDimension):
                         "iteration range; shrinking it to `%s=1`."
                         % (self.step.name, value, self.step.name))
                 return {self.step.name: 1}
+        elif isinstance(self.parent, BlockDimension):
+            # `self` is a BlockDimension within an outer BlockDimension
+            # No value supplied -> the sub-block spans the entire block
+            return {self.step.name: args[self.parent.step.name]}
         else:
             value = self._arg_defaults()[self.step.name]
-            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
+            if value <= args[self.parent.max_name] - args[self.parent.min_name] + 1:
                 return {self.step.name: value}
             else:
                 # Avoid OOB

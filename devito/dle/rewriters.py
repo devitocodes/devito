@@ -265,7 +265,7 @@ class PlatformRewriter(AbstractRewriter):
     @dle_pass
     def _loop_blocking(self, iet):
         """
-        Apply loop blocking to PARALLEL Iteration trees.
+        Apply hierarchical loop blocking to PARALLEL Iteration trees.
         """
         return self._node_blocker.make_blocking(iet)
 
