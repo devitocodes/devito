@@ -116,7 +116,7 @@ def q_constant(expr):
         return True
     for i in expr.free_symbols:
         try:
-            if not i._is_const:
+            if not i.is_const:
                 return False
         except AttributeError:
             return False

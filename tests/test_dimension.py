@@ -680,3 +680,28 @@ class TestConditionalDimension(object):
         assert np.all(f.data[0, -1] == 0.)
         assert np.all(f.data[0, :, 0] == 0.)
         assert np.all(f.data[0, :, -1] == 0.)
+
+    def test_symbolic_factor(self):
+        """
+        Test ConditionalDimension with symbolic factor (provided as a Constant).
+        """
+        g = Grid(shape=(4, 4, 4))
+
+        u = TimeFunction(name='u', grid=g, time_order=0)
+
+        fact = Constant(name='fact', dtype=np.int32, value=4)
+        tsub = ConditionalDimension(name='tsub', parent=g.time_dim, factor=fact)
+        usave = TimeFunction(name='usave', grid=g, time_dim=tsub, save=4)
+
+        op = Operator([Eq(u, u + 1), Eq(usave, u)])
+
+        op.apply(time=7)  # Use `fact`'s default value, 4
+        assert np.all(usave.data[0] == 1)
+        assert np.all(usave.data[1] == 5)
+
+        u.data[:] = 0.
+        op.apply(time=7, fact=2)
+        assert np.all(usave.data[0] == 1)
+        assert np.all(usave.data[1] == 3)
+        assert np.all(usave.data[2] == 5)
+        assert np.all(usave.data[3] == 7)
