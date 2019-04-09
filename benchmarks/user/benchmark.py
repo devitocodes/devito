@@ -5,7 +5,7 @@ import numpy as np
 import click
 
 from devito import clear_cache, configuration, mode_develop, mode_benchmark, warning
-from devito.tools import as_tuple, sweep
+from devito.tools import as_tuple, flatten, sweep
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
 
@@ -96,7 +96,7 @@ def option_performance(f):
 @benchmark.command(name='run')
 @option_simulation
 @option_performance
-@click.option('-bs', '--block-shape', default=(0, 0, 0),
+@click.option('-bs', '--block-shape', default=(0, 0, 0), multiple=True,
               help='Loop-blocking shape, bypass autotuning')
 def cli_run(problem, **kwargs):
     """
@@ -116,18 +116,19 @@ def run(problem, **kwargs):
     time_order = kwargs.pop('time_order')[0]
     space_order = kwargs.pop('space_order')[0]
     autotune = kwargs.pop('autotune')
+    block_shapes = as_tuple(kwargs.pop('block_shape'))
 
     # Should a specific block-shape be used? Useful if one wants to skip
     # the autotuning pass as a good block-shape is already known
-    block_shape = as_tuple(kwargs.pop('block_shape'))
-    if all(block_shape):
+    if all(flatten(block_shapes)):
         if autotune:
             warning("Skipping autotuning (using explicit block-shape `%s`)"
-                    % str(block_shape))
+                    % str(block_shapes))
             autotune = False
-        # This is quite hacky, but it does the trick
-        for d, bs in zip(['x', 'y', 'z'], block_shape):
-            options['%s0_blk_size' % d] = bs
+        # This is horribly hacky, but it works for now
+        for i, bs in enumerate(block_shapes):
+            for d, s in zip(['x', 'y', 'z'], bs):
+                options['%s0_blk%d_size' % (d, i)] = s
 
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
     solver.forward(autotune=autotune, **options)
