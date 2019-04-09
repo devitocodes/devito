@@ -286,8 +286,6 @@ def EVAL(exprs, *args):
     for i in args:
         try:
             scope[i.base.function.name] = i
-            for j in i.base.function.indices:
-                scope[j.name] = j
         except AttributeError:
             scope[i.label.name] = i
             for j in i.function.indices:
