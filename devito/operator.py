@@ -294,9 +294,13 @@ class Operator(Callable):
                     processed.append(e)
             else:
                 processed.append(e)
+<<<<<<< HEAD
 >>>>>>> Rebase + updates.
         return list(dict.fromkeys(processed))
 >>>>>>> Fixes + tidying + additional test.
+=======
+        return processed
+>>>>>>> Temp bug fix.
 
     def _apply_substitutions(self, expressions, subs):
         """
