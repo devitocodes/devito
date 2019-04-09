@@ -237,7 +237,7 @@ class Operator(Callable):
                     processed.append(e)
             else:
                 processed.append(e)
-        return list(dict.fromkeys(processed))
+        return processed
 
     def _apply_substitutions(self, expressions, subs):
         """
