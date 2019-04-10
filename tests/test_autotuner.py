@@ -296,6 +296,27 @@ def test_multiple_blocking():
     assert len(op._state['autotuning'][0]['tuned']) == 5
 
 
+def test_hierarchical_blocking():
+    grid = Grid(shape=(64, 64, 64))
+
+    u = TimeFunction(name='u', grid=grid, space_order=2)
+
+    op = Operator(Eq(u.forward, u + 1), dle=('blocking', {'openmp': False,
+                                                          'blocklevels': 2}))
+
+    # 'basic' mode
+    op.apply(time_M=0, autotune='basic')
+    assert op._state['autotuning'][0]['runs'] == 12  # 6 for each Iteration nest
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
+    assert len(op._state['autotuning'][0]['tuned']) == 4
+
+    # 'aggressive' mode
+    op.apply(time_M=0, autotune='aggressive')
+    assert op._state['autotuning'][1]['runs'] == 60
+    assert op._state['autotuning'][1]['tpr'] == options['squeezer'] + 1
+    assert len(op._state['autotuning'][1]['tuned']) == 4
+
+
 def test_multiple_threads():
     """
     Test autotuning when different ``num_threads`` for a given OpenMP parallel

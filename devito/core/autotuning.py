@@ -269,23 +269,26 @@ def generate_block_shapes(blockable, args, level):
     if not blockable:
         raise ValueError
 
-    # Max attemptable block shape
-    max_bs = tuple((d.step.name, d.max_step.subs(args)) for d in blockable)
+    mapper = OrderedDict()
+    for d in blockable:
+        mapper[d] = mapper.get(d.parent, -1) + 1
 
-    # Attempted block shapes:
-    # 1) Defaults (basic mode)
-    ret = [tuple((d.step.name, v) for d in blockable) for v in options['blocksize']]
-    # 2) Always try the entire iteration space (degenerate block)
+    # Generate level-0 block shapes
+    level_0 = [d for d, v in mapper.items() if v == 0]
+    # Max attemptable block shape
+    max_bs = tuple((d.step, d.max_step.subs(args)) for d in level_0)
+    # Defaults (basic mode)
+    ret = [tuple((d.step, v) for d in level_0) for v in options['blocksize-l0']]
+    # Always try the entire iteration space (degenerate block)
     ret.append(max_bs)
-    # 3) More attempts if auto-tuning in aggressive mode
+    # More attempts if auto-tuning in aggressive mode
     if level in ['aggressive', 'max']:
         # Ramp up to larger block shapes
-        handle = tuple((i, options['blocksize'][-1]) for i, _ in ret[0])
+        handle = tuple((i, options['blocksize-l0'][-1]) for i, _ in ret[0])
         for i in range(3):
             new_bs = tuple((b, v*2) for b, v in handle)
             ret.insert(ret.index(handle) + 1, new_bs)
             handle = new_bs
-
         handle = []
         # Extended shuffling for the smaller block shapes
         for bs in ret[:4]:
@@ -298,12 +301,31 @@ def generate_block_shapes(blockable, args, level):
                 for j in combinations(dict(bs), i+1):
                     handle.append(tuple((b, v*2 if b in j else v) for b, v in bs))
         ret.extend(handle)
-
-    # Drop unnecessary attempts:
-    # 1) Block shapes exceeding the iteration space extent
+    # Drop block shapes exceeding the iteration space extent
     ret = [i for i in ret if all(dict(i)[k] <= v for k, v in max_bs)]
-    # 2) Redundant block shapes
+    # Drop redundant block shapes
     ret = filter_ordered(ret)
+
+    # Generate level-1 block shapes
+    level_1 = [d for d, v in mapper.items() if v == 1]
+    if level_1:
+        assert len(level_1) == len(level_0)
+        assert all(d1.parent is d0 for d0, d1 in zip(level_0, level_1))
+        for bs in list(ret):
+            handle = []
+            for v in options['blocksize-l1']:
+                # To be a valid blocksize, it must be smaller than and divide evenly
+                # the parent's block size
+                if all(v <= i and i % v == 0 for _, i in bs):
+                    ret.append(bs + tuple((d.step, v) for d in level_1))
+            ret.remove(bs)
+
+    # Generate level-n (n > 1) block shapes
+    # TODO -- currently, there's no DLE rewriter producing depth>2 hierarchical blocking,
+    # so for simplicity we ignore this for the time being
+
+    # Normalize
+    ret = [tuple((k.name, v) for k, v in bs) for bs in ret]
 
     return ret
 
@@ -331,7 +353,8 @@ def generate_nthreads(nthreads, args, level):
 
 options = {
     'squeezer': 4,
-    'blocksize': sorted({8, 16, 24, 32, 40, 64, 128}),
+    'blocksize-l0': (8, 16, 24, 32, 64, 96, 128),
+    'blocksize-l1': (8, 16, 32),
     'stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }
 """Autotuning options."""
