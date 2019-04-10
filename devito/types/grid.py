@@ -341,7 +341,6 @@ class SubDomain(object):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         for k, v in self.define(dimensions).items():
-            #from IPython import embed; embed()
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
             else:
@@ -506,44 +505,25 @@ class SubDomainSet(SubDomain):
           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=int32)
     """
 
+    implicit_dimension = None
+    """The implicit dimension of the SubDomainSet."""
+
     def __init__(self, **kwargs):
         super(SubDomainSet, self).__init__()
+        if self.implicit_dimension is None:
+            n = Dimension(name='n')
+            self.implicit_dimension = n
         self._n_domains = kwargs.get('N', 1)
         self._bounds = kwargs.get('bounds', None)
-        n = Dimension(name='n')
-        self._implicit_dimension = kwargs.get('implicit_dimension', n)
-        self._dim_names = kwargs.get('sub_dim_names', None)
 
     def __subdomain_finalize__(self, dimensions, shape):
-        from IPython import embed; embed()
-        #super(SubDomainSet, self).__subdomain_finalize__(dimensions, shape)
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
-        for k, v in self.define(dimensions).items():
-            #from IPython import embed; embed()
-            if isinstance(v, Dimension):
-                sub_dimensions.append(v)
-            else:
-                try:
-                    # Case ('middle', int, int)
-                    side, thickness_left, thickness_right = v
-                    if side != 'middle':
-                        raise ValueError("Expected side 'middle', not `%s`" % side)
-                    sub_dimensions.append(SubDimension.middle('%si' % k.name, k,
-                                                              thickness_left,
-                                                              thickness_right))
-                except ValueError:
-                    side, thickness = v
-                    if side == 'left':
-                        sub_dimensions.append(SubDimension.left('%sleft' % k.name, k,
-                                                                thickness))
-                    elif side == 'right':
-                        sub_dimensions.append(SubDimension.right('%sright' % k.name, k,
-                                                                 thickness))
-                    else:
-                        raise ValueError("Expected sides 'left|right', not `%s`" % side)
+        for d in dimensions:
+            sub_dimensions.append(
+                SubDimension.middle('%si_%s' % (d.name, self.implicit_dimension.name),
+                                    d, 0, 0))
         self._dimensions = tuple(sub_dimensions)
-
         # Compute the SubDomain shape
         self._shape = tuple(s - (sum(d._thickness_map.values()) if d.is_Sub else 0)
                             for d, s in zip(self._dimensions, shape))
@@ -556,12 +536,12 @@ class SubDomainSet(SubDomain):
     def bounds(self):
         return self._bounds
 
-    @property
+    @cached_property
     def _implicit_eq_dat(self):
         if not len(self._bounds) == 2*len(self.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
         n_domains = self.n_domains
-        i_dim = self._implicit_dimension
+        i_dim = self.implicit_dimension
         dat = []
         # Organise the data contained in 'bounds' into a form such that the
         # associated implicit equations can easily be created.
