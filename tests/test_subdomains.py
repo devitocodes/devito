@@ -3,7 +3,7 @@ from math import floor
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, solve, Operator, SubDomainSet,
-                    Dimension, dimensions)
+                    Dimension)
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -22,9 +22,6 @@ class TestSubdomains(object):
 
         class Inner(SubDomainSet):
             name = 'inner'
-
-            def define(self, dimensions):
-                return {d: ('middle', 0, 0) for d in dimensions}
 
         bounds_xm = np.zeros((n_domains,), dtype=np.int32)
         bounds_xM = np.zeros((n_domains,), dtype=np.int32)
@@ -51,8 +48,6 @@ class TestSubdomains(object):
 
         # FIXME: Need to fix the need for dle='noop'
         op = Operator(stencil, dle='noop')
-
-        #from IPython import embed; embed()
         op(time_m=0, time_M=9, dt=1)
         result = f.data[0]
 
@@ -75,9 +70,6 @@ class TestSubdomains(object):
         class MySubdomains(SubDomainSet):
             name = 'mydomains'
 
-            def define(self, dimensions):
-                return {d: ('middle', 0, 0) for d in dimensions}
-
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
         bounds_ym = 1
@@ -95,7 +87,6 @@ class TestSubdomains(object):
         eq3 = Eq(h, h+2, subdomain=grid.subdomains['mydomains'])
 
         op = Operator([eq1, eq2, eq3], dle='noop')
-
         op.apply()
 
         expected1 = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -117,7 +108,7 @@ class TestSubdomains(object):
 
     def test_multi_sets(self):
         """
-        Update this test summary.
+        Check functionality for when multiple subdomain sets are present.
         """
 
         Nx = 10
@@ -129,15 +120,11 @@ class TestSubdomains(object):
 
         class MySubdomains1(SubDomainSet):
             name = 'mydomains1'
-
-            def define(self, dimensions):
-                return {d: ('middle', 0, 0) for d in dimensions}
+            implicit_dimension = n
 
         class MySubdomains2(SubDomainSet):
             name = 'mydomains2'
-
-            def define(self, dimensions):
-                return {d: ('middle', 0, 0) for d in dimensions}
+            implicit_dimension = m
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
@@ -151,10 +138,8 @@ class TestSubdomains(object):
         bounds_yM = int(1)
         bounds2 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
-        my_sd1 = MySubdomains1(N=n_domains, bounds=bounds2,
-                               implicit_dimension=n, sub_dim_names=('xi1', 'yi1'))
-        my_sd2 = MySubdomains2(N=n_domains, bounds=bounds1,
-                               implicit_dimension=m, sub_dim_names=('xi2', 'yi2'))
+        my_sd1 = MySubdomains1(N=n_domains, bounds=bounds1)
+        my_sd2 = MySubdomains2(N=n_domains, bounds=bounds2)
 
         grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd1, my_sd2))
 
@@ -165,10 +150,7 @@ class TestSubdomains(object):
         eq2 = Eq(g, g+2, subdomain=grid.subdomains['mydomains2'])
 
         op = Operator([eq1, eq2], dle='noop')
-
-        #from IPython import embed; embed()
-        op.apply(n_m=0, n_M=1, m_m=0, m_M=1)
-        #op.apply()
+        op.apply()
 
         expected = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                              [0, 1, 1, 1, 0, 0, 2, 2, 2, 0],
@@ -181,5 +163,4 @@ class TestSubdomains(object):
                              [0, 1, 1, 1, 0, 0, 2, 2, 2, 0],
                              [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int32)
 
-        #from IPython import embed; embed()
         assert((np.array(f.data[:]+g.data[:]) == expected).all())

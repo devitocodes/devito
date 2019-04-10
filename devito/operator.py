@@ -162,7 +162,6 @@ class Operator(Callable):
         # must be treated in a similar manner to user specified expressions
         # they are added prior to expression lowering.
         expressions = self._add_implicit(expressions)
-        #from IPython import embed; embed()
 
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
@@ -226,8 +225,8 @@ class Operator(Callable):
                     dat = e._subdomain._implicit_eq_dat
                     dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
                     sub_dims = [d.root for d in e.subdomain.dimensions]
-                    dims = list(set(dims).symmetric_difference(set(sub_dims)))
-                    dims.append(e.subdomain._implicit_dimension)
+                    dims = [d for d in dims if d not in frozenset(sub_dims)]
+                    dims.append(e.subdomain.implicit_dimension)
                     implicit_expressions = [eq.func(*eq.args, implicit_dims=dims)
                                             for eq in dat]
                     processed.extend(implicit_expressions)
@@ -238,7 +237,8 @@ class Operator(Callable):
                     processed.append(e)
             else:
                 processed.append(e)
-        return processed
+            encountered = set()
+        return [e for e in processed if not (e in encountered or encountered.add(e))]
 
     def _apply_substitutions(self, expressions, subs):
         """
