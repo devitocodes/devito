@@ -4,8 +4,8 @@ import pytest
 
 from conftest import skipif, EVAL, x, y, z  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Grid, Operator, switchconfig, configuration)
-from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree
+                    SubDimension, Grid, Operator, switchconfig, configuration)
+from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree  # noqa
 from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
@@ -324,35 +324,58 @@ def test_pow_to_mul(fa, fb, expr, expected):
 @pytest.mark.parametrize('exprs,expected', [
     # none (different distance)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
-     {'fa[x] + fb[x]': None, 'fa[x+1] + fb[x]': None}),
+     {'fa[x] + fb[x]': 'None', 'fa[x+1] + fb[x]': 'None'}),
     # none (different dimension)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] + fb[y])'],
-     {'fa[x] + fb[x]': None, 'fa[x] + fb[y]': None}),
+     {'fa[x] + fb[x]': 'None', 'fa[x] + fb[y]': 'None'}),
     # none (different operation)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] - fb[x])'],
-     {'fa[x] + fb[x]': None, 'fa[x] - fb[x]': None}),
+     {'fa[x] + fb[x]': 'None', 'fa[x] - fb[x]': 'None'}),
     # simple
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x+1])', 'Eq(t2, fa[x-1] + fb[x-1])'],
-     {'fa[x] + fb[x]': Stencil([(x, {-1, 0, 1})])}),
+     {'fa[x] + fb[x]': 'Stencil([(x, {-1, 0, 1})])'}),
     # 2D simple
     (['Eq(t0, fc[x,y] + fd[x,y])', 'Eq(t1, fc[x+1,y+1] + fd[x+1,y+1])'],
-     {'fc[x,y] + fd[x,y]': Stencil([(x, {0, 1}), (y, {0, 1})])}),
+     {'fc[x,y] + fd[x,y]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
     # 2D with stride
     (['Eq(t0, fc[x,y] + fd[x+1,y+2])', 'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])'],
-     {'fc[x,y] + fd[x+1,y+2]': Stencil([(x, {0, 1}), (y, {0, 1})])}),
+     {'fc[x,y] + fd[x+1,y+2]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
+    # 2D with subdimensions
+    (['Eq(t0, fc[xi,yi] + fd[xi+1,yi+2])', 'Eq(t1, fc[xi+1,yi+1] + fd[xi+2,yi+3])'],
+     {'fc[xi,yi] + fd[xi+1,yi+2]': 'Stencil([(xi, {0, 1}), (yi, {0, 1})])'}),
     # complex (two 2D aliases with stride inducing relaxation)
     (['Eq(t0, fc[x,y] + fd[x+1,y+2])', 'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])',
       'Eq(t2, fc[x-2,y-2]*3. + fd[x+2,y+2])', 'Eq(t3, fc[x-4,y-4]*3. + fd[x,y])'],
-     {'fc[x,y] + fd[x+1,y+2]': Stencil([(x, {-1, 0, 1}), (y, {-1, 0, 1})]),
-      '3.*fc[x-3,y-3] + fd[x+1,y+1]': Stencil([(x, {-1, 0, 1}), (y, {-1, 0, 1})])}),
+     {'fc[x,y] + fd[x+1,y+2]': 'Stencil([(x, {-1, 0, 1}), (y, {-1, 0, 1})])',
+      '3.*fc[x-3,y-3] + fd[x+1,y+1]': 'Stencil([(x, {-1, 0, 1}), (y, {-1, 0, 1})])'}),
 ])
-def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
-    scope = [fa, fb, fc, fd, t0, t1, t2, t3]
-    mapper = dict([(EVAL(k, *scope), v) for k, v in expected.items()])
-    _, aliases = collect(EVAL(exprs, *scope))
+def test_collect_aliases(fc, fd, exprs, expected):
+    grid = Grid(shape=(4, 4))
+    x, y = grid.dimensions  # noqa
+    xi, yi = grid.interior.dimensions  # noqa
+
+    t0 = Scalar(name='t0')  # noqa
+    t1 = Scalar(name='t1')  # noqa
+    t2 = Scalar(name='t2')  # noqa
+    t3 = Scalar(name='t3')  # noqa
+    fa = Function(name='fa', grid=grid, shape=(4,), dimensions=(x,))  # noqa
+    fb = Function(name='fb', grid=grid, shape=(4,), dimensions=(x,))  # noqa
+    fc = Function(name='fc', grid=grid)  # noqa
+    fd = Function(name='fd', grid=grid)  # noqa
+
+    # List/dict comprehension would need explicit locals/globals mappings to eval
+    for i, e in enumerate(list(exprs)):
+        exprs[i] = eval(e)
+    for k, v in list(expected.items()):
+        expected[eval(k)] = eval(v)
+
+    _, aliases = collect(exprs)
+
+    assert len(aliases) > 0
+
     for k, v in aliases.items():
-        assert k in mapper
-        assert (len(v.aliased) == 1 and mapper[k] is None) or v.anti_stencil == mapper[k]
+        assert ((len(v.aliased) == 1 and expected[k] is None) or
+                v.anti_stencil == expected[k])
 
 
 @pytest.mark.parametrize('expr,expected', [
