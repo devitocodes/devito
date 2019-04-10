@@ -456,8 +456,6 @@ class SubDomainSet(SubDomain):
 
     >>> class MySubdomains(SubDomainSet):
     ...     name = 'mydomains'
-    ...     def define(self, dimensions):
-    ...         return {d: ('middle', 0, 0) for d in dimensions}
 
     Set the bounds of the subdomains. The required format is:
     (xm, xM, ym, yM, ...) where xm is a vector specifying

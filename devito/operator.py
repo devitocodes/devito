@@ -237,8 +237,7 @@ class Operator(Callable):
                     processed.append(e)
             else:
                 processed.append(e)
-            encountered = set()
-        return [e for e in processed if not (e in encountered or encountered.add(e))]
+        return processed
 
     def _apply_substitutions(self, expressions, subs):
         """
