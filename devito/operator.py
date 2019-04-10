@@ -296,6 +296,7 @@ class Operator(Callable):
                 processed.append(e)
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> Rebase + updates.
         return list(dict.fromkeys(processed))
 >>>>>>> Fixes + tidying + additional test.
@@ -306,6 +307,9 @@ class Operator(Callable):
             encountered = set()
         return [e for e in processed if not (e in encountered or encountered.add(e))]
 >>>>>>> Some fixes.
+=======
+        return processed
+>>>>>>> Fix + update docstring.
 
     def _apply_substitutions(self, expressions, subs):
         """
