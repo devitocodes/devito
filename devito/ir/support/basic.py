@@ -132,6 +132,10 @@ class Vector(tuple):
     def sum(self):
         return sum(self)
 
+    @property
+    def is_constant(self):
+        return all(is_integer(i) for i in self)
+
     @memoized_meth
     def distance(self, other):
         """
