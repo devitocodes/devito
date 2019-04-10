@@ -222,14 +222,15 @@ class Operator(Callable):
         for e in expressions:
             if e.subdomain:
                 try:
-                    dat = e._subdomain._implicit_eq_dat
                     dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
                     sub_dims = [d.root for d in e.subdomain.dimensions]
                     dims = [d for d in dims if d not in frozenset(sub_dims)]
                     dims.append(e.subdomain.implicit_dimension)
-                    implicit_expressions = [eq.func(*eq.args, implicit_dims=dims)
-                                            for eq in dat]
-                    processed.extend(implicit_expressions)
+                    if '_implicit_eq_dat' not in e.subdomain.__dict__:
+                        dat = e._subdomain._implicit_eq_dat
+                        implicit_expressions = [eq.func(*eq.args, implicit_dims=dims)
+                                                for eq in dat]
+                        processed.extend(implicit_expressions)
                     dims.extend(e.subdomain.dimensions)
                     new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
                     processed.append(new_e)
