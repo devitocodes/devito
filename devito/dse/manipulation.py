@@ -4,15 +4,22 @@ from sympy import collect, collect_const
 
 from devito.ir import FlowGraph
 from devito.symbolics import Eq, count, estimate_cost, q_op, q_leaf, xreplace_constrained
-from devito.tools import as_mapper, flatten
+from devito.tools import ReducerMap, as_mapper
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'compact_temporaries',
            'cross_cluster_cse']
 
 
-def collect_nested(expr, aggressive=False):
+def collect_nested(expr):
     """
-    Collect terms appearing in expr, checking all levels of the expression tree.
+    Collect numeric coefficients, trascendental functions, and symbolic powers,
+    across all levels of the expression tree.
+
+    The collection gives precedence to (in order of importance):
+
+        1) Trascendental functions,
+        2) Symbolic powers,
+        3) Numeric coefficients.
 
     Parameters
     ----------
@@ -23,35 +30,52 @@ def collect_nested(expr, aggressive=False):
     def run(expr):
         # Return semantic (rebuilt expression, factorization candidates)
 
-        if expr.is_Number or expr.is_Symbol:
-            return expr, [expr]
-        elif expr.is_Indexed or expr.is_Atom:
-            return expr, []
+        if expr.is_Number:
+            return expr, {'coeffs': expr}
+        elif expr.is_Function:
+            return expr, {'funcs': expr}
+        elif expr.is_Pow:
+            return expr, {'pows': expr}
+        elif expr.is_Symbol or expr.is_Indexed or expr.is_Atom:
+            return expr, {}
         elif expr.is_Add:
-            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
+            args, candidates = zip(*[run(arg) for arg in expr.args])
+            candidates = ReducerMap.fromdicts(*candidates)
 
-            w_numbers = [i for i in rebuilt if any(j.is_Number for j in i.args)]
-            wo_numbers = [i for i in rebuilt if i not in w_numbers]
+            funcs = candidates.getall('funcs', [])
+            pows = candidates.getall('pows', [])
+            coeffs = candidates.getall('coeffs', [])
 
-            w_numbers = collect_const(expr.func(*w_numbers))
-            wo_numbers = expr.func(*wo_numbers)
+            # Functions have precedence over coefficients
+            # Note: below we use sets, but SymPy will ensure determinism
+            args = set(args)
+            w_funcs = {i for i in args if any(j in funcs for j in i.args)}
+            args -= w_funcs
+            w_pows = {i for i in args if any(j in pows for j in i.args)}
+            args -= w_pows
+            w_coeffs = {i for i in args if any(j in coeffs for j in i.args)}
+            args -= w_coeffs
 
-            if aggressive is True and wo_numbers:
-                for i in flatten(candidates):
-                    wo_numbers = collect(wo_numbers, i)
+            # Build factorized `expr`
+            w_funcs = collect(expr.func(*w_funcs), funcs)
+            w_pows = collect(expr.func(*w_pows), pows)
+            w_coeffs = collect_const(expr.func(*w_coeffs))
+            rebuilt = expr.func(w_funcs, w_pows, w_coeffs, *args)
 
-            rebuilt = expr.func(w_numbers, wo_numbers)
-            return rebuilt, []
+            return rebuilt, {}
         elif expr.is_Mul:
-            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
-            rebuilt = collect_const(expr.func(*rebuilt))
-            return rebuilt, flatten(candidates)
+            args, candidates = zip(*[run(arg) for arg in expr.args])
+
+            # Always collect coefficients
+            rebuilt = collect_const(expr.func(*args))
+
+            return rebuilt, ReducerMap.fromdicts(*candidates)
         elif expr.is_Equality:
-            rebuilt, candidates = zip(*[run(expr.lhs), run(expr.rhs)])
-            return expr.func(*rebuilt, evaluate=False), flatten(candidates)
+            args, candidates = zip(*[run(expr.lhs), run(expr.rhs)])
+            return expr.func(*args, evaluate=False), ReducerMap.fromdicts(*candidates)
         else:
-            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
-            return expr.func(*rebuilt), flatten(candidates)
+            args, candidates = zip(*[run(arg) for arg in expr.args])
+            return expr.func(*args), ReducerMap.fromdicts(*candidates)
 
     return run(expr)[0]
 

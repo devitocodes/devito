@@ -55,13 +55,11 @@ class AdvancedRewriter(BasicRewriter):
     @dse_pass
     def _factorize(self, cluster, *args, **kwargs):
         """
-        Collect terms in each expr in exprs based on the following heuristic:
+        Factorize trascendental functions, symbolic powers, numeric coefficients.
 
-            * Collect all literals;
-            * Collect all temporaries produced by CSE;
-            * If the expression has an operation count higher than
-              ``self.MIN_COST_FACTORIZE``, then this is applied recursively until
-              no more factorization opportunities are available.
+        If the expression has an operation count greater than
+        ``self.MIN_COST_FACTORIZE``, then the algorithm is applied recursively
+        until no more factorization opportunities are detected.
         """
 
         processed = []
