@@ -23,7 +23,7 @@ class TestGradient(object):
     @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(70, 80)])
     def test_gradient_checkpointing(self, shape, kernel, space_order):
-        """
+        r"""
         This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
         .. math::
@@ -37,11 +37,6 @@ class TestGradient(object):
             \delta d = F(m0+ h dm) - D \\
 
         with F the Forward modelling operator.
-        :param dimensions: size of the domain in all dimensions
-        in number of grid points
-        :param time_order: order of the time discretization scheme
-        :param space_order: order of the spacial discretization scheme
-        :return: assertion that the Taylor properties are satisfied
         """
         spacing = tuple(10. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
@@ -71,7 +66,7 @@ class TestGradient(object):
     @pytest.mark.parametrize('shape', [(70, 80)])
     @pytest.mark.parametrize('checkpointing', [True, False])
     def test_gradientFWI(self, shape, kernel, space_order, checkpointing):
-        """
+        r"""
         This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
         .. math::
@@ -85,11 +80,6 @@ class TestGradient(object):
             \delta d = F(m0+ h dm) - D \\
 
         with F the Forward modelling operator.
-        :param dimensions: size of the domain in all dimensions
-        in number of grid points
-        :param time_order: order of the time discretization scheme
-        :param space_order: order of the spacial discretization scheme
-        :return: assertion that the Taylor properties are satisfied
         """
         spacing = tuple(10. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
@@ -139,7 +129,7 @@ class TestGradient(object):
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
         info('1st order error, Phi(m0+dm)-Phi(m0): %s' % (p1))
-        info('2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: %s' % (p2))
+        info(r'2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: %s' % (p2))
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 
@@ -147,7 +137,7 @@ class TestGradient(object):
     @pytest.mark.parametrize('kernel', ['OT2'])
     @pytest.mark.parametrize('shape', [(70, 80)])
     def test_gradientJ(self, shape, kernel, space_order):
-        """
+        r"""
         This test ensures that the Jacobian computed with devito
         satisfies the Taylor expansion property:
         .. math::
@@ -155,11 +145,6 @@ class TestGradient(object):
             F(m0 + h dm) = F(m0) + J dm + \O(h^2) \\
 
         with F the Forward modelling operator.
-        :param dimensions: size of the domain in all dimensions
-        in number of grid points
-        :param time_order: order of the time discretization scheme
-        :param space_order: order of the spacial discretization scheme
-        :return: assertion that the Taylor properties are satisfied
         """
         spacing = tuple(15. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
@@ -201,7 +186,7 @@ class TestGradient(object):
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
         info('1st order error, Phi(m0+dm)-Phi(m0) with slope: %s compared to 1' % (p1[0]))
-        info('2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>with slope:'
+        info(r'2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>with slope:'
              ' %s comapred to 2' % (p2[0]))
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
