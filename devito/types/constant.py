@@ -53,7 +53,7 @@ class Constant(AbstractCachedSymbol, ArgProvider):
         return kwargs.get('dtype', np.float32)
 
     @property
-    def _is_const(self):
+    def is_const(self):
         return True
 
     @property

@@ -5,7 +5,16 @@ from devito.ir.iet import Expression, ForeignExpression, FindNodes, Transformer
 from devito.symbolics import FunctionFromPointer, ListInitializer, retrieve_indexed
 from devito.tools import ctypes_pointer
 
-__all__ = ['make_grid_accesses', 'make_sharedptr_funcall']
+__all__ = ['Offloaded', 'make_grid_accesses', 'make_sharedptr_funcall']
+
+
+class Offloaded(ForeignExpression):
+
+    """
+    Represent offloaded computation.
+    """
+
+    pass
 
 
 def make_sharedptr_funcall(call, params, sharedptr):

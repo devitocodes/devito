@@ -574,7 +574,7 @@ class SubDimension(DerivedDimension):
 
     @property
     def _properties(self):
-        return (self._interval, self.thickness)
+        return (self._interval, self.thickness, self.local)
 
     def _arg_defaults(self, grid=None, **kwargs):
         if grid is not None and grid.is_distributed(self.root):

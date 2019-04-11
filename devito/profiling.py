@@ -255,13 +255,12 @@ def create_profile(name):
         return profiler
 
 
-# Set up profiling levels
 profiler_registry = {
     'basic': Profiler,
     'advanced': AdvancedProfiler,
     'advisor': AdvisorProfiler
 }
-configuration.add('profiling', 'basic', list(profiler_registry), impacts_jit=False)
+"""Profiling levels."""
 
 
 def locate_intel_advisor():
