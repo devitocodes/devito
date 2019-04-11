@@ -1,5 +1,5 @@
 numpy>=1.14
-sympy>=1.2
+sympy>=1.4
 scipy
 pytest-runner
 flake8>=2.1.0
