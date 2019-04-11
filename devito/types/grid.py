@@ -4,8 +4,6 @@ import numpy as np
 from sympy import prod
 from math import floor
 
-from cached_property import cached_property
-
 from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ReducerMap, as_tuple
