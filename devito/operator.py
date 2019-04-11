@@ -226,10 +226,10 @@ class Operator(Callable):
                     sub_dims = [d.root for d in e.subdomain.dimensions]
                     dims = [d for d in dims if d not in frozenset(sub_dims)]
                     dims.append(e.subdomain.implicit_dimension)
-                    if '_implicit_eq_dat' not in e.subdomain.__dict__:
-                        dat = e._subdomain._implicit_eq_dat
+                    if e._subdomain._implicit_exprs is None:
+                        e._subdomain._implicit_exprs = e._subdomain._create_implicit_exprs()
                         implicit_expressions = [eq.func(*eq.args, implicit_dims=dims)
-                                                for eq in dat]
+                                                for eq in e._subdomain._implicit_exprs]
                         processed.extend(implicit_expressions)
                     dims.extend(e.subdomain.dimensions)
                     new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)

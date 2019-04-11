@@ -513,6 +513,7 @@ class SubDomainSet(SubDomain):
             self.implicit_dimension = n
         self._n_domains = kwargs.get('N', 1)
         self._bounds = kwargs.get('bounds', None)
+        self._implicit_exprs = None
 
     def __subdomain_finalize__(self, dimensions, shape):
         # Create the SubDomain's SubDimensions
@@ -534,8 +535,7 @@ class SubDomainSet(SubDomain):
     def bounds(self):
         return self._bounds
 
-    @cached_property
-    def _implicit_eq_dat(self):
+    def _create_implicit_exprs(self):
         if not len(self._bounds) == 2*len(self.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
         n_domains = self.n_domains
