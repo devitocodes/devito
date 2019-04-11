@@ -120,7 +120,6 @@ class Substitutions(object):
 
     Now define some partial d/dx FD coefficients of the Function u:
 
-    >>> import numpy as np
     >>> u_x_coeffs = Coefficient(1, u, x, np.array([-0.6, 0.1, 0.6]))
 
     And now create our Substitutions object to pass to equation:
