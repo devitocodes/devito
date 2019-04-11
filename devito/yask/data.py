@@ -215,16 +215,15 @@ class Data(object):
 
     def _give_storage(self, target):
         """
-        Share self's storage with ``target``.
+        Replace meta-data and storage of ``target``
+        with those of ``self.grid``.
+        Any subsequent API call via either handle will
+        get data from and/or alter the shared grid.
         """
-        for i in self.dimensions:
-            if i.is_Space:
-                target.set_left_halo_size(i.name, self.get_left_halo_size(i.name))
-                target.set_right_halo_size(i.name, self.get_right_halo_size(i.name))
-            else:
-                # time and misc dimensions
-                target.set_alloc_size(i.root.name, self.get_alloc_size(i.root.name))
-        target.share_storage(self.grid)
+        assert self.grid.is_storage_allocated()
+        target.fuse_grids(self.grid)
+        assert target.is_storage_allocated()
+        assert self.grid.is_storage_allocated()
 
     def __getattr__(self, name):
         """Proxy to yk::grid methods."""

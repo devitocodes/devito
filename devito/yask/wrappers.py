@@ -104,7 +104,7 @@ class YaskKernel(object):
             ]
             if configuration['develop-mode']:
                 args.append('check=1')   # Activate internal YASK asserts.
-                # args.append('trace=1')   # Print out verbose progress messages.
+                args.append('trace=1')   # Print out verbose progress messages.
                 # args.append('trace_mem=1')   # Print out verbose mem-access messages.
             make(namespace['path'], args)
 
@@ -120,6 +120,9 @@ class YaskKernel(object):
         self.env = kfac.new_env()
         self.soln = kfac.new_solution(self.env)
 
+        # Allow step indices to wrap-around.
+        self.soln.set_step_wrap(True)
+        
         # Apply any user-provided options, if any.
         # These are applied here instead of just before prepare_solution()
         # so that applicable options will apply to all API calls.
@@ -166,12 +169,12 @@ class YaskKernel(object):
         grid = grids.pop()
 
         # Set the domain size, apply grid sharing, more sanity checks
-        for k, v in zip(self.space_dimensions, grid.shape):
-            self.soln.set_rank_domain_size(k, int(v))
         for k, v in toshare.items():
             target = self.grids.get(k.name)
             if target is not None:
                 v._give_storage(target)
+        for k, v in zip(self.space_dimensions, grid.shape):
+            self.soln.set_rank_domain_size(k, int(v))
         assert all(not i.is_storage_allocated() for i in self.local_grids.values())
         assert all(v.is_storage_allocated() for k, v in self.grids.items()
                    if k not in self.local_grids)
@@ -215,14 +218,14 @@ class YaskKernel(object):
 
     def post_apply(self):
         """Release temporary storage and dump performance data about the last run."""
-        # Release grid storage. Note: this *will not* cause deallocation, as these
-        # grids are actually shared with the hook solution
-        for i in self.grids.values():
-            i.release_storage()
-        # Release local grid storage. This *will* cause deallocation
+        # Do not release storage from self.grids because we may still need to
+        # access the storage via the hook solution.
+
+        # Release local grid storage.
         for i in self.local_grids.values():
             i.release_storage()
-        # Dump performance data
+
+        # Dump performance data.
         self.soln.get_stats()
 
     @property
