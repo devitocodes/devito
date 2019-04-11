@@ -207,8 +207,8 @@ def mmin(f):
         return np.min(f)
 
     with MPIReduction(f, op=dv.mpi.MPI.MIN) as mr:
-        mr.n.data[0] = np.asscalar(np.min(f.data_ro_domain))
-    return np.asscalar(mr.v)
+        mr.n.data[0] = np.min(f.data_ro_domain).item()
+    return mr.v.item()
 
 
 def mmax(f):
@@ -224,5 +224,5 @@ def mmax(f):
         return np.max(f)
 
     with MPIReduction(f, op=dv.mpi.MPI.MAX) as mr:
-        mr.n.data[0] = np.asscalar(np.max(f.data_ro_domain))
-    return np.asscalar(mr.v)
+        mr.n.data[0] = np.max(f.data_ro_domain).item()
+    return mr.v.item()
