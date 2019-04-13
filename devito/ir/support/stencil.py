@@ -8,19 +8,14 @@ __all__ = ['Stencil']
 class Stencil(DefaultOrderedDict):
 
     """
-    A Stencil is an ordered mapping from :class:`Dimension`s to sets of
-    integer points (the "neighborhood").
+    A Stencil is an ordered mapping from Dimensions to sets of integer points.
 
-    A stencil is immutable.
+    A Stencil is immutable.
 
     Parameters
     ----------
-    entries : list of StencilEntry, optional
-        Stencil entries.
-
-    Notes
-    -----
-    Expressions must have been indexified for a Stencil to be computed.
+    entries : iterable of 2-tuples, optional
+        The Stencil entries.
     """
 
     def __init__(self, entries=None):
@@ -37,7 +32,7 @@ class Stencil(DefaultOrderedDict):
 
     @classmethod
     def union(cls, *dicts):
-        """Compute the union of an iterable of :class:`Stencil`s."""
+        """Compute the union of an iterable of Stencils."""
         output = Stencil()
         for i in dicts:
             for k, v in i.items():
