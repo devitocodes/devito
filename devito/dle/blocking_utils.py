@@ -1,3 +1,5 @@
+from itertools import groupby
+
 import cgen as c
 import numpy as np
 from cached_property import cached_property
@@ -13,15 +15,21 @@ from devito.types import IncrDimension, Scalar
 __all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 
 
-def fold_blockable_tree(node, blockinner=True):
+def fold_blockable_tree(iet, blockinner=True):
     """
     Create IterationFolds from sequences of nested Iterations.
     """
     mapper = {}
-    for k, v in FindAdjacent(Iteration).visit(node).items():
-        for i in v:
+    for k, sequence in FindAdjacent(Iteration).visit(iet).items():
+        # Group based on Dimension
+        groups = []
+        for subsequence in sequence:
+            for _, v in groupby(subsequence, lambda i: i.dim):
+                i = list(v)
+                if len(i) >= 2:
+                    groups.append(i)
+        for i in groups:
             # Pre-condition: they all must be perfect iterations
-            assert len(i) > 1
             if any(not IsPerfectIteration().visit(j) for j in i):
                 continue
             # Only retain consecutive trees having same depth
@@ -51,20 +59,20 @@ def fold_blockable_tree(node, blockinner=True):
                 continue
             # Perform folding
             for j in pairwise_folds:
-                root, remainder = j[0], j[1:]
-                folds = [(tuple(y-x for x, y in zip(i.offsets, root.offsets)), i.nodes)
+                r, remainder = j[0], j[1:]
+                folds = [(tuple(y-x for x, y in zip(i.offsets, r.offsets)), i.nodes)
                          for i in remainder]
-                mapper[root] = IterationFold(folds=folds, **root.args)
+                mapper[r] = IterationFold(folds=folds, **r.args)
                 for k in remainder:
                     mapper[k] = None
 
     # Insert the IterationFolds in the Iteration/Expression tree
-    processed = Transformer(mapper, nested=True).visit(node)
+    iet = Transformer(mapper, nested=True).visit(iet)
 
-    return processed
+    return iet
 
 
-def unfold_blocked_tree(node):
+def unfold_blocked_tree(iet):
     """
     Unfold nested IterationFolds.
 
@@ -88,7 +96,7 @@ def unfold_blocked_tree(node):
     """
     # Search the unfolding candidates
     candidates = []
-    for tree in retrieve_iteration_tree(node):
+    for tree in retrieve_iteration_tree(iet):
         handle = tuple(i for i in tree if i.is_IterationFold)
         if handle:
             # Sanity check
@@ -103,9 +111,9 @@ def unfold_blocked_tree(node):
         mapper[tree[0]] = List(body=trees)
 
     # Insert the unfolded Iterations in the Iteration/Expression tree
-    processed = Transformer(mapper).visit(node)
+    iet = Transformer(mapper).visit(iet)
 
-    return processed
+    return iet
 
 
 def is_foldable(nodes):
