@@ -320,41 +320,42 @@ class AdvancedRewriter(BasicRewriter):
         for origin, alias in aliases.items():
             if all(i not in candidates for i in alias.aliased):
                 continue
+
             # Construct the `alias` iteration space
             intervals, sub_iterators, directions = cluster.ispace.args
             intervals = [Interval(i.dim, *alias.relaxed_diameter.get(i.dim, i.limits))
                          for i in cluster.ispace.intervals]
             ispace = IterationSpace(intervals, sub_iterators, directions)
 
-            # Optimization: perhaps we can lift the cluster outside the time dimension
             if all(time_invariants[i] for i in alias.aliased):
+                # Optimization: the alising expressions are time-invariant so
+                # we can contract the iteration space (e.g., [t, x, y] -> [x, y])
                 ispace = ispace.project(lambda i: not i.is_Time)
 
+            # Determine the write-to space
+            writeto = IntervalGroup(i for i in ispace.intervals if not i.dim.is_Time)
+
             # Create a temporary to store `alias`
-            # Note: the temporary rank depends on the Dimensions inducing flow/anti
-            # dependences, which are all and only those having a non-zero halo
-            intervals = IntervalGroup(i for i in ispace.intervals if any(i.limits))
-            halo = [(abs(i.lower), abs(i.upper)) for i in intervals]
-            function = Array(name=template(), dimensions=intervals.dimensions, halo=halo)
+            halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
+            function = Array(name=template(), dimensions=writeto.dimensions, halo=halo)
 
             # Build up the expression evaluating `alias`
-            access = tuple(i.dim - i.lower for i in intervals)
+            access = tuple(i.dim - i.lower for i in writeto)
             expression = Eq(function[access], origin)
 
             # Create the substitution rules so that we can use the newly created
             # temporary in place of the aliasing expressions
             for aliased, distance in alias.with_distance:
-                assert all(i.dim in distance.labels for i in intervals)
-                access = [i.dim - i.lower + distance[i.dim] for i in intervals]
+                assert all(i.dim in distance.labels for i in writeto)
+                access = [i.dim - i.lower + distance[i.dim] for i in writeto]
                 subs[candidates[aliased]] = function[access]
                 subs[aliased] = function[access]
 
             # Construct the `alias` data space
-            intervals = ispace.intervals
             mapper = detect_accesses(expression)
-            parts = {k: IntervalGroup(build_intervals(v)).add(intervals)
+            parts = {k: IntervalGroup(build_intervals(v)).add(ispace.intervals)
                      for k, v in mapper.items() if k}
-            dspace = DataSpace([i.zero() for i in intervals], parts)
+            dspace = DataSpace([i.zero() for i in ispace.intervals], parts)
 
             # Create a new Cluster for `alias`
             alias_clusters.append(Cluster([expression], ispace, dspace))
