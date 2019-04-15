@@ -1,6 +1,10 @@
 from devito.ir.clusters import ClusterGroup, groupby
+<<<<<<< HEAD
 from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRewriter,
                                  AggressiveRewriter, SkewingRewriter)
+=======
+from devito.dse.rewriters import BasicRewriter, AdvancedRewriter, AggressiveRewriter
+>>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
 from devito.dse.manipulation import cross_cluster_cse
 from devito.logger import dse_warning
 from devito.tools import flatten
@@ -8,14 +12,22 @@ from devito.parameters import configuration
 
 __all__ = ['dse_registry', 'rewrite']
 
+<<<<<<< HEAD
 # Skewing rewriter
 dse_registry = ('basic', 'advanced', 'skewing', 'speculative', 'aggressive')
+=======
+
+dse_registry = ('basic', 'advanced', 'aggressive')
+>>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
 
 modes = {
     'basic': BasicRewriter,
     'advanced': AdvancedRewriter,
+<<<<<<< HEAD
     'skewing': SkewingRewriter,
     'speculative': SpeculativeRewriter,
+=======
+>>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
     'aggressive': AggressiveRewriter
 }
 """The DSE transformation modes."""
@@ -39,6 +51,7 @@ def rewrite(clusters, mode='advanced'):
         - ``basic``: Apply common sub-expressions elimination.
         - ``advanced``: Apply all transformations that will reduce the
                         operation count w/ minimum increase to the memory pressure,
+<<<<<<< HEAD
                         namely 'basic', factorization, CIRE for time-invariants only.
         - ``skewing``: Apply skewing.
         - ``speculative``: Like 'advanced', but apply CIRE also to time-varying
@@ -54,6 +67,19 @@ def rewrite(clusters, mode='advanced'):
                            symbolic processing time; it may or may not reduce the
                            JIT-compilation time; it may or may not improve the
                            overall runtime performance.
+=======
+                        namely 'basic', factorization, and cross-iteration redundancy
+                        elimination ("CIRE") for time-invariants only.
+        - ``aggressive``: Like 'advanced', but apply CIRE to time-varying
+                          sub-expressions too.
+                          Further, seek and drop cross-cluster redundancies (this
+                          is the only pass that attempts to optimize *across*
+                          clusters, rather than within a cluster).
+                          The 'aggressive' mode may substantially increase the
+                          symbolic processing time; it may or may not reduce the
+                          JIT-compilation time; it may or may not improve the
+                          overall runtime performance.
+>>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
     """
     if not (mode is None or isinstance(mode, str)):
         raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))
