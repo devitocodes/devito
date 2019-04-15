@@ -82,14 +82,7 @@ class AdvancedRewriter(BasicRewriter):
     @dse_pass
     def _eliminate_inter_stencil_redundancies(self, cluster, template, **kwargs):
         """
-        Search for redundancies across the expressions and expose them
-        to the later stages of the optimisation pipeline by introducing
-        new temporaries of suitable rank.
-
-        Two type of redundancies are sought:
-
-            * Time-invariants, and
-            * Across different space points
+        Search aliasing expressions and capture them into vector temporaries.
 
         Examples
         ========
@@ -111,7 +104,7 @@ class AdvancedRewriter(BasicRewriter):
             return cluster
 
         # For more information about "aliases", refer to collect.__doc__
-        mapper, aliases = collect(cluster.exprs)
+        aliases = collect(cluster.exprs)
 
         # Redundancies will be stored in space-varying temporaries
         g = cluster.trace
@@ -123,7 +116,7 @@ class AdvancedRewriter(BasicRewriter):
         candidates = OrderedDict()
         for k, v in g.items():
             # Cost check (to keep the memory footprint under control)
-            naliases = len(mapper.get(v.rhs, []))
+            naliases = len(aliases.get(v.rhs))
             cost = estimate_cost(v, True)*naliases
             if cost >= self.MIN_COST_ALIAS and (naliases > 1 or time_invariants[v.rhs]):
                 candidates[v.rhs] = k
@@ -165,7 +158,8 @@ class AdvancedRewriter(BasicRewriter):
 
             # Add substitution rules
             for aliased, distance in alias.with_distance:
-                access = [i - intervals[i].lower + j for i, j in distance if i in indices]
+                access = [i - intervals[i].lower + distance[i] for i in distance.labels
+                          if i in indices]
                 rules[candidates[aliased]] = function[access]
                 rules[aliased] = function[access]
 
