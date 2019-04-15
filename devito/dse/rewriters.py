@@ -279,8 +279,6 @@ class AdvancedRewriter(BasicRewriter):
 
         Examples
         ========
-        Let ``t`` be the time dimension, ``x, y, z`` the space dimensions. Then:
-
         1) temp = (a[x,y,z]+b[x,y,z])*c[t,x,y,z]
            >>>
            ti[x,y,z] = a[x,y,z] + b[x,y,z]
@@ -301,7 +299,6 @@ class AdvancedRewriter(BasicRewriter):
 
         # Redundancies will be stored in space-varying temporaries
         g = cluster.trace
-        indices = g.space_indices
         time_invariants = {v.rhs: g.time_invariant(v) for v in g.values()}
 
         # Find the candidate expressions
@@ -319,11 +316,11 @@ class AdvancedRewriter(BasicRewriter):
         # Create alias Clusters and all necessary substitution rules
         # for the new temporaries
         alias_clusters = ClusterGroup()
-        rules = OrderedDict()
+        subs = {}
         for origin, alias in aliases.items():
             if all(i not in candidates for i in alias.aliased):
                 continue
-            # Construct an iteration space suitable for /alias/
+            # Construct the `alias` iteration space
             intervals, sub_iterators, directions = cluster.ispace.args
             intervals = [Interval(i.dim, *alias.relaxed_diameter.get(i.dim, i.limits))
                          for i in cluster.ispace.intervals]
@@ -333,35 +330,41 @@ class AdvancedRewriter(BasicRewriter):
             if all(time_invariants[i] for i in alias.aliased):
                 ispace = ispace.project(lambda i: not i.is_Time)
 
-            # Build a symbolic function for /alias/
-            intervals = ispace.intervals
-            halo = [(abs(intervals[i].lower), abs(intervals[i].upper)) for i in indices]
-            function = Array(name=template(), dimensions=indices, halo=halo)
-            access = tuple(i - intervals[i].lower for i in indices)
+            # Create a temporary to store `alias`
+            # Note: the temporary rank depends on the Dimensions inducing flow/anti
+            # dependences, which are all and only those having a non-zero halo
+            intervals = IntervalGroup(i for i in ispace.intervals if any(i.limits))
+            halo = [(abs(i.lower), abs(i.upper)) for i in intervals]
+            function = Array(name=template(), dimensions=intervals.dimensions, halo=halo)
+
+            # Build up the expression evaluating `alias`
+            access = tuple(i.dim - i.lower for i in intervals)
             expression = Eq(function[access], origin)
 
-            # Construct a data space suitable for /alias/
+            # Create the substitution rules so that we can use the newly created
+            # temporary in place of the aliasing expressions
+            for aliased, distance in alias.with_distance:
+                assert all(i.dim in distance.labels for i in intervals)
+                access = [i.dim - i.lower + distance[i.dim] for i in intervals]
+                subs[candidates[aliased]] = function[access]
+                subs[aliased] = function[access]
+
+            # Construct the `alias` data space
+            intervals = ispace.intervals
             mapper = detect_accesses(expression)
             parts = {k: IntervalGroup(build_intervals(v)).add(intervals)
                      for k, v in mapper.items() if k}
             dspace = DataSpace([i.zero() for i in intervals], parts)
 
-            # Create a new Cluster for /alias/
+            # Create a new Cluster for `alias`
             alias_clusters.append(Cluster([expression], ispace, dspace))
-
-            # Add substitution rules
-            for aliased, distance in alias.with_distance:
-                access = [i - intervals[i].lower + distance[i] for i in distance.labels
-                          if i in indices]
-                rules[candidates[aliased]] = function[access]
-                rules[aliased] = function[access]
 
         # Group clusters together if possible
         alias_clusters = groupby(alias_clusters).finalize()
         alias_clusters.sort(key=lambda i: i.is_dense)
 
         # Switch temporaries in the expression trees
-        processed = [e.xreplace(rules) for e in processed]
+        processed = [e.xreplace(subs) for e in processed]
 
         return alias_clusters + [cluster.rebuild(processed)]
 

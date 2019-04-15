@@ -5,8 +5,8 @@ from cached_property import cached_property
 
 from devito.ir.equations import ClusterizedEq
 from devito.symbolics import (as_symbol, retrieve_indexed, retrieve_terminals,
-                              q_indirect, q_timedimension)
-from devito.tools import DefaultOrderedDict, flatten, filter_ordered
+                              q_timedimension)
+from devito.tools import DefaultOrderedDict, flatten
 from devito.types import Dimension, Symbol
 
 __all__ = ['FlowGraph']
@@ -70,8 +70,7 @@ class FlowGraph(OrderedDict):
     The input and output edges of a node ``n`` are encoded in ``n.reads`` and
     ``n.readby``, respectively.
 
-    Operations may involve scalars and indexed objects (arrays). The indices
-    of the indexed objects represent either "space" or "time" dimensions.
+    Operations may involve scalars and indexed objects (arrays).
     """
 
     def __init__(self, exprs, **kwargs):
@@ -114,12 +113,6 @@ class FlowGraph(OrderedDict):
         nodes = [(i, Node(mapper[i], reads=reads[i], readby=readby[i]))
                  for i in processed]
         super(FlowGraph, self).__init__(nodes, **kwargs)
-
-        # Determine indices along the space and time dimensions
-        terms = [v for k, v in self.items() if v.is_Tensor and not q_indirect(k)]
-        indices = filter_ordered(flatten([i.function.indices for i in terms]))
-        self.space_indices = tuple(i for i in indices if i.is_Space)
-        self.time_indices = tuple(i for i in indices if i.is_Time)
 
     def trace(self, key, readby=False, strict=False):
         """
