@@ -343,6 +343,12 @@ def test_pow_to_mul(fa, fb, expr, expected):
     # 2D with subdimensions
     (['Eq(t0, fc[xi,yi] + fd[xi+1,yi+2])', 'Eq(t1, fc[xi+1,yi+1] + fd[xi+2,yi+3])'],
      {'fc[xi,yi] + fd[xi+1,yi+2]': 'Stencil([(xi, {0, 1}), (yi, {0, 1})])'}),
+    # 2D with constant access
+    (['Eq(t0, fc[x,y]*fc[x,0] + fd[x,y])', 'Eq(t1, fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1])'],
+     {'fc[x,y]*fc[x,0] + fd[x,y]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
+    # 2D with different shapes
+    (['Eq(t0, fc[x,y]*fa[x] + fd[x,y])', 'Eq(t1, fc[x+1,y+1]*fa[x+1] + fd[x+1,y+1])'],
+     {'fc[x,y]*fa[x] + fd[x,y]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
     # complex (two 2D aliases with stride inducing relaxation)
     (['Eq(t0, fc[x,y] + fd[x+1,y+2])', 'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])',
       'Eq(t2, fc[x-2,y-2]*3. + fd[x+2,y+2])', 'Eq(t3, fc[x-4,y-4]*3. + fd[x,y])'],
@@ -369,7 +375,7 @@ def test_collect_aliases(fc, fd, exprs, expected):
     for k, v in list(expected.items()):
         expected[eval(k)] = eval(v)
 
-    _, aliases = collect(exprs)
+    aliases = collect(exprs)
 
     assert len(aliases) > 0
 
