@@ -1,6 +1,5 @@
 from devito.ir.clusters import ClusterGroup, groupby
-from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRewriter,
-                                 AggressiveRewriter)
+from devito.dse.rewriters import BasicRewriter, AdvancedRewriter, AggressiveRewriter
 from devito.dse.manipulation import cross_cluster_cse
 from devito.logger import dse_warning
 from devito.tools import flatten
@@ -8,12 +7,11 @@ from devito.tools import flatten
 __all__ = ['dse_registry', 'rewrite']
 
 
-dse_registry = ('basic', 'advanced', 'speculative', 'aggressive')
+dse_registry = ('basic', 'advanced', 'aggressive')
 
 modes = {
     'basic': BasicRewriter,
     'advanced': AdvancedRewriter,
-    'speculative': SpeculativeRewriter,
     'aggressive': AggressiveRewriter
 }
 """The DSE transformation modes."""
@@ -34,20 +32,17 @@ def rewrite(clusters, mode='advanced'):
         - ``basic``: Apply common sub-expressions elimination.
         - ``advanced``: Apply all transformations that will reduce the
                         operation count w/ minimum increase to the memory pressure,
-                        namely 'basic', factorization, CIRE for time-invariants only.
-        - ``speculative``: Like 'advanced', but apply CIRE also to time-varying
-                           sub-expressions, which might further increase the memory
-                           pressure.
-         * ``aggressive``: Like 'speculative', but apply CIRE to any non-trivial
-                           sub-expression (i.e., anything that is at least in a
-                           sum-of-product form).
-                           Further, seek and drop cross-cluster redundancies (this
-                           is the only pass that attempts to optimize *across*
-                           clusters, rather than within a cluster).
-                           The 'aggressive' mode may substantially increase the
-                           symbolic processing time; it may or may not reduce the
-                           JIT-compilation time; it may or may not improve the
-                           overall runtime performance.
+                        namely 'basic', factorization, and cross-iteration redundancy
+                        elimination ("CIRE") for time-invariants only.
+        - ``aggressive``: Like 'advanced', but apply CIRE to time-varying
+                          sub-expressions too.
+                          Further, seek and drop cross-cluster redundancies (this
+                          is the only pass that attempts to optimize *across*
+                          clusters, rather than within a cluster).
+                          The 'aggressive' mode may substantially increase the
+                          symbolic processing time; it may or may not reduce the
+                          JIT-compilation time; it may or may not improve the
+                          overall runtime performance.
     """
     if not (mode is None or isinstance(mode, str)):
         raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))

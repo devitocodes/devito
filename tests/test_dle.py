@@ -384,7 +384,7 @@ class TestNestedParallelism(object):
             ('omp parallel for collapse(2) schedule(static,1) num_threads(%d)'
              % nhyperthreads())
 
-    @patch("devito.dse.backends.advanced.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
     def test_multiple_subnests(self):
         grid = Grid(shape=(3, 3, 3))
