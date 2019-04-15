@@ -196,7 +196,22 @@ def calculate_COM(group):
     COM = []
     for ofs in zip(*[i.offsets for i in group]):
         Tofs = LabeledVector.transpose(*ofs)
-        COM.append(LabeledVector([(k, int(np.mean(v, dtype=int))) for k, v in Tofs]))
+        entries = []
+        for k, v in Tofs:
+            try:
+                entries.append((k, int(np.mean(v, dtype=int))))
+            except TypeError:
+                # At least an element in `v` has symbolic components. Even though
+                # `analyze` guarantees that no accesses can be irregular, a symbol
+                # might still be present as long as it's constant (i.e., known to
+                # be never written to). For example: `A[t, x_m + 2, y, z]`
+                # At this point, the only change we have is that the symbolic entry
+                # is identical across all elements in `v`
+                if len(set(v)) == 1:
+                    entries.append((k, v[0]))
+                else:
+                    raise ValueError
+        COM.append(LabeledVector(entries))
 
     # Calculate the distance from the COM
     distances = []
