@@ -74,10 +74,6 @@ class CondEq(sympy.Eq, FrozenExpr):
     def canonical(self):
         return self
 
-    @property
-    def negated(self):
-        return CondNe(*self.args, evaluate=False)
-
 
 class CondNe(sympy.Ne, FrozenExpr):
 
@@ -96,10 +92,6 @@ class CondNe(sympy.Ne, FrozenExpr):
     @property
     def canonical(self):
         return self
-
-    @property
-    def negated(self):
-        return CondEq(*self.args, evaluate=False)
 
 
 class Mul(sympy.Mul, FrozenExpr):
