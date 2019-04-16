@@ -1,6 +1,5 @@
 from devito.ir.clusters import ClusterGroup, groupby
 from devito.dse.rewriters import BasicRewriter, AdvancedRewriter, AggressiveRewriter
-from devito.dse.manipulation import cross_cluster_cse
 from devito.logger import dse_warning
 from devito.tools import flatten
 
@@ -71,12 +70,5 @@ def rewrite(clusters, mode='advanced'):
     # Different clusters may have created new (smaller) clusters which are
     # potentially groupable within a single cluster
     processed = groupby(processed)
-
-    # 3)Global optimization
-    # ---------------------
-    # After grouping, there may be redundancies in one or more clusters. This final
-    # pass searches and drops such redundancies
-    if mode == 'aggressive':
-        processed = cross_cluster_cse(processed)
 
     return processed.finalize()
