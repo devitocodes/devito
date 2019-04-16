@@ -4,8 +4,11 @@ from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRew
                                  AggressiveRewriter, SkewingRewriter)
 =======
 from devito.dse.rewriters import BasicRewriter, AdvancedRewriter, AggressiveRewriter
+<<<<<<< HEAD
 >>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
 from devito.dse.manipulation import cross_cluster_cse
+=======
+>>>>>>> dse: Drop cross_cluster_cse
 from devito.logger import dse_warning
 from devito.tools import flatten
 from devito.parameters import configuration
@@ -109,12 +112,5 @@ def rewrite(clusters, mode='advanced'):
     # Different clusters may have created new (smaller) clusters which are
     # potentially groupable within a single cluster
     processed = groupby(processed)
-
-    # 3)Global optimization
-    # ---------------------
-    # After grouping, there may be redundancies in one or more clusters. This final
-    # pass searches and drops such redundancies
-    if mode == 'aggressive':
-        processed = cross_cluster_cse(processed)
 
     return processed.finalize()
