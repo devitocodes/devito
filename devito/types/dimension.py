@@ -528,6 +528,11 @@ class SubDimension(DerivedDimension):
         return self._interval.right
 
     @property
+    def symbolic_size(self):
+        # The size must be given as a function of the parent's size
+        return self.symbolic_max - self.symbolic_min + 1
+
+    @property
     def local(self):
         return self._local
 
