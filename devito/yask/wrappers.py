@@ -99,13 +99,13 @@ class YaskKernel(object):
                 'YASK_OUTPUT_DIR=%s' % namespace['yask-output-dir'],
                 # Pick the YASK kernel Makefile, i.e. the one under `yask/src/kernel`
                 '-C', namespace['kernel-path'],
-                # Make target.
+                # Make target
                 'api'
             ]
             if configuration['develop-mode']:
-                args.append('check=1')   # Activate internal YASK asserts.
-                args.append('trace=1')   # Print out verbose progress messages w/-trace knob.
-                args.append('trace_mem=0')   # Print out verbose mem-access messages.
+                args.append('check=1')   # Activate internal YASK asserts
+                args.append('trace=1')   # Print out verbose progress msgs w/-trace knob
+                args.append('trace_mem=0')   # Print out verbose mem-access msgs
             make(namespace['path'], args)
 
             # Now we must be able to import the SWIG-generated Python module
@@ -120,17 +120,17 @@ class YaskKernel(object):
         self.env = kfac.new_env()
         self.soln = kfac.new_solution(self.env)
 
-        # Allow step indices to wrap-around.
+        # Allow step indices to wrap-around
         self.soln.set_step_wrap(True)
-        
+
         # Apply any user-provided options, if any.
         # These are applied here instead of just before prepare_solution()
-        # so that applicable options will apply to all API calls.
+        # so that applicable options will apply to all API calls
         self.soln.apply_command_line_options(configuration.yask['options'] or '')
 
         # MPI setup: simple rank configuration in 1st dim only.
         # TODO: in production runs, the ranks would be distributed along all
-        # domain dimensions.
+        # domain dimensions
         self.soln.set_num_ranks(self.space_dimensions[0], self.env.get_num_ranks())
 
         # Redirect stdout to a string or file
@@ -144,7 +144,7 @@ class YaskKernel(object):
         self.soln.set_debug_output(self.output)
 
         # Users may want to run the same Operator (same domain etc.) with
-        # different grids.
+        # different grids
         self.grids = {i.get_name(): i for i in self.soln.get_grids()}
         self.local_grids = {i.name: self.grids[i.name] for i in (local_grids or [])}
 
@@ -219,13 +219,13 @@ class YaskKernel(object):
     def post_apply(self):
         """Release temporary storage and dump performance data about the last run."""
         # Do not release storage from self.grids because we may still need to
-        # access the storage via the hook solution.
+        # access the storage via the hook solution
 
-        # Release local grid storage.
+        # Release local grid storage
         for i in self.local_grids.values():
             i.release_storage()
 
-        # Dump performance data.
+        # Dump performance data
         self.soln.get_stats()
 
     @property

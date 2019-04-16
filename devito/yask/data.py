@@ -215,10 +215,9 @@ class Data(object):
 
     def _give_storage(self, target):
         """
-        Replace meta-data and storage of ``target``
-        with those of ``self.grid``.
-        Any subsequent API call via either handle will
-        get data from and/or alter the shared grid.
+        Replace meta-data and storage of ``target`` with those of ``self.grid``.
+        Any subsequent API call via either handle will get data from and/or
+        alter the shared grid.
         """
         assert self.grid.is_storage_allocated()
         target.fuse_grids(self.grid)
