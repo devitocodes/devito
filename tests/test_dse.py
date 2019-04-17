@@ -260,45 +260,6 @@ def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expect
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
 
 
-@pytest.mark.parametrize('exprs,expected', [
-    (['Eq(t0, 3.)', 'Eq(t1, 7.)', 'Eq(ti0, t0*3. + 2.)', 'Eq(ti1, t1 + t0 + 1.5)',
-      'Eq(tv, (ti0 + ti1)*t0)', 'Eq(tw, (ti0 + ti1)*t1)',
-      'Eq(tu, (tv + tw + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
-     '{tu: {tu, tv, tw, ti0, ti1, t0, t1}, tv: {ti0, ti1, t0, tv},\
-tw: {ti0, ti1, t1, tw}, ti0: {ti0, t0}, ti1: {ti1, t1, t0}, t0: {t0}, t1: {t1}}'),
-])
-def test_graph_trace(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
-    g = FlowGraph(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1))
-    mapper = eval(expected)
-    for i in [tu, tv, tw, ti0, ti1, t0, t1]:
-        assert set([j.lhs for j in g.trace(i)]) == mapper[i]
-
-
-@pytest.mark.parametrize('exprs,expected', [
-    # trivial
-    (['Eq(t0, 1.)', 'Eq(t1, fa[x] + fb[x])'],
-     '{t0: False, t1: False}'),
-    # trivial
-    (['Eq(t0, 1)', 'Eq(t1, fa[t0] + fb[x])'],
-     '{t0: True, t1: False}'),
-    # simple
-    (['Eq(t0, 1)', 'Eq(t1, fa[t0*4 + 1] + fb[x])'],
-     '{t0: True, t1: False}'),
-    # two-steps
-    (['Eq(t0, 1.)', 'Eq(t1, t0 + 4)', 'Eq(t2, fa[t1*4 + 1] + fb[x])'],
-     '{t0: False, t1: True, t2: False}'),
-    # indirect
-    pytest.param(['Eq(t0, 1)', 'Eq(t1, fa[fb[t0]] + fb[x])'],
-                 '{t0: True, t1: False}',
-                 marks=pytest.mark.xfail),
-])
-def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
-    g = FlowGraph(EVAL(exprs, fa, fb, fc, t0, t1, t2))
-    mapper = eval(expected)
-    for k, v in mapper.items():
-        assert g.is_index(k) == v
-
-
 @pytest.mark.parametrize('expr,expected', [
     ('2*fa[x] + fb[x]', '2*fa[x] + fb[x]'),
     ('fa[x]**2', 'fa[x]*fa[x]'),

@@ -230,7 +230,7 @@ class AdvancedRewriter(BasicRewriter):
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        rule = iq_timeinvariant(cluster.trace)
+        rule = iq_timeinvariant(cluster.flowgraph)
         costmodel = lambda e: estimate_cost(e) > 0
         processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
@@ -298,7 +298,7 @@ class AdvancedRewriter(BasicRewriter):
         aliases = collect(cluster.exprs)
 
         # Redundancies will be stored in space-varying temporaries
-        g = cluster.trace
+        g = cluster.flowgraph
         time_invariants = {v.rhs: g.time_invariant(v) for v in g.values()}
 
         # Find the candidate expressions
@@ -394,7 +394,7 @@ class AggressiveRewriter(AdvancedRewriter):
         """
 
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        rule = iq_timevarying(cluster.trace)
+        rule = iq_timevarying(cluster.flowgraph)
         costmodel = lambda i: estimate_cost(i) > 0
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
