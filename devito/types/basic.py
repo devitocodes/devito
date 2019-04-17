@@ -918,10 +918,20 @@ class Object(AbstractObject, ArgProvider):
             return {self.name: self.value}
 
     def _arg_values(self, args=None, **kwargs):
+        """
+        Produce runtime values for this Object after evaluating user input.
+
+        Parameters
+        ----------
+        args : dict, optional
+            Known argument values.
+        **kwargs
+            Dictionary of user-provided argument overrides.
+        """
         if self.name in kwargs:
             return {self.name: kwargs.pop(self.name)}
         else:
-            return {}
+            return self._arg_defaults()
 
 
 class CompositeObject(Object):

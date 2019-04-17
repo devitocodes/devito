@@ -68,7 +68,7 @@ class CondEq(sympy.Eq, FrozenExpr):
 
     @property
     def negated(self):
-        return CondNe(self.lhs, self.rhs)
+        return CondNe(*self.args, evaluate=False)
 
     @property
     def canonical(self):
@@ -87,7 +87,7 @@ class CondNe(sympy.Ne, FrozenExpr):
 
     @property
     def negated(self):
-        return CondEq(self.lhs, self.rhs)
+        return CondEq(*self.args, evaluate=False)
 
     @property
     def canonical(self):

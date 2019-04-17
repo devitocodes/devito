@@ -61,7 +61,7 @@ class Derivative(sympy.Derivative, Differentiable):
     >> u.dx2
     """
 
-    _state = ('expr', 'dims', 'side', 'stagger')
+    _state = ('expr', 'dims', 'side', 'stagger', 'fd_order', 'transpose')
 
     def __new__(cls, expr, *dims, **kwargs):
         # Check dims, can be a dimensions, multiple dimensions as a tuple
