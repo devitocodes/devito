@@ -121,17 +121,17 @@ def search(expr, query, mode='unique', visit='dfs', deep=False):
 # Shorthands
 
 
-def retrieve_indexed(expr, mode='unique', deep=False):
+def retrieve_indexed(expr, mode='all', deep=False):
     """Shorthand to retrieve the Indexeds in ``expr``."""
     return search(expr, q_indexed, mode, 'dfs', deep)
 
 
-def retrieve_functions(expr, mode='unique'):
+def retrieve_functions(expr, mode='all'):
     """Shorthand to retrieve the DiscreteFunctions in ``expr``."""
     return search(expr, q_function, mode, 'dfs')
 
 
-def retrieve_function_carriers(expr, mode='unique'):
+def retrieve_function_carriers(expr, mode='all'):
     """
     Shorthand to retrieve the DiscreteFunction carriers in ``expr``. An
     object carries a DiscreteFunction if any of the following conditions are met: ::
@@ -150,7 +150,7 @@ def retrieve_function_carriers(expr, mode='unique'):
     return retval
 
 
-def retrieve_terminals(expr, mode='unique', deep=False):
+def retrieve_terminals(expr, mode='all', deep=False):
     """Shorthand to retrieve Indexeds and Symbols within ``expr``."""
     return search(expr, q_terminal, mode, 'dfs', deep)
 
