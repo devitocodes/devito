@@ -15,7 +15,7 @@ from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder,
                            AFFINE, FindSymbols, FindNodes, FindAdjacent, MapNodes,
                            Transformer, compose_nodes, filter_iterations, make_efunc,
                            retrieve_iteration_tree)
-from devito.logger import dle, perf_adv
+from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
 from devito.tools import DAG, as_tuple, filter_ordered, flatten
@@ -32,6 +32,9 @@ class State(object):
         self._dimensions = []
         self._includes = []
 
+        # Track performance of each pass
+        self._timings = OrderedDict()
+
     @property
     def root(self):
         return self._efuncs['root']
@@ -47,6 +50,10 @@ class State(object):
     @property
     def includes(self):
         return self._includes
+
+    @property
+    def timings(self):
+        return self._timings
 
 
 def process(func, state):
@@ -111,7 +118,7 @@ def dle_pass(func):
         tic = time()
         process(partial(func, self), state)
         toc = time()
-        self.timings[func.__name__] = toc - tic
+        state.timings[func.__name__] = toc - tic
     return wrapper
 
 
@@ -131,7 +138,6 @@ class AbstractRewriter(object):
     def __init__(self, params, platform):
         self.params = params
         self.platform = platform
-        self.timings = OrderedDict()
 
         self._node_parallelizer = self._node_parallelizer_type()
 
@@ -141,22 +147,11 @@ class AbstractRewriter(object):
 
         self._pipeline(state)
 
-        self._summary()
-
-        return state.root, state
+        return state
 
     @abc.abstractmethod
     def _pipeline(self, state):
         return
-
-    def _summary(self):
-        """Print a summary of the DLE transformations."""
-        row = "%s [elapsed: %.2f]"
-        out = " >>\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k[1:])),
-                                       v)
-                                for k, v in self.timings.items())
-        elapsed = sum(self.timings.values())
-        dle("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
 
 
 class PlatformRewriter(AbstractRewriter):
@@ -612,7 +607,7 @@ class CustomRewriter(SpeculativeRewriter):
         except AttributeError:
             # Already in tuple format
             if not all(i in CustomRewriter.passes_mapper for i in passes):
-                raise DLEException
+                raise DLEException("Unknown passes `%s`" % str(passes))
         self.passes = passes
         super(CustomRewriter, self).__init__(params, platform)
 
