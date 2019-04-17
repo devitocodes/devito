@@ -11,7 +11,6 @@ from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Clust
 from devito.dse.aliases import collect
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
-from devito.logger import dse
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               iq_timeinvariant, iq_timevarying, pow_to_mul,
                               retrieve_indexed, q_affine, q_leaf, q_scalar,
@@ -79,9 +78,6 @@ class AbstractRewriter(object):
             assert callable(template)
             self.template = template
 
-        # Track performance of each cluster
-        self.run_summary = []
-
     def run(self, cluster):
         state = State(cluster, self.template)
 
@@ -89,18 +85,7 @@ class AbstractRewriter(object):
 
         self._finalize(state)
 
-        if self.profile:
-            # Print a summary of the applied transformations
-            row = "%s [flops: %s, elapsed: %.2f]"
-            summary = " >>\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(),
-                                                              k[1:])),
-                                               str(state.ops.get(k, "?")), v)
-                                        for k, v in state.timings.items())
-            elapsed = sum(state.timings.values())
-            dse("%s\n     [Total elapsed: %.2f s]" % (summary, elapsed))
-            self.run_summary.append({'ops': state.ops, 'timings': state.timings})
-
-        return state.clusters
+        return state
 
     @abc.abstractmethod
     def _pipeline(self, state):
