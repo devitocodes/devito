@@ -86,11 +86,7 @@ class FlowGraph(OrderedDict):
         reads = DefaultOrderedDict(set)
         readby = DefaultOrderedDict(set)
         for k, v in mapper.items():
-            handle = retrieve_terminals(v.rhs)
-            for i in list(handle):
-                if i.is_Indexed:
-                    for idx in i.indices:
-                        handle |= retrieve_terminals(idx)
+            handle = retrieve_terminals(v.rhs, deep=True)
             reads[k].update(set(flatten([tensor_map.get(as_symbol(i), [])
                                          for i in handle])))
             for i in reads[k]:

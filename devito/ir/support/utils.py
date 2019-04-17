@@ -20,7 +20,7 @@ def detect_accesses(expr):
     """
     # Compute M : F -> S
     mapper = defaultdict(Stencil)
-    for e in retrieve_indexed(expr, mode='all', deep=True):
+    for e in retrieve_indexed(expr, deep=True):
         f = e.function
         for a in e.indices:
             if isinstance(a, Dimension):
@@ -125,7 +125,7 @@ def detect_flow_directions(exprs):
     exprs = as_tuple(exprs)
 
     writes = [Access(i.lhs, 'W') for i in exprs]
-    reads = flatten(retrieve_indexed(i.rhs, mode='all') for i in exprs)
+    reads = flatten(retrieve_indexed(i.rhs) for i in exprs)
     reads = [Access(i, 'R') for i in reads]
 
     # Determine indexed-wise direction by looking at the distance vector

@@ -111,7 +111,7 @@ def analyze(expr):
     if expr.lhs.is_Indexed or expr.is_Increment:
         return
 
-    indexeds = retrieve_indexed(expr.rhs, mode='all')
+    indexeds = retrieve_indexed(expr.rhs)
     if not indexeds:
         return
 

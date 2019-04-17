@@ -122,10 +122,7 @@ class BasicRewriter(AbstractRewriter):
 
         mapper = OrderedDict()
         for e in cluster.exprs:
-            # Note: using mode='all' and then checking for presence in the mapper
-            # (a few lines below), rather retrieving unique indexeds only (a set),
-            # is the key to deterministic code generation
-            for indexed in retrieve_indexed(e, mode='all'):
+            for indexed in retrieve_indexed(e):
                 for i, d in zip(indexed.indices, indexed.function.indices):
                     if q_affine(i, d) or q_scalar(i):
                         continue
