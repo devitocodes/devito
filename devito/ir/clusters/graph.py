@@ -114,38 +114,6 @@ class FlowGraph(OrderedDict):
                  for i in processed]
         super(FlowGraph, self).__init__(nodes, **kwargs)
 
-    def trace(self, key, readby=False, strict=False):
-        """
-        Return the sequence of operations required to compute the node ``key``.
-        If ``readby = True``, then return the sequence of operations that will
-        depend on ``key``, instead. With ``strict = True``, drop ``key`` from the
-        result.
-        """
-        if key not in self:
-            return []
-
-        # OrderedDicts, besides preserving the scheduling order, also prevent
-        # scheduling the same node more than once
-        found = OrderedDict()
-        queue = OrderedDict([(key, self[key])])
-        while queue:
-            k, v = queue.popitem(last=False)
-            reads = self.extract(k, readby=readby)
-            if set(reads).issubset(set(found.values())):
-                # All dependencies satisfied, schedulable
-                found[k] = v
-            else:
-                # Tensors belong to other traces, so they can be scheduled straight away
-                tensors = [i for i in reads if i.is_Tensor]
-                found = OrderedDict(list(found.items()) + [(i.lhs, i) for i in tensors])
-                # Postpone the rest until all dependening nodes got scheduled
-                scalars = [i for i in reads if i.is_Scalar]
-                queue = OrderedDict([(i.lhs, i) for i in scalars] +
-                                    [(k, v)] + list(queue.items()))
-        if strict is True:
-            found.pop(key)
-        return tuple(found.values())
-
     def time_invariant(self, expr=None):
         """
         Check if ``expr`` is time invariant. ``expr`` may be an expression ``e``
@@ -184,56 +152,6 @@ class FlowGraph(OrderedDict):
                 seen.add(i)
             queue.extend([self[i].rhs for i in nodes])
         return True
-
-    def is_index(self, key):
-        """
-        Return True if ``key`` is used as array index in an expression of the
-        FlowGraph, False otherwise.
-        """
-        if key not in self:
-            return False
-        match = key.base.label if self[key].is_Tensor else key
-        for i in self.extract(key, readby=True):
-            for e in retrieve_indexed(i):
-                if any(match in idx.free_symbols for idx in e.indices):
-                    return True
-        return False
-
-    def extract(self, key, readby=False):
-        """
-        Return the list of nodes appearing in ``key.reads``, in program order
-        (ie, based on the order in which the nodes appear in ``self``). If
-        ``readby is True``, then return instead the list of nodes appearing
-        ``key.readby``, in program order.
-
-        Examples
-        --------
-        Given the following sequence of operations: ::
-
-            t1 = ...
-            t0 = ...
-            u[i, j] = ... v ...
-            u[3, j] = ...
-            v = t0 + t1 + u[z, k]
-            t2 = ...
-
-        Assuming ``key == v`` and ``readby is False`` (as by default), return
-        the following list of Node objects: ::
-
-            [t1, t0, u[i, j], u[3, j]]
-
-        If ``readby is True``, return: ::
-
-            [v, t2]
-        """
-        if key not in self:
-            return []
-        match = self[key].reads if readby is False else self[key].readby
-        found = []
-        for k, v in self.items():
-            if k in match:
-                found.append(v)
-        return found
 
     def __getitem__(self, key):
         if not isinstance(key, slice):
