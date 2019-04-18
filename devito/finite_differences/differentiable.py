@@ -162,6 +162,28 @@ class Differentiable(sympy.Expr):
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return sum([getattr(self.laplace * weight, d) for d in derivs])
 
+    def collect(self, *args, **kwargs):
+        return make_diff(super(Differentiable, self).collect(*args, **kwargs))
+
+
+def make_diff(expr):
+    """
+    Recursively reconstruct ``expr`` using objects of type Differentiable, such
+    as Differentiable.Add/Differentiable.Mul/Differentiable.Pow/... replacing any
+    sympy.Add/sympy.Mul/sympy.Pow/...
+
+    Notes
+    -----
+    Using this function is quite horrible, but it's the only work around
+    to inherent limitations within SymPy.
+    """
+    if expr.is_Function or expr.is_Atom:
+        return expr
+    elif type(expr) in classmap:
+        return classmap[type(expr)](*[make_diff(i) for i in expr.args], evaluate=False)
+    else:
+        return expr.func(*[make_diff(i) for i in expr.args], evaluate=False)
+
 
 class Add(sympy.Add, Differentiable):
 
@@ -201,6 +223,12 @@ class Pow(sympy.Pow, Differentiable):
 class Mod(sympy.Mod, Differentiable):
     pass
 
+
+classmap = {}
+classmap[sympy.Add] = Add
+classmap[sympy.Mul] = Mul
+classmap[sympy.Pow] = Pow
+classmap[sympy.Mod] = Mod
 
 # Make sure `sympy.evalf` knows how to evaluate the inherited classes
 # Without these, `evalf` would rely on a much slower, much more generic, and
