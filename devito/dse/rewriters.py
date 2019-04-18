@@ -310,6 +310,11 @@ class AdvancedRewriter(BasicRewriter):
             ispace = IterationSpace(intervals, sub_iterators, directions)
 
             if all(time_invariants[i] for i in alias.aliased):
+                # Optimization: if `alias` can be expressed as the composition of
+                # "smaller" aliases, then it is dropped to allocate less memory
+                if all(i in subs for i in origin.args):
+                    continue
+
                 # Optimization: the alising expressions are time-invariant so
                 # we can contract the iteration space (e.g., [t, x, y] -> [x, y])
                 ispace = ispace.project(lambda i: not i.is_Time)
