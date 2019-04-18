@@ -136,7 +136,6 @@ class Vector(tuple):
     def is_constant(self):
         return all(is_integer(i) for i in self)
 
-    @memoized_meth
     def distance(self, other):
         """
         Compute the distance from ``self`` to ``other``.
@@ -241,6 +240,7 @@ class LabeledVector(Vector):
     def fromlabel(self, label, v=None):
         return self[label] if label in self.labels else v
 
+    @memoized_meth
     def distance(self, other):
         """
         Compute the distance from ``self`` to ``other``.
