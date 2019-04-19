@@ -13,8 +13,8 @@ from devito.dle.parallelizer import Ompizer
 from devito.exceptions import DLEException
 from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder, PARALLEL,
                            AFFINE, FindSymbols, FindNodes, FindAdjacent, MapNodes,
-                           Transformer, compose_nodes, filter_iterations, make_efunc,
-                           retrieve_iteration_tree)
+                           Transformer, IsPerfectIteration, compose_nodes, make_efunc,
+                           filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
@@ -285,6 +285,9 @@ class PlatformRewriter(AbstractRewriter):
                 # nests (thus increasing JIT compilation time and affecting
                 # readability) if the blockable tree isn't embedded in a
                 # sequential loop (e.g., a timestepping loop)
+                continue
+            if not IsPerfectIteration().visit(root):
+                # Don't know how to block non-perfect nests
                 continue
 
             # Apply loop blocking to `tree`
