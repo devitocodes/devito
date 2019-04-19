@@ -50,7 +50,7 @@ def fold_blockable_tree(iet, blockinner=True):
             if blockinner is False:
                 pairwise_folds = pairwise_folds[:-1]
             # Perhaps there's nothing to fold
-            if len(pairwise_folds) == 1:
+            if len(pairwise_folds) == 0:
                 continue
             # TODO: we do not currently support blocking if any of the foldable
             # iterations writes to user data (need min/max loop bounds?)
