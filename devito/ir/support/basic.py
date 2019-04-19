@@ -754,10 +754,11 @@ class Dependence(object):
                 # A dependence between two locally declared scalars
                 return True
             else:
-                # Note: the check `i in self._defined_findices` makes sure that `i`
-                # is not a reduction dimension, in which case `self` would indeed be
-                # a dimension-dependent dependence
-                test0 = any(i in self._defined_findices for i in dim._defines)
+                # Note: below, `i in self._defined_findices` is to check whether `i`
+                # is actually (one of) the reduction dimension(s), in which case
+                # `self` would indeed be a dimension-dependent dependence
+                test0 = (not self.is_increment or
+                         any(i in self._defined_findices for i in dim._defines))
                 test1 = len(self.cause & dim._defines) == 0
                 return test0 and test1
         except TypeError:
