@@ -190,8 +190,16 @@ class AdvancedRewriter(BasicRewriter):
 
     MIN_COST_ALIAS = 10
     """
-    Minimum operation count of a non-scalar alias (i.e., "redundant") expression
-    to be lifted into a vector temporary (thus increasing the memory footprint)
+    Minimum operation count of an alias (i.e., "redundant") expression
+    to be lifted into a vector temporary.
+    """
+
+    MIN_COST_ALIAS_INV = 50
+    """
+    Minimum operation count of a time-invariant alias (i.e., "redundant")
+    expression to be lifted into a vector temporary. Time-invariant aliases
+    are lifted outside of the time-marching loop, thus they will require
+    vector temporaries as big as the entire grid.
     """
 
     MIN_COST_FACTORIZE = 100
@@ -290,7 +298,9 @@ class AdvancedRewriter(BasicRewriter):
             # Cost check (to keep the memory footprint under control)
             naliases = len(aliases.get(v.rhs))
             cost = estimate_cost(v, True)*naliases
-            if cost >= self.MIN_COST_ALIAS and (naliases > 1 or time_invariants[v.rhs]):
+            test0 = lambda: cost >= self.MIN_COST_ALIAS and naliases > 1
+            test1 = lambda: cost >= self.MIN_COST_ALIAS_INV and time_invariants[v.rhs]
+            if test0() or test1():
                 candidates[v.rhs] = k
             else:
                 processed.append(v)
