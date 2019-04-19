@@ -501,7 +501,7 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
         g = Function(name='g', grid=grid)
-        op = Operator(Eq(g, g + f))
+        op = Operator(Eq(g, g + f), dle=('advanced', {'openmp': False}))
 
         expected = {
             'x_m': 0, 'x_M': 4,
@@ -511,7 +511,7 @@ class TestArguments(object):
         }
         self.verify_arguments(op.arguments(time=4), expected)
         exp_parameters = ['f', 'g', 'x_m', 'x_M', 'y_m', 'y_M', 'z_m', 'z_M',
-                          'time_m', 'time_M']
+                          'x0_blk_size', 'y0_blk_size', 'time_m', 'time_M']
         self.verify_parameters(op.parameters, exp_parameters)
 
     def test_default_sparse_functions(self):
