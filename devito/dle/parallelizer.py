@@ -3,6 +3,8 @@ import os
 
 import numpy as np
 import cgen as c
+from functools import reduce
+from operator import mul
 from sympy import Function, Or
 
 from devito.ir import (Call, Conditional, Block, Expression, List, Prodder,
@@ -73,6 +75,12 @@ class Ompizer(object):
     """
     Use a collapse clause if the number of available physical cores is greater
     than this threshold.
+    """
+
+    PAR_WORK_THRESHOLD = 100
+    """
+    Minimum number of loop iterations (if loop sizes are known,
+    e.g. from a DefaultDimension) per parallel iteration.
     """
 
     lang = {
@@ -151,6 +159,14 @@ class Ompizer(object):
                 # Also, we do not want to collapse vectorizable Iterations
                 if i.is_Vectorizable:
                     break
+
+                try:
+                    work_per_parallel_iter = reduce(mul, [int(j.dim.symbolic_size)
+                                                          for j in candidates[n:]])
+                    if work_per_parallel_iter < Ompizer.PAR_WORK_THRESHOLD:
+                        break
+                except TypeError:
+                    pass
 
                 collapsable.append(i)
 
