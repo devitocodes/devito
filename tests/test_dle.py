@@ -99,7 +99,7 @@ def _new_operator3(shape, blockshape=None, dle=None):
     (False, 4, 5),
     (True, 8, 6)
 ])
-@patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
+@patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
 def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     # Check code structure
     _, op = _new_operator1((10, 31, 45), dle=('blocking', {'blockalways': True,
@@ -286,7 +286,7 @@ class TestNodeParallelism(object):
         ('Eq(u, 2*u)', [0, 2, 0, 0], False),
         ('Eq(u, 2*u)', [3, 0, 0, 0, 0, 0], True)
     ])
-    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
+    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
     def test_collapsing(self, eq, expected, blocking):
         grid = Grid(shape=(3, 3, 3))
 
@@ -361,7 +361,7 @@ class TestNestedParallelism(object):
              % nhyperthreads())
 
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
-    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
+    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
     def test_collapsing(self):
         grid = Grid(shape=(3, 3, 3))
 

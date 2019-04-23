@@ -71,16 +71,17 @@ class Ompizer(object):
     than this threshold.
     """
 
-    COLLAPSE = 32
+    COLLAPSE_NCORES = 32
     """
     Use a collapse clause if the number of available physical cores is greater
     than this threshold.
     """
 
-    PAR_WORK_THRESHOLD = 100
+    COLLAPSE_WORK = 100
     """
-    Minimum number of loop iterations (if loop sizes are known,
-    e.g. from a DefaultDimension) per parallel iteration.
+    Use a collapse clause if the trip count of the collapsable Iterations
+    exceeds this threshold. Note however the trip count is rarely known at
+    compilation time (e.g., this may happen when DefaultDimensions are used).
     """
 
     lang = {
@@ -142,7 +143,7 @@ class Ompizer(object):
 
         # Get the collapsable Iterations
         collapsable = []
-        if ncores() >= Ompizer.COLLAPSE and IsPerfectIteration().visit(root):
+        if ncores() >= Ompizer.COLLAPSE_NCORES and IsPerfectIteration().visit(root):
             for n, i in enumerate(candidates[1:], 1):
                 # The OpenMP specification forbids collapsed loops to use iteration
                 # variables in initializer expressions. E.g., the following is forbidden:
@@ -161,9 +162,8 @@ class Ompizer(object):
                     break
 
                 try:
-                    work_per_parallel_iter = reduce(mul, [int(j.dim.symbolic_size)
-                                                          for j in candidates[n:]])
-                    if work_per_parallel_iter < Ompizer.PAR_WORK_THRESHOLD:
+                    work = reduce(mul, [int(j.dim.symbolic_size) for j in candidates[n:]])
+                    if work < Ompizer.COLLAPSE_WORK:
                         break
                 except TypeError:
                     pass
