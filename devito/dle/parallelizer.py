@@ -76,7 +76,8 @@ class Ompizer(object):
     """
 
     lang = {
-        'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static,1)' % i),
+        'for-static': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
+        'for-static-1': lambda i: c.Pragma('omp for collapse(%d) schedule(static,1)' % i),
         'par-for': lambda i, j: c.Pragma('omp parallel for collapse(%d) '
                                          'schedule(static,1) num_threads(%d)' % (i, j)),
         'simd-for': c.Pragma('omp simd'),
@@ -116,10 +117,20 @@ class Ompizer(object):
         partree = Transformer(mapper).visit(partree)
         return partree
 
-    def _make_partree(self, candidates, omp_pragma):
+    def _make_partree(self, candidates, omp_pragma=None):
         """Parallelize `root` attaching a suitable OpenMP pragma."""
         assert candidates
         root = candidates[0]
+
+        # Pick up an omp-pragma template
+        # Caller-provided -> stick to it
+        # Affine -> ... schedule(static,1) ...
+        # Non-affine -> ... schedule(static) ...
+        if omp_pragma is None:
+            if all(i.is_Affine for i in candidates):
+                omp_pragma = self.lang['for-static-1']
+            else:
+                omp_pragma = self.lang['for-static']
 
         # Get the collapsable Iterations
         collapsable = []
@@ -224,7 +235,7 @@ class Ompizer(object):
                 continue
 
             # Outer parallelism
-            root, partree, collapsed = self._make_partree(candidates, self.lang['for'])
+            root, partree, collapsed = self._make_partree(candidates)
 
             # Nested parallelism
             partree = self._make_nested_partree(partree)
