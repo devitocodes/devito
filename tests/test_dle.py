@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from conftest import EVAL, skipif
-from devito import Grid, Function, TimeFunction, Eq, Operator, solve
+from devito import Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operator, solve
 from devito.dle import NThreads, transform
 from devito.dle.parallelizer import nhyperthreads
 from devito.ir.equations import DummyEq
@@ -313,6 +313,28 @@ class TestNodeParallelism(object):
             else:
                 for k in i.pragmas:
                     assert 'omp for collapse' not in k.value
+
+    def test_scheduling(self):
+        """
+        Affine iterations -> #pragma omp ... schedule(static,1) ...
+        Non-affine iterations -> #pragma omp ... schedule(static) ...
+        """
+        grid = Grid(shape=(11, 11))
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+        sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
+
+        eqns = [Eq(u.forward, u + 1)]
+        eqns += sf1.interpolate(u)
+
+        op = Operator(eqns, dle='openmp')
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert len(iterations) == 4
+        assert iterations[1].is_Affine
+        assert 'schedule(static,1)' in iterations[1].pragmas[0].value
+        assert not iterations[3].is_Affine
+        assert 'schedule(static)' in iterations[3].pragmas[0].value
 
 
 class TestNestedParallelism(object):
