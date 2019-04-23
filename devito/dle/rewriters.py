@@ -12,9 +12,9 @@ from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
 from devito.dle.parallelizer import Ompizer
 from devito.exceptions import DLEException
 from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder, PARALLEL,
-                           FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
-                           compose_nodes, filter_iterations, retrieve_iteration_tree,
-                           make_efunc)
+                           AFFINE, FindSymbols, FindNodes, FindAdjacent, MapNodes,
+                           Transformer, compose_nodes, filter_iterations, make_efunc,
+                           retrieve_iteration_tree)
 from devito.logger import dle, perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
@@ -299,7 +299,8 @@ class PlatformRewriter(AbstractRewriter):
                 d = BlockDimension(i.dim, name="%s%d_blk" % (i.dim.name, len(mapper)))
                 block_dims.append(d)
                 # Build Iteration over blocks
-                interb.append(Iteration([], d, d.symbolic_max, properties=PARALLEL))
+                properties = (PARALLEL,) + ((AFFINE,) if i.is_Affine else ())
+                interb.append(Iteration([], d, d.symbolic_max, properties=properties))
                 # Build Iteration within a block
                 intrab.append(i._rebuild([], limits=(d, d+d.step-1, 1), offsets=(0, 0)))
 
