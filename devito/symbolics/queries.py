@@ -3,7 +3,7 @@ from sympy import Eq, diff, cos, sin, nan
 from devito.tools import as_tuple, is_integer
 
 
-__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op',
+__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op', 'q_xop',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_timedimension',
            'q_constant', 'q_affine', 'q_linear', 'q_identity', 'q_inc', 'q_scalar',
            'q_multivar', 'q_monoaffine', 'iq_timeinvariant']
@@ -49,6 +49,10 @@ def q_trigonometry(expr):
 
 def q_op(expr):
     return expr.is_Add or expr.is_Mul or expr.is_Function
+
+
+def q_xop(expr):
+    return q_op(expr) or expr.is_Pow
 
 
 def q_terminalop(expr):

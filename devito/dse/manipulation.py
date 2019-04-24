@@ -3,7 +3,7 @@ from collections import OrderedDict
 from sympy import collect, collect_const
 
 from devito.ir import FlowGraph
-from devito.symbolics import (Add, Mul, Eq, count, estimate_cost, q_op, q_leaf,
+from devito.symbolics import (Add, Mul, Eq, count, estimate_cost, q_xop, q_leaf,
                               xreplace_constrained)
 from devito.tools import ReducerMap
 
@@ -125,8 +125,8 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     mapped = []
     while True:
         # Detect redundancies
-        counted = count(mapped + processed, q_op).items()
-        targets = OrderedDict([(k, estimate_cost(k)) for k, v in counted if v > 1])
+        counted = count(mapped + processed, q_xop).items()
+        targets = OrderedDict([(k, estimate_cost(k, True)) for k, v in counted if v > 1])
         if not targets:
             break
 
