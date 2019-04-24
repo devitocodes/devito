@@ -80,6 +80,9 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
     pytest.param(['Eq(tu, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
                  ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'],
                  marks=pytest.mark.xfail),
+    # divisions (== powers with negative exponenet) are always captured
+    (['Eq(tu, tv**-1*(tw*5 + tw*5*t0))', 'Eq(tu, tv**-1*t0)'],
+     ['1/tv[t, x, y, z]', 'r0*(5*t0*tw[t, x, y, z] + 5*tw[t, x, y, z])', 'r0*t0']),
 ])
 def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
     counter = generator()
