@@ -1,6 +1,7 @@
-from sympy import sin  # noqa
+from sympy import Add, sin  # noqa
 import numpy as np
 import pytest
+from unittest.mock import patch
 
 from conftest import skipif, EVAL, x, y, z  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
@@ -242,6 +243,88 @@ def test_time_dependent_split(dse, dle):
 
     assert np.allclose(u.data[2, :, :], 3.0)
     assert np.allclose(v.data[1, 1:-1, 1:-1], 1.0)
+
+
+@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+def test_full_alias_shape_after_blocking():
+    """
+    Check the shape of the Array used to store a DSE-captured aliasing
+    expression. The shape is impacted by loop blocking, which reduces the
+    required write-to space.
+    """
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions  # noqa
+    t = grid.stepping_dim
+
+    f = Function(name='f', grid=grid)
+    f.data_with_halo[:] = 1.
+    u = TimeFunction(name='u', grid=grid, space_order=3)
+    u.data_with_halo[:] = 0.
+
+    # Leads to 3D aliases
+    eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                         (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
+    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
+    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
+
+    x0_blk_size = op1.parameters[6]
+    y0_blk_size = op1.parameters[10]
+    z_size = op1.parameters[-1]
+
+    # Check Array shape
+    arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]
+    assert len(arrays) == 1
+    a = arrays[0]
+    assert len(a.dimensions) == 3
+    assert a.halo == [(1, 1), (1, 1), (1, 1)]
+    assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 2
+    assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
+    assert Add(*a.symbolic_shape[2].args) == z_size + 2
+    # Check numerical output
+    op0(time_M=1)
+    exp = np.copy(u.data[:])
+    u.data_with_halo[:] = 0.
+    op1(time_M=1)
+    assert np.all(u.data == exp)
+
+
+@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+def test_contracted_alias_shape_after_blocking():
+    """
+    Like `test_full_alias_shape_after_blocking`, but a different
+    Operator is used, leading to contracted Arrays (2D instead of 3D).
+    """
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions  # noqa
+    t = grid.stepping_dim
+
+    f = Function(name='f', grid=grid)
+    f.data_with_halo[:] = 1.
+    u = TimeFunction(name='u', grid=grid, space_order=3)
+    u.data_with_halo[:] = 0.
+
+    # Leads to 2D aliases
+    eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x, y+1, z+1])*3*f +
+                         (u[t, x, y+2, z+2] + u[t, x, y+3, z+3])*3*f + 1))
+    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
+    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
+
+    y0_blk_size = op1.parameters[9]
+    z_size = op1.parameters[-1]
+
+    arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]
+    assert len(arrays) == 1
+    a = arrays[0]
+    assert len(a.dimensions) == 2
+    assert a.halo == [(1, 1), (1, 1)]
+    assert Add(*a.symbolic_shape[0].args) == y0_blk_size + 2
+    assert Add(*a.symbolic_shape[1].args) == z_size + 2
+    # Check numerical output
+    op0(time_M=1)
+    exp = np.copy(u.data[:])
+    u.data_with_halo[:] = 0.
+    op1(time_M=1)
+    assert np.all(u.data == exp)
 
 
 # Acoustic
