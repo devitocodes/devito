@@ -3,7 +3,8 @@ from collections import OrderedDict
 from sympy import collect, collect_const
 
 from devito.ir import FlowGraph
-from devito.symbolics import Eq, count, estimate_cost, q_op, q_leaf, xreplace_constrained
+from devito.symbolics import (Add, Mul, Eq, count, estimate_cost, q_op, q_leaf,
+                              xreplace_constrained)
 from devito.tools import ReducerMap
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'compact_temporaries']
@@ -55,11 +56,24 @@ def collect_nested(expr):
             w_coeffs = {i for i in args if any(j in coeffs for j in i.args)}
             args -= w_coeffs
 
-            # Build factorized `expr`
-            w_funcs = collect(expr.func(*w_funcs), funcs)
-            w_pows = collect(expr.func(*w_pows), pows)
+            # Collect common funcs
+            w_funcs = collect(expr.func(*w_funcs), funcs, evaluate=False)
+            try:
+                w_funcs = Add(*[Mul(*i) for i in w_funcs.items()])
+            except AttributeError:
+                assert w_funcs == 0
+
+            # Collect common pows
+            w_pows = collect(expr.func(*w_pows), pows, evaluate=False)
+            try:
+                w_pows = Add(*[Mul(*i) for i in w_pows.items()])
+            except AttributeError:
+                assert w_pows == 0
+
+            # Collect common coefficients
             w_coeffs = collect_const(expr.func(*w_coeffs))
-            rebuilt = expr.func(w_funcs, w_pows, w_coeffs, *args)
+
+            rebuilt = Add(w_funcs, w_pows, w_coeffs, *args)
 
             return rebuilt, {}
         elif expr.is_Mul:
@@ -67,6 +81,10 @@ def collect_nested(expr):
 
             # Always collect coefficients
             rebuilt = collect_const(expr.func(*args))
+            try:
+                rebuilt = Mul(*rebuilt.args)
+            except AttributeError:
+                pass
 
             return rebuilt, ReducerMap.fromdicts(*candidates)
         elif expr.is_Equality:
