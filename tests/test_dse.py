@@ -20,151 +20,6 @@ from examples.seismic.tti import AnisotropicWaveSolver
 pytestmark = skipif(['yask', 'ops'])
 
 
-# Acoustic
-
-def run_acoustic_forward(dse=None):
-    shape = (50, 50, 50)
-    spacing = (10., 10., 10.)
-    nbpml = 10
-    nrec = 101
-    t0 = 0.0
-    tn = 250.0
-
-    # Create two-layer model from preset
-    model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
-                       spacing=spacing, shape=shape, nbpml=nbpml)
-
-    # Source and receiver geometries
-    src_coordinates = np.empty((1, len(spacing)))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
-    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
-
-    rec_coordinates = np.empty((nrec, len(spacing)))
-    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
-
-    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=t0, tn=tn, src_type='Ricker', f0=0.010)
-
-    solver = AcousticWaveSolver(model, geometry, dse=dse, dle='noop')
-    rec, u, _ = solver.forward(save=False)
-
-    return u, rec
-
-
-def test_acoustic_rewrite_basic():
-    ret1 = run_acoustic_forward(dse=None)
-    ret2 = run_acoustic_forward(dse='basic')
-
-    assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
-    assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
-
-
-# TTI
-
-def tti_operator(dse=False, dle='advanced', space_order=4):
-    nrec = 101
-    t0 = 0.0
-    tn = 250.
-    nbpml = 10
-    shape = (50, 50, 50)
-    spacing = (20., 20., 20.)
-
-    # Two layer model for true velocity
-    model = demo_model('layers-tti', ratio=3, nbpml=nbpml, space_order=space_order,
-                       shape=shape, spacing=spacing)
-
-    # Source and receiver geometries
-    src_coordinates = np.empty((1, len(spacing)))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
-    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
-
-    rec_coordinates = np.empty((nrec, len(spacing)))
-    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
-
-    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=t0, tn=tn, src_type='Gabor', f0=0.010)
-
-    return AnisotropicWaveSolver(model, geometry, space_order=space_order, dse=dse)
-
-
-@pytest.fixture(scope="session")
-def tti_nodse():
-    operator = tti_operator(dse=None)
-    rec, u, v, _ = operator.forward()
-    return v, rec
-
-
-def test_tti_rewrite_basic(tti_nodse):
-    operator = tti_operator(dse='basic')
-    rec, u, v, _ = operator.forward()
-
-    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-3)
-    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
-
-
-def test_tti_rewrite_advanced(tti_nodse):
-    operator = tti_operator(dse='advanced')
-    rec, u, v, _ = operator.forward()
-
-    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
-    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
-
-
-def test_tti_rewrite_aggressive(tti_nodse):
-    operator = tti_operator(dse='aggressive')
-    rec, u, v, _ = operator.forward(kernel='centered', save=False)
-
-    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
-    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
-
-    # Also check that DLE's loop blocking with DSE=aggressive does the right thing
-    # There should be exactly two BlockDimensions; bugs in the past were generating
-    # either code with no blocking (zero BlockDimensions) or code with four
-    # BlockDimensions (i.e., Iteration folding was somewhat broken)
-    op = operator.op_fwd(kernel='centered', save=False)
-    block_dims = [i for i in op.dimensions if isinstance(i, BlockDimension)]
-    assert len(block_dims) == 2
-
-    # Also, in this operator, we expect six temporary Arrays:
-    # * four Arrays are allocated on the heap
-    # * two Arrays are allocated on the stack and only appear within an efunc
-    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-    assert len(arrays) == 3
-    assert all(i._mem_heap and not i._mem_external for i in arrays)
-    arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root) if i.is_Array]
-    assert len(arrays) == 5
-    assert all(not i._mem_external for i in arrays)
-    assert len([i for i in arrays if i._mem_heap]) == 3
-    assert len([i for i in arrays if i._mem_stack]) == 2
-
-
-@skipif(['nompi'])
-@pytest.mark.parallel(mode=[(1, 'full')])
-def test_tti_rewrite_aggressive_wmpi():
-    tti_nodse = tti_operator(dse=None)
-    rec0, u0, v0, _ = tti_nodse.forward(kernel='centered', save=False)
-    tti_agg = tti_operator(dse='aggressive')
-    rec1, u1, v1, _ = tti_agg.forward(kernel='centered', save=False)
-
-    assert np.allclose(v0.data, v1.data, atol=10e-1)
-    assert np.allclose(rec0.data, rec1.data, atol=10e-1)
-
-
-@switchconfig(profiling='advanced')
-@pytest.mark.parametrize('kernel,space_order,expected', [
-    ('centered', 8, 148), ('centered', 16, 264)
-])
-def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
-    operator = tti_operator(dse='aggressive', space_order=space_order)
-    _, _, _, summary = operator.forward(kernel=kernel, save=False)
-    assert summary['section1'].ops == expected
-
-
-# DSE manipulation
-
-
 def test_scheduling_after_rewrite():
     """Tests loop scheduling after DSE-induced expression hoisting."""
     grid = Grid((10, 10))
@@ -387,3 +242,145 @@ def test_time_dependent_split(dse, dle):
 
     assert np.allclose(u.data[2, :, :], 3.0)
     assert np.allclose(v.data[1, 1:-1, 1:-1], 1.0)
+
+
+# Acoustic
+
+def run_acoustic_forward(dse=None):
+    shape = (50, 50, 50)
+    spacing = (10., 10., 10.)
+    nbpml = 10
+    nrec = 101
+    t0 = 0.0
+    tn = 250.0
+
+    # Create two-layer model from preset
+    model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
+                       spacing=spacing, shape=shape, nbpml=nbpml)
+
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
+
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
+
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Ricker', f0=0.010)
+
+    solver = AcousticWaveSolver(model, geometry, dse=dse, dle='noop')
+    rec, u, _ = solver.forward(save=False)
+
+    return u, rec
+
+
+def test_acoustic_rewrite_basic():
+    ret1 = run_acoustic_forward(dse=None)
+    ret2 = run_acoustic_forward(dse='basic')
+
+    assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
+    assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
+
+
+# TTI
+
+def tti_operator(dse=False, dle='advanced', space_order=4):
+    nrec = 101
+    t0 = 0.0
+    tn = 250.
+    nbpml = 10
+    shape = (50, 50, 50)
+    spacing = (20., 20., 20.)
+
+    # Two layer model for true velocity
+    model = demo_model('layers-tti', ratio=3, nbpml=nbpml, space_order=space_order,
+                       shape=shape, spacing=spacing)
+
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
+
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
+
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Gabor', f0=0.010)
+
+    return AnisotropicWaveSolver(model, geometry, space_order=space_order, dse=dse)
+
+
+@pytest.fixture(scope="session")
+def tti_nodse():
+    operator = tti_operator(dse=None)
+    rec, u, v, _ = operator.forward()
+    return v, rec
+
+
+def test_tti_rewrite_basic(tti_nodse):
+    operator = tti_operator(dse='basic')
+    rec, u, v, _ = operator.forward()
+
+    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-3)
+    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
+
+
+def test_tti_rewrite_advanced(tti_nodse):
+    operator = tti_operator(dse='advanced')
+    rec, u, v, _ = operator.forward()
+
+    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
+    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
+
+
+def test_tti_rewrite_aggressive(tti_nodse):
+    operator = tti_operator(dse='aggressive')
+    rec, u, v, _ = operator.forward(kernel='centered', save=False)
+
+    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
+    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
+
+    # Also check that DLE's loop blocking with DSE=aggressive does the right thing
+    # There should be exactly two BlockDimensions; bugs in the past were generating
+    # either code with no blocking (zero BlockDimensions) or code with four
+    # BlockDimensions (i.e., Iteration folding was somewhat broken)
+    op = operator.op_fwd(kernel='centered', save=False)
+    block_dims = [i for i in op.dimensions if isinstance(i, BlockDimension)]
+    assert len(block_dims) == 2
+
+    # Also, in this operator, we expect six temporary Arrays:
+    # * four Arrays are allocated on the heap
+    # * two Arrays are allocated on the stack and only appear within an efunc
+    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+    assert len(arrays) == 3
+    assert all(i._mem_heap and not i._mem_external for i in arrays)
+    arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root) if i.is_Array]
+    assert len(arrays) == 5
+    assert all(not i._mem_external for i in arrays)
+    assert len([i for i in arrays if i._mem_heap]) == 3
+    assert len([i for i in arrays if i._mem_stack]) == 2
+
+
+@skipif(['nompi'])
+@pytest.mark.parallel(mode=[(1, 'full')])
+def test_tti_rewrite_aggressive_wmpi():
+    tti_nodse = tti_operator(dse=None)
+    rec0, u0, v0, _ = tti_nodse.forward(kernel='centered', save=False)
+    tti_agg = tti_operator(dse='aggressive')
+    rec1, u1, v1, _ = tti_agg.forward(kernel='centered', save=False)
+
+    assert np.allclose(v0.data, v1.data, atol=10e-1)
+    assert np.allclose(rec0.data, rec1.data, atol=10e-1)
+
+
+@switchconfig(profiling='advanced')
+@pytest.mark.parametrize('kernel,space_order,expected', [
+    ('centered', 8, 148), ('centered', 16, 264)
+])
+def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
+    operator = tti_operator(dse='aggressive', space_order=space_order)
+    _, _, _, summary = operator.forward(kernel=kernel, save=False)
+    assert summary['section1'].ops == expected
