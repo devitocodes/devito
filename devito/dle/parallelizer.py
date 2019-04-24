@@ -3,8 +3,6 @@ import os
 
 import numpy as np
 import cgen as c
-from functools import reduce
-from operator import mul
 from sympy import Function, Or
 
 from devito.ir import (Call, Conditional, Block, Expression, List, Prodder,
@@ -12,7 +10,7 @@ from devito.ir import (Call, Conditional, Block, Expression, List, Prodder,
                        IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq
 from devito.parameters import configuration
-from devito.tools import is_integer
+from devito.tools import is_integer, prod
 from devito.types import Constant, Symbol
 
 
@@ -161,8 +159,9 @@ class Ompizer(object):
                 if i.is_Vectorizable:
                     break
 
+                # Would there be enough work per parallel iteration?
                 try:
-                    work = reduce(mul, [int(j.dim.symbolic_size) for j in candidates[n:]])
+                    work = prod([int(j.dim.symbolic_size) for j in candidates[n+1:]])
                     if work < Ompizer.COLLAPSE_WORK:
                         break
                 except TypeError:

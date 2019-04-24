@@ -287,6 +287,7 @@ class TestNodeParallelism(object):
         ('Eq(u, 2*u)', [3, 0, 0, 0, 0, 0], True)
     ])
     @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
+    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_WORK", 0)
     def test_collapsing(self, eq, expected, blocking):
         grid = Grid(shape=(3, 3, 3))
 
@@ -362,6 +363,7 @@ class TestNestedParallelism(object):
 
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
     @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
+    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_WORK", 0)
     def test_collapsing(self):
         grid = Grid(shape=(3, 3, 3))
 
