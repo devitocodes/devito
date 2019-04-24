@@ -115,7 +115,7 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
             if flag and costmodel(base):
                 return expr.func(replace(base), expr.exp, evaluate=False), False
             else:
-                return expr.func(base, expr.exp, evaluate=False), flag
+                return expr.func(base, expr.exp, evaluate=False), rule(expr)
         else:
             children = [run(a) for a in expr.args]
             matching = [a for a, flag in children if flag]

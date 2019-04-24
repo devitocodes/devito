@@ -8,8 +8,8 @@ from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunctio
 from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree  # noqa
 from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
-from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
-                              estimate_cost, pow_to_mul)
+from devito.symbolics import (xreplace_constrained, iq_timeinvariant, estimate_cost,
+                              pow_to_mul)
 from devito.tools import generator
 from devito.types import Scalar
 
@@ -207,32 +207,6 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
     make = lambda: Scalar(name='r%d' % counter()).indexify()
     processed, found = xreplace_constrained(exprs, make,
                                             iq_timeinvariant(FlowGraph(exprs)),
-                                            lambda i: estimate_cost(i) > 0)
-    assert len(found) == len(expected)
-    assert all(str(i.rhs) == j for i, j in zip(found, expected))
-
-
-@pytest.mark.parametrize('exprs,expected', [
-    # simple
-    (['Eq(ti0, 3.)', 'Eq(tv, 2.4)', 'Eq(tu, tv + 5. + ti0)'],
-     ['tv[t, x, y, z] + 5.0']),
-    # more ops
-    (['Eq(tv, 2.4)', 'Eq(tw, tv*2.3)', 'Eq(ti1, 4.)', 'Eq(ti0, 3. + ti1)',
-      'Eq(tu, tv*tw*4.*ti0 + ti1*tv)'],
-     ['4.0*tv[t, x, y, z]*tw[t, x, y, z]']),
-    # wrapped
-    (['Eq(tv, 2.4)', 'Eq(tw, tv*tw*2.3)', 'Eq(ti1, 4.)', 'Eq(ti0, 3. + ti1)',
-      'Eq(tu, ((tv + 4.)*ti0*ti1 + (tv + tw)/3.)*ti1*t0)'],
-     ['tv[t, x, y, z] + 4.0',
-      '0.333333333333333*tv[t, x, y, z] + 0.333333333333333*tw[t, x, y, z]']),
-])
-def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
-                                           exprs, expected):
-    exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
-    counter = generator()
-    make = lambda: Scalar(name='r%d' % counter()).indexify()
-    processed, found = xreplace_constrained(exprs, make,
-                                            iq_timevarying(FlowGraph(exprs)),
                                             lambda i: estimate_cost(i) > 0)
     assert len(found) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
