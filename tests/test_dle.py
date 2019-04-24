@@ -5,8 +5,9 @@ import numpy as np
 import pytest
 
 from conftest import EVAL, skipif
-from devito import Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operator, solve
-from devito.dle import NThreads, transform
+from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
+                    Eq, Operator, solve)
+from devito.dle import BlockDimension, NThreads, transform
 from devito.dle.parallelizer import nhyperthreads
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
@@ -129,6 +130,37 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     expected_guarded = tree[:2+blockinner]
     assert len(conds) == len(expected_guarded)
     assert all(i.lhs == j.step for i, j in zip(conds, expected_guarded))
+
+
+def test_cache_blocking_structure_subdims():
+    """
+    Test that:
+
+        * With local SubDimensions no-blocking is expected.
+        * With non-local SubDimensions, blocking is expected.
+    """
+    grid = Grid(shape=(4, 4, 4))
+    x, y, z = grid.dimensions
+    t = grid.stepping_dim
+    xl = SubDimension.left(name='xl', parent=x, thickness=4)
+
+    f = TimeFunction(name='f', grid=grid)
+
+    assert xl.local
+
+    # Local SubDimension -> no blocking expected
+    op = Operator(Eq(f[t+1, xl, y, z], f[t, xl, y, z] + 1))
+    assert len(op._func_table) == 0
+
+    # Non-local SubDimension -> blocking expected
+    op = Operator(Eq(f.forward, f + 1, subdomain=grid.interior))
+    trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+    assert len(trees) == 1
+    tree = trees[0]
+    assert len(tree) == 5
+    assert isinstance(tree[0].dim, BlockDimension) and tree[0].dim.root is x
+    assert isinstance(tree[1].dim, BlockDimension) and tree[1].dim.root is y
+    assert not isinstance(tree[2].dim, BlockDimension)
 
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (10, 31, 45)])
