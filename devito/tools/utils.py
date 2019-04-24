@@ -14,8 +14,8 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'r
            'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep']
 
 
-def prod(iterable):
-    return reduce(mul, iterable, 1)
+def prod(iterable, initial=1):
+    return reduce(mul, iterable, initial)
 
 
 def as_tuple(item, type=None, length=None):
