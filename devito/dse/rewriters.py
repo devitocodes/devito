@@ -12,9 +12,9 @@ from devito.dse.aliases import collect
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
-                              iq_timeinvariant, iq_timevarying, pow_to_mul,
-                              retrieve_indexed, q_affine, q_leaf, q_scalar,
-                              q_sum_of_product, q_terminalop, xreplace_constrained)
+                              iq_timeinvariant, pow_to_mul, retrieve_indexed,
+                              q_affine, q_leaf, q_scalar, q_sum_of_product,
+                              q_terminalop, xreplace_constrained)
 from devito.tools import flatten, generator
 from devito.types import Array, Scalar
 
@@ -370,8 +370,7 @@ class AdvancedRewriter(BasicRewriter):
 class AggressiveRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
-        # Three CIRE phases, progressively searching for less structure
-        self._extract_time_varying(state)
+        self._extract_sum_of_products(state)
         self._extract_time_invariants(state, with_cse=False)
         self._eliminate_inter_stencil_redundancies(state)
 
@@ -381,21 +380,6 @@ class AggressiveRewriter(AdvancedRewriter):
 
         self._factorize(state)
         self._eliminate_intra_stencil_redundancies(state)
-
-    @dse_pass
-    def _extract_time_varying(self, cluster, template, **kwargs):
-        """
-        Extract time-varying subexpressions, and assign them to temporaries.
-        Time varying subexpressions arise for example when approximating
-        derivatives through finite differences.
-        """
-
-        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        rule = iq_timevarying(cluster.flowgraph)
-        costmodel = lambda i: estimate_cost(i) > 0
-        processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
-
-        return cluster.rebuild(processed)
 
     @dse_pass
     def _extract_sum_of_products(self, cluster, template, **kwargs):
