@@ -11,6 +11,7 @@ from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Clust
 from devito.dse.aliases import collect
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
+from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               iq_timeinvariant, pow_to_mul, retrieve_indexed,
                               q_affine, q_leaf, q_scalar, q_sum_of_product,
@@ -329,8 +330,21 @@ class AdvancedRewriter(BasicRewriter):
                 # we can contract the iteration space (e.g., [t, x, y] -> [x, y])
                 ispace = ispace.project(lambda i: not i.is_Time)
 
-            # Determine the write-to space
-            writeto = IntervalGroup(i for i in ispace.intervals if not i.dim.is_Time)
+                # The write-to space
+                writeto = ispace.intervals
+            else:
+                # The write-to space
+                writeto = IntervalGroup(i for i in ispace.intervals if not i.dim.is_Time)
+
+                # Optimization: no need to retain a SpaceDimension if it does not
+                # induce a flow/anti dependence (below, `i.limits` captures this, by
+                # telling how much halo will be needed to honour such dependences)
+                dep_inducing = [i for i in writeto if any(i.limits)]
+                try:
+                    index = writeto.index(dep_inducing[0])
+                    writeto = IntervalGroup(writeto[index:])
+                except IndexError:
+                    warning("Failed optimisation of detected redundancies")
 
             # Create a temporary to store `alias`
             halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
