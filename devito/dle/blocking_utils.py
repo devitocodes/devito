@@ -175,29 +175,30 @@ def optimize_unfolded_tree(unfolded, root):
             root = compose_nodes(root)
             continue
 
+        # Shrink the iteration space
         modified_tree = []
         modified_root = []
+        modified_dims = {}
         mapper = {}
+        for t, r in zip(tree, root):
+            udim = IncrDimension(t.dim, t.symbolic_min, 1, "%ss%d" % (t.index, i))
+            modified_tree.append(t._rebuild(limits=(0, t.limits[1] - t.limits[0], t.step),
+                                            uindices=t.uindices + (udim,)))
 
-        # "Shrink" the iteration space
-        for t1, t2 in zip(tree, root):
-            t1_udim = IncrDimension(t1.dim, t1.symbolic_min, 1, "%ss%d" % (t1.index, i))
-            limits = (0, t1.limits[1] - t1.limits[0], t1.step)
-            modified_tree.append(t1._rebuild(limits=limits,
-                                             uindices=t1.uindices + (t1_udim,)))
+            mapper[t.dim] = udim
 
-            t2_udim = IncrDimension(t1.dim, 0, 1, "%ss%d" % (t1.index, i))
-            modified_root.append(t2._rebuild(uindices=t2.uindices + (t2_udim,)))
+            udim = IncrDimension(t.dim, 0, 1, "%ss%d" % (t.index, i))
+            modified_root.append(r._rebuild(uindices=r.uindices + (udim,)))
 
-            mapper[t1.dim] = t1_udim
+            d = r.limits[0]
+            assert isinstance(d, BlockDimension)
+            modified_dims[d.parent] = d
 
         # Temporary arrays can now be moved onto the stack
-        dimensions = tuple(j.limits[0] for j in modified_root)
-        for j in writes:
-            if j.is_Array:
-                j_dimensions = dimensions + j.dimensions[len(modified_root):]
-                j_shape = tuple(k.symbolic_size for k in j_dimensions)
-                j.update(shape=j_shape, dimensions=j_dimensions, scope='stack')
+        for w in writes:
+            dims = tuple(modified_dims.get(d, d) for d in w.dimensions)
+            shape = tuple(d.symbolic_size for d in dims)
+            w.update(shape=shape, dimensions=dims, scope='stack')
 
         # Substitute iteration variables within the folded trees
         modified_tree = compose_nodes(modified_tree)
