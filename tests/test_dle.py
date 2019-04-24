@@ -435,8 +435,8 @@ class TestNestedParallelism(object):
         f = Function(name='f', grid=grid)
         u = TimeFunction(name='u', grid=grid)
 
-        eqn = Eq(u.forward, (u[t, x, y, z]*u[t, x+1, y+1, z+1]*3*f +
-                             u[t, x+2, y+2, z+2]*u[t, x+3, y+3, z+3]*3*f + 1))
+        eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
         op = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
