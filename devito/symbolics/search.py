@@ -1,8 +1,8 @@
-from devito.symbolics.queries import (q_indexed, q_function, q_terminal,
-                                      q_leaf, q_op, q_trigonometry)
+from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf, q_xop,
+                                      q_trigonometry)
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_ops', 'retrieve_trigonometry', 'search']
+           'retrieve_terminals', 'retrieve_xops', 'retrieve_trigonometry', 'search']
 
 
 class Search(object):
@@ -160,6 +160,6 @@ def retrieve_trigonometry(expr):
     return search(expr, q_trigonometry, 'unique', 'dfs')
 
 
-def retrieve_ops(expr):
+def retrieve_xops(expr):
     """Shorthand to retrieve the arithmetic operations within ``expr``."""
-    return search(expr, q_op, 'all', 'dfs')
+    return search(expr, q_xop, 'all', 'dfs')

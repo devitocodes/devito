@@ -1,8 +1,8 @@
 from collections import Counter
 
-from sympy import cos, sin
+from sympy import cos, sin, exp, log
 
-from devito.symbolics.search import retrieve_ops, search
+from devito.symbolics.search import retrieve_xops, search
 from devito.logger import warning
 from devito.tools import as_tuple, flatten
 
@@ -20,18 +20,23 @@ def count(exprs, query):
     return dict(mapper)
 
 
-def estimate_cost(exprs, estimate_functions=False):
+def estimate_cost(exprs, estimate=False):
     """
     Estimate the operation count of an expression.
+
 
     Parameters
     ----------
     exprs : expr-like or list of expr-like
         One or more expressions for which the operation count is calculated.
-    estimate_functions : dict, optional
-        A mapper from known functions (e.g., sin, cos) to (estimated) operation counts.
+    estimate : bool, optional
+        Defaults to False; if True, the following rules are applied:
+            * Trascendental functions (e.g., cos, sin, ...) count as 50 ops.
+            * Divisions (powers with a negative exponened) count as 25 ops.
     """
-    external_functions = {sin: 50, cos: 50}
+    trascendentals_cost = {sin: 50, cos: 50, exp: 50, log: 50}
+    div_cost = 25
+
     try:
         # Is it a plain symbol/array ?
         if exprs.is_AbstractFunction or exprs.is_AbstractSymbol:
@@ -53,12 +58,17 @@ def estimate_cost(exprs, estimate_functions=False):
         # (e.g., array index functions such as i+1 in A[i+1])
         # Also, the routine below is *much* faster than count_ops
         exprs = [i.rhs if i.is_Equality else i for i in as_tuple(exprs)]
-        operations = flatten(retrieve_ops(i) for i in exprs)
+        operations = flatten(retrieve_xops(i) for i in exprs)
         flops = 0
         for op in operations:
             if op.is_Function:
-                if estimate_functions:
-                    flops += external_functions.get(op.__class__, 1)
+                if estimate:
+                    flops += trascendentals_cost.get(op.__class__, 1)
+                else:
+                    flops += 1
+            elif op.is_Pow:
+                if estimate and op.exp.is_Number and op.exp < 0:
+                    flops += div_cost
                 else:
                     flops += 1
             else:
