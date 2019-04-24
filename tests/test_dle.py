@@ -109,7 +109,16 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     assert len(calls) == exp_calls
     trees = retrieve_iteration_tree(op._func_table['bf0'].root)
     assert len(trees) == 1
-    assert len(trees[0]) == exp_iters
+    tree = trees[0]
+    assert len(tree) == exp_iters
+    assert isinstance(tree[0].dim, BlockDimension)
+    assert isinstance(tree[1].dim, BlockDimension)
+    if blockinner:
+        assert isinstance(tree[2].dim, BlockDimension)
+    else:
+        assert not isinstance(tree[2].dim, BlockDimension)
+    assert not isinstance(tree[3].dim, BlockDimension)
+    assert not isinstance(tree[4].dim, BlockDimension)
 
     # Check presence of openmp pragmas at the right place
     _, op = _new_operator1((10, 31, 45), dle=('blocking',
