@@ -348,7 +348,8 @@ class AdvancedRewriter(BasicRewriter):
 
             # Create a temporary to store `alias`
             halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
-            function = Array(name=template(), dimensions=writeto.dimensions, halo=halo)
+            function = Array(name=template(), dimensions=writeto.dimensions, halo=halo,
+                             dtype=cluster.dtype)
 
             # Build up the expression evaluating `alias`
             access = tuple(i.dim - i.lower for i in writeto)
