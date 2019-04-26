@@ -56,16 +56,19 @@ def q_xop(expr):
 
 
 def q_terminalop(expr):
-    from devito.symbolics.manipulation import as_symbol
-    if not q_op(expr):
-        return False
-    else:
+    if q_op(expr):
         for a in expr.args:
-            try:
-                as_symbol(a)
-            except TypeError:
+            if a.is_Pow:
+                elems = a.args
+            else:
+                elems = [a]
+            if any(not q_leaf(i) for i in elems):
                 return False
         return True
+    elif expr.is_Pow:
+        return all(q_leaf(i) for i in expr.args)
+    else:
+        return False
 
 
 def q_sum_of_product(expr):
