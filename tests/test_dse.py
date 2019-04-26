@@ -330,6 +330,53 @@ def test_contracted_alias_shape_after_blocking():
     assert np.all(u.data == exp)
 
 
+def test_alias_composite():
+    """
+    Check that composite alias are optimized away through "smaller" aliases.
+
+    Examples
+    --------
+    Instead of the following:
+
+        t0 = a[x, y]
+        t1 = b[x, y]
+        t2 = a[x+1, y+1]*b[x, y]
+        out = t0 + t1 + t2  # pseudocode
+
+    We should get:
+
+        t0 = a[x, y]
+        t1 = b[x, y]
+        out = t0 + t1 + t0[x+1,y+1]*t1[x, y]  # pseudocode
+    """
+    grid = Grid(shape=(3, 3))
+    x, y = grid.dimensions  # noqa
+
+    u = TimeFunction(name='u', grid=grid)
+    u.data[:] = 1.
+    g = Function(name='g', grid=grid)
+    g.data[:] = 2.
+
+    expr = (cos(g)*cos(g) +
+            sin(g)*sin(g) +
+            sin(g)*cos(g) +
+            sin(g[x + 1, y + 1])*cos(g[x + 1, y + 1]))*u
+
+    op0 = Operator(Eq(u.forward, expr), dse='noop')
+    op1 = Operator(Eq(u.forward, expr), dse='aggressive')
+
+    # We expect two temporary Arrays, one for `cos(g)` and one for `sin(g)`
+    arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    assert len(arrays) == 2
+    assert all(i._mem_heap and not i._mem_external for i in arrays)
+    # Check numerical output
+    op0(time_M=1)
+    exp = np.copy(u.data[:])
+    u.data[:] = 1.
+    op1(time_M=1)
+    assert np.allclose(u.data, exp.data, rtol=10e-7)
+
+
 # Acoustic
 
 def run_acoustic_forward(dse=None):
