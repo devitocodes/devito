@@ -7,7 +7,7 @@ import psutil
 
 from devito.archinfo import KNL
 from devito.dle import BlockDimension
-from devito.ir import Backward, retrieve_iteration_tree
+from devito.ir import Backward, Forward, retrieve_iteration_tree
 from devito.logger import perf, warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
@@ -207,11 +207,14 @@ def init_time_bounds(stepper, at_args):
         if at_args[dim.max_name] < at_args[dim.min_name]:
             warning("too few time iterations; skipping")
             return False
-    else:
+    elif stepper.direction == Forward:
         at_args[dim.max_name] = at_args[dim.min_name] + options['squeezer']
         if at_args[dim.min_name] > at_args[dim.max_name]:
             warning("too few time iterations; skipping")
             return False
+    else:
+        warning("could not determine direction; skipping")
+        return False
 
     return stepper.size(at_args[dim.min_name], at_args[dim.max_name])
 
