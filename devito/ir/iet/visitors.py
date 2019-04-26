@@ -20,6 +20,8 @@ __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapSections', 'MapNodes'
            'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer',
            'FindAdjacent']
 
+#  class BlockIterations(Visitor): 
+
 
 class Visitor(GenericVisitor):
 

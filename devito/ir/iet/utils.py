@@ -9,6 +9,7 @@ from devito.types import Array, LocalObject
 __all__ = ['filter_iterations', 'retrieve_iteration_tree',
            'compose_nodes', 'derive_parameters', 'find_affine_trees']
 
+# Maybe some minor ...to examine
 
 def retrieve_iteration_tree(node, mode='normal'):
     """

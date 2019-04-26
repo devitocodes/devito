@@ -4,3 +4,5 @@ from devito.dse.backends.advanced import AdvancedRewriter  # noqa
 from devito.dse.backends.speculative import (SpeculativeRewriter,  # noqa
                                              AggressiveRewriter,
                                              CustomRewriter)
+
+# SkewingRewriter

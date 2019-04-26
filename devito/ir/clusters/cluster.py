@@ -10,6 +10,7 @@ from devito.tools import as_tuple
 
 __all__ = ["Cluster", "ClusterGroup"]
 
+# Handling of skewed loops to be added
 
 class PartialCluster(object):
 

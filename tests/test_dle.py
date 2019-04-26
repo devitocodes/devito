@@ -17,6 +17,8 @@ from unittest.mock import patch
 pytestmark = skipif(['yask', 'ops'])
 
 
+# Tests for DLE will be needed
+
 def get_blocksizes(op, dle, grid, blockshape):
     blocksizes = {'%s0_blk_size' % d: v for d, v in zip(grid.dimensions, blockshape)}
     blocksizes = {k: v for k, v in blocksizes.items() if k in op._known_arguments}

@@ -8,6 +8,10 @@ from devito.tools import flatten
 __all__ = ['dse_registry', 'rewrite']
 
 
+# Skewing rewriter
+
+#
+
 dse_registry = ('basic', 'advanced', 'speculative', 'aggressive')
 
 modes = {

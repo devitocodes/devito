@@ -25,6 +25,8 @@ from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_ordered,
 __all__ = ['Operator']
 
 
+# To build skewed iterations
+
 class Operator(Callable):
 
     """

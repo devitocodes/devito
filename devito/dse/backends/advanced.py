@@ -10,6 +10,7 @@ from devito.dse.manipulation import (common_subexprs_elimination, collect_nested
                                      compact_temporaries)
 from devito.types import Array, Scalar
 
+# class SkewingRewriter(AdvancedRewriter): 
 
 class AdvancedRewriter(BasicRewriter):
 

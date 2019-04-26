@@ -10,6 +10,8 @@ from devito.types import Scalar
 __all__ = ['clusterize', 'groupby']
 
 
+# clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
+
 def groupby(clusters):
     """
     Group PartialClusters together to create "fatter" PartialClusters

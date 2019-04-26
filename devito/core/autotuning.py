@@ -17,6 +17,7 @@ from devito.tools import filter_ordered, flatten, prod
 
 __all__ = ['autotune']
 
+# autotuning for skewing
 
 def autotune(operator, args, level, mode):
     """

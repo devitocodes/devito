@@ -16,6 +16,8 @@ __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state
 # be made immutable. It shall only be written to at application startup
 # and never modified.
 
+# Parameterization to env_vars_mapper = {...}
+
 
 class Parameters(OrderedDict, Signer):
     """
