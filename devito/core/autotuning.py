@@ -202,7 +202,7 @@ def init_time_bounds(stepper, at_args):
     if stepper is None:
         return
     dim = stepper.dim.root
-    if stepper.direction is Backward:
+    if stepper.direction == Backward:
         at_args[dim.min_name] = at_args[dim.max_name] - options['squeezer']
         if at_args[dim.max_name] < at_args[dim.min_name]:
             warning("too few time iterations; skipping")
@@ -220,7 +220,7 @@ def check_time_bounds(stepper, at_args, args, mode):
     if mode != 'runtime' or stepper is None:
         return True
     dim = stepper.dim.root
-    if stepper.direction is Backward:
+    if stepper.direction == Backward:
         if at_args[dim.min_name] < args[dim.min_name]:
             warning("too few time iterations; stopping")
             return False
@@ -235,7 +235,7 @@ def update_time_bounds(stepper, at_args, timesteps, mode):
     if mode != 'runtime' or stepper is None:
         return
     dim = stepper.dim.root
-    if stepper.direction is Backward:
+    if stepper.direction == Backward:
         at_args[dim.max_name] -= timesteps
         at_args[dim.min_name] -= timesteps
     else:
@@ -247,7 +247,7 @@ def finalize_time_bounds(stepper, at_args, args, mode):
     if mode != 'runtime' or stepper is None:
         return
     dim = stepper.dim.root
-    if stepper.direction is Backward:
+    if stepper.direction == Backward:
         args[dim.max_name] = at_args[dim.max_name]
         args[dim.min_name] = args[dim.min_name]
     else:
