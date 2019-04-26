@@ -192,32 +192,28 @@ associated some coordinates.
 A SparseTimeFunction provides symbolic interpolation routines to convert
 between TimeFunctions and sparse data points. These are based upon standard
 [bi,tri]linear interpolation.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> (<em>str</em>) – Name of the symbol.</li>
-<li><strong>npoint</strong> (<em>int</em>) – Number of sparse points.</li>
-<li><strong>nt</strong> (<em>int</em>) – Number of timesteps along the time dimension.</li>
-<li><strong>grid</strong> (<a class="reference internal" href="grid.html#devito.types.Grid" title="devito.types.Grid"><em>Grid</em></a>) – The computational domain from which the sparse points are sampled.</li>
-<li><strong>coordinates</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – The coordinates of each sparse point.</li>
-<li><strong>space_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretisation order for space derivatives. Defaults to 0.</li>
-<li><strong>time_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretisation order for time derivatives. Defaults to 1.</li>
-<li><strong>shape</strong> (<em>tuple of ints</em><em>, </em><em>optional</em>) – Shape of the object. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoint)</span></code>.</li>
-<li><strong>dimensions</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Dimensions associated with the object. Only necessary if the SparseFunction
-defines a multi-dimensional tensor.</li>
-<li><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
-to <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</li>
-<li><strong>initializer</strong> (<em>callable</em><em> or </em><em>any object exposing the buffer interface</em><em>, </em><em>optional</em>) – Data initializer. If a callable is provided, data is allocated lazily.</li>
-<li><strong>allocator</strong> (<em>MemoryAllocator</em><em>, </em><em>optional</em>) – Controller for memory allocation. To be used, for example, when one wants
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the symbol.</p></li>
+<li><p><strong>npoint</strong> (<em>int</em>) – Number of sparse points.</p></li>
+<li><p><strong>nt</strong> (<em>int</em>) – Number of timesteps along the time dimension.</p></li>
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#devito.types.Grid" title="devito.types.Grid"><em>Grid</em></a>) – The computational domain from which the sparse points are sampled.</p></li>
+<li><p><strong>coordinates</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – The coordinates of each sparse point.</p></li>
+<li><p><strong>space_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretisation order for space derivatives. Defaults to 0.</p></li>
+<li><p><strong>time_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretisation order for time derivatives. Defaults to 1.</p></li>
+<li><p><strong>shape</strong> (<em>tuple of ints</em><em>, </em><em>optional</em>) – Shape of the object. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoint)</span></code>.</p></li>
+<li><p><strong>dimensions</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Dimensions associated with the object. Only necessary if the SparseFunction
+defines a multi-dimensional tensor.</p></li>
+<li><p><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
+to <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</p></li>
+<li><p><strong>initializer</strong> (<em>callable</em><em> or </em><em>any object exposing the buffer interface</em><em>, </em><em>optional</em>) – Data initializer. If a callable is provided, data is allocated lazily.</p></li>
+<li><p><strong>allocator</strong> (<em>MemoryAllocator</em><em>, </em><em>optional</em>) – Controller for memory allocation. To be used, for example, when one wants
 to take advantage of the memory hierarchy in a NUMA architecture. Refer to
-<cite>default_allocator.__doc__</cite> for more information.</li>
+<cite>default_allocator.__doc__</cite> for more information.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p class="rubric">Examples</p>
 <p>Creation</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">SparseTimeFunction</span>
@@ -329,61 +325,49 @@ sparse points.</p>
 by an Operator only if certain conditions are met.  The introduced
 condition, here, is that all grid points in the support of a sparse
 value must fall within the grid domain (i.e., <em>not</em> on the halo).</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>expr</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Input expression, from which the guarded expression is derived.
-If not specified, defaults to <code class="docutils literal notranslate"><span class="pre">self</span></code>.</li>
-<li><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Relax the guard condition by introducing a tolerance offset.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>expr</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Input expression, from which the guarded expression is derived.
+If not specified, defaults to <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p></li>
+<li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Relax the guard condition by introducing a tolerance offset.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.types.SparseTimeFunction.inject">
 <code class="descname">inject</code><span class="sig-paren">(</span><em>field</em>, <em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction.inject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.SparseTimeFunction.inject" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate equations injecting an arbitrary expression into a field.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>field</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input field into which the injection is performed.</li>
-<li><strong>expr</strong> (<em>expr-like</em>) – Injected expression.</li>
-<li><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Additional offset from the boundary.</li>
-<li><strong>u_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the interpolation is performed.</li>
-<li><strong>p_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the result of the interpolation is stored.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>field</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input field into which the injection is performed.</p></li>
+<li><p><strong>expr</strong> (<em>expr-like</em>) – Injected expression.</p></li>
+<li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Additional offset from the boundary.</p></li>
+<li><p><strong>u_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the interpolation is performed.</p></li>
+<li><p><strong>p_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the result of the interpolation is stored.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.types.SparseTimeFunction.interpolate">
 <code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>u_t=None</em>, <em>p_t=None</em>, <em>increment=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.SparseTimeFunction.interpolate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate equations interpolating an arbitrary expression into <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>expr</strong> (<em>expr-like</em>) – Input expression to interpolate.</li>
-<li><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Additional offset from the boundary.</li>
-<li><strong>u_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the interpolation is performed.</li>
-<li><strong>p_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the result of the interpolation is stored.</li>
-<li><strong>increment</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, generate increments (Inc) rather than assignments (Eq).</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>expr</strong> (<em>expr-like</em>) – Input expression to interpolate.</p></li>
+<li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Additional offset from the boundary.</p></li>
+<li><p><strong>u_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the interpolation is performed.</p></li>
+<li><p><strong>p_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the result of the interpolation is stored.</p></li>
+<li><p><strong>increment</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, generate increments (Inc) rather than assignments (Eq).</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="attribute">

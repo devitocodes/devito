@@ -188,18 +188,14 @@
 <p>A Dimension represents a problem dimension. It is typically used to index
 into Functions, but it can also appear in the middle of a symbolic expression
 just like any other symbol.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> (<em>str</em>) – Name of the dimension.</li>
-<li><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
+<li><p><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p class="rubric">Examples</p>
 <p>Dimensions are automatically created when a Grid is instantiated.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Grid</span>
@@ -278,18 +274,14 @@ expressions, as both array index (“indexed notation”) and free symbol.</p>
 a physical grid.</p>
 <p>A SpaceDimension creates dedicated shortcut notations for spatial
 derivatives on Functions.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> (<em>str</em>) – Name of the dimension.</li>
-<li><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
+<li><p><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="class">
@@ -300,18 +292,14 @@ derivatives on Functions.</p>
 <p>This symbol represents a time dimension that defines the extent of time.</p>
 <p>A TimeDimension create dedicated shortcut notations for time derivatives
 on Functions.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> (<em>str</em>) – Name of the dimension.</li>
-<li><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
+<li><p><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="class">
@@ -319,19 +307,15 @@ on Functions.</p>
 <em class="property">class </em><code class="descclassname">devito.types.dimension.</code><code class="descname">DefaultDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#DefaultDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.dimension.DefaultDimension" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.Dimension</span></code></a></p>
 <p>Symbol defining an iteration space with statically-known size.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> (<em>str</em>) – Name of the dimension.</li>
-<li><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</li>
-<li><strong>default_value</strong> (<em>float</em><em>, </em><em>optional</em>) – Default value associated with the Dimension.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
+<li><p><strong>spacing</strong> (<em>symbol</em><em>, </em><em>optional</em>) – A symbol to represent the physical spacing along this Dimension.</p></li>
+<li><p><strong>default_value</strong> (<em>float</em><em>, </em><em>optional</em>) – Default value associated with the Dimension.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p class="rubric">Notes</p>
 <p>A DefaultDimension carries a value, so it has a mutable state. Hence, it is
 not cached.</p>
@@ -346,18 +330,14 @@ Dimension, which cyclically produces a finite range of values, such
 as <code class="docutils literal notranslate"><span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">...</span></code> (also referred to as “modulo buffered
 iteration”).</p>
 <p>SteppingDimension is most commonly used to represent a time-stepping Dimension.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> (<em>str</em>) – Name of the dimension.</li>
-<li><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <dl class="attribute">
 <dt id="devito.types.dimension.SteppingDimension.symbolic_max">
 <code class="descname">symbolic_max</code><a class="headerlink" href="#devito.types.dimension.SteppingDimension.symbolic_max" title="Permalink to this definition">¶</a></dt>
@@ -378,25 +358,21 @@ iteration”).</p>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.dimension.DerivedDimension</span></code></p>
 <p>Symbol defining a convex iteration sub-space derived from a <code class="docutils literal notranslate"><span class="pre">parent</span></code>
 Dimension.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> (<em>str</em>) – Name of the dimension.</li>
-<li><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</li>
-<li><strong>left</strong> (<em>expr-like</em>) – Symbolic expression providing the left (lower) bound of the
-SubDimension.</li>
-<li><strong>right</strong> (<em>expr-like</em>) – Symbolic expression providing the right (upper) bound of the
-SubDimension.</li>
-<li><strong>thickness</strong> (<em>2-tuple of 2-tuples</em>) – The thickness of the left and right regions, respectively.</li>
-<li><strong>local</strong> (<em>bool</em>) – True if, in case of domain decomposition, the SubDimension is
-guaranteed not to span more than one domains, False otherwise.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</p></li>
+<li><p><strong>left</strong> (<em>expr-like</em>) – Symbolic expression providing the left (lower) bound of the
+SubDimension.</p></li>
+<li><p><strong>right</strong> (<em>expr-like</em>) – Symbolic expression providing the right (upper) bound of the
+SubDimension.</p></li>
+<li><p><strong>thickness</strong> (<em>2-tuple of 2-tuples</em>) – The thickness of the left and right regions, respectively.</p></li>
+<li><p><strong>local</strong> (<em>bool</em>) – True if, in case of domain decomposition, the SubDimension is
+guaranteed not to span more than one domains, False otherwise.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p class="rubric">Examples</p>
 <p>SubDimensions should <em>not</em> be created directly in user code; SubDomains
 should be used instead. Exceptions are rare.</p>
@@ -438,26 +414,22 @@ boundary conditions). To drop this assumption, pass <code class="docutils litera
 <p>Symbol defining a non-convex iteration sub-space derived from a <code class="docutils literal notranslate"><span class="pre">parent</span></code>
 Dimension, implemented by the compiler generating conditional “if-then” code
 within the parent Dimension’s iteration space.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> (<em>str</em>) – Name of the dimension.</li>
-<li><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</li>
-<li><strong>factor</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of iterations between two executions of the if-branch. If None
-(default), <code class="docutils literal notranslate"><span class="pre">condition</span></code> must be provided.</li>
-<li><strong>condition</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – An arbitrary SymPy expression, typically involving the <code class="docutils literal notranslate"><span class="pre">parent</span></code>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the dimension.</p></li>
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The parent Dimension.</p></li>
+<li><p><strong>factor</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of iterations between two executions of the if-branch. If None
+(default), <code class="docutils literal notranslate"><span class="pre">condition</span></code> must be provided.</p></li>
+<li><p><strong>condition</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – An arbitrary SymPy expression, typically involving the <code class="docutils literal notranslate"><span class="pre">parent</span></code>
 Dimension. When it evaluates to True, the if-branch is executed. If None
-(default), <code class="docutils literal notranslate"><span class="pre">factor</span></code> must be provided.</li>
-<li><strong>indirect</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, use <code class="docutils literal notranslate"><span class="pre">condition</span></code>, rather than the parent Dimension, to
+(default), <code class="docutils literal notranslate"><span class="pre">factor</span></code> must be provided.</p></li>
+<li><p><strong>indirect</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, use <code class="docutils literal notranslate"><span class="pre">condition</span></code>, rather than the parent Dimension, to
 index into arrays. A typical use case is when arrays are accessed
-indirectly via the <code class="docutils literal notranslate"><span class="pre">condition</span></code> expression. Defaults to False.</li>
+indirectly via the <code class="docutils literal notranslate"><span class="pre">condition</span></code> expression. Defaults to False.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p class="rubric">Examples</p>
 <p>Among the other things, ConditionalDimensions are indicated to implement
 Function subsampling. In the following example, an Operator evaluates the
@@ -514,20 +486,16 @@ to guard against out-of-bounds accesses.</p>
 <p>Dimension symbol representing a non-contiguous sub-region of a given
 <code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, which cyclically produces a finite range of values,
 such as <code class="docutils literal notranslate"><span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">...</span></code>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the ModuloDimension is derived.</li>
-<li><strong>offset</strong> (<em>int</em>) – The offset from the parent dimension</li>
-<li><strong>modulo</strong> (<em>int</em>) – The divisor value.</li>
-<li><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To force a different Dimension name.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the ModuloDimension is derived.</p></li>
+<li><p><strong>offset</strong> (<em>int</em>) – The offset from the parent dimension</p></li>
+<li><p><strong>modulo</strong> (<em>int</em>) – The divisor value.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To force a different Dimension name.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p class="rubric">Notes</p>
 <p>This type should not be instantiated directly in user code; if in need for
 modulo buffered iteration, use SteppingDimension instead.</p>
@@ -541,22 +509,18 @@ modulo buffered iteration, use SteppingDimension instead.</p>
 <code class="docutils literal notranslate"><span class="pre">parent</span></code> Dimension, with one point every <code class="docutils literal notranslate"><span class="pre">step</span></code> points. Thus, if
 <code class="docutils literal notranslate"><span class="pre">step</span> <span class="pre">==</span> <span class="pre">k</span></code>, the dimension represents the sequence <code class="docutils literal notranslate"><span class="pre">min,</span> <span class="pre">min</span> <span class="pre">+</span> <span class="pre">k,</span>
 <span class="pre">min</span> <span class="pre">+</span> <span class="pre">2*k,</span> <span class="pre">...</span></code>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the IncrDimension is derived.</li>
-<li><strong>_min</strong> (<em>int</em><em>, </em><em>optional</em>) – The minimum point of the sequence. Defaults to the parent’s
-symbolic minimum.</li>
-<li><strong>step</strong> (<em>int</em><em>, </em><em>optional</em>) – The distance between two consecutive points. Defaults to the
-symbolic size.</li>
-<li><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To force a different Dimension name.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>parent</strong> (<a class="reference internal" href="#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension from which the IncrDimension is derived.</p></li>
+<li><p><strong>_min</strong> (<em>int</em><em>, </em><em>optional</em>) – The minimum point of the sequence. Defaults to the parent’s
+symbolic minimum.</p></li>
+<li><p><strong>step</strong> (<em>int</em><em>, </em><em>optional</em>) – The distance between two consecutive points. Defaults to the
+symbolic size.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – To force a different Dimension name.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p class="rubric">Notes</p>
 <p>This type should not be instantiated directly in user code.</p>
 </dd></dl>

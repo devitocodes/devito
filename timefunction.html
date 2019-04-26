@@ -187,29 +187,27 @@
 <p>Tensor symbol representing a space- and time-varying array in symbolic equations.</p>
 <p>A TimeFunction carries multi-dimensional data and provides operations to create
 finite-differences approximations, in both space and time.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> (<em>str</em>) – Name of the symbol.</li>
-<li><strong>grid</strong> (<a class="reference internal" href="grid.html#devito.types.Grid" title="devito.types.Grid"><em>Grid</em></a><em>, </em><em>optional</em>) – Carries shape, dimensions, and dtype of the Function. When grid is not
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Name of the symbol.</p></li>
+<li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#devito.types.Grid" title="devito.types.Grid"><em>Grid</em></a><em>, </em><em>optional</em>) – Carries shape, dimensions, and dtype of the Function. When grid is not
 provided, shape and dimensions must be given. For MPI execution, a
-Grid is compulsory.</li>
-<li><strong>space_order</strong> (<em>int</em><em> or </em><em>3-tuple of ints</em><em>, </em><em>optional</em>) – Discretisation order for space derivatives. Defaults to 1. <code class="docutils literal notranslate"><span class="pre">space_order</span></code> also
+Grid is compulsory.</p></li>
+<li><p><strong>space_order</strong> (<em>int</em><em> or </em><em>3-tuple of ints</em><em>, </em><em>optional</em>) – Discretisation order for space derivatives. Defaults to 1. <code class="docutils literal notranslate"><span class="pre">space_order</span></code> also
 impacts the number of points available around a generic point of interest.  By
 default, <code class="docutils literal notranslate"><span class="pre">space_order</span></code> points are available on both sides of a generic point of
 interest, including those nearby the grid boundary. Sometimes, fewer points
 suffice; in other scenarios, more points are necessary. In such cases, instead of
 an integer, one can pass a 3-tuple <code class="docutils literal notranslate"><span class="pre">(o,</span> <span class="pre">lp,</span> <span class="pre">rp)</span></code> indicating the discretization
 order (<code class="docutils literal notranslate"><span class="pre">o</span></code>) as well as the number of points on the left (<code class="docutils literal notranslate"><span class="pre">lp</span></code>) and right
-(<code class="docutils literal notranslate"><span class="pre">rp</span></code>) sides of a generic point of interest.</li>
-<li><strong>time_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretization order for time derivatives. Defaults to 1.</li>
-<li><strong>shape</strong> (<em>tuple of ints</em><em>, </em><em>optional</em>) – Shape of the domain region in grid points. Only necessary if <cite>grid</cite> isn’t given.</li>
-<li><strong>dimensions</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Dimensions associated with the object. Only necessary if <cite>grid</cite> isn’t given.</li>
-<li><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
-to <cite>np.float32</cite>.</li>
-<li><strong>save</strong> (<em>int</em><em> or </em><em>Buffer</em><em>, </em><em>optional</em>) – By default, <code class="docutils literal notranslate"><span class="pre">save=None</span></code>, which indicates the use of alternating buffers. This
+(<code class="docutils literal notranslate"><span class="pre">rp</span></code>) sides of a generic point of interest.</p></li>
+<li><p><strong>time_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretization order for time derivatives. Defaults to 1.</p></li>
+<li><p><strong>shape</strong> (<em>tuple of ints</em><em>, </em><em>optional</em>) – Shape of the domain region in grid points. Only necessary if <cite>grid</cite> isn’t given.</p></li>
+<li><p><strong>dimensions</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Dimensions associated with the object. Only necessary if <cite>grid</cite> isn’t given.</p></li>
+<li><p><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
+to <cite>np.float32</cite>.</p></li>
+<li><p><strong>save</strong> (<em>int</em><em> or </em><em>Buffer</em><em>, </em><em>optional</em>) – By default, <code class="docutils literal notranslate"><span class="pre">save=None</span></code>, which indicates the use of alternating buffers. This
 enables cyclic writes to the TimeFunction. For example, if the TimeFunction
 <code class="docutils literal notranslate"><span class="pre">u(t,</span> <span class="pre">x)</span></code> has shape (3, 100), then, in an Operator, <code class="docutils literal notranslate"><span class="pre">t</span></code> will assume the
 values <code class="docutils literal notranslate"><span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">...</span></code> (note that the very first value depends
@@ -218,20 +216,18 @@ buffer when <code class="docutils literal notranslate"><span class="pre">save=No
 the time buffer, one should use the syntax <code class="docutils literal notranslate"><span class="pre">save=Buffer(mysize)</span></code>.
 Alternatively, if all of the intermediate results are required (or, simply, to
 avoid using an alternating buffer), an explicit value for <code class="docutils literal notranslate"><span class="pre">save</span></code> ( an integer)
-must be provided.</li>
-<li><strong>time_dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em>, </em><em>optional</em>) – TimeDimension to be used in the TimeFunction. Defaults to <code class="docutils literal notranslate"><span class="pre">grid.time_dim</span></code>.</li>
-<li><strong>staggered</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>tuple of Dimension</em><em> or </em><em>Stagger</em><em>, </em><em>optional</em>) – Define how the Function is staggered.</li>
-<li><strong>padding</strong> (<em>int</em><em> or </em><em>tuple of ints</em><em>, </em><em>optional</em>) – Allocate extra grid points to maximize data access alignment. When a tuple
-of ints, one int per Dimension should be provided.</li>
-<li><strong>initializer</strong> (<em>callable</em><em> or </em><em>any object exposing the buffer interface</em><em>, </em><em>optional</em>) – Data initializer. If a callable is provided, data is allocated lazily.</li>
-<li><strong>allocator</strong> (<em>MemoryAllocator</em><em>, </em><em>optional</em>) – Controller for memory allocation. To be used, for example, when one wants
+must be provided.</p></li>
+<li><p><strong>time_dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em>, </em><em>optional</em>) – TimeDimension to be used in the TimeFunction. Defaults to <code class="docutils literal notranslate"><span class="pre">grid.time_dim</span></code>.</p></li>
+<li><p><strong>staggered</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>tuple of Dimension</em><em> or </em><em>Stagger</em><em>, </em><em>optional</em>) – Define how the Function is staggered.</p></li>
+<li><p><strong>padding</strong> (<em>int</em><em> or </em><em>tuple of ints</em><em>, </em><em>optional</em>) – Allocate extra grid points to maximize data access alignment. When a tuple
+of ints, one int per Dimension should be provided.</p></li>
+<li><p><strong>initializer</strong> (<em>callable</em><em> or </em><em>any object exposing the buffer interface</em><em>, </em><em>optional</em>) – Data initializer. If a callable is provided, data is allocated lazily.</p></li>
+<li><p><strong>allocator</strong> (<em>MemoryAllocator</em><em>, </em><em>optional</em>) – Controller for memory allocation. To be used, for example, when one wants
 to take advantage of the memory hierarchy in a NUMA architecture. Refer to
-<cite>default_allocator.__doc__</cite> for more information.</li>
+<cite>default_allocator.__doc__</cite> for more information.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p class="rubric">Examples</p>
 <p>Creation</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">TimeFunction</span>
@@ -281,19 +277,15 @@ temporal dimension will be inserted automatically as the leading dimension.</p>
 <code class="descname">avg</code><span class="sig-paren">(</span><em>p=None</em>, <em>dims=None</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.TimeFunction.avg" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate a symbolic expression computing the average of <code class="docutils literal notranslate"><span class="pre">p</span></code> points
 along the spatial dimensions <code class="docutils literal notranslate"><span class="pre">dims</span></code>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>p</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of summands. Defaults to the halo size.</li>
-<li><strong>dims</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – The Dimensions along which the average is computed. Defaults to
-<code class="docutils literal notranslate"><span class="pre">self</span></code>’s spatial dimensions.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>p</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of summands. Defaults to the halo size.</p></li>
+<li><p><strong>dims</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – The Dimensions along which the average is computed. Defaults to
+<code class="docutils literal notranslate"><span class="pre">self</span></code>’s spatial dimensions.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="attribute">
@@ -435,19 +427,15 @@ on the rank position in the decomposed grid (corner, side, …).</p>
 <code class="descname">sum</code><span class="sig-paren">(</span><em>p=None</em>, <em>dims=None</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.TimeFunction.sum" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate a symbolic expression computing the sum of <code class="docutils literal notranslate"><span class="pre">p</span></code> points
 along the spatial dimensions <code class="docutils literal notranslate"><span class="pre">dims</span></code>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>p</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of summands. Defaults to the halo size.</li>
-<li><strong>dims</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – The Dimensions along which the sum is computed. Defaults to
-<code class="docutils literal notranslate"><span class="pre">self</span></code>’s spatial dimensions.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>p</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of summands. Defaults to the halo size.</p></li>
+<li><p><strong>dims</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – The Dimensions along which the sum is computed. Defaults to
+<code class="docutils literal notranslate"><span class="pre">self</span></code>’s spatial dimensions.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="attribute">

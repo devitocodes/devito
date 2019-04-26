@@ -182,17 +182,18 @@
 <p>To create a new SubDomain, all one needs to do is overriding <a class="reference internal" href="#devito.types.SubDomain.define" title="devito.types.SubDomain.define"><code class="xref py py-meth docutils literal notranslate"><span class="pre">define()</span></code></a>.
 This method takes as input a set of Dimensions and produce a mapper</p>
 <blockquote>
-<div><code class="docutils literal notranslate"><span class="pre">M</span> <span class="pre">:</span> <span class="pre">Dimensions</span> <span class="pre">-&gt;</span> <span class="pre">{d,</span> <span class="pre">('left',</span> <span class="pre">N),</span> <span class="pre">('middle',</span> <span class="pre">N,</span> <span class="pre">M),</span> <span class="pre">('right',</span> <span class="pre">N)}</span></code></div></blockquote>
+<div><p><code class="docutils literal notranslate"><span class="pre">M</span> <span class="pre">:</span> <span class="pre">Dimensions</span> <span class="pre">-&gt;</span> <span class="pre">{d,</span> <span class="pre">('left',</span> <span class="pre">N),</span> <span class="pre">('middle',</span> <span class="pre">N,</span> <span class="pre">M),</span> <span class="pre">('right',</span> <span class="pre">N)}</span></code></p>
+</div></blockquote>
 <p>so that:</p>
 <blockquote>
 <div><ul class="simple">
-<li>If <code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">d</span></code>, then the SubDomain spans the entire Dimension <code class="docutils literal notranslate"><span class="pre">d</span></code>.</li>
-<li>If <code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">('left',</span> <span class="pre">N)</span></code>, then the SubDomain spans a contiguous
-region of <code class="docutils literal notranslate"><span class="pre">N</span></code> points starting at <code class="docutils literal notranslate"><span class="pre">d</span></code>’s left extreme.</li>
-<li><code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">('right',</span> <span class="pre">N)</span></code> is analogous to the case above.</li>
-<li>If <code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">('middle',</span> <span class="pre">N,</span> <span class="pre">M)</span></code>, then the SubDomain spans a contiguous
+<li><p>If <code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">d</span></code>, then the SubDomain spans the entire Dimension <code class="docutils literal notranslate"><span class="pre">d</span></code>.</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">('left',</span> <span class="pre">N)</span></code>, then the SubDomain spans a contiguous
+region of <code class="docutils literal notranslate"><span class="pre">N</span></code> points starting at <code class="docutils literal notranslate"><span class="pre">d</span></code>’s left extreme.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">('right',</span> <span class="pre">N)</span></code> is analogous to the case above.</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">M(d)</span> <span class="pre">=</span> <span class="pre">('middle',</span> <span class="pre">N,</span> <span class="pre">M)</span></code>, then the SubDomain spans a contiguous
 region of <code class="docutils literal notranslate"><span class="pre">d_size</span> <span class="pre">-</span> <span class="pre">(N</span> <span class="pre">+</span> <span class="pre">M)</span></code> points starting at <code class="docutils literal notranslate"><span class="pre">N</span></code> and finishing
-at <code class="docutils literal notranslate"><span class="pre">d_sizeM</span> <span class="pre">-</span> <span class="pre">M</span></code>.</li>
+at <code class="docutils literal notranslate"><span class="pre">d_sizeM</span> <span class="pre">-</span> <span class="pre">M</span></code>.</p></li>
 </ul>
 </div></blockquote>
 <p class="rubric">Examples</p>
@@ -215,12 +216,12 @@ grid</p>
 </pre></div>
 </div>
 <div class="admonition seealso">
-<p class="first admonition-title">See also</p>
-<dl class="last docutils">
-<dt><code class="xref py py-class docutils literal notranslate"><span class="pre">Domain</span></code></dt>
-<dd>An example of preset SubDomain.</dd>
-<dt><code class="xref py py-class docutils literal notranslate"><span class="pre">Interior</span></code></dt>
-<dd>An example of preset Subdomain.</dd>
+<p class="admonition-title">See also</p>
+<dl class="simple">
+<dt><code class="xref py py-class docutils literal notranslate"><span class="pre">Domain</span></code></dt><dd><p>An example of preset SubDomain.</p>
+</dd>
+<dt><code class="xref py py-class docutils literal notranslate"><span class="pre">Interior</span></code></dt><dd><p>An example of preset Subdomain.</p>
+</dd>
 </dl>
 </div>
 <dl class="method">

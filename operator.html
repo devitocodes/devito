@@ -173,42 +173,38 @@
 <em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>expressions</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate, JIT-compile and run C code starting from an ordered sequence
 of symbolic expressions.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>expressions</strong> (<em>expr-like</em><em> or </em><em>list</em><em> or </em><em>expr-like</em>) – The (list of) expression(s) defining the Operator computation.</li>
-<li><strong>**kwargs</strong> – <ul>
-<li><dl class="first docutils">
-<dt>name <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
-<dd>Name of the Operator, defaults to “Kernel”.</dd>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>expressions</strong> (<em>expr-like</em><em> or </em><em>list</em><em> or </em><em>expr-like</em>) – The (list of) expression(s) defining the Operator computation.</p></li>
+<li><p><strong>**kwargs</strong> – <ul>
+<li><dl class="simple">
+<dt>name<span class="classifier">str</span></dt><dd><p>Name of the Operator, defaults to “Kernel”.</p>
+</dd>
 </dl>
 </li>
-<li><dl class="first docutils">
-<dt>subs <span class="classifier-delimiter">:</span> <span class="classifier">dict</span></dt>
-<dd>Symbolic substitutions to be applied to <code class="docutils literal notranslate"><span class="pre">expressions</span></code>.</dd>
+<li><dl class="simple">
+<dt>subs<span class="classifier">dict</span></dt><dd><p>Symbolic substitutions to be applied to <code class="docutils literal notranslate"><span class="pre">expressions</span></code>.</p>
+</dd>
 </dl>
 </li>
-<li><dl class="first docutils">
-<dt>dse <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
-<dd>Aggressiveness of the Devito Symbolic Engine for flop
-optimization. Defaults to <code class="docutils literal notranslate"><span class="pre">configuration['dse']</span></code>.</dd>
+<li><dl class="simple">
+<dt>dse<span class="classifier">str</span></dt><dd><p>Aggressiveness of the Devito Symbolic Engine for flop
+optimization. Defaults to <code class="docutils literal notranslate"><span class="pre">configuration['dse']</span></code>.</p>
+</dd>
 </dl>
 </li>
-<li><dl class="first docutils">
-<dt>dle <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
-<dd>Aggressiveness of the Devito Loop Engine for loop-level
-optimization. Defaults to <code class="docutils literal notranslate"><span class="pre">configuration['dle']</span></code>.</dd>
+<li><dl class="simple">
+<dt>dle<span class="classifier">str</span></dt><dd><p>Aggressiveness of the Devito Loop Engine for loop-level
+optimization. Defaults to <code class="docutils literal notranslate"><span class="pre">configuration['dle']</span></code>.</p>
+</dd>
 </dl>
 </li>
 </ul>
-</li>
+</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p class="rubric">Examples</p>
 <p>The following Operator implements a trivial time-marching method that
 adds 1 to every grid point in <code class="docutils literal notranslate"><span class="pre">u</span></code> at every timestep.</p>
@@ -291,18 +287,18 @@ objects appearing in the input expressions – these are referred to as the
 suitable key-value arguments. Given <code class="docutils literal notranslate"><span class="pre">apply(k=v,</span> <span class="pre">...)</span></code>, <code class="docutils literal notranslate"><span class="pre">(k,</span> <span class="pre">v)</span></code> may be
 used to:</p>
 <ul class="simple">
-<li>replace a Constant. In this case, <code class="docutils literal notranslate"><span class="pre">k</span></code> is the name of the Constant,
-<code class="docutils literal notranslate"><span class="pre">v</span></code> is either a Constant or a scalar value.</li>
-<li>replace a Function (SparseFunction). Here, <code class="docutils literal notranslate"><span class="pre">k</span></code> is the name of the
-Function, <code class="docutils literal notranslate"><span class="pre">v</span></code> is either a Function or a numpy.ndarray.</li>
-<li>alter the iteration interval along a Dimension. Consider a generic
+<li><p>replace a Constant. In this case, <code class="docutils literal notranslate"><span class="pre">k</span></code> is the name of the Constant,
+<code class="docutils literal notranslate"><span class="pre">v</span></code> is either a Constant or a scalar value.</p></li>
+<li><p>replace a Function (SparseFunction). Here, <code class="docutils literal notranslate"><span class="pre">k</span></code> is the name of the
+Function, <code class="docutils literal notranslate"><span class="pre">v</span></code> is either a Function or a numpy.ndarray.</p></li>
+<li><p>alter the iteration interval along a Dimension. Consider a generic
 Dimension <code class="docutils literal notranslate"><span class="pre">d</span></code> iterated over by the Operator.  By default, the Operator
 runs over all iterations within the compact interval <code class="docutils literal notranslate"><span class="pre">[d_m,</span> <span class="pre">d_M]</span></code>,
 where <code class="docutils literal notranslate"><span class="pre">d_m</span></code> and <code class="docutils literal notranslate"><span class="pre">d_M</span></code> are, respectively, the smallest and largest
 integers not causing out-of-bounds memory accesses (for the Grid
 Dimensions, this typically implies iterating over the entire physical
 domain). So now <code class="docutils literal notranslate"><span class="pre">k</span></code> can be either <code class="docutils literal notranslate"><span class="pre">d_m</span></code> or <code class="docutils literal notranslate"><span class="pre">d_M</span></code>, while <code class="docutils literal notranslate"><span class="pre">v</span></code>
-is an integer value.</li>
+is an integer value.</p></li>
 </ul>
 <p class="rubric">Examples</p>
 <p>Consider the following Operator</p>
