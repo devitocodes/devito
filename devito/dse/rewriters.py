@@ -320,12 +320,7 @@ class AdvancedRewriter(BasicRewriter):
                          for i in cluster.ispace.intervals]
             ispace = IterationSpace(intervals, sub_iterators, directions)
 
-            if all(time_invariants[i] for i in alias.aliased):
-                # Optimization: if `alias` can be expressed as the composition of
-                # "smaller" aliases, then it is dropped to allocate less memory
-                if all(i in subs for i in origin.args):
-                    continue
-
+            if all(time_invariants.get(i, True) for i in alias.aliased):
                 # Optimization: the alising expressions are time-invariant so
                 # we can contract the iteration space (e.g., [t, x, y] -> [x, y])
                 ispace = ispace.project(lambda i: not i.is_Time)
@@ -360,7 +355,9 @@ class AdvancedRewriter(BasicRewriter):
             for aliased, distance in alias.with_distance:
                 assert all(i.dim in distance.labels for i in writeto)
                 access = [i.dim - i.lower + distance[i.dim] for i in writeto]
-                subs[candidates[aliased]] = function[access]
+                if aliased in candidates:
+                    # It would *not* be in `candidates` if part of a composite alias
+                    subs[candidates[aliased]] = function[access]
                 subs[aliased] = function[access]
 
             # Construct the `alias` data space
