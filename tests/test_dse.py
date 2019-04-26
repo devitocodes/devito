@@ -1,4 +1,4 @@
-from sympy import Add, sin  # noqa
+from sympy import Add, cos, sin  # noqa
 import numpy as np
 import pytest
 from unittest.mock import patch
@@ -463,10 +463,57 @@ def test_tti_rewrite_aggressive_wmpi():
 
 
 @switchconfig(profiling='advanced')
-@pytest.mark.parametrize('kernel,space_order,expected', [
-    ('centered', 8, 152), ('centered', 16, 268)
+@pytest.mark.parametrize('space_order,expected', [
+    (8, 152), (16, 268)
 ])
-def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
+def test_tti_rewrite_aggressive_opcounts(space_order, expected):
     operator = tti_operator(dse='aggressive', space_order=space_order)
-    _, _, _, summary = operator.forward(kernel=kernel, save=False)
+    _, _, _, summary = operator.forward(kernel='centered', save=False)
     assert summary['section1'].ops == expected
+
+
+@switchconfig(profiling='advanced')
+@pytest.mark.parametrize('space_order,expected', [
+    (4, 180), (12, 372)
+])
+def test_tti_v2_rewrite_aggressive_opcounts(space_order, expected):
+    grid = Grid(shape=(3, 3, 3))
+
+    s = 0.00067
+    u = TimeFunction(name='u', grid=grid, space_order=space_order)
+    v = TimeFunction(name='v', grid=grid, space_order=space_order)
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+    m = Function(name='m', grid=grid)
+    e = Function(name='e', grid=grid)
+    d = Function(name='d', grid=grid)
+
+    ang0 = cos(f)
+    ang1 = sin(f)
+    ang2 = cos(g)
+    ang3 = sin(g)
+
+    H1u = (ang1*ang1*ang2*ang2*u.dx2 +
+           ang1*ang1*ang3*ang3*u.dy2 +
+           ang0*ang0*u.dz2 +
+           2*ang1*ang1*ang3*ang2*u.dxdy +
+           2*ang0*ang1*ang3*u.dydz +
+           2*ang0*ang1*ang2*u.dxdz)
+    H2u = -H1u + u.laplace
+
+    H1v = (ang1*ang1*ang2*ang2*v.dx2 +
+           ang1*ang1*ang3*ang3*v.dy2 +
+           ang0*ang0*v.dz2 +
+           2*ang1*ang1*ang3*ang2*v.dxdy +
+           2*ang0*ang1*ang3*v.dydz +
+           2*ang0*ang1*ang2*v.dxdz)
+    H2v = -H1v + v.laplace
+
+    eqns = [Eq(u.forward, (2*u - u.backward) + s**2/m * (e * H2u + H1v)),
+            Eq(v.forward, (2*v - v.backward) + s**2/m * (d * H2v + H1v))]
+    op = Operator(eqns, dse='aggressive')
+
+    sections = list(op._profiler._sections.values())
+    assert len(sections) == 2
+    assert sections[0].sops == 4
+    assert sections[1].sops == expected
