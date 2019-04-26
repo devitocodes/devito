@@ -8,7 +8,14 @@ from devito.tools import flatten
 from devito.types import Scalar
 
 __all__ = ['clusterize', 'groupby']
+<<<<<<< HEAD
 # clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
+=======
+
+
+# clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
+
+>>>>>>> Init Sims diff
 def groupby(clusters):
     """
     Group PartialClusters together to create "fatter" PartialClusters

@@ -20,9 +20,14 @@ __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapSections', 'MapNodes'
            'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer',
            'FindAdjacent', 'BlockIterations']
 
+<<<<<<< HEAD
 class BlockIterations():
     def testtt():
         return 0
+=======
+#  class BlockIterations(Visitor): 
+
+>>>>>>> Init Sims diff
 
 class Visitor(GenericVisitor):
 

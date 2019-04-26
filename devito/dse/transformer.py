@@ -25,8 +25,19 @@ __all__ = ['dse_registry', 'rewrite']
 dse_registry = ('basic', 'advanced', 'skewing', 'speculative', 'aggressive')
 =======
 
+<<<<<<< HEAD
 dse_registry = ('basic', 'advanced', 'aggressive')
+<<<<<<< HEAD
 >>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
+=======
+=======
+# Skewing rewriter
+
+#
+
+dse_registry = ('basic', 'advanced', 'speculative', 'aggressive')
+>>>>>>> Init Sims diff
+>>>>>>> Init Sims diff
 
 modes = {
     'basic': BasicRewriter,
