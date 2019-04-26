@@ -149,9 +149,6 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     # Evaluate up to _PRECISION digits
     deriv = (matvec.val*deriv).evalf(_PRECISION)
 
-    # At this point we can attempt to factor out `diff`
-    deriv = deriv.collect(diff)
-
     return deriv
 
 
@@ -297,9 +294,6 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
 
     # Evaluate up to _PRECISION digits
     deriv = deriv.evalf(_PRECISION)
-
-    # At this point we can attempt to factor out `diff`
-    deriv = deriv.collect(diff, evaluate=True)
 
     return deriv
 
