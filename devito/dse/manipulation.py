@@ -46,7 +46,7 @@ def collect_nested(expr):
             pows = candidates.getall('pows', [])
             coeffs = candidates.getall('coeffs', [])
 
-            # Functions have precedence over coefficients
+            # Functions/Pows are collected first, coefficients afterwards
             # Note: below we use sets, but SymPy will ensure determinism
             args = set(args)
             w_funcs = {i for i in args if any(j in funcs for j in i.args)}
@@ -59,14 +59,14 @@ def collect_nested(expr):
             # Collect common funcs
             w_funcs = collect(expr.func(*w_funcs), funcs, evaluate=False)
             try:
-                w_funcs = Add(*[Mul(*i) for i in w_funcs.items()])
+                w_funcs = Add(*[Mul(k, collect_const(v)) for k, v in w_funcs.items()])
             except AttributeError:
                 assert w_funcs == 0
 
             # Collect common pows
             w_pows = collect(expr.func(*w_pows), pows, evaluate=False)
             try:
-                w_pows = Add(*[Mul(*i) for i in w_pows.items()])
+                w_pows = Add(*[Mul(k, collect_const(v)) for k, v in w_pows.items()])
             except AttributeError:
                 assert w_pows == 0
 
