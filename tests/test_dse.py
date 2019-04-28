@@ -132,6 +132,10 @@ def test_pow_to_mul(fa, fb, expr, expected):
     # 2D with constant access
     (['Eq(t0, fc[x,y]*fc[x,0] + fd[x,y])', 'Eq(t1, fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1])'],
      {'fc[x,y]*fc[x,0] + fd[x,y]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
+    # 2D with multiple, non-zero, constant accesses
+    (['Eq(t0, fc[x,y]*fc[x,0] + fd[x,y]*fc[x,1])',
+      'Eq(t1, fc[x+1,y+1]*fc[x+1,0] + fd[x+1,y+1]*fc[x+1,1])'],
+     {'fc[x,0]*fc[x,y] + fc[x,1]*fd[x,y]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
     # 2D with different shapes
     (['Eq(t0, fc[x,y]*fa[x] + fd[x,y])', 'Eq(t1, fc[x+1,y+1]*fa[x+1] + fd[x+1,y+1])'],
      {'fc[x,y]*fa[x] + fd[x,y]': 'Stencil([(x, {0, 1}), (y, {0, 1})])'}),
