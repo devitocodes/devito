@@ -1,9 +1,9 @@
 from collections import OrderedDict
 
-from sympy import collect, collect_const
+from sympy import Add, Mul, collect, collect_const
 
 from devito.ir import FlowGraph
-from devito.symbolics import (Add, Mul, Eq, count, estimate_cost, q_xop, q_leaf,
+from devito.symbolics import (Eq, count, estimate_cost, q_xop, q_leaf,
                               xreplace_constrained)
 from devito.tools import ReducerMap
 
