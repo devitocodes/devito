@@ -139,9 +139,9 @@ def test_mode_runtime_backward():
 def test_mode_destructive():
     """Test autotuning in destructive mode."""
     grid = Grid(shape=(64, 64, 64))
-    f = TimeFunction(name='f', grid=grid, time_order=0)
+    f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f, f + 1.), dle=('advanced', {'openmp': False}))
+    op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': False}))
     op.apply(time=100, autotune=('basic', 'destructive'))
 
     # AT is expected to have executed 30 timesteps (6 block shapes, 5 timesteps each)
