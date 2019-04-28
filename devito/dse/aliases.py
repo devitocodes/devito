@@ -67,8 +67,8 @@ def collect(exprs):
             continue
 
         # Create an alias expression centering `c`'s Indexeds at the COM
-        subs = {i: i.function[[x + c.fromlabel(x, 0) for x in b]]
-                for i, b, c in zip(c.indexeds, c.bases, COM)}
+        subs = {i: i.function[[x + v.fromlabel(x, 0) for x in b]]
+                for i, b, v in zip(c.indexeds, c.bases, COM)}
         alias = c.expr.xreplace(subs)
         aliased = [i.expr for i in group]
 
@@ -157,7 +157,7 @@ def analyze(expr):
         offset = []
         for e, ai in zip(ii, ii.aindices):
             if e.is_Number:
-                base.append(0)
+                base.append(e)
             else:
                 base.append(ai)
                 offset.append((ai, e - ai))
