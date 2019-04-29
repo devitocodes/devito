@@ -156,11 +156,7 @@ class Operator(Callable):
         # autotuning reports, etc
         self._state = {}
 
-        # Form and gather any required implicit expressions.
-        # Implicit expressions are those not explicitly defined by the user
-        # but instead are requisites of some specified functionality. Since they
-        # must be treated in a similar manner to user specified expressions
-        # they are added prior to expression lowering.
+        # Form and gather any required implicit expressions
         expressions = self._add_implicit(expressions)
 
         # Expression lowering: indexification, substitution rules, specialization
@@ -217,8 +213,14 @@ class Operator(Callable):
     # Compilation
 
     def _add_implicit(self, expressions):
-        """Create and add any associated implicit expressions."""
+        """
+        Create and add any associated implicit expressions.
+
+        Implicit expressions are those not explicitly defined by the user
+        but instead are requisites of some specified functionality.
+        """
         processed = []
+        seen = set()
         for e in expressions:
             if e.subdomain:
                 try:
@@ -226,12 +228,10 @@ class Operator(Callable):
                     sub_dims = [d.root for d in e.subdomain.dimensions]
                     dims = [d for d in dims if d not in frozenset(sub_dims)]
                     dims.append(e.subdomain.implicit_dimension)
-                    if e._subdomain._implicit_exprs is None:
-                        e._subdomain._implicit_exprs = \
-                            e._subdomain._create_implicit_exprs()
-                        implicit_expressions = [eq.func(*eq.args, implicit_dims=dims)
-                                                for eq in e._subdomain._implicit_exprs]
-                        processed.extend(implicit_expressions)
+                    if e.subdomain not in seen:
+                        processed.extend([i.func(*i.args, implicit_dims=dims) for i in
+                                          e.subdomain._create_implicit_exprs()])
+                        seen.add(e.subdomain)
                     dims.extend(e.subdomain.dimensions)
                     new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
                     processed.append(new_e)
