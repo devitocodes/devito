@@ -155,18 +155,21 @@
   <h1>Source code for devito.types.grid</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">prod</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">prod</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="k">import</span> <span class="n">floor</span>
 
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">Distributor</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span>
 <span class="kn">from</span> <span class="nn">devito.types.args</span> <span class="k">import</span> <span class="n">ArgProvider</span>
 <span class="kn">from</span> <span class="nn">devito.types.constant</span> <span class="k">import</span> <span class="n">Constant</span>
+<span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="k">import</span> <span class="n">Function</span>
 <span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="k">import</span> <span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">SpaceDimension</span><span class="p">,</span> <span class="n">TimeDimension</span><span class="p">,</span>
                                     <span class="n">SteppingDimension</span><span class="p">,</span> <span class="n">SubDimension</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Grid&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDomain&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Grid&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDomain&#39;</span><span class="p">,</span> <span class="s1">&#39;SubDomainSet&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Grid"><a class="viewcode-back" href="../../../grid.html#devito.types.Grid">[docs]</a><span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="n">ArgProvider</span><span class="p">):</span>
@@ -577,6 +580,139 @@
 
     <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;middle&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">}</span>
+
+
+<span class="k">class</span> <span class="nc">SubDomainSet</span><span class="p">(</span><span class="n">SubDomain</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class to define a set of N (a positive integer) subdomains.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    **kwargs</span>
+<span class="sd">        * N : int</span>
+<span class="sd">            Number of subdomains.</span>
+<span class="sd">        * bounds : tuple</span>
+<span class="sd">            Tuple of numpy int32 arrays representing the bounds of</span>
+<span class="sd">            each subdomain.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Set up an iterate upon a set of two subdomains:</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from devito import Grid, Function, Eq, Operator, SubDomainSet</span>
+<span class="sd">    &gt;&gt;&gt; Nx = 10</span>
+<span class="sd">    &gt;&gt;&gt; Ny = Nx</span>
+<span class="sd">    &gt;&gt;&gt; n_domains = 2</span>
+
+<span class="sd">    Create a &#39;SubDomainSet object&#39;:</span>
+
+<span class="sd">    &gt;&gt;&gt; class MySubdomains(SubDomainSet):</span>
+<span class="sd">    ...     name = &#39;mydomains&#39;</span>
+
+<span class="sd">    Set the bounds of the subdomains. The required format is:</span>
+<span class="sd">    (xm, xM, ym, yM, ...) where xm is a vector specifying</span>
+<span class="sd">    the number of grid points inwards from the &#39;left&#39; boundary in the</span>
+<span class="sd">    first grid dimension that each subdomain starts. xM is a vector</span>
+<span class="sd">    specifying the number of grid points inwards from the &#39;right&#39; of</span>
+<span class="sd">    the domain in the first grid dimension that each subdomain ends.</span>
+<span class="sd">    ym and yM are the equivalents for the second grid dimension.</span>
+
+<span class="sd">    &gt;&gt;&gt; xm = np.array([1, Nx/2+1], dtype=np.int32)</span>
+<span class="sd">    &gt;&gt;&gt; xM = np.array([Nx/2+1, 1], dtype=np.int32)</span>
+
+<span class="sd">    Along a dimension where all bounds are the same we can use the</span>
+<span class="sd">    following shorthand:</span>
+
+<span class="sd">    &gt;&gt;&gt; ym = 1 # which is equivalent to &#39;np.array([1, 1], dtype=np.int32)&#39;</span>
+<span class="sd">    &gt;&gt;&gt; yM = 1</span>
+
+<span class="sd">    Combine the data into the required form:</span>
+
+<span class="sd">    &gt;&gt;&gt; bounds = (xm, xM, ym, yM)</span>
+
+<span class="sd">    Create our set of subdomains passing the number of domains and the</span>
+<span class="sd">    bounds:</span>
+
+<span class="sd">    &gt;&gt;&gt; my_sd = MySubdomains(N=n_domains, bounds=bounds)</span>
+
+<span class="sd">    Create a grid and iterate a function within the defined subdomains:</span>
+
+<span class="sd">    &gt;&gt;&gt; grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd, ))</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid, dtype=np.int32)</span>
+<span class="sd">    &gt;&gt;&gt; eq = Eq(f, f+1, subdomain=grid.subdomains[&#39;mydomains&#39;])</span>
+<span class="sd">    &gt;&gt;&gt; op = Operator(eq)</span>
+<span class="sd">    &gt;&gt;&gt; summary = op.apply()</span>
+<span class="sd">    &gt;&gt;&gt; f.data</span>
+<span class="sd">    Data([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],</span>
+<span class="sd">          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],</span>
+<span class="sd">          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],</span>
+<span class="sd">          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],</span>
+<span class="sd">          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],</span>
+<span class="sd">          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],</span>
+<span class="sd">          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],</span>
+<span class="sd">          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],</span>
+<span class="sd">          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],</span>
+<span class="sd">          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=int32)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">implicit_dimension</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="sd">&quot;&quot;&quot;The implicit dimension of the SubDomainSet.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SubDomainSet</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">implicit_dimension</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;n&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">implicit_dimension</span> <span class="o">=</span> <span class="n">n</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_n_domains</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;N&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;bounds&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_implicit_exprs</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__subdomain_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+        <span class="c1"># Create the SubDomain&#39;s SubDimensions</span>
+        <span class="n">sub_dimensions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">:</span>
+            <span class="n">sub_dimensions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">SubDimension</span><span class="o">.</span><span class="n">middle</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">i_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">implicit_dimension</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
+                                    <span class="n">d</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sub_dimensions</span><span class="p">)</span>
+        <span class="c1"># Compute the SubDomain shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">s</span> <span class="o">-</span> <span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">_thickness_map</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Sub</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+                            <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span><span class="p">,</span> <span class="n">shape</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">n_domains</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_n_domains</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span>
+
+    <span class="k">def</span> <span class="nf">_create_implicit_exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Left and right bounds must be supplied for each dimension&quot;</span><span class="p">)</span>
+        <span class="n">n_domains</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_domains</span>
+        <span class="n">i_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">implicit_dimension</span>
+        <span class="n">dat</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Organise the data contained in &#39;bounds&#39; into a form such that the</span>
+        <span class="c1"># associated implicit equations can easily be created.</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span><span class="p">)):</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="n">floor</span><span class="p">(</span><span class="n">j</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">j</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">fname</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">min_name</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">fname</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">max_name</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">fname</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_domains</span><span class="p">,</span> <span class="p">),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">i_dim</span><span class="p">,</span> <span class="p">),</span>
+                            <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+            <span class="c1"># Check if shorthand notation has been provided:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">bounds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">n_domains</span><span class="p">,),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+                <span class="n">func</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">bounds</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">func</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bounds</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+            <span class="n">dat</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">thickness</span><span class="p">[</span><span class="n">j</span> <span class="o">%</span> <span class="mi">2</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">func</span><span class="p">[</span><span class="n">i_dim</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">dat</span><span class="p">)</span>
 </pre></div>
 
            </div>
