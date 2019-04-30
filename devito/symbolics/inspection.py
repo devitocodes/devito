@@ -35,6 +35,7 @@ def estimate_cost(exprs, estimate=False):
             * Divisions (powers with a negative exponened) count as 25 ops.
     """
     trascendentals_cost = {sin: 50, cos: 50, exp: 50, log: 50}
+    pow_cost = 50
     div_cost = 25
 
     try:
@@ -67,8 +68,19 @@ def estimate_cost(exprs, estimate=False):
                 else:
                     flops += 1
             elif op.is_Pow:
-                if estimate and op.exp.is_Number and op.exp < 0:
-                    flops += div_cost
+                if estimate:
+                    if op.exp.is_Number:
+                        if op.exp < 0:
+                            flops += div_cost
+                        elif op.exp == 0:
+                            flops += 0
+                        elif op.exp.is_Integer:
+                            # Natural pows a**b are estimated as b-1 Muls
+                            flops += op.exp - 1
+                        else:
+                            flops += pow_cost
+                    else:
+                        flops += pow_cost
                 else:
                     flops += 1
             else:

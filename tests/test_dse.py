@@ -174,22 +174,30 @@ def test_collect_aliases(fc, fd, exprs, expected):
                 v.anti_stencil == expected[k])
 
 
-@pytest.mark.parametrize('expr,expected', [
-    ('Eq(t0, t1)', 0),
-    ('Eq(t0, fa[x] + fb[x])', 1),
-    ('Eq(t0, fa[x + 1] + fb[x - 1])', 1),
-    ('Eq(t0, fa[fb[x+1]] + fa[x])', 1),
-    ('Eq(t0, fa[fb[x+1]] + fc[x+2, y+1])', 1),
-    ('Eq(t0, t1*t2)', 1),
-    ('Eq(t0, 2.*t0*t1*t2)', 3),
-    ('Eq(t0, cos(t1*t2))', 2),
-    ('Eq(t0, 2.*t0*t1*t2 + t0*fa[x+1])', 5),
-    ('Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0)', 7),
-    ('[Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0), Eq(t0, cos(t1*t2))]', 9),
+@pytest.mark.parametrize('expr,expected,estimate', [
+    ('Eq(t0, t1)', 0, False),
+    ('Eq(t0, fa[x] + fb[x])', 1, False),
+    ('Eq(t0, fa[x + 1] + fb[x - 1])', 1, False),
+    ('Eq(t0, fa[fb[x+1]] + fa[x])', 1, False),
+    ('Eq(t0, fa[fb[x+1]] + fc[x+2, y+1])', 1, False),
+    ('Eq(t0, t1*t2)', 1, False),
+    ('Eq(t0, 2.*t0*t1*t2)', 3, False),
+    ('Eq(t0, cos(t1*t2))', 2, False),
+    ('Eq(t0, (t1*t2)**0)', 0, False),
+    ('Eq(t0, (t1*t2)**t1)', 2, False),
+    ('Eq(t0, (t1*t2)**2)', 3, False),  # SymPy distributes integer exponents in a Mul
+    ('Eq(t0, 2.*t0*t1*t2 + t0*fa[x+1])', 5, False),
+    ('Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0)', 7, False),
+    ('[Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0), Eq(t0, cos(t1*t2))]', 9, False),
+    ('Eq(t0, cos(t1*t2))', 51, True),
+    ('Eq(t0, t1**3)', 2, True),
+    ('Eq(t0, t1**4)', 3, True),
+    ('Eq(t0, t2*t1**-1)', 26, True),
+    ('Eq(t0, t1**t2)', 50, True),
 ])
-def test_estimate_cost(fa, fb, fc, t0, t1, t2, expr, expected):
+def test_estimate_cost(fa, fb, fc, t0, t1, t2, expr, expected, estimate):
     # Note: integer arithmetic isn't counted
-    assert estimate_cost(EVAL(expr, fa, fb, fc, t0, t1, t2)) == expected
+    assert estimate_cost(EVAL(expr, fa, fb, fc, t0, t1, t2), estimate) == expected
 
 
 @pytest.mark.parametrize('exprs,exp_u,exp_v', [
