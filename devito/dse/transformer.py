@@ -38,7 +38,7 @@ def rewrite(clusters, mode='advanced'):
                           sub-expressions too.
                           Further, seek and drop cross-cluster redundancies (this
                           is the only pass that attempts to optimize *across*
-                          clusters, rather than within a cluster).
+                          Clusters, rather than within a Cluster).
                           The 'aggressive' mode may substantially increase the
                           symbolic processing time; it may or may not reduce the
                           JIT-compilation time; it may or may not improve the

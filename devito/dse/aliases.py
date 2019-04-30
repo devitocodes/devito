@@ -84,7 +84,7 @@ def collect(exprs):
     # Note:
     # "attempt" because this is a very hard problem, which depends/relies on:
     # - the input format, eg [r0 = a, r1 = b] rather than [r0 = a*b],
-    # - the observation that the COMs are often identical across different aliases
+    # - the observation that the COMs are often identical across different Aliases
     #   eg {A[i+1] = ..., A[i+1]*B[i+1]} (here A is always centered at [i+1])
     # Note:
     # This approach is very naive. Ideally, one would want to set up and solve a
@@ -100,7 +100,7 @@ def collect(exprs):
                 aliases[i.alias] = i.add(a, distance)
         aliases.pop(origin)
 
-    # Heuristically attempt to relax the aliases offsets to maximize the
+    # Heuristically attempt to relax the Aliases offsets to maximize the
     # likelyhood of loop fusion
     groups = OrderedDict()
     for i in aliases.values():
@@ -121,7 +121,7 @@ Candidate = namedtuple('Candidate', 'expr indexeds bases offsets')
 
 def analyze(expr):
     """
-    Determine whether ``expr`` is a potential alias and collect relevant metadata.
+    Determine whether ``expr`` is a potential Alias and collect relevant metadata.
 
     A necessary condition is that all Indexeds in ``expr`` are affine in the
     access Dimensions so that the access offsets (or "strides") can be derived.
@@ -231,7 +231,7 @@ def calculate_COM(group):
                 # `analyze` guarantees that no accesses can be irregular, a symbol
                 # might still be present as long as it's constant (i.e., known to
                 # be never written to). For example: `A[t, x_m + 2, y, z]`
-                # At this point, the only change we have is that the symbolic entry
+                # At this point, the only chance we have is that the symbolic entry
                 # is identical across all elements in `v`
                 if len(set(v)) == 1:
                     entries.append((k, v[0]))
@@ -269,7 +269,7 @@ class Alias(object):
 
     """
     Map an expression (the so called "alias") to a set of aliasing expressions.
-    For each aliasing expression, the distance from the alias along each Dimension
+    For each aliasing expression, the distance from the Alias along each Dimension
     is tracked.
     """
 
@@ -300,14 +300,14 @@ class Alias(object):
     @property
     def diameter(self):
         """
-        The min/max distance along each Dimension for this alias.
+        The min/max distance along each Dimension for this Alias.
         """
         return OrderedDict((k, (min(v), max(v))) for k, v in self.Tdistances)
 
     @property
     def relaxed_diameter(self):
         """
-        Return a map telling the min/max offsets in each Dimension for this alias.
+        Return a map telling the min/max offsets in each Dimension for this Alias.
         The extremes are potentially larger than those provided by ``self.diameter``,
         as here we're also taking into account the ghost offsets.
         """

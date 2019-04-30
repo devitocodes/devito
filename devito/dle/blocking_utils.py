@@ -181,14 +181,14 @@ def optimize_unfolded_tree(unfolded, root):
         modified_dims = {}
         mapper = {}
         for t, r in zip(tree, root):
-            udim = IncrDimension(t.dim, t.symbolic_min, 1, "%ss%d" % (t.index, i))
+            udim0 = IncrDimension(t.dim, t.symbolic_min, 1, "%ss%d" % (t.index, i))
             modified_tree.append(t._rebuild(limits=(0, t.limits[1] - t.limits[0], t.step),
-                                            uindices=t.uindices + (udim,)))
+                                            uindices=t.uindices + (udim0,)))
 
-            mapper[t.dim] = udim
+            mapper[t.dim] = udim0
 
-            udim = IncrDimension(t.dim, 0, 1, "%ss%d" % (t.index, i))
-            modified_root.append(r._rebuild(uindices=r.uindices + (udim,)))
+            udim1 = IncrDimension(t.dim, 0, 1, "%ss%d" % (t.index, i))
+            modified_root.append(r._rebuild(uindices=r.uindices + (udim1,)))
 
             d = r.limits[0]
             assert isinstance(d, BlockDimension)
