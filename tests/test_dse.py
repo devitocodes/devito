@@ -374,15 +374,18 @@ def test_estimate_cost(fa, fb, fc, t0, t1, t2, expr, expected):
 
 
 @pytest.mark.parametrize('exprs,exp_u,exp_v', [
-    (['Eq(s, 0, (x, y))', 'Eq(s, s + 4, (x, y))', 'Eq(u, s)'], 4, 0),
-    (['Eq(s, 0, (x, y))', 'Eq(s, s + s + 4, (x, y))', 'Eq(s, s + 4, (x, y))',
-      'Eq(u, s)'], 8, 0),
-    (['Eq(s, 0, (x, y))', 'Inc(s, 4, (x, y))', 'Eq(u, s)'], 4, 0),
-    (['Eq(s, 0, (x, y))', 'Inc(s, 4, (x, y))', 'Eq(v, s)', 'Eq(u, s)'], 4, 4),
-    (['Eq(s, 0, (x, y))', 'Inc(s, 4, (x, y))', 'Eq(v, s)',
-      'Eq(s, s + 4, (x, y))', 'Eq(u, s)'], 8, 4),
-    (['Eq(s, 0, (x, y))', 'Inc(s, 4, (x, y))', 'Eq(v, s)',
-      'Inc(s, 4, (x, y))', 'Eq(u, s)'], 8, 4),
+    (['Eq(s, 0, implicit_dims=(x, y))', 'Eq(s, s + 4, implicit_dims=(x, y))',
+      'Eq(u, s)'], 4, 0),
+    (['Eq(s, 0, implicit_dims=(x, y))', 'Eq(s, s + s + 4, implicit_dims=(x, y))',
+      'Eq(s, s + 4, implicit_dims=(x, y))', 'Eq(u, s)'], 8, 0),
+    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))',
+      'Eq(u, s)'], 4, 0),
+    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))', 'Eq(v, s)',
+      'Eq(u, s)'], 4, 4),
+    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))', 'Eq(v, s)',
+      'Eq(s, s + 4, implicit_dims=(x, y))', 'Eq(u, s)'], 8, 4),
+    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))', 'Eq(v, s)',
+      'Inc(s, 4, implicit_dims=(x, y))', 'Eq(u, s)'], 8, 4),
     (['Eq(u, 0)', 'Inc(u, 4)', 'Eq(v, u)', 'Inc(u, 4)'], 8, 4),
     (['Eq(u, 1)', 'Eq(v, 4)', 'Inc(u, v)', 'Inc(v, u)'], 5, 9),
 ])
