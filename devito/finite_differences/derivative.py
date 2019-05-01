@@ -86,13 +86,14 @@ class Derivative(sympy.Derivative, Differentiable):
             # ie ((x, 2), (y, 3))
             new_dims = []
             orders = []
-            for d in dims:
+            d_ord = kwargs.get('deriv_order', tuple([1]*len(dims)))
+            for d, o in zip(dims, d_ord):
                 if isinstance(d, (tuple, sympy.Tuple)):
                     new_dims += [d[0] for _ in range(d[1])]
                     orders += [d[1]]
                 else:
-                    new_dims += [d]
-                    orders += [1]
+                    new_dims += [d for _ in range(o)]
+                    orders += [o]
             new_dims = as_tuple(new_dims)
 
         kwargs["evaluate"] = False

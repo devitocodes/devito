@@ -63,6 +63,26 @@ class TestFD(object):
         assert(np.allclose(u_di.data, 66.6))
         assert(np.allclose(u_dii.data, 66.6))
 
+    @pytest.mark.parametrize('SymbolType, derivative, dim, expected', [
+        (Function, ['dx2'], 3, 'Derivative(u(x, y, z), (x, 2))'),
+        (Function, ['dx2dy'], 3, 'Derivative(u(x, y, z), (x, 2), y)'),
+        (Function, ['dx2', 'dy'], 3, 'Derivative(Derivative(u(x, y, z), (x, 2)), y)'),
+        (Function, ['dx2dy', 'dz2'], 3,
+         'Derivative(Derivative(u(x, y, z), (x, 2), y), (z, 2))'),
+        (TimeFunction, ['dx2'], 3, 'Derivative(u(t, x, y, z), (x, 2))'),
+        (TimeFunction, ['dx2dy'], 3, 'Derivative(u(t, x, y, z), (x, 2), y)'),
+        (TimeFunction, ['dx2', 'dy'], 3,
+         'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)')
+    ])
+    def test_derivative_uneval(self, SymbolType, derivative, dim, expected):
+        u = SymbolType(name='u', grid=self.grid, time_order=2, space_order=2)
+        expr = getattr(u, derivative[0])
+        for d in derivative[1:]:
+            expr = getattr(expr, d)
+        assert(expr.__str__() == expected)
+        # Make sure the FD evaluation executes
+        expr.evaluate
+
     @pytest.mark.parametrize('SymbolType, derivative, dim', [
         (Function, 'dx2', 3), (Function, 'dy2', 3),
         (TimeFunction, 'dx2', 3), (TimeFunction, 'dy2', 3), (TimeFunction, 'dt', 2)
