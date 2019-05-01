@@ -81,6 +81,7 @@ class Basic(object):
     # Basic symbolic object properties
     is_Scalar = False
     is_Tensor = False
+    is_OPS = False
 
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):

@@ -2,6 +2,8 @@ import pytest
 
 from conftest import skipif
 from devito import Eq, Grid, Operator, TimeFunction, configuration  # noqa
+from devito.ir.equations import ClusterizedEq # noqa
+from devito.ir.iet import Callable,  Expression # noqa
 from devito.symbolics import indexify
 
 pytestmark = skipif('noops', whole_module=True)
@@ -11,7 +13,8 @@ pytestmark = skipif('noops', whole_module=True)
 # thus invalidating all of the future tests. This is guaranteed by the
 # `pytestmark` above
 from devito.ops.node_factory import OPSNodeFactory  # noqa
-from devito.ops.transformer import make_ops_ast  # noqa
+from devito.ops.operator import OperatorOPS # noqa
+from devito.ops.transformer import opsit, make_ops_ast  # noqa
 
 
 class TestOPSExpression(object):
@@ -71,3 +74,29 @@ class TestOPSExpression(object):
         result = make_ops_ast(indexify(eval(equation)), nfops)
 
         assert str(result) == expected
+
+
+class TestOPSLifting(object):
+
+    @pytest.mark.parametrize('eq, expected', [
+        ('Eq(u,3*a - 4**a)', 'void Kernel0(float * ut00)\n\
+{\n\
+  ut00[OPS_ACC0(0)] = -2.97015324253729F;\n\
+}'),
+        ('Eq(w,u + v)', 'void Kernel0(float * ut00, float * vt00, float * wt00)\n\
+{\n\
+  wt00[OPS_ACC0(0)] = ut00[OPS_ACC1(0)] + vt00[OPS_ACC2(0)];\n\
+}'),
+    ])
+    def test_expr_lifting(self, eq, expected):
+        grid_1d = Grid(shape=(4))
+
+        a = 1.43  # noqa
+
+        u = TimeFunction(name='u', grid=grid_1d, space_order=2)  # noqa
+        v = TimeFunction(name='v', grid=grid_1d, space_order=2)  # noqa
+        w = TimeFunction(name='w', grid=grid_1d, space_order=2)  # noqa
+
+        op = OperatorOPS(eval(eq))
+
+        assert str(op._callables[0]) == expected

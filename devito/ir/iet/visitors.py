@@ -152,7 +152,9 @@ class CGen(Visitor):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if i.is_Tensor:
+            if i.is_Tensor and i.is_OPS:
+                ret.append(c.Value(i._C_typename, i.name))
+            elif i.is_Tensor:
                 ret.append(c.Value('%srestrict' % i._C_typename, i._C_name))
             elif i.is_AbstractObject or i.is_Symbol:
                 ret.append(c.Value(i._C_typename, i._C_name))
@@ -314,6 +316,11 @@ class CGen(Visitor):
                 esigns.append(c.FunctionDeclaration(c.Value(i.root.retval, i.root.name),
                                                     self._args_decl(i.root.parameters)))
                 efuncs.extend([i.root.ccode, blankline])
+
+        for i in o._callables:
+            esigns.append(c.FunctionDeclaration(c.Value(i.retval, i.name),
+                                                self._args_decl(i.parameters)))
+            efuncs.extend([i.ccode, blankline])
 
         # Header files, extra definitions, ...
         header = [c.Line(i) for i in o._headers]
