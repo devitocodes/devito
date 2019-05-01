@@ -17,8 +17,7 @@ dependencies:
   - psutil>=5.1.0
   - sphinx
   - sphinx_rtd_theme
-  - dask==0.18.1
-  - distributed==1.22.0
+  - distributed>=1.27
   - scikit-image
   - cython
   - click

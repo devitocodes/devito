@@ -33,7 +33,7 @@ if os.environ.get('testWithPip') != 'true':
         runStep("python examples/seismic/tti/tti_example.py -a --noazimuth")
         runStep("python examples/seismic/elastic/elastic_example.py")
         runStep("py.test --nbval examples/cfd")
-        runStep("py.test --nbval examples/seismic/tutorials/0[1-3]*")
+        runStep("py.test --nbval examples/seismic/tutorials")
         runStep("py.test --nbval examples/compiler")
         runStep("codecov")
     runStep("pushd docs; make html; popd")
