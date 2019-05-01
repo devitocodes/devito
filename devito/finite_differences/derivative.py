@@ -13,52 +13,59 @@ class Derivative(sympy.Derivative, Differentiable):
 
     """
     An unevaluated Derivative, which carries metadata (Dimensions,
-    derivative order, etc) to be evaluated.
+    derivative order, etc) describing how the derivative will be expanded
+    upon evaluation.
 
     Parameters
     ----------
-
-    expr : symbolic expression
-    dims : Dimension or tuple
-        Dimenions wrt which to take the derivative
-    deriv_order: Int or Tuple
-        Order of the derivative for each Dimension
-    fd_order : Int or tuple
-        Order of the finite difference for each Dimension
-    stagger : Dimension or tuple
-        Staggering for each dimension
-    side : Side or tuple
-        Side of the finite difference for each Dimension
-    transpose : direct or adjoint
-        Wether the finite difference is transposed
+    expr : expr-like
+        Expression for which the Derivative is produced.
+    dims : Dimension or tuple of Dimension
+        Dimenions w.r.t. which to differentiate.
+    fd_order : int or tuple of int, optional
+        Coefficient discretization order. Note: this impacts the width of
+        the resulting stencil. Defaults to 1.
+    deriv_order: int or tuple of int, optional
+        Derivative order. Defaults to 1.
+    stagger : Side or tuple of Side, optional
+        Shift of the finite-difference approximation. Defaults to ``centered``.
+    side : Side or tuple of Side, optional
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x +1). Defaults to ``centered``.
+    transpose : Transpose, optional
+        Forward (matvec=direct) or transpose (matvec=transpose) mode of the
+        finite difference. Defaults to ``direct``.
 
     Examples
     --------
     Creation
 
-    >> from devito import Function, Derivative, Grid
-    >> grid = Grid((10, 10))
-    >> u = Function(name="u", grid=grid, space_order=2)
-    >> Derivative(u, u.indices[0])
+    >>> from devito import Function, Derivative, Grid
+    >>> grid = Grid((10, 10))
+    >>> x, y = grid.dimensions
+    >>> u = Function(name="u", grid=grid, space_order=2)
+    >>> Derivative(u, x)
     Derivative(u(x, y), x)
 
     This can also be obtained via the differential shortcut
 
-    >> u.dx
+    >>> u.dx
+    Derivative(u(x, y), x)
 
-    For higher order you can specify the order as a keyword argument
+    You can also specify the order as a keyword argument
 
-    >> Derivative(u, x, deriv_order=2)
+    >>> Derivative(u, x, deriv_order=2)
     Derivative(u(x, y), (x, 2))
 
     Or as a tuple
 
-    >> Derivative(u, (x, 2))
+    >>> Derivative(u, (x, 2))
     Derivative(u(x, y), (x, 2))
 
-    Once again, this can be access via the differential shortcut
+    Once again, this can be obtained via shortcut notation
 
-    >> u.dx2
+    >>> u.dx2
+    Derivative(u(x, y), (x, 2))
     """
 
     _state = ('expr', 'dims', 'side', 'stagger', 'fd_order', 'transpose')
