@@ -161,7 +161,8 @@ class Operator(Callable):
 
         # Expression lowering: evaluation of derivatives, indexification,
         # substitution rules, specialization
-        expressions = [indexify(i.evaluate) for i in expressions]
+        expressions = [i.evaluate for i in expressions]
+        expressions = [indexify(i) for i in expressions]
         expressions = self._apply_substitutions(expressions, subs)
         expressions = self._specialize_exprs(expressions)
 

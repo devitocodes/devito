@@ -660,7 +660,6 @@ class SparseFunction(AbstractSparseFunction):
 
         # Write/Incr `self`
         lhs = self.subs(self_subs)
-
         last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
 
         return temps + summands + last

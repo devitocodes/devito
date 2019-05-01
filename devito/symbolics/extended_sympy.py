@@ -67,12 +67,12 @@ class CondEq(sympy.Eq, FrozenExpr):
         return sympy.Eq.__new__(cls, *args, evaluate=False)
 
     @property
-    def negated(self):
-        return CondNe(*self.args, evaluate=False)
-
-    @property
     def canonical(self):
         return self
+
+    @property
+    def negated(self):
+        return CondNe(*self.args, evaluate=False)
 
 
 class CondNe(sympy.Ne, FrozenExpr):
@@ -86,12 +86,12 @@ class CondNe(sympy.Ne, FrozenExpr):
         return sympy.Ne.__new__(cls, *args, evaluate=False)
 
     @property
-    def negated(self):
-        return CondEq(*self.args, evaluate=False)
-
-    @property
     def canonical(self):
         return self
+
+    @property
+    def negated(self):
+        return CondEq(*self.args, evaluate=False)
 
 
 class Mul(sympy.Mul, FrozenExpr):
