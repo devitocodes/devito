@@ -1,6 +1,6 @@
 import sympy
 
-from collections import OrderedDict
+from collections import Iterable, OrderedDict
 from devito.finite_differences.finite_difference import (generic_derivative,
                                                          first_derivative,
                                                          cross_derivative)
@@ -74,7 +74,7 @@ class Derivative(sympy.Derivative, Differentiable):
         # Check dims, can be a dimensions, multiple dimensions as a tuple
         # or a tuple of tuple (ie ((x,1),))
         if len(dims) == 1:
-            if isinstance(dims[0], (tuple, sympy.Tuple)):
+            if isinstance(dims[0], Iterable):
                 orders = kwargs.get('deriv_order', dims[0][1])
                 if dims[0][1] != orders:
                     raise ValueError("Two different value of deriv_order")
@@ -88,7 +88,7 @@ class Derivative(sympy.Derivative, Differentiable):
             orders = []
             d_ord = kwargs.get('deriv_order', tuple([1]*len(dims)))
             for d, o in zip(dims, d_ord):
-                if isinstance(d, (tuple, sympy.Tuple)):
+                if isinstance(d, Iterable):
                     new_dims += [d[0] for _ in range(d[1])]
                     orders += [d[1]]
                 else:
