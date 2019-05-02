@@ -75,9 +75,11 @@ class Derivative(sympy.Derivative, Differentiable):
         # or a tuple of tuple (ie ((x,1),))
         if len(dims) == 1:
             if isinstance(dims[0], Iterable):
+                if len(dims[0]) != 2:
+                    raise ValueError("Expected `(dim, deriv_order)`, got %s" % dims[0])
                 orders = kwargs.get('deriv_order', dims[0][1])
                 if dims[0][1] != orders:
-                    raise ValueError("Two different value of deriv_order")
+                    raise ValueError("Two different values of `deriv_order`")
                 new_dims = tuple([dims[0][0]]*dims[0][1])
             else:
                 orders = kwargs.get('deriv_order', 1)
