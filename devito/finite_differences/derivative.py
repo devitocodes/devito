@@ -10,6 +10,8 @@ from devito.finite_differences.differentiable import Differentiable
 from devito.finite_differences.tools import centered, direct, transpose, left, right
 from devito.tools import as_tuple, filter_ordered
 
+__all__ = ['Derivative']
+
 
 class Derivative(sympy.Derivative, Differentiable):
 
@@ -102,11 +104,11 @@ class Derivative(sympy.Derivative, Differentiable):
             d_ord = kwargs.get('deriv_order', tuple([1]*len(dims)))
             for d, o in zip(dims, d_ord):
                 if isinstance(d, Iterable):
-                    new_dims += [d[0] for _ in range(d[1])]
-                    orders += [d[1]]
+                    new_dims.extend([d[0] for _ in range(d[1])])
+                    orders.append(d[1])
                 else:
-                    new_dims += [d for _ in range(o)]
-                    orders += [o]
+                    new_dims.extend([d for _ in range(o)])
+                    orders.append(o)
             new_dims = as_tuple(new_dims)
             orders = as_tuple(orders)
 
