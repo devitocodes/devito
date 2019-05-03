@@ -71,10 +71,14 @@ class Derivative(sympy.Derivative, Differentiable):
     _state = ('expr', 'dims', 'side', 'stagger', 'fd_order', 'transpose')
 
     def __new__(cls, expr, *dims, **kwargs):
-        # Check dims, can be a dimensions, multiple dimensions as a tuple
-        # or a tuple of tuple (ie ((x,1),))
+        if type(expr) == sympy.Derivative:
+            raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
+
+        # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
+        # an iterable of 2-tuple (Dimension, deriv_order)
         if len(dims) == 1:
             if isinstance(dims[0], Iterable):
+                # Iterable of Dimensions
                 if len(dims[0]) != 2:
                     raise ValueError("Expected `(dim, deriv_order)`, got %s" % dims[0])
                 orders = kwargs.get('deriv_order', dims[0][1])
@@ -82,10 +86,11 @@ class Derivative(sympy.Derivative, Differentiable):
                     raise ValueError("Two different values of `deriv_order`")
                 new_dims = tuple([dims[0][0]]*dims[0][1])
             else:
+                # Single Dimension
                 orders = kwargs.get('deriv_order', 1)
                 new_dims = tuple([dims[0]]*orders)
         else:
-            # ie ((x, 2), (y, 3))
+            # Iterable of 2-tuple, e.g. ((x, 2), (y, 3))
             new_dims = []
             orders = []
             d_ord = kwargs.get('deriv_order', tuple([1]*len(dims)))
@@ -97,7 +102,12 @@ class Derivative(sympy.Derivative, Differentiable):
                     new_dims += [d for _ in range(o)]
                     orders += [o]
             new_dims = as_tuple(new_dims)
+            orders = as_tuple(orders)
 
+        # Construct the actual Derivative object
+        # Note: as long as evaluate=False, the order in which the Derivatives are taken
+        # is unchanged, i.e., u.dx.dy -> Derivative(u, x, y) and
+        # u.dy.dx -> Derivative(u, y, x)
         kwargs["evaluate"] = False
         kwargs["simplify"] = False
         obj = sympy.Derivative.__new__(cls, expr, *new_dims, **kwargs)
