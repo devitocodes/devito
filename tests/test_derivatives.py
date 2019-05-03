@@ -117,8 +117,13 @@ class TestFD(object):
         This test compares the discrete finite-difference scheme against polynomials
         For a given order p, the finite difference scheme should
         be exact for polynomials of order p
-        :param derivative: name of the derivative to be tested
-        :param space_order: space order of the finite difference stencil
+
+        Parameters
+        ----------
+        derivative :
+            name of the derivative to be tested
+        space_order : int
+            space order of the finite difference stencil
         """
         clear_cache()
         # dummy axis dimension
@@ -160,8 +165,13 @@ class TestFD(object):
         This test compares the discrete finite-difference scheme against polynomials
         For a given order p, the finite difference scheme should
         be exact for polynomials of order p
-        :param derivative: name of the derivative to be tested
-        :param space_order: space order of the finite difference stencil
+
+        Parameters
+        ----------
+        derivative :
+            name of the derivative to be tested
+        space_order : int
+            space order of the finite difference stencil
         """
         clear_cache()
         # dummy axis dimension

@@ -351,10 +351,16 @@ def demo_model(preset, **kwargs):
 def initialize_damp(damp, nbpml, spacing, mask=False):
     """Initialise damping field with an absorbing PML layer.
 
-    :param damp: The :class:`Function` for the damping field.
-    :param nbpml: Number of points in the damping layer.
-    :param spacing: Grid spacing coefficient.
-    :param mask: whether the dampening is a mask or layer.
+    Parameters
+    ----------
+    damp : :class:`Function`
+        for the damping field.
+    nbpml :
+        Number of points in the damping layer.
+    spacing :
+        Grid spacing coefficient.
+    mask :
+        whether the dampening is a mask or layer.
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
@@ -393,10 +399,16 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
     does *not* include the PML layers for the absorbing boundary conditions;
     these are added via padding by this function.
 
-    :param function: The :class:`Function` to be initialised with some data.
-    :param data: The data array used for initialisation.
-    :param nbpml: Number of PML layers for boundary damping.
-    :param pad_mode: A string or a suitable padding function as explained in
+    Parameters
+    ----------
+    function : :class:`Function`
+        to be initialised with some data.
+    data :
+        The data array used for initialisation.
+    nbpml :
+        Number of PML layers for boundary damping.
+    pad_mode :
+        A string or a suitable padding function as explained in
                      :func:`numpy.pad`.
     """
     pad_widths = [(nbpml + i.left, nbpml + i.right) for i in function._size_halo]
@@ -490,22 +502,36 @@ class GenericModel(object):
 class Model(GenericModel):
     """The physical model used in seismic inversion processes.
 
-    :param origin: Origin of the model in m as a tuple in (x,y,z) order
-    :param spacing: Grid size in m as a Tuple in (x,y,z) order
-    :param shape: Number of grid points size in (x,y,z) order
-    :param space_order: Order of the spatial stencil discretisation
-    :param vp: Velocity in km/s
-    :param nbpml: The number of PML layers for boundary damping
-    :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
-    :param delta: Thomsen delta parameter (0<delta<1), delta<epsilon
-    :param theta: Tilt angle in radian
-    :param phi: Asymuth angle in radian
+    Parameters
+    ----------
+    origin :
+        Origin of the model in m as a tuple in (x,y,z) order
+    spacing :
+        Grid size in m as a Tuple in (x,y,z) order
+    shape :
+        Number of grid points size in (x,y,z) order
+    space_order :
+        Order of the spatial stencil discretisation
+    vp :
+        Velocity in km/s
+    nbpml :
+        The number of PML layers for boundary damping
+    epsilon :
+        Thomsen epsilon parameter (0<epsilon<1)
+    delta :
+        Thomsen delta parameter (0<delta<1), delta<epsilon
+    theta :
+        Tilt angle in radian
+    phi :
+        Asymuth angle in radian
 
     The :class:`Model` provides two symbolic data objects for the
     creation of seismic wave propagation operators:
 
-    :param m: The square slowness of the wave
-    :param damp: The damping field for absorbing boundarycondition
+    m :
+        The square slowness of the wave
+    damp :
+        The damping field for absorbing boundarycondition
     """
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
@@ -591,7 +617,9 @@ class Model(GenericModel):
     @property
     def vp(self):
         """:class:`numpy.ndarray` holding the model velocity in km/s.
-        .. note::
+
+        Notes
+        -----
         Updating the velocity field also updates the square slowness
         ``self.m``. However, only ``self.m`` should be used in seismic
         operators, since it is of type :class:`Function`.
@@ -602,7 +630,10 @@ class Model(GenericModel):
     def vp(self, vp):
         """Set a new velocity model and update square slowness
 
-        :param vp : new velocity in km/s
+        Parameters
+        ----------
+        vp :
+            new velocity in km/s
         """
         self._vp = vp
 
@@ -615,17 +646,31 @@ class Model(GenericModel):
 
 class ModelElastic(GenericModel):
     """The physical model used in seismic inversion processes.
-    :param origin: Origin of the model in m as a tuple in (x,y,z) order
-    :param spacing: Grid size in m as a Tuple in (x,y,z) order
-    :param shape: Number of grid points size in (x,y,z) order
-    :param space_order: Order of the spatial stencil discretisation
-    :param vp: P-wave velocity in km/s
-    :param vs: S-wave velocity in km/s
-    :param nbpml: The number of PML layers for boundary damping
-    :param rho: Density in kg/cm^3 (rho=1 for water)
+
+    Parameters
+    ----------
+    origin :
+        Origin of the model in m as a tuple in (x,y,z) order
+    spacing :
+        Grid size in m as a Tuple in (x,y,z) order
+    shape :
+        Number of grid points size in (x,y,z) order
+    space_order : int
+        Order of the spatial stencil discretisation
+    vp :
+        P-wave velocity in km/s
+    vs :
+        S-wave velocity in km/s
+    nbpml :
+        The number of PML layers for boundary damping
+    rho :
+        Density in kg/cm^3 (rho=1 for water)
+
     The :class:`ModelElastic` provides a symbolic data objects for the
     creation of seismic wave propagation operators:
-    :param damp: The damping field for absorbing boundarycondition
+
+    damp :
+        The damping field for absorbing boundary condition
     """
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,
                  dtype=np.float32):
