@@ -1,12 +1,14 @@
-import sympy
-
 from collections import Iterable, OrderedDict
+
+import sympy
+from cached_property import cached_property
+
 from devito.finite_differences.finite_difference import (generic_derivative,
                                                          first_derivative,
                                                          cross_derivative)
 from devito.finite_differences.differentiable import Differentiable
 from devito.finite_differences.tools import centered, direct, transpose, left, right
-from devito.tools import as_tuple
+from devito.tools import as_tuple, filter_ordered
 
 
 class Derivative(sympy.Derivative, Differentiable):
@@ -76,7 +78,9 @@ class Derivative(sympy.Derivative, Differentiable):
 
         # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
         # an iterable of 2-tuple (Dimension, deriv_order)
-        if len(dims) == 1:
+        if len(dims) == 0:
+            raise ValueError("Expected Dimension w.r.t. which to differentiate")
+        elif len(dims) == 1:
             if isinstance(dims[0], Iterable):
                 # Iterable of Dimensions
                 if len(dims[0]) != 2:
@@ -104,13 +108,16 @@ class Derivative(sympy.Derivative, Differentiable):
             new_dims = as_tuple(new_dims)
             orders = as_tuple(orders)
 
+        # SymPy expects the list of variable w.r.t. which we differentiate to be a list
+        # of 2-tuple `(s, count)` where s is the entity to diff wrt and count is the order
+        # of the derivative
+        variable_count = [(s, new_dims.count(s)) for s in filter_ordered(new_dims)]
+
         # Construct the actual Derivative object
         # Note: as long as evaluate=False, the order in which the Derivatives are taken
         # is unchanged, i.e., u.dx.dy -> Derivative(u, x, y) and
         # u.dy.dx -> Derivative(u, y, x)
-        kwargs["evaluate"] = False
-        kwargs["simplify"] = False
-        obj = sympy.Derivative.__new__(cls, expr, *new_dims, **kwargs)
+        obj = Differentiable.__new__(cls, expr, *variable_count)
         obj._dims = tuple(OrderedDict.fromkeys(new_dims))
         obj._fd_order = kwargs.get('fd_order', 1)
         obj._deriv_order = orders
@@ -119,6 +126,10 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._transpose = kwargs.get("transpose", direct)
 
         return obj
+
+    @cached_property
+    def _args_diff(self):
+        return tuple(i for i in self.args if isinstance(i, Differentiable))
 
     @property
     def dims(self):
