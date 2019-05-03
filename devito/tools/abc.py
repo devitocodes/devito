@@ -138,6 +138,22 @@ class Evaluable(object):
     This mixin is useful to implement systems based upon lazy evaluation.
     """
 
+    @classmethod
+    def _evaluate_maybe_nested(cls, maybe_evaluable):
+        if isinstance(maybe_evaluable, Evaluable):
+            return maybe_evaluable.evaluate
+        try:
+            # Not an Evaluable, but some Evaluables may still be hidden within `args`
+            if maybe_evaluable.args:
+                evaluated = [Evaluable._evaluate_maybe_nested(i)
+                             for i in maybe_evaluable.args]
+                return maybe_evaluable.func(*evaluated)
+            else:
+                return maybe_evaluable
+        except AttributeError:
+            # No `args` to be visited
+            return maybe_evaluable
+
     @property
     def args(self):
         return ()
@@ -146,26 +162,10 @@ class Evaluable(object):
     def func(self):
         return self.__class__
 
-    @property
     def _evaluate_args(self):
-        evaluated = []
-        for i in self.args:
-            if isinstance(i, Evaluable):
-                evaluated.append(i.evaluate)
-            else:
-                # There might still be nested Evaluable args
-                try:
-                    args = [getattr(a, 'evaluate', a) for a in i.args]
-                    if args:
-                        evaluated.append(i.func(*args))
-                    else:
-                        evaluated.append(i)
-                except AttributeError:
-                    # An "unknown" arg that has no `args`
-                    evaluated.append(i)
-        return evaluated
+        return [Evaluable._evaluate_maybe_nested(i) for i in self.args]
 
     @property
     def evaluate(self):
         """Return a new object from the evaluation of ``self``."""
-        return self.func(*self._evaluate_args)
+        return self.func(*self._evaluate_args())

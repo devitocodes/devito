@@ -76,7 +76,7 @@ class Eq(sympy.Eq, Evaluable):
 
     @cached_property
     def evaluate(self):
-        eq = self.func(*self._evaluate_args, subdomain=self.subdomain,
+        eq = self.func(*self._evaluate_args(), subdomain=self.subdomain,
                        coefficients=self.substitutions, implicit_dims=self._implicit_dims)
         if eq._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
