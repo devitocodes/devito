@@ -134,7 +134,7 @@ def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
 
     Parameters
     ----------
-    data :
+    data : ndarray
         Image data to plot
     cmap :
         Choice of colormap. Defaults to gray scale for images as a

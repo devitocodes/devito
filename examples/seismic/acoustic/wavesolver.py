@@ -93,11 +93,11 @@ class AcousticWaveSolver(object):
             Symbol with time series data for the injected source term
         rec :
             Symbol to store interpolated receiver data
-        u :
-            (Optional) Symbol to store the computed wavefield
-        m :
-            (Optional) Symbol for the time-constant square slowness
-        save :
+        u : ,optional
+            Symbol to store the computed wavefield
+        m : ,optional
+            Symbol for the time-constant square slowness
+        save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield
 
         Returns
@@ -171,8 +171,8 @@ class AcousticWaveSolver(object):
 
         Parameters
         ----------
-        recin :
-            Receiver data as a numpy array
+        recin : ndarray
+            Receiver data
         u :
             Symbol for full wavefield `u` (created with save=True)
         v : ,optional

@@ -13,9 +13,9 @@ def laplacian(field, m, s, kernel):
 
     Parameters
     ----------
-    field :
-        Symbolic TimeFunction object, solution to be computed
-    m :
+    field : TimeFunction object
+        Solution to be computed
+    m : float
         square slowness
     s :
         symbol for the time-step
@@ -38,14 +38,14 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
 
     Parameters
     ----------
-    field :
+    field : TimeFunction object
         Symbolic TimeFunction object, solution to be computed
     m : float
         square slowness
     s :
         symbol for the time-step
-    damp :
-        ABC dampening field (Function)
+    damp : :class:`Function`
+        ABC dampening field
     kwargs : dict
         forward/backward wave equation (sign of u.dt will change accordingly
     as well as the updated time-step (u.forwad or u.backward)
@@ -87,7 +87,7 @@ def ForwardOperator(model, geometry, space_order=4,
         object containing the acquisition geometry
     space_order : int, optional
         Space discretization order
-    save : int or buffer, optional
+    save : int or Buffer, optional
         Saving flag, True saves all time steps, False only the three
     """
     m, damp = model.m, model.damp

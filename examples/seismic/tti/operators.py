@@ -349,12 +349,12 @@ def ForwardOperator(model, geometry, space_order=4,
             object containing the physical parameters
        src :
             None ot IShot() (not currently supported properly)
-       data :
+       data : ndarray
             IShot() object containing the acquisition geometry and field data
-       time_order :
+       time_order : int
             Time discretization order
-       space_order :
-            int Space discretization order
+       space_order : int
+            Space discretization order
        """
 
     dt = model.grid.time_dim.spacing

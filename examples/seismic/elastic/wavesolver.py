@@ -12,11 +12,11 @@ class ElasticWaveSolver(object):
 
     Parameters
     ----------
-    model :
+    model : :class:`Model`
         Physical model with domain parameters
-    source :
+    source : :class:`PointData`
         Sparse point symbol providing the injected wave
-    receiver :
+    receiver : :class:`PointData`
         Sparse point symbol describing an array of receivers
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
@@ -70,7 +70,7 @@ class ElasticWaveSolver(object):
             Symbol for the time-constant S-wave velocity (km/s)
         vs : ,optional
             Symbol for the time-constant density (rho=1 for water)
-        save :
+        save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield
 
         Returns

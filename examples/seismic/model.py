@@ -403,7 +403,7 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
     ----------
     function : :class:`Function`
         to be initialised with some data.
-    data :
+    data : ndarray
         The data array used for initialisation.
     nbpml :
         Number of PML layers for boundary damping.

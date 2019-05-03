@@ -12,7 +12,7 @@ class CheckpointOperator(Operator):
        ----------
        op : callable
             devito.Operator object that this object will wrap.
-       args: dict
+       args : dict
             If devito.Operator.apply() expects any arguments, they can be provided
             here to be cached. Any calls to CheckpointOperator.apply() will
             automatically include these cached arguments in the call to the
