@@ -355,7 +355,7 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
     ----------
     damp : `Function`
         for the damping field.
-    nbpml :
+    nbpml : int
         Number of points in the damping layer.
     spacing :
         Grid spacing coefficient.
@@ -405,9 +405,9 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
         to be initialised with some data.
     data : ndarray
         The data array used for initialisation.
-    nbpml :
+    nbpml : int
         Number of PML layers for boundary damping.
-    pad_mode :
+    pad_mode : str or padding function FIX
         A string or a suitable padding function as explained in
                      :func:`numpy.pad`.
     """
@@ -508,21 +508,21 @@ class Model(GenericModel):
         Origin of the model in m as a tuple in (x,y,z) order
     spacing :
         Grid size in m as a Tuple in (x,y,z) order
-    shape :
+    shape : int
         Number of grid points size in (x,y,z) order
-    space_order :
+    space_order : int
         Order of the spatial stencil discretisation
-    vp :
+    vp : float
         Velocity in km/s
-    nbpml :
+    nbpml : int
         The number of PML layers for boundary damping
-    epsilon :
+    epsilon : float
         Thomsen epsilon parameter (0<epsilon<1)
-    delta :
+    delta : float
         Thomsen delta parameter (0<delta<1), delta<epsilon
-    theta :
+    theta : float
         Tilt angle in radian
-    phi :
+    phi : float
         Asymuth angle in radian
 
     The `Model` provides two symbolic data objects for the
@@ -653,17 +653,17 @@ class ModelElastic(GenericModel):
         Origin of the model in m as a tuple in (x,y,z) order.
     spacing :
         Grid size in m as a Tuple in (x,y,z) order.
-    shape :
+    shape : int
         Number of grid points size in (x,y,z) order.
     space_order : int
         Order of the spatial stencil discretisation.
-    vp :
+    vp : float
         P-wave velocity in km/s.
-    vs :
+    vs : float
         S-wave velocity in km/s.
-    nbpml :
+    nbpml : int
         The number of PML layers for boundary damping.
-    rho :
+    rho : float
         Density in kg/cm^3 (rho=1 for water).
 
     The `ModelElastic` provides a symbolic data objects for the
