@@ -152,18 +152,6 @@ class Derivative(sympy.Derivative, Differentiable):
         return self._side
 
     @property
-    def is_Staggered(self):
-        return self.expr.is_Staggered
-
-    @property
-    def indices(self):
-        return self.expr.indices
-
-    @property
-    def staggered(self):
-        return self.expr.staggered
-
-    @property
     def transpose(self):
         return self._transpose
 
