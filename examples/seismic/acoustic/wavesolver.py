@@ -30,9 +30,6 @@ class AcousticWaveSolver(object):
         time derivative. Full derivation and explanation of the 4th order
         in time can be found at:
         http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf
-
-    Parameters
-    ----------
     space_order: int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
 

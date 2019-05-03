@@ -13,11 +13,16 @@ def laplacian(field, m, s, kernel):
 
     Parameters
     ----------
+    field :
+        Symbolic TimeFunction object, solution to be computed
+    m :
+        square slowness
+    s :
+        symbol for the time-step
 
-    field : Symbolic TimeFunction object, solution to be computed
-    m : square slowness
-    s : symbol for the time-step
-    :return: H
+    Returns
+    -------
+    H
     """
     if kernel not in ['OT2', 'OT4']:
         raise ValueError("Unrecognized kernel")
@@ -33,7 +38,6 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
 
     Parameters
     ----------
-
     field :
         Symbolic TimeFunction object, solution to be computed
     m : float
@@ -75,7 +79,6 @@ def ForwardOperator(model, geometry, space_order=4,
 
     Parameters
     ----------
-
     model : :class:`Model`
         object containing the physical parameters
     source : :class:`PointData`
