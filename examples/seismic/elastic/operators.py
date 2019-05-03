@@ -174,12 +174,19 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     """
     Constructor method for the forward modelling operator in an elastic media
 
-    :param model: :class:`Model` object containing the physical parameters
-    :param source: :class:`PointData` object containing the source geometry
-    :param receiver: :class:`PointData` object containing the acquisition geometry
-    :param space_order: Space discretization order
-    :param save: Saving flag, True saves all time steps, False only the three buffered
-                 indices (last three time steps)
+    Parameters
+    ----------
+    model : :class:`Model`
+        object containing the physical parameters
+    source : :class:`PointData`
+        object containing the source geometry
+    receiver : :class:`PointData`
+        object containing the acquisition geometry
+    space_order : int, optional
+        Space discretization order
+    save :
+        Saving flag, True saves all time steps, False only the three buffered
+        indices (last three time steps)
     """
     wave = kernels[model.grid.dim]
     pde = wave(model, space_order, geometry.nt if save else None, geometry)

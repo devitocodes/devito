@@ -10,9 +10,13 @@ def laplacian(field, m, s, kernel):
     order in time formulation, the 4th order time derivative is replaced by a
     double laplacian:
     H = (laplacian + s**2/12 laplacian(1/m*laplacian))
-    :param field: Symbolic TimeFunction object, solution to be computed
-    :param m: square slowness
-    :param s: symbol for the time-step
+
+    Parameters
+    ----------
+
+    field : Symbolic TimeFunction object, solution to be computed
+    m : square slowness
+    s : symbol for the time-step
     :return: H
     """
     if kernel not in ['OT2', 'OT4']:
@@ -26,13 +30,26 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     """
     Stencil for the acoustic isotropic wave-equation:
     u.dt2 - H + damp*u.dt = 0
-    :param field: Symbolic TimeFunction object, solution to be computed
-    :param m: square slowness
-    :param s: symbol for the time-step
-    :param damp: ABC dampening field (Function)
-    :param kwargs: forwad/backward wave equation (sign of u.dt will change accordingly
+
+    Parameters
+    ----------
+
+    field :
+        Symbolic TimeFunction object, solution to be computed
+    m : float
+        square slowness
+    s :
+        symbol for the time-step
+    damp :
+        ABC dampening field (Function)
+    kwargs : dict
+        forward/backward wave equation (sign of u.dt will change accordingly
     as well as the updated time-step (u.forwad or u.backward)
-    :return: Stencil for the wave-equation
+
+    Returns
+    -------
+    Eq
+        Stencil for the wave-equation
     """
 
     # Creat a temporary symbol for H to avoid expensive sympy solve
@@ -56,11 +73,19 @@ def ForwardOperator(model, geometry, space_order=4,
     """
     Constructor method for the forward modelling operator in an acoustic media
 
-    :param model: :class:`Model` object containing the physical parameters
-    :param source: :class:`PointData` object containing the source geometry
-    :param receiver: :class:`PointData` object containing the acquisition geometry
-    :param space_order: Space discretization order
-    :param save: Saving flag, True saves all time steps, False only the three
+    Parameters
+    ----------
+
+    model : :class:`Model`
+        object containing the physical parameters
+    source : :class:`PointData`
+        object containing the source geometry
+    receiver : :class:`PointData`
+        object containing the acquisition geometry
+    space_order : int, optional
+        Space discretization order
+    save : int or buffer, optional
+        Saving flag, True saves all time steps, False only the three
     """
     m, damp = model.m, model.damp
 
@@ -92,11 +117,18 @@ def AdjointOperator(model, geometry, space_order=4,
     """
     Constructor method for the adjoint modelling operator in an acoustic media
 
-    :param model: :class:`Model` object containing the physical parameters
-    :param source: :class:`PointData` object containing the source geometry
-    :param receiver: :class:`PointData` object containing the acquisition geometry
-    :param time_order: Time discretization order
-    :param space_order: Space discretization order
+    Parameters
+    ----------
+    model : :class:`Model`
+        object containing the physical parameters
+    source : :class:`PointData`
+        object containing the source geometry
+    receiver : :class:`PointData`
+        object containing the acquisition geometry
+    time_order: int, optional
+        Time discretization order
+    space_order: int, optional
+        Space discretization order
     """
     m, damp = model.m, model.damp
 
@@ -126,11 +158,18 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     """
     Constructor method for the gradient operator in an acoustic media
 
-    :param model: :class:`Model` object containing the physical parameters
-    :param source: :class:`PointData` object containing the source geometry
-    :param receiver: :class:`PointData` object containing the acquisition geometry
-    :param time_order: Time discretization order
-    :param space_order: Space discretization order
+    Parameters
+    ----------
+    model : :class:`Model`
+        object containing the physical parameters
+    source : :class:`PointData`
+        object containing the source geometry
+    receiver : :class:`PointData`
+        object containing the acquisition geometry
+    time_order : int, optional
+        Time discretization order
+    space_order : int, optional
+        Space discretization order
     """
     m, damp = model.m, model.damp
 
@@ -163,11 +202,18 @@ def BornOperator(model, geometry, space_order=4,
     """
     Constructor method for the Linearized Born operator in an acoustic media
 
-    :param model: :class:`Model` object containing the physical parameters
-    :param source: :class:`PointData` object containing the source geometry
-    :param receiver: :class:`PointData` object containing the acquisition geometry
-    :param time_order: Time discretization order
-    :param space_order: Space discretization order
+    Parameters
+    ----------
+    model : :class:`Model`
+        object containing the physical parameters
+    source : :class:`PointData`
+        object containing the source geometry
+    receiver : :class:`PointData`
+        object containing the acquisition geometry
+    time_order : int, optional
+        Time discretization order
+    space_order : int, optional
+        Space discretization order
     """
     m, damp = model.m, model.damp
 

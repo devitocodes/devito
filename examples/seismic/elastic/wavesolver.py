@@ -10,10 +10,16 @@ class ElasticWaveSolver(object):
     and encapsulates the time and space discretization for a given problem
     setup.
 
-    :param model: Physical model with domain parameters
-    :param source: Sparse point symbol providing the injected wave
-    :param receiver: Sparse point symbol describing an array of receivers
-    :param space_order: Order of the spatial stencil discretisation (default: 4)
+    Parameters
+    ----------
+    model :
+        Physical model with domain parameters
+    source :
+        Sparse point symbol providing the injected wave
+    receiver :
+        Sparse point symbol describing an array of receivers
+    space_order : int, optional
+        Order of the spatial stencil discretisation. Defaults to 4.
 
     Note: This is an experimental staggered grid elastic modeling kernel.
     Only 2D supported
@@ -40,20 +46,36 @@ class ElasticWaveSolver(object):
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
 
-        :param src: (Optional) Symbol with time series data for the injected source term
-        :param rec1: (Optional) Symbol to store interpolated (txx) receiver data
-        :param rec2: (Optional) Symbol to store interpolated (tzz) receiver data
-        :param vx: (Optional) Symbol to store the computed horizontal particle velocity
-        :param vz: (Optional) Symbol to store the computed vertical particle velocity
-        :param txx: (Optional) Symbol to store the computed horizontal stress
-        :param tzz: (Optional) Symbol to store the computed vertical stress
-        :param txz: (Optional) Symbol to store the computed diagonal stresss
-        :param vp: (Optional) Symbol for the time-constant P-wave velocity (km/s)
-        :param vs: (Optional) Symbol for the time-constant S-wave velocity (km/s)
-        :param vs: (Optional) Symbol for the time-constant density (rho=1 for water)
-        :param save: Option to store the entire (unrolled) wavefield
+        Parameters
+        ----------
+        src : ,optional
+            Symbol with time series data for the injected source term
+        rec1 : ,optional
+            Symbol to store interpolated (txx) receiver data
+        rec2 : ,optional
+            Symbol to store interpolated (tzz) receiver data
+        vx : ,optional
+            Symbol to store the computed horizontal particle velocity
+        vz : ,optional
+            Symbol to store the computed vertical particle velocity
+        txx : ,optional
+            Symbol to store the computed horizontal stress
+        tzz : ,optional
+            Symbol to store the computed vertical stress
+        txz : ,optional
+            Symbol to store the computed diagonal stresss
+        vp : ,optional
+            Symbol for the time-constant P-wave velocity (km/s)
+        vs : ,optional
+            Symbol for the time-constant S-wave velocity (km/s)
+        vs : ,optional
+            Symbol for the time-constant density (rho=1 for water)
+        save :
+            Option to store the entire (unrolled) wavefield
 
-        :returns: Rec1 (txx), Rec2 (tzz), particle velocities vx and vz, stress txx,
+        Returns
+        -------
+        Rec1 (txx), Rec2 (tzz), particle velocities vx and vz, stress txx,
                   tzz and txz and performance summary
         """
         # Source term is read-only, so re-use the default
