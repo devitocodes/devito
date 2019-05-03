@@ -16,12 +16,12 @@ class AcousticWaveSolver(object):
 
     Parameters
     ----------
-    model : :class:`Model`
-        Physical model with domain parameters
-    source : :class:`PointData`
-        Sparse point symbol providing the injected wave
-    receiver : :class:`PointData`
-        Sparse point symbol describing an array of receivers
+    model : `Model`
+        Physical model with domain parameters.
+    source : `PointData`
+        Sparse point symbol providing the injected wave.
+    receiver : `PointData`
+        Sparse point symbol describing an array of receivers.
     time_order : int, optional
         Order of the time-stepping scheme (default: 2, choices: 2,4)
         time_order=4 will not implement a 4th order FD discretization
@@ -35,7 +35,7 @@ class AcousticWaveSolver(object):
 
     Notes
     -----
-    space_order must always be greater than time_order
+    Space_order must always be greater than time_order.
     """
     def __init__(self, model, geometry, kernel='OT2', space_order=2, **kwargs):
         self.model = model
@@ -92,13 +92,13 @@ class AcousticWaveSolver(object):
         src :
             Symbol with time series data for the injected source term
         rec :
-            Symbol to store interpolated receiver data
+            Symbol to store interpolated receiver data.
         u : ,optional
-            Symbol to store the computed wavefield
+            Symbol to store the computed wavefield.
         m : ,optional
-            Symbol for the time-constant square slowness
+            Symbol for the time-constant square slowness.
         save : int or Buffer, optional
-            Option to store the entire (unrolled) wavefield
+            Option to store the entire (unrolled) wavefield.
 
         Returns
         -------
@@ -138,13 +138,13 @@ class AcousticWaveSolver(object):
             Symbol to store the resulting data for the
             interpolated at the original source location.
         v: ,optional
-            Symbol to store the computed wavefield
+            Symbol to store the computed wavefield.
         m : ,optional
-            Symbol for the time-constant square slowness
+            Symbol for the time-constant square slowness.
 
         Returns
         -------
-        Adjoint source, wavefield and performance summary
+        Adjoint source, wavefield and performance summary.
         """
         # Create a new adjoint source and receiver symbol
         srca = srca or PointSource(name='srca', grid=self.model.grid,
@@ -174,11 +174,11 @@ class AcousticWaveSolver(object):
         recin : ndarray
             Receiver data
         u :
-            Symbol for full wavefield `u` (created with save=True)
+            Symbol for full wavefield `u` (created with save=True).
         v : ,optional
-            Symbol to store the computed wavefield
+            Symbol to store the computed wavefield.
         grad : ,optional
-            Symbol to store the gradient field
+            Symbol to store the gradient field.
 
         Returns
         -------
@@ -224,13 +224,13 @@ class AcousticWaveSolver(object):
         src :
             Symbol with time series data for the injected source term
         rec :
-            Symbol to store interpolated receiver data
+            Symbol to store interpolated receiver data.
         u : ,optional
-            Symbol to store the computed wavefield
+            Symbol to store the computed wavefield.
         U : ,optional
-            Symbol to store the computed wavefield
+            Symbol to store the computed wavefield.
         m : ,optional
-            Symbol for the time-constant square slowness
+            Symbol for the time-constant square slowness.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src

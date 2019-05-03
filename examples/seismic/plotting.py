@@ -14,14 +14,14 @@ except:
 
 def plot_perturbation(model, model1, colorbar=True):
     """
-    Plot a two-dimensional velocity difference from two seismic :class:`Model`
+    Plot a two-dimensional velocity difference from two seismic `Model`
     objects.
 
     Parameters
     ----------
-    model : :class:`Model`
+    model : `Model`
         object of first velocity model.
-    model1 : :class:`Model`
+    model1 : `Model`
         object of the second velocity model.
     source :
         Coordinates of the source point.
@@ -51,12 +51,12 @@ def plot_perturbation(model, model1, colorbar=True):
 
 def plot_velocity(model, source=None, receiver=None, colorbar=True):
     """
-    Plot a two-dimensional velocity field from a seismic :class:`Model`
+    Plot a two-dimensional velocity field from a seismic `Model`
     object. Optionally also includes point markers for sources and receivers.
 
     Parameters
     ----------
-    model : :class:`Model`
+    model : `Model`
         object that holds the velocity model.
     source :
         Coordinates of the source point.
@@ -103,13 +103,13 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
     Parameters
     ----------
     rec :
-        Receiver data with shape (time, points)
-    model : :class:`Model`
+        Receiver data with shape (time, points).
+    model : `Model`
         object that holds the velocity model.
     t0 :
-        Start of time dimension to plot
+        Start of time dimension to plot.
     tn :
-        End of time dimension to plot
+        End of time dimension to plot.
     """
     scale = np.max(rec) / 10.
     extent = [model.origin[0], model.origin[0] + 1e-3*model.domain_size[0],

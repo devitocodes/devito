@@ -28,22 +28,22 @@ def second_order_stencil(model, u, v, H0, Hz):
 
 def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     """
-    3D rotated second order derivative in the direction z
+    3D rotated second order derivative in the direction z.
 
     Parameters
     ----------
     field :
-        symbolic data whose derivative we are computing
+        Symbolic data whose derivative we are computing.
     costheta :
-        cosine of the tilt angle
+        Cosine of the tilt angle.
     sintheta :
-        sine of the tilt angle
+        Sine of the tilt angle
     cosphi :
-        cosine of the azymuth angle
+        Cosine of the azymuth angle.
     sinphi :
-        sine of the azymuth angle
+        Sine of the azymuth angle.
     space_order : int
-        space discretization order
+        Space discretization order.
 
     Returns
     -------
@@ -72,22 +72,22 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
 
 def Gzz_centered_2d(field, costheta, sintheta, space_order):
     """
-    2D rotated second order derivative in the direction z
+    2D rotated second order derivative in the direction z.
 
     Parameters
     ----------
     field :
-        symbolic data whose derivative we are computing
-    costheta :
-        cosine of the tilt angle
-    sintheta :
-        sine of the tilt angle
-    param space_order :
-        discretization order
+        Symbolic data whose derivative we are computing.
+    costheta : Function
+        Cosine of the tilt angle.
+    sintheta : Function
+        Sine of the tilt angle.
+    space_order : int
+        Space discretization order.
 
     Returns
     -------
-    rotated second order derivative w.r.t. z
+    Rotated second order derivative w.r.t. z.
     """
     order1 = space_order / 2
     x, y = field.space_dimensions[:2]
@@ -113,21 +113,21 @@ def Gxxyy_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     Parameters
     ----------
     field :
-        symbolic data whose derivative we are computing
-    costheta :
-        cosine of the tilt angle
-    sintheta :
-        sine of the tilt angle
-    cosphi :
-        cosine of the azymuth angle
-    sinphi :
-        sine of the azymuth angle
+        symbolic data whose derivative we are computing.
+    costheta : Function
+        cosine of the tilt angle.
+    sintheta : Function
+        sine of the tilt angle.
+    cosphi : Function
+        cosine of the azymuth angle.
+    sinphi : Function
+        sine of the azymuth angle.
     space_order : int
-        space discretization order
+        space discretization order.
 
     Returns
     -------
-    Sum of the 3D rotated second order derivative in the direction x and y
+    Sum of the 3D rotated second order derivative in the direction x and y.
     """
     Gzz = Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order)
     return field.laplace - Gzz
@@ -143,21 +143,21 @@ def Gxx_centered_2d(field, costheta, sintheta, space_order):
     Parameters
     ----------
     field :
-        symbolic data whose derivative we are computing
-    costheta :
-        cosine of the tilt angle
-    sintheta :
-        sine of the tilt angle
-    cosphi :
-        cosine of the azymuth angle
-    sinphi :
-        sine of the azymuth angle
+        Symbolic data whose derivative we are computing.
+    costheta : Function
+        Cosine of the tilt angle.
+    sintheta : Function
+        Sine of the tilt angle.
+    cosphi : Function
+        Cosine of the azymuth angle.
+    sinphi : Function
+        Sine of the azymuth angle.
     space_order : int
-        space discretization order
+        Space discretization order.
 
     Returns
     -------
-    Sum of the 3D rotated second order derivative in the direction x
+    Sum of the 3D rotated second order derivative in the direction x.
     """
     return field.laplace - Gzz_centered_2d(field, costheta, sintheta, space_order)
 
@@ -175,16 +175,16 @@ def kernel_centered_2d(model, u, v, space_order):
 
     Parameters
     ----------
-    u :
-        first TTI field
-    v :
-        second TTI field
+    u : TimeFunction
+        First TTI field
+    v : TimeFunction
+        Second TTI field
     space_order : int
-        space discretization order
+        Space discretization order
 
     Returns
     -------
-    u and v component of the rotated Laplacian in 2D
+    u and v component of the rotated Laplacian in 2D.
     """
     # Tilt and azymuth setup
     costheta = cos(model.theta)
@@ -208,14 +208,14 @@ def kernel_centered_3d(model, u, v, space_order):
 
     Parameters
     ----------
-    u :
+    u : TimeFunction
         first TTI field
-    v :
+    v : TimeFunction
         second TTI field
 
     Returns
     -------
-    u and v component of the rotated Laplacian in 2D
+    u and v component of the rotated Laplacian in 2D.
     """
     # Tilt and azymuth setup
     costheta = cos(model.theta)
@@ -230,7 +230,7 @@ def kernel_centered_3d(model, u, v, space_order):
 
 def particle_velocity_fields(model, space_order):
     """
-    Initialize partcle vleocity fields for staggered tti
+    Initialize partcle vleocity fields for staggered tti.
     """
     if model.grid.dim == 2:
         x, z = model.space_dimensions
@@ -341,20 +341,20 @@ def kernel_staggered_3d(model, u, v, space_order):
 def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='centered', **kwargs):
     """
-       Constructor method for the forward modelling operator in an acoustic media
+       Constructor method for the forward modelling operator in an acoustic media.
 
        Parameters
        ----------
-       model : :class:`Model`
-            object containing the physical parameters
+       model : `Model`
+            Object containing the physical parameters.
        src :
-            None ot IShot() (not currently supported properly)
+            None ot IShot() (not currently supported properly).
        data : ndarray
-            IShot() object containing the acquisition geometry and field data
+            IShot() object containing the acquisition geometry and field data.
        time_order : int
-            Time discretization order
+            Time discretization order.
        space_order : int
-            Space discretization order
+            Space discretization order.
        """
 
     dt = model.grid.time_dim.spacing

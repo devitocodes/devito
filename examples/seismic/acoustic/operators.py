@@ -14,11 +14,11 @@ def laplacian(field, m, s, kernel):
     Parameters
     ----------
     field : TimeFunction object
-        Solution to be computed
+        Solution to be computed.
     m : float
-        square slowness
+        Square slowness.
     s :
-        symbol for the time-step
+        Symbol for the time-step.
 
     Returns
     -------
@@ -44,7 +44,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
         square slowness
     s :
         symbol for the time-step
-    damp : :class:`Function`
+    damp : `Function`
         ABC dampening field
     kwargs : dict
         forward/backward wave equation (sign of u.dt will change accordingly
@@ -79,11 +79,11 @@ def ForwardOperator(model, geometry, space_order=4,
 
     Parameters
     ----------
-    model : :class:`Model`
+    model : `Model`
         object containing the physical parameters
-    source : :class:`PointData`
+    source : `PointData`
         object containing the source geometry
-    receiver : :class:`PointData`
+    receiver : `PointData`
         object containing the acquisition geometry
     space_order : int, optional
         Space discretization order
@@ -122,11 +122,11 @@ def AdjointOperator(model, geometry, space_order=4,
 
     Parameters
     ----------
-    model : :class:`Model`
+    model : `Model`
         object containing the physical parameters
-    source : :class:`PointData`
+    source : `PointData`
         object containing the source geometry
-    receiver : :class:`PointData`
+    receiver : `PointData`
         object containing the acquisition geometry
     time_order: int, optional
         Time discretization order
@@ -163,11 +163,11 @@ def GradientOperator(model, geometry, space_order=4, save=True,
 
     Parameters
     ----------
-    model : :class:`Model`
+    model : `Model`
         object containing the physical parameters
-    source : :class:`PointData`
+    source : `PointData`
         object containing the source geometry
-    receiver : :class:`PointData`
+    receiver : `PointData`
         object containing the acquisition geometry
     time_order : int, optional
         Time discretization order
@@ -207,11 +207,11 @@ def BornOperator(model, geometry, space_order=4,
 
     Parameters
     ----------
-    model : :class:`Model`
+    model : `Model`
         object containing the physical parameters
-    source : :class:`PointData`
+    source : `PointData`
         object containing the source geometry
-    receiver : :class:`PointData`
+    receiver : `PointData`
         object containing the acquisition geometry
     time_order : int, optional
         Time discretization order

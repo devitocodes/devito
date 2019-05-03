@@ -13,12 +13,12 @@ class AnisotropicWaveSolver(object):
 
     Parameters
     ----------
-    model : :class:`Model`
-        Physical model with domain parameters
+    model : `Model`
+        Physical model with domain parameters.
     source :
-        Sparse point symbol providing the injected wave
+        Sparse point symbol providing the injected wave.
     receiver :
-        Sparse point symbol describing an array of receivers
+        Sparse point symbol describing an array of receivers.
     time_order : int, optional
         Order of the time-stepping scheme. Defaults to 2.
     space_order : int, optional
@@ -26,7 +26,7 @@ class AnisotropicWaveSolver(object):
 
     Notes
     -----
-    space_order must always be greater than time_order
+    Space_order must always be greater than time_order.
     """
     def __init__(self, model, geometry, space_order=2, **kwargs):
         self.model = model
@@ -55,31 +55,31 @@ class AnisotropicWaveSolver(object):
         Parameters
         ----------
         src :
-            Symbol with time series data for the injected source term
+            Symbol with time series data for the injected source term.
         rec :
-            Symbol to store interpolated receiver data (u+v)
+            Symbol to store interpolated receiver data (u+v).
         u : ,optional
-            Symbol to store the computed wavefield first component
+            Symbol to store the computed wavefield first component.
         v : ,optional
-            Symbol to store the computed wavefield second component
+            Symbol to store the computed wavefield second component.
         m : ,optional
-            Symbol for the time-constant square slowness
+            Symbol for the time-constant square slowness.
         epsilon : ,optional
-            Symbol for the time-constant first Thomsen parameter
+            Symbol for the time-constant first Thomsen parameter.
         delta : ,optional
-            Symbol for the time-constant second Thomsen parameter
+            Symbol for the time-constant second Thomsen parameter.
         theta : ,optional
-            Symbol for the time-constant Dip angle (radians)
+            Symbol for the time-constant Dip angle (radians).
         phi : , optional
-            Symbol for the time-constant Azimuth angle (radians)
+            Symbol for the time-constant Azimuth angle (radians).
         save :
-            Option to store the entire (unrolled) wavefield
+            Option to store the entire (unrolled) wavefield.
         kernel :
-            type of discretization, centered or shifted
+            type of discretization, centered or shifted.
 
         Returns
         -------
-        Receiver, wavefield and performance summary
+        Receiver, wavefield and performance summary.
         """
 
         if kernel == 'staggered':

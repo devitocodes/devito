@@ -10,7 +10,7 @@ __all__ = ['Model', 'ModelElastic', 'demo_model']
 
 def demo_model(preset, **kwargs):
     """
-    Utility function to create preset :class:`Model` objects for
+    Utility function to create preset `Model` objects for
     demonstration and testing purposes. The particular presets are ::
 
     * `constant-isotropic` : Constant velocity (1.5km/sec) isotropic model
@@ -353,7 +353,7 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
 
     Parameters
     ----------
-    damp : :class:`Function`
+    damp : `Function`
         for the damping field.
     nbpml :
         Number of points in the damping layer.
@@ -395,13 +395,13 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
 
 
 def initialize_function(function, data, nbpml, pad_mode='edge'):
-    """Initialize a :class:`Function` with the given ``data``. ``data``
+    """Initialize a `Function` with the given ``data``. ``data``
     does *not* include the PML layers for the absorbing boundary conditions;
     these are added via padding by this function.
 
     Parameters
     ----------
-    function : :class:`Function`
+    function : `Function`
         to be initialised with some data.
     data : ndarray
         The data array used for initialisation.
@@ -480,7 +480,7 @@ class GenericModel(object):
     @property
     def spacing_map(self):
         """
-        Map between spacing symbols and their values for each :class:`SpaceDimension`
+        Map between spacing symbols and their values for each `SpaceDimension`
         """
         return self.grid.spacing_map
 
@@ -525,7 +525,7 @@ class Model(GenericModel):
     phi :
         Asymuth angle in radian
 
-    The :class:`Model` provides two symbolic data objects for the
+    The `Model` provides two symbolic data objects for the
     creation of seismic wave propagation operators:
 
     m :
@@ -616,24 +616,24 @@ class Model(GenericModel):
 
     @property
     def vp(self):
-        """:class:`numpy.ndarray` holding the model velocity in km/s.
+        """`numpy.ndarray` holding the model velocity in km/s.
 
         Notes
         -----
         Updating the velocity field also updates the square slowness
         ``self.m``. However, only ``self.m`` should be used in seismic
-        operators, since it is of type :class:`Function`.
+        operators, since it is of type `Function`.
         """
         return self._vp
 
     @vp.setter
     def vp(self, vp):
-        """Set a new velocity model and update square slowness
+        """Set a new velocity model and update square slowness.
 
         Parameters
         ----------
         vp :
-            new velocity in km/s
+            New velocity in km/s.
         """
         self._vp = vp
 
@@ -650,27 +650,27 @@ class ModelElastic(GenericModel):
     Parameters
     ----------
     origin :
-        Origin of the model in m as a tuple in (x,y,z) order
+        Origin of the model in m as a tuple in (x,y,z) order.
     spacing :
-        Grid size in m as a Tuple in (x,y,z) order
+        Grid size in m as a Tuple in (x,y,z) order.
     shape :
-        Number of grid points size in (x,y,z) order
+        Number of grid points size in (x,y,z) order.
     space_order : int
-        Order of the spatial stencil discretisation
+        Order of the spatial stencil discretisation.
     vp :
-        P-wave velocity in km/s
+        P-wave velocity in km/s.
     vs :
-        S-wave velocity in km/s
+        S-wave velocity in km/s.
     nbpml :
-        The number of PML layers for boundary damping
+        The number of PML layers for boundary damping.
     rho :
-        Density in kg/cm^3 (rho=1 for water)
+        Density in kg/cm^3 (rho=1 for water).
 
-    The :class:`ModelElastic` provides a symbolic data objects for the
+    The `ModelElastic` provides a symbolic data objects for the
     creation of seismic wave propagation operators:
 
     damp :
-        The damping field for absorbing boundary condition
+        The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,
                  dtype=np.float32):
