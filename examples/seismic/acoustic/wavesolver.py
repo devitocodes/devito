@@ -93,8 +93,8 @@ class AcousticWaveSolver(object):
             Symbol with time series data for the injected source term
         rec :
             Symbol to store interpolated receiver data.
-        u : ,optional
-            Symbol to store the computed wavefield.
+        u : TimeFunction, optional
+            Stores the computed wavefield.
         m : ,optional
             Symbol for the time-constant square slowness.
         save : int or Buffer, optional
@@ -137,9 +137,9 @@ class AcousticWaveSolver(object):
         srca :
             Symbol to store the resulting data for the
             interpolated at the original source location.
-        v: ,optional
+        v: TimeFunction, optional
             Symbol to store the computed wavefield.
-        m : ,optional
+        m : float, optional
             Symbol for the time-constant square slowness.
 
         Returns
@@ -171,14 +171,14 @@ class AcousticWaveSolver(object):
 
         Parameters
         ----------
-        recin : ndarray
+        recin : array-like
             Receiver data
-        u :
-            Symbol for full wavefield `u` (created with save=True).
-        v : ,optional
-            Symbol to store the computed wavefield.
-        grad : ,optional
-            Symbol to store the gradient field.
+        u : TimeFunction
+            Full wavefield `u` (created with save=True).
+        v : TimeFunction, optional
+            Stores the computed wavefield.
+        grad : Function, optional
+            StoreS the gradient field.
 
         Returns
         -------
@@ -222,14 +222,14 @@ class AcousticWaveSolver(object):
         Parameters
         ----------
         src :
-            Symbol with time series data for the injected source term
-        rec :
+            Symbol with time series data for the injected source term.
+        rec : Receiver
             Symbol to store interpolated receiver data.
-        u : ,optional
+        u : TimeFunction, optional
             Symbol to store the computed wavefield.
-        U : ,optional
+        U : TimeFunction, optional
             Symbol to store the computed wavefield.
-        m : ,optional
+        m : float, optional
             Symbol for the time-constant square slowness.
         """
         # Source term is read-only, so re-use the default

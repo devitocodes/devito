@@ -32,15 +32,15 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
 
     Parameters
     ----------
-    field :
+    field : Function
         Symbolic data whose derivative we are computing.
-    costheta :
+    costheta : Function
         Cosine of the tilt angle.
-    sintheta :
+    sintheta : Function
         Sine of the tilt angle
-    cosphi :
+    cosphi : Function
         Cosine of the azymuth angle.
-    sinphi :
+    sinphi : Function
         Sine of the azymuth angle.
     space_order : int
         Space discretization order.
@@ -76,7 +76,7 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
 
     Parameters
     ----------
-    field :
+    field : Function
         Symbolic data whose derivative we are computing.
     costheta : Function
         Cosine of the tilt angle.
@@ -112,7 +112,7 @@ def Gxxyy_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
 
     Parameters
     ----------
-    field :
+    field : Function
         symbolic data whose derivative we are computing.
     costheta : Function
         cosine of the tilt angle.
@@ -142,7 +142,7 @@ def Gxx_centered_2d(field, costheta, sintheta, space_order):
 
     Parameters
     ----------
-    field :
+    field : FIX
         Symbolic data whose derivative we are computing.
     costheta : Function
         Cosine of the tilt angle.
@@ -209,9 +209,9 @@ def kernel_centered_3d(model, u, v, space_order):
     Parameters
     ----------
     u : TimeFunction
-        first TTI field
+        First TTI field.
     v : TimeFunction
-        second TTI field
+        Second TTI field.
 
     Returns
     -------

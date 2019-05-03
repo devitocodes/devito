@@ -106,9 +106,9 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
         Receiver data with shape (time, points).
     model : `Model`
         object that holds the velocity model.
-    t0 :
+    t0 : int
         Start of time dimension to plot.
-    tn :
+    tn : int
         End of time dimension to plot.
     """
     scale = np.max(rec) / 10.
@@ -136,7 +136,7 @@ def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
     ----------
     data : ndarray
         Image data to plot
-    cmap :
+    cmap : str
         Choice of colormap. Defaults to gray scale for images as a
     seismic convention.
     """
