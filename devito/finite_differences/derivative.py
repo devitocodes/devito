@@ -75,6 +75,8 @@ class Derivative(sympy.Derivative, Differentiable):
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) == sympy.Derivative:
             raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
+        if not isinstance(expr, Differentiable):
+            raise ValueError("`expr` must be a Differentiable object")
 
         # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
         # an iterable of 2-tuple (Dimension, deriv_order)
@@ -111,17 +113,15 @@ class Derivative(sympy.Derivative, Differentiable):
         # SymPy expects the list of variable w.r.t. which we differentiate to be a list
         # of 2-tuple `(s, count)` where s is the entity to diff wrt and count is the order
         # of the derivative
-        variable_count = [(s, new_dims.count(s)) for s in filter_ordered(new_dims)]
+        variable_count = [sympy.Tuple(s, new_dims.count(s))
+                          for s in filter_ordered(new_dims)]
 
         # Construct the actual Derivative object
-        # Note: as long as evaluate=False, the order in which the Derivatives are taken
-        # is unchanged, i.e., u.dx.dy -> Derivative(u, x, y) and
-        # u.dy.dx -> Derivative(u, y, x)
         obj = Differentiable.__new__(cls, expr, *variable_count)
         obj._dims = tuple(OrderedDict.fromkeys(new_dims))
-        obj._fd_order = kwargs.get('fd_order', 1)
+        obj._fd_order = kwargs.get('fd_order', expr.space_order)
         obj._deriv_order = orders
-        obj._side = kwargs.get("side", None)
+        obj._side = kwargs.get("side", centered)
         obj._stagger = kwargs.get("stagger", tuple([centered]*len(obj._dims)))
         obj._transpose = kwargs.get("transpose", direct)
 

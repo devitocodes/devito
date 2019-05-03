@@ -1,11 +1,11 @@
 import numpy as np
 import pytest
-from sympy import Derivative, simplify, diff
+from sympy import simplify, diff
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, clear_cache, NODE,
                     ConditionalDimension, left, right, centered, generic_derivative)
-from devito.finite_differences import Differentiable
+from devito.finite_differences import Derivative, Differentiable
 
 _PRECISION = 9
 
@@ -37,6 +37,12 @@ class TestFD(object):
     def setup_method(self):
         self.shape = (20, 20, 20)
         self.grid = Grid(self.shape)
+
+    def test_diff(self):
+        """Test that expr.diff returns an object of type devito.Derivative."""
+        u = Function(name='u', grid=self.grid)
+        du = u.diff(x(self.grid))
+        assert isinstance(du, Derivative)
 
     @pytest.mark.parametrize('SymbolType, dim', [
         (Function, x), (Function, y),
@@ -74,7 +80,7 @@ class TestFD(object):
         (TimeFunction, ['dx2', 'dy'], 3,
          'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)')
     ])
-    def test_derivative_uneval(self, SymbolType, derivative, dim, expected):
+    def test_unevaluation(self, SymbolType, derivative, dim, expected):
         u = SymbolType(name='u', grid=self.grid, time_order=2, space_order=2)
         expr = getattr(u, derivative[0])
         for d in derivative[1:]:
@@ -82,6 +88,18 @@ class TestFD(object):
         assert(expr.__str__() == expected)
         # Make sure the FD evaluation executes
         expr.evaluate
+
+    @pytest.mark.parametrize('expr,expected', [
+        ('u.dx + u.dy', 'Derivative(u, x) + Derivative(u, y)'),
+        ('u.laplace', 'Derivative(u, (x, 2)) + Derivative(u, (y, 2))'),
+        ('(u.dx*u.dy).dx', 'Derivative(Derivative(u, x) * Derivative(u, y), x)')
+    ])
+    def test_arithmetic(self, expr, expected):
+        x, y, z = self.grid.dimensions
+        u = Function(name='u', grid=self.grid, time_order=2, space_order=2)  # noqa
+        expr = eval(expr)
+        expected = eval(expected)
+        assert expr == expected
 
     @pytest.mark.parametrize('SymbolType, derivative, dim', [
         (Function, 'dx2', 3), (Function, 'dy2', 3),

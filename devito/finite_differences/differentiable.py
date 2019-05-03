@@ -163,6 +163,14 @@ class Differentiable(sympy.Expr, Evaluable):
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return sum([getattr(self.laplace * weight, d) for d in derivs])
 
+    def diff(self, *symbols, **assumptions):
+        """
+        Like ``sympy.diff``, but return a ``devito.Derivative`` instead of a
+        ``sympy.Derivative``.
+        """
+        from devito.finite_differences.derivative import Derivative
+        return Derivative(self, *symbols, **assumptions)
+
 
 class Add(sympy.Add, Differentiable):
 
