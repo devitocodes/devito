@@ -18,11 +18,11 @@ def laplacian(field, m, s, kernel):
     m : float
         Square slowness.
     s :
-        Symbol for the time-step.
+        Time-step.
 
     Returns
     -------
-    H
+    H FIX
     """
     if kernel not in ['OT2', 'OT4']:
         raise ValueError("Unrecognized kernel")
@@ -34,7 +34,7 @@ def laplacian(field, m, s, kernel):
 def iso_stencil(field, m, s, damp, kernel, **kwargs):
     """
     Stencil for the acoustic isotropic wave-equation:
-    u.dt2 - H + damp*u.dt = 0
+    u.dt2 - H + damp*u.dt = 0.
 
     Parameters
     ----------
@@ -43,7 +43,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     m : float
         Square slowness.
     s :
-        Symbol for the time-step.
+        Time-step.
     damp : `Function`
         ABC dampening field.
     kwargs : dict
@@ -80,11 +80,11 @@ def ForwardOperator(model, geometry, space_order=4,
     Parameters
     ----------
     model : `Model`
-        object containing the physical parameters.
+        Object containing the physical parameters.
     source : `PointData`
-        object containing the source geometry.
+        Object containing the source geometry.
     receiver : `PointData`
-        object containing the acquisition geometry.
+        Object containing the acquisition geometry.
     space_order : int, optional
         Space discretization order
     save : int or Buffer, optional
