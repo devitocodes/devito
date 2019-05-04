@@ -55,24 +55,24 @@ class AnisotropicWaveSolver(object):
         Parameters
         ----------
         src :
-            Symbol with time series data for the injected source term.
+            Time series data for the injected source term.
         rec :
-            Symbol to store interpolated receiver data (u+v).
-        u : ,optional
-            Symbol to store the computed wavefield first component.
-        v : ,optional
-            Symbol to store the computed wavefield second component.
-        m : ,optional
-            Symbol for the time-constant square slowness.
-        epsilon : ,optional
+            The interpolated receiver data (u+v).
+        u : TimeFunction, optional
+            The computed wavefield first component.
+        v : TimeFunction, optional
+            The computed wavefield second component.
+        m : float, optional
+            The time-constant square slowness.
+        epsilon : float, optional
             Symbol for the time-constant first Thomsen parameter.
-        delta : ,optional
+        delta : float, optional
             Symbol for the time-constant second Thomsen parameter.
-        theta : ,optional
+        theta : float, optional
             Symbol for the time-constant Dip angle (radians).
-        phi : , optional
+        phi : float, optional
             Symbol for the time-constant Azimuth angle (radians).
-        save :
+        save : int or Buffer
             Option to store the entire (unrolled) wavefield.
         kernel :
             type of discretization, centered or shifted.

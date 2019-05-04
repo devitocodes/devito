@@ -10,7 +10,7 @@ class CheckpointOperator(Operator):
 
        Parameters
        ----------
-       op : callable
+       op : Operator
             devito.Operator object that this object will wrap.
        args : dict
             If devito.Operator.apply() expects any arguments, they can be provided

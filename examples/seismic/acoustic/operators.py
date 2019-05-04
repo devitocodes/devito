@@ -13,8 +13,8 @@ def laplacian(field, m, s, kernel):
 
     Parameters
     ----------
-    field : TimeFunction object
-        Solution to be computed.
+    field : TimeFunction
+        The computed solution.
     m : float
         Square slowness.
     s :
@@ -38,22 +38,22 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
 
     Parameters
     ----------
-    field : TimeFunction object
-        Symbolic TimeFunction object, solution to be computed
+    field : TimeFunction
+        The computed solution.
     m : float
-        square slowness
+        Square slowness.
     s :
-        symbol for the time-step
+        Symbol for the time-step.
     damp : `Function`
-        ABC dampening field
+        ABC dampening field.
     kwargs : dict
-        forward/backward wave equation (sign of u.dt will change accordingly
-    as well as the updated time-step (u.forwad or u.backward)
+        Forward/backward wave equation (sign of u.dt will change accordingly
+    as well as the updated time-step (u.forwad or u.backward).
 
     Returns
     -------
     Eq
-        Stencil for the wave-equation
+        Stencil for the wave-equation.
     """
 
     # Creat a temporary symbol for H to avoid expensive sympy solve
@@ -75,20 +75,20 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
 def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='OT2', **kwargs):
     """
-    Constructor method for the forward modelling operator in an acoustic media
+    Constructor method for the forward modelling operator in an acoustic media.
 
     Parameters
     ----------
     model : `Model`
-        object containing the physical parameters
+        object containing the physical parameters.
     source : `PointData`
-        object containing the source geometry
+        object containing the source geometry.
     receiver : `PointData`
-        object containing the acquisition geometry
+        object containing the acquisition geometry.
     space_order : int, optional
         Space discretization order
     save : int or Buffer, optional
-        Saving flag, True saves all time steps, False only the three
+        Saving flag, True saves all time steps, False only the three.
     """
     m, damp = model.m, model.damp
 
@@ -118,20 +118,20 @@ def ForwardOperator(model, geometry, space_order=4,
 def AdjointOperator(model, geometry, space_order=4,
                     kernel='OT2', **kwargs):
     """
-    Constructor method for the adjoint modelling operator in an acoustic media
+    Constructor method for the adjoint modelling operator in an acoustic media.
 
     Parameters
     ----------
     model : `Model`
-        object containing the physical parameters
+        Object containing the physical parameters.
     source : `PointData`
-        object containing the source geometry
+        Object containing the source geometry.
     receiver : `PointData`
-        object containing the acquisition geometry
+        Object containing the acquisition geometry.
     time_order: int, optional
-        Time discretization order
+        Time discretization order.
     space_order: int, optional
-        Space discretization order
+        Space discretization order.
     """
     m, damp = model.m, model.damp
 
@@ -164,15 +164,15 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     Parameters
     ----------
     model : `Model`
-        object containing the physical parameters
+        Object containing the physical parameters.
     source : `PointData`
-        object containing the source geometry
+        Object containing the source geometry.
     receiver : `PointData`
-        object containing the acquisition geometry
+        Object containing the acquisition geometry.
     time_order : int, optional
-        Time discretization order
+        Time discretization order.
     space_order : int, optional
-        Space discretization order
+        Space discretization order.
     """
     m, damp = model.m, model.damp
 
@@ -208,15 +208,15 @@ def BornOperator(model, geometry, space_order=4,
     Parameters
     ----------
     model : `Model`
-        object containing the physical parameters
+        Object containing the physical parameters.
     source : `PointData`
-        object containing the source geometry
+        Object containing the source geometry.
     receiver : `PointData`
-        object containing the acquisition geometry
+        Object containing the acquisition geometry.
     time_order : int, optional
-        Time discretization order
+        Time discretization order.
     space_order : int, optional
-        Space discretization order
+        Space discretization order.
     """
     m, damp = model.m, model.damp
 

@@ -47,7 +47,7 @@ def init_hat(field, dx, dy, value=2., bgvalue=1.):
 
     u(.5<=x<=1 && .5<=y<=1 ) is 2
 
-    field : FIX numpy array
+    field : array-like
         Field data to plot.
     dx : float
         Spacing in the x-dimension.
