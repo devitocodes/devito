@@ -1,8 +1,11 @@
 from devito.ir.clusters import ClusterGroup, groupby
 <<<<<<< HEAD
+<<<<<<< HEAD
 from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRewriter,
                                  AggressiveRewriter, SkewingRewriter)
 =======
+=======
+>>>>>>> dse related sims init
 from devito.dse.rewriters import BasicRewriter, AdvancedRewriter, AggressiveRewriter
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -14,7 +17,16 @@ from devito.logger import dse_warning
 =======
 from devito.logger import dse as log, dse_warning as warning
 from devito.parameters import configuration
+<<<<<<< HEAD
 >>>>>>> dse: Refactor and tweak profiling output
+=======
+=======
+from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRewriter,
+                                 AggressiveRewriter, SkewingRewriter)
+from devito.dse.manipulation import cross_cluster_cse
+from devito.logger import dse_warning
+>>>>>>> dse related sims init
+>>>>>>> dse related sims init
 from devito.tools import flatten
 from devito.parameters import configuration
 
@@ -43,6 +55,7 @@ modes = {
     'basic': BasicRewriter,
     'advanced': AdvancedRewriter,
 <<<<<<< HEAD
+<<<<<<< HEAD
     'skewing': SkewingRewriter,
     'speculative': SpeculativeRewriter,
 =======
@@ -53,6 +66,19 @@ modes = {
 # Possible needed FIX nsim
 #configuration.add('dse', 'advanced', list(modes))
 MAX_SKEW_FACTOR = 8
+=======
+=======
+    'skewing': SkewingRewriter,
+    'speculative': SpeculativeRewriter,
+>>>>>>> dse related sims init
+    'aggressive': AggressiveRewriter
+}
+"""The DSE transformation modes."""
+
+# Possible needed FIX nsim
+MAX_SKEW_FACTOR = 8
+
+>>>>>>> dse related sims init
 configuration.add('skew_factor', 0, range(MAX_SKEW_FACTOR))
 
 def rewrite(clusters, mode='advanced'):

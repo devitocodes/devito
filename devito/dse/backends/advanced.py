@@ -6,6 +6,7 @@ from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Clust
 from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
 <<<<<<< HEAD
+<<<<<<< HEAD
 from devito.symbolics import (estimate_cost, xreplace_constrained, iq_timeinvariant,
                             xreplace_indices)
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
@@ -22,6 +23,15 @@ from devito.types import Array, Scalar
 
 # class SkewingRewriter(AdvancedRewriter): 
 >>>>>>> Init Sims diff
+=======
+from devito.symbolics import (estimate_cost, xreplace_constrained, iq_timeinvariant,
+                             xreplace_indices)
+from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
+                                     compact_temporaries)
+from devito.types import Array, Scalar
+from devito.parameters import configuration
+from devito.types.dimension import TimeDimension
+>>>>>>> dse related sims init
 
 class AdvancedRewriter(BasicRewriter):
 
@@ -427,3 +437,36 @@ class SkewingRewriter(BasicRewriter):
         processed = [e.xreplace(rules) for e in processed]
 
         return alias_clusters + [cluster.rebuild(processed)]
+
+class SkewingRewriter(AdvancedRewriter):
+
+    def _pipeline(self, state):
+        self._loop_skew(state)
+        self._extract_time_invariants(state)
+        self._eliminate_inter_stencil_redundancies(state)
+        self._eliminate_intra_stencil_redundancies(state)
+        self._factorize(state)
+
+    @dse_pass
+    def _loop_skew(self, cluster, template, **kwargs):
+        skew_factor = -configuration['skew_factor']
+        t, mapper = None, {}
+        skews = {}
+
+         # FIXME: this is probably the wrong way to find the time dimension
+        for dim in cluster.stencil.dimensions:
+            if t is not None:
+                mapper[dim] = dim + skew_factor * t
+                skews[dim] = (skew_factor, t)
+            elif dim.is_Time:
+                if isinstance(dim, TimeDimension):
+                    t = dim
+                elif isinstance(dim.parent, TimeDimension):
+                    t = dim.parent
+
+        if t is None:
+            return cluster
+
+        cluster.skewed_loops = skews
+        processed = xreplace_indices(cluster.exprs, mapper)
+        return cluster.rebuild(processed)

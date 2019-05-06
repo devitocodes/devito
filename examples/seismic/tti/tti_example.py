@@ -61,10 +61,18 @@ if __name__ == "__main__":
                         help="Choice of finite-difference kernel")
     parser.add_argument("-dse", default="advanced",
 <<<<<<< HEAD
+<<<<<<< HEAD
                         choices=["noop", "basic", "advanced", "skewing", "aggressive"],
 =======
                         choices=["noop", "basic", "advanced", "aggressive"],
 >>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
+=======
+                        choices=["noop", "basic", "advanced", "aggressive"],
+=======
+                        choices=["noop", "basic", "advanced","skewing",
+                                 "speculative", "aggressive"],
+>>>>>>> dse related sims init
+>>>>>>> dse related sims init
                         help="Devito symbolic engine (DSE) mode")
     parser.add_argument("-dle", default="advanced",
                         choices=["noop", "advanced", "speculative"],
