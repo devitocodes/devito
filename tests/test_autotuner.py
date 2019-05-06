@@ -102,7 +102,7 @@ def test_timesteps_per_at_run():
 @switchconfig(profiling='advanced')
 def test_mode_runtime_forward():
     """Test autotuning in runtime mode."""
-    grid = Grid(shape=(64, 64, 64))
+    grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
     op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': False}))
@@ -120,7 +120,7 @@ def test_mode_runtime_forward():
 @switchconfig(profiling='advanced')
 def test_mode_runtime_backward():
     """Test autotuning in runtime mode."""
-    grid = Grid(shape=(64, 64, 64))
+    grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
     op = Operator(Eq(f.backward, f + 1.), dle=('advanced', {'openmp': False}))
@@ -138,7 +138,7 @@ def test_mode_runtime_backward():
 @switchconfig(profiling='advanced')
 def test_mode_destructive():
     """Test autotuning in destructive mode."""
-    grid = Grid(shape=(64, 64, 64))
+    grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid, time_order=0)
 
     op = Operator(Eq(f, f + 1.), dle=('advanced', {'openmp': False}))
@@ -151,7 +151,7 @@ def test_mode_destructive():
 
 
 def test_blocking_only():
-    grid = Grid(shape=(64, 64, 64))
+    grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
     op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': False}))
@@ -164,7 +164,7 @@ def test_blocking_only():
 
 
 def test_mixed_blocking_nthreads():
-    grid = Grid(shape=(64, 64, 64))
+    grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
     op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': True}))
@@ -181,7 +181,7 @@ def test_tti_aggressive():
     wave_solver = tti_operator(dse='aggressive', dle=('advanced', {'openmp': False}))
     op = wave_solver.op_fwd(kernel='centered', save=False)
     op.apply(time=0, autotune='aggressive')
-    assert op._state['autotuning'][0]['runs'] == 33
+    assert op._state['autotuning'][0]['runs'] == 28
 
 
 @switchconfig(develop_mode=False)
@@ -193,7 +193,7 @@ def test_discarding_runs():
     op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': True}))
     op.apply(time=100, nthreads=4, autotune='aggressive')
 
-    assert op._state['autotuning'][0]['runs'] == 20
+    assert op._state['autotuning'][0]['runs'] == 18
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 3
     assert op._state['autotuning'][0]['tuned']['nthreads'] == 4
@@ -201,7 +201,7 @@ def test_discarding_runs():
     # With 1 < 4 threads, the AT eventually tries many more combinations
     op.apply(time=100, nthreads=1, autotune='aggressive')
 
-    assert op._state['autotuning'][1]['runs'] == 30
+    assert op._state['autotuning'][1]['runs'] == 25
     assert op._state['autotuning'][1]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][1]['tuned']) == 3
     assert op._state['autotuning'][1]['tuned']['nthreads'] == 1
@@ -262,7 +262,7 @@ def test_multiple_blocking():
     cartesian product of all possible block shapes across the various
     blocked nests.
     """
-    grid = Grid(shape=(64, 64, 64))
+    grid = Grid(shape=(96, 96, 96))
 
     u = TimeFunction(name='u', grid=grid, space_order=2)
     v = TimeFunction(name='v', grid=grid)
@@ -306,13 +306,13 @@ def test_hierarchical_blocking():
 
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
-    assert op._state['autotuning'][0]['runs'] == 12  # 6 for each Iteration nest
+    assert op._state['autotuning'][0]['runs'] == 10
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 4
 
     # 'aggressive' mode
     op.apply(time_M=0, autotune='aggressive')
-    assert op._state['autotuning'][1]['runs'] == 60
+    assert op._state['autotuning'][1]['runs'] == 38
     assert op._state['autotuning'][1]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][1]['tuned']) == 4
 
@@ -322,7 +322,7 @@ def test_multiple_threads():
     Test autotuning when different ``num_threads`` for a given OpenMP parallel
     region are attempted.
     """
-    grid = Grid(shape=(64, 64, 64))
+    grid = Grid(shape=(96, 96, 96))
 
     v = TimeFunction(name='v', grid=grid)
 
