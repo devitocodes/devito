@@ -811,26 +811,27 @@ class Array(AbstractCachedFunction):
         halo = kwargs.get('halo')
         if halo is None:
             halo = [(0, 0) for i in range(self.ndim)]
-        halo = list(halo)
-        # Heuristic: the halo along the Fastest Varying Dimension is rounded
-        # up to the nearest multiple of the SIMD vector length, this will help
-        # if at runtime the shape of an Array turns out to be a multiple of
-        # the SIMD vector length too. This is the case, for example, of the
-        # Arrays introduced by the CIRE algorithm
-        fvd_halo_left, fvd_halo_right = halo[-1]
-        # Let UB be a function that rounds up a value `x` to the nearest
-        # multiple of the SIMD vector length
-        vl = configuration['platform'].simd_items_per_reg(self.dtype)
-        ub = lambda x: int(ceil(x / vl)) * vl
-        # The left-halo is rounded up so that the first domain grid point
-        # is cache-aligned
-        if fvd_halo_left > 0:
-            fvd_halo_left += ub(fvd_halo_left) - fvd_halo_left
-        # The right-halo is rounded up so that *hopefully* each first grid point
-        # along the `fvd` will be cache-aligned
-        if fvd_halo_right > 0:
-            fvd_halo_right += ub(fvd_halo_right) - fvd_halo_right
-        halo[-1] = (fvd_halo_left, fvd_halo_right)
+        if configuration['autopadding']:
+            halo = list(halo)
+            # Heuristic: the halo along the Fastest Varying Dimension is rounded
+            # up to the nearest multiple of the SIMD vector length, this will help
+            # if at runtime the shape of an Array turns out to be a multiple of
+            # the SIMD vector length too. This is the case, for example, of the
+            # Arrays introduced by the CIRE algorithm
+            fvd_halo_left, fvd_halo_right = halo[-1]
+            # Let UB be a function that rounds up a value `x` to the nearest
+            # multiple of the SIMD vector length
+            vl = configuration['platform'].simd_items_per_reg(self.dtype)
+            ub = lambda x: int(ceil(x / vl)) * vl
+            # The left-halo is rounded up so that the first domain grid point
+            # is cache-aligned
+            if fvd_halo_left > 0:
+                fvd_halo_left += ub(fvd_halo_left) - fvd_halo_left
+            # The right-halo is rounded up so that *hopefully* each first grid point
+            # along the `fvd` will be cache-aligned
+            if fvd_halo_right > 0:
+                fvd_halo_right += ub(fvd_halo_right) - fvd_halo_right
+            halo[-1] = (fvd_halo_left, fvd_halo_right)
         return tuple(halo)
 
     @classmethod
