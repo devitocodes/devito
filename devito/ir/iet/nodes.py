@@ -357,7 +357,10 @@ class Iteration(Node):
 
     def __init__(self, nodes, dimension, limits, offsets=None, direction=None,
                  properties=None, pragmas=None, uindices=None, skew=None):
+<<<<<<< HEAD
         # , skew=None
+=======
+>>>>>>> ir
         self.nodes = as_tuple(nodes)
         self.dim = dimension
         self.index = self.dim.name
@@ -383,11 +386,19 @@ class Iteration(Node):
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)
 <<<<<<< HEAD
+<<<<<<< HEAD
         assert all(i.is_Derived and i.root is self.dim for i in self.uindices)
         self.skew = skew if skew else (0, self.dim)
 =======
         assert all(i.is_Derived and self.dim in i._defines for i in self.uindices)
 >>>>>>> ir: Relax Iteration construction
+=======
+        assert all(i.is_Derived and self.dim in i._defines for i in self.uindices)
+=======
+        assert all(i.is_Derived and i.root is self.dim for i in self.uindices)
+        self.skew = skew if skew else (0, self.dim)
+>>>>>>> ir
+>>>>>>> ir
 
     def __repr__(self):
         properties = ""

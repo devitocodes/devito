@@ -9,10 +9,13 @@ from devito.types import Scalar
 
 __all__ = ['clusterize', 'groupby']
 <<<<<<< HEAD
+<<<<<<< HEAD
 # clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
 =======
 
 
+=======
+>>>>>>> ir
 # clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
 
 >>>>>>> Init Sims diff
@@ -248,6 +251,10 @@ def clusterize(exprs):
     for e in exprs:
         directions, _ = force_directions(flowmap, lambda d: e.ispace.directions.get(d))
         ispace = IterationSpace(e.ispace.intervals, e.ispace.sub_iterators, directions)
+<<<<<<< HEAD
+=======
+        #clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
+>>>>>>> ir
         clusters.append(PartialCluster(e, ispace, e.dspace))
         
     # Group PartialClusters together where possible

@@ -19,9 +19,12 @@ __all__ = ['autotune']
 
 # autotuning for skewing
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 >>>>>>> Init Sims diff
+=======
+>>>>>>> ir
 def autotune(operator, args, level, mode):
     """
     Operator autotuning.
