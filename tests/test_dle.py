@@ -413,7 +413,7 @@ class TestNodeParallelism(object):
 class TestNestedParallelism(object):
 
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
-    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 10000)
+    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 10000)
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -459,7 +459,7 @@ class TestNestedParallelism(object):
 
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
-    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 10000)
+    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 10000)
     def test_multiple_subnests(self):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
