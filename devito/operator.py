@@ -21,6 +21,7 @@ from devito.profiling import create_profile
 from devito.symbolics import indexify
 from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
+from devito.ir import Cluster
 
 __all__ = ['Operator']
 

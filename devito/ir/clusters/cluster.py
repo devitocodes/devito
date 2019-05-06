@@ -35,14 +35,14 @@ class PartialCluster(object):
         which the PartialCluster should be computed.
     """
 
-    def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
+    def __init__(self, exprs, ispace, dspace, skewed_loops={}, atomics=None, guards=None):
         self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
                            for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = set(atomics or [])
         self._guards = guards or {}
-
+        self.skewed_loops = skewed_loops
     @property
     def exprs(self):
         return self._exprs
