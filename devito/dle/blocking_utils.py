@@ -15,8 +15,12 @@ from devito.types import IncrDimension, Scalar
 __all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 
 # __init__
+<<<<<<< HEAD
 
 def fold_blockable_tree(iet, blockinner=True):
+=======
+def fold_blockable_tree(node, blockinner=True):
+>>>>>>> Success in skewing expression by a factor of t
     """
     Create IterationFolds from sequences of nested Iterations.
     """

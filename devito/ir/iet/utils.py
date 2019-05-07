@@ -11,9 +11,12 @@ __all__ = ['filter_iterations', 'retrieve_iteration_tree',
 
 # Maybe some minor ...to examine
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 >>>>>>> Init Sims diff
+=======
+>>>>>>> Success in skewing expression by a factor of t
 def retrieve_iteration_tree(node, mode='normal'):
     """
     A list with all :class:`Iteration` sub-trees within an IET.

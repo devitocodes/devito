@@ -12,9 +12,12 @@ __all__ = ["Cluster", "ClusterGroup"]
 
 # Handling of skewed loops to be added
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 >>>>>>> Init Sims diff
+=======
+>>>>>>> Success in skewing expression by a factor of t
 class PartialCluster(object):
 
     """
@@ -51,9 +54,13 @@ class PartialCluster(object):
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None, skewed_loops={}):
         self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
                            for i in as_tuple(exprs))
+<<<<<<< HEAD
         #, skewed_loops={} This causes hanging on tests until now...
         # To do it with caution...
 >>>>>>> TT: DSE and IR additions
+=======
+        #, skewed_loops={}This causes hanging on tests until now.To do it with caution...
+>>>>>>> Success in skewing expression by a factor of t
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = set(atomics or [])

@@ -22,6 +22,7 @@ from devito.symbolics import indexify
 from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
 <<<<<<< HEAD
+<<<<<<< HEAD
 from devito.types import Dimension
 <<<<<<< HEAD
 from devito.ir import Cluster
@@ -29,7 +30,13 @@ from devito.ir import Cluster
 =======
 from devito.ir import Cluster
 >>>>>>> ir
+<<<<<<< HEAD
 >>>>>>> ir
+=======
+=======
+#from devito.ir import Cluster
+>>>>>>> Success in skewing expression by a factor of t
+>>>>>>> Success in skewing expression by a factor of t
 
 __all__ = ['Operator']
 

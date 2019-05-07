@@ -27,9 +27,12 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
 
 # Minor touches...
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 >>>>>>> Init Sims diff
+=======
+>>>>>>> Success in skewing expression by a factor of t
 # First-class IET nodes
 class Node(Signer):
 
@@ -369,7 +372,6 @@ class Iteration(Node):
         self.dim = dimension
         self.index = self.dim.name
         self.direction = direction or Forward
-
 
         # Generate loop limits
         if isinstance(limits, Iterable):

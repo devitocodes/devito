@@ -33,9 +33,12 @@ from devito.parameters import configuration
 __all__ = ['dse_registry', 'rewrite']
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Skewing rewriter
 dse_registry = ('basic', 'advanced', 'skewing', 'speculative', 'aggressive')
 =======
+=======
+>>>>>>> Success in skewing expression by a factor of t
 
 <<<<<<< HEAD
 dse_registry = ('basic', 'advanced', 'aggressive')
@@ -56,7 +59,14 @@ dse_registry = ('basic', 'advanced', 'speculative', 'aggressive')
 =======
 dse_registry = ('basic', 'advanced','skewing', 'speculative', 'aggressive')
 >>>>>>> TT: DSE and IR additions
+<<<<<<< HEAD
 >>>>>>> TT: DSE and IR additions
+=======
+=======
+# Skewing rewriter
+dse_registry = ('basic', 'advanced', 'skewing', 'speculative', 'aggressive')
+>>>>>>> Success in skewing expression by a factor of t
+>>>>>>> Success in skewing expression by a factor of t
 
 modes = {
     'basic': BasicRewriter,
@@ -81,15 +91,17 @@ MAX_SKEW_FACTOR = 8
     'aggressive': AggressiveRewriter
 }
 """The DSE transformation modes."""
-
 # Possible needed FIX nsim
-configuration.add('dse', 'advanced', list(modes))
+#configuration.add('dse', 'advanced', list(modes))
 MAX_SKEW_FACTOR = 8
+<<<<<<< HEAD
 
 >>>>>>> dse related sims init
+=======
+>>>>>>> Success in skewing expression by a factor of t
 configuration.add('skew_factor', 0, range(MAX_SKEW_FACTOR))
 
-def rewrite(clusters, mode='skewing'):
+def rewrite(clusters, mode='advanced'):
     """
     Given a sequence of N Clusters, produce a sequence of M Clusters with reduced
     operation count, with M >= N.
@@ -164,11 +176,19 @@ def rewrite(clusters, mode='skewing'):
         return clusters
     elif mode not in dse_registry:
 <<<<<<< HEAD
+<<<<<<< HEAD
         raise ValueError("Unknown rewrite 'mode' %s." % type(mode))
         #dse_warning("Unknown rewrite mode(s) %s" % mode)
 =======
         warning("Unknown rewrite mode(s) %s" % mode)
 >>>>>>> dse: Refactor and tweak profiling output
+=======
+        warning("Unknown rewrite mode(s) %s" % mode)
+=======
+        raise ValueError("Unknown Parameter 'mode' %s." % type(mode))
+        #dse_warning("Unknown rewrite mode(s) %s" % mode)
+>>>>>>> Success in skewing expression by a factor of t
+>>>>>>> Success in skewing expression by a factor of t
         return clusters
 
     # We use separate rewriters for dense and sparse clusters; sparse clusters have
