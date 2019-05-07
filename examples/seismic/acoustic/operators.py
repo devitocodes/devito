@@ -17,8 +17,8 @@ def laplacian(field, m, s, kernel):
         The computed solution.
     m : float
         Square slowness.
-    s :
-        Time-step.
+    s : float or Scalar
+        The time dimension spacing.
 
     Returns
     -------
@@ -42,18 +42,13 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
         The computed solution.
     m : float
         Square slowness.
-    s :
-        Time-step.
-    damp : `Function`
+    s : float or Scalar
+        The time dimension spacing.
+    damp : Function
         ABC dampening field.
     kwargs : dict
         Forward/backward wave equation (sign of u.dt will change accordingly
-    as well as the updated time-step (u.forwad or u.backward).
-
-    Returns
-    -------
-    Eq
-        Stencil for the wave-equation.
+        as well as the updated time-step (u.forwad or u.backward).
     """
 
     # Creat a temporary symbol for H to avoid expensive sympy solve
@@ -75,18 +70,18 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
 def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='OT2', **kwargs):
     """
-    Constructor method for the forward modelling operator in an acoustic media.
+    Construct a forward modelling operator in an acoustic media.
 
     Parameters
     ----------
-    model : `Model`
+    model : Model
         Object containing the physical parameters.
-    source : `PointData`
+    source : PointData
         Object containing the source geometry.
-    receiver : `PointData`
+    receiver : PointData
         Object containing the acquisition geometry.
     space_order : int, optional
-        Space discretization order
+        Space discretization order.
     save : int or Buffer, optional
         Saving flag, True saves all time steps, False only the three.
     """
@@ -118,15 +113,15 @@ def ForwardOperator(model, geometry, space_order=4,
 def AdjointOperator(model, geometry, space_order=4,
                     kernel='OT2', **kwargs):
     """
-    Constructor method for the adjoint modelling operator in an acoustic media.
+    Constructor an adjoint modelling operator in an acoustic media.
 
     Parameters
     ----------
-    model : `Model`
+    model : Model
         Object containing the physical parameters.
-    source : `PointData`
+    source : PointData
         Object containing the source geometry.
-    receiver : `PointData`
+    receiver : PointData
         Object containing the acquisition geometry.
     time_order: int, optional
         Time discretization order.
@@ -159,15 +154,15 @@ def AdjointOperator(model, geometry, space_order=4,
 def GradientOperator(model, geometry, space_order=4, save=True,
                      kernel='OT2', **kwargs):
     """
-    Constructor method for the gradient operator in an acoustic media
+    Construct an gradient operator in an acoustic media.
 
     Parameters
     ----------
-    model : `Model`
+    model : Model
         Object containing the physical parameters.
-    source : `PointData`
+    source : PointData
         Object containing the source geometry.
-    receiver : `PointData`
+    receiver : PointData
         Object containing the acquisition geometry.
     time_order : int, optional
         Time discretization order.
@@ -203,15 +198,15 @@ def GradientOperator(model, geometry, space_order=4, save=True,
 def BornOperator(model, geometry, space_order=4,
                  kernel='OT2', **kwargs):
     """
-    Constructor method for the Linearized Born operator in an acoustic media
+    Constructor an Linearized Born operator in an acoustic media.
 
     Parameters
     ----------
-    model : `Model`
+    model : Model
         Object containing the physical parameters.
-    source : `PointData`
+    source : PointData
         Object containing the source geometry.
-    receiver : `PointData`
+    receiver : PointData
         Object containing the acquisition geometry.
     time_order : int, optional
         Time discretization order.

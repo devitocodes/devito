@@ -12,17 +12,19 @@ class ElasticWaveSolver(object):
 
     Parameters
     ----------
-    model : `Model`
+    model : Model
         Physical model with domain parameters.
-    source : `PointData`
+    source : PointData
         Sparse point symbol providing the injected wave.
-    receiver : `PointData`
+    receiver : PointData
         Sparse point symbol describing an array of receivers.
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
 
-    Note: This is an experimental staggered grid elastic modeling kernel.
-    Only 2D supported
+    Notes
+    -----
+    This is an experimental staggered grid elastic modeling kernel.
+    Only 2D supported.
     """
     def __init__(self, model, geometry, space_order=4, **kwargs):
         self.model = model
@@ -49,34 +51,34 @@ class ElasticWaveSolver(object):
         Parameters
         ----------
         src : ,optional
-            Symbol with time series data for the injected source term.
+            The time series data for the injected source term.
         rec1 : ,optional
-            Symbol to store interpolated (txx) receiver data.
+            Interpolated (txx) receiver data.
         rec2 : ,optional
-            Symbol to store interpolated (tzz) receiver data.
+            Interpolated (tzz) receiver data.
         vx : ,optional
-            Symbol to store the computed horizontal particle velocity.
+            The computed horizontal particle velocity.
         vz : ,optional
-            Symbol to store the computed vertical particle velocity.
+            The computed vertical particle velocity.
         txx : ,optional
-            Symbol to store the computed horizontal stress.
+            The computed horizontal stress.
         tzz : ,optional
-            Symbol to store the computed vertical stress.
+            The computed vertical stress.
         txz : ,optional
-            Symbol to store the computed diagonal stresss.
+            The computed diagonal stresss.
         vp : ,optional
-            Symbol for the time-constant P-wave velocity (km/s).
+            The time-constant P-wave velocity (km/s).
         vs : ,optional
-            Symbol for the time-constant S-wave velocity (km/s).
+            The time-constant S-wave velocity (km/s).
         vs : ,optional
-            Symbol for the time-constant density (rho=1 for water).
+            The time-constant density (rho=1 for water).
         save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield.
 
         Returns
         -------
         Rec1 (txx), Rec2 (tzz), particle velocities vx and vz, stress txx,
-                  tzz and txz and performance summary.
+        tzz and txz and performance summary.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src

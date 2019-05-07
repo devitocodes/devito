@@ -349,11 +349,12 @@ def demo_model(preset, **kwargs):
 
 
 def initialize_damp(damp, nbpml, spacing, mask=False):
-    """Initialise damping field with an absorbing PML layer.
+    """
+    Initialise damping field with an absorbing PML layer.
 
     Parameters
     ----------
-    damp : `Function`
+    damp : Function
         for the damping field.
     nbpml : int
         Number of points in the damping layer.
@@ -395,13 +396,14 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
 
 
 def initialize_function(function, data, nbpml, pad_mode='edge'):
-    """Initialize a `Function` with the given ``data``. ``data``
+    """
+    Initialize a `Function` with the given ``data``. ``data``
     does *not* include the PML layers for the absorbing boundary conditions;
     these are added via padding by this function.
 
     Parameters
     ----------
-    function : `Function`
+    function : Function
         to be initialised with some data.
     data : ndarray
         The data array used for initialisation.
@@ -500,38 +502,41 @@ class GenericModel(object):
 
 
 class Model(GenericModel):
-    """The physical model used in seismic inversion processes.
+    """
+    The physical model used in seismic inversion processes.
 
     Parameters
     ----------
     origin :
-        Origin of the model in m as a tuple in (x,y,z) order
+        Origin of the model in m as a tuple in (x,y,z) order.
     spacing :
-        Grid size in m as a Tuple in (x,y,z) order
+        Grid size in m as a Tuple in (x,y,z) order.
     shape : int
-        Number of grid points size in (x,y,z) order
+        Number of grid points size in (x,y,z) order.
     space_order : int
-        Order of the spatial stencil discretisation
+        Order of the spatial stencil discretisation.
     vp : float
         Velocity in km/s
-    nbpml : int
-        The number of PML layers for boundary damping
-    epsilon : float
-        Thomsen epsilon parameter (0<epsilon<1)
+    nbpml : int, optional
+        The number of PML layers for boundary damping.
+    dtype :
+
+    epsilon : float, optional
+        Thomsen epsilon parameter (0<epsilon<1).
     delta : float
-        Thomsen delta parameter (0<delta<1), delta<epsilon
+        Thomsen delta parameter (0<delta<1), delta<epsilon.
     theta : float
-        Tilt angle in radian
+        Tilt angle in radian.
     phi : float
-        Asymuth angle in radian
+        Asymuth angle in radian.
 
     The `Model` provides two symbolic data objects for the
     creation of seismic wave propagation operators:
 
     m :
-        The square slowness of the wave
+        The square slowness of the wave.
     damp :
-        The damping field for absorbing boundarycondition
+        The damping field for absorbing boundarycondition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
@@ -605,7 +610,9 @@ class Model(GenericModel):
 
     @property
     def critical_dt(self):
-        """Critical computational time step value from the CFL condition."""
+        """
+        Critical computational time step value from the CFL condition.
+        """
         # For a fixed time order this number goes down as the space order increases.
         #
         # The CFL condtion is then given by
@@ -616,7 +623,8 @@ class Model(GenericModel):
 
     @property
     def vp(self):
-        """`numpy.ndarray` holding the model velocity in km/s.
+        """
+        `numpy.ndarray` holding the model velocity in km/s.
 
         Notes
         -----
@@ -628,11 +636,12 @@ class Model(GenericModel):
 
     @vp.setter
     def vp(self, vp):
-        """Set a new velocity model and update square slowness.
+        """
+        Set a new velocity model and update square slowness.
 
         Parameters
         ----------
-        vp :
+        vp : float
             New velocity in km/s.
         """
         self._vp = vp
@@ -645,7 +654,8 @@ class Model(GenericModel):
 
 
 class ModelElastic(GenericModel):
-    """The physical model used in seismic inversion processes.
+    """
+    The physical model used in seismic inversion processes.
 
     Parameters
     ----------
@@ -661,15 +671,15 @@ class ModelElastic(GenericModel):
         P-wave velocity in km/s.
     vs : float
         S-wave velocity in km/s.
-    nbpml : int
+    nbpml : int, optional
         The number of PML layers for boundary damping.
-    rho : float
+    rho : float, optional
         Density in kg/cm^3 (rho=1 for water).
 
     The `ModelElastic` provides a symbolic data objects for the
     creation of seismic wave propagation operators:
 
-    damp :
+    damp : , optional
         The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,
@@ -707,7 +717,9 @@ class ModelElastic(GenericModel):
 
     @property
     def critical_dt(self):
-        """Critical computational time step value from the CFL condition."""
+        """
+        Critical computational time step value from the CFL condition.
+        """
         # For a fixed time order this number goes down as the space order increases.
         #
         # The CFL condtion is then given by

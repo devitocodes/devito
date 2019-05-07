@@ -176,11 +176,11 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
 
     Parameters
     ----------
-    model : `Model`
+    model : Model
         object containing the physical parameters.
-    source : `PointData`
+    source : PointData
         object containing the source geometry.
-    receiver : `PointData`
+    receiver : PointData
         object containing the acquisition geometry.
     space_order : int, optional
         Space discretization order.

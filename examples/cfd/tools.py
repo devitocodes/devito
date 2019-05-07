@@ -53,9 +53,9 @@ def init_hat(field, dx, dy, value=2., bgvalue=1.):
         Spacing in the x-dimension.
     dy : float
         Spacing in the y-dimension.
-    value : float
+    value : float, optional
         Value of the top part of the function. Defaults to 2.
-    bgvalue : float
+    bgvalue : float, optional
         Background value for the bottom of the function. Defaults to 1.
     """
     field[:] = bgvalue

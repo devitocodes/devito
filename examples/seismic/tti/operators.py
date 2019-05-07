@@ -176,11 +176,11 @@ def kernel_centered_2d(model, u, v, space_order):
     Parameters
     ----------
     u : TimeFunction
-        First TTI field
+        First TTI field.
     v : TimeFunction
-        Second TTI field
+        Second TTI field.
     space_order : int
-        Space discretization order
+        Space discretization order.
 
     Returns
     -------
@@ -341,21 +341,21 @@ def kernel_staggered_3d(model, u, v, space_order):
 def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='centered', **kwargs):
     """
-       Constructor method for the forward modelling operator in an acoustic media.
+    Construct an forward modelling operator in an acoustic media.
 
-       Parameters
-       ----------
-       model : `Model`
-            Object containing the physical parameters.
-       src :
-            None ot IShot() (not currently supported properly).
-       data : ndarray
-            IShot() object containing the acquisition geometry and field data.
-       time_order : int
-            Time discretization order.
-       space_order : int
-            Space discretization order.
-       """
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    src :
+        None ot IShot() (not currently supported properly).
+    data : ndarray
+        IShot() object containing the acquisition geometry and field data.
+    time_order : int
+        Time discretization order.
+    space_order : int
+        Space discretization order.
+    """
 
     dt = model.grid.time_dim.spacing
     m = model.m

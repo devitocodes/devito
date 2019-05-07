@@ -19,9 +19,9 @@ def plot_perturbation(model, model1, colorbar=True):
 
     Parameters
     ----------
-    model : `Model`
+    model : Model
         object of first velocity model.
-    model1 : `Model`
+    model1 : Model
         object of the second velocity model.
     source :
         Coordinates of the source point.
@@ -56,7 +56,7 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
 
     Parameters
     ----------
-    model : `Model`
+    model : Model
         object that holds the velocity model.
     source :
         Coordinates of the source point.
@@ -104,7 +104,7 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
     ----------
     rec :
         Receiver data with shape (time, points).
-    model : `Model`
+    model : Model
         object that holds the velocity model.
     t0 : int
         Start of time dimension to plot.
@@ -138,7 +138,7 @@ def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
         Image data to plot
     cmap : str
         Choice of colormap. Defaults to gray scale for images as a
-    seismic convention.
+        seismic convention.
     """
     plot = plt.imshow(np.transpose(data),
                       vmin=vmin or 0.9 * np.min(data),

@@ -13,7 +13,7 @@ class AnisotropicWaveSolver(object):
 
     Parameters
     ----------
-    model : `Model`
+    model : Model
         Physical model with domain parameters.
     source :
         Sparse point symbol providing the injected wave.
