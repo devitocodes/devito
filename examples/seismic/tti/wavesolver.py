@@ -15,10 +15,10 @@ class AnisotropicWaveSolver(object):
     ----------
     model : Model
         Physical model with domain parameters.
-    source :
-        Sparse point symbol providing the injected wave.
-    receiver :
-        Sparse point symbol describing an array of receivers.
+    source : PointData
+        The injected wave.
+    receiver : PointData
+        An array of receivers.
     time_order : int, optional
         Order of the time-stepping scheme. Defaults to 2.
     space_order : int, optional
@@ -54,9 +54,9 @@ class AnisotropicWaveSolver(object):
 
         Parameters
         ----------
-        src :
+        src : PointData
             Time series data for the injected source term.
-        rec :
+        rec : PointData
             The interpolated receiver data (u+v).
         u : TimeFunction, optional
             The computed wavefield first component.

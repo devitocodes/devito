@@ -122,6 +122,7 @@ def AdjointOperator(model, geometry, space_order=4,
     space_order : int, optional
         Space discretization order.
     kernel :
+        Type of discretization, centered or shifted.
 
     """
     m, damp = model.m, model.damp
@@ -163,7 +164,7 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     save : int or Buffer, optional
         Option to store the entire (unrolled) wavefield.
     kernel :
-
+        Type of discretization, centered or shifted.
     """
     m, damp = model.m, model.damp
 
@@ -205,6 +206,7 @@ def BornOperator(model, geometry, space_order=4,
     space_order : int, optional
         Space discretization order.
     kernel :
+        Type of discretization, centered or shifted.
 
     """
     m, damp = model.m, model.damp

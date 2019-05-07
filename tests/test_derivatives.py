@@ -98,7 +98,9 @@ class TestFD(object):
     ])
     @pytest.mark.parametrize('order', [2, 4, 6, 8, 10, 12, 14, 16])
     def test_second_derivatives_space(self, derivative, dim, order):
-        """Test second derivative expressions against native sympy"""
+        """
+        Test second derivative expressions against native sympy.
+        """
         dim = dim(self.grid)
         u = TimeFunction(name='u', grid=self.grid, time_order=2, space_order=order)
         expr = getattr(u, derivative)
@@ -255,7 +257,7 @@ class TestFD(object):
     @pytest.mark.parametrize('so', [2, 5, 8])
     def test_all_shortcuts(self, so):
         """
-        Test that verify that all fd shortcuts are functional
+        Test that verify that all fd shortcuts are functional.
         """
         grid = Grid(shape=(10, 10, 10))
         f = Function(name='f', grid=grid, space_order=so)

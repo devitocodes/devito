@@ -47,7 +47,7 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
 
     Returns
     -------
-    Rotated second order derivative w.r.t. z
+    Rotated second order derivative w.r.t. z.
     """
     order1 = space_order / 2
     x, y, z = field.space_dimensions
@@ -113,17 +113,17 @@ def Gxxyy_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     Parameters
     ----------
     field : Function
-        symbolic data whose derivative we are computing.
+        Input field.
     costheta : Function
-        cosine of the tilt angle.
+        Cosine of the tilt angle.
     sintheta : Function
-        sine of the tilt angle.
+        Sine of the tilt angle.
     cosphi : Function
-        cosine of the azymuth angle.
+        Cosine of the azymuth angle.
     sinphi : Function
-        sine of the azymuth angle.
+        Sine of the azymuth angle.
     space_order : int
-        space discretization order.
+        Space discretization order.
 
     Returns
     -------
@@ -143,7 +143,7 @@ def Gxx_centered_2d(field, costheta, sintheta, space_order):
     Parameters
     ----------
     field : TimeFunction
-        Symbolic data whose derivative we are computing.
+        Input field.
     costheta : Function
         Cosine of the tilt angle.
     sintheta : Function
@@ -164,7 +164,7 @@ def Gxx_centered_2d(field, costheta, sintheta, space_order):
 
 def kernel_centered_2d(model, u, v, space_order):
     """
-    TTI finite difference kernel. The equation we solve is:
+    TTI finite difference kernel. The equation solved is:
 
     u.dt2 = (1+2 *epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
     v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)
@@ -197,12 +197,12 @@ def kernel_centered_2d(model, u, v, space_order):
 
 def kernel_centered_3d(model, u, v, space_order):
     """
-    TTI finite difference kernel. The equation we solve is:
+    TTI finite difference kernel. The equation solved is:
 
     u.dt2 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
     v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
 
-    where epsilon and delta are the thomsen parameters. This function computes
+    where epsilon and delta are the Thomsen parameters. This function computes
     H0 = Gxx(u) + Gyy(u)
     Hz = Gzz(v)
 
@@ -230,7 +230,7 @@ def kernel_centered_3d(model, u, v, space_order):
 
 def particle_velocity_fields(model, space_order):
     """
-    Initialize particle velocity fields for staggered tti.
+    Initialize particle velocity fields for staggered TTI.
     """
     if model.grid.dim == 2:
         x, z = model.space_dimensions
@@ -347,7 +347,7 @@ def ForwardOperator(model, geometry, space_order=4,
     ----------
     model : Model
         Object containing the physical parameters.
-    src :
+    src : FIX
         None ot IShot() (not currently supported properly).
     data : ndarray
         IShot() object containing the acquisition geometry and field data.
