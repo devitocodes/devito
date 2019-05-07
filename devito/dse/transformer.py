@@ -13,7 +13,7 @@ __all__ = ['dse_registry', 'rewrite']
 
 #
 
-dse_registry = ('basic', 'advanced', 'speculative', 'aggressive')
+dse_registry = ('basic', 'advanced','skewing', 'speculative', 'aggressive')
 
 modes = {
     'basic': BasicRewriter,
@@ -25,11 +25,12 @@ modes = {
 """The DSE transformation modes."""
 
 # Possible needed FIX nsim
+configuration.add('dse', 'advanced', list(modes))
 MAX_SKEW_FACTOR = 8
 
 configuration.add('skew_factor', 0, range(MAX_SKEW_FACTOR))
 
-def rewrite(clusters, mode='advanced'):
+def rewrite(clusters, mode='skewing'):
     """
     Given a sequence of N Clusters, produce a sequence of M Clusters with reduced
     operation count, with M >= N.
@@ -45,6 +46,7 @@ def rewrite(clusters, mode='advanced'):
         - ``advanced``: Apply all transformations that will reduce the
                         operation count w/ minimum increase to the memory pressure,
                         namely 'basic', factorization, CIRE for time-invariants only.
+        - ``skewing``: Apply skewing.
         - ``speculative``: Like 'advanced', but apply CIRE also to time-varying
                            sub-expressions, which might further increase the memory
                            pressure.
