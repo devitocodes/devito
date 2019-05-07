@@ -358,13 +358,18 @@ class Iteration(Node):
     def __init__(self, nodes, dimension, limits, offsets=None, direction=None,
                  properties=None, pragmas=None, uindices=None, skew=None):
 <<<<<<< HEAD
+<<<<<<< HEAD
         # , skew=None
 =======
 >>>>>>> ir
+=======
+        # , skew=None
+>>>>>>> TT: DSE and IR additions
         self.nodes = as_tuple(nodes)
         self.dim = dimension
         self.index = self.dim.name
         self.direction = direction or Forward
+
 
         # Generate loop limits
         if isinstance(limits, Iterable):

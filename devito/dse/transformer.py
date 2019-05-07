@@ -47,9 +47,16 @@ dse_registry = ('basic', 'advanced', 'aggressive')
 
 #
 
+<<<<<<< HEAD
 dse_registry = ('basic', 'advanced', 'speculative', 'aggressive')
 >>>>>>> Init Sims diff
+<<<<<<< HEAD
 >>>>>>> Init Sims diff
+=======
+=======
+dse_registry = ('basic', 'advanced','skewing', 'speculative', 'aggressive')
+>>>>>>> TT: DSE and IR additions
+>>>>>>> TT: DSE and IR additions
 
 modes = {
     'basic': BasicRewriter,
@@ -76,12 +83,13 @@ MAX_SKEW_FACTOR = 8
 """The DSE transformation modes."""
 
 # Possible needed FIX nsim
+configuration.add('dse', 'advanced', list(modes))
 MAX_SKEW_FACTOR = 8
 
 >>>>>>> dse related sims init
 configuration.add('skew_factor', 0, range(MAX_SKEW_FACTOR))
 
-def rewrite(clusters, mode='advanced'):
+def rewrite(clusters, mode='skewing'):
     """
     Given a sequence of N Clusters, produce a sequence of M Clusters with reduced
     operation count, with M >= N.
@@ -96,6 +104,7 @@ def rewrite(clusters, mode='advanced'):
         - ``basic``: Apply common sub-expressions elimination.
         - ``advanced``: Apply all transformations that will reduce the
                         operation count w/ minimum increase to the memory pressure,
+<<<<<<< HEAD
 <<<<<<< HEAD
                         namely 'basic', factorization, CIRE for time-invariants only.
         - ``skewing``: Apply skewing.
@@ -113,6 +122,8 @@ def rewrite(clusters, mode='advanced'):
                            JIT-compilation time; it may or may not improve the
                            overall runtime performance.
 =======
+=======
+>>>>>>> TT: DSE and IR additions
                         namely 'basic', factorization, and cross-iteration redundancy
                         elimination ("CIRE") for time-invariants only.
         - ``aggressive``: Like 'advanced', but apply CIRE to time-varying
@@ -124,7 +135,27 @@ def rewrite(clusters, mode='advanced'):
                           symbolic processing time; it may or may not reduce the
                           JIT-compilation time; it may or may not improve the
                           overall runtime performance.
+<<<<<<< HEAD
 >>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
+=======
+=======
+                        namely 'basic', factorization, CIRE for time-invariants only.
+        - ``skewing``: Apply skewing.
+        - ``speculative``: Like 'advanced', but apply CIRE also to time-varying
+                           sub-expressions, which might further increase the memory
+                           pressure.
+         * ``aggressive``: Like 'speculative', but apply CIRE to any non-trivial
+                           sub-expression (i.e., anything that is at least in a
+                           sum-of-product form).
+                           Further, seek and drop cross-cluster redundancies (this
+                           is the only pass that attempts to optimize *across*
+                           clusters, rather than within a cluster).
+                           The 'aggressive' mode may substantially increase the
+                           symbolic processing time; it may or may not reduce the
+                           JIT-compilation time; it may or may not improve the
+                           overall runtime performance.
+>>>>>>> TT: DSE and IR additions
+>>>>>>> TT: DSE and IR additions
     """
     if not (mode is None or isinstance(mode, str)):
         raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))

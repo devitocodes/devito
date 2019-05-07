@@ -39,6 +39,7 @@ class PartialCluster(object):
     """
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None, skewed_loops={}):
 =======
     def __init__(self, exprs, ispace, dspace, skewed_loops={}, atomics=None, guards=None):
@@ -46,16 +47,28 @@ class PartialCluster(object):
         self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
                            for i in as_tuple(exprs))
         #, skewed_loops={}This causes hanging on tests until now.To do it with caution...
+=======
+    def __init__(self, exprs, ispace, dspace, atomics=None, guards=None, skewed_loops={}):
+        self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
+                           for i in as_tuple(exprs))
+        #, skewed_loops={} This causes hanging on tests until now...
+        # To do it with caution...
+>>>>>>> TT: DSE and IR additions
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = set(atomics or [])
         self._guards = guards or {}
+<<<<<<< HEAD
 <<<<<<< HEAD
         self._skewed_loops = skewed_loops
 
 =======
         self.skewed_loops = skewed_loops
 >>>>>>> ir
+=======
+        self._skewed_loops = skewed_loops
+
+>>>>>>> TT: DSE and IR additions
     @property
     def exprs(self):
         return self._exprs
