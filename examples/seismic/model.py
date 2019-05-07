@@ -509,7 +509,7 @@ class Model(GenericModel):
     ----------
     origin :
         Origin of the model in m as a tuple in (x,y,z) order.
-    spacing :
+    spacing : tuple of int
         Grid size in m as a Tuple in (x,y,z) order.
     shape : int
         Number of grid points size in (x,y,z) order.

@@ -142,7 +142,7 @@ def Gxx_centered_2d(field, costheta, sintheta, space_order):
 
     Parameters
     ----------
-    field : FIX
+    field : TimeFunction
         Symbolic data whose derivative we are computing.
     costheta : Function
         Cosine of the tilt angle.
@@ -230,7 +230,7 @@ def kernel_centered_3d(model, u, v, space_order):
 
 def particle_velocity_fields(model, space_order):
     """
-    Initialize partcle vleocity fields for staggered tti.
+    Initialize particle velocity fields for staggered tti.
     """
     if model.grid.dim == 2:
         x, z = model.space_dimensions

@@ -29,9 +29,9 @@ def t(grid):
 @skipif(['yask', 'ops'])
 class TestFD(object):
     """
-    Class for finite difference testing
-    Tests the accuracy w.r.t polynomials
-    Test that the shortcut produce the same answer as the FD functions
+    Class for finite difference testing.
+    Tests the accuracy w.r.t polynomials.
+    Test that the shortcut produce the same answer as the FD functions.
     """
 
     def setup_method(self):
@@ -116,14 +116,7 @@ class TestFD(object):
         """
         This test compares the discrete finite-difference scheme against polynomials
         For a given order p, the finite difference scheme should
-        be exact for polynomials of order p
-
-        Parameters
-        ----------
-        derivative :
-            name of the derivative to be tested
-        space_order : int
-            space order of the finite difference stencil
+        be exact for polynomials of order p.
         """
         clear_cache()
         # dummy axis dimension
@@ -165,13 +158,6 @@ class TestFD(object):
         This test compares the discrete finite-difference scheme against polynomials
         For a given order p, the finite difference scheme should
         be exact for polynomials of order p
-
-        Parameters
-        ----------
-        derivative :
-            name of the derivative to be tested
-        space_order : int
-            space order of the finite difference stencil
         """
         clear_cache()
         # dummy axis dimension

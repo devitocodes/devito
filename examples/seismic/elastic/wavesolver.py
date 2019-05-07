@@ -50,27 +50,27 @@ class ElasticWaveSolver(object):
 
         Parameters
         ----------
-        src : ,optional
+        src : , optional
             The time series data for the injected source term.
-        rec1 : ,optional
+        rec1 : , optional
             Interpolated (txx) receiver data.
         rec2 : ,optional
             Interpolated (tzz) receiver data.
-        vx : ,optional
+        vx : TimeFunction, optional
             The computed horizontal particle velocity.
-        vz : ,optional
+        vz : TimeFunction, optional
             The computed vertical particle velocity.
-        txx : ,optional
+        txx : TimeFunction, optional
             The computed horizontal stress.
-        tzz : ,optional
+        tzz : TimeFunction, optional
             The computed vertical stress.
-        txz : ,optional
+        txz : TimeFunction, optional
             The computed diagonal stresss.
-        vp : ,optional
+        vp : TimeFunction, optional
             The time-constant P-wave velocity (km/s).
-        vs : ,optional
+        vs : TimeFunction, optional
             The time-constant S-wave velocity (km/s).
-        vs : ,optional
+        vs : TimeFunction, optional
             The time-constant density (rho=1 for water).
         save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield.

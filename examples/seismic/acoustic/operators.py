@@ -76,10 +76,8 @@ def ForwardOperator(model, geometry, space_order=4,
     ----------
     model : Model
         Object containing the physical parameters.
-    source : PointData
-        Object containing the source geometry.
-    receiver : PointData
-        Object containing the acquisition geometry.
+    geometry :
+
     space_order : int, optional
         Space discretization order.
     save : int or Buffer, optional
@@ -119,14 +117,12 @@ def AdjointOperator(model, geometry, space_order=4,
     ----------
     model : Model
         Object containing the physical parameters.
-    source : PointData
-        Object containing the source geometry.
-    receiver : PointData
-        Object containing the acquisition geometry.
-    time_order: int, optional
-        Time discretization order.
-    space_order: int, optional
+    geometry :
+
+    space_order : int, optional
         Space discretization order.
+    kernel :
+
     """
     m, damp = model.m, model.damp
 
@@ -160,14 +156,14 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     ----------
     model : Model
         Object containing the physical parameters.
-    source : PointData
-        Object containing the source geometry.
-    receiver : PointData
-        Object containing the acquisition geometry.
-    time_order : int, optional
-        Time discretization order.
+    geometry :
+
     space_order : int, optional
         Space discretization order.
+    save : int or Buffer, optional
+        Option to store the entire (unrolled) wavefield.
+    kernel :
+
     """
     m, damp = model.m, model.damp
 
@@ -198,20 +194,18 @@ def GradientOperator(model, geometry, space_order=4, save=True,
 def BornOperator(model, geometry, space_order=4,
                  kernel='OT2', **kwargs):
     """
-    Constructor an Linearized Born operator in an acoustic media.
+    Construct an Linearized Born operator in an acoustic media.
 
     Parameters
     ----------
     model : Model
         Object containing the physical parameters.
-    source : PointData
-        Object containing the source geometry.
-    receiver : PointData
-        Object containing the acquisition geometry.
-    time_order : int, optional
-        Time discretization order.
+    geometry :
+
     space_order : int, optional
         Space discretization order.
+    kernel :
+
     """
     m, damp = model.m, model.damp
 

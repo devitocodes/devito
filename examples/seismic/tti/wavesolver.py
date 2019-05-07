@@ -65,17 +65,17 @@ class AnisotropicWaveSolver(object):
         m : float, optional
             The time-constant square slowness.
         epsilon : float, optional
-            Symbol for the time-constant first Thomsen parameter.
+            The time-constant first Thomsen parameter.
         delta : float, optional
-            Symbol for the time-constant second Thomsen parameter.
+            The time-constant second Thomsen parameter.
         theta : float, optional
-            Symbol for the time-constant Dip angle (radians).
+            The time-constant Dip angle (radians).
         phi : float, optional
-            Symbol for the time-constant Azimuth angle (radians).
+            The time-constant Azimuth angle (radians).
         save : int or Buffer
             Option to store the entire (unrolled) wavefield.
         kernel :
-            type of discretization, centered or shifted.
+            Type of discretization, centered or shifted.
 
         Returns
         -------
