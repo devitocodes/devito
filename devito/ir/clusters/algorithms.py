@@ -9,7 +9,6 @@ from devito.types import Scalar
 
 __all__ = ['clusterize', 'groupby']
 # clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
-
 def groupby(clusters):
     """
     Group PartialClusters together to create "fatter" PartialClusters
@@ -242,9 +241,8 @@ def clusterize(exprs):
     for e in exprs:
         directions, _ = force_directions(flowmap, lambda d: e.ispace.directions.get(d))
         ispace = IterationSpace(e.ispace.intervals, e.ispace.sub_iterators, directions)
-        #clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
         clusters.append(PartialCluster(e, ispace, e.dspace))
-
+        
     # Group PartialClusters together where possible
     clusters = groupby(clusters)
 

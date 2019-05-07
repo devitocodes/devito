@@ -6,12 +6,13 @@ from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Clust
 from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
 from devito.symbolics import (estimate_cost, xreplace_constrained, iq_timeinvariant,
-                             xreplace_indices)
+                            xreplace_indices)
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
 from devito.types import Array, Scalar
 from devito.parameters import configuration
 from devito.types.dimension import TimeDimension
+
 
 class AdvancedRewriter(BasicRewriter):
 
@@ -182,6 +183,7 @@ class AdvancedRewriter(BasicRewriter):
 
         return alias_clusters + [cluster.rebuild(processed)]
 
+
 class SkewingRewriter(BasicRewriter):
 
     MIN_COST_ALIAS = 10
@@ -210,7 +212,7 @@ class SkewingRewriter(BasicRewriter):
         dependences.
         """
         skew_factor = -configuration['skew_factor']
-        #skew_factor = 2
+        skew_factor = 2
         t, mapper = None, {}
         skews = {}
 
@@ -227,7 +229,7 @@ class SkewingRewriter(BasicRewriter):
         if t is None:
             return cluster
 
-        cluster.skewed_loops = skews
+        cluster._skewed_loops = skews
         processed = xreplace_indices(cluster.exprs, mapper)
         return cluster.rebuild(processed)
 

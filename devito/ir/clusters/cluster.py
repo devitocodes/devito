@@ -11,7 +11,6 @@ from devito.tools import as_tuple
 __all__ = ["Cluster", "ClusterGroup"]
 
 # Handling of skewed loops to be added
-
 class PartialCluster(object):
 
     """
@@ -38,8 +37,7 @@ class PartialCluster(object):
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None, skewed_loops={}):
         self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
                            for i in as_tuple(exprs))
-        #, skewed_loops={} This causes hanging on tests until now...
-        # To do it with caution...
+        #, skewed_loops={}This causes hanging on tests until now.To do it with caution...
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = set(atomics or [])
@@ -167,6 +165,10 @@ class PartialCluster(object):
     @dspace.setter
     def dspace(self, val):
         self._dspace = val
+
+    @skewed_loops.setter
+    def skewed_loops(self, val):
+        self._skewed_loops = val
 
     def squash(self, other):
         """

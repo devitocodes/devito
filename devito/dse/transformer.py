@@ -8,12 +8,8 @@ from devito.parameters import configuration
 
 __all__ = ['dse_registry', 'rewrite']
 
-
 # Skewing rewriter
-
-#
-
-dse_registry = ('basic', 'advanced','skewing', 'speculative', 'aggressive')
+dse_registry = ('basic', 'advanced', 'skewing', 'speculative', 'aggressive')
 
 modes = {
     'basic': BasicRewriter,
@@ -23,14 +19,12 @@ modes = {
     'aggressive': AggressiveRewriter
 }
 """The DSE transformation modes."""
-
 # Possible needed FIX nsim
-configuration.add('dse', 'advanced', list(modes))
+#configuration.add('dse', 'advanced', list(modes))
 MAX_SKEW_FACTOR = 8
-
 configuration.add('skew_factor', 0, range(MAX_SKEW_FACTOR))
 
-def rewrite(clusters, mode='skewing'):
+def rewrite(clusters, mode='advanced'):
     """
     Given a sequence of N Clusters, produce a sequence of M Clusters with reduced
     operation count, with M >= N.
@@ -67,7 +61,8 @@ def rewrite(clusters, mode='skewing'):
     if mode is None or mode == 'noop':
         return clusters
     elif mode not in dse_registry:
-        dse_warning("Unknown rewrite mode(s) %s" % mode)
+        raise ValueError("Unknown Parameter 'mode' %s." % type(mode))
+        #dse_warning("Unknown rewrite mode(s) %s" % mode)
         return clusters
 
     # 1) Local optimization

@@ -19,10 +19,7 @@ from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapSections', 'MapNodes',
            'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer',
            'FindAdjacent']
-
-#  class BlockIterations(Visitor): 
-
-
+#  class BlockIterations(Visitor):
 class Visitor(GenericVisitor):
 
     def visit_Node(self, o, **kwargs):

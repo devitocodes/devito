@@ -26,10 +26,7 @@ __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Condit
            'ExpressionBundle', 'Increment', 'Return']
 
 # Minor touches...
-
 # First-class IET nodes
-
-
 class Node(Signer):
 
     __metaclass__ = abc.ABCMeta
@@ -361,7 +358,6 @@ class Iteration(Node):
         self.dim = dimension
         self.index = self.dim.name
         self.direction = direction or Forward
-
 
         # Generate loop limits
         if isinstance(limits, Iterable):
