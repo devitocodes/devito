@@ -5,7 +5,7 @@ import numpy as np
 import click
 
 from devito import clear_cache, configuration, mode_develop, mode_benchmark, warning
-from devito.tools import as_tuple, flatten, sweep
+from devito.tools import as_tuple, sweep
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
 
@@ -96,8 +96,8 @@ def option_performance(f):
 @benchmark.command(name='run')
 @option_simulation
 @option_performance
-@click.option('-bs', '--block-shape', default=(0, 0, 0), multiple=True,
-              help='Loop-blocking shape, bypass autotuning')
+@click.option('-bs', '--block-shape', nargs=3, type=(int, int, int),
+              multiple=True, help='Loop-blocking shape, bypass autotuning')
 def cli_run(problem, **kwargs):
     """
     A single run with a specific set of performance parameters.
@@ -120,7 +120,7 @@ def run(problem, **kwargs):
 
     # Should a specific block-shape be used? Useful if one wants to skip
     # the autotuning pass as a good block-shape is already known
-    if all(flatten(block_shapes)):
+    if block_shapes:
         if autotune:
             warning("Skipping autotuning (using explicit block-shape `%s`)"
                     % str(block_shapes))
