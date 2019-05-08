@@ -1,3 +1,5 @@
+from itertools import groupby
+
 import cgen as c
 import numpy as np
 from cached_property import cached_property
@@ -13,15 +15,21 @@ from devito.types import IncrDimension, Scalar
 __all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 
 
-def fold_blockable_tree(node, blockinner=True):
+def fold_blockable_tree(iet, blockinner=True):
     """
     Create IterationFolds from sequences of nested Iterations.
     """
     mapper = {}
-    for k, v in FindAdjacent(Iteration).visit(node).items():
-        for i in v:
+    for k, sequence in FindAdjacent(Iteration).visit(iet).items():
+        # Group based on Dimension
+        groups = []
+        for subsequence in sequence:
+            for _, v in groupby(subsequence, lambda i: i.dim):
+                i = list(v)
+                if len(i) >= 2:
+                    groups.append(i)
+        for i in groups:
             # Pre-condition: they all must be perfect iterations
-            assert len(i) > 1
             if any(not IsPerfectIteration().visit(j) for j in i):
                 continue
             # Only retain consecutive trees having same depth
@@ -42,7 +50,7 @@ def fold_blockable_tree(node, blockinner=True):
             if blockinner is False:
                 pairwise_folds = pairwise_folds[:-1]
             # Perhaps there's nothing to fold
-            if len(pairwise_folds) == 1:
+            if len(pairwise_folds) == 0:
                 continue
             # TODO: we do not currently support blocking if any of the foldable
             # iterations writes to user data (need min/max loop bounds?)
@@ -51,20 +59,20 @@ def fold_blockable_tree(node, blockinner=True):
                 continue
             # Perform folding
             for j in pairwise_folds:
-                root, remainder = j[0], j[1:]
-                folds = [(tuple(y-x for x, y in zip(i.offsets, root.offsets)), i.nodes)
+                r, remainder = j[0], j[1:]
+                folds = [(tuple(y-x for x, y in zip(i.offsets, r.offsets)), i.nodes)
                          for i in remainder]
-                mapper[root] = IterationFold(folds=folds, **root.args)
+                mapper[r] = IterationFold(folds=folds, **r.args)
                 for k in remainder:
                     mapper[k] = None
 
     # Insert the IterationFolds in the Iteration/Expression tree
-    processed = Transformer(mapper, nested=True).visit(node)
+    iet = Transformer(mapper, nested=True).visit(iet)
 
-    return processed
+    return iet
 
 
-def unfold_blocked_tree(node):
+def unfold_blocked_tree(iet):
     """
     Unfold nested IterationFolds.
 
@@ -88,7 +96,7 @@ def unfold_blocked_tree(node):
     """
     # Search the unfolding candidates
     candidates = []
-    for tree in retrieve_iteration_tree(node):
+    for tree in retrieve_iteration_tree(iet):
         handle = tuple(i for i in tree if i.is_IterationFold)
         if handle:
             # Sanity check
@@ -103,9 +111,9 @@ def unfold_blocked_tree(node):
         mapper[tree[0]] = List(body=trees)
 
     # Insert the unfolded Iterations in the Iteration/Expression tree
-    processed = Transformer(mapper).visit(node)
+    iet = Transformer(mapper).visit(iet)
 
-    return processed
+    return iet
 
 
 def is_foldable(nodes):
@@ -167,29 +175,30 @@ def optimize_unfolded_tree(unfolded, root):
             root = compose_nodes(root)
             continue
 
+        # Shrink the iteration space
         modified_tree = []
         modified_root = []
+        modified_dims = {}
         mapper = {}
+        for t, r in zip(tree, root):
+            udim0 = IncrDimension(t.dim, t.symbolic_min, 1, "%ss%d" % (t.index, i))
+            modified_tree.append(t._rebuild(limits=(0, t.limits[1] - t.limits[0], t.step),
+                                            uindices=t.uindices + (udim0,)))
 
-        # "Shrink" the iteration space
-        for t1, t2 in zip(tree, root):
-            t1_udim = IncrDimension(t1.dim, t1.symbolic_min, 1, "%ss%d" % (t1.index, i))
-            limits = (0, t1.limits[1] - t1.limits[0], t1.step)
-            modified_tree.append(t1._rebuild(limits=limits,
-                                             uindices=t1.uindices + (t1_udim,)))
+            mapper[t.dim] = udim0
 
-            t2_udim = IncrDimension(t1.dim, 0, 1, "%ss%d" % (t1.index, i))
-            modified_root.append(t2._rebuild(uindices=t2.uindices + (t2_udim,)))
+            udim1 = IncrDimension(t.dim, 0, 1, "%ss%d" % (t.index, i))
+            modified_root.append(r._rebuild(uindices=r.uindices + (udim1,)))
 
-            mapper[t1.dim] = t1_udim
+            d = r.limits[0]
+            assert isinstance(d, BlockDimension)
+            modified_dims[d.parent] = d
 
         # Temporary arrays can now be moved onto the stack
-        dimensions = tuple(j.limits[0] for j in modified_root)
-        for j in writes:
-            if j.is_Array:
-                j_dimensions = dimensions + j.dimensions[len(modified_root):]
-                j_shape = tuple(k.symbolic_size for k in j_dimensions)
-                j.update(shape=j_shape, dimensions=j_dimensions, scope='stack')
+        for w in writes:
+            dims = tuple(modified_dims.get(d, d) for d in w.dimensions)
+            shape = tuple(d.symbolic_size for d in dims)
+            w.update(shape=shape, dimensions=dims, scope='stack')
 
         # Substitute iteration variables within the folded trees
         modified_tree = compose_nodes(modified_tree)

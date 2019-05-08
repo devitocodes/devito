@@ -13,9 +13,9 @@ from devito.dle.parallelizer import Ompizer
 from devito.exceptions import DLEException
 from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder, PARALLEL,
                            AFFINE, FindSymbols, FindNodes, FindAdjacent, MapNodes,
-                           Transformer, compose_nodes, filter_iterations, make_efunc,
-                           retrieve_iteration_tree)
-from devito.logger import dle, perf_adv
+                           Transformer, IsPerfectIteration, compose_nodes, make_efunc,
+                           filter_iterations, retrieve_iteration_tree)
+from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
 from devito.tools import DAG, as_tuple, filter_ordered, flatten
@@ -32,6 +32,9 @@ class State(object):
         self._dimensions = []
         self._includes = []
 
+        # Track performance of each pass
+        self._timings = OrderedDict()
+
     @property
     def root(self):
         return self._efuncs['root']
@@ -47,6 +50,10 @@ class State(object):
     @property
     def includes(self):
         return self._includes
+
+    @property
+    def timings(self):
+        return self._timings
 
 
 def process(func, state):
@@ -111,7 +118,7 @@ def dle_pass(func):
         tic = time()
         process(partial(func, self), state)
         toc = time()
-        self.timings[func.__name__] = toc - tic
+        state.timings[func.__name__] = toc - tic
     return wrapper
 
 
@@ -131,7 +138,6 @@ class AbstractRewriter(object):
     def __init__(self, params, platform):
         self.params = params
         self.platform = platform
-        self.timings = OrderedDict()
 
         self._node_parallelizer = self._node_parallelizer_type()
 
@@ -141,22 +147,11 @@ class AbstractRewriter(object):
 
         self._pipeline(state)
 
-        self._summary()
-
-        return state.root, state
+        return state
 
     @abc.abstractmethod
     def _pipeline(self, state):
         return
-
-    def _summary(self):
-        """Print a summary of the DLE transformations."""
-        row = "%s [elapsed: %.2f]"
-        out = " >>\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k[1:])),
-                                       v)
-                                for k, v in self.timings.items())
-        elapsed = sum(self.timings.values())
-        dle("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
 
 
 class PlatformRewriter(AbstractRewriter):
@@ -285,11 +280,21 @@ class PlatformRewriter(AbstractRewriter):
             if len(iterations) <= 1:
                 continue
             root = iterations[0]
-            if not (tree.root.is_Sequential or iet.is_Callable) and not blockalways:
-                # Heuristic: avoid polluting the generated code with blocked
-                # nests (thus increasing JIT compilation time and affecting
-                # readability) if the blockable tree isn't embedded in a
-                # sequential loop (e.g., a timestepping loop)
+            if not blockalways:
+                # Heuristically bypass loop blocking if we think `tree`
+                # won't be computationally expensive. This will help with code
+                # size/redability, JIT time, and auto-tuning time
+                if not (tree.root.is_Sequential or iet.is_Callable):
+                    # E.g., not inside a time-stepping Iteration
+                    continue
+                if any(i.dim.is_Sub and i.dim.local for i in tree):
+                    # At least an outer Iteration is over a local SubDimension,
+                    # which suggests the computational cost of this Iteration
+                    # nest will be negligible w.r.t. the "core" Iteration nest
+                    # (making use of non-local (Sub)Dimensions only)
+                    continue
+            if not IsPerfectIteration().visit(root):
+                # Don't know how to block non-perfect nests
                 continue
 
             # Apply loop blocking to `tree`
@@ -612,7 +617,7 @@ class CustomRewriter(SpeculativeRewriter):
         except AttributeError:
             # Already in tuple format
             if not all(i in CustomRewriter.passes_mapper for i in passes):
-                raise DLEException
+                raise DLEException("Unknown passes `%s`" % str(passes))
         self.passes = passes
         super(CustomRewriter, self).__init__(params, platform)
 

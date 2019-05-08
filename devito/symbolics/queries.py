@@ -3,10 +3,10 @@ from sympy import Eq, diff, cos, sin, nan
 from devito.tools import as_tuple, is_integer
 
 
-__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op',
+__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op', 'q_xop',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_timedimension',
            'q_constant', 'q_affine', 'q_linear', 'q_identity', 'q_inc', 'q_scalar',
-           'q_multivar', 'q_monoaffine', 'iq_timeinvariant', 'iq_timevarying']
+           'q_multivar', 'q_monoaffine', 'iq_timeinvariant']
 
 
 """
@@ -51,17 +51,24 @@ def q_op(expr):
     return expr.is_Add or expr.is_Mul or expr.is_Function
 
 
+def q_xop(expr):
+    return q_op(expr) or expr.is_Pow
+
+
 def q_terminalop(expr):
-    from devito.symbolics.manipulation import as_symbol
-    if not q_op(expr):
-        return False
-    else:
+    if q_op(expr):
         for a in expr.args:
-            try:
-                as_symbol(a)
-            except TypeError:
+            if a.is_Pow:
+                elems = a.args
+            else:
+                elems = [a]
+            if any(not q_leaf(i) for i in elems):
                 return False
         return True
+    elif expr.is_Pow:
+        return all(q_leaf(i) for i in expr.args)
+    else:
+        return False
 
 
 def q_sum_of_product(expr):
@@ -193,7 +200,3 @@ def q_identity(expr, var):
 
 def iq_timeinvariant(graph):
     return lambda e: not e.is_Number and graph.time_invariant(e)
-
-
-def iq_timevarying(graph):
-    return lambda e: e.is_Number or not graph.time_invariant(e)

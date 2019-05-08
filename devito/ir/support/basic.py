@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 from cached_property import cached_property
 from sympy import Basic, S
 
@@ -7,7 +9,8 @@ from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
                           filter_sorted, flatten, memoized_meth)
 from devito.types import Dimension
 
-__all__ = ['Vector', 'IterationInstance', 'Access', 'TimedAccess', 'Scope']
+__all__ = ['Vector', 'LabeledVector', 'IterationInstance', 'Access',
+           'TimedAccess', 'Scope']
 
 
 class Vector(tuple):
@@ -119,10 +122,7 @@ class Vector(tuple):
         return Vector(*ret) if isinstance(key, slice) else ret
 
     def __repr__(self):
-        if self.rank == 0:
-            return 'NullVector'
-        maxlen = max(3, max([len(str(i)) for i in self]))
-        return '\n'.join([('|{:^%d}|' % maxlen).format(str(i)) for i in self])
+        return "(%s)" % ','.join(str(i) for i in self)
 
     @property
     def rank(self):
@@ -132,7 +132,10 @@ class Vector(tuple):
     def sum(self):
         return sum(self)
 
-    @memoized_meth
+    @property
+    def is_constant(self):
+        return all(is_integer(i) for i in self)
+
     def distance(self, other):
         """
         Compute the distance from ``self`` to ``other``.
@@ -159,51 +162,58 @@ class Vector(tuple):
         return self - other
 
 
-class IndexMode(Tag):
-    """Tag for access functions."""
-    pass
-AFFINE = IndexMode('affine')  # noqa
-IRREGULAR = IndexMode('irregular')
-
-
-class IterationInstance(Vector):
+class LabeledVector(Vector):
 
     """
-    A representation of the iteration and data points accessed by an
-    Indexed object. Three different concepts are distinguished:
-
-        * Index functions: the expressions telling what *iteration* space point
-          is accessed.
-        * ``aindices``: the Dimension's acting as iteration variables.
-          There is one aindex for each index function. If the index function
-          is non-affine, then it may not be possible to detect its aindex;
-          in such a case, None is used as placeholder.
-        * ``findices``: the Dimension's telling what *data* space point
-          is accessed.
+    A Vector that associates a Dimension to each element.
     """
 
-    def __new__(cls, indexed):
-        obj = super(IterationInstance, cls).__new__(cls, *indexed.indices)
-        obj.findices = tuple(indexed.base.function.indices)
-        if len(obj.findices) != len(set(obj.findices)):
-            raise ValueError("Illegal non-unique `findices`")
+    def __new__(cls, items=None):
+        try:
+            labels, values = zip(*items)
+        except (ValueError, TypeError):
+            labels, values = (), ()
+        if not all(isinstance(i, Dimension) for i in labels):
+            raise ValueError("All labels must be of type Dimension, got [%s]"
+                             % ','.join(i.__class__.__name__ for i in labels))
+        obj = super(LabeledVector, cls).__new__(cls, *values)
+        obj.labels = labels
         return obj
 
-    def __eq__(self, other):
-        if isinstance(other, IterationInstance) and self.findices != other.findices:
-            raise TypeError("Cannot compare due to mismatching `findices`")
-        return super(IterationInstance, self).__eq__(other)
+    @classmethod
+    def transpose(cls, *vectors):
+        """
+        Transpose a matrix represented as an iterable of homogeneous LabeledVectors.
+        """
+        if len(vectors) == 0:
+            return LabeledVector()
+        if not all(isinstance(v, LabeledVector) for v in vectors):
+            raise ValueError("All items must be of type LabeledVector, got [%s]"
+                             % ','.join(i.__class__.__name__ for i in vectors))
+        T = OrderedDict()
+        for v in vectors:
+            for l, i in zip(v.labels, v):
+                T.setdefault(l, []).append(i)
+        return tuple((l, Vector(*i)) for l, i in T.items())
+
+    def __repr__(self):
+        return "(%s)" % ','.join('%s:%s' % (l, i) for l, i in zip(self.labels, self))
 
     def __hash__(self):
-        return super(IterationInstance, self).__hash__()
+        return hash((tuple(self), self.labels))
+
+    def __eq__(self, other):
+        if isinstance(other, LabeledVector) and self.labels != other.labels:
+            raise TypeError("Cannot compare due to mismatching `labels`")
+        return super(LabeledVector, self).__eq__(other)
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __lt__(self, other):
-        if isinstance(other, IterationInstance) and self.findices != other.findices:
-            raise TypeError("Cannot compare due to mismatching `findices`")
-        return super(IterationInstance, self).__lt__(other)
+        if isinstance(other, LabeledVector) and self.labels != other.labels:
+            raise TypeError("Cannot compare due to mismatching `labels`")
+        return super(LabeledVector, self).__lt__(other)
 
     def __gt__(self, other):
         return other.__lt__(self)
@@ -216,16 +226,69 @@ class IterationInstance(Vector):
 
     def __getitem__(self, index):
         if isinstance(index, (slice, int)):
-            return super(IterationInstance, self).__getitem__(index)
+            return super(LabeledVector, self).__getitem__(index)
         elif isinstance(index, Dimension):
             for d in index._defines:
-                if d in self.findices:
-                    i = self.findices.index(d)
-                    return super(IterationInstance, self).__getitem__(i)
+                if d in self.labels:
+                    i = self.labels.index(d)
+                    return super(LabeledVector, self).__getitem__(i)
             return None
         else:
-            raise TypeError("IterationInstance indices must be integers, slices, or "
-                            "Dimensions, not %s" % type(index))
+            raise TypeError("Indices must be integers, slices, or Dimensions, not %s"
+                            % type(index))
+
+    def fromlabel(self, label, v=None):
+        return self[label] if label in self.labels else v
+
+    @memoized_meth
+    def distance(self, other):
+        """
+        Compute the distance from ``self`` to ``other``.
+
+        Parameters
+        ----------
+        other : LabeledVector
+            The LabeledVector from which the distance is computed.
+        """
+        if not isinstance(other, LabeledVector):
+            raise TypeError("Cannot compute distance from obj of type %s", type(other))
+        if self.labels != other.labels:
+            raise TypeError("Cannot compute distance due to mismatching `labels`")
+        return LabeledVector(list(zip(self.labels, self - other)))
+
+
+class IndexMode(Tag):
+    """Tag for access functions."""
+    pass
+AFFINE = IndexMode('affine')  # noqa
+IRREGULAR = IndexMode('irregular')
+
+
+class IterationInstance(LabeledVector):
+
+    """
+    A representation of the iteration and data points accessed by an
+    Indexed object. Three different concepts are distinguished:
+
+        * Index functions: the expressions describing what *iteration* space point
+          are accessed.
+        * ``aindices``: the Dimensions acting as iteration variables.
+          There is one aindex for each index function. If the index function
+          is non-affine, then it may not be possible to detect its aindex;
+          in such a case, None is used as placeholder.
+        * ``findices``: the Dimensions describing what *data* space point
+          are accessed.
+    """
+
+    def __new__(cls, indexed):
+        findices = tuple(indexed.function.indices)
+        if len(findices) != len(set(findices)):
+            raise ValueError("Illegal non-unique `findices`")
+        return super(IterationInstance, cls).__new__(cls,
+                                                     list(zip(findices, indexed.indices)))
+
+    def __hash__(self):
+        return super(IterationInstance, self).__hash__()
 
     @cached_property
     def _cached_findices_index(self):
@@ -261,6 +324,10 @@ class IterationInstance(Vector):
                 dims = {i for i in i.free_symbols if isinstance(i, Dimension)}
                 aindices.append(dims.pop() if len(dims) == 1 else None)
         return EnrichedTuple(*aindices, getters=self.findices)
+
+    @property
+    def findices(self):
+        return self.labels
 
     @cached_property
     def findices_affine(self):
@@ -687,10 +754,11 @@ class Dependence(object):
                 # A dependence between two locally declared scalars
                 return True
             else:
-                # Note: the check `i in self._defined_findices` makes sure that `i`
-                # is not a reduction dimension, in which case `self` would indeed be
-                # a dimension-dependent dependence
-                test0 = any(i in self._defined_findices for i in dim._defines)
+                # Note: below, `i in self._defined_findices` is to check whether `i`
+                # is actually (one of) the reduction dimension(s), in which case
+                # `self` would indeed be a dimension-dependent dependence
+                test0 = (not self.is_increment or
+                         any(i in self._defined_findices for i in dim._defines))
                 test1 = len(self.cause & dim._defines) == 0
                 return test0 and test1
         except TypeError:

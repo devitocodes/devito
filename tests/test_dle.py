@@ -5,8 +5,9 @@ import numpy as np
 import pytest
 
 from conftest import EVAL, skipif
-from devito import Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operator, solve
-from devito.dle import NThreads, transform
+from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
+                    Eq, Operator, solve)
+from devito.dle import BlockDimension, NThreads, transform
 from devito.dle.parallelizer import nhyperthreads
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
@@ -108,7 +109,16 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     assert len(calls) == exp_calls
     trees = retrieve_iteration_tree(op._func_table['bf0'].root)
     assert len(trees) == 1
-    assert len(trees[0]) == exp_iters
+    tree = trees[0]
+    assert len(tree) == exp_iters
+    assert isinstance(tree[0].dim, BlockDimension)
+    assert isinstance(tree[1].dim, BlockDimension)
+    if blockinner:
+        assert isinstance(tree[2].dim, BlockDimension)
+    else:
+        assert not isinstance(tree[2].dim, BlockDimension)
+    assert not isinstance(tree[3].dim, BlockDimension)
+    assert not isinstance(tree[4].dim, BlockDimension)
 
     # Check presence of openmp pragmas at the right place
     _, op = _new_operator1((10, 31, 45), dle=('blocking',
@@ -129,6 +139,37 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     expected_guarded = tree[:2+blockinner]
     assert len(conds) == len(expected_guarded)
     assert all(i.lhs == j.step for i, j in zip(conds, expected_guarded))
+
+
+def test_cache_blocking_structure_subdims():
+    """
+    Test that:
+
+        * With local SubDimensions no-blocking is expected.
+        * With non-local SubDimensions, blocking is expected.
+    """
+    grid = Grid(shape=(4, 4, 4))
+    x, y, z = grid.dimensions
+    t = grid.stepping_dim
+    xl = SubDimension.left(name='xl', parent=x, thickness=4)
+
+    f = TimeFunction(name='f', grid=grid)
+
+    assert xl.local
+
+    # Local SubDimension -> no blocking expected
+    op = Operator(Eq(f[t+1, xl, y, z], f[t, xl, y, z] + 1))
+    assert len(op._func_table) == 0
+
+    # Non-local SubDimension -> blocking expected
+    op = Operator(Eq(f.forward, f + 1, subdomain=grid.interior))
+    trees = retrieve_iteration_tree(op._func_table['bf0'].root)
+    assert len(trees) == 1
+    tree = trees[0]
+    assert len(tree) == 5
+    assert isinstance(tree[0].dim, BlockDimension) and tree[0].dim.root is x
+    assert isinstance(tree[1].dim, BlockDimension) and tree[1].dim.root is y
+    assert not isinstance(tree[2].dim, BlockDimension)
 
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (10, 31, 45)])
@@ -384,7 +425,7 @@ class TestNestedParallelism(object):
             ('omp parallel for collapse(2) schedule(static,1) num_threads(%d)'
              % nhyperthreads())
 
-    @patch("devito.dse.backends.advanced.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
     def test_multiple_subnests(self):
         grid = Grid(shape=(3, 3, 3))
@@ -394,8 +435,8 @@ class TestNestedParallelism(object):
         f = Function(name='f', grid=grid)
         u = TimeFunction(name='u', grid=grid)
 
-        eqn = Eq(u.forward, (u[t, x, y, z]*u[t, x+1, y+1, z+1]*3*f +
-                             u[t, x+2, y+2, z+2]*u[t, x+3, y+3, z+3]*3*f + 1))
+        eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
         op = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
