@@ -64,6 +64,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     """
     side = side.adjoint(matvec)
     diff = dim.spacing
+    adjoint_val = matvec.val
     order = fd_order or expr.space_order
 
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
@@ -83,7 +84,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
         deriv += expr.subs(subs) * c[i]
 
     # Evaluate up to _PRECISION digits
-    deriv = (matvec.val*deriv).evalf(_PRECISION)
+    deriv = (adjoint_val*deriv).evalf(_PRECISION)
 
     return deriv
 
