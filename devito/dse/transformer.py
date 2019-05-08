@@ -61,7 +61,7 @@ def rewrite(clusters, mode='advanced'):
     if mode is None or mode == 'noop':
         return clusters
     elif mode not in dse_registry:
-        raise ValueError("Unknown Parameter 'mode' %s." % type(mode))
+        raise ValueError("Unknown rewrite 'mode' %s." % type(mode))
         #dse_warning("Unknown rewrite mode(s) %s" % mode)
         return clusters
 

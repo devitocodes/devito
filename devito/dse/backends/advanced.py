@@ -147,7 +147,7 @@ class AdvancedRewriter(BasicRewriter):
             intervals = [Interval(i.dim, *alias.relaxed_diameter.get(i.dim, i.limits))
                          for i in cluster.ispace.intervals]
             ispace = IterationSpace(intervals, sub_iterators, directions)
-
+            print(intervals)
             # Optimization: perhaps we can lift the cluster outside the time dimension
             if all(time_invariants[i] for i in alias.aliased):
                 ispace = ispace.project(lambda i: not i.is_Time)
@@ -167,12 +167,16 @@ class AdvancedRewriter(BasicRewriter):
 
             # Create a new Cluster for /alias/
             alias_clusters.append(Cluster([expression], ispace, dspace))
+            #print(ispace)
 
             # Add substitution rules
             for aliased, distance in alias.with_distance:
+                #print(aliased)
+                #print(distance)
                 access = [i - intervals[i].lower + j for i, j in distance if i in indices]
                 rules[candidates[aliased]] = function[access]
                 rules[aliased] = function[access]
+            #print(access)
 
         # Group clusters together if possible
         alias_clusters = groupby(alias_clusters).finalize()
@@ -180,12 +184,10 @@ class AdvancedRewriter(BasicRewriter):
 
         # Switch temporaries in the expression trees
         processed = [e.xreplace(rules) for e in processed]
-
         return alias_clusters + [cluster.rebuild(processed)]
 
 
 class SkewingRewriter(BasicRewriter):
-
     MIN_COST_ALIAS = 10
     """
     Minimum operation count of a non-scalar alias (i.e., "redundant") expression
@@ -212,10 +214,10 @@ class SkewingRewriter(BasicRewriter):
         dependences.
         """
         skew_factor = -configuration['skew_factor']
-        skew_factor = 2
+        skew_factor = -2
         t, mapper = None, {}
         skews = {}
-
+        print("Skewing pass")
         for dim in cluster.ispace.dimensions:
             if t is not None:
                 mapper[dim] = dim + skew_factor*t
@@ -238,6 +240,7 @@ class SkewingRewriter(BasicRewriter):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
+        print("Extract time invariants")
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = iq_timeinvariant(cluster.trace)
         costmodel = lambda e: estimate_cost(e) > 0
@@ -265,7 +268,7 @@ class SkewingRewriter(BasicRewriter):
               ``self.MIN_COST_FACTORIZE``, then this is applied recursively until
               no more factorization opportunities are available.
         """
-
+        print("Factorize")
         processed = []
         for expr in cluster.exprs:
             handle = collect_nested(expr)
@@ -311,6 +314,7 @@ class SkewingRewriter(BasicRewriter):
            temp1 = 2.0*ti[x,y,z]
            temp2 = 3.0*ti[x,y,z+1]
         """
+        print("Eliminate inter-stencil redundancies")
         if cluster.is_sparse:
             return cluster
 
@@ -346,7 +350,7 @@ class SkewingRewriter(BasicRewriter):
             intervals = [Interval(i.dim, *alias.relaxed_diameter.get(i.dim, i.limits))
                          for i in cluster.ispace.intervals]
             ispace = IterationSpace(intervals, sub_iterators, directions)
-
+            print(intervals)
             # Optimization: perhaps we can lift the cluster outside the time dimension
             if all(time_invariants[i] for i in alias.aliased):
                 ispace = ispace.project(lambda i: not i.is_Time)
@@ -354,6 +358,7 @@ class SkewingRewriter(BasicRewriter):
             # Build a symbolic function for /alias/
             intervals = ispace.intervals
             halo = [(abs(intervals[i].lower), abs(intervals[i].upper)) for i in indices]
+            print(abs(intervals[i].lower))
             function = Array(name=template(), dimensions=indices, halo=halo)
             access = tuple(i - intervals[i].lower for i in indices)
             expression = Eq(function[access], origin)
