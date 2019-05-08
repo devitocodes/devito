@@ -317,11 +317,6 @@ class CGen(Visitor):
                                                     self._args_decl(i.root.parameters)))
                 efuncs.extend([i.root.ccode, blankline])
 
-        for i in o._callables:
-            esigns.append(c.FunctionDeclaration(c.Value(i.retval, i.name),
-                                                self._args_decl(i.parameters)))
-            efuncs.extend([i.ccode, blankline])
-
         # Header files, extra definitions, ...
         header = [c.Line(i) for i in o._headers]
         includes = [c.Include(i, system=False) for i in o._includes]

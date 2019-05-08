@@ -6,3 +6,4 @@ namespace = OrderedDict()
 
 # OPS Kernel strings.
 namespace['ops_acc'] = 'OPS_ACC'
+namespace['ops_kernel'] = lambda i: 'Kernel%s' % i

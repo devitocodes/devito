@@ -143,7 +143,6 @@ class Operator(Callable):
         self._headers = list(self._default_headers)
         self._includes = list(self._default_includes)
         self._globals = list(self._default_globals)
-        self._callables = []
 
         # Required for compilation
         self._compiler = configuration['compiler']
