@@ -512,7 +512,7 @@ class TestArguments(object):
         }
         self.verify_arguments(op.arguments(time=4), expected)
         exp_parameters = ['f', 'g', 'x_m', 'x_M', 'y_m', 'y_M', 'z_m', 'z_M',
-                          'x0_blk_size', 'y0_blk_size', 'time_m', 'time_M']
+                          'x0_blk0_size', 'y0_blk0_size', 'time_m', 'time_M']
         self.verify_parameters(op.parameters, exp_parameters)
 
     def test_default_sparse_functions(self):
