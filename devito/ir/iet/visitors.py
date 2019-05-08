@@ -19,6 +19,7 @@ from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapSections', 'MapNodes',
            'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer',
 <<<<<<< HEAD
+<<<<<<< HEAD
            'FindAdjacent', 'BlockIterations']
 
 <<<<<<< HEAD
@@ -34,6 +35,14 @@ class BlockIterations():
            'FindAdjacent']
 #  class BlockIterations(Visitor):
 >>>>>>> Success in skewing expression by a factor of t
+=======
+           'FindAdjacent', 'BlockIterations']
+
+class BlockIterations():
+    def testtt():
+        return 0
+
+>>>>>>> On debugging for loop bounds
 class Visitor(GenericVisitor):
 
     def visit_Node(self, o, **kwargs):

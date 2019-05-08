@@ -177,15 +177,21 @@ def rewrite(clusters, mode='advanced'):
     elif mode not in dse_registry:
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         raise ValueError("Unknown rewrite 'mode' %s." % type(mode))
         #dse_warning("Unknown rewrite mode(s) %s" % mode)
 =======
         warning("Unknown rewrite mode(s) %s" % mode)
 >>>>>>> dse: Refactor and tweak profiling output
 =======
+=======
+>>>>>>> On debugging for loop bounds
         warning("Unknown rewrite mode(s) %s" % mode)
 =======
         raise ValueError("Unknown Parameter 'mode' %s." % type(mode))
+=======
+        raise ValueError("Unknown rewrite 'mode' %s." % type(mode))
+>>>>>>> On debugging for loop bounds
         #dse_warning("Unknown rewrite mode(s) %s" % mode)
 >>>>>>> Success in skewing expression by a factor of t
 >>>>>>> Success in skewing expression by a factor of t
