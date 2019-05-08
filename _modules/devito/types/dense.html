@@ -245,6 +245,18 @@
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`initializer` must be callable or buffer, not </span><span class="si">%s</span><span class="s2">&quot;</span>
                                  <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">initializer</span><span class="p">))</span>
 
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Quick self == other comparison.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">other</span><span class="o">.</span><span class="vm">__class__</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="c1"># Still need to check for different arguments eg `f(x)` and `f(x+3)`</span>
+        <span class="c1"># Note that hash(f(x)) == hash(f(x+3)), but clearly f(x) != f(x+3)</span>
+        <span class="c1"># However, checking the args by equality may be expensive due to</span>
+        <span class="c1"># sympify(), so here we rather check for idendity</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">is</span> <span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
+
+    <span class="fm">__hash__</span> <span class="o">=</span> <span class="n">AbstractCachedFunction</span><span class="o">.</span><span class="fm">__hash__</span>  <span class="c1"># Required since we&#39;re overriding __eq__</span>
+
     <span class="k">def</span> <span class="nf">_allocate_memory</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Allocate memory as a Data.&quot;&quot;&quot;</span>
         <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>

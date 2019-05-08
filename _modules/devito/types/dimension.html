@@ -410,8 +410,9 @@
 
         <span class="c1"># Allow the specific case of max=min-1, which disables the loop</span>
         <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal max=</span><span class="si">%s</span><span class="s2"> &lt; min=</span><span class="si">%s</span><span class="s2">&quot;</span>
-                                  <span class="o">%</span> <span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]))</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal </span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2"> &lt; </span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2">&quot;</span>
+                                  <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">],</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]))</span>
         <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">==</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span>
             <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2"> and </span><span class="si">%s</span><span class="s2">=</span><span class="si">%d</span><span class="s2"> might cause no iterations along Dimension </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
                   <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">],</span>
@@ -681,6 +682,11 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">symbolic_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interval</span><span class="o">.</span><span class="n">right</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">symbolic_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># The size must be given as a function of the parent&#39;s size</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_min</span> <span class="o">+</span> <span class="mi">1</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">local</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
