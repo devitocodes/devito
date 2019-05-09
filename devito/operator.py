@@ -577,7 +577,6 @@ class Operator(Callable):
     def __getstate__(self):
         if self._lib:
             state = dict(self.__dict__)
-            state.pop('_soname')
             # The compiled shared-object will be pickled; upon unpickling, it
             # will be restored into a potentially different temporary directory,
             # so the entire process during which the shared-object is loaded and
@@ -618,6 +617,8 @@ class Operator(Callable):
                         "this might be a bug, or simply a harmless difference in "
                         "`configuration`. You may check they produce the same code.")
             save(self._soname, binary, self._compiler)
+            self._lib = load(self._soname)
+            self._lib.name = self._soname
 
 
 # Misc helpers
