@@ -651,9 +651,12 @@ class Operator(Callable):
         if self._lib:
             state = dict(self.__dict__)
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
             # state.pop('_soname')
 >>>>>>> restore _lib when unpickling Operator
+=======
+>>>>>>> Update operator.py
             # The compiled shared-object will be pickled; upon unpickling, it
             # will be restored into a potentially different temporary directory,
             # so the entire process during which the shared-object is loaded and
