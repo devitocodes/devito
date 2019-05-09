@@ -528,10 +528,10 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         return None
 
     def __halo_setup__(self, **kwargs):
-        return kwargs.get('halo', tuple((0, 0) for i in range(self.ndim)))
+        return tuple(kwargs.get('halo', [(0, 0) for i in range(self.ndim)]))
 
     def __padding_setup__(self, **kwargs):
-        return kwargs.get('padding', tuple((0, 0) for i in range(self.ndim)))
+        return tuple(kwargs.get('padding', [(0, 0) for i in range(self.ndim)]))
 
     @property
     def name(self):
@@ -807,32 +807,26 @@ class Array(AbstractCachedFunction):
             self._scope = kwargs.get('scope', 'heap')
             assert self._scope in ['heap', 'stack']
 
-    def __halo_setup__(self, **kwargs):
-        halo = kwargs.get('halo')
-        if halo is None:
-            halo = [(0, 0) for i in range(self.ndim)]
+    def __padding_setup__(self, **kwargs):
+        padding = [(0, 0) for i in range(self.ndim)]
+
         if configuration['autopadding']:
-            halo = list(halo)
             # Heuristic: the halo along the Fastest Varying Dimension is rounded
-            # up to the nearest multiple of the SIMD vector length, this will help
-            # if at runtime the shape of an Array turns out to be a multiple of
-            # the SIMD vector length too. This is the case, for example, of the
-            # Arrays introduced by the CIRE algorithm
-            fvd_halo_left, fvd_halo_right = halo[-1]
+            # up to the nearest multiple of the SIMD vector length -- this will
+            # be our padding. This will help if at runtime the domain of the Array
+            # turns out to be a multiple of the SIMD vector length too.
+
             # Let UB be a function that rounds up a value `x` to the nearest
             # multiple of the SIMD vector length
             vl = configuration['platform'].simd_items_per_reg(self.dtype)
             ub = lambda x: int(ceil(x / vl)) * vl
-            # The left-halo is rounded up so that the first domain grid point
-            # is cache-aligned
-            if fvd_halo_left > 0:
-                fvd_halo_left += ub(fvd_halo_left) - fvd_halo_left
-            # The right-halo is rounded up so that *hopefully* each first grid point
-            # along the `fvd` will be cache-aligned
-            if fvd_halo_right > 0:
-                fvd_halo_right += ub(fvd_halo_right) - fvd_halo_right
-            halo[-1] = (fvd_halo_left, fvd_halo_right)
-        return tuple(halo)
+
+            fvd_halo_size = sum(self.halo[-1])
+            fvd_pad_size = ub(fvd_halo_size) - fvd_halo_size
+
+            padding[-1] = (0, fvd_pad_size)
+
+        return tuple(padding)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
