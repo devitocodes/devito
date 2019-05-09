@@ -732,7 +732,6 @@
     <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="p">:</span>
             <span class="n">state</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">)</span>
-            <span class="n">state</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_soname&#39;</span><span class="p">)</span>
             <span class="c1"># The compiled shared-object will be pickled; upon unpickling, it</span>
             <span class="c1"># will be restored into a potentially different temporary directory,</span>
             <span class="c1"># so the entire process during which the shared-object is loaded and</span>
@@ -772,7 +771,9 @@
                 <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;The pickled and unpickled Operators have different .sonames; &quot;</span>
                         <span class="s2">&quot;this might be a bug, or simply a harmless difference in &quot;</span>
                         <span class="s2">&quot;`configuration`. You may check they produce the same code.&quot;</span><span class="p">)</span>
-            <span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">,</span> <span class="n">binary</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="p">)</span></div>
+            <span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">,</span> <span class="n">binary</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_soname</span></div>
 
 
 <span class="c1"># Misc helpers</span>
