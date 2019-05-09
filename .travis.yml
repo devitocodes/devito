@@ -138,6 +138,7 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/cfd; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/seismic/tutorials; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/compiler; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/userapi; fi
   # Code coverage and documentation generation
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       codecov;
