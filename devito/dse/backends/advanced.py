@@ -214,7 +214,7 @@ class SkewingRewriter(BasicRewriter):
         dependences.
         """
         skew_factor = -configuration['skew_factor']
-        skew_factor = -2
+        skew_factor = -1
         t, mapper = None, {}
         skews = {}
         print("Skewing pass")
