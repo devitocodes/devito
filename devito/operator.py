@@ -577,7 +577,6 @@ class Operator(Callable):
     def __getstate__(self):
         if self._lib:
             state = dict(self.__dict__)
-            # state.pop('_soname')
             # The compiled shared-object will be pickled; upon unpickling, it
             # will be restored into a potentially different temporary directory,
             # so the entire process during which the shared-object is loaded and
