@@ -11,7 +11,7 @@ ipython profile create --parallel --profile=mpi
 # This is instructing `ipcluster` to use the MPI launchers
 echo "c.IPClusterEngines.engine_launcher_class = 'MPIEngineSetLauncher'" >> $IPYTHONDIR/profile_mpi/ipcluster_config.py
 
-ver = $(mpiexec --version)
+ver=$(mpiexec --version)
 if [[ $ver == *"open-mpi"* ]]; then
   # OpenMPI need to be told that is allowed to oversubscribe cores
   echo "c.MPILauncher.mpi_cmd = ['mpiexec', '--oversubscribe']" >> $IPYTHONDIR/profile_mpi/ipcluster_config.py
