@@ -138,7 +138,7 @@ def iet_insert_decls(iet, external):
                     site = v if v else iet
                     allocator.push_stack(site[-1], i)
                 elif i.is_Array:
-                    if i in as_tuple(external) or i.is_OPS:
+                    if i in as_tuple(external):
                         # The Array is defined in some other IET
                         continue
                     elif i._mem_stack:
