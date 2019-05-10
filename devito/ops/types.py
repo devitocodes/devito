@@ -1,11 +1,9 @@
-from devito.tools import Signer
-
 import devito.types.basic as basic
 
 __all__ = ['Array']
 
 
-class Array(basic.Array, Signer):
+class Array(basic.Array):
 
     from_OPS = True
     is_Symbol = True
