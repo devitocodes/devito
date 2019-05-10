@@ -1,5 +1,6 @@
-from devito.ir.iet import Callable, Expression, FindNodes
+from devito.ir.iet import Expression, FindNodes
 from devito.ops.node_factory import OPSNodeFactory
+from devito.ops.nodes import OPSKernel
 from devito.ops.utils import namespace
 
 
@@ -24,7 +25,7 @@ def opsit(trees, count):
 
     arguments -= set(to_remove)
 
-    callable_kernel = Callable(
+    callable_kernel = OPSKernel(
         namespace['ops_kernel'](count),
         expressions,
         "void",
