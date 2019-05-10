@@ -21,7 +21,7 @@ class Allocator(object):
     def push_stack(self, scope, obj):
         """Generate a cgen object that allocates ``obj`` on the stack."""
         handle = self.stack.setdefault(scope, OrderedDict())
-        if obj.is_LocalObject:
+        if obj.is_LocalObject or obj.is_OPS:
             handle[obj] = c.Value(obj._C_typename, obj.name)
         else:
             shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)

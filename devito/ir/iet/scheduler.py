@@ -138,7 +138,7 @@ def iet_insert_decls(iet, external):
                     site = v if v else iet
                     allocator.push_stack(site[-1], i)
                 elif i.is_Array:
-                    if i in as_tuple(external):
+                    if i in as_tuple(external) or i.is_OPS:
                         # The Array is defined in some other IET
                         continue
                     elif i._mem_stack:
@@ -182,8 +182,9 @@ def iet_insert_casts(iet, parameters):
     # appear in any Expression, that is, if the parameter is merely propagated
     # down to another Call, then there's no need to cast it
     exprs = FindNodes(Expression).visit(iet)
-    need_cast = {i for i in set().union(*[i.functions for i in exprs]) if i.is_Tensor}
-    need_cast.update({i for i in parameters if i.is_Array})
+    need_cast = {i for i in set().union(*[i.functions for i in exprs])
+                 if i.is_Tensor and not i.is_OPS}
+    need_cast.update({i for i in parameters if i.is_Array and not i.is_OPS})
 
     casts = [ArrayCast(i) for i in parameters if i in need_cast]
     iet = List(body=casts + [iet])
