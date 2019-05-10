@@ -1,9 +1,10 @@
 from collections import OrderedDict
 
 from devito import Dimension, TimeFunction
+from devito.ops.types import Array
 from devito.ops.utils import namespace
 from devito.symbolics import Macro, split_affine
-from devito.types import Indexed, Array
+from devito.types import Indexed
 
 
 class OPSNodeFactory(object):

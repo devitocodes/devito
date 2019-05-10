@@ -152,12 +152,10 @@ class CGen(Visitor):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if i.is_Tensor and i.is_OPS:
-                ret.append(c.Value(i._C_typename, i.name))
+            if i.is_AbstractObject or i.is_Symbol:
+                ret.append(c.Value(i._C_typename, i._C_name))
             elif i.is_Tensor:
                 ret.append(c.Value('%srestrict' % i._C_typename, i._C_name))
-            elif i.is_AbstractObject or i.is_Symbol:
-                ret.append(c.Value(i._C_typename, i._C_name))
             else:
                 ret.append(c.Value('void', '*_%s' % i._C_name))
         return ret

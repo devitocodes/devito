@@ -17,8 +17,6 @@ def opsit(trees, count):
     to_remove = []
     for exp in expressions:
         func = [f for f in exp.functions if f.name != "OPS_ACC_size"]
-        for f in func:
-            f.is_OPS = True
         arguments |= set(func)
         if exp.is_scalar_assign:
             to_remove.append(exp.write)
