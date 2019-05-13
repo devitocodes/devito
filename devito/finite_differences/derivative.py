@@ -124,7 +124,7 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._fd_order = kwargs.get('fd_order', expr.space_order)
         obj._deriv_order = orders
         obj._side = kwargs.get("side", centered)
-        obj._stagger = kwargs.get("stagger", tuple([centered]*len(obj._dims)))
+        obj._stagger = kwargs.get("stagger", left)
         obj._transpose = kwargs.get("transpose", direct)
 
         return obj

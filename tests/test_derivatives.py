@@ -91,7 +91,8 @@ class TestFD(object):
 
     @pytest.mark.parametrize('expr,expected', [
         ('u.dx + u.dy', 'Derivative(u, x) + Derivative(u, y)'),
-        ('u.laplace', 'Derivative(u, (x, 2)) + Derivative(u, (y, 2))'),
+        ('u.laplace',
+         'Derivative(u, (x, 2)) + Derivative(u, (y, 2)) + Derivative(u, (z, 2))'),
         ('(u.dx*u.dy).dx', 'Derivative(Derivative(u, x) * Derivative(u, y), x)')
     ])
     def test_arithmetic(self, expr, expected):
