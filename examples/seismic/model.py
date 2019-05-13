@@ -360,7 +360,7 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         Number of points in the damping layer.
     spacing :
         Grid spacing coefficient.
-    mask :
+    mask : bool, optional
         whether the dampening is a mask or layer.
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
@@ -509,18 +509,18 @@ class Model(GenericModel):
     ----------
     origin :
         Origin of the model in m as a tuple in (x,y,z) order.
-    spacing : tuple of int
+    spacing : tuple of float
         Grid size in m as a Tuple in (x,y,z) order.
-    shape : int
+    shape : tuple of int
         Number of grid points size in (x,y,z) order.
     space_order : int
         Order of the spatial stencil discretisation.
-    vp : float
+    vp : float or array
         Velocity in km/s
     nbpml : int, optional
         The number of PML layers for boundary damping.
-    dtype :
-
+    dtype : np.float32 or np.float64
+        DefaultS to 32.
     epsilon : float, optional
         Thomsen epsilon parameter (0<epsilon<1).
     delta : float
@@ -533,9 +533,9 @@ class Model(GenericModel):
     The `Model` provides two symbolic data objects for the
     creation of seismic wave propagation operators:
 
-    m :
+    m : array or float
         The square slowness of the wave.
-    damp :
+    damp : Function
         The damping field for absorbing boundarycondition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
@@ -641,7 +641,7 @@ class Model(GenericModel):
 
         Parameters
         ----------
-        vp : float
+        vp : float or array
             New velocity in km/s.
         """
         self._vp = vp
@@ -659,27 +659,27 @@ class ModelElastic(GenericModel):
 
     Parameters
     ----------
-    origin :
+    origin : tuple of floats
         Origin of the model in m as a tuple in (x,y,z) order.
-    spacing :
+    spacing : tuple of float, optional
         Grid size in m as a Tuple in (x,y,z) order.
-    shape : int
+    shape : tuple of int
         Number of grid points size in (x,y,z) order.
     space_order : int
         Order of the spatial stencil discretisation.
-    vp : float
+    vp : float or array
         P-wave velocity in km/s.
-    vs : float
+    vs : float or array
         S-wave velocity in km/s.
     nbpml : int, optional
         The number of PML layers for boundary damping.
-    rho : float, optional
+    rho : float or array, optional
         Density in kg/cm^3 (rho=1 for water).
 
     The `ModelElastic` provides a symbolic data objects for the
     creation of seismic wave propagation operators:
 
-    damp : , optional
+    damp : Function, optional
         The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,

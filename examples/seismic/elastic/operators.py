@@ -177,16 +177,16 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     Parameters
     ----------
     model : Model
-        object containing the physical parameters.
-    source : PointData
-        object containing the source geometry.
-    receiver : PointData
-        object containing the acquisition geometry.
+        Object containing the physical parameters.
+    source : AcquisitionGeometry
+        Object containing the source geometry.
+    receiver : AcquisitionGeometry
+        Object containing the acquisition geometry.
     space_order : int, optional
         Space discretization order.
-    save :
+    save : int or Buffer
         Saving flag, True saves all time steps, False only the three buffered
-        indices (last three time steps).
+        indices (last three time steps). Defaults to False.
     """
     wave = kernels[model.grid.dim]
     pde = wave(model, space_order, geometry.nt if save else None, geometry)

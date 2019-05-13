@@ -14,7 +14,7 @@ except:
 
 def plot_perturbation(model, model1, colorbar=True):
     """
-    Plot a two-dimensional velocity difference from two seismic `Model`
+    Plot a two-dimensional velocity perturbation from two seismic `Model`
     objects.
 
     Parameters
@@ -135,7 +135,7 @@ def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
     Parameters
     ----------
     data : ndarray
-        Image data to plot
+        Image data to plot.
     cmap : str
         Choice of colormap. Defaults to gray scale for images as a
         seismic convention.

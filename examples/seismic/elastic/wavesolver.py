@@ -14,9 +14,9 @@ class ElasticWaveSolver(object):
     ----------
     model : Model
         Physical model with domain parameters.
-    source : PointData
+    source : AcquisitionGeometry
         Sparse point symbol providing the injected wave.
-    receiver : PointData
+    receiver : AcquisitionGeometry
         Sparse point symbol describing an array of receivers.
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
@@ -50,11 +50,11 @@ class ElasticWaveSolver(object):
 
         Parameters
         ----------
-        src : , optional
+        src : AcquisitionGeometry, optional
             The time series data for the injected source term.
-        rec1 : , optional
+        rec1 : AcquisitionGeometry, optional
             Interpolated (txx) receiver data.
-        rec2 : ,optional
+        rec2 : AcquisitionGeometry, optional
             Interpolated (tzz) receiver data.
         vx : TimeFunction, optional
             The computed horizontal particle velocity.
@@ -66,11 +66,11 @@ class ElasticWaveSolver(object):
             The computed vertical stress.
         txz : TimeFunction, optional
             The computed diagonal stresss.
-        vp : TimeFunction, optional
+        vp : Function, optional
             The time-constant P-wave velocity (km/s).
-        vs : TimeFunction, optional
+        vs : Function, optional
             The time-constant S-wave velocity (km/s).
-        vs : TimeFunction, optional
+        rho : Function, optional
             The time-constant density (rho=1 for water).
         save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield.

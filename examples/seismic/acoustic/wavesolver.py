@@ -18,9 +18,9 @@ class AcousticWaveSolver(object):
     ----------
     model : Model
         Physical model with domain parameters.
-    source : PointData
+    source : AcquisitionGeometry
         The injected wave.
-    receiver : PointData
+    receiver : AcquisitionGeometry
         An array of receivers.
     time_order : int, optional
         Order of the time-stepping scheme (default: 2, choices: 2,4)
@@ -32,10 +32,6 @@ class AcousticWaveSolver(object):
         http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf
     space_order: int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
-
-    Notes
-    -----
-    Space_order must always be greater than time_order.
     """
     def __init__(self, model, geometry, kernel='OT2', space_order=2, **kwargs):
         self.model = model
@@ -171,7 +167,7 @@ class AcousticWaveSolver(object):
 
         Parameters
         ----------
-        recin : array-like
+        rec : SparseTimeFunction
             Receiver data.
         u : TimeFunction
             Full wavefield `u` (created with save=True).
@@ -226,10 +222,10 @@ class AcousticWaveSolver(object):
         rec : Receiver
             The interpolated receiver data.
         u : TimeFunction, optional
-            The computed wavefield.
+            The forward wavefield.
         U : TimeFunction, optional
-            The computed wavefield.
-        m : float, optional
+            The linearized wavefield.
+        m : Function or float, optional
             The time-constant square slowness.
         """
         # Source term is read-only, so re-use the default

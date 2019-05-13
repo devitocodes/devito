@@ -15,9 +15,9 @@ class AnisotropicWaveSolver(object):
     ----------
     model : Model
         Physical model with domain parameters.
-    source : PointData
+    source : AcquisitionGeometry
         The injected wave.
-    receiver : PointData
+    receiver : AcquisitionGeometry
         An array of receivers.
     time_order : int, optional
         Order of the time-stepping scheme. Defaults to 2.
@@ -54,9 +54,9 @@ class AnisotropicWaveSolver(object):
 
         Parameters
         ----------
-        src : PointData
+        src : AcquisitionGeometry
             Time series data for the injected source term.
-        rec : PointData
+        rec : AcquisitionGeometry
             The interpolated receiver data (u+v).
         u : TimeFunction, optional
             The computed wavefield first component.
@@ -64,13 +64,13 @@ class AnisotropicWaveSolver(object):
             The computed wavefield second component.
         m : float, optional
             The time-constant square slowness.
-        epsilon : float, optional
+        epsilon : Function or float, optional
             The time-constant first Thomsen parameter.
-        delta : float, optional
+        delta : Function or float, optional
             The time-constant second Thomsen parameter.
-        theta : float, optional
+        theta : Function or float, optional
             The time-constant Dip angle (radians).
-        phi : float, optional
+        phi : Function or float, optional
             The time-constant Azimuth angle (radians).
         save : int or Buffer
             Option to store the entire (unrolled) wavefield.

@@ -34,13 +34,13 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     ----------
     field : Function
         Symbolic data whose derivative we are computing.
-    costheta : Function
+    costheta : Function or float
         Cosine of the tilt angle.
-    sintheta : Function
+    sintheta : Function or float
         Sine of the tilt angle
-    cosphi : Function
+    cosphi : Function or float
         Cosine of the azymuth angle.
-    sinphi : Function
+    sinphi : Function or float
         Sine of the azymuth angle.
     space_order : int
         Space discretization order.
@@ -78,9 +78,9 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
     ----------
     field : Function
         Symbolic data whose derivative we are computing.
-    costheta : Function
+    costheta : Function or float
         Cosine of the tilt angle.
-    sintheta : Function
+    sintheta : Function or float
         Sine of the tilt angle.
     space_order : int
         Space discretization order.
@@ -114,13 +114,13 @@ def Gxxyy_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     ----------
     field : Function
         Input field.
-    costheta : Function
+    costheta : Function or float
         Cosine of the tilt angle.
-    sintheta : Function
+    sintheta : Function or float
         Sine of the tilt angle.
-    cosphi : Function
+    cosphi : Function or float
         Cosine of the azymuth angle.
-    sinphi : Function
+    sinphi : Function or float
         Sine of the azymuth angle.
     space_order : int
         Space discretization order.
@@ -144,13 +144,13 @@ def Gxx_centered_2d(field, costheta, sintheta, space_order):
     ----------
     field : TimeFunction
         Input field.
-    costheta : Function
+    costheta : Function or float
         Cosine of the tilt angle.
-    sintheta : Function
+    sintheta : Function or float
         Sine of the tilt angle.
-    cosphi : Function
+    cosphi : Function or float
         Cosine of the azymuth angle.
-    sinphi : Function
+    sinphi : Function or float
         Sine of the azymuth angle.
     space_order : int
         Space discretization order.
@@ -347,8 +347,8 @@ def ForwardOperator(model, geometry, space_order=4,
     ----------
     model : Model
         Object containing the physical parameters.
-    src : FIX
-        None ot IShot() (not currently supported properly).
+    src : AcquisitionGeometry
+        The time series data for the injected source term.
     data : ndarray
         IShot() object containing the acquisition geometry and field data.
     time_order : int
