@@ -146,6 +146,7 @@ class AdvancedRewriter(BasicRewriter):
             intervals, sub_iterators, directions = cluster.ispace.args
             intervals = [Interval(i.dim, *alias.relaxed_diameter.get(i.dim, i.limits))
                          for i in cluster.ispace.intervals]
+            
             ispace = IterationSpace(intervals, sub_iterators, directions)
             print(intervals)
             # Optimization: perhaps we can lift the cluster outside the time dimension
@@ -215,23 +216,41 @@ class SkewingRewriter(BasicRewriter):
         """
         skew_factor = -configuration['skew_factor']
         skew_factor = -1
-        t, mapper = None, {}
+        t, mapper, int_mapper = None, {}, {}
         skews = {}
         print("Skewing pass")
+        #curcluster = cluster
+        total_int = {}
+        temp_intervals, temp_sub_iterators, temp_directions = cluster.ispace.args
+        #temp_intervals2 = IntervalGroup([Interval(x, -1, 1)])
+        cnt = 0
         for dim in cluster.ispace.dimensions:
             if t is not None:
                 mapper[dim] = dim + skew_factor*t
                 skews[dim] = (skew_factor, t)
+                int_mapper[cnt] = IntervalGroup([Interval(dim,-skew_factor,-skew_factor)])
+                cnt = cnt + 1
             elif dim.is_Time:
                 if isinstance(dim, TimeDimension):
+                    int_mapper[cnt] = IntervalGroup([Interval(dim,0,0)])
+                    cnt = cnt + 1
                     t = dim
                 elif isinstance(dim.parent, TimeDimension):
                     t = dim.parent
 
         if t is None:
             return cluster
+        
+        total_int = IntervalGroup.generate('union', int_mapper[0], int_mapper[1],int_mapper[2] )
+        
+        
 
         cluster._skewed_loops = skews
+        new_iter_space = IterationSpace(total_int, temp_sub_iterators, temp_directions)
+        #cluster.ispace.intervals.generate('union',total_int)
+        #cluster.ispace.intervals.add(total_int)
+        
+        cluster._ispace = new_iter_space
         processed = xreplace_indices(cluster.exprs, mapper)
         return cluster.rebuild(processed)
 
@@ -358,7 +377,7 @@ class SkewingRewriter(BasicRewriter):
             # Build a symbolic function for /alias/
             intervals = ispace.intervals
             halo = [(abs(intervals[i].lower), abs(intervals[i].upper)) for i in indices]
-            print(abs(intervals[i].lower))
+            # print(abs(intervals[i].lower))
             function = Array(name=template(), dimensions=indices, halo=halo)
             access = tuple(i - intervals[i].lower for i in indices)
             expression = Eq(function[access], origin)
