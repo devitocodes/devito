@@ -343,8 +343,9 @@ class AdvancedRewriter(BasicRewriter):
                     warning("Failed optimisation of detected redundancies")
 
             # Create a temporary to store `alias`
+            dimensions = [d.root for d in writeto.dimensions]
             halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
-            function = Array(name=template(), dimensions=writeto.dimensions, halo=halo,
+            function = Array(name=template(), dimensions=dimensions, halo=halo,
                              dtype=cluster.dtype)
 
             # Build up the expression evaluating `alias`

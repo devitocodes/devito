@@ -192,7 +192,7 @@ def optimize_unfolded_tree(unfolded, root):
 
             d = r.limits[0]
             assert isinstance(d, BlockDimension)
-            modified_dims[d.parent] = d
+            modified_dims[d.root] = d
 
         # Temporary arrays can now be moved onto the stack
         for w in writes:
