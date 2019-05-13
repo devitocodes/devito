@@ -226,31 +226,15 @@ class Cluster(PartialCluster):
         raise AttributeError
 
 
-class ClusterGroup(list):
+class ClusterGroup(tuple):
 
-    """An iterable of PartialClusters."""
+    """An immutable iterable of Clusters."""
 
-    def unfreeze(self):
-        """
-        Return a new ClusterGroup in which all of ``self``'s Clusters have
-        been promoted to PartialClusters. Any metadata attached to self is lost.
-        """
-        return ClusterGroup([PartialCluster(*i.args) if isinstance(i, Cluster) else i
-                             for i in self])
-
-    def finalize(self):
-        """
-        Return a new ClusterGroup in which all of ``self``'s PartialClusters
-        have been turned into actual Clusters.
-        """
-        clusters = ClusterGroup()
-        for i in self:
-            if isinstance(i, PartialCluster):
-                cluster = Cluster(*i.args)
-                clusters.append(cluster)
-            else:
-                clusters.append(i)
-        return clusters
+    def __new__(cls, items):
+        items = [Cluster(*i.args) if isinstance(i, PartialCluster) else i
+                 for i in items]
+        assert all(isinstance(i, Cluster) for i in items)
+        return super(ClusterGroup, cls).__new__(cls, items)
 
     @property
     def dspace(self):

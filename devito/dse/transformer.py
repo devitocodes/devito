@@ -69,10 +69,9 @@ def rewrite(clusters, mode='advanced'):
 
     # Different clusters may have created new (smaller) clusters which are
     # potentially groupable within a single cluster
-    clusters = ClusterGroup(flatten([i.clusters for i in states]))
-    clusters = groupby(clusters)
+    clusters = groupby(flatten(i.clusters for i in states))
 
-    return clusters.finalize()
+    return ClusterGroup(clusters)
 
 
 def print_profiling(states):

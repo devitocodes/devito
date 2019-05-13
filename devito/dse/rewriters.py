@@ -7,7 +7,7 @@ from sympy import cos, sin
 
 from devito.equation import Eq
 from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Cluster,
-                       ClusterGroup, detect_accesses, build_intervals, groupby)
+                       detect_accesses, build_intervals)
 from devito.dse.aliases import collect
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
@@ -309,7 +309,7 @@ class AdvancedRewriter(BasicRewriter):
 
         # Create alias Clusters and all necessary substitution rules
         # for the new temporaries
-        alias_clusters = ClusterGroup()
+        alias_clusters = []
         subs = {}
         for origin, alias in aliases.items():
             if all(i not in candidates for i in alias.aliased):
@@ -370,10 +370,6 @@ class AdvancedRewriter(BasicRewriter):
 
             # Create a new Cluster for `alias`
             alias_clusters.append(Cluster([expression], ispace, dspace))
-
-        # Group clusters together if possible
-        alias_clusters = groupby(alias_clusters).finalize()
-        alias_clusters.sort(key=lambda i: i.is_dense)
 
         # Switch temporaries in the expression trees
         processed = [e.xreplace(subs) for e in processed]

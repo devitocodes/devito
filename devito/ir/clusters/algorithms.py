@@ -20,9 +20,10 @@ def groupby(clusters):
     This function relies on advanced data dependency analysis tools based upon
     classic Lamport theory.
     """
-    clusters = clusters.unfreeze()
+    # Clusters will be modified in-place in case of fusion
+    clusters = [PartialCluster(*c.args) for c in clusters]
 
-    processed = ClusterGroup()
+    processed = []
     for c in clusters:
         fused = False
         for candidate in reversed(list(processed)):
@@ -84,7 +85,7 @@ def guard(clusters):
     Return a ClusterGroup containing a new PartialCluster for each conditional
     expression encountered in ``clusters``.
     """
-    processed = ClusterGroup()
+    processed = []
     for c in clusters:
         free = []
         for e in c.exprs:
@@ -106,7 +107,7 @@ def guard(clusters):
         if free:
             processed.append(PartialCluster(free, c.ispace, c.dspace, c.atomics))
 
-    return ClusterGroup(processed)
+    return processed
 
 
 def is_local(array, source, sink, context):
@@ -233,7 +234,7 @@ def bump_and_contract(targets, source, sink):
 
 def clusterize(exprs):
     """Group a sequence of LoweredEqs into one or more Clusters."""
-    clusters = ClusterGroup()
+    clusters = []
 
     # Wrap each LoweredEq in `exprs` within a PartialCluster. The PartialCluster's
     # iteration direction is enforced based on the iteration direction of the
@@ -251,4 +252,4 @@ def clusterize(exprs):
     # Introduce conditional PartialClusters
     clusters = guard(clusters)
 
-    return clusters.finalize()
+    return ClusterGroup(clusters)
