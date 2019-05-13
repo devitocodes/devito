@@ -9,8 +9,8 @@ __all__ = ['dimension_sort']
 
 def dimension_sort(expr):
     """
-    Topologically sort the :class:`Dimension`s in ``expr``, based on the order
-    in which they appear within :class:`Indexed`s.
+    Topologically sort the Dimensions in ``expr``, based on the order in which they
+    appear within Indexeds.
     """
 
     def handle_indexed(indexed):

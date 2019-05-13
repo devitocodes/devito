@@ -340,7 +340,7 @@ class AdvancedRewriter(BasicRewriter):
                     index = writeto.index(dep_inducing[0])
                     writeto = IntervalGroup(writeto[index:])
                 except IndexError:
-                    warning("Failed optimisation of detected redundancies")
+                    warning("Couldn't optimize some of the detected redundancies")
 
             # Create a temporary to store `alias`
             dimensions = [d.root for d in writeto.dimensions]

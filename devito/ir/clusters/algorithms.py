@@ -70,7 +70,7 @@ def groupby(clusters):
                 break
             elif set(candidate.guards) & set(c.dimensions):
                 # Like above, we can't attempt fusion with earlier Clusters.
-                # Time time because there are intervening conditionals along
+                # This time because there are intervening conditionals along
                 # one or more of the shared iteration dimensions
                 break
         # Fallback

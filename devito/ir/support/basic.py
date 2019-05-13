@@ -618,7 +618,7 @@ class TimedAccess(Access):
 class Dependence(object):
 
     """
-    A data dependence between two Access objects.
+    A data dependence between two TimedAccess objects.
     """
 
     def __init__(self, source, sink):
@@ -891,7 +891,7 @@ class Scope(object):
 
     @cached_property
     def d_flow(self):
-        """Retrieve the flow dependencies, or true dependencies, or read-after-write."""
+        """Generate all flow (or "read-after-write") dependences."""
         found = DependenceGroup()
         for k, v in self.writes.items():
             for w in v:
@@ -909,7 +909,7 @@ class Scope(object):
 
     @cached_property
     def d_anti(self):
-        """Retrieve the anti dependencies, or write-after-read."""
+        """Generate all anti (or "write-after-read") dependences."""
         found = DependenceGroup()
         for k, v in self.writes.items():
             for w in v:
@@ -927,7 +927,7 @@ class Scope(object):
 
     @cached_property
     def d_output(self):
-        """Retrieve the output dependencies, or write-after-write."""
+        """Generate all output (or "write-after-write") dependences."""
         found = DependenceGroup()
         for k, v in self.writes.items():
             for w1 in v:
@@ -944,11 +944,11 @@ class Scope(object):
 
     @cached_property
     def d_all(self):
-        """Retrieve all flow, anti, and output dependences."""
+        """Generate all flow, anti, and output dependences."""
         return self.d_flow + self.d_anti + self.d_output
 
     @memoized_meth
     def d_from_access(self, access):
-        """Retrieve all dependences involving a given TimedAccess."""
+        """Generate all dependences involving a given TimedAccess."""
         return DependenceGroup(d for d in self.d_all
                                if d.source is access or d.sink is access)
