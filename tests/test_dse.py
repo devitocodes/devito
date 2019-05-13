@@ -342,6 +342,50 @@ def test_contracted_alias_shape_after_blocking():
     assert np.all(u.data == exp)
 
 
+@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+def test_full_alias_shape_with_subdims():
+    """
+    Like `test_full_alias_shape_after_blocking`, but SubDomains (and therefore
+    SubDimensions) are used. Nevertheless, the temporary shape should still be
+    dictated by the root Dimensions.
+    """
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions  # noqa
+    t = grid.stepping_dim
+
+    f = Function(name='f', grid=grid)
+    f.data_with_halo[:] = 1.
+    u = TimeFunction(name='u', grid=grid, space_order=3)
+    u.data_with_halo[:] = 0.
+
+    # Leads to 3D aliases
+    eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                         (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1),
+             subdomain=grid.interior)
+    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
+    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
+
+    xi0_blk_size = op1.parameters[9]
+    yi0_blk_size = op1.parameters[15]
+    z_size = op1.parameters[20]
+
+    # Check Array shape
+    arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]
+    assert len(arrays) == 1
+    a = arrays[0]
+    assert len(a.dimensions) == 3
+    assert a.halo == [(1, 1), (1, 1), (1, 1)]
+    assert Add(*a.symbolic_shape[0].args) == xi0_blk_size + 2
+    assert Add(*a.symbolic_shape[1].args) == yi0_blk_size + 2
+    assert Add(*a.symbolic_shape[2].args) == z_size + 2
+    # Check numerical output
+    op0(time_M=1)
+    exp = np.copy(u.data[:])
+    u.data_with_halo[:] = 0.
+    op1(time_M=1)
+    assert np.all(u.data == exp)
+
+
 def test_alias_composite():
     """
     Check that composite alias are optimized away through "smaller" aliases.
