@@ -8,20 +8,7 @@ from devito.tools import flatten
 from devito.types import Scalar
 
 __all__ = ['clusterize', 'groupby']
-<<<<<<< HEAD
-<<<<<<< HEAD
 # clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
-<<<<<<< HEAD
-=======
-
-
-=======
->>>>>>> ir
-# clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
-
->>>>>>> Init Sims diff
-=======
->>>>>>> Success in skewing expression by a factor of t
 def groupby(clusters):
     """
     Group PartialClusters together to create "fatter" PartialClusters
@@ -254,15 +241,8 @@ def clusterize(exprs):
     for e in exprs:
         directions, _ = force_directions(flowmap, lambda d: e.ispace.directions.get(d))
         ispace = IterationSpace(e.ispace.intervals, e.ispace.sub_iterators, directions)
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-        #clusters.append(PartialCluster(exprs, pc.stencil, pc.skewed_loops))
->>>>>>> ir
-=======
->>>>>>> Success in skewing expression by a factor of t
         clusters.append(PartialCluster(e, ispace, e.dspace))
-        
+
     # Group PartialClusters together where possible
     clusters = groupby(clusters)
 

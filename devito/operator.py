@@ -21,22 +21,8 @@ from devito.profiling import create_profile
 from devito.symbolics import indexify
 from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
-<<<<<<< HEAD
-<<<<<<< HEAD
 from devito.types import Dimension
-<<<<<<< HEAD
 from devito.ir import Cluster
-=======
-=======
-from devito.ir import Cluster
->>>>>>> ir
-<<<<<<< HEAD
->>>>>>> ir
-=======
-=======
-#from devito.ir import Cluster
->>>>>>> Success in skewing expression by a factor of t
->>>>>>> Success in skewing expression by a factor of t
 
 __all__ = ['Operator']
 
@@ -230,59 +216,12 @@ class Operator(Callable):
     # Compilation
 
     def _add_implicit(self, expressions):
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> subdomains: Clean up _add_implicit
         """
         Create and add any associated implicit expressions.
 
         Implicit expressions are those not explicitly defined by the user
         but instead are requisites of some specified functionality.
         """
-<<<<<<< HEAD
-        processed = []
-        seen = set()
-        for e in expressions:
-            if e.subdomain:
-                try:
-                    dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
-<<<<<<< HEAD
-                    sub_dims = [d.root for d in e.subdomain.dimensions]
-                    dims = [d for d in dims if d not in frozenset(sub_dims)]
-                    dims.append(e.subdomain.implicit_dimension)
-                    if e.subdomain not in seen:
-                        processed.extend([i.func(*i.args, implicit_dims=dims) for i in
-                                          e.subdomain._create_implicit_exprs()])
-                        seen.add(e.subdomain)
-                    dims.extend(e.subdomain.dimensions)
-                    new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
-                    processed.append(new_e)
-                except AttributeError:
-                    processed.append(e)
-            else:
-                processed.append(e)
-        return processed
-=======
-                    sub_dims = [d.root for d in subdomain.dimensions]
-                    dims = list(set(dims).symmetric_difference(set(sub_dims)))
-                    dims.append(subdomain._implicit_dimension)
-                    implicit_expressions = []
-                    for i in dat:
-                        eq = Eq(i['rhs'], i['lhs'], implicit_dims=dims)
-                        implicit_expressions.append(eq)
-                    for ie in implicit_expressions:
-                        updated_expressions.append(ie)
-                    for d in subdomain.dimensions:
-                        dims.append(d)
-                    e._implicit_dims = as_tuple(dims)
-            updated_expressions.append(e)
-        return updated_expressions
->>>>>>> Fixes.
-=======
-        """Create and add any associated implicit expressions."""
-=======
->>>>>>> subdomains: Clean up _add_implicit
         processed = []
         seen = set()
         for e in expressions:
@@ -300,33 +239,10 @@ class Operator(Callable):
                     new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
                     processed.append(new_e)
                 except AttributeError:
-<<<<<<< HEAD
-                    pass
-            processed.append(e)
-<<<<<<< HEAD
-        return processed
->>>>>>> Tweaks/tyding.
-=======
-=======
                     processed.append(e)
             else:
                 processed.append(e)
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> Rebase + updates.
-        return list(dict.fromkeys(processed))
->>>>>>> Fixes + tidying + additional test.
-=======
         return processed
->>>>>>> Temp bug fix.
-=======
-            encountered = set()
-        return [e for e in processed if not (e in encountered or encountered.add(e))]
->>>>>>> Some fixes.
-=======
-        return processed
->>>>>>> Fix + update docstring.
 
     def _apply_substitutions(self, expressions, subs):
         """
@@ -664,13 +580,6 @@ class Operator(Callable):
     def __getstate__(self):
         if self._lib:
             state = dict(self.__dict__)
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-            # state.pop('_soname')
->>>>>>> restore _lib when unpickling Operator
-=======
->>>>>>> Update operator.py
             # The compiled shared-object will be pickled; upon unpickling, it
             # will be restored into a potentially different temporary directory,
             # so the entire process during which the shared-object is loaded and

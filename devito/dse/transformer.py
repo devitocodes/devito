@@ -1,104 +1,29 @@
 from devito.ir.clusters import ClusterGroup, groupby
-<<<<<<< HEAD
-<<<<<<< HEAD
-from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRewriter,
-                                 AggressiveRewriter, SkewingRewriter)
-=======
-=======
->>>>>>> dse related sims init
 from devito.dse.rewriters import BasicRewriter, AdvancedRewriter, AggressiveRewriter
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
-from devito.dse.manipulation import cross_cluster_cse
-=======
->>>>>>> dse: Drop cross_cluster_cse
-from devito.logger import dse_warning
-=======
 from devito.logger import dse as log, dse_warning as warning
 from devito.parameters import configuration
-<<<<<<< HEAD
->>>>>>> dse: Refactor and tweak profiling output
-=======
-=======
-from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRewriter,
-                                 AggressiveRewriter, SkewingRewriter)
-from devito.dse.manipulation import cross_cluster_cse
-from devito.logger import dse_warning
->>>>>>> dse related sims init
->>>>>>> dse related sims init
 from devito.tools import flatten
 from devito.parameters import configuration
 
 __all__ = ['dse_registry', 'rewrite']
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-# Skewing rewriter
-dse_registry = ('basic', 'advanced', 'skewing', 'speculative', 'aggressive')
-=======
-=======
->>>>>>> Success in skewing expression by a factor of t
 
-<<<<<<< HEAD
-dse_registry = ('basic', 'advanced', 'aggressive')
-<<<<<<< HEAD
->>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
-=======
-=======
-# Skewing rewriter
-
-#
-
-<<<<<<< HEAD
-dse_registry = ('basic', 'advanced', 'speculative', 'aggressive')
->>>>>>> Init Sims diff
-<<<<<<< HEAD
->>>>>>> Init Sims diff
-=======
-=======
-dse_registry = ('basic', 'advanced','skewing', 'speculative', 'aggressive')
->>>>>>> TT: DSE and IR additions
-<<<<<<< HEAD
->>>>>>> TT: DSE and IR additions
-=======
+dse_registry = ('basic', 'advanced', 'aggressive', 'skewing')
 =======
 # Skewing rewriter
 dse_registry = ('basic', 'advanced', 'skewing', 'speculative', 'aggressive')
->>>>>>> Success in skewing expression by a factor of t
 >>>>>>> Success in skewing expression by a factor of t
 
 modes = {
     'basic': BasicRewriter,
     'advanced': AdvancedRewriter,
-<<<<<<< HEAD
-<<<<<<< HEAD
     'skewing': SkewingRewriter,
-    'speculative': SpeculativeRewriter,
-=======
->>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
     'aggressive': AggressiveRewriter
 }
 """The DSE transformation modes."""
 # Possible needed FIX nsim
 #configuration.add('dse', 'advanced', list(modes))
 MAX_SKEW_FACTOR = 8
-=======
-=======
-    'skewing': SkewingRewriter,
-    'speculative': SpeculativeRewriter,
->>>>>>> dse related sims init
-    'aggressive': AggressiveRewriter
-}
-"""The DSE transformation modes."""
-# Possible needed FIX nsim
-#configuration.add('dse', 'advanced', list(modes))
-MAX_SKEW_FACTOR = 8
-<<<<<<< HEAD
-
->>>>>>> dse related sims init
-=======
->>>>>>> Success in skewing expression by a factor of t
 configuration.add('skew_factor', 0, range(MAX_SKEW_FACTOR))
 
 def rewrite(clusters, mode='advanced'):
@@ -116,26 +41,6 @@ def rewrite(clusters, mode='advanced'):
         - ``basic``: Apply common sub-expressions elimination.
         - ``advanced``: Apply all transformations that will reduce the
                         operation count w/ minimum increase to the memory pressure,
-<<<<<<< HEAD
-<<<<<<< HEAD
-                        namely 'basic', factorization, CIRE for time-invariants only.
-        - ``skewing``: Apply skewing.
-        - ``speculative``: Like 'advanced', but apply CIRE also to time-varying
-                           sub-expressions, which might further increase the memory
-                           pressure.
-         * ``aggressive``: Like 'speculative', but apply CIRE to any non-trivial
-                           sub-expression (i.e., anything that is at least in a
-                           sum-of-product form).
-                           Further, seek and drop cross-cluster redundancies (this
-                           is the only pass that attempts to optimize *across*
-                           clusters, rather than within a cluster).
-                           The 'aggressive' mode may substantially increase the
-                           symbolic processing time; it may or may not reduce the
-                           JIT-compilation time; it may or may not improve the
-                           overall runtime performance.
-=======
-=======
->>>>>>> TT: DSE and IR additions
                         namely 'basic', factorization, and cross-iteration redundancy
                         elimination ("CIRE") for time-invariants only.
         - ``aggressive``: Like 'advanced', but apply CIRE to time-varying
@@ -147,27 +52,6 @@ def rewrite(clusters, mode='advanced'):
                           symbolic processing time; it may or may not reduce the
                           JIT-compilation time; it may or may not improve the
                           overall runtime performance.
-<<<<<<< HEAD
->>>>>>> dse: Reorganise DSE directory structure; drop unused SpeculativeRewriter
-=======
-=======
-                        namely 'basic', factorization, CIRE for time-invariants only.
-        - ``skewing``: Apply skewing.
-        - ``speculative``: Like 'advanced', but apply CIRE also to time-varying
-                           sub-expressions, which might further increase the memory
-                           pressure.
-         * ``aggressive``: Like 'speculative', but apply CIRE to any non-trivial
-                           sub-expression (i.e., anything that is at least in a
-                           sum-of-product form).
-                           Further, seek and drop cross-cluster redundancies (this
-                           is the only pass that attempts to optimize *across*
-                           clusters, rather than within a cluster).
-                           The 'aggressive' mode may substantially increase the
-                           symbolic processing time; it may or may not reduce the
-                           JIT-compilation time; it may or may not improve the
-                           overall runtime performance.
->>>>>>> TT: DSE and IR additions
->>>>>>> TT: DSE and IR additions
     """
     if not (mode is None or isinstance(mode, str)):
         raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))
@@ -175,25 +59,8 @@ def rewrite(clusters, mode='advanced'):
     if mode is None or mode == 'noop':
         return clusters
     elif mode not in dse_registry:
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-        raise ValueError("Unknown rewrite 'mode' %s." % type(mode))
-        #dse_warning("Unknown rewrite mode(s) %s" % mode)
-=======
-        warning("Unknown rewrite mode(s) %s" % mode)
->>>>>>> dse: Refactor and tweak profiling output
-=======
-=======
->>>>>>> On debugging for loop bounds
-        warning("Unknown rewrite mode(s) %s" % mode)
-=======
         raise ValueError("Unknown Parameter 'mode' %s." % type(mode))
-=======
-        raise ValueError("Unknown rewrite 'mode' %s." % type(mode))
->>>>>>> On debugging for loop bounds
         #dse_warning("Unknown rewrite mode(s) %s" % mode)
->>>>>>> Success in skewing expression by a factor of t
 >>>>>>> Success in skewing expression by a factor of t
         return clusters
 

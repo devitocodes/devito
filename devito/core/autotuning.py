@@ -18,13 +18,6 @@ from devito.tools import filter_ordered, flatten, prod
 __all__ = ['autotune']
 
 # autotuning for skewing
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-
->>>>>>> Init Sims diff
-=======
->>>>>>> ir
 def autotune(operator, args, level, mode):
     """
     Operator autotuning.
