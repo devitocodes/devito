@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib import pyplot, cm
 
 
-def plot_field(field, xmax=2., ymax=2., zmax=None, view=None, linewidth=0):
+def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None, view=None, linewidth=0):
     """Utility plotting routine for 2D data
 
     :param field: Numpy array with field data to plot
@@ -12,8 +12,8 @@ def plot_field(field, xmax=2., ymax=2., zmax=None, view=None, linewidth=0):
     :param ymax: (Optional) Length of the y-axis
     :param view: (Optional) View point to intialise
     """
-    x_coord = np.linspace(0, xmax, field.shape[0])
-    y_coord = np.linspace(0, ymax, field.shape[1])
+    x_coord = np.linspace(xmin, xmax, field.shape[0])
+    y_coord = np.linspace(ymin, ymax, field.shape[1])
     fig = pyplot.figure(figsize=(11, 7), dpi=100)
     ax = fig.gca(projection='3d')
     X, Y = np.meshgrid(x_coord, y_coord, indexing='ij')
@@ -21,10 +21,10 @@ def plot_field(field, xmax=2., ymax=2., zmax=None, view=None, linewidth=0):
                     linewidth=linewidth, antialiased=False)
 
     # Enforce axis measures and set view if given
-    ax.set_xlim(0., xmax)
-    ax.set_ylim(0., ymax)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
     if zmax is not None:
-        ax.set_zlim(1., zmax)
+        ax.set_zlim(zmin, zmax)
     if view is not None:
         ax.view_init(*view)
 
