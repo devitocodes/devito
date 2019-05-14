@@ -37,7 +37,7 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     costheta : Function or float
         Cosine of the tilt angle.
     sintheta : Function or float
-        Sine of the tilt angle
+        Sine of the tilt angle.
     cosphi : Function or float
         Cosine of the azymuth angle.
     sinphi : Function or float

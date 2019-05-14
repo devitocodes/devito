@@ -507,36 +507,36 @@ class Model(GenericModel):
 
     Parameters
     ----------
-    origin :
+    origin : tuple of floats
         Origin of the model in m as a tuple in (x,y,z) order.
-    spacing : tuple of float
+    spacing : tuple of floats
         Grid size in m as a Tuple in (x,y,z) order.
     shape : tuple of int
         Number of grid points size in (x,y,z) order.
     space_order : int
         Order of the spatial stencil discretisation.
-    vp : float or array
+    vp : array_like or float
         Velocity in km/s
     nbpml : int, optional
         The number of PML layers for boundary damping.
     dtype : np.float32 or np.float64
-        DefaultS to 32.
-    epsilon : float, optional
+        Defaults to 32.
+    epsilon : array_like or float, optional
         Thomsen epsilon parameter (0<epsilon<1).
-    delta : float
+    delta : array_like or float
         Thomsen delta parameter (0<delta<1), delta<epsilon.
-    theta : float
+    theta : array_like or float
         Tilt angle in radian.
-    phi : float
+    phi : array_like or float
         Asymuth angle in radian.
 
     The `Model` provides two symbolic data objects for the
     creation of seismic wave propagation operators:
 
-    m : array or float
+    m : array_like or float
         The square slowness of the wave.
     damp : Function
-        The damping field for absorbing boundarycondition.
+        The damping field for absorbing boundary condition.
     """
     def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
                  dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None,
@@ -661,7 +661,7 @@ class ModelElastic(GenericModel):
     ----------
     origin : tuple of floats
         Origin of the model in m as a tuple in (x,y,z) order.
-    spacing : tuple of float, optional
+    spacing : tuple of floats, optional
         Grid size in m as a Tuple in (x,y,z) order.
     shape : tuple of int
         Number of grid points size in (x,y,z) order.

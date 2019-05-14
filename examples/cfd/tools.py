@@ -10,7 +10,7 @@ def plot_field(field, xmax=2., ymax=2., zmax=None, view=None, linewidth=0):
 
     Parameters
     ----------
-    field : array-like
+    field : array_like
         Field data to plot.
     xmax : int, optional
         Length of the x-axis.
@@ -47,7 +47,7 @@ def init_hat(field, dx, dy, value=2., bgvalue=1.):
 
     u(.5<=x<=1 && .5<=y<=1 ) is 2
 
-    field : array-like
+    field : array_like
         Field data to plot.
     dx : float
         Spacing in the x-dimension.

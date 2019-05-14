@@ -19,10 +19,6 @@ def laplacian(field, m, s, kernel):
         Square slowness.
     s : float or Scalar
         The time dimension spacing.
-
-    Returns
-    -------
-    H FIX
     """
     if kernel not in ['OT2', 'OT4']:
         raise ValueError("Unrecognized kernel")
@@ -48,11 +44,8 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
         ABC dampening field.
     forward : boolean
         The propagation direction. Defaults to True.
-    q : 
-    
-    TODO : DROP
-    Forward/backward wave equation (sign of u.dt will change accordingly
-    as well as the updated time-step (u.forwad or u.backward).
+    q : TimeFunction, Function or float
+        Full-space/time source of the wave-equation
     """
 
     # Creat a temporary symbol for H to avoid expensive sympy solve
@@ -81,12 +74,12 @@ def ForwardOperator(model, geometry, space_order=4,
     model : Model
         Object containing the physical parameters.
     geometry : AcquisitionGeometry
-        Geometry object that contains the source (SpareTimeFunction) and 
+        Geometry object that contains the source (SpareTimeFunction) and
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.
     save : int or Buffer, optional
-        Saving flag, True saves all time steps. False only the three. Defaults to False. 
+        Saving flag, True saves all time steps. False only the three. Defaults to False.
     """
     m, damp = model.m, model.damp
 
