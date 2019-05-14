@@ -96,6 +96,8 @@ class Derivative(sympy.Derivative, Differentiable):
             else:
                 # Single Dimension
                 orders = kwargs.get('deriv_order', 1)
+                if isinstance(orders, Iterable):
+                    orders = orders[0]
                 new_dims = tuple([dims[0]]*orders)
         else:
             # Iterable of 2-tuple, e.g. ((x, 2), (y, 3))
@@ -112,6 +114,10 @@ class Derivative(sympy.Derivative, Differentiable):
             new_dims = as_tuple(new_dims)
             orders = as_tuple(orders)
 
+        # Finite difference orders
+        fd_orders = kwargs.get('fd_order', expr.space_order)
+        if len(dims) == 1 and isinstance(fd_orders, Iterable):
+            fd_orders = fd_orders[0]
         # SymPy expects the list of variable w.r.t. which we differentiate to be a list
         # of 2-tuple `(s, count)` where s is the entity to diff wrt and count is the order
         # of the derivative
@@ -121,7 +127,7 @@ class Derivative(sympy.Derivative, Differentiable):
         # Construct the actual Derivative object
         obj = Differentiable.__new__(cls, expr, *variable_count)
         obj._dims = tuple(OrderedDict.fromkeys(new_dims))
-        obj._fd_order = kwargs.get('fd_order', expr.space_order)
+        obj._fd_order = fd_orders
         obj._deriv_order = orders
         obj._side = kwargs.get("side", centered)
         obj._stagger = kwargs.get("stagger", left)

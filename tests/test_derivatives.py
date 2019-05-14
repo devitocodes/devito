@@ -72,6 +72,7 @@ class TestFD(object):
     @pytest.mark.parametrize('SymbolType, derivative, dim, expected', [
         (Function, ['dx2'], 3, 'Derivative(u(x, y, z), (x, 2))'),
         (Function, ['dx2dy'], 3, 'Derivative(u(x, y, z), (x, 2), y)'),
+        (Function, ['dx2dydz'], 3, 'Derivative(u(x, y, z), (x, 2), y, z)'),
         (Function, ['dx2', 'dy'], 3, 'Derivative(Derivative(u(x, y, z), (x, 2)), y)'),
         (Function, ['dx2dy', 'dz2'], 3,
          'Derivative(Derivative(u(x, y, z), (x, 2), y), (z, 2))'),
