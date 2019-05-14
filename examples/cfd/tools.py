@@ -4,7 +4,8 @@ import numpy as np
 from matplotlib import pyplot, cm
 
 
-def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None, view=None, linewidth=0):
+def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
+    view=None, linewidth=0):
     """Utility plotting routine for 2D data
 
     :param field: Numpy array with field data to plot
@@ -24,7 +25,7 @@ def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None, 
     ax.set_xlim(xmin, xmax)
     ax.set_ylim(ymin, ymax)
     if zmax is not None:
-        ax.set_zlim(zmin, zmax)
+        ax.set_zlim(np.min(field), zmax)
     if view is not None:
         ax.view_init(*view)
 
