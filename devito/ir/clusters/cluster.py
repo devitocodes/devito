@@ -83,16 +83,16 @@ class PartialCluster(object):
         return (self.exprs, self.ispace, self.dspace, self.atomics, self.guards)
 
     @property
-    def trace(self):
+    def flowgraph(self):
         return FlowGraph(self.exprs)
 
     @property
     def unknown(self):
-        return self.trace.unknown
+        return self.flowgraph.unknown
 
     @property
     def tensors(self):
-        return self.trace.tensors
+        return self.flowgraph.tensors
 
     @property
     def dtype(self):
@@ -181,14 +181,14 @@ class Cluster(PartialCluster):
         self._exprs = exprs
         # Keep expressions ordered based on information flow
         self._exprs = tuple(ClusterizedEq(v, ispace=ispace, dspace=dspace)
-                            for v in self.trace.values())
+                            for v in self.flowgraph.values())
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = frozenset(atomics or ())
         self._guards = frozendict(guards or {})
 
     @cached_property
-    def trace(self):
+    def flowgraph(self):
         return FlowGraph(self.exprs)
 
     @cached_property

@@ -21,9 +21,9 @@ if os.environ.get('testWithPip') != 'true':
     runStep("flake8 --exclude .conda,.git --builtins=ArgumentError .")
     runStep("py.test --durations=20 --cov devito tests/")
     if os.environ.get('RUN_EXAMPLES') == 'true':
-        runStep(("python examples/seismic/benchmark.py test " +
+        runStep(("python benchmarks/user/benchmark.py test " +
                  "-P tti -so 4 -a -d 20 20 20 -n 5"))
-        runStep("python examples/seismic/benchmark.py test -P acoustic -a")
+        runStep("python benchmarks/user/benchmark.py test -P acoustic -a")
         runStep("python examples/seismic/acoustic/acoustic_example.py --full")
         runStep(("python examples/seismic/acoustic/acoustic_example.py " +
                 "--full --checkpointing"))
@@ -33,7 +33,7 @@ if os.environ.get('testWithPip') != 'true':
         runStep("python examples/seismic/tti/tti_example.py -a --noazimuth")
         runStep("python examples/seismic/elastic/elastic_example.py")
         runStep("py.test --nbval examples/cfd")
-        runStep("py.test --nbval examples/seismic/tutorials/0[1-3]*")
+        runStep("py.test --nbval examples/seismic/tutorials")
         runStep("py.test --nbval examples/compiler")
         runStep("codecov")
     runStep("pushd docs; make html; popd")

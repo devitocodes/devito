@@ -240,7 +240,7 @@ def default_rules(obj, functions):
     # NOTE: Do we want to throw a warning if the same arg has
     # been provided twice?
     args_provided = list(set(args_provided))
-    not_provided = list(set(args_provided).symmetric_difference(set(args_present)))
+    not_provided = [i for i in args_present if i not in frozenset(args_provided)]
 
     rules = {}
     for i in not_provided:

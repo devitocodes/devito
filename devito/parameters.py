@@ -109,14 +109,12 @@ class Parameters(OrderedDict, Signer):
 
 env_vars_mapper = {
     'DEVITO_ARCH': 'compiler',
-    'DEVITO_ISA': 'isa',
     'DEVITO_PLATFORM': 'platform',
     'DEVITO_PROFILING': 'profiling',
     'DEVITO_BACKEND': 'backend',
     'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
-    'DEVITO_DLE_OPTIONS': 'dle-options',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_MPI': 'mpi',
     'DEVITO_AUTOTUNING': 'autotuning',
@@ -135,10 +133,9 @@ configuration = Parameters("Devito-Configuration")
 def init_configuration(configuration=configuration, env_vars_mapper=env_vars_mapper):
     # Populate /configuration/ with user-provided options
     if environ.get('DEVITO_CONFIG') is None:
-        # At init time, it is important to first configure the compiler, then
-        # the backend (which is impacted by the compiler), finally everything
-        # else in any arbitrary order
-        process_order = filter_ordered(['compiler', 'backend'] +
+        # At init time, it is important to configure `platform`, `compiler` and `backend`
+        # in this order
+        process_order = filter_ordered(['platform', 'compiler', 'backend'] +
                                        list(env_vars_mapper.values()))
         queue = sorted(env_vars_mapper.items(), key=lambda i: process_order.index(i[1]))
         unprocessed = OrderedDict([(v, environ.get(k, configuration._defaults[v]))

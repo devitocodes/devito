@@ -32,9 +32,11 @@ try:
     atexit.register(cleanup)
 except ImportError:
     # Dummy fallback in case mpi4py/MPI aren't available
-    class MPI(object):
-        COMM_NULL = None
+    class NoneMetaclass(type):
+        def __getattr__(self, name):
+            return None
 
+    class MPI(object, metaclass=NoneMetaclass):
         @classmethod
         def Is_initialized(cls):
             return False
@@ -42,11 +44,8 @@ except ImportError:
         def _sizeof(obj):
             return None
 
-        @property
-        def Comm(self):
+        def __getattr__(self, name):
             return None
-
-        Request = Comm
 
 
 __all__ = ['Distributor', 'SparseDistributor', 'MPI']

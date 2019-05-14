@@ -6,23 +6,23 @@ from time import time
 
 import cgen
 
-from devito.archinfo import get_simd_reg_size, get_simd_items_per_reg
 from devito.cgen_utils import ccode
 from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
                                        unfold_blocked_tree)
 from devito.dle.parallelizer import Ompizer
 from devito.exceptions import DLEException
 from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder, PARALLEL,
-                           FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
-                           compose_nodes, filter_iterations, retrieve_iteration_tree,
-                           make_efunc)
-from devito.logger import dle, perf_adv
+                           AFFINE, FindSymbols, FindNodes, FindAdjacent, MapNodes,
+                           Transformer, IsPerfectIteration, compose_nodes, make_efunc,
+                           filter_iterations, retrieve_iteration_tree)
+from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
 from devito.tools import DAG, as_tuple, filter_ordered, flatten
 
-__all__ = ['BasicRewriter', 'AdvancedRewriter', 'SpeculativeRewriter',
-           'AdvancedRewriterSafeMath', 'CustomRewriter']
+__all__ = ['PlatformRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter',
+           'ArmRewriter', 'SpeculativeRewriter', 'DeviceOffloadingRewriter',
+           'CustomRewriter']
 
 
 class State(object):
@@ -31,6 +31,9 @@ class State(object):
         self._efuncs = OrderedDict([('root', iet)])
         self._dimensions = []
         self._includes = []
+
+        # Track performance of each pass
+        self._timings = OrderedDict()
 
     @property
     def root(self):
@@ -47,6 +50,10 @@ class State(object):
     @property
     def includes(self):
         return self._includes
+
+    @property
+    def timings(self):
+        return self._timings
 
 
 def process(func, state):
@@ -111,7 +118,7 @@ def dle_pass(func):
         tic = time()
         process(partial(func, self), state)
         toc = time()
-        self.timings[func.__name__] = toc - tic
+        state.timings[func.__name__] = toc - tic
     return wrapper
 
 
@@ -125,9 +132,14 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, params):
+    _node_parallelizer_type = None
+    """The local-node IET parallelizer. To be specified by subclasses."""
+
+    def __init__(self, params, platform):
         self.params = params
-        self.timings = OrderedDict()
+        self.platform = platform
+
+        self._node_parallelizer = self._node_parallelizer_type()
 
     def run(self, iet):
         """The optimization pipeline, as a sequence of AST transformation passes."""
@@ -135,43 +147,24 @@ class AbstractRewriter(object):
 
         self._pipeline(state)
 
-        self._summary()
-
-        return state.root, state
+        return state
 
     @abc.abstractmethod
     def _pipeline(self, state):
         return
 
-    def _summary(self):
-        """Print a summary of the DLE transformations."""
-        row = "%s [elapsed: %.2f]"
-        out = " >>\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k[1:])),
-                                       v)
-                                for k, v in self.timings.items())
-        elapsed = sum(self.timings.values())
-        dle("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
 
+class PlatformRewriter(AbstractRewriter):
 
-class BasicRewriter(AbstractRewriter):
+    """No-op rewriter."""
 
-    lang_intel_common = {
-        'ignore-deps': cgen.Pragma('ivdep'),
-        'ntstores': cgen.Pragma('vector nontemporal'),
-        'storefence': cgen.Statement('_mm_sfence()'),
-        'noinline': cgen.Pragma('noinline')
-    }
-
-    lang = {
-        'IntelCompiler': lang_intel_common,
-        'IntelKNLCompiler': lang_intel_common
-    }
+    lang = {}
     """
     Collection of backend-compiler-specific pragmas.
     """
 
     def _pipeline(self, state):
-        self._avoid_denormals(state)
+        return
 
     def _backend_compiler_pragma(self, name, default=None):
         key = configuration['compiler'].__class__.__name__
@@ -185,31 +178,7 @@ class BasicRewriter(AbstractRewriter):
         are normally flushed when using SSE-based instruction sets, except when
         compiling shared objects.
         """
-        header = [cgen.Comment('Flush denormal numbers to zero in hardware'),
-                  cgen.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)'),
-                  cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)')]
-        iet = List(header=header, body=iet)
-        return (iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')})
-
-
-class AdvancedRewriter(BasicRewriter):
-
-    _shm_parallelizer_type = Ompizer
-
-    def __init__(self, params):
-        super(AdvancedRewriter, self).__init__(params)
-        self._shm_parallelizer = self._shm_parallelizer_type()
-
-    def _pipeline(self, state):
-        self._avoid_denormals(state)
-        self._optimize_halospots(state)
-        if self.params['mpi']:
-            self._dist_parallelize(state)
-        self._loop_blocking(state)
-        self._simdize(state)
-        if self.params['openmp']:
-            self._shm_parallelize(state)
-        self._hoist_prodders(state)
+        return iet, {}
 
     @dle_pass
     def _loop_wrapping(self, iet):
@@ -311,11 +280,21 @@ class AdvancedRewriter(BasicRewriter):
             if len(iterations) <= 1:
                 continue
             root = iterations[0]
-            if not (tree.root.is_Sequential or iet.is_Callable) and not blockalways:
-                # Heuristic: avoid polluting the generated code with blocked
-                # nests (thus increasing JIT compilation time and affecting
-                # readability) if the blockable tree isn't embedded in a
-                # sequential loop (e.g., a timestepping loop)
+            if not blockalways:
+                # Heuristically bypass loop blocking if we think `tree`
+                # won't be computationally expensive. This will help with code
+                # size/redability, JIT time, and auto-tuning time
+                if not (tree.root.is_Sequential or iet.is_Callable):
+                    # E.g., not inside a time-stepping Iteration
+                    continue
+                if any(i.dim.is_Sub and i.dim.local for i in tree):
+                    # At least an outer Iteration is over a local SubDimension,
+                    # which suggests the computational cost of this Iteration
+                    # nest will be negligible w.r.t. the "core" Iteration nest
+                    # (making use of non-local (Sub)Dimensions only)
+                    continue
+            if not IsPerfectIteration().visit(root):
+                # Don't know how to block non-perfect nests
                 continue
 
             # Apply loop blocking to `tree`
@@ -325,7 +304,8 @@ class AdvancedRewriter(BasicRewriter):
                 d = BlockDimension(i.dim, name="%s%d_blk" % (i.dim.name, len(mapper)))
                 block_dims.append(d)
                 # Build Iteration over blocks
-                interb.append(Iteration([], d, d.symbolic_max, properties=PARALLEL))
+                properties = (PARALLEL,) + ((AFFINE,) if i.is_Affine else ())
+                interb.append(Iteration([], d, d.symbolic_max, properties=properties))
                 # Build Iteration within a block
                 intrab.append(i._rebuild([], limits=(d, d+d.step-1, 1), offsets=(0, 0)))
 
@@ -386,7 +366,6 @@ class AdvancedRewriter(BasicRewriter):
         Add pragmas to the Iteration/Expression tree to enforce SIMD auto-vectorization
         by the backend compiler.
         """
-        isa = configuration['isa']
         ignore_deps = as_tuple(self._backend_compiler_pragma('ignore-deps'))
 
         mapper = {}
@@ -398,7 +377,7 @@ class AdvancedRewriter(BasicRewriter):
                 if aligned:
                     simd = Ompizer.lang['simd-for-aligned']
                     simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                    get_simd_reg_size(isa)))
+                                    self.platform.simd_reg_size))
                 else:
                     simd = as_tuple(Ompizer.lang['simd-for'])
                 mapper[i] = i._rebuild(pragmas=i.pragmas + ignore_deps + simd)
@@ -408,12 +387,12 @@ class AdvancedRewriter(BasicRewriter):
         return processed, {}
 
     @dle_pass
-    def _shm_parallelize(self, iet):
+    def _node_parallelize(self, iet):
         """
         Add OpenMP pragmas to the Iteration/Expression tree to emit shared-memory
         parallel code.
         """
-        return self._shm_parallelizer.make_parallel(iet)
+        return self._node_parallelizer.make_parallel(iet)
 
     @dle_pass
     def _hoist_prodders(self, iet):
@@ -439,26 +418,74 @@ class AdvancedRewriter(BasicRewriter):
         return iet, {}
 
 
-class AdvancedRewriterSafeMath(AdvancedRewriter):
+class CPU64Rewriter(PlatformRewriter):
 
-    """
-    This Rewriter is slightly less aggressive than AdvancedRewriter, as it
-    doesn't drop denormal numbers, which may sometimes harm the numerical precision.
-    """
+    _node_parallelizer_type = Ompizer
 
     def _pipeline(self, state):
+        self._avoid_denormals(state)
         self._optimize_halospots(state)
-        self._loop_wrapping(state)
         if self.params['mpi']:
             self._dist_parallelize(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp']:
-            self._shm_parallelize(state)
+            self._node_parallelize(state)
         self._hoist_prodders(state)
 
 
-class SpeculativeRewriter(AdvancedRewriter):
+class Intel64Rewriter(CPU64Rewriter):
+
+    lang_intel_common = {
+        'ignore-deps': cgen.Pragma('ivdep'),
+        'ntstores': cgen.Pragma('vector nontemporal'),
+        'storefence': cgen.Statement('_mm_sfence()'),
+        'noinline': cgen.Pragma('noinline')
+    }
+    lang = {
+        'IntelCompiler': lang_intel_common,
+        'IntelKNLCompiler': lang_intel_common
+    }
+    """
+    Collection of backend-compiler-specific pragmas.
+    """
+
+    @dle_pass
+    def _avoid_denormals(self, iet):
+        header = [cgen.Comment('Flush denormal numbers to zero in hardware'),
+                  cgen.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)'),
+                  cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)')]
+        iet = List(header=header, body=iet)
+        return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}
+
+
+PowerRewriter = CPU64Rewriter
+ArmRewriter = CPU64Rewriter
+
+
+class DeviceOffloadingRewriter(PlatformRewriter):
+
+    _node_parallelizer_type = Ompizer
+
+    def _pipeline(self, state):
+        self._optimize_halospots(state)
+        if self.params['mpi']:
+            self._dist_parallelize(state)
+        self._simdize(state)
+        self._node_parallelize(state)
+        self._hoist_prodders(state)
+
+    @dle_pass
+    def _node_parallelize(self, iet):
+        """
+        Add OpenMP pragmas to offload PARALLEL Iteration nests onto a device.
+        """
+        # TODO: this is still to be implemented -- something other than
+        # `.make_parallel` will have to be used, e.g., `.make_offloadable`
+        return self._node_parallelizer.make_parallel(iet)
+
+
+class SpeculativeRewriter(CPU64Rewriter):
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
@@ -469,7 +496,7 @@ class SpeculativeRewriter(AdvancedRewriter):
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp']:
-            self._shm_parallelize(state)
+            self._node_parallelize(state)
         self._minimize_remainders(state)
         self._hoist_prodders(state)
 
@@ -507,8 +534,6 @@ class SpeculativeRewriter(AdvancedRewriter):
         Reshape temporary tensors and adjust loop trip counts to prevent as many
         compiler-generated remainder loops as possible.
         """
-        isa = configuration['isa']
-
         # The innermost dimension is the one that might get padded
         p_dim = -1
 
@@ -525,7 +550,7 @@ class SpeculativeRewriter(AdvancedRewriter):
             padding = []
             for i in writes:
                 try:
-                    simd_items = get_simd_items_per_reg(isa, i.dtype)
+                    simd_items = self.platform.simd_items_per_reg(i.dtype)
                 except KeyError:
                     return iet, {}
                 padding.append(simd_items - i.shape[-1] % simd_items)
@@ -577,14 +602,14 @@ class CustomRewriter(SpeculativeRewriter):
         'optcomms': SpeculativeRewriter._optimize_halospots,
         'wrapping': SpeculativeRewriter._loop_wrapping,
         'blocking': SpeculativeRewriter._loop_blocking,
-        'openmp': SpeculativeRewriter._shm_parallelize,
+        'openmp': SpeculativeRewriter._node_parallelize,
         'mpi': SpeculativeRewriter._dist_parallelize,
         'simd': SpeculativeRewriter._simdize,
         'minrem': SpeculativeRewriter._minimize_remainders,
         'prodders': SpeculativeRewriter._hoist_prodders
     }
 
-    def __init__(self, passes, params):
+    def __init__(self, passes, params, platform):
         try:
             passes = passes.split(',')
             if 'openmp' not in passes and params['openmp']:
@@ -592,9 +617,9 @@ class CustomRewriter(SpeculativeRewriter):
         except AttributeError:
             # Already in tuple format
             if not all(i in CustomRewriter.passes_mapper for i in passes):
-                raise DLEException
+                raise DLEException("Unknown passes `%s`" % str(passes))
         self.passes = passes
-        super(CustomRewriter, self).__init__(params)
+        super(CustomRewriter, self).__init__(params, platform)
 
     def _pipeline(self, state):
         for i in self.passes:

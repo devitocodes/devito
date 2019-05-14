@@ -7,7 +7,7 @@ import numpy as np
 
 import devito as dv
 
-__all__ = ['assign', 'smooth', 'norm', 'sumall', 'inner']
+__all__ = ['assign', 'smooth', 'norm', 'sumall', 'inner', 'mmin', 'mmax']
 
 
 def assign(f, v=0):
@@ -60,7 +60,7 @@ class MPIReduction(object):
     A context manager to build MPI-aware reduction Operators.
     """
 
-    def __init__(self, *functions):
+    def __init__(self, *functions, op=dv.mpi.MPI.SUM):
         grids = {f.grid for f in functions}
         if len(grids) == 0:
             self.grid = None
@@ -74,6 +74,7 @@ class MPIReduction(object):
         else:
             raise ValueError("Illegal mixed data types")
         self.v = None
+        self.op = op
 
     def __enter__(self):
         i = dv.Dimension(name='i',)
@@ -88,7 +89,7 @@ class MPIReduction(object):
             self.v = self.n.data[0]
         else:
             comm = self.grid.distributor.comm
-            self.v = comm.allreduce(np.asarray(self.n.data))[0]
+            self.v = comm.allreduce(np.asarray(self.n.data), self.op)[0]
 
 
 def norm(f, order=2):
@@ -191,3 +192,37 @@ def inner(f, g):
         op.apply(**kwargs)
 
     return np.float(mr.v)
+
+
+def mmin(f):
+    """
+    Retrieve the minimum.
+
+    Parameters
+    ----------
+    f : array_like or Function
+        Input operand.
+    """
+    if not isinstance(f, dv.Function):
+        return np.min(f)
+
+    with MPIReduction(f, op=dv.mpi.MPI.MIN) as mr:
+        mr.n.data[0] = np.min(f.data_ro_domain).item()
+    return mr.v.item()
+
+
+def mmax(f):
+    """
+    Retrieve the maximum.
+
+    Parameters
+    ----------
+    f : array_like or Function
+        Input operand.
+    """
+    if not isinstance(f, dv.Function):
+        return np.max(f)
+
+    with MPIReduction(f, op=dv.mpi.MPI.MAX) as mr:
+        mr.n.data[0] = np.max(f.data_ro_domain).item()
+    return mr.v.item()

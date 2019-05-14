@@ -185,7 +185,7 @@ def test_tti_aggressive():
 
 
 @switchconfig(develop_mode=False)
-@patch("devito.dle.parallelizer.Ompizer.COLLAPSE", 1)
+@patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
 def test_discarding_runs():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
@@ -294,3 +294,19 @@ def test_multiple_blocking():
     assert op._state['autotuning'][0]['runs'] == 12
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 5
+
+
+def test_multiple_threads():
+    """
+    Test autotuning when different ``num_threads`` for a given OpenMP parallel
+    region are attempted.
+    """
+    grid = Grid(shape=(64, 64, 64))
+
+    v = TimeFunction(name='v', grid=grid)
+
+    op = Operator(Eq(v.forward, v + 1), dle=('blocking', {'openmp': True}))
+    op.apply(time_M=0, autotune='max')
+    assert op._state['autotuning'][0]['runs'] == 60  # Would be 30 with `aggressive`
+    assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
+    assert len(op._state['autotuning'][0]['tuned']) == 3

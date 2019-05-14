@@ -6,14 +6,15 @@ import numpy as np
 
 from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
-from devito.ir.iet import ForeignExpression, MetaCall, Transformer, find_affine_trees
+from devito.ir.iet import MetaCall, Transformer, find_affine_trees
 from devito.ir.support import align_accesses
 from devito.operator import Operator
 from devito.tools import Signer, filter_ordered, flatten
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
-from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, namespace
+from devito.yask.utils import (Offloaded, make_grid_accesses, make_sharedptr_funcall,
+                               namespace)
 from devito.yask.wrappers import contexts
 from devito.yask.transformer import yaskit
 from devito.yask.types import YaskGridObject, YaskSolnObject
@@ -80,7 +81,7 @@ class OperatorYASK(Operator):
                 yk_soln_obj = YaskSolnObject(namespace['code-soln-name'](n))
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'],
                                                  ['time'], yk_soln_obj)
-                funcall = ForeignExpression(funcall, self._dtype)
+                funcall = Offloaded(funcall, self._dtype)
                 mapper[trees[0].root] = funcall
                 mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
 

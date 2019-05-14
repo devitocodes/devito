@@ -309,7 +309,7 @@ ALLOC_NUMA_LOCAL = NumaAllocator('local')
 
 
 def infer_knl_mode():
-    path = os.path.join('sys', 'bus', 'node', 'devices', 'node1')
+    path = os.path.join('/sys', 'bus', 'node', 'devices', 'node1')
     return 'flat' if os.path.exists(path) else 'cache'
 
 
@@ -342,7 +342,7 @@ def default_allocator():
     if configuration['develop-mode']:
         return ALLOC_GUARD
     elif NumaAllocator.available():
-        if configuration['platform'] == 'knl' and infer_knl_mode() == 'flat':
+        if configuration['platform'].name == 'knl' and infer_knl_mode() == 'flat':
             return ALLOC_KNL_MCDRAM
         else:
             return ALLOC_NUMA_LOCAL

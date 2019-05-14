@@ -346,6 +346,15 @@ class TestOperatorSimple(object):
         assert np.all(u.data[1] == 1.)
         assert u.data[:].sum() == np.prod(grid.shape)
 
+    @switchconfig(openmp=True)
+    def test_no_omp_if_offloaded(self):
+        grid = Grid(shape=(4, 4, 4))
+        u = TimeFunction(name='yu4D', grid=grid, space_order=0)
+        u.data[:] = 0.
+        op = Operator(Eq(u, u + 1.))
+        assert 'run_solution' in str(op)
+        assert 'pragma omp' not in str(op)
+
 
 class TestOperatorAdvanced(object):
     """

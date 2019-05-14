@@ -127,7 +127,7 @@ def is_local(array, source, sink, context):
 
     # Written in source
     written_once = False
-    for i in source.trace.values():
+    for i in source.flowgraph.values():
         if array == i.function:
             if written_once is True:
                 # Written more than once, break

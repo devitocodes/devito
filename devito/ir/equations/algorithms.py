@@ -32,7 +32,7 @@ def dimension_sort(expr):
                                      if isinstance(d, Dimension)])
         return tuple(relation)
 
-    relations = {handle_indexed(i) for i in retrieve_indexed(expr, mode='all')}
+    relations = {handle_indexed(i) for i in retrieve_indexed(expr)}
 
     # Add in any implicit dimension (typical of scalar temporaries, or Step)
     relations.add(expr.implicit_dims)

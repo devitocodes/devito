@@ -255,8 +255,9 @@ class Dimension(AbstractSymbol, ArgProvider):
 
         # Allow the specific case of max=min-1, which disables the loop
         if args[self.max_name] < args[self.min_name]-1:
-            raise InvalidArgument("Illegal max=%s < min=%s"
-                                  % (args[self.max_name], args[self.min_name]))
+            raise InvalidArgument("Illegal %s=%d < %s=%d"
+                                  % (self.max_name, args[self.max_name],
+                                     self.min_name, args[self.min_name]))
         elif args[self.max_name] == args[self.min_name]-1:
             debug("%s=%d and %s=%d might cause no iterations along Dimension %s",
                   self.min_name, args[self.min_name],
@@ -528,6 +529,11 @@ class SubDimension(DerivedDimension):
         return self._interval.right
 
     @property
+    def symbolic_size(self):
+        # The size must be given as a function of the parent's size
+        return self.symbolic_max - self.symbolic_min + 1
+
+    @property
     def local(self):
         return self._local
 
@@ -574,7 +580,7 @@ class SubDimension(DerivedDimension):
 
     @property
     def _properties(self):
-        return (self._interval, self.thickness)
+        return (self._interval, self.thickness, self.local)
 
     def _arg_defaults(self, grid=None, **kwargs):
         if grid is not None and grid.is_distributed(self.root):

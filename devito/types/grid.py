@@ -1,17 +1,20 @@
 from collections import namedtuple
 
-from sympy import prod
 import numpy as np
+from sympy import prod
+from math import floor
 
 from devito.mpi import Distributor
 from devito.parameters import configuration
 from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
 from devito.types.constant import Constant
+from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
+from devito.equation import Eq
 
-__all__ = ['Grid', 'SubDomain']
+__all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
 
 class Grid(ArgProvider):
@@ -422,3 +425,136 @@ class Interior(SubDomain):
 
     def define(self, dimensions):
         return {d: ('middle', 1, 1) for d in dimensions}
+
+
+class SubDomainSet(SubDomain):
+    """
+    Class to define a set of N (a positive integer) subdomains.
+
+    Parameters
+    ----------
+    **kwargs
+        * N : int
+            Number of subdomains.
+        * bounds : tuple
+            Tuple of numpy int32 arrays representing the bounds of
+            each subdomain.
+
+    Examples
+    --------
+    Set up an iterate upon a set of two subdomains:
+
+    >>> import numpy as np
+    >>> from devito import Grid, Function, Eq, Operator, SubDomainSet
+    >>> Nx = 10
+    >>> Ny = Nx
+    >>> n_domains = 2
+
+    Create a 'SubDomainSet object':
+
+    >>> class MySubdomains(SubDomainSet):
+    ...     name = 'mydomains'
+
+    Set the bounds of the subdomains. The required format is:
+    (xm, xM, ym, yM, ...) where xm is a vector specifying
+    the number of grid points inwards from the 'left' boundary in the
+    first grid dimension that each subdomain starts. xM is a vector
+    specifying the number of grid points inwards from the 'right' of
+    the domain in the first grid dimension that each subdomain ends.
+    ym and yM are the equivalents for the second grid dimension.
+
+    >>> xm = np.array([1, Nx/2+1], dtype=np.int32)
+    >>> xM = np.array([Nx/2+1, 1], dtype=np.int32)
+
+    Along a dimension where all bounds are the same we can use the
+    following shorthand:
+
+    >>> ym = 1 # which is equivalent to 'np.array([1, 1], dtype=np.int32)'
+    >>> yM = 1
+
+    Combine the data into the required form:
+
+    >>> bounds = (xm, xM, ym, yM)
+
+    Create our set of subdomains passing the number of domains and the
+    bounds:
+
+    >>> my_sd = MySubdomains(N=n_domains, bounds=bounds)
+
+    Create a grid and iterate a function within the defined subdomains:
+
+    >>> grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd, ))
+    >>> f = Function(name='f', grid=grid, dtype=np.int32)
+    >>> eq = Eq(f, f+1, subdomain=grid.subdomains['mydomains'])
+    >>> op = Operator(eq)
+    >>> summary = op.apply()
+    >>> f.data
+    Data([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=int32)
+    """
+
+    implicit_dimension = None
+    """The implicit dimension of the SubDomainSet."""
+
+    def __init__(self, **kwargs):
+        super(SubDomainSet, self).__init__()
+        if self.implicit_dimension is None:
+            n = Dimension(name='n')
+            self.implicit_dimension = n
+        self._n_domains = kwargs.get('N', 1)
+        self._bounds = kwargs.get('bounds', None)
+        self._implicit_exprs = None
+
+    def __subdomain_finalize__(self, dimensions, shape):
+        # Create the SubDomain's SubDimensions
+        sub_dimensions = []
+        for d in dimensions:
+            sub_dimensions.append(
+                SubDimension.middle('%si_%s' % (d.name, self.implicit_dimension.name),
+                                    d, 0, 0))
+        self._dimensions = tuple(sub_dimensions)
+        # Compute the SubDomain shape
+        self._shape = tuple(s - (sum(d._thickness_map.values()) if d.is_Sub else 0)
+                            for d, s in zip(self._dimensions, shape))
+
+    @property
+    def n_domains(self):
+        return self._n_domains
+
+    @property
+    def bounds(self):
+        return self._bounds
+
+    def _create_implicit_exprs(self):
+        if not len(self._bounds) == 2*len(self.dimensions):
+            raise ValueError("Left and right bounds must be supplied for each dimension")
+        n_domains = self.n_domains
+        i_dim = self.implicit_dimension
+        dat = []
+        # Organise the data contained in 'bounds' into a form such that the
+        # associated implicit equations can easily be created.
+        for j in range(len(self._bounds)):
+            index = floor(j/2)
+            d = self.dimensions[index]
+            if j % 2 == 0:
+                fname = d.min_name
+            else:
+                fname = d.max_name
+            func = Function(name=fname, shape=(n_domains, ), dimensions=(i_dim, ),
+                            dtype=np.int32)
+            # Check if shorthand notation has been provided:
+            if isinstance(self._bounds[j], int):
+                bounds = np.full((n_domains,), self._bounds[j], dtype=np.int32)
+                func.data[:] = bounds
+            else:
+                func.data[:] = self._bounds[j]
+            dat.append(Eq(d.thickness[j % 2][0], func[i_dim]))
+        return as_tuple(dat)

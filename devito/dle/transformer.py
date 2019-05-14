@@ -1,43 +1,48 @@
+from collections import OrderedDict
+
+from devito.archinfo import Platform, Cpu64
 from devito.ir.iet import Node
-from devito.dle.rewriters import CustomRewriter, State
-from devito.exceptions import DLEException
-from devito.logger import dle_warning
+from devito.dle.rewriters import CPU64Rewriter, CustomRewriter, State
+from devito.logger import dle as log, dle_warning as warning
 from devito.parameters import configuration
 
-__all__ = ['init_dle', 'transform']
+__all__ = ['dle_registry', 'modes', 'transform']
 
 
-default_modes = {
-    'basic': None,
-    'advanced': None,
-    'advanced-safemath': None,
-    'speculative': None
-}
-"""The DLE transformation modes.
-This dictionary may be modified at backend-initialization time."""
-
-default_options = {
-    'blockinner': False,
-    'blockalways': False
-}
-"""Default values for the supported optimization options.
-This dictionary may be modified at backend-initialization time."""
-
-configuration.add('dle', 'advanced', list(default_modes))
-configuration.add('dle-options',
-                  ';'.join('%s:%s' % (k, v) for k, v in default_options.items()),
-                  list(default_options))
-
-all_options = tuple(default_options) + ('openmp',)
+dle_registry = ('advanced', 'speculative')
 
 
-def init_dle(backend_modes):
-    global default_modes
-    for i in list(default_modes):
-        default_modes[i] = backend_modes[i]
+class DLEModes(OrderedDict):
+
+    """
+    The DLE transformation modes. This is a dictionary ``P -> {M -> R}``,
+    where P is a Platform, M a rewrite mode (e.g., 'advanced', 'speculative'),
+    and R a Rewriter.
+
+    This dictionary is to be modified at backend-initialization time by adding
+    all Platform-keyed mappers as supported by the specific backend.
+    """
+
+    def add(self, platform, mapper):
+        assert issubclass(platform, Platform)
+        assert isinstance(mapper, dict)
+        assert all(i in mapper for i in dle_registry)
+        super(DLEModes, self).__setitem__(platform, mapper)
+
+    def fetch(self, platform, mode):
+        # Try to fetch the most specific Rewriter for the given Platform
+        for cls in platform.__class__.mro():
+            for k, v in self.items():
+                if issubclass(k, cls):
+                    return v[mode]
+        raise KeyError("Couldn't find a rewriter mode for platform `%s`", platform)
 
 
-def transform(iet, mode='basic', options=None):
+modes = DLEModes()
+modes.add(Cpu64, {'advanced': CPU64Rewriter, 'speculative': CPU64Rewriter})
+
+
+def transform(iet, mode='advanced', options=None):
     """
     Transform Iteration/Expression trees (IET) to generate optimized C code.
 
@@ -48,9 +53,10 @@ def transform(iet, mode='basic', options=None):
     mode : str, optional
         The transformation mode.
         - ``noop``: Do nothing.
-        - ``basic``: Add instructions to avoid denormal numbers and create elemental
-                     functions for quicker JIT-compilation.
-        - ``advanced``: 'basic', vectorization, loop blocking.
+        - ``advanced``: flush denormals, vectorization, loop blocking, OpenMP-related
+                        optimizations (collapsing, nested parallelism, ...), MPI-related
+                        optimizations (aggregation of communications, reshuffling of
+                        communications, ...).
         - ``speculative``: Apply all of the 'advanced' transformations, plus other
                            transformations that might increase (or possibly decrease)
                            performance.
@@ -66,32 +72,61 @@ def transform(iet, mode='basic', options=None):
     """
     assert isinstance(iet, Node)
 
-    # Parse options (local values take precedence over global ones)
-    options = options or {}
-    params = options.copy()
-    for i in options:
-        if i not in all_options:
-            dle_warning("Illegal DLE option '%s'" % i)
-            params.pop(i)
-    params.update({k: v for k, v in configuration['dle-options'].items()
-                   if k not in params})
-    params.setdefault('openmp', configuration['openmp'])
-    params.setdefault('mpi', configuration['mpi'])
+    # Default options
+    params = {}
+    params['blockinner'] = configuration['dle-options'].get('blockinner', False)
+    params['blockalways'] = configuration['dle-options'].get('blockalways', False)
+    params['openmp'] = configuration['openmp']
+    params['mpi'] = configuration['mpi']
+
+    # Parse input options (potentially replacing defaults)
+    for k, v in (options or {}).items():
+        if k not in params:
+            warning("Illegal DLE option '%s'" % k)
+        else:
+            params[k] = v
 
     # Force OpenMP if parallelism was requested, even though mode is 'noop'
     if mode == 'noop' and params['openmp'] is True:
         mode = 'openmp'
 
-    # Process the Iteration/Expression tree through the DLE
+    # What is the target platform for which the optimizations are applied?
+    platform = configuration['platform']
+
+    # No-op case
     if mode is None or mode == 'noop':
         return iet, State(iet)
-    elif mode not in default_modes:
-        try:
-            rewriter = CustomRewriter(mode, params)
-            return rewriter.run(iet)
-        except DLEException:
-            dle_warning("Unknown transformer mode(s) %s" % mode)
-            return iet, State(iet)
+
+    # Fetch the requested rewriter
+    try:
+        rewriter = modes.fetch(platform, mode)(params, platform)
+    except KeyError:
+        # Fallback: custom rewriter -- `mode` is a specific sequence of
+        # transformation passes
+        rewriter = CustomRewriter(mode, params, platform)
+
+    # Trigger the DLE passes
+    state = rewriter.run(iet)
+
+    # Print out the profiling data
+    print_profiling(state)
+
+    return state.root, state
+
+
+def print_profiling(state):
+    """
+    Print a summary of the applied transformations.
+    """
+    timings = state.timings
+
+    if configuration['profiling'] in ['basic', 'advanced']:
+        row = "%s (elapsed: %.2f s)"
+        out = "\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k[1:])), v)
+                             for k, v in timings.items())
+        elapsed = sum(timings.values())
+        log("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
     else:
-        rewriter = default_modes[mode](params)
-        return rewriter.run(iet)
+        # Shorter summary
+        log("passes: %s (elapsed %.2f s)" % (",".join(i[1:] for i in timings),
+                                             sum(timings.values())))

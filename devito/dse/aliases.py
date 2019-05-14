@@ -1,12 +1,10 @@
-import itertools
 from collections import OrderedDict, namedtuple
 
-import numpy as np
 from sympy import Indexed
+import numpy as np
 
-from devito.ir.support import Stencil
-from devito.exceptions import DSEException
-from devito.symbolics import retrieve_indexed, q_indirect
+from devito.ir.support import IterationInstance, LabeledVector, Stencil
+from devito.symbolics import retrieve_indexed
 
 __all__ = ['collect']
 
@@ -15,14 +13,18 @@ def collect(exprs):
     """
     Determine groups of aliasing expressions in ``exprs``.
 
-    An expression A aliases an expression B if both A and B apply the same
-    operations to the same input operands, with the possibility for indexed objects
-    to index into locations at a fixed constant offset in each dimension.
+    An expression A aliases an expression B if both A and B perform the same
+    arithmetic operations over the same input operands, with the possibility for
+    Indexeds to access locations at a fixed constant offset in each Dimension.
 
     For example: ::
 
-        exprs = (a[i+1] + b[i+1], a[i+1] + b[j+1], a[i] + c[i],
-                 a[i+2] - b[i+2], a[i+2] + b[i], a[i-1] + b[i-1])
+        exprs = (a[i+1] + b[i+1],
+                 a[i+1] + b[j+1],
+                 a[i] + c[i],
+                 a[i+2] - b[i+2],
+                 a[i+2] + b[i],
+                 a[i-1] + b[i-1])
 
     The following expressions in ``exprs`` alias to ``a[i] + b[i]``: ::
 
@@ -36,55 +38,70 @@ def collect(exprs):
         a[i+2] - b[i+2] : because at least one operation differs
         a[i+2] + b[i] : because distance along ``i`` differ (+2 and +0)
     """
-    ExprData = namedtuple('ExprData', 'dimensions offsets')
-
-    # Discard expressions:
-    # - that surely won't alias to anything
-    # - that are non-scalar
-    candidates = OrderedDict()
+    # Determine the potential aliases
+    candidates = []
     for expr in exprs:
-        if expr.lhs.is_Indexed:
-            continue
-        indexeds = retrieve_indexed(expr.rhs, mode='all')
-        if indexeds and not any(q_indirect(i) for i in indexeds):
-            handle = calculate_offsets(indexeds)
-            if handle:
-                candidates[expr.rhs] = ExprData(*handle)
+        candidate = analyze(expr)
+        if candidate is not None:
+            candidates.append(candidate)
 
-    aliases = OrderedDict()
-    mapper = OrderedDict()
+    # Group together the aliasing expressions (ultimately build an Alias for each
+    # group of aliasing expressions)
+    aliases = Aliases()
     unseen = list(candidates)
     while unseen:
-        # Find aliasing expressions
-        handle = unseen.pop(0)
-        group = [handle]
-        for e in list(unseen):
-            if compare(handle, e) and\
-                    is_translated(candidates[handle].offsets, candidates[e].offsets):
-                group.append(e)
-                unseen.remove(e)
+        c = unseen.pop(0)
 
-        # Try creating a basis for the aliasing expressions' offsets
-        offsets = [tuple(candidates[e].offsets) for e in group]
+        # Find aliasing expressions
+        group = [c]
+        for i in list(unseen):
+            if compare_ops(c.expr, i.expr) and is_translated(c, i):
+                group.append(i)
+                unseen.remove(i)
+
+        # Try creating a basis spanning the aliasing expressions' iteration vectors
         try:
-            COM, distances = calculate_COM(offsets)
-        except DSEException:
-            # Ignore these potential aliases and move on
+            COM, distances = calculate_COM(group)
+        except ValueError:
+            # Ignore these aliasing expressions and move on
             continue
 
-        alias = create_alias(handle, COM)
+        # Create an alias expression centering `c`'s Indexeds at the COM
+        subs = {i: i.function[[x + v.fromlabel(x, 0) for x in b]]
+                for i, b, v in zip(c.indexeds, c.bases, COM)}
+        alias = c.expr.xreplace(subs)
+        aliased = [i.expr for i in group]
 
-        # An alias has been created, so I can now update the expression mapper
-        mapper.update([(i, group) for i in group])
+        aliases[alias] = Alias(alias, aliased, distances)
 
-        # In circumstances in which an expression has repeated coefficients, e.g.
-        # ... + 0.025*a[...] + 0.025*b[...],
-        # We may have found a common basis (i.e., same COM, same alias) at this point
-        v = aliases.setdefault(alias, Alias(alias, candidates[handle].dimensions))
-        v.extend(group, distances)
+    # Attempt to drop composite aliases to minimize the working set.
+    # For example:
+    #
+    # a[i+1]*b[i+1]             a[i+1]
+    # a[i+1]           ---->    b[i+1]
+    # b[i+1]          becomes
+    #
+    # Note:
+    # "attempt" because this is a very hard problem, which depends/relies on:
+    # - the input format, eg [r0 = a, r1 = b] rather than [r0 = a*b],
+    # - the observation that the COMs are often identical across different Aliases
+    #   eg {A[i+1] = ..., A[i+1]*B[i+1]} (here A is always centered at [i+1])
+    # Note:
+    # This approach is very naive. Ideally, one would want to set up and solve a
+    # proper minimization problem
+    for origin, alias in list(aliases.items()):
+        try:
+            impacted = [aliases[i] for i in origin.args]
+        except KeyError:
+            continue
+        for aliased, distance in alias.with_distance:
+            assert len(impacted) == len(aliased.args)
+            for i, a in zip(impacted, aliased.args):
+                aliases[i.alias] = i.add(a, distance)
+        aliases.pop(origin)
 
-    # Heuristically attempt to relax the aliases offsets
-    # to maximize the likelyhood of loop fusion
+    # Heuristically attempt to relax the Aliases offsets to maximize the
+    # likelyhood of loop fusion
     groups = OrderedDict()
     for i in aliases.values():
         groups.setdefault(i.dimensions, []).append(i)
@@ -94,128 +111,66 @@ def collect(exprs):
             if i.anti_stencil.subtract(ideal_anti_stencil).empty:
                 aliases[i.alias] = i.relax(ideal_anti_stencil)
 
-    return mapper, aliases
+    return aliases
 
 
 # Helpers
 
-def create_alias(expr, offsets):
+Candidate = namedtuple('Candidate', 'expr indexeds bases offsets')
+
+
+def analyze(expr):
     """
-    Create an aliasing expression of ``expr`` by replacing the offsets of each
-    indexed object in ``expr`` with the new values in ``offsets``. ``offsets``
-    is an ordered sequence of tuples with as many elements as the number of
-    indexed objects in ``expr``.
+    Determine whether ``expr`` is a potential Alias and collect relevant metadata.
+
+    A necessary condition is that all Indexeds in ``expr`` are affine in the
+    access Dimensions so that the access offsets (or "strides") can be derived.
+    For example, given the following Indexeds: ::
+
+        A[i, j, k], B[i, j+2, k+3], C[i-1, j+4]
+
+    All of the access functions all affine in ``i, j, k``, and the offsets are: ::
+
+        (0, 0, 0), (0, 2, 3), (-1, 4)
     """
-    indexeds = retrieve_indexed(expr, mode='all')
-    assert len(indexeds) == len(offsets)
+    # No way if writing to a tensor or an increment
+    if expr.lhs.is_Indexed or expr.is_Increment:
+        return
 
-    mapper = {}
-    for indexed, ofs in zip(indexeds, offsets):
-        base = indexed.base
-        dimensions = base.function.dimensions
-        assert len(dimensions) == len(ofs)
-        mapper[indexed] = indexed.func(base, *[sum(i) for i in zip(dimensions, ofs)])
+    indexeds = retrieve_indexed(expr.rhs)
+    if not indexeds:
+        return
 
-    return expr.xreplace(mapper)
+    bases = []
+    offsets = []
+    for i in indexeds:
+        ii = IterationInstance(i)
 
+        # There must not be irregular accesses, otherwise we won't be able to
+        # calculate the offsets
+        if ii.is_irregular:
+            return
 
-def calculate_COM(offsets):
-    """
-    Determine the centre of mass (COM) in a collection of offsets.
-
-    The COM is a basis to span the vectors in ``offsets``.
-
-    Also return the distance of each element E in ``offsets`` from the COM (i.e.,
-    the coefficients that when multiplied by the COM give exactly E).
-    """
-    COM = []
-    for ofs in zip(*offsets):
-        handle = []
-        for i in zip(*ofs):
-            strides = sorted(set(i))
-            # Heuristic:
-            # - middle point if odd number of values, or
-            # - strides average otherwise
-            index = int((len(strides) - 1) / 2)
-            if (len(strides) - 1) % 2 == 0:
-                handle.append(strides[index])
+        # Since `ii` is regular (and therefore affine), it is guaranteed that `ai`
+        # below won't be None
+        base = []
+        offset = []
+        for e, ai in zip(ii, ii.aindices):
+            if e.is_Number:
+                base.append(e)
             else:
-                handle.append(int(np.mean(strides, dtype=int)))
-        COM.append(tuple(handle))
+                base.append(ai)
+                offset.append((ai, e - ai))
+        bases.append(tuple(base))
+        offsets.append(LabeledVector(offset))
 
-    distances = []
-    for ofs in offsets:
-        handle = distance(COM, ofs)
-        if len(handle) != 1:
-            raise DSEException("%s cannot be represented by the COM %s" %
-                               (str(ofs), str(COM)))
-        distances.append(handle.pop())
-
-    return COM, distances
+    return Candidate(expr.rhs, indexeds, bases, offsets)
 
 
-def calculate_offsets(indexeds):
+def compare_ops(e1, e2):
     """
-    Return a list of tuples, with one tuple for each indexed object appearing
-    in ``indexeds``. A tuple represents the offsets from the origin (0, 0, ..., 0)
-    along each dimension. All objects must use the same indices, in the same
-    order; otherwise, ``None`` is returned.
-
-    For example, given: ::
-
-        indexeds = [A[i,j,k], B[i,j+2,k+3]]
-
-    Return: ::
-
-        [(0, 0, 0), (0, 2, 3)]
-    """
-    processed = []
-    reference = indexeds[0].base.function.indices
-    for indexed in indexeds:
-        dimensions = indexed.base.function.indices
-        if dimensions != reference:
-            return None
-        handle = []
-        for d, i in zip(dimensions, indexed.indices):
-            offset = i - d
-            if offset.is_Number:
-                handle.append(int(offset))
-            else:
-                return None
-        processed.append(tuple(handle))
-    return tuple(reference), processed
-
-
-def distance(ofs1, ofs2):
-    """
-    Determine the distance of ``ofs2`` from ``ofs1``.
-    """
-    assert len(ofs1) == len(ofs2)
-    handle = set()
-    for o1, o2 in zip(ofs1, ofs2):
-        assert len(o1) == len(o2)
-        handle.add(tuple(i2 - i1 for i1, i2 in zip(o1, o2)))
-    return handle
-
-
-def is_translated(ofs1, ofs2):
-    """
-    Return True if ``ofs2`` is translated w.r.t. to ``ofs1``, False otherwise.
-
-    For example: ::
-
-        e1 = A[i,j] + A[i,j+1]
-        e2 = A[i+1,j] + A[i+1,j+1]
-
-    ``ofs1`` would be [(0, 0), (0, 1)], while ``ofs2`` would be [(1, 0), (1,1)], so
-    ``e2`` is translated w.r.t. ``e1`` by ``(1, 0)``, and True is returned.
-    """
-    return len(distance(ofs1, ofs2)) == 1
-
-
-def compare(e1, e2):
-    """
-    Return True if the two expressions e1 and e2 alias each other, False otherwise.
+    Return True if the two expressions ``e1`` and ``e2`` perform the same arithmetic
+    operations over the same input operands, False otherwise.
     """
     if type(e1) == type(e2) and len(e1.args) == len(e2.args):
         if e1.is_Atom:
@@ -224,72 +179,151 @@ def compare(e1, e2):
             return True if e1.base == e2.base else False
         else:
             for a1, a2 in zip(e1.args, e2.args):
-                if not compare(a1, a2):
+                if not compare_ops(a1, a2):
                     return False
             return True
     else:
         return False
 
 
+def is_translated(c1, c2):
+    """
+    Given two potential aliases ``c1`` and ``c2``, return True if ``c1``
+    is translated w.r.t. ``c2``, False otherwise.
+
+    For example: ::
+
+        c1 = A[i,j] + A[i,j+1]
+        c2 = A[i+1,j] + A[i+1,j+1]
+
+    ``c1``'s Toffsets are ``{i: [0, 0], j: [0, 1]}``, while ``c2``'s Toffsets are
+    ``{i: [1, 1], j: [0, 1]}``. Then, ``c2`` is translated w.r.t. ``c1`` by
+    ``(1, 0)``, and True is returned.
+    """
+    assert len(c1.offsets) == len(c2.offsets)
+
+    # Transpose `offsets` so that
+    # offsets = [{x: 2, y: 0}, {x: 1, y: 3}] => {x: [2, 1], y: [0, 3]}
+    Toffsets1 = LabeledVector.transpose(*c1.offsets)
+    Toffsets2 = LabeledVector.transpose(*c2.offsets)
+
+    return all(len(set(i - j)) == 1 for (_, i), (_, j) in zip(Toffsets1, Toffsets2))
+
+
+def calculate_COM(group):
+    """
+    Determine a centre of mass (COM) for a group of definitely aliasing expressions,
+    which is a set of bases spanning all iteration vectors.
+
+    Return the COM as well as the vector distance of each aliasing expression from
+    the COM.
+    """
+    # Find the COM
+    COM = []
+    for ofs in zip(*[i.offsets for i in group]):
+        Tofs = LabeledVector.transpose(*ofs)
+        entries = []
+        for k, v in Tofs:
+            try:
+                entries.append((k, int(np.mean(v, dtype=int))))
+            except TypeError:
+                # At least an element in `v` has symbolic components. Even though
+                # `analyze` guarantees that no accesses can be irregular, a symbol
+                # might still be present as long as it's constant (i.e., known to
+                # be never written to). For example: `A[t, x_m + 2, y, z]`
+                # At this point, the only chance we have is that the symbolic entry
+                # is identical across all elements in `v`
+                if len(set(v)) == 1:
+                    entries.append((k, v[0]))
+                else:
+                    raise ValueError
+        COM.append(LabeledVector(entries))
+
+    # Calculate the distance from the COM
+    distances = []
+    for i in group:
+        assert len(COM) == len(i.offsets)
+        distance = [o.distance(c) for o, c in zip(i.offsets, COM)]
+        distance = [(l, set(i)) for l, i in LabeledVector.transpose(*distance)]
+        # The distance of each Indexed from the COM must be uniform across all Indexeds
+        if any(len(i) != 1 for l, i in distance):
+            raise ValueError
+        distances.append(LabeledVector([(l, i.pop()) for l, i in distance]))
+
+    return COM, distances
+
+
+class Aliases(OrderedDict):
+
+    def get(self, key):
+        ret = super(Aliases, self).get(key)
+        if ret is not None:
+            return ret.aliased
+        for v in self.values():
+            if key in v.aliased:
+                return v.aliased
+        return []
+
+
 class Alias(object):
 
     """
     Map an expression (the so called "alias") to a set of aliasing expressions.
-    For each aliasing expression, the distance from the alias along each dimension
+    For each aliasing expression, the distance from the Alias along each Dimension
     is tracked.
     """
 
-    def __init__(self, alias, dimensions, aliased=None, distances=None,
-                 ghost_offsets=None):
+    def __init__(self, alias, aliased=None, distances=None, ghost_offsets=None):
         self.alias = alias
-        self.dimensions = tuple(i.parent if i.is_Derived else i for i in dimensions)
-
         self.aliased = aliased or []
         self.distances = distances or []
-        self._ghost_offsets = ghost_offsets or []
+        self.ghost_offsets = ghost_offsets or Stencil()
 
         assert len(self.aliased) == len(self.distances)
-        assert all(len(i) == len(dimensions) for i in self.distances)
+
+        # Transposed distances
+        self.Tdistances = LabeledVector.transpose(*distances)
+
+    @property
+    def dimensions(self):
+        return tuple(i for i, _ in self.Tdistances)
 
     @property
     def anti_stencil(self):
-        handle = Stencil()
-        for d, i in zip(self.dimensions, zip(*self.distances)):
-            handle[d].update(set(i))
-        for d, i in zip(self.dimensions, zip(*self._ghost_offsets)):
-            handle[d].update(set(i))
-        return handle
-
-    @property
-    def distance_map(self):
-        return [tuple(zip(self.dimensions, i)) for i in self.distances]
+        ret = Stencil()
+        for k, v in self.Tdistances:
+            ret[k].update(set(v))
+        for k, v in self.ghost_offsets.items():
+            ret[k].update(v)
+        return ret
 
     @property
     def diameter(self):
-        """Return a map telling the min/max offsets in each dimension for this alias."""
-        return OrderedDict((d, (min(i), max(i)))
-                           for d, i in zip(self.dimensions, zip(*self.distances)))
+        """
+        The min/max distance along each Dimension for this Alias.
+        """
+        return OrderedDict((k, (min(v), max(v))) for k, v in self.Tdistances)
 
     @property
     def relaxed_diameter(self):
-        """Return a map telling the min/max offsets in each dimension for this alias.
+        """
+        Return a map telling the min/max offsets in each Dimension for this Alias.
         The extremes are potentially larger than those provided by ``self.diameter``,
-        as here we're also taking into account any ghost offsets provided at Alias
-        construction time.."""
+        as here we're also taking into account the ghost offsets.
+        """
         return OrderedDict((k, (min(v), max(v))) for k, v in self.anti_stencil.items())
 
     @property
     def with_distance(self):
         """Return a tuple associating each aliased expression with its distance from
         ``self.alias``."""
-        return tuple(zip(self.aliased, self.distance_map))
+        return tuple(zip(self.aliased, self.distances))
 
-    def extend(self, aliased, distances):
-        assert len(aliased) == len(distances)
-        assert all(len(i) == len(self.dimensions) for i in distances)
-        self.aliased.extend(aliased)
-        self.distances.extend(distances)
+    def add(self, aliased, distance):
+        aliased = self.aliased + [aliased]
+        distances = self.distances + [distance]
+        return Alias(self.alias, aliased, distances, self.ghost_offsets)
 
-    def relax(self, distances):
-        return Alias(self.alias, self.dimensions, self.aliased, self.distances,
-                     self._ghost_offsets + list(itertools.product(*distances.values())))
+    def relax(self, stencil):
+        ghost_offsets = stencil.add(self.ghost_offsets)
+        return Alias(self.alias, self.aliased, self.distances, ghost_offsets)

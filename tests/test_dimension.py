@@ -8,6 +8,7 @@ from conftest import skipif
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
                     Eq, Operator, Constant, SubDimension, switchconfig)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
+from devito.types import Array
 
 
 @skipif('ops')
@@ -87,6 +88,24 @@ class TestSubDimension(object):
         assert np.all(u.data[1, 0, :, :] == 1)
         assert np.all(u.data[1, -1, :, :] == 1)
         assert np.all(u.data[1, 1:3, :, :] == 2)
+
+    @skipif('yask')
+    def test_symbolic_size(self):
+        """Check the symbolic size of all possible SubDimensions is as expected."""
+        grid = Grid(shape=(4,))
+        x, = grid.dimensions
+        thickness = 4
+
+        xleft = SubDimension.left(name='xleft', parent=x, thickness=thickness)
+        assert xleft.symbolic_size == xleft.thickness.left[0]
+
+        xi = SubDimension.middle(name='xi', parent=x,
+                                 thickness_left=thickness, thickness_right=thickness)
+        assert xi.symbolic_size == (x.symbolic_max - x.symbolic_min -
+                                    xi.thickness.left[0] - xi.thickness.right[0] + 1)
+
+        xright = SubDimension.right(name='xright', parent=x, thickness=thickness)
+        assert xright.symbolic_size == xright.thickness.right[0]
 
     def test_bcs(self):
         """
@@ -411,6 +430,27 @@ class TestSubDimension(object):
         assert np.all(u.data[1, 0, :] == 2.)
         assert np.all(u.data[1, 1:18, 1:18] == 0.)
 
+    @skipif('yask')
+    def test_arrays_defined_over_subdims(self):
+        """
+        Check code generation when an Array uses a SubDimension.
+        """
+        grid = Grid(shape=(3,))
+        x, = grid.dimensions
+        xi, = grid.interior.dimensions
+
+        f = Function(name='f', grid=grid)
+        a = Array(name='a', dimensions=(xi,), dtype=grid.dtype)
+        op = Operator([Eq(a[xi], 1), Eq(f, f + a[xi + 1], subdomain=grid.interior)],
+                      dle=('advanced', {'openmp': False}))
+        assert len(op.parameters) == 6
+        # neither `x_size` nor `xi_size` are expected here
+        assert not any(i.name in ('x_size', 'xi_size') for i in op.parameters)
+        # Try running it -- regardless of what it will produce, this should run
+        # ie, this checks this error isn't raised:
+        # "ValueError: No value found for parameter xi_size"
+        op()
+
 
 @skipif(['yask', 'ops'])
 class TestConditionalDimension(object):
@@ -680,3 +720,28 @@ class TestConditionalDimension(object):
         assert np.all(f.data[0, -1] == 0.)
         assert np.all(f.data[0, :, 0] == 0.)
         assert np.all(f.data[0, :, -1] == 0.)
+
+    def test_symbolic_factor(self):
+        """
+        Test ConditionalDimension with symbolic factor (provided as a Constant).
+        """
+        g = Grid(shape=(4, 4, 4))
+
+        u = TimeFunction(name='u', grid=g, time_order=0)
+
+        fact = Constant(name='fact', dtype=np.int32, value=4)
+        tsub = ConditionalDimension(name='tsub', parent=g.time_dim, factor=fact)
+        usave = TimeFunction(name='usave', grid=g, time_dim=tsub, save=4)
+
+        op = Operator([Eq(u, u + 1), Eq(usave, u)])
+
+        op.apply(time=7)  # Use `fact`'s default value, 4
+        assert np.all(usave.data[0] == 1)
+        assert np.all(usave.data[1] == 5)
+
+        u.data[:] = 0.
+        op.apply(time=7, fact=2)
+        assert np.all(usave.data[0] == 1)
+        assert np.all(usave.data[1] == 3)
+        assert np.all(usave.data[2] == 5)
+        assert np.all(usave.data[3] == 7)

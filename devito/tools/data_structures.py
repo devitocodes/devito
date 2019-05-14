@@ -42,10 +42,19 @@ class EnrichedTuple(tuple):
 
 class ReducerMap(MultiDict):
     """
-    Specialised :class:`MultiDict` object that maps a single key to a
+    Specialised MultiDict object that maps a single key to a
     list of potential values and provides a reduction method for
     retrieval.
     """
+
+    @classmethod
+    def fromdicts(cls, *dicts):
+        ret = ReducerMap()
+        for i in dicts:
+            if not isinstance(i, Mapping):
+                raise ValueError("Expected Mapping, got `%s`" % type(i))
+            ret.update(i)
+        return ret
 
     def update(self, values):
         """
