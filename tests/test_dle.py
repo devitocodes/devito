@@ -73,7 +73,7 @@ def _new_operator2(shape, time_order, blockshape=None, dle=None):
 
 def _new_operator3(shape, blockshape=None, dle=None):
     blockshape = as_tuple(blockshape)
-    grid = Grid(shape=shape)
+    grid = Grid(shape=shape, dtype=np.float64)
     spacing = 0.1
     a = 0.5
     c = 0.5
@@ -238,7 +238,7 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
     w_blocking, b = _new_operator3(shape, blockshape, dle=('blocking',
                                                            {'blockinner': True}))
 
-    assert np.allclose(wo_blocking.data, w_blocking.data, rtol=1e-8)
+    assert np.allclose(wo_blocking, w_blocking, rtol=1e-12)
 
 
 class TestNodeParallelism(object):
