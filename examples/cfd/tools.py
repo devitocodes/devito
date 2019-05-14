@@ -5,7 +5,7 @@ from matplotlib import pyplot, cm
 
 
 def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
-    view=None, linewidth=0):
+        view=None, linewidth=0):
     """Utility plotting routine for 2D data
 
     :param field: Numpy array with field data to plot
