@@ -23,10 +23,6 @@ def plot_perturbation(model, model1, colorbar=True):
         object of first velocity model.
     model1 : Model
         object of the second velocity model.
-    source :
-        Coordinates of the source point.
-    receiver :
-        Coordinates of the receiver points.
     """
     domain_size = 1.e-3 * np.array(model.domain_size)
     extent = [model.origin[0], model.origin[0] + domain_size[0],
@@ -58,9 +54,9 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
     ----------
     model : Model
         object that holds the velocity model.
-    source :
+    source : array_like or float
         Coordinates of the source point.
-    receiver :
+    receiver : array_like or float
         Coordinates of the receiver points.
     """
     domain_size = 1.e-3 * np.array(model.domain_size)

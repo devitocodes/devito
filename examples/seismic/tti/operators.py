@@ -347,8 +347,9 @@ def ForwardOperator(model, geometry, space_order=4,
     ----------
     model : Model
         Object containing the physical parameters.
-    src : AcquisitionGeometry
-        The time series data for the injected source term.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SpareTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
     data : ndarray
         IShot() object containing the acquisition geometry and field data.
     time_order : int

@@ -14,10 +14,9 @@ class ElasticWaveSolver(object):
     ----------
     model : Model
         Physical model with domain parameters.
-    source : AcquisitionGeometry
-        Sparse point symbol providing the injected wave.
-    receiver : AcquisitionGeometry
-        Sparse point symbol describing an array of receivers.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SpareTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
 
@@ -50,12 +49,10 @@ class ElasticWaveSolver(object):
 
         Parameters
         ----------
-        src : AcquisitionGeometry, optional
-            The time series data for the injected source term.
-        rec1 : AcquisitionGeometry, optional
-            Interpolated (txx) receiver data.
-        rec2 : AcquisitionGeometry, optional
-            Interpolated (tzz) receiver data.
+        geometry : AcquisitionGeometry
+            Geometry object that contains the source (src : SpareTimeFunction) and
+            receivers (rec1(txx) : SparseTimeFunction, rec2(tzz) : SparseTimeFunction)
+            and their position.
         vx : TimeFunction, optional
             The computed horizontal particle velocity.
         vz : TimeFunction, optional

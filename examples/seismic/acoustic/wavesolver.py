@@ -18,10 +18,9 @@ class AcousticWaveSolver(object):
     ----------
     model : Model
         Physical model with domain parameters.
-    source : AcquisitionGeometry
-        The injected wave.
-    receiver : AcquisitionGeometry
-        An array of receivers.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SpareTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
     time_order : int, optional
         Order of the time-stepping scheme (default: 2, choices: 2,4)
         time_order=4 will not implement a 4th order FD discretization
@@ -127,12 +126,12 @@ class AcousticWaveSolver(object):
 
         Parameters
         ----------
-        rec :
+        rec : SparseTimeFunction or array-like
             The receiver data. Please note that
             these act as the source term in the adjoint run.
-        srca :
-            The resulting data for the
-            interpolated at the original source location.
+        srca : SparseTimeFunction or array-like
+            The resulting data for the interpolated at the
+            original source location.
         v: TimeFunction, optional
             The computed wavefield.
         m : float, optional

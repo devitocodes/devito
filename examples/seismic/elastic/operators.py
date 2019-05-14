@@ -178,10 +178,9 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     ----------
     model : Model
         Object containing the physical parameters.
-    source : AcquisitionGeometry
-        Object containing the source geometry.
-    receiver : AcquisitionGeometry
-        Object containing the acquisition geometry.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SpareTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.
     save : int or Buffer

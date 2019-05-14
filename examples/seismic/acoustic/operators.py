@@ -150,7 +150,7 @@ def AdjointOperator(model, geometry, space_order=4,
 def GradientOperator(model, geometry, space_order=4, save=True,
                      kernel='OT2', **kwargs):
     """
-    Construct an gradient operator in an acoustic media.
+    Construct a gradient operator in an acoustic media.
 
     Parameters
     ----------
@@ -163,7 +163,7 @@ def GradientOperator(model, geometry, space_order=4, save=True,
         Space discretization order.
     save : int or Buffer, optional
         Option to store the entire (unrolled) wavefield.
-    kernel : OT2 or 0T4
+    kernel : str, optional
         Type of discretization, centered or shifted.
     """
     m, damp = model.m, model.damp
@@ -206,7 +206,7 @@ def BornOperator(model, geometry, space_order=4,
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.
-    kernel : OT2 or OT4
+    kernel : str, optional
         Type of discretization, centered or shifted.
     """
     m, damp = model.m, model.damp

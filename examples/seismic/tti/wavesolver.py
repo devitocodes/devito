@@ -15,10 +15,9 @@ class AnisotropicWaveSolver(object):
     ----------
     model : Model
         Physical model with domain parameters.
-    source : AcquisitionGeometry
-        The injected wave.
-    receiver : AcquisitionGeometry
-        An array of receivers.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SpareTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
     time_order : int, optional
         Order of the time-stepping scheme. Defaults to 2.
     space_order : int, optional
@@ -54,10 +53,9 @@ class AnisotropicWaveSolver(object):
 
         Parameters
         ----------
-        src : AcquisitionGeometry
-            Time series data for the injected source term.
-        rec : AcquisitionGeometry
-            The interpolated receiver data (u+v).
+        geometry : AcquisitionGeometry
+            Geometry object that contains the source (SpareTimeFunction) and
+            receivers (SparseTimeFunction) and their position.
         u : TimeFunction, optional
             The computed wavefield first component.
         v : TimeFunction, optional
