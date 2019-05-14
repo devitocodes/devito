@@ -5,7 +5,8 @@ from unittest.mock import patch
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
-                    Eq, Inc, NODE, Operator, norm, inner, configuration, switchconfig)
+                    Eq, Inc, NODE, Operator, norm, inner, configuration, switchconfig,
+                    generic_derivative)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
 from devito.mpi import MPI
@@ -1362,6 +1363,31 @@ class TestOperatorAdvanced(object):
         op.apply(time=0)
 
         assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
+
+    @pytest.mark.parallel(mode=4)
+    def test_haloupdate_multi_op(self):
+        """
+        Test that halo updates are carried out correctly when multiple operators
+        are applied consecutively.
+        """
+        a = np.arange(64).reshape((8, 8))
+        grid = Grid(shape=a.shape, extent=(8, 8))
+
+        so = 3
+        dims = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=so)
+        f.data[:] = a
+
+        fo = Function(name='fo', grid=grid, space_order=so)
+
+        for d in dims:
+            rhs = generic_derivative(f, d, so, 1)
+            expr = Eq(fo, rhs)
+            op = Operator(expr)
+            op.apply()
+            f.data[:, :] = fo.data[:, :]
+
+        assert (np.isclose(norm(f), 17.24904, atol=1e-4, rtol=0))
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2', True)])
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)

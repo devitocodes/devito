@@ -993,6 +993,37 @@ class TestDataDistributed(object):
                                                [0, 0, 0, 0]])
 
     @pytest.mark.parallel(mode=4)
+    def test_neg_start_stop(self):
+        grid0 = Grid(shape=(8, 8))
+        f = Function(name='f', grid=grid0, space_order=0, dtype=np.int32)
+        dat = np.arange(64, dtype=np.int32)
+        a = dat.reshape(grid0.shape)
+        f.data[:] = a
+
+        grid1 = Grid(shape=(12, 12))
+        x, y = grid1.dimensions
+        glb_pos_map = grid1.distributor.glb_pos_map
+        h = Function(name='h', grid=grid1, space_order=0, dtype=np.int32)
+
+        slices = (slice(-3, -1, 1), slice(-1, -5, -1))
+
+        h.data[8:10, 0:4] = f.data[slices]
+
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.count_nonzero(h.data[:]) == 0
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.count_nonzero(h.data[:]) == 0
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(np.array(h.data) == [[0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [47, 46, 45, 44, 0, 0],
+                                               [55, 54, 53, 52, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0]])
+        else:
+            assert np.count_nonzero(h.data[:]) == 0
+
+    @pytest.mark.parallel(mode=4)
     def test_indexing_in_views(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
