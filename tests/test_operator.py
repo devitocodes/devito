@@ -997,7 +997,9 @@ class TestDeclarator(object):
     def test_heap_perfect_2D_stencil(self, a, c):
         operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle=None)
         assert """\
+  float (*a);
   float (*c)[j_size];
+  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
@@ -1006,14 +1008,15 @@ class TestDeclarator(object):
   {
     for (int j = j_m; j <= j_M; j += 1)
     {
-      float sa0 = c[i][j];
-      c[i][j] = sa0*c[i][j];
+      a[i] = c[i][j];
+      c[i][j] = a[i]*c[i][j];
     }
   }
   /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
+  free(a);
   free(c);
   return 0;""" in str(operator.ccode)
 
