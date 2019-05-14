@@ -4,7 +4,6 @@ from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
                                force_directions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
 from devito.symbolics import CondEq, xreplace_indices
-from devito.tools import flatten
 from devito.types import Scalar
 
 __all__ = ['clusterize', 'groupby']
@@ -36,7 +35,6 @@ def groupby(clusters):
 
             # Collect anti-dependences preventing grouping
             anti = scope.d_anti.carried() - scope.d_anti.increment
-            funcs = set(anti.functions)
 
             # Collect flow-dependences breaking the search
             flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.increment)
@@ -44,7 +42,7 @@ def groupby(clusters):
             # Can we group `c` with `candidate`?
             test0 = not candidate.guards  # No intervening guards
             test1 = candidate.ispace.is_compatible(c.ispace)  # Compatible ispaces
-            test2 = all(is_local(i, candidate, c, clusters) for i in funcs)  # No antideps
+            test2 = all(i in candidate.locals for i in anti.functions)  # No antideps
             if test0 and test1 and test2:
                 # Yes, `c` can be grouped with `candidate`. All anti-dependences
                 # (if any) can be eliminated through "index bumping and array
@@ -52,11 +50,12 @@ def groupby(clusters):
 
                 # Optimization: we also bump-and-contract the Arrays inducing
                 # non-carried dependences, to minimize the working set
-                funcs.update({i.function for i in scope.d_flow.independent()
-                              if is_local(i.function, candidate, c, clusters)})
+                targets = set(anti.functions)
+                targets.update({i.function for i in scope.d_flow.independent()
+                                if i.function in candidate.locals})
 
-                bump_and_contract(funcs, candidate, c)
-                candidate.squash(c)
+                bump_and_contract(targets, candidate, c)
+                candidate.merge(c)
                 fused = True
                 break
             elif anti:
@@ -108,47 +107,6 @@ def guard(clusters):
             processed.append(PartialCluster(free, c.ispace, c.dspace, c.atomics))
 
     return processed
-
-
-def is_local(array, source, sink, context):
-    """
-    Return True if ``array`` satisfies the following conditions: ::
-
-        * it's a temporary; that is, of type Array;
-        * it's written once, within the ``source`` PartialCluster, and
-          its value only depends on global data;
-        * it's read in the ``sink`` PartialCluster only; in particular,
-          it doesn't appear in any other PartialClusters out of those
-          provided in ``context``.
-
-    If any of these conditions do not hold, return False.
-    """
-    if not array.is_Array:
-        return False
-
-    # Written in source
-    written_once = False
-    for i in source.flowgraph.values():
-        if array == i.function:
-            if written_once is True:
-                # Written more than once, break
-                written_once = False
-                break
-            reads = [j.function for j in i.reads]
-            if any(j.is_DiscreteFunction or j.is_Scalar for j in reads):
-                # Can't guarantee its value only depends on local data
-                written_once = False
-                break
-            written_once = True
-    if written_once is False:
-        return False
-
-    # Never read outside of sink
-    context = [i for i in context if i not in [source, sink]]
-    if array in flatten(i.unknown for i in context):
-        return False
-
-    return True
 
 
 def bump_and_contract(targets, source, sink):
@@ -225,11 +183,11 @@ def bump_and_contract(targets, source, sink):
                 handle = e.func(scalar, e.rhs.xreplace(mapper))
                 handle = xreplace_indices(handle, shifting)
                 processed.append(handle)
-    source.exprs = processed
+    source._exprs = processed
 
     # Sink
     processed = [e.func(e.lhs, e.rhs.xreplace(mapper)) for e in sink.exprs]
-    sink.exprs = processed
+    sink._exprs = processed
 
 
 def clusterize(exprs):

@@ -164,16 +164,6 @@ class FlowGraph(OrderedDict):
         return FlowGraph(islice(list(self.items()), start, stop))
 
     @cached_property
-    def unknown(self):
-        """
-        Return all symbols appearing in self for which a node is not available.
-        """
-        known = {v.function for v in self.values()}
-        reads = set([i.function for i in
-                     flatten(retrieve_terminals(v.rhs) for v in self.values())])
-        return reads - known
-
-    @cached_property
     def tensors(self):
         """
         Return all occurrences of the tensors in ``self`` keyed by function.

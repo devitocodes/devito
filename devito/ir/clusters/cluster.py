@@ -29,18 +29,22 @@ class PartialCluster(object):
         The cluster data space.
     atomics : list, optional
         Dimensions inducing a data dependence with other PartialClusters.
-    guards : dict
+    guards : dict, optional
         Mapper from Dimensions to expr-like, representing the conditions under
         which the PartialCluster should be computed.
+    local : list, optional
+        Write-once/read-once Arrays. The write is performed by this PartialCluster,
+        while the read by another PartialCluster.
     """
 
-    def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
+    def __init__(self, exprs, ispace, dspace, atomics=None, guards=None, local=None):
         self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
                            for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = set(atomics or [])
         self._guards = guards or {}
+        self._locals = set(local or [])
 
     @property
     def exprs(self):
@@ -79,16 +83,17 @@ class PartialCluster(object):
         return self._guards
 
     @property
+    def locals(self):
+        return self._locals
+
+    @property
     def args(self):
-        return (self.exprs, self.ispace, self.dspace, self.atomics, self.guards)
+        return (self.exprs, self.ispace, self.dspace, self.atomics, self.guards,
+                self.locals)
 
     @property
     def flowgraph(self):
         return FlowGraph(self.exprs)
-
-    @property
-    def unknown(self):
-        return self.flowgraph.unknown
 
     @property
     def tensors(self):
@@ -148,44 +153,37 @@ class PartialCluster(object):
                 ret[(i, mode)] = self.ispace.intervals
         return ret
 
-    @exprs.setter
-    def exprs(self, val):
-        self._exprs = val
-
-    @ispace.setter
-    def ispace(self, val):
-        self._ispace = val
-
-    @dspace.setter
-    def dspace(self, val):
-        self._dspace = val
-
-    def squash(self, other):
+    def merge(self, other):
         """
         Concatenate the expressions in ``other`` to those in ``self``.
         ``self`` and ``other`` must have same ``ispace``. Duplicate expressions
-        are dropped. The DataSpace is updated accordingly.
+        are dropped. The DataSpace as well as the other metadata are updated
+        accordingly.
         """
         assert self.ispace.is_compatible(other.ispace)
-        self.exprs.extend([i for i in other.exprs
-                           if i not in self.exprs or i.is_Increment])
-        self.dspace = DataSpace.merge(self.dspace, other.dspace)
-        self.ispace = IterationSpace.merge(self.ispace, other.ispace)
+        self._exprs.extend([i for i in other.exprs
+                            if i not in self.exprs or i.is_Increment])
+        self._ispace = IterationSpace.merge(self.ispace, other.ispace)
+        self._dspace = DataSpace.merge(self.dspace, other.dspace)
+        self._atomics.update(other.atomics)
+        self._guards.update(other.guards)
+        self._locals.update(other.locals)
 
 
 class Cluster(PartialCluster):
 
     """A Cluster is an immutable PartialCluster."""
 
-    def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
+    def __init__(self, exprs, ispace, dspace, atomics=None, guards=None, local=None):
         self._exprs = exprs
         # Keep expressions ordered based on information flow
         self._exprs = tuple(ClusterizedEq(v, ispace=ispace, dspace=dspace)
                             for v in self.flowgraph.values())
         self._ispace = ispace
         self._dspace = dspace
-        self._atomics = frozenset(atomics or ())
+        self._atomics = frozenset(atomics or [])
         self._guards = frozendict(guards or {})
+        self._locals = frozenset(local or [])
 
     @cached_property
     def flowgraph(self):
@@ -208,19 +206,8 @@ class Cluster(PartialCluster):
         Build a new Cluster with expressions ``exprs`` having same iteration
         space and atomics as ``self``.
         """
-        return Cluster(exprs, self.ispace, self.dspace, self.atomics, self.guards)
-
-    @PartialCluster.exprs.setter
-    def exprs(self, val):
-        raise AttributeError
-
-    @PartialCluster.ispace.setter
-    def ispace(self, val):
-        raise AttributeError
-
-    @PartialCluster.dspace.setter
-    def dspace(self, val):
-        raise AttributeError
+        return Cluster(exprs, self.ispace, self.dspace, self.atomics,
+                       self.guards, self.locals)
 
     def squash(self, other):
         raise AttributeError
