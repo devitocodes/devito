@@ -202,7 +202,8 @@ def optimize_unfolded_tree(unfolded, root):
 
         # Substitute iteration variables within the folded trees
         modified_tree = compose_nodes(modified_tree)
-        replaced = xreplace_indices([j.expr for j in exprs], mapper, only_rhs=True)
+        replaced = xreplace_indices([j.expr for j in exprs], mapper,
+                                    lambda i: i.function not in writes, True)
         subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
         processed.append(Transformer(dict(zip(exprs, subs))).visit(modified_tree))
 
