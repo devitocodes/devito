@@ -24,8 +24,8 @@ def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
     # Enforce axis measures and set view if given
     ax.set_xlim(xmin, xmax)
     ax.set_ylim(ymin, ymax)
-    if zmax is not None:
-        ax.set_zlim(np.min(field), zmax)
+    if zmax is not None or zmin is not None:
+        ax.set_zlim(zmin or np.min(field), zmax or np.max(field))
     if view is not None:
         ax.view_init(*view)
 
