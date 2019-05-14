@@ -1363,8 +1363,9 @@ class TestLoopScheduler(object):
         op2(time=10)
 
         for i in range(10):
-            assert(np.allclose(b2.data[i, ...].reshape(-1) -
-                               b.data[..., i].reshape(-1), 0.))
+            assert(np.allclose(b2.data[i, ...].reshape(-1),
+                               b.data[..., i].reshape(-1),
+                               rtol=1e-12))
 
     def test_equations_mixed_timedim_stepdim(self):
         """"

@@ -238,7 +238,7 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
     w_blocking, b = _new_operator3(shape, blockshape, dle=('blocking',
                                                            {'blockinner': True}))
 
-    assert np.equal(wo_blocking.data, w_blocking.data).all()
+    assert np.allclose(wo_blocking.data, w_blocking.data, rtol=1e-8)
 
 
 class TestNodeParallelism(object):
