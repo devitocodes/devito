@@ -67,6 +67,14 @@ def groupby(clusters):
                 # We cannot even attempt fusing with earlier Clusters, as
                 # otherwise the carried flow dependences wouldn't be honored
                 break
+            elif c.locals:
+                # Optimization: since the Cluster contains local Arrays (i.e.,
+                # write-once/read-once Arrays), it might be convenient *not* to
+                # attempt fusion with earlier Clusters: local Arrays often
+                # store aliasing expressions (captured by the DSE), which are
+                # prone to cross-loop blocking by the DLE, and we do not want to
+                # break this optimization opportunity
+                break
             elif set(candidate.guards) & set(c.dimensions):
                 # Like above, we can't attempt fusion with earlier Clusters.
                 # This time because there are intervening conditionals along
