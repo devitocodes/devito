@@ -2,10 +2,10 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa
 
 import numpy as np
 from matplotlib import pyplot, cm
-
+from devito.logger import warning
 
 def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
-        view=None, linewidth=0):
+                view=None, linewidth=0):
     """Utility plotting routine for 2D data
 
     :param field: Numpy array with field data to plot
@@ -13,6 +13,17 @@ def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
     :param ymax: (Optional) Length of the y-axis
     :param view: (Optional) View point to intialise
     """
+    if xmin > xmax or ymin > ymax :
+        raise ValueError("Dimension min cannot be larger than dimension max.")
+    if (zmin is not None and zmax is not None) :
+        if zmin > zmax :
+            raise ValueError("Dimension min cannot be larger than dimension max.")
+    elif(zmin is None and zmax is not None) :
+        if np.min(field) >= zmax :
+            warning("zmax is less than field's minima. Figure deceptive.")
+    elif(zmin is not None and zmax is None) :
+        if np.max(field) <= zmin :
+            warning("zmin is larger than field's maxima. Figure deceptive.")
     x_coord = np.linspace(xmin, xmax, field.shape[0])
     y_coord = np.linspace(ymin, ymax, field.shape[1])
     fig = pyplot.figure(figsize=(11, 7), dpi=100)
@@ -24,8 +35,12 @@ def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
     # Enforce axis measures and set view if given
     ax.set_xlim(xmin, xmax)
     ax.set_ylim(ymin, ymax)
-    if zmax is not None or zmin is not None:
-        ax.set_zlim(zmin or np.min(field), zmax or np.max(field))
+    if zmin is None:
+        zmin = np.min(field)
+    if zmax is None:
+        zmax = np.max(field)
+    ax.set_zlim(zmin, zmax)
+
     if view is not None:
         ax.view_init(*view)
 
