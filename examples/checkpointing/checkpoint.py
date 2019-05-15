@@ -64,7 +64,7 @@ class DevitoCheckpoint(Checkpoint):
         return self._dtype
 
     def get_data(self, timestep):
-        data = flatten([self.get_symbol_data(s, timestep) for s in self.objects])
+        data = flatten([get_symbol_data(s, timestep) for s in self.objects])
         return data
 
     def get_data_location(self, timestep):
@@ -73,7 +73,7 @@ class DevitoCheckpoint(Checkpoint):
     @property
     def size(self):
         """The memory consumption of the data contained in a checkpoint."""
-        return sum([o.size for o in self.objects])
+        return sum([o.size*o.time_order for o in self.objects])
 
     def save(*args):
         raise RuntimeError("Invalid method called. Did you check your version" +
@@ -84,10 +84,10 @@ class DevitoCheckpoint(Checkpoint):
                            " of pyrevolve?")
 
 
-def get_symbol_data(self, symbol, timestep):
+def get_symbol_data(symbol, timestep):
     timestep += symbol.time_order - 1
     ptrs = []
     for i in range(symbol.time_order):
-        ptr = symbol._data[timestep - i, :, :]
+        ptr = symbol.data[timestep - i, :, :]
         ptrs.append(ptr)
     return ptrs
