@@ -78,6 +78,7 @@ class Derivative(sympy.Derivative, Differentiable):
         if type(expr) == sympy.Derivative:
             raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
         if not isinstance(expr, Differentiable):
+            print(expr, type(expr))
             raise ValueError("`expr` must be a Differentiable object")
 
         # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
@@ -130,7 +131,7 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._fd_order = fd_orders
         obj._deriv_order = orders
         obj._side = kwargs.get("side", centered)
-        obj._stagger = kwargs.get("stagger", left)
+        obj._stagger = kwargs.get("stagger", tuple([left]*len(obj._dims)))
         obj._transpose = kwargs.get("transpose", direct)
 
         return obj

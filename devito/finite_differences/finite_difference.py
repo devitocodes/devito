@@ -1,7 +1,7 @@
 from sympy import finite_diff_weights
 
-from devito.finite_differences.tools import (form_side, symbolic_weights, generate_indices,
-                                             left, right, centered, check_input,
+from devito.finite_differences.tools import (form_side, symbolic_weights, left, right,
+                                             generate_indices, centered, check_input,
                                              check_symbolic, direct, transpose)
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',

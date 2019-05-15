@@ -86,10 +86,12 @@ def dim_with_order(dims, orders):
     all_comb = [c for c in all_comb if all(c[k] <= orders[k] for k in range(ndim))]
     return all_comb
 
+
 def deriv_name(dims, orders):
     name = []
     for d, o in zip(dims, orders):
-        name.append('d%s%s' % (d.name, o) if o > 1 else 'd%s' % d.name)
+        name_dim = 't' if d.is_Time else d.root.name
+        name.append('d%s%s' % (name_dim, o) if o > 1 else 'd%s' % name_dim)
 
     return ''.join(name)
 
@@ -118,8 +120,8 @@ def generate_fd_shortcuts(function):
 
     # All conventiona fd shortcuts
     for o in all_combs:
-        fd_dims = tuple(d for d, o_d in zip(dimensions, o) if o_d>0)
-        d_orders = tuple(o_d for d, o_d in zip(dimensions, o) if o_d>0 )
+        fd_dims = tuple(d for d, o_d in zip(dimensions, o) if o_d > 0)
+        d_orders = tuple(o_d for d, o_d in zip(dimensions, o) if o_d > 0)
         fd_orders = tuple(t_fd_order if d.is_Time else s_fd_order for d in fd_dims)
 
         deriv = partial(deriv_function, deriv_order=d_orders, dims=fd_dims,
