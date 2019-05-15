@@ -4,8 +4,7 @@ from itertools import islice
 from cached_property import cached_property
 
 from devito.ir.equations import ClusterizedEq
-from devito.symbolics import (as_symbol, retrieve_indexed, retrieve_terminals,
-                              q_timedimension)
+from devito.symbolics import (as_symbol, retrieve_terminals, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten
 from devito.types import Dimension, Symbol
 
@@ -162,21 +161,6 @@ class FlowGraph(OrderedDict):
         except ValueError:
             stop = None
         return FlowGraph(islice(list(self.items()), start, stop))
-
-    @cached_property
-    def tensors(self):
-        """
-        Return all occurrences of the tensors in ``self`` keyed by function.
-        """
-        mapper = {}
-        for v in self.values():
-            handle = retrieve_indexed(v)
-            for i in handle:
-                found = mapper.setdefault(i.function, [])
-                if i not in found:
-                    # Not using sets to preserve order
-                    found.append(i)
-        return mapper
 
 
 def makeit_ssa(exprs):

@@ -3,8 +3,7 @@ import sympy
 from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
                                force_directions)
 from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
-from devito.symbolics import CondEq, xreplace_indices
-from devito.types import Scalar
+from devito.symbolics import CondEq
 
 __all__ = ['clusterize', 'groupby']
 
@@ -40,21 +39,10 @@ def groupby(clusters):
             flow = scope.d_flow - (scope.d_flow.inplace() + scope.d_flow.increment)
 
             # Can we group `c` with `candidate`?
-            test0 = not candidate.guards  # No intervening guards
-            test1 = candidate.ispace.is_compatible(c.ispace)  # Compatible ispaces
-            test2 = all(i in candidate.locals for i in anti.functions)  # No antideps
-            if test0 and test1 and test2:
-                # Yes, `c` can be grouped with `candidate`. All anti-dependences
-                # (if any) can be eliminated through "index bumping and array
-                # contraction", which turns Array temporaries into Scalar temporaries
-
-                # Optimization: we also bump-and-contract the Arrays inducing
-                # non-carried dependences, to minimize the working set
-                targets = set(anti.functions)
-                targets.update({i.function for i in scope.d_flow.independent()
-                                if i.function in candidate.locals})
-
-                bump_and_contract(targets, candidate, c)
+            if (candidate.ispace.is_compatible(c.ispace) and
+                not anti and not candidate.guards):
+                # Yes, `c` can be grouped with `candidate`: the iteration spaces
+                # are compatible, there are no anti-dependences and no conditionals
                 candidate.merge(c)
                 fused = True
                 break
@@ -67,7 +55,7 @@ def groupby(clusters):
                 # We cannot even attempt fusing with earlier Clusters, as
                 # otherwise the carried flow dependences wouldn't be honored
                 break
-            elif c.locals:
+            elif any(i.is_Array for i in c.accesses):
                 # Optimization: since the Cluster contains local Arrays (i.e.,
                 # write-once/read-once Arrays), it might be convenient *not* to
                 # attempt fusion with earlier Clusters: local Arrays often
@@ -115,87 +103,6 @@ def guard(clusters):
             processed.append(PartialCluster(free, c.ispace, c.dspace, c.atomics))
 
     return processed
-
-
-def bump_and_contract(targets, source, sink):
-    """
-    Transform in-place the PartialClusters ``source`` and ``sink`` by turning
-    the Arrays in ``targets`` into Scalars. This is implemented through index
-    bumping and array contraction.
-
-    Parameters
-    ----------
-    targets : list of Array
-        The Arrays that will be contracted.
-    source : PartialCluster
-        The PartialCluster in which the Arrays are initialized.
-    sink : PartialCluster
-        The PartialCluster that consumes (i.e., reads) the Arrays.
-
-    Examples
-    --------
-    1) Index bumping
-    Given: ::
-
-        r[x,y,z] = b[x,y,z]*2
-
-    Produce: ::
-
-        r[x,y,z] = b[x,y,z]*2
-        r[x,y,z+1] = b[x,y,z+1]*2
-
-    2) Array contraction
-    Given: ::
-
-        r[x,y,z] = b[x,y,z]*2
-        r[x,y,z+1] = b[x,y,z+1]*2
-
-    Produce: ::
-
-        tmp0 = b[x,y,z]*2
-        tmp1 = b[x,y,z+1]*2
-
-    3) Full example (bump+contraction)
-    Given: ::
-
-        source: [r[x,y,z] = b[x,y,z]*2]
-        sink: [a = ... r[x,y,z] ... r[x,y,z+1] ...]
-        targets: r
-
-    Produce: ::
-
-        source: [tmp0 = b[x,y,z]*2, tmp1 = b[x,y,z+1]*2]
-        sink: [a = ... tmp0 ... tmp1 ...]
-    """
-    if not targets:
-        return
-    mapper = {}
-
-    # Source
-    processed = []
-    for e in source.exprs:
-        function = e.lhs.function
-        if any(function not in i for i in [targets, sink.tensors]):
-            processed.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
-        else:
-            for i in sink.tensors[function]:
-                scalar = Scalar(name='s%s%d' % (i.function.name, len(mapper))).indexify()
-                mapper[i] = scalar
-
-                # Index bumping
-                assert len(function.indices) == len(e.lhs.indices) == len(i.indices)
-                shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
-                            zip(function.indices, e.lhs.indices, i.indices)}
-
-                # Array contraction
-                handle = e.func(scalar, e.rhs.xreplace(mapper))
-                handle = xreplace_indices(handle, shifting)
-                processed.append(handle)
-    source._exprs = processed
-
-    # Sink
-    processed = [e.func(e.lhs, e.rhs.xreplace(mapper)) for e in sink.exprs]
-    sink._exprs = processed
 
 
 def clusterize(exprs):
