@@ -41,7 +41,7 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
     s : float or Scalar
         The time dimension spacing.
     damp : Function
-        ABC dampening field.
+        The damping field for absorbing boundary condition.
     forward : boolean
         The propagation direction. Defaults to True.
     q : TimeFunction, Function or float
@@ -74,12 +74,13 @@ def ForwardOperator(model, geometry, space_order=4,
     model : Model
         Object containing the physical parameters.
     geometry : AcquisitionGeometry
-        Geometry object that contains the source (SpareTimeFunction) and
+        Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.
     save : int or Buffer, optional
-        Saving flag, True saves all time steps. False only the three. Defaults to False.
+        Saving flag, True saves all time steps. False saves three timesteps.
+        Defaults to False.
     """
     m, damp = model.m, model.damp
 
@@ -109,20 +110,19 @@ def ForwardOperator(model, geometry, space_order=4,
 def AdjointOperator(model, geometry, space_order=4,
                     kernel='OT2', **kwargs):
     """
-    Constructor an adjoint modelling operator in an acoustic media.
+    Construct an adjoint modelling operator in an acoustic media.
 
     Parameters
     ----------
     model : Model
         Object containing the physical parameters.
     geometry : AcquisitionGeometry
-        Geometry object that contains the source (SpareTimeFunction) and
+        Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.
-    kernel :
+    kernel : str, optional
         Type of discretization, centered or shifted.
-
     """
     m, damp = model.m, model.damp
 
@@ -157,7 +157,7 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     model : Model
         Object containing the physical parameters.
     geometry : AcquisitionGeometry
-        Geometry object that contains the source (SpareTimeFunction) and
+        Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.
@@ -202,7 +202,7 @@ def BornOperator(model, geometry, space_order=4,
     model : Model
         Object containing the physical parameters.
     geometry : AcquisitionGeometry
-        Geometry object that contains the source (SpareTimeFunction) and
+        Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.

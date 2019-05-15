@@ -33,7 +33,7 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     Parameters
     ----------
     field : Function
-        Symbolic data whose derivative we are computing.
+        Input for which the derivative is computed.
     costheta : Function or float
         Cosine of the tilt angle.
     sintheta : Function or float
@@ -77,7 +77,7 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
     Parameters
     ----------
     field : Function
-        Symbolic data whose derivative we are computing.
+        Input for which the derivative is computed.
     costheta : Function or float
         Cosine of the tilt angle.
     sintheta : Function or float
@@ -348,7 +348,7 @@ def ForwardOperator(model, geometry, space_order=4,
     model : Model
         Object containing the physical parameters.
     geometry : AcquisitionGeometry
-        Geometry object that contains the source (SpareTimeFunction) and
+        Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
     data : ndarray
         IShot() object containing the acquisition geometry and field data.

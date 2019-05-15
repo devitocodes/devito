@@ -355,7 +355,7 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
     Parameters
     ----------
     damp : Function
-        for the damping field.
+        The damping field for absorbing boundary condition.
     nbpml : int
         Number of points in the damping layer.
     spacing :
@@ -404,7 +404,7 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
     Parameters
     ----------
     function : Function
-        to be initialised with some data.
+        The initialised object.
     data : ndarray
         The data array used for initialisation.
     nbpml : int
@@ -482,7 +482,7 @@ class GenericModel(object):
     @property
     def spacing_map(self):
         """
-        Map between spacing symbols and their values for each `SpaceDimension`
+        Map between spacing symbols and their values for each `SpaceDimension`.
         """
         return self.grid.spacing_map
 

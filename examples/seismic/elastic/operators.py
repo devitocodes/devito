@@ -172,19 +172,19 @@ def src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry):
 
 def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     """
-    Constructor method for the forward modelling operator in an elastic media.
+    Construct method for the forward modelling operator in an elastic media.
 
     Parameters
     ----------
     model : Model
         Object containing the physical parameters.
     geometry : AcquisitionGeometry
-        Geometry object that contains the source (SpareTimeFunction) and
+        Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Space discretization order.
     save : int or Buffer
-        Saving flag, True saves all time steps, False only the three buffered
+        Saving flag, True saves all time steps, False saves three buffered
         indices (last three time steps). Defaults to False.
     """
     wave = kernels[model.grid.dim]

@@ -16,7 +16,7 @@ class AnisotropicWaveSolver(object):
     model : Model
         Physical model with domain parameters.
     geometry : AcquisitionGeometry
-        Geometry object that contains the source (SpareTimeFunction) and
+        Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
     time_order : int, optional
         Order of the time-stepping scheme. Defaults to 2.
@@ -54,7 +54,7 @@ class AnisotropicWaveSolver(object):
         Parameters
         ----------
         geometry : AcquisitionGeometry
-            Geometry object that contains the source (SpareTimeFunction) and
+            Geometry object that contains the source (SparseTimeFunction) and
             receivers (SparseTimeFunction) and their position.
         u : TimeFunction, optional
             The computed wavefield first component.
@@ -72,7 +72,7 @@ class AnisotropicWaveSolver(object):
             The time-constant Azimuth angle (radians).
         save : int or Buffer
             Option to store the entire (unrolled) wavefield.
-        kernel :
+        kernel : str, optional
             Type of discretization, centered or shifted.
 
         Returns

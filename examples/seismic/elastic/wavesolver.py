@@ -15,7 +15,7 @@ class ElasticWaveSolver(object):
     model : Model
         Physical model with domain parameters.
     geometry : AcquisitionGeometry
-        Geometry object that contains the source (SpareTimeFunction) and
+        Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
@@ -50,7 +50,7 @@ class ElasticWaveSolver(object):
         Parameters
         ----------
         geometry : AcquisitionGeometry
-            Geometry object that contains the source (src : SpareTimeFunction) and
+            Geometry object that contains the source (src : SparseTimeFunction) and
             receivers (rec1(txx) : SparseTimeFunction, rec2(tzz) : SparseTimeFunction)
             and their position.
         vx : TimeFunction, optional

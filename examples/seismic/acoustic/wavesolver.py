@@ -19,9 +19,11 @@ class AcousticWaveSolver(object):
     model : Model
         Physical model with domain parameters.
     geometry : AcquisitionGeometry
-        Geometry object that contains the source (SpareTimeFunction) and
+        Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
-    time_order : int, optional
+    kernel : str, optional
+        Type of discretization, centered or shifted.
+    time_order : int, optional TODO:DROP
         Order of the time-stepping scheme (default: 2, choices: 2,4)
         time_order=4 will not implement a 4th order FD discretization
         of the time-derivative as it is unstable. It implements instead
@@ -84,13 +86,13 @@ class AcousticWaveSolver(object):
 
         Parameters
         ----------
-        src :
+        src : SparseTimeFunction or array_like, optional
             Time series data for the injected source term.
-        rec :
+        rec : SparseTimeFunction or array_like, optional
             The interpolated receiver data.
         u : TimeFunction, optional
             Stores the computed wavefield.
-        m : ,optional
+        m : Function or float, optional
             The time-constant square slowness.
         save : int or Buffer, optional
             The entire (unrolled) wavefield.
@@ -216,9 +218,9 @@ class AcousticWaveSolver(object):
 
         Parameters
         ----------
-        src :
+        src : SparseTimeFunction or array_like, optional
             Time series data for the injected source term.
-        rec : Receiver
+        rec : SparseTimeFunction or array_like, optional
             The interpolated receiver data.
         u : TimeFunction, optional
             The forward wavefield.
