@@ -1,8 +1,6 @@
 """
 Shape- and Dimension-promotion optimizations, such as:
 
-    * Contraction: Clusters may be invariant in one or more Dimensions; such
-                   Dimensions can be contracted away.
     * Scalarization. Some Array temporaries may be turned into scalars.
 """
 
