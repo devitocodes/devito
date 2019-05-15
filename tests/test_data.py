@@ -702,7 +702,6 @@ def test_oob_guard():
     Operator(Eq(u[2000, 0], 1.0)).apply()
 
 
-
 # Skip for YASK because we can't guarantee contiguous memory
 @skipif('yask')
 def test_numpy_c_contiguous():
