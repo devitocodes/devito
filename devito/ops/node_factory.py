@@ -18,7 +18,7 @@ class OPSNodeFactory(object):
     def __init__(self):
         self.ops_args = OrderedDict()
 
-    def new_ops_arg(self, indexed):
+    def new_ops_arg(self, indexed, is_Write):
         """
         Create an :class:`Indexed` node using OPS representation.
 
@@ -39,7 +39,8 @@ class OPSNodeFactory(object):
 
         if ops_arg_id not in self.ops_args:
             # Create the indexed object
-            ops_arg = Array(name=ops_arg_id,
+            ops_arg = Array(is_Write,
+                            name=ops_arg_id,
                             dimensions=[Dimension(name=namespace['ops_acc'])],
                             dtype=indexed.dtype)
 

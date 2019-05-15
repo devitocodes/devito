@@ -8,14 +8,15 @@ def opsit(trees, count):
     node_factory = OPSNodeFactory()
     expressions = []
     for tree in trees:
-        expressions.extend([
-            Expression(make_ops_ast(i.expr, node_factory))
-            for i in FindNodes(Expression).visit(tree.inner)
-        ])
+        expressions.extend(FindNodes(Expression).visit(tree.inner))
+
+    ops_expressions = []
+    for i in reversed(expressions):
+        ops_expressions.insert(0, Expression(make_ops_ast(i.expr, node_factory)))
 
     arguments = set()
     to_remove = []
-    for exp in expressions:
+    for exp in ops_expressions:
         func = [f for f in exp.functions if f.name != "OPS_ACC_size"]
         arguments |= set(func)
         if exp.is_scalar_assign:
@@ -25,7 +26,7 @@ def opsit(trees, count):
 
     callable_kernel = OPSKernel(
         namespace['ops_kernel'](count),
-        expressions,
+        ops_expressions,
         "void",
         list(arguments)
     )
@@ -33,7 +34,7 @@ def opsit(trees, count):
     return callable_kernel, None
 
 
-def make_ops_ast(expr, nfops):
+def make_ops_ast(expr, nfops, is_Write=False):
     """
     Transform a devito expression into an OPS expression.
     Only the interested nodes are rebuilt.
@@ -54,6 +55,11 @@ def make_ops_ast(expr, nfops):
     if expr.is_Symbol or expr.is_Number:
         return expr
     elif expr.is_Indexed:
-        return nfops.new_ops_arg(expr)
+        return nfops.new_ops_arg(expr, is_Write)
+    elif expr.is_Equality:
+        return expr.func(
+            make_ops_ast(expr.lhs, nfops, True),
+            make_ops_ast(expr.rhs, nfops)
+        )
     else:
         return expr.func(*[make_ops_ast(i, nfops) for i in expr.args])
