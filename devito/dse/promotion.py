@@ -6,6 +6,7 @@ Shape- and Dimension-promotion optimizations, such as:
 
 from devito.symbolics import xreplace_indices
 from devito.types import Scalar
+from devito.tools import filter_ordered
 
 __all__ = ['scalarize']
 
@@ -19,8 +20,8 @@ def scalarize(clusters, template):
     processed = []
     for c in clusters:
         # Get Arrays appearing only in one cluster
-        arrays = ({i for i in c.accesses if i.is_Array} -
-                  set().union(*[c2.accesses for c2 in clusters if c2 is not c]))
+        arrays = ({i for i in c.scope.writes if i.is_Array} -
+                  set().union(*[c2.scope.reads for c2 in clusters if c2 is not c]))
 
         # Turn them into scalars -- this will produce a new cluster
         processed.append(_bump_and_scalarize(arrays, c, template))
@@ -84,7 +85,8 @@ def _bump_and_scalarize(arrays, cluster, template):
     for e in cluster.exprs:
         f = e.lhs.function
         if f in arrays:
-            for i in cluster.accesses[f]:
+            indexeds = filter_ordered(i.indexed for i in cluster.scope[f])
+            for i in indexeds:
                 mapper[i] = Scalar(name=template(), dtype=f.dtype)
 
                 # Index bumping

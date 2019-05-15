@@ -469,7 +469,8 @@ class Access(IterationInstance):
     def __new__(cls, indexed, mode):
         assert mode in ['R', 'W', 'RI', 'WI']
         obj = super(Access, cls).__new__(cls, indexed)
-        obj.function = indexed.base.function
+        obj.indexed = indexed
+        obj.function = indexed.function
         obj.mode = mode
         return obj
 

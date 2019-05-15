@@ -4,7 +4,7 @@ from frozendict import frozendict
 
 from devito.ir.equations import ClusterizedEq
 from devito.ir.clusters.graph import FlowGraph
-from devito.ir.support import DataSpace, IterationSpace, detect_io
+from devito.ir.support import DataSpace, IterationSpace, Scope, detect_io
 from devito.symbolics import estimate_cost, retrieve_indexed
 from devito.tools import as_tuple
 
@@ -87,16 +87,8 @@ class PartialCluster(object):
         return FlowGraph(self.exprs)
 
     @property
-    def accesses(self):
-        mapper = {}
-        for v in self.exprs:
-            handle = retrieve_indexed(v)
-            for i in handle:
-                found = mapper.setdefault(i.function, [])
-                if i not in found:
-                    # Not using sets to preserve order
-                    found.append(i)
-        return mapper
+    def scope(self):
+        return Scope(self.exprs)
 
     @property
     def dtype(self):
@@ -191,8 +183,8 @@ class Cluster(PartialCluster):
         return set.union(*[set(i.dspace.parts) for i in self.exprs])
 
     @cached_property
-    def accesses(self):
-        return super(Cluster, self).accesses
+    def scope(self):
+        return Scope(self.exprs)
 
     @cached_property
     def is_sparse(self):

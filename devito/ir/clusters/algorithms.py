@@ -84,7 +84,7 @@ def fuse(clusters, cache=None):
                 # We cannot even attempt fusing with earlier Clusters, as
                 # otherwise the carried flow dependences wouldn't be honored
                 break
-            elif any(i.is_Array for i in c.accesses):
+            elif any(i.is_Array for i in c.scope.writes):
                 # Optimization: since the Cluster contains local Arrays (i.e.,
                 # write-once/read-once Arrays), it might be convenient *not* to
                 # attempt fusion with earlier Clusters: local Arrays often
