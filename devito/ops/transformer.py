@@ -28,7 +28,7 @@ def opsit(trees, count):
         namespace['ops_kernel'](count),
         ops_expressions,
         "void",
-        list(arguments)
+        sorted(arguments, key=lambda i: i.name)
     )
 
     return callable_kernel, None

@@ -83,7 +83,7 @@ class TestOPSLifting(object):
 {\n\
   ut00[OPS_ACC0(0)] = -2.97015324253729F;\n\
 }'),
-        ('Eq(w,u + v)', 'void Kernel0(float * ut00, float * vt00, float * wt00)\n\
+        ('Eq(w,u + v)', 'void Kernel0(const float * ut00, const float * vt00, float * wt00)\n\
 {\n\
   wt00[OPS_ACC0(0)] = ut00[OPS_ACC1(0)] + vt00[OPS_ACC2(0)];\n\
 }'),
@@ -99,4 +99,4 @@ class TestOPSLifting(object):
 
         op = OperatorOPS(eval(eq))
 
-        assert str(op._callables[0]) == expected
+        assert str(op._func_table["Kernel0"].root) == expected
