@@ -9,6 +9,7 @@ from devito.equation import Eq
 from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Cluster,
                        detect_accesses, build_intervals)
 from devito.dse.aliases import collect
+from devito.dse.flowgraph import FlowGraph
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
 from devito.exceptions import DSEException
@@ -222,7 +223,7 @@ class AdvancedRewriter(BasicRewriter):
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        rule = iq_timeinvariant(cluster.flowgraph)
+        rule = iq_timeinvariant(FlowGraph(cluster.exprs))
         costmodel = lambda e: estimate_cost(e) > 0
         processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
@@ -290,13 +291,13 @@ class AdvancedRewriter(BasicRewriter):
         aliases = collect(cluster.exprs)
 
         # Redundancies will be stored in space-varying temporaries
-        g = cluster.flowgraph
-        time_invariants = {v.rhs: g.time_invariant(v) for v in g.values()}
+        graph = FlowGraph(cluster.exprs)
+        time_invariants = {v.rhs: graph.time_invariant(v) for v in graph.values()}
 
         # Find the candidate expressions
         processed = []
         candidates = OrderedDict()
-        for k, v in g.items():
+        for k, v in graph.items():
             # Cost check (to keep the memory footprint under control)
             naliases = len(aliases.get(v.rhs))
             cost = estimate_cost(v, True)*naliases

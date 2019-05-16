@@ -3,7 +3,6 @@ from cached_property import cached_property
 from frozendict import frozendict
 
 from devito.ir.equations import ClusterizedEq
-from devito.ir.clusters.graph import FlowGraph
 from devito.ir.support import DataSpace, IterationSpace, Scope, detect_io
 from devito.symbolics import estimate_cost, retrieve_indexed
 from devito.tools import as_tuple
@@ -81,10 +80,6 @@ class PartialCluster(object):
     @property
     def args(self):
         return (self.exprs, self.ispace, self.dspace, self.atomics, self.guards)
-
-    @property
-    def flowgraph(self):
-        return FlowGraph(self.exprs)
 
     @property
     def scope(self):
@@ -165,18 +160,12 @@ class Cluster(PartialCluster):
     """A Cluster is an immutable PartialCluster."""
 
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
-        self._exprs = exprs
-        # Keep expressions ordered based on information flow
-        self._exprs = tuple(ClusterizedEq(v, ispace=ispace, dspace=dspace)
-                            for v in self.flowgraph.values())
+        self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
+                           for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
         self._atomics = frozenset(atomics or [])
         self._guards = frozendict(guards or {})
-
-    @cached_property
-    def flowgraph(self):
-        return FlowGraph(self.exprs)
 
     @cached_property
     def functions(self):
