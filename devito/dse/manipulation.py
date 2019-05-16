@@ -82,7 +82,10 @@ def collect_nested(expr):
             # Always collect coefficients
             rebuilt = collect_const(expr.func(*args))
             try:
-                rebuilt = Mul(*rebuilt.args)
+                if rebuilt.args:
+                    # Note: Mul(*()) -> 1, and since sympy.S.Zero.args == (),
+                    # the `if` prevents turning 0 into 1
+                    rebuilt = Mul(*rebuilt.args)
             except AttributeError:
                 pass
 
@@ -152,7 +155,7 @@ def common_subexprs_elimination(exprs, make, mode='default'):
 
 
 def compact_temporaries(temporaries, leaves):
-    """Drop temporaries consisting of single symbols."""
+    """Drop temporaries consisting of isolated symbols."""
     exprs = temporaries + leaves
     targets = {i.lhs for i in leaves}
 
