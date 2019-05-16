@@ -430,10 +430,11 @@ class DataSpace(Space):
 
     Parameters
     ----------
-    intervals : tuple of Intervals Data space description.
+    intervals : tuple of Intervals
+        Data space description.
     parts : dict
-        A mapper from Functions to IntervalGroup,
-        describing the individual components of the data space.
+        A mapper from Functions to IntervalGroup, describing the individual
+        components of the data space.
     """
 
     def __init__(self, intervals, parts):
@@ -465,8 +466,10 @@ class DataSpace(Space):
 
     @cached_property
     def relaxed(self):
-        """A view of the DataSpace assuming that any SubDimensions entirely span
-        their root Dimension."""
+        """
+        A view of the DataSpace assuming that any SubDimensions entirely span
+        their root Dimension.
+        """
         return DataSpace(self.intervals.relaxed,
                          {k: v.relaxed for k, v in self.parts.items()})
 
@@ -483,6 +486,22 @@ class DataSpace(Space):
         intervals = self.intervals.zero(d)
         parts = {k: v.zero(d) for k, v in self.parts.items()}
         return DataSpace(intervals, parts)
+
+    def project(self, cond):
+        """
+        Create a new DataSpace in which only some of the Dimensions in
+        ``self`` are retained. In particular, a dimension ``d`` in ``self``
+        is retained if:
+
+            * either ``cond(d)`` is True (``cond`` is a callable),
+            * or ``d in cond`` is True (``cond`` is an iterable)
+        """
+        if callable(cond):
+            func = cond
+        else:
+            func = lambda i: i in cond
+        intervals = [i for i in self.intervals if func(i.dim)]
+        return DataSpace(intervals, self.parts)
 
 
 class IterationSpace(Space):
@@ -545,7 +564,8 @@ class IterationSpace(Space):
         return IterationSpace(intervals, sub_iterators, directions)
 
     def project(self, cond):
-        """Create a new IterationSpace in which only some Dimensions
+        """
+        Create a new IterationSpace in which only some Dimensions
         in ``self`` are retained. In particular, a dimension ``d`` in ``self`` is
         retained if:
 
@@ -562,8 +582,10 @@ class IterationSpace(Space):
         return IterationSpace(intervals, sub_iterators, directions)
 
     def is_compatible(self, other):
-        """A relaxed version of ``__eq__``, in which only non-derived dimensions
-        are compared for equality."""
+        """
+        A relaxed version of ``__eq__``, in which only non-derived dimensions
+        are compared for equality.
+        """
         return self.intervals == other.intervals and\
             self.nonderived_directions == other.nonderived_directions
 
