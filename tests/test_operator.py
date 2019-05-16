@@ -1334,14 +1334,15 @@ class TestLoopScheduler(object):
         Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
         """
-        grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time)
+        grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time,
+                    dtype=np.float64)
         a = TimeFunction(name='a', grid=grid, time_order=2, space_order=2)
         p_aux = Dimension(name='p_aux')
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
-                     space_order=2)
+                     space_order=2, dtype=np.float64)
         b.data_with_halo[:] = 1.0
         b2 = Function(name='b2', shape=(10,) + shape, dimensions=(p_aux,) + dimensions,
-                      space_order=2)
+                      space_order=2, dtype=np.float64)
         b2.data_with_halo[:] = 1.0
         eqns = [Eq(a.forward, a.laplace + 1.),
                 Eq(b, time*b*a + b)]
@@ -1363,8 +1364,9 @@ class TestLoopScheduler(object):
         op2(time=10)
 
         for i in range(10):
-            assert(np.allclose(b2.data[i, ...].reshape(-1) -
-                               b.data[..., i].reshape(-1), 0.))
+            assert(np.allclose(b2.data[i, ...].reshape(-1),
+                               b.data[..., i].reshape(-1),
+                               rtol=1e-9))
 
     def test_equations_mixed_timedim_stepdim(self):
         """"

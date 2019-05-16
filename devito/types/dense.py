@@ -1276,7 +1276,7 @@ class TimeFunction(Function):
                                   % (self._time_size, self.name, key_time_size))
 
     # Pickling support
-    _pickle_kwargs = Function._pickle_kwargs + ['time_order', 'save']
+    _pickle_kwargs = Function._pickle_kwargs + ['time_order', 'save', 'time_dim']
 
 
 class SubFunction(Function):
