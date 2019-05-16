@@ -4,8 +4,9 @@ import sympy
 
 from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
                                force_directions)
-from devito.ir.clusters.cluster import PartialCluster, ClusterGroup
+from devito.ir.clusters.cluster import PartialCluster, Cluster, ClusterGroup
 from devito.symbolics import CondEq
+from devito.types import Dimension
 
 __all__ = ['clusterize', 'reschedule']
 
@@ -29,12 +30,15 @@ def lift(clusters):
         # It is a lifting candidate if it redundantly computes values,
         # that is if the iteration space contains more Dimensions than
         # strictly needed (as there are no binding data dependences)
-        maybe_liftable = (set(candidate.ispace.dimensions) -
-                          set().union(*[e.free_symbols for e in candidate.exprs]))
+        symbols = set().union(*[e.free_symbols for e in candidate.exprs])
+        used_iterators = set().union(*[i._defines for i in symbols
+                                        if isinstance(i, Dimension)])
+        maybe_liftable = set(candidate.ispace.dimensions) - used_iterators
+        if not maybe_liftable:
+            legal = False
 
         # Would the data dependences be honored?
-        ordered_search = list(chain(clusters[i+1:], reversed(clusters[:i+1])))
-        for c in ordered_search:
+        for c in chain(clusters[i+1:], reversed(processed[:i])):
             if not (maybe_liftable & set(c.ispace.dimensions)):
                 break
             if c is candidate:
@@ -50,9 +54,9 @@ def lift(clusters):
             ispace = candidate.ispace.project(key)
             dspace = candidate.dspace.project(key)
             # Now schedule at the right place
-            lifted = PartialCluster(candidate.exprs, ispace, dspace)
+            lifted = Cluster(candidate.exprs, ispace, dspace)
             try:
-                processed.insert(processed.index(ordered_search[-1]), lifted)
+                processed.insert(processed.index(c), lifted)
             except ValueError:
                 # Still at the front
                 processed.append(lifted)
