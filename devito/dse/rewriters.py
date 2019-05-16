@@ -321,26 +321,18 @@ class AdvancedRewriter(BasicRewriter):
                          for i in cluster.ispace.intervals]
             ispace = IterationSpace(intervals, sub_iterators, directions)
 
-            if all(time_invariants.get(i, True) for i in alias.aliased):
-                # Optimization: the alising expressions are time-invariant so
-                # we can contract the iteration space (e.g., [t, x, y] -> [x, y])
-                ispace = ispace.project(lambda i: not i.is_Time)
+            # The write-to space
+            writeto = IntervalGroup(i for i in ispace.intervals if not i.dim.is_Time)
 
-                # The write-to space
-                writeto = ispace.intervals
-            else:
-                # The write-to space
-                writeto = IntervalGroup(i for i in ispace.intervals if not i.dim.is_Time)
-
-                # Optimization: no need to retain a SpaceDimension if it does not
-                # induce a flow/anti dependence (below, `i.limits` captures this, by
-                # telling how much halo will be needed to honour such dependences)
-                dep_inducing = [i for i in writeto if any(i.limits)]
-                try:
-                    index = writeto.index(dep_inducing[0])
-                    writeto = IntervalGroup(writeto[index:])
-                except IndexError:
-                    warning("Couldn't optimize some of the detected redundancies")
+            # Optimization: no need to retain a SpaceDimension if it does not
+            # induce a flow/anti dependence (below, `i.limits` captures this, by
+            # telling how much halo will be needed to honour such dependences)
+            dep_inducing = [i for i in writeto if any(i.limits)]
+            try:
+                index = writeto.index(dep_inducing[0])
+                writeto = IntervalGroup(writeto[index:])
+            except IndexError:
+                warning("Couldn't optimize some of the detected redundancies")
 
             # Create a temporary to store `alias`
             dimensions = [d.root for d in writeto.dimensions]

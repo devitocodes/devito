@@ -10,43 +10,64 @@ from devito.symbolics import CondEq
 __all__ = ['clusterize', 'reschedule']
 
 
-def lift(clusters, cache=None):
+def lift(clusters):
     """
     PartialClusters may be invariant in one or more Dimensions; lifting
-    will remove such Dimensions while honoring topological ordering as
-    well as data dependences.
+    will remove such Dimensions while honoring the topological ordering.
     """
-    cache = cache or ScopeCache()
+    processed = []
+    for i, candidate in enumerate(clusters):
+        # Start assuming `candidate` is liftable
+        legal = True
 
-#    processed = []
-#    for candidate in clusters:
-#        # It is a lifting candidate if it redundantly computes values,
-#        # that is if the iteration space contains more Dimensions than
-#        # strictly needed (as there are no binding data dependences)
-#        maybe_liftable = (set(candidate.ispace.dimensions) - 
-#                          set().union(*[e.free_symbols for e in candidate.exprs]))
-#        # Would the data dependences be honored?
-#        for c in clusters[clusters.index(candidate) + 1:]:
-#            if maybe_liftable & set(c.ispace.dimensions):
-#                scope = cache.putdefault(candidate, c)
-#            else:
-#                break
-#            processed.append(c)
-#        else:
-#            processed.append(c)
+        # Safety checks: no reductions, no conditionals, no scalar temporaries
+        if any(e.is_Increment for e in candidate.exprs) or\
+                candidate.guards or\
+                any(e.is_Scalar for e in candidate.exprs):
+            legal = False
 
-    processed = clusters
+        # It is a lifting candidate if it redundantly computes values,
+        # that is if the iteration space contains more Dimensions than
+        # strictly needed (as there are no binding data dependences)
+        maybe_liftable = (set(candidate.ispace.dimensions) -
+                          set().union(*[e.free_symbols for e in candidate.exprs]))
+
+        # Would the data dependences be honored?
+        ordered_search = list(chain(clusters[i+1:], reversed(clusters[:i+1])))
+        for c in ordered_search:
+            if not (maybe_liftable & set(c.ispace.dimensions)):
+                break
+            if c is candidate:
+                continue
+            if set(a.function for a in candidate.scope.accesses) & set(c.scope.writes):
+                assert not candidate.atomics
+                legal = False
+                break
+
+        if legal:
+            # Contracted iteration and data spaces
+            key = lambda d: d not in maybe_liftable
+            ispace = candidate.ispace.project(key)
+            dspace = candidate.dspace.project(key)
+            # Now schedule at the right place
+            lifted = PartialCluster(candidate.exprs, ispace, dspace)
+            try:
+                processed.insert(processed.index(ordered_search[-1]), lifted)
+            except ValueError:
+                # Still at the front
+                processed.append(lifted)
+        else:
+            processed.append(candidate)
+
     return processed
 
 
-def fuse(clusters, cache=None):
+def fuse(clusters):
     """
     Fuse PartialClusters to create "fatter" PartialClusters, that is
     PartialClusters containing more expressions. The topological ordering
-    as well as data dependences are honored.
+    is honored.
     """
-    cache = cache or ScopeCache()
-
     # Clusters will be modified in-place in case of fusion
     clusters = [PartialCluster(*c.args) for c in clusters]
 
@@ -59,7 +80,7 @@ def fuse(clusters, cache=None):
                 break
 
             # Retrieve data dependences
-            scope = cache.putdefault(candidate, c)
+            scope = Scope(exprs=candidate.exprs + c.exprs)
 
             # Collect anti-dependences preventing grouping
             anti = scope.d_anti.carried() - scope.d_anti.increment
@@ -148,12 +169,8 @@ def reschedule(clusters):
     This function relies on advanced data dependency analysis tools based upon
     classic Lamport theory.
     """
-    cache = ScopeCache()
-
-    clusters = lift(clusters, cache)
-
-    clusters = fuse(clusters, cache)
-
+    clusters = lift(clusters)
+    clusters = fuse(clusters)
     return clusters
 
 
@@ -178,15 +195,3 @@ def clusterize(exprs):
     clusters = guard(clusters)
 
     return ClusterGroup(clusters)
-
-
-class ScopeCache(dict):
-
-    def putdefault(self, *clusters):
-        key = tuple(clusters)
-        if key in self:
-            return self[key]
-        else:
-            scope = Scope(exprs=chain(*[c.exprs for c in clusters]))
-            self[key] = scope
-            return scope
