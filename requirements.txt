@@ -16,6 +16,6 @@ pytest-cov
 multidict
 frozendict
 anytree>=2.4.3
-pyzfp~=0.2rc2
-pyrevolve~=2.1.3rc2
+pyzfp~=0.2rc3
+pyrevolve~=2.1.3rc3
 distributed>=1.27

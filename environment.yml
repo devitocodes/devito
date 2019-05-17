@@ -28,7 +28,7 @@ dependencies:
   - pip
   - pip:
     - "git+https://github.com/inducer/codepy"
-    - pyzfp~=0.2rc2
-    - pyrevolve~=2.1.3rc2
+    - pyzfp~=0.2rc3
+    - pyrevolve~=2.1.3rc3
     - py-cpuinfo
     - anytree>=2.4.3
