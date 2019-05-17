@@ -835,20 +835,30 @@ class Scope(object):
 
         self.reads = {}
         self.writes = {}
+
         for i, e in enumerate(exprs):
-            # reads
+            # Reads
             for j in retrieve_terminals(e.rhs):
                 v = self.reads.setdefault(j.function, [])
                 mode = 'RI' if e.is_Increment and j.function is e.lhs.function else 'R'
                 v.append(TimedAccess(j, mode, i, e.ispace.directions))
-            # write
+
+            # Write
             v = self.writes.setdefault(e.lhs.function, [])
             mode = 'WI' if e.is_Increment else 'W'
             v.append(TimedAccess(e.lhs, mode, i, e.ispace.directions))
-            # if an increment, we got one implicit read
+
+            # If an increment, we got one implicit read
             if e.is_Increment:
                 v = self.reads.setdefault(e.lhs.function, [])
                 v.append(TimedAccess(e.lhs, 'RI', i, e.ispace.directions))
+
+        # The iterators read symbols too
+        dimensions = set().union(*[e.dimensions for e in exprs])
+        for d in dimensions:
+            for j in d.symbolic_size.free_symbols:
+                v = self.reads.setdefault(j.function, [])
+                v.append(TimedAccess(j, 'R', -1, {}))
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
