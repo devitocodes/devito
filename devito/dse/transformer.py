@@ -1,4 +1,4 @@
-from devito.ir.clusters import ClusterGroup, reschedule
+from devito.ir.clusters import ClusterGroup, schedule
 from devito.dse.promotion import scalarize
 from devito.dse.rewriters import (BasicRewriter, AdvancedRewriter, AggressiveRewriter,
                                   CustomRewriter)
@@ -68,8 +68,8 @@ def rewrite(clusters, mode='advanced'):
     # Print out profiling information
     print_profiling(states)
 
-    # Reschudle the Rewriters-produced clusters. This will trigger fusion and lifting
-    clusters = ClusterGroup(reschedule(flatten(i.clusters for i in states)))
+    # Schedule and optimize the Rewriters-produced clusters
+    clusters = ClusterGroup(schedule(flatten(i.clusters for i in states)))
 
     # Turn unnecessary temporary Arrays into scalars
     clusters = scalarize(clusters, rewriter.template)
