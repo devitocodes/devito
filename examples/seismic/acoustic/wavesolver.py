@@ -23,14 +23,6 @@ class AcousticWaveSolver(object):
         receivers (SparseTimeFunction) and their position.
     kernel : str, optional
         Type of discretization, centered or shifted.
-    time_order : int, optional TODO:DROP
-        Order of the time-stepping scheme (default: 2, choices: 2,4)
-        time_order=4 will not implement a 4th order FD discretization
-        of the time-derivative as it is unstable. It implements instead
-        a 4th order accurate wave-equation with only second order
-        time derivative. Full derivation and explanation of the 4th order
-        in time can be found at:
-        http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf
     space_order: int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
     """

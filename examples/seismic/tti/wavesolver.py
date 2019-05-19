@@ -14,7 +14,7 @@ class AnisotropicWaveSolver(object):
     Parameters
     ----------
     model : Model
-        Physical model with domain parameters.
+        Object containing the physical parameters.
     geometry : AcquisitionGeometry
         Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.

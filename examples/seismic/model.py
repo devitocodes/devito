@@ -409,9 +409,8 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
         The data array used for initialisation.
     nbpml : int
         Number of PML layers for boundary damping.
-    pad_mode : str or padding function FIX
-        A string or a suitable padding function as explained in
-                     :func:`numpy.pad`.
+    pad_mode : str or callable, optional
+        A string or a suitable padding function as explained in :func:`numpy.pad`.
     """
     pad_widths = [(nbpml + i.left, nbpml + i.right) for i in function._size_halo]
     data = np.pad(data, pad_widths, pad_mode)

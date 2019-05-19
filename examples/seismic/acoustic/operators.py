@@ -42,10 +42,10 @@ def iso_stencil(field, m, s, damp, kernel, **kwargs):
         The time dimension spacing.
     damp : Function
         The damping field for absorbing boundary condition.
-    forward : boolean
+    forward : bool
         The propagation direction. Defaults to True.
     q : TimeFunction, Function or float
-        Full-space/time source of the wave-equation
+        Full-space/time source of the wave-equation.
     """
 
     # Creat a temporary symbol for H to avoid expensive sympy solve

@@ -23,7 +23,7 @@ def plot_perturbation(model, model1, colorbar=True):
         The first velocity model.
     model1 : Model
         The second velocity model.
-    colorbar : boolean
+    colorbar : bool
         Option to plot the colorbar.
     """
     domain_size = 1.e-3 * np.array(model.domain_size)
@@ -55,12 +55,12 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
     Parameters
     ----------
     model : Model
-        object that holds the velocity model.
+        Object that holds the velocity model.
     source : array_like or float
         Coordinates of the source point.
     receiver : array_like or float
         Coordinates of the receiver points.
-    colorbar : boolean
+    colorbar : bool
         Option to plot the colorbar.
     """
     domain_size = 1.e-3 * np.array(model.domain_size)
