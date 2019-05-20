@@ -14,19 +14,17 @@ class AcousticWaveSolver(object):
     and encapsulates the time and space discretization for a given problem
     setup.
 
-    :param model: Physical model with domain parameters
-    :param source: Sparse point symbol providing the injected wave
-    :param receiver: Sparse point symbol describing an array of receivers
-    :param time_order: Order of the time-stepping scheme (default: 2, choices: 2,4)
-                       time_order=4 will not implement a 4th order FD discretization
-                       of the time-derivative as it is unstable. It implements instead
-                       a 4th order accurate wave-equation with only second order
-                       time derivative. Full derivation and explanation of the 4th order
-                       in time can be found at:
-                       http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf
-    :param space_order: Order of the spatial stencil discretisation (default: 4)
-
-    Note: space_order must always be greater than time_order
+    Parameters
+    ----------
+    model : Model
+        Physical model with domain parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    kernel : str, optional
+        Type of discretization, centered or shifted.
+    space_order: int, optional
+        Order of the spatial stencil discretisation. Defaults to 4.
     """
     def __init__(self, model, geometry, kernel='OT2', space_order=2, **kwargs):
         self.model = model
@@ -78,13 +76,22 @@ class AcousticWaveSolver(object):
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
 
-        :param src: Symbol with time series data for the injected source term
-        :param rec: Symbol to store interpolated receiver data
-        :param u: (Optional) Symbol to store the computed wavefield
-        :param m: (Optional) Symbol for the time-constant square slowness
-        :param save: Option to store the entire (unrolled) wavefield
+        Parameters
+        ----------
+        src : SparseTimeFunction or array_like, optional
+            Time series data for the injected source term.
+        rec : SparseTimeFunction or array_like, optional
+            The interpolated receiver data.
+        u : TimeFunction, optional
+            Stores the computed wavefield.
+        m : Function or float, optional
+            The time-constant square slowness.
+        save : int or Buffer, optional
+            The entire (unrolled) wavefield.
 
-        :returns: Receiver, wavefield and performance summary
+        Returns
+        -------
+        Receiver, wavefield and performance summary
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
@@ -111,14 +118,22 @@ class AcousticWaveSolver(object):
         Adjoint modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
 
-        :param rec: Symbol with stored receiver data. Please note that
-                    these act as the source term in the adjoint run.
-        :param srca: Symbol to store the resulting data for the
-                     interpolated at the original source location.
-        :param v: (Optional) Symbol to store the computed wavefield
-        :param m: (Optional) Symbol for the time-constant square slowness
+        Parameters
+        ----------
+        rec : SparseTimeFunction or array-like
+            The receiver data. Please note that
+            these act as the source term in the adjoint run.
+        srca : SparseTimeFunction or array-like
+            The resulting data for the interpolated at the
+            original source location.
+        v: TimeFunction, optional
+            The computed wavefield.
+        m : float, optional
+            The time-constant square slowness.
 
-        :returns: Adjoint source, wavefield and performance summary
+        Returns
+        -------
+        Adjoint source, wavefield and performance summary.
         """
         # Create a new adjoint source and receiver symbol
         srca = srca or PointSource(name='srca', grid=self.model.grid,
@@ -143,12 +158,20 @@ class AcousticWaveSolver(object):
         Linearized Born modelling function, ie. the action of the
         Jacobian adjoint on an input data.
 
-        :param recin: Receiver data as a numpy array
-        :param u: Symbol for full wavefield `u` (created with save=True)
-        :param v: (Optional) Symbol to store the computed wavefield
-        :param grad: (Optional) Symbol to store the gradient field
+        Parameters
+        ----------
+        rec : SparseTimeFunction
+            Receiver data.
+        u : TimeFunction
+            Full wavefield `u` (created with save=True).
+        v : TimeFunction, optional
+            Stores the computed wavefield.
+        grad : Function, optional
+            Stores the gradient field.
 
-        :returns: Gradient field and performance summary
+        Returns
+        -------
+        Gradient field and performance summary.
         """
         dt = kwargs.pop('dt', self.dt)
         # Gradient symbol
@@ -185,11 +208,18 @@ class AcousticWaveSolver(object):
         Linearized Born modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
 
-        :param src: Symbol with time series data for the injected source term
-        :param rec: Symbol to store interpolated receiver data
-        :param u: (Optional) Symbol to store the computed wavefield
-        :param U: (Optional) Symbol to store the computed wavefield
-        :param m: (Optional) Symbol for the time-constant square slowness
+        Parameters
+        ----------
+        src : SparseTimeFunction or array_like, optional
+            Time series data for the injected source term.
+        rec : SparseTimeFunction or array_like, optional
+            The interpolated receiver data.
+        u : TimeFunction, optional
+            The forward wavefield.
+        U : TimeFunction, optional
+            The linearized wavefield.
+        m : Function or float, optional
+            The time-constant square slowness.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src

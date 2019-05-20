@@ -169,7 +169,7 @@ Example script demonstrating several approaches to solving the
 2D diffusion equation. The various modes are pure Python,
 vectorized numpy, a lambdified SymPy equation and the Devito API.
 
-Please not that the default settings for spacing and timesteps are
+Please note that the default settings for spacing and timesteps are
 chosen to highlight that Devito and "vectorised numpy" are faster than
 pure Python or the sympy.lambdify kernels approach.  For a fair
 performance comparison between Devito and "vectorised numpy" we

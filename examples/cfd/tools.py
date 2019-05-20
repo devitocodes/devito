@@ -7,12 +7,19 @@ from devito.logger import warning
 
 def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
                view=None, linewidth=0):
-    """Utility plotting routine for 2D data
+    """
+    Utility plotting routine for 2D data.
 
-    :param field: Numpy array with field data to plot
-    :param xmax: (Optional) Length of the x-axis
-    :param ymax: (Optional) Length of the y-axis
-    :param view: (Optional) View point to intialise
+    Parameters
+    ----------
+    field : array_like
+        Field data to plot.
+    xmax : int, optional
+        Length of the x-axis.
+    ymax : int, optional
+        Length of the y-axis.
+    view: int, optional
+        View point to intialise.
     """
     if xmin > xmax or ymin > ymax:
         raise ValueError("Dimension min cannot be larger than dimension max.")
@@ -57,11 +64,16 @@ def init_hat(field, dx, dy, value=2., bgvalue=1.):
 
     u(.5<=x<=1 && .5<=y<=1 ) is 2
 
-    :param field: Numpy array with field data to plot
-    :param dx: Spacing in the x-dimension
-    :param dy: Spacing in the y-dimension
-    :param value: Value of the top part of the function, default=2.
-    :param bgvalue: Background value for the bottom of the function, default=1.
+    field : array_like
+        Field data to plot.
+    dx : float
+        Spacing in the x-dimension.
+    dy : float
+        Spacing in the y-dimension.
+    value : float, optional
+        Value of the top part of the function. Defaults to 2.
+    bgvalue : float, optional
+        Background value for the bottom of the function. Defaults to 1.
     """
     field[:] = bgvalue
     field[int(.5 / dx):int(1 / dx + 1), int(.5 / dy):int(1 / dy + 1)] = value

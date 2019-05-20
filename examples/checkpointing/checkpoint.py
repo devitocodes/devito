@@ -7,11 +7,16 @@ class CheckpointOperator(Operator):
        devito.Operator so it conforms to the pyRevolve API. pyRevolve will call apply
        with arguments t_start and t_end. Devito calls these arguments t_s and t_e so
        the following dict is used to perform the translations between different names.
-       :param op: The devito.Operator object that this object will wrap
-       :param args: If devito.Operator.apply() expects any arguments, they can be provided
-                    here to be cached. Any calls to CheckpointOperator.apply() will
-                    automatically include these cached arguments in the call to the
-                    underlying devito.Operator.apply().
+
+       Parameters
+       ----------
+       op : Operator
+            devito.Operator object that this object will wrap.
+       args : dict
+            If devito.Operator.apply() expects any arguments, they can be provided
+            here to be cached. Any calls to CheckpointOperator.apply() will
+            automatically include these cached arguments in the call to the
+            underlying devito.Operator.apply().
     """
     t_arg_names = {'t_start': 'time_m', 't_end': 'time_M'}
 

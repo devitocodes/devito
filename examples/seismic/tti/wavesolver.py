@@ -11,13 +11,21 @@ class AnisotropicWaveSolver(object):
     and encapsulates the time and space discretization for a given problem
     setup.
 
-    :param model: Physical model with domain parameters
-    :param source: Sparse point symbol providing the injected wave
-    :param receiver: Sparse point symbol describing an array of receivers
-    :param time_order: Order of the time-stepping scheme (default: 2)
-    :param space_order: Order of the spatial stencil discretisation (default: 4)
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    time_order : int, optional
+        Order of the time-stepping scheme. Defaults to 2.
+    space_order : int, optional
+        Order of the spatial stencil discretisation. Defaults to 4.
 
-    Note: space_order must always be greater than time_order
+    Notes
+    -----
+    Space_order must always be greater than time_order.
     """
     def __init__(self, model, geometry, space_order=2, **kwargs):
         self.model = model
@@ -43,19 +51,33 @@ class AnisotropicWaveSolver(object):
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
 
-        :param src: Symbol with time series data for the injected source term
-        :param rec: Symbol to store interpolated receiver data (u+v)
-        :param u: (Optional) Symbol to store the computed wavefield first component
-        :param v: (Optional) Symbol to store the computed wavefield second component
-        :param m: (Optional) Symbol for the time-constant square slowness
-        :param epsilon: (Optional) Symbol for the time-constant first Thomsen parameter
-        :param delta: (Optional) Symbol for the time-constant second Thomsen parameter
-        :param theta: (Optional) Symbol for the time-constant Dip angle (radians)
-        :param phi: (Optional) Symbol for the time-constant Azimuth angle (radians)
-        :param save: Option to store the entire (unrolled) wavefield
-        :param kernel: type of discretization, centered or shifted
+        Parameters
+        ----------
+        geometry : AcquisitionGeometry
+            Geometry object that contains the source (SparseTimeFunction) and
+            receivers (SparseTimeFunction) and their position.
+        u : TimeFunction, optional
+            The computed wavefield first component.
+        v : TimeFunction, optional
+            The computed wavefield second component.
+        m : Function or float, optional
+            The time-constant square slowness.
+        epsilon : Function or float, optional
+            The time-constant first Thomsen parameter.
+        delta : Function or float, optional
+            The time-constant second Thomsen parameter.
+        theta : Function or float, optional
+            The time-constant Dip angle (radians).
+        phi : Function or float, optional
+            The time-constant Azimuth angle (radians).
+        save : int or Buffer
+            Option to store the entire (unrolled) wavefield.
+        kernel : str, optional
+            Type of discretization, centered or shifted.
 
-        :returns: Receiver, wavefield and performance summary
+        Returns
+        -------
+        Receiver, wavefield and performance summary.
         """
 
         if kernel == 'staggered':

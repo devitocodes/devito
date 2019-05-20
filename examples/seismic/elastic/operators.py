@@ -4,7 +4,7 @@ from examples.seismic import PointSource, Receiver
 
 def stress_fields(model, save, space_order):
     """
-    Create the TimeFunction objects for the stress fields in the elastic formulation
+    Create the TimeFunction objects for the stress fields in the elastic formulation.
     """
     if model.grid.dim == 2:
         x, z = model.space_dimensions
@@ -172,14 +172,20 @@ def src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry):
 
 def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     """
-    Constructor method for the forward modelling operator in an elastic media
+    Construct method for the forward modelling operator in an elastic media.
 
-    :param model: :class:`Model` object containing the physical parameters
-    :param source: :class:`PointData` object containing the source geometry
-    :param receiver: :class:`PointData` object containing the acquisition geometry
-    :param space_order: Space discretization order
-    :param save: Saving flag, True saves all time steps, False only the three buffered
-                 indices (last three time steps)
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Space discretization order.
+    save : int or Buffer
+        Saving flag, True saves all time steps, False saves three buffered
+        indices (last three time steps). Defaults to False.
     """
     wave = kernels[model.grid.dim]
     pde = wave(model, space_order, geometry.nt if save else None, geometry)
