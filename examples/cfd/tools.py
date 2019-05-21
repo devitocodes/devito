@@ -2,9 +2,11 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa
 
 import numpy as np
 from matplotlib import pyplot, cm
+from devito.logger import warning
 
 
-def plot_field(field, xmax=2., ymax=2., zmax=None, view=None, linewidth=0):
+def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
+               view=None, linewidth=0):
     """
     Utility plotting routine for 2D data.
 
@@ -19,8 +21,19 @@ def plot_field(field, xmax=2., ymax=2., zmax=None, view=None, linewidth=0):
     view: int, optional
         View point to intialise.
     """
-    x_coord = np.linspace(0, xmax, field.shape[0])
-    y_coord = np.linspace(0, ymax, field.shape[1])
+    if xmin > xmax or ymin > ymax:
+        raise ValueError("Dimension min cannot be larger than dimension max.")
+    if (zmin is not None and zmax is not None):
+        if zmin > zmax:
+            raise ValueError("Dimension min cannot be larger than dimension max.")
+    elif(zmin is None and zmax is not None):
+        if np.min(field) >= zmax:
+            warning("zmax is less than field's minima. Figure deceptive.")
+    elif(zmin is not None and zmax is None):
+        if np.max(field) <= zmin:
+            warning("zmin is larger than field's maxima. Figure deceptive.")
+    x_coord = np.linspace(xmin, xmax, field.shape[0])
+    y_coord = np.linspace(ymin, ymax, field.shape[1])
     fig = pyplot.figure(figsize=(11, 7), dpi=100)
     ax = fig.gca(projection='3d')
     X, Y = np.meshgrid(x_coord, y_coord, indexing='ij')
@@ -28,10 +41,14 @@ def plot_field(field, xmax=2., ymax=2., zmax=None, view=None, linewidth=0):
                     linewidth=linewidth, antialiased=False)
 
     # Enforce axis measures and set view if given
-    ax.set_xlim(0., xmax)
-    ax.set_ylim(0., ymax)
-    if zmax is not None:
-        ax.set_zlim(1., zmax)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    if zmin is None:
+        zmin = np.min(field)
+    if zmax is None:
+        zmax = np.max(field)
+    ax.set_zlim(zmin, zmax)
+
     if view is not None:
         ax.view_init(*view)
 
