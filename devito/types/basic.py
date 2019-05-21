@@ -17,7 +17,7 @@ from cgen import Struct, Value
 from devito.data import default_allocator
 from devito.parameters import configuration
 from devito.symbolics import Add
-from devito.tools import (EnrichedTuple, Evaluable, Pickable,
+from devito.tools import (EnrichedTuple, Evaluable, Pickable, flatten,
                           ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
 from devito.types.args import ArgProvider
 
@@ -80,7 +80,9 @@ class Basic(object):
     is_SparseFunction = False
     is_PrecomputedSparseFunction = False
     is_PrecomputedSparseTimeFunction = False
-
+    is_VectorValued = False
+    is_TensorValued = False
+    is_TimeDependent = False
     # Basic symbolic object properties
     is_Scalar = False
     is_Tensor = False
@@ -414,6 +416,113 @@ class Scalar(Symbol, ArgProvider):
 
     # Pickling support
     _pickle_kwargs = Symbol._pickle_kwargs + ['is_const']
+
+
+class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable):
+    """
+    Base class for vectro and tensor valued functions. It inherits from and
+    mimicks the behavior of a sympy.Matrix
+
+    The sub-hierachy is as follows
+
+                         AbstractTensor
+                                |
+                      AbstractCachedTensor
+                                |
+                 ---------------------------------
+                 |                               |
+          VectorFunction                   TensorFunction
+                 |                               |
+          VectorTimeFunction               TensorTimeFunction
+
+    There are four relevant AbstractFunction sub-types: ::
+
+        * TensorFunction: A space-varying vector valued function
+        * VectorFunction: A space-varying tensor valued function
+        * TensorTimeFunction: A time-space-varying vector valued function
+        * VectorTImeFunction: A time-space-varying tensor valued function
+    """
+
+    is_AbstractTensor = True
+
+
+class AbstractCachedTensor(AbstractTensor, Cached, Evaluable):
+    """
+    Base class for tensor-valued tensor symbols, cached by both Devito and Sympy.
+
+    For more information, refer to ``AbstractTensor.__doc__``.
+    """
+    is_MatrixLike = True
+    is_Matrix = True
+    is_TensorValued = True
+    is_VectorValued = False
+
+    def __new__(cls, *args, **kwargs):
+        options = kwargs.get('options', {})
+        if cls in _SymbolCache:
+            newobj = sympy.Matrix.__new__(cls, *args, **options)
+            newobj._cached_init()
+        else:
+            name = kwargs.get('name')
+            # Number of dimensions
+            indices = cls.__indices_setup__(**kwargs)
+
+            # Create the new Function object and invoke __init__
+            comps = cls.__setup_subfunc__(*args, **kwargs)
+            newcls = cls._symbol_type(name)
+            newobj = sympy.Matrix.__new__(newcls, comps)
+
+            # Initialization. The following attributes must be available
+            newobj._indices = indices
+            newobj._name = name
+            newobj._dtype = cls.__dtype_setup__(**kwargs)
+            newobj.__init__(*args, **kwargs)
+            # Store new instance in symbol cache
+            newobj._cache_put(newobj)
+
+        return newobj
+
+    __hash__ = Cached.__hash__
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            pass
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        """Extract the object data type from ``kwargs``."""
+        return None
+
+    @classmethod
+    def __setup_subfunc__(cls, *args, **kwargs):
+        """
+        Setup each component as a Devito type
+        """
+        return []
+
+    @classmethod
+    def __indices_setup__(cls, *args, **kwargs):
+        """
+        Setup each component as a Devito type
+        """
+        return ()
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @classmethod
+    def _new2(cls, *args, **kwargs):
+        new_obj = cls.__new__(cls, *args, **kwargs)
+        return new_obj
+
+    def applyfunc(self, f):
+        comps = [f(x) for x in self]
+        return self._new2(self.rows, self.cols, comps)
 
 
 class AbstractFunction(sympy.Function, Basic, Pickable):

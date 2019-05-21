@@ -1,7 +1,8 @@
 from devito.tools import memoized_meth
+from devito import VectorTimeFunction, TensorTimeFunction
+
 from examples.seismic import Receiver
-from examples.seismic.elastic.operators import (ForwardOperator, tensor_function,
-                                                vector_function)
+from examples.seismic.elastic.operators import ForwardOperator
 
 
 class ElasticWaveSolver(object):
@@ -89,20 +90,11 @@ class ElasticWaveSolver(object):
 
         # Create all the fields vx, vz, tau_xx, tau_zz, tau_xz
         save_t = src.nt if save else None
-        vx, vy, vz = vector_function('v', self.model, save_t, self.space_order)
-        txx, tyy, tzz, txy, txz, tyz = tensor_function('t', self.model, save_t,
-                                                       self.space_order)
-        kwargs['vx'] = vx
-        kwargs['vz'] = vz
-        kwargs['txx'] = txx
-        kwargs['tzz'] = tzz
-        kwargs['txz'] = txz
-        if self.model.grid.dim == 3:
-            kwargs['vy'] = vy
-            kwargs['tyy'] = tyy
-            kwargs['txy'] = txy
-            kwargs['tyz'] = tyz
-        # Pick physical parameters from model unless explicitly provided
+        v = VectorTimeFunction(name='v', grid=self.model.grid, space_order=self.space_order, time_order=1)
+        tau = TensorTimeFunction(name='t', grid=self.model.grid, space_order=self.space_order, time_order=1)
+        kwargs.update({k.name: k for k in v})
+        kwargs.update({k.name: k for k in tau})
+        # Pick m from model unless explicitly provided
         vp = vp or self.model.vp
         vs = vs or self.model.vs
         rho = rho or self.model.rho
@@ -110,4 +102,4 @@ class ElasticWaveSolver(object):
         summary = self.op_fwd(save).apply(src=src, rec1=rec1, vp=vp, vs=vs, rho=rho,
                                           rec2=rec2, dt=kwargs.pop('dt', self.dt),
                                           **kwargs)
-        return rec1, rec2, vx, vz, txx, tzz, txz, summary
+        return rec1, rec2, v, tau, summary

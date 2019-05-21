@@ -3,10 +3,12 @@ from collections import ChainMap
 import sympy
 from sympy.functions.elementary.integers import floor
 from sympy.core.evalf import evalf_table
+from sympy.core.decorators import call_highest_priority
 
 from cached_property import cached_property
 
 from devito.tools import Evaluable, filter_ordered, flatten
+from devito.logger import warning
 
 __all__ = ['Differentiable']
 
@@ -45,6 +47,36 @@ class Differentiable(sympy.Expr, Evaluable):
         # Default 100 is for "infinitely" differentiable
         return min([getattr(i, 'time_order', 100) or 100 for i in self._args_diff],
                    default=100)
+
+    @cached_property
+    def is_TimeDependent(self):
+        # Default False, True if anything is time dependant in the expression
+        return any(getattr(i, 'is_TimeDependent', False) for i in self._args_diff)
+
+    @cached_property
+    def is_VectorValued(self):
+        # Default False, True if anything is time dependant in the expression
+        return any(getattr(i, 'is_VectorValued', False) for i in self._args_diff)
+
+    @cached_property
+    def is_TensorValued(self):
+        # Default False, True if anything is time dependant in the expression
+        return any(getattr(i, 'is_TensorValued', False) for i in self._args_diff)
+
+    @cached_property
+    def is_Function(self):
+        # Default False, True if anything is time dependant in the expression
+        return any(getattr(i, 'is_Function', False) for i in self._args_diff)
+
+    @cached_property
+    def grid(self):
+        # Default False, True if anything is time dependant in the expression
+        grids = [getattr(i, 'grid', None) for i in self._args_diff]
+        grid = set(grids)
+        grid.discard(None)
+        if len(grid) > 1:
+            warning("Expression contains multiple grids, returning first found")
+        return list(grid)[0]
 
     @cached_property
     def indices(self):
@@ -101,12 +133,14 @@ class Differentiable(sympy.Expr, Evaluable):
     def __rsub__(self, other):
         return Add(other, -self)
 
+    @call_highest_priority('__rmul__')
     def __mul__(self, other):
         return Mul(self, other)
 
     def __imul__(self, other):
         return Mul(self, other)
 
+    @call_highest_priority('__mul__')
     def __rmul__(self, other):
         return Mul(other, self)
 
@@ -143,6 +177,10 @@ class Differentiable(sympy.Expr, Evaluable):
     def __eq__(self, other):
         return super(Differentiable, self).__eq__(other) and\
             all(getattr(self, i, None) == getattr(other, i, None) for i in self._state)
+
+    @property
+    def name(self):
+        return "".join(f.name for f in self._functions)
 
     @property
     def laplace(self):
@@ -195,11 +233,16 @@ class Mul(sympy.Mul, Differentiable):
 
 
 class Pow(sympy.Pow, Differentiable):
-    pass
+    def __new__(cls, *args, **kwargs):
+        obj = sympy.Pow.__new__(cls, *args, **kwargs)
+        return obj
 
 
 class Mod(sympy.Mod, Differentiable):
-    pass
+    def __new__(cls, *args, **kwargs):
+        obj = sympy.Mod.__new__(cls, *args, **kwargs)
+        return obj
+
 
 
 # Make sure `sympy.evalf` knows how to evaluate the inherited classes

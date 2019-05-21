@@ -66,7 +66,7 @@ class Eq(sympy.Eq, Evaluable):
         obj._subdomain = subdomain
         obj._substitutions = coefficients
         obj._implicit_dims = as_tuple(implicit_dims)
-
+    
         return obj
 
     @property
@@ -87,8 +87,17 @@ class Eq(sympy.Eq, Evaluable):
             except AttributeError:
                 if bool(rules):
                     eq = eq.xreplace(rules)
-
         return eq
+
+    @property
+    def _flatten(self):
+        if (getattr(self.lhs, 'is_VectorValued', False) or
+            getattr(self.lhs, 'is_TensorValued', False)):
+            lhss = self.lhs.values()
+            rhss = self.rhs.values(symmetric=self.lhs.is_symmetric)
+            return [Eq(l, r) for l, r in zip(lhss, rhss)]
+        else:
+            return [self]
 
     @property
     def substitutions(self):
@@ -201,6 +210,7 @@ def solve(eq, target, **kwargs):
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
+    kwargs['manual'] = True  # Force sympy to solve one line at a time for VectorFunction
     if isinstance(eq, Eq):
         eq = eq.lhs - eq.rhs
     return sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
