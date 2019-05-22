@@ -41,6 +41,9 @@ class PartialCluster(object):
         self._atomics = set(atomics or [])
         self._guards = guards or {}
 
+    def __repr__(self):
+        return "Cluster([%s])" % ','.join('%s' % i for i in self.exprs)
+
     @property
     def exprs(self):
         return self._exprs
