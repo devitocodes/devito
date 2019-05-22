@@ -269,9 +269,15 @@ class DAG(object):
 
     def __init__(self, nodes=None, edges=None):
         self.graph = OrderedDict()
+        self.labels = DefaultOrderedDict(dict)
         for node in as_tuple(nodes):
             self.add_node(node)
-        for ind_node, dep_node in as_tuple(edges):
+        for i in as_tuple(edges):
+            try:
+                ind_node, dep_node = i
+            except ValueError:
+                ind_node, dep_node, label = i
+                self.labels[ind_node][dep_node] = label
             self.add_edge(ind_node, dep_node)
 
     def __contains__(self, key):
@@ -287,6 +293,10 @@ class DAG(object):
         for k, v in self.graph.items():
             ret.extend([(k, i) for i in v])
         return tuple(ret)
+
+    @property
+    def size(self):
+        return len(self.graph)
 
     def add_node(self, node_name, ignore_existing=False):
         """Add a node if it does not exist yet, or error out."""
@@ -305,7 +315,7 @@ class DAG(object):
             if node_name in edges:
                 edges.remove(node_name)
 
-    def add_edge(self, ind_node, dep_node, force_add=False):
+    def add_edge(self, ind_node, dep_node, force_add=False, label=None):
         """Add an edge (dependency) between the specified nodes."""
         if force_add is True:
             self.add_node(ind_node, True)
@@ -313,12 +323,24 @@ class DAG(object):
         if ind_node not in self.graph or dep_node not in self.graph:
             raise KeyError('one or more nodes do not exist in graph')
         self.graph[ind_node].add(dep_node)
+        if label is not None:
+            self.labels[ind_node][dep_node] = label
 
     def delete_edge(self, ind_node, dep_node):
         """Delete an edge from the graph."""
         if dep_node not in self.graph.get(ind_node, []):
             raise KeyError('this edge does not exist in graph')
         self.graph[ind_node].remove(dep_node)
+        try:
+            del self.labels[ind_node][dep_node]
+        except KeyError:
+            pass
+
+    def get_label(self, ind_node, dep_node, default=None):
+        try:
+            return self.labels[ind_node][dep_node]
+        except KeyError:
+            return default
 
     def predecessors(self, node):
         """Return a list of all predecessors of the given node."""
@@ -347,10 +369,6 @@ class DAG(object):
             i += 1
         return list(filter(lambda node: node in nodes_seen,
                            self.topological_sort()))
-
-    @property
-    def size(self):
-        return len(self.graph)
 
     def topological_sort(self):
         """
