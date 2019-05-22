@@ -477,7 +477,8 @@ class Access(IterationInstance):
     def __eq__(self, other):
         return super(Access, self).__eq__(other) and\
             isinstance(other, Access) and\
-            self.function == other.function
+            self.function == other.function and\
+            self.mode == other.mode
 
     def __hash__(self):
         return super(Access, self).__hash__()
@@ -627,6 +628,14 @@ class Dependence(object):
         assert source.function == sink.function
         self.source = source
         self.sink = sink
+
+    def __eq__(self, other):
+        # If the timestamps are equal in `self` (ie, an inplace dependence) then
+        # they must be equal in `other` too
+        return (self.source == other.source and
+                self.sink == other.sink and
+                ((self.source.timestamp == self.sink.timestamp) ==
+                 (other.source.timestamp == other.sink.timestamp)))
 
     @property
     def function(self):
