@@ -72,20 +72,30 @@ class PoroelasticWaveSolver(object):
         txx, tyy, tzz, txy, txz, tyz = stress_fields(self.model, save_t, self.space_order)
         kwargs['vx'] = vx
         kwargs['vz'] = vz
+        kwargs['qx'] = qx
+        kwargs['qz'] = qz
         kwargs['txx'] = txx
         kwargs['tzz'] = tzz
         kwargs['txz'] = txz
+        kwargs['p'] = p
         if self.model.grid.dim == 3:
             kwargs['vy'] = vy
+            kwargs['qy'] = qy
             kwargs['tyy'] = tyy
             kwargs['txy'] = txy
             kwargs['tyz'] = tyz
         # Pick m from model unless explicitly provided
-        vp = vp or self.model.vp
-        vs = vs or self.model.vs
-        rho = rho or self.model.rho
+        rho_s = rho_s or self.model.rho_s
+        rho_f = rho_f or self.model.rho_f
+        phi   = phi   or self.model.phi
+        k     = k     or self.model.k
+        mu_f  = mu_f  or self.model.mu_f
+        K_dr  = K_dr  or self.model.K_dr
+        K_s   = K_s   or self.model.K_s
+        K_f   = K_f   or self.model.K_f
+        G     = G     or self.model.G
+        T     = T     or self.model.T
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, vp=vp, vs=vs, rho=rho,
-                                          rec2=rec2, dt=kwargs.pop('dt', self.dt),
-                                          **kwargs)
-        return rec1, rec2, vx, vz, txx, tzz, txz, summary
+        summary = self.op_fwd(save).apply(src=src, rec1=rec1, rec2=rec2,
+                                          dt=kwargs.pop('dt', self.dt), **kwargs)
+        return rec1, rec2, vx, vz, qx, qz, txx, tzz, txz, p, summary
