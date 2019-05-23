@@ -8,7 +8,7 @@ from devito.ir.support import (Scope, IterationSpace, detect_flow_directions,
 from devito.ir.clusters.cluster import PartialCluster, Cluster, ClusterGroup
 from devito.symbolics import CondEq
 from devito.types import Dimension
-from devito.tools import DAG, DefaultOrderedDict, as_tuple
+from devito.tools import DAG, DefaultOrderedDict, all_equal, as_tuple
 
 __all__ = ['clusterize', 'schedule']
 
@@ -44,12 +44,48 @@ def schedule(clusters):
     """
     csequences = [ClusterSequence(c, c.itintervals) for c in clusters]
 
-    scheduler = Scheduler()
+    scheduler = Scheduler(fuse)
     csequences = scheduler.process(csequences)
 
     clusters = ClusterSequence.concatenate(*csequences)
 
     return clusters
+
+
+def enforce_directions(csequences):
+    pass
+
+
+def fuse(csequences):
+    """
+    Fuse ClusterSequences with identical IterationSpace.
+    """
+    processed = []
+    for k, g in groupby(csequences, key=lambda i: i.itintervals):
+        maybe_fusible = list(g)
+        clusters = ClusterSequence.concatenate(*maybe_fusible)
+        # TODO: move concatenate as classmethod to Cluster?
+        # TODO: use is_compatible for ispaces...
+        if len(clusters) == 1 or not all_equal(c.ispace for c in clusters):
+            processed.extend(maybe_fusible)
+        else:
+            exprs = chain(c.exprs for c in clusters)
+            ispace = IterationSpace.merge(c.ispace for c in clusters)
+            dspace = DataSpace.merge(c.dspace for c in clusters)
+            fused = Cluster(exprs, ispace, dspace)
+            processed.append(ClusterSequence(fused, fused.itintervals))
+    return processed
+
+
+def toposort_and_fuse(csequences):
+    # TODO: just put everything in `fuse` ?
+    pass
+
+
+def lift(csequences):
+    # TODO: implement me
+    # no-op ATM
+    return csequences
 
 
 class Scheduler(object):
@@ -58,20 +94,21 @@ class Scheduler(object):
     A scheduler for ClusterSequences.
     """
 
-    def __init__(self, callbacks=None):
+    def __init__(self, *callbacks):
         self.callabacks = as_tuple(callbacks)
 
     def _process(self, csequences, level):
         if all(level > len(cs.itintervals) for cs in csequences):
-            # TODO: apply callbacks here
+            for f in self.callbacks:
+                csequences = f(csequences)
             return csequences
         else:
-            key = lambda i: i.itintervals[:level]
             processed = []
-            for k, g in groupby(csequences, key=key):
+            for k, g in groupby(csequences, key=lambda i: i.itintervals[:level]):
                 if level > len(k):
                     continue
                 else:
+                    # TODO: maybe iff len(g) > 1
                     processed.extend(self._process(list(g), level + 1))
             return processed
 
