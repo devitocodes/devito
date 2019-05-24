@@ -1,3 +1,5 @@
+from itertools import chain
+
 import numpy as np
 from cached_property import cached_property
 from frozendict import frozendict
@@ -169,6 +171,19 @@ class Cluster(PartialCluster):
         self._dspace = dspace
         self._atomics = frozenset(atomics or [])
         self._guards = frozendict(guards or {})
+
+    @classmethod
+    def from_clusters(cls, *clusters):
+        """
+        Build a new Cluster from a sequence of pre-existing Clusters with
+        compatible IterationSpace.
+        """
+        assert len(clusters) > 0
+        root = clusters[0]
+        assert all(root.ispace.is_compatible(c.ispace) for c in clusters)
+        exprs = chain(*[c.exprs for c in clusters])
+        dspace = DataSpace.merge(*[c.dspace for c in clusters])
+        return Cluster(exprs, root.ispace, dspace)
 
     @cached_property
     def functions(self):
