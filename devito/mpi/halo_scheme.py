@@ -265,8 +265,8 @@ def hs_comp_locindices(f, dims, ispace, scope):
         if d.is_Stepping:
             subiters = ispace.sub_iterators.get(d.root, [])
             submap = as_mapper(subiters, lambda md: md.modulo)
-            submap = {i.origin: i for i in submap[f._time_size]}
             try:
+                submap = {i.origin: i for i in submap[f._time_size]}
                 loc_indices[d] = submap[loc_index]
             except KeyError:
                 raise HaloSchemeException("Don't know how to build a HaloScheme as the "
