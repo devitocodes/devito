@@ -5,7 +5,7 @@ from cached_property import cached_property
 import sympy
 
 from devito.ir.support import Scope, DataSpace, IterationSpace, force_directions
-from devito.ir.clusters.cluster import PartialCluster, Cluster, ClusterGroup
+from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.symbolics import CondEq
 from devito.types import Dimension
 from devito.tools import DAG, DefaultOrderedDict, as_tuple, flatten
@@ -18,12 +18,12 @@ def clusterize(exprs):
     Turn a sequence of LoweredEqs into a sequence of Clusters.
     """
     # Initialization
-    clusters = [PartialCluster(e, e.ispace, e.dspace) for e in exprs]
+    clusters = [Cluster(e, e.ispace, e.dspace) for e in exprs]
 
     # Topological sorting and optimizations
     clusters = schedule(clusters)
 
-    # Introduce conditional PartialClusters
+    # Introduce conditional Clusters
     clusters = guard(clusters)
 
     return ClusterGroup(clusters)

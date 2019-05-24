@@ -5,20 +5,17 @@ from cached_property import cached_property
 from frozendict import frozendict
 
 from devito.ir.equations import ClusterizedEq
-from devito.ir.support import DataSpace, IterationSpace, Scope, detect_io
+from devito.ir.support import IterationSpace, DataSpace, Scope, detect_io
 from devito.symbolics import estimate_cost, retrieve_indexed
 from devito.tools import as_tuple
 
 __all__ = ["Cluster", "ClusterGroup"]
 
 
-class PartialCluster(object):
+class Cluster(object):
 
     """
-    A PartialCluster is an ordered sequence of scalar expressions contributing
-    to the computation of a tensor, plus the tensor expression itself.
-
-    A PartialCluster is mutable.
+    A Cluster is an ordered sequence of expressions in an IterationSpace.
 
     Parameters
     ----------
@@ -29,22 +26,43 @@ class PartialCluster(object):
     dspace : DataSpace
         The cluster data space.
     atomics : list, optional
-        Dimensions inducing a data dependence with other PartialClusters.
+        Dimensions inducing a data dependence with other Clusters.
     guards : dict, optional
         Mapper from Dimensions to expr-like, representing the conditions under
-        which the PartialCluster should be computed.
+        which the Cluster should be computed.
     """
 
     def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
-        self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
-                           for i in as_tuple(exprs))
+        self._exprs = tuple(ClusterizedEq(i, ispace=ispace, dspace=dspace)
+                            for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
-        self._atomics = set(atomics or [])
-        self._guards = guards or {}
+        self._atomics = frozenset(atomics or [])
+        self._guards = frozendict(guards or {})
 
     def __repr__(self):
-        return "Cluster([%s])" % ','.join('%s' % i for i in self.exprs)
+        return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
+
+    @classmethod
+    def from_clusters(cls, *clusters):
+        """
+        Build a new Cluster from a sequence of pre-existing Clusters with
+        compatible IterationSpace.
+        """
+        assert len(clusters) > 0
+        root = clusters[0]
+        assert all(root.ispace.is_compatible(c.ispace) for c in clusters)
+        exprs = chain(*[c.exprs for c in clusters])
+        ispace = IterationSpace.merge(*[c.ispace for c in clusters])
+        dspace = DataSpace.merge(*[c.dspace for c in clusters])
+        return Cluster(exprs, ispace, dspace)
+
+    def rebuild(self, exprs):
+        """
+        Build a new Cluster from a sequence of expressions. All other attributes
+        are inherited from ``self``.
+        """
+        return Cluster(exprs, self.ispace, self.dspace, self.atomics, self.guards)
 
     @property
     def exprs(self):
@@ -55,16 +73,8 @@ class PartialCluster(object):
         return self._ispace
 
     @property
-    def dimensions(self):
-        return self._ispace.dimensions
-
-    @property
     def itintervals(self):
-        return self._ispace.itintervals
-
-    @property
-    def size(self):
-        return self.ispace.size
+        return self.ispace.itintervals
 
     @property
     def shape(self):
@@ -82,15 +92,23 @@ class PartialCluster(object):
     def guards(self):
         return self._guards
 
-    @property
-    def args(self):
-        return (self.exprs, self.ispace, self.dspace, self.atomics, self.guards)
+    @cached_property
+    def functions(self):
+        return set.union(*[set(i.dspace.parts) for i in self.exprs])
 
-    @property
+    @cached_property
     def scope(self):
         return Scope(self.exprs)
 
-    @property
+    @cached_property
+    def is_sparse(self):
+        return any(f.is_SparseFunction for f in self.functions)
+
+    @cached_property
+    def is_dense(self):
+        return not self.is_sparse
+
+    @cached_property
     def dtype(self):
         """
         The arithmetic data type of the Cluster. If the Cluster performs
@@ -112,12 +130,12 @@ class PartialCluster(object):
         else:
             raise ValueError("Unsupported Cluster [mixed integer arithmetic ?]")
 
-    @property
+    @cached_property
     def ops(self):
         """The Cluster operation count."""
-        return self.size*sum(estimate_cost(i) for i in self.exprs)
+        return self.ispace.size*sum(estimate_cost(i) for i in self.exprs)
 
-    @property
+    @cached_property
     def traffic(self):
         """
         The Cluster compulsary traffic (number of reads/writes), as a mapper
@@ -144,81 +162,12 @@ class PartialCluster(object):
                 ret[(i, mode)] = self.ispace.intervals
         return ret
 
-    def merge(self, other):
-        """
-        Concatenate the expressions in ``other`` to those in ``self``.
-        ``self`` and ``other`` must have same ``ispace``. Duplicate expressions
-        are dropped. The DataSpace as well as the other metadata are updated
-        accordingly.
-        """
-        assert self.ispace.is_compatible(other.ispace)
-        self._exprs.extend([i for i in other.exprs
-                            if i not in self.exprs or i.is_Increment])
-        self._ispace = IterationSpace.merge(self.ispace, other.ispace)
-        self._dspace = DataSpace.merge(self.dspace, other.dspace)
-        self._atomics.update(other.atomics)
-        self._guards.update(other.guards)
-
-
-class Cluster(PartialCluster):
-
-    """A Cluster is an immutable PartialCluster."""
-
-    def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
-        self._exprs = list(ClusterizedEq(i, ispace=ispace, dspace=dspace)
-                           for i in as_tuple(exprs))
-        self._ispace = ispace
-        self._dspace = dspace
-        self._atomics = frozenset(atomics or [])
-        self._guards = frozendict(guards or {})
-
-    @classmethod
-    def from_clusters(cls, *clusters):
-        """
-        Build a new Cluster from a sequence of pre-existing Clusters with
-        compatible IterationSpace.
-        """
-        assert len(clusters) > 0
-        root = clusters[0]
-        assert all(root.ispace.is_compatible(c.ispace) for c in clusters)
-        exprs = chain(*[c.exprs for c in clusters])
-        dspace = DataSpace.merge(*[c.dspace for c in clusters])
-        return Cluster(exprs, root.ispace, dspace)
-
-    @cached_property
-    def functions(self):
-        return set.union(*[set(i.dspace.parts) for i in self.exprs])
-
-    @cached_property
-    def scope(self):
-        return Scope(self.exprs)
-
-    @cached_property
-    def is_sparse(self):
-        return any(f.is_SparseFunction for f in self.functions)
-
-    @cached_property
-    def is_dense(self):
-        return not self.is_sparse
-
-    def rebuild(self, exprs):
-        """
-        Build a new Cluster with expressions ``exprs`` having same iteration
-        space and atomics as ``self``.
-        """
-        return Cluster(exprs, self.ispace, self.dspace, self.atomics, self.guards)
-
-    def squash(self, other):
-        raise AttributeError
-
 
 class ClusterGroup(tuple):
 
     """An immutable iterable of Clusters."""
 
     def __new__(cls, items):
-        items = [Cluster(*i.args) if isinstance(i, PartialCluster) else i
-                 for i in items]
         assert all(isinstance(i, Cluster) for i in items)
         return super(ClusterGroup, cls).__new__(cls, items)
 
