@@ -4,7 +4,7 @@ from itertools import chain, groupby
 from cached_property import cached_property
 import sympy
 
-from devito.ir.support import Scope, DataSpace, IterationSpace, force_directions
+from devito.ir.support import Any, DataSpace, IterationSpace, Scope, force_directions
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.symbolics import CondEq
 from devito.types import Dimension
@@ -44,16 +44,52 @@ def schedule(clusters):
     """
     csequences = [ClusterSequence(c, c.itintervals) for c in clusters]
 
-    scheduler = Scheduler(toposort, fuse)
+    scheduler = Scheduler([], [toposort, fuse, lift])
     csequences = scheduler.process(csequences)
 
-    clusters = ClusterSequence.concatenate(csequences)
+    clusters = ClusterSequence.concatenate(*csequences)
 
     return clusters
 
 
-def enforce_directions(csequences):
-    pass
+def steer(csequences, level):
+    """
+    Replace `Any` IterationDirections with either `Forward` or `Backward` -- this
+    depends on the IterationDirection of the first non-Any direction.
+
+    Examples
+    --------
+    1) i*[0, 0]
+       i*[-1, 1]
+       i++[0, 0]
+       The last IterationInterval has `Forward` direction; the first two are `Any`,
+       so they all become `Forward`.
+
+    2) i++[0, 0]
+       i--[1, 2]
+       The two IterationIntervals have opposite direction, so they remain the same
+       (this will eventually result in generating different loops).
+
+    3) i++[-1, 0]
+       i*[-2, -1]
+       i--[0, 0]
+       The first IterationInterval imposes `Forward` on the second one. The last one
+       remains `Backward`.
+
+    Note that the Interval bounds have no impact.
+    """
+    for prefix, g in groupby(csequences, key=lambda i: i.dimensions[:level]):
+        if level > len(prefix):
+            continue
+        queue = list(g)
+        batch = []
+
+        while queue.pop().itintervals[level] is Any:
+            pass
+
+        from IPython import embed; embed()
+
+    return csequences
 
 
 def toposort(csequences, prefix):
@@ -97,7 +133,7 @@ def fuse(csequences, prefix):
     return processed
 
 
-def lift(csequences):
+def lift(csequences, prefix):
     # TODO: implement me
     # no-op ATM
     return csequences
@@ -109,24 +145,45 @@ class Scheduler(object):
     A scheduler for ClusterSequences.
 
     The scheduler adopts a divide-and-conquer algorithm. [... TODO ...]
+
+    Parameters
+    ----------
+    preprocess : list of callables, optional
+        Routines executed before the divide part. These prepare the input
+        prior to division.
+    callbacks : list of callables, optional
+        Routines executed upon conquer. Typically these are optimizations.
+    postprocess : list of callables, optional
+        Routines executed after the conquer part. These work out the output
+        of conquer before the next divide part.
     """
 
-    def __init__(self, *callbacks):
+    def __init__(self, preprocess=None, callbacks=None, postprocess=None):
+        self.preprocess = as_tuple(preprocess)
         self.callbacks = as_tuple(callbacks)
+        self.postprocess = as_tuple(postprocess)
 
     def _process(self, csequences, level, prefix=None):
-        if all(level > len(cs.itintervals) for cs in csequences):
-            for f in self.callbacks:
-                csequences = f(csequences, prefix)
-            return ClusterSequence(csequences, prefix)
-        else:
-            processed = []
-            for k, g in groupby(csequences, key=lambda i: i.itintervals[:level]):
-                if level > len(k):
-                    continue
-                else:
-                    processed.extend(self._process(list(g), level + 1, k))
-            return processed
+        # Preprocess
+        for f in self.preprocess:
+            csequences = f(csequences, level)
+        # Divide part
+        processing = []
+        for pfx, g in groupby(csequences, key=lambda i: i.itintervals[:level]):
+            if level > len(pfx):
+                # Base case
+                processing.extend(list(g))
+            else:
+                # Recursion
+                processing.extend(self._process(list(g), level + 1, pfx))
+        # Conquer part (execute callbacks)
+        for f in self.callbacks:
+            processing = f(processing, prefix)
+        processed = [ClusterSequence(processing, prefix)]
+        # Postprocess
+        for f in self.postprocess:
+            processed = f(processed, level)
+        return processed
 
     def process(self, csequences):
         return self._process(csequences, 1)
@@ -162,6 +219,10 @@ class ClusterSequence(tuple):
     def itintervals(self):
         """The prefix IterationIntervals common to all Clusters in self."""
         return self._itintervals
+
+    @cached_property
+    def dimensions(self):
+        return tuple(i.dim for i in self.itintervals)
 
 
 def build_dag(csequences, prefix):
