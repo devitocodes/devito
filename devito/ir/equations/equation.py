@@ -18,7 +18,7 @@ class IREq(object):
     A mixin providing operations common to all :mod:`ir` equation types.
     """
 
-    _state = ('is_Increment', 'ispace', 'dspace', 'conditionals')
+    _state = ('is_Increment', 'ispace', 'dspace', 'conditionals', 'implicit_dims')
 
     @property
     def is_Scalar(self):
@@ -47,6 +47,10 @@ class IREq(object):
         # be in the data space but not in the iteration space (e.g., when a
         # function is indexed with integers only)
         return set(self.dspace.dimensions) | set(self.ispace.dimensions)
+
+    @property
+    def implicit_dims(self):
+        return self._implicit_dims
 
     @property
     def conditionals(self):
@@ -89,7 +93,7 @@ class LoweredEq(sympy.Eq, IREq):
     ``LoweredEq._state`` must appear in ``kwargs``.
     """
 
-    _state = IREq._state + ('reads', 'writes', 'implicit_dims')
+    _state = IREq._state + ('reads', 'writes')
 
     def __new__(cls, *args, **kwargs):
         if len(args) == 1 and isinstance(args[0], LoweredEq):
@@ -156,10 +160,6 @@ class LoweredEq(sympy.Eq, IREq):
     @property
     def writes(self):
         return self._writes
-
-    @property
-    def implicit_dims(self):
-        return self._implicit_dims
 
     def xreplace(self, rules):
         return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), **self.state)
