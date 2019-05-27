@@ -4,7 +4,8 @@ from itertools import chain, groupby
 from cached_property import cached_property
 import sympy
 
-from devito.ir.support import Any, DataSpace, IterationSpace, Scope, force_directions
+from devito.ir.support import (Any, DataSpace, IterationSpace, Scope,
+                               detect_flow_directions, force_directions)
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.symbolics import CondEq
 from devito.types import Dimension
@@ -20,7 +21,10 @@ def clusterize(exprs):
     # Initialization
     clusters = [Cluster(e, e.ispace, e.dspace) for e in exprs]
 
-    # Topological sorting and optimizations
+    # Enforce iteration direction
+    clusters = Queue(enforce).process(clusters)
+
+    # Apply optimizations
     clusters = schedule(clusters)
 
     # Introduce conditional Clusters
@@ -44,52 +48,30 @@ def schedule(clusters):
     """
     csequences = [ClusterSequence(c, c.itintervals) for c in clusters]
 
-    scheduler = Scheduler([], [toposort, fuse, lift])
-    csequences = scheduler.process(csequences)
-
+    csequences = Queue(toposort, fuse, lift).process(csequences)
     clusters = ClusterSequence.concatenate(*csequences)
 
     return clusters
 
 
-def steer(csequences, level):
+def enforce(clusters, prefix):
     """
-    Replace `Any` IterationDirections with either `Forward` or `Backward` -- this
-    depends on the IterationDirection of the first non-Any direction.
-
-    Examples
-    --------
-    1) i*[0, 0]
-       i*[-1, 1]
-       i++[0, 0]
-       The last IterationInterval has `Forward` direction; the first two are `Any`,
-       so they all become `Forward`.
-
-    2) i++[0, 0]
-       i--[1, 2]
-       The two IterationIntervals have opposite direction, so they remain the same
-       (this will eventually result in generating different loops).
-
-    3) i++[-1, 0]
-       i*[-2, -1]
-       i--[0, 0]
-       The first IterationInterval imposes `Forward` on the second one. The last one
-       remains `Backward`.
-
-    Note that the Interval bounds have no impact.
+    Replace, where necessary, `Any` IterationDirections with either `Forward` or
+    `Backward`. This is accomplished by analyzing dependences across Clusters.
     """
-    for prefix, g in groupby(csequences, key=lambda i: i.dimensions[:level]):
-        if level > len(prefix):
-            continue
-        queue = list(g)
-        batch = []
+    # Don't waste time building a flow map if there's a single Cluster
+    if len(clusters) == 1:
+        return clusters
 
-        while queue.pop().itintervals[level] is Any:
-            pass
+    mapper = detect_flow_directions(flatten(c.exprs for c in clusters))
 
-        from IPython import embed; embed()
+    processed = []
+    for c in clusters:
+        directions, _ = force_directions(mapper, lambda d: c.ispace.directions.get(d))
+        ispace = IterationSpace(c.ispace.intervals, c.ispace.sub_iterators, directions)
+        processed.append(Cluster(c.exprs, ispace, c.dspace))
 
-    return csequences
+    return processed
 
 
 def toposort(csequences, prefix):
@@ -139,54 +121,38 @@ def lift(csequences, prefix):
     return csequences
 
 
-class Scheduler(object):
+class Queue(object):
 
     """
-    A scheduler for ClusterSequences.
-
-    The scheduler adopts a divide-and-conquer algorithm. [... TODO ...]
+    A special queue to process objects in nested IterationSpaces based on
+    a divide-and-conquer algorithm.
 
     Parameters
     ----------
-    preprocess : list of callables, optional
-        Routines executed before the divide part. These prepare the input
-        prior to division.
     callbacks : list of callables, optional
-        Routines executed upon conquer. Typically these are optimizations.
-    postprocess : list of callables, optional
-        Routines executed after the conquer part. These work out the output
-        of conquer before the next divide part.
+        Routines executed upon conquer.
     """
 
-    def __init__(self, preprocess=None, callbacks=None, postprocess=None):
-        self.preprocess = as_tuple(preprocess)
+    def __init__(self, *callbacks):
         self.callbacks = as_tuple(callbacks)
-        self.postprocess = as_tuple(postprocess)
 
-    def _process(self, csequences, level, prefix=None):
-        # Preprocess
-        for f in self.preprocess:
-            csequences = f(csequences, level)
+    def _process(self, elements, level, prefix=None):
         # Divide part
-        processing = []
-        for pfx, g in groupby(csequences, key=lambda i: i.itintervals[:level]):
+        processed = []
+        for pfx, g in groupby(elements, key=lambda i: i.itintervals[:level]):
             if level > len(pfx):
                 # Base case
-                processing.extend(list(g))
+                processed.extend(list(g))
             else:
                 # Recursion
-                processing.extend(self._process(list(g), level + 1, pfx))
+                processed.extend(self._process(list(g), level + 1, pfx))
         # Conquer part (execute callbacks)
         for f in self.callbacks:
-            processing = f(processing, prefix)
-        processed = [ClusterSequence(processing, prefix)]
-        # Postprocess
-        for f in self.postprocess:
-            processed = f(processed, level)
+            processed = f(processed, prefix)
         return processed
 
-    def process(self, csequences):
-        return self._process(csequences, 1)
+    def process(self, elements):
+        return self._process(elements, 1)
 
 
 class ClusterSequence(tuple):
@@ -209,20 +175,12 @@ class ClusterSequence(tuple):
 
     @cached_property
     def exprs(self):
-        return list(chain(c.exprs) for c in self)
-
-    @cached_property
-    def scope(self):
-        return Scope(self.exprs)
+        return flatten(c.exprs for c in self)
 
     @cached_property
     def itintervals(self):
         """The prefix IterationIntervals common to all Clusters in self."""
         return self._itintervals
-
-    @cached_property
-    def dimensions(self):
-        return tuple(i.dim for i in self.itintervals)
 
 
 def build_dag(csequences, prefix):
@@ -253,13 +211,11 @@ def build_dag(csequences, prefix):
        Flow-dependence in `j`, but the `i` IterationInterval is different (e.g.,
        `i*[0,0]` for `cs0` and `i*[-1, 1]` for `cs1`), so `cs1` must go after `cs0`.
     """
-    prefix = set(prefix)
+    prefix = set(as_tuple(prefix))
     dag = DAG(nodes=csequences)
     for i, cs0 in enumerate(csequences):
         for cs1 in csequences[i+1:]:
             scope = Scope(exprs=cs0.exprs + cs1.exprs)
-
-            local_deps = list(chain(cs0.scope.d_all, cs1.scope.d_all))
             if any(dep.cause - prefix for dep in scope.d_all):
                 dag.add_edge(cs0, cs1)
                 break
