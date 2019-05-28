@@ -93,6 +93,20 @@ class Cluster(object):
         return self._guards
 
     @cached_property
+    def free_symbols(self):
+        return set().union(*[e.free_symbols for e in self.exprs])
+
+    @cached_property
+    def used_dimensions(self):
+        """
+        The Dimensions that *actually* appear among the expressions in ``self``.
+        These do not necessarily coincide the IterationSpace Dimensions; for
+        example, reduction or redundant (i.e., invariant) Dimensions won't
+        appear in an expression.
+        """
+        return set().union(*[i._defines for i in self.free_symbols if i.is_Dimension])
+
+    @cached_property
     def functions(self):
         return set.union(*[set(i.dspace.parts) for i in self.exprs])
 
