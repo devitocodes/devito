@@ -33,27 +33,6 @@ def clusterize(exprs):
     return ClusterGroup(clusters)
 
 
-def schedule(clusters):
-    """
-    Produce a topologically-ordered sequence of Clusters while introducing the
-    following optimizations:
-
-        * Fusion
-        * Lifting
-
-    Notes
-    -----
-    This function relies on advanced data dependency analysis tools based upon classic
-    Lamport theory.
-    """
-    csequences = [ClusterSequence(c, c.itintervals) for c in clusters]
-
-    csequences = Queue(toposort, fuse, lift).process(csequences)
-    clusters = ClusterSequence.concatenate(*csequences)
-
-    return clusters
-
-
 def enforce(clusters, prefix):
     """
     Replace, where necessary, `Any` IterationDirections with either `Forward` or
@@ -72,6 +51,55 @@ def enforce(clusters, prefix):
         processed.append(Cluster(c.exprs, ispace, c.dspace))
 
     return processed
+
+
+def schedule(clusters):
+    """
+    Optimize a topologically-ordered sequence of Clusters by applying the
+    following transformations:
+
+        * Fusion
+        * Lifting
+
+    Notes
+    -----
+    This function relies on advanced data dependency analysis tools based upon classic
+    Lamport theory.
+    """
+    # Lifting
+    clusters = Queue(lift).process(clusters)
+
+    # Fusion
+    # Note: we use ClusterSequences, instead of Clusters, as `toposort` needs to
+    # treat sub-sequences of already-processed Clusters as atomic (non-reshuffable)
+    # entities
+    csequences = [ClusterSequence(c, c.itintervals) for c in clusters]
+    csequences = Queue(toposort, fuse).process(csequences)
+    clusters = ClusterSequence.concatenate(*csequences)
+
+    return clusters
+
+
+def lift(clusters, prefix):
+    hope_invariant = {i.dim for i in prefix}
+    candidates = [c for c in clusters if
+                  not any(e.is_Increment for e in c.exprs) and  # No reductions
+                  not c.used_dimensions & hope_invariant]  # Not an invariant ispace
+
+    # Now check data dependences
+    if not candidates:
+        return clusters
+
+    scope = Scope(exprs=flatten(c.exprs for c in clusters))
+    processed = []
+    for c in clusters:
+        if c in candidates:
+            from IPython import embed; embed()
+            processed.insert(0, lifted)
+        else:
+            processed.append(c)
+
+    return clusters
 
 
 def toposort(csequences, prefix):
@@ -113,12 +141,6 @@ def fuse(csequences, prefix):
             fused = Cluster.from_clusters(*clusters)
             processed.append(ClusterSequence(fused, fused.itintervals))
     return processed
-
-
-def lift(csequences, prefix):
-    # TODO: implement me
-    # no-op ATM
-    return csequences
 
 
 class Queue(object):
