@@ -910,6 +910,10 @@ class Scope(object):
         return [i for group in groups for i in group]
 
     @cached_property
+    def functions(self):
+        return set(self.reads) | set(self.writes)
+
+    @cached_property
     def d_flow(self):
         """Generate all flow (or "read-after-write") dependences."""
         found = DependenceGroup()
