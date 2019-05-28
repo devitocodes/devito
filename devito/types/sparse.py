@@ -5,12 +5,11 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
-from devito.cgen_utils import INT, cast_mapper
 from devito.equation import Eq, Inc
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
-from devito.symbolics import indexify, retrieve_function_carriers
+from devito.symbolics import INT, cast_mapper, indexify, retrieve_function_carriers
 from devito.tools import (ReducerMap, flatten, prod, powerset,
                           filter_ordered, memoized_meth)
 from devito.types.dense import DiscreteFunction, Function, SubFunction

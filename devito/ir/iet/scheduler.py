@@ -2,12 +2,11 @@ from collections import OrderedDict
 
 import cgen as c
 
-from devito.cgen_utils import ccode
 from devito.ir.iet import (ArrayCast, Expression, Increment, LocalExpression, Element,
                            Iteration, List, Conditional, Section, HaloSpot,
                            ExpressionBundle, MapSections, Transformer, FindNodes,
                            FindSymbols, XSubs, iet_analyze, filter_iterations)
-from devito.symbolics import IntDiv, xreplace_indices
+from devito.symbolics import IntDiv, ccode, xreplace_indices
 from devito.tools import as_mapper, as_tuple
 from devito.types import ConditionalDimension
 

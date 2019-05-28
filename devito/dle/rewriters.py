@@ -6,7 +6,6 @@ from time import time
 
 import cgen
 
-from devito.cgen_utils import ccode
 from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
                                        unfold_blocked_tree)
 from devito.dle.parallelizer import Ompizer
@@ -18,6 +17,7 @@ from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder,
 from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder
 from devito.parameters import configuration
+from devito.symbolics import ccode
 from devito.tools import DAG, as_tuple, filter_ordered, flatten
 
 __all__ = ['PlatformRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter',

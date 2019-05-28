@@ -1,12 +1,14 @@
+"""
+Utilities to turn SymPy objects into C strings.
+"""
+
 import numpy as np
-import cgen as c
 
 from mpmath.libmp import prec_to_dps, to_str
-from sympy import Function
 from sympy.printing.ccode import C99CodePrinter
 
+__all__ = ['ccode']
 
-# Utils to print C strings
 
 class CodePrinter(C99CodePrinter):
 
@@ -143,14 +145,3 @@ def ccode(expr, dtype=np.float32, **settings):
         the input ``expr`` itself.
     """
     return CodePrinter(dtype=dtype, settings=settings).doprint(expr, None)
-
-
-blankline = c.Line("")
-printmark = lambda i: c.Line('printf("Here: %s\\n"); fflush(stdout);' % i)
-printvar = lambda i: c.Statement('printf("%s=%%s\\n", %s); fflush(stdout);' % (i, i))
-INT = Function('INT')
-FLOAT = Function('FLOAT')
-DOUBLE = Function('DOUBLE')
-FLOOR = Function('floor')
-
-cast_mapper = {np.float32: FLOAT, float: DOUBLE, np.float64: DOUBLE}
