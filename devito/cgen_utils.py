@@ -1,57 +1,9 @@
-from collections import OrderedDict
-
 import numpy as np
 import cgen as c
 
 from mpmath.libmp import prec_to_dps, to_str
 from sympy import Function
 from sympy.printing.ccode import C99CodePrinter
-
-
-class Allocator(object):
-
-    """
-    Generate C strings to declare pointers, allocate and free memory.
-    """
-
-    def __init__(self):
-        self.heap = OrderedDict()
-        self.stack = OrderedDict()
-
-    def push_stack(self, scope, obj):
-        """Generate a cgen object that allocates ``obj`` on the stack."""
-        handle = self.stack.setdefault(scope, OrderedDict())
-        if obj.is_LocalObject:
-            handle[obj] = c.Value(obj._C_typename, obj.name)
-        else:
-            shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
-            alignment = "__attribute__((aligned(%d)))" % obj._data_alignment
-            handle[obj] = c.POD(obj.dtype, "%s%s %s" % (obj.name, shape, alignment))
-
-    def push_heap(self, obj):
-        """Generate cgen objects to declare an Array and allocate/free its memory."""
-        if obj in self.heap:
-            return
-
-        decl = "(*%s)%s" % (obj.name, "".join("[%s]" % i for i in obj.symbolic_shape[1:]))
-        decl = c.Value(obj._C_typedata, decl)
-
-        shape = "".join("[%s]" % i for i in obj.symbolic_shape)
-        alloc = "posix_memalign((void**)&%s, %d, sizeof(%s%s))"
-        alloc = alloc % (obj.name, obj._data_alignment, obj._C_typedata, shape)
-        alloc = c.Statement(alloc)
-
-        free = c.Statement('free(%s)' % obj.name)
-
-        self.heap[obj] = (decl, alloc, free)
-
-    @property
-    def onstack(self):
-        return [(k, v.values()) for k, v in self.stack.items()]
-
-    @property
-    def onheap(self):
-        return self.heap.values()
 
 
 # Utils to print C strings
