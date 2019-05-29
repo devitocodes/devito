@@ -130,9 +130,21 @@ def toposort(csequences, prefix):
 
     dag = build_dag(csequences, prefix)
 
-    # TODO: choose_element-based toposort
+    def choose_element(queue, scheduled):
+        # Heuristic: prefer a node having same IterationSpace as that of
+        # the last scheduled node to maximize Cluster fusion
+        if not scheduled:
+            return queue.pop()
+        last = scheduled[-1]
+        for i in list(queue):
+            if i.itintervals == last.itintervals:
+                queue.remove(i)
+                return i
+        return queue.pop()
 
-    return csequences
+    processed = dag.topological_sort(choose_element)
+
+    return processed
 
 
 def fuse(csequences, prefix):
