@@ -370,9 +370,17 @@ class DAG(object):
         return list(filter(lambda node: node in nodes_seen,
                            self.topological_sort()))
 
-    def topological_sort(self):
+    def topological_sort(self, choose_element=None):
         """
         Return a topological ordering of the DAG.
+
+        Parameters
+        ----------
+        choose_element : callable, optional
+            A callback to pick an element out of the current candidates (i.e.,
+            all un-scheduled nodes with no incoming edges). The callback takes
+            in input an iterable of schedulable nodes as well as the list of
+            already scheduled nodes; it must remove and return the selected node.
 
         Raises
         ------
@@ -380,6 +388,9 @@ class DAG(object):
             If it is not possible to compute a topological ordering, as the graph
             is invalid.
         """
+        if choose_element is None:
+            choose_element = lambda q, l: q.pop()
+
         in_degree = OrderedDict()  # OrderedDict, not dict, for determinism
         for u in self.graph:
             in_degree[u] = 0
@@ -395,7 +406,7 @@ class DAG(object):
 
         l = []
         while queue:
-            u = queue.pop()
+            u = choose_element(queue, l)
             l.append(u)
             for v in self.graph[u]:
                 in_degree[v] -= 1
