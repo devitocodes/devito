@@ -29,9 +29,9 @@ def t(grid):
 @skipif(['yask', 'ops'])
 class TestFD(object):
     """
-    Class for finite difference testing
-    Tests the accuracy w.r.t polynomials
-    Test that the shortcut produce the same answer as the FD functions
+    Class for finite difference testing.
+    Tests the accuracy w.r.t polynomials.
+    Test that the shortcut produce the same answer as the FD functions.
     """
 
     def setup_method(self):
@@ -138,7 +138,9 @@ class TestFD(object):
     ])
     @pytest.mark.parametrize('order', [2, 4, 6, 8, 10, 12, 14, 16])
     def test_second_derivatives_space(self, derivative, dim, order):
-        """Test second derivative expressions against native sympy"""
+        """
+        Test second derivative expressions against native sympy.
+        """
         dim = dim(self.grid)
         u = TimeFunction(name='u', grid=self.grid, time_order=2, space_order=order)
         expr = getattr(u, derivative).evaluate
@@ -156,9 +158,7 @@ class TestFD(object):
         """
         This test compares the discrete finite-difference scheme against polynomials
         For a given order p, the finite difference scheme should
-        be exact for polynomials of order p
-        :param derivative: name of the derivative to be tested
-        :param space_order: space order of the finite difference stencil
+        be exact for polynomials of order p.
         """
         clear_cache()
         # dummy axis dimension
@@ -200,8 +200,6 @@ class TestFD(object):
         This test compares the discrete finite-difference scheme against polynomials
         For a given order p, the finite difference scheme should
         be exact for polynomials of order p
-        :param derivative: name of the derivative to be tested
-        :param space_order: space order of the finite difference stencil
         """
         clear_cache()
         # dummy axis dimension
@@ -299,7 +297,7 @@ class TestFD(object):
     @pytest.mark.parametrize('so', [2, 5, 8])
     def test_all_shortcuts(self, so):
         """
-        Test that verify that all fd shortcuts are functional
+        Test that verify that all fd shortcuts are functional.
         """
         grid = Grid(shape=(10, 10, 10))
         f = Function(name='f', grid=grid, space_order=so)
