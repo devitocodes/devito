@@ -179,7 +179,6 @@ def compact_temporaries(temporaries, leaves):
 
 def topological_sort(exprs):
     """Topologically sort a list of equations."""
-
     mapper = {e.lhs: e for e in exprs}
     assert len(mapper) == len(exprs)  # Expect SSA
 
@@ -188,9 +187,12 @@ def topological_sort(exprs):
         for r in retrieve_terminals(e.rhs):
             if r not in mapper:
                 continue
-            if mapper[r] is e:
+            elif mapper[r] is e:
                 # Avoid cyclic dependences, such as
                 # Eq(f, f + 1)
+                continue
+            elif r.is_Indexed:
+                # Only scalars enforce an ordering
                 continue
             else:
                 dag.add_edge(mapper[r], e, force_add=True)
