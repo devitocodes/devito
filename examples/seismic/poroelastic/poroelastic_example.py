@@ -2,15 +2,15 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import info
-from examples.seismic.poroelastic import PoroelasticWaveSolver
-from examples.seismic import demo_model, AcquisitionGeometry
+from examples.seismic.poroelastic import PoroelasticWaveSolver, demo_model
+from examples.seismic import AcquisitionGeometry
 
 
-def poroelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, nbpml=10,
+def poroelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., num=200, space_order=4, nbpml=10,
                   constant=False, **kwargs):
 
     nrec = 2*shape[0]
-    preset = 'constant-elastic' if constant else 'layers-elastic'
+    preset = 'constant-poroelastic' if constant else 'layers-poroelastic'
     model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
 
@@ -25,30 +25,34 @@ def poroelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order
     if len(shape) > 1:
         rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
         rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
+        # Source frequency is in Hz
     geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=40)
 
     # Create solver object to provide relevant operators
-    solver = ElasticWaveSolver(model, geometry, space_order=space_order, **kwargs)
+    solver = PoroelasticWaveSolver(model, geometry, space_order=space_order, **kwargs)
     return solver
 
 
-def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
+def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0, num=200,
         space_order=4, nbpml=40, autotune=False, constant=False, **kwargs):
 
-    solver = elastic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
-                           space_order=space_order, constant=constant, **kwargs)
+    solver = poroelastic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
+                           num=num, space_order=space_order, constant=constant, **kwargs)
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
-    rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward(autotune=autotune)
+    rec1, rec2, vx, vz, qx, qz, txx, tzz, txz, p, summary = solver.forward(autotune=autotune)
 
-    return rec1, rec2, vx, vz, txx, tzz, txz, summary
+    # iPython debug option    
+    #import matplotlib.pyplot as plt    
+    #from IPython import embed;embed()
+    return rec1, rec2, vx, vz, qx, qz, txx, tzz, txz, p, summary
 
 
 if __name__ == "__main__":
-    description = ("Example script for a set of elastic operators.")
+    description = ("Example script for a set of poroelastic operators.")
     parser = ArgumentParser(description=description)
-    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
+    parser.add_argument('--2d', dest='dim2', default=True, action='store_true',
                         help="Preset to determine the physical problem setup")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
                         help="Enable autotuning for block sizes")
@@ -63,21 +67,23 @@ if __name__ == "__main__":
     parser.add_argument("-dle", default="advanced",
                         choices=["noop", "advanced", "speculative"],
                         help="Devito loop engine (DLEE) mode")
-    parser.add_argument("--constant", default=False, action='store_true',
-                        help="Constant velocity model, default is a two layer model")
+    parser.add_argument("--constant", default=True, action='store_true',
+                        help="Constant velocity model, default is a constant velocity model")
     args = parser.parse_args()
 
     # 2D preset parameters
     if args.dim2:
-        shape = (150, 150)
-        spacing = (10.0, 10.0)
-        tn = 750.0
+        shape = (251, 641)
+        spacing = (0.5, 0.5)
+        num = 800
+        dt = 1.0e-4
+        tn = 0.05 #(num-1)*dt
     # 3D preset parameters
     else:
         shape = (150, 150, 150)
         spacing = (10.0, 10.0, 10.0)
         tn = 1250.0
 
-    run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn, dle=args.dle,
+    run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn, num=num, dle=args.dle,
         space_order=args.space_order, autotune=args.autotune, constant=args.constant,
         dse=args.dse)

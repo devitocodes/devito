@@ -70,9 +70,9 @@ def particle_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=1, space_order=space_order)
         vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=1, space_order=space_order)
         vy = None
     elif model.grid.dim == 3:
         x, y, z = model.space_dimensions
@@ -81,14 +81,14 @@ def particle_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=1, space_order=space_order)
         vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=1, space_order=space_order)
         vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=1, space_order=space_order)
 
     return vx, vy, vz
-# ------------------------------------------------------------------------------
+
 
 def relative_velocity_fields(model, save, space_order):
     """
@@ -100,9 +100,9 @@ def relative_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         qx = TimeFunction(name='qx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         qz = TimeFunction(name='qz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         qy = None
     elif model.grid.dim == 3:
         x, y, z = model.space_dimensions
@@ -111,141 +111,99 @@ def relative_velocity_fields(model, save, space_order):
         stagg_z = z
         # Create symbols for forward wavefield, source and receivers
         qx = TimeFunction(name='qx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         qy = TimeFunction(name='qy', grid=model.grid, staggered=stagg_y,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
         qz = TimeFunction(name='qz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order, save=save)
+                          time_order=2, space_order=space_order, save=save)
 
     return qx, qy, qz
-# ------------------------------------------------------------------------------
 
 def poroelastic_2d(model, space_order, save, geometry):
     """
-    2D poroelastic wave equation FD kernel
+    2D elastic wave equation FD kernel
     """
-    rhos        = model.rhos
-    rhof        = model.rhof
-    phi         = model.phi
-    fvs         = model.fvs
-    K_dr        = model.kdr
-    K_f         = model.kfl
-    K_s         = model.ksg
-    mu          = model.shm
-    prm         = model.prm
-    T           = model.T
-    damp        = model.damp
+    vp, vs, rho, damp = model.vp, model.vs, model.rho, model.damp
+    # delta t
+    s = model.grid.stepping_dim.spacing 
     
-    # Derived parameters  
-  
-    # Bulk Density
-    rhob = phi*rhof + (1.0-phi)*rhos
+    
+    cp2 = vp*vp
+    cs2 = vs*vs
+    ro = 1/rho
 
-    # Effective fluid density / mass coupling coefficient, kg/m**3
-    rhom = T * (rhof/phi)  
-    
-    
-    # Biot Coefficient
-    alpha = 1.0 - K_dr/K_s
-    
-    # Biot modulus
-    biotmod = 1.0/((alpha - phi)/K_s + phi/K_f)
-    
-    # Lame parameter for solid matrix
-    l = K_dr - 2.0*mu/3.0
-
-    # Delta T (sic)
-    dt = model.grid.stepping_dim.spacing #/ 1000.0   # ns ==> s
-    #dt = model.critical_dt                  # s
+    mu = cs2*rho
+    l = rho*(cp2 - 2*cs2)
 
     # Create symbols for forward wavefield, source and receivers
     vx, vy, vz = particle_velocity_fields(model, save, space_order)
     qx, qy, qz = relative_velocity_fields(model, save, space_order)
-    txx, tyy, tzz, txy, txz, tyz = stress_fields(model, save, space_order)
-    p = pressure_fields(model, save, space_order) # Different order needed?
+    txx, tyy, tzz, _, txz, _ = stress_fields(model, save, space_order)
+    p = pressure_fields(model, save, space_order)
 
-
-    # Account for inertia
-    c0 = (rhob*rhom - rhof*rhof) / dt
-    c1 = c0 + rhob*(fvs/prm)*0.5
-    c2 = c0 - rhob*(fvs/prm)*0.5
-    
     # Stencils
-        
-    # Calculate fluid pressure, then stresses
-    u_p   = Eq(p.forward,   damp * ( p   + ( -1.0*alpha*biotmod * (vx.dx + vz.dy) - biotmod * (qx.dx + qz.dy) ) * dt ) )
-
-    u_txz = Eq(txz.forward, damp * ( txz +  mu * (vx.dy + vz.dx) * dt ) )
-    u_txx = Eq(txx.forward, damp * ( txx + ( (l + 2*mu)*(vx.dx) + l*vz.dy - alpha* ( -1.0*alpha*biotmod * (vx.dx + vz.dy) - biotmod * (qx.dx + qz.dy) ) ) * dt ) )
-    u_tzz = Eq(txx.forward, damp * ( tzz + ( (l + 2*mu)*(vz.dy) + l*vx.dx - alpha* ( -1.0*alpha*biotmod * (vx.dx + vz.dy) - biotmod * (qx.dx + qz.dy) ) ) * dt ) )
     
-    # Add sources (Use pressure / stress source)
-    src_rec_expr = src_rec(vx, vy, vz, qx, qy, qz, txx, tyy, tzz, p, model, geometry)    
+    # Calculate fluid pressure
+    u_p  = Eq(p.forward, damp * p - damp * ( (alpha*biotmod*s) * (vx.dx + vz.dy) + (biotmod*s) * (qx.dx + qz.dy) )
+    
+    u_qx = Eq(qx.forward, damp * qx - damp * )
+    
+    u_vx = Eq(vx.forward, damp * vx - damp * s * ro * (txx.dx + txz.dy))
+    u_vz = Eq(vz.forward, damp * vz - damp * ro * s * (txz.dx + tzz.dy))
 
-    # Relative velocities
-    u_qx = Eq(qx.forward, damp * (c2*qx + ( -1.0*rhof*(txx.forward.dx + txz.forward.dy) - rhob*p.forward.dx )) / c1 )
-    u_qz = Eq(qz.forward, damp * (c2*qz + ( -1.0*rhof*(txz.forward.dx + tzz.forward.dy) - rhob*p.forward.dy )) / c1 )
+    u_txx = Eq(txx.forward, damp * txx - damp * (l + 2 * mu) * s * vx.forward.dx
+                                       - damp * l * s * vz.forward.dy)
+                                       - damp * alpha * biotmod * s * qx.forward.dx
+    u_tzz = Eq(tzz.forward, damp * tzz - damp * (l+2*mu)*s * vz.forward.dy
+                                       - damp * l * s * vx.forward.dx)
+                                       - damp * alpha * biotmod * s * qz.forward.dy                                       
+    u_txz = Eq(txz.forward, damp * txz - damp * mu*s * (vx.forward.dy + vz.forward.dx))
 
-    # Matrix velocities
-    u_vx = Eq(vx.forward, damp * (vx + ( rhom*(txx.forward.dx + txz.forward.dy) ) + rhof*(p.forward.dx) + rhof*(fvs/prm)*(qx + qx.forward)*0.5 ) / c0 )
-    u_vz = Eq(vz.forward, damp * (vz + ( rhom*(txz.forward.dx + tzz.forward.dy) ) + rhof*(p.forward.dy) + rhof*(fvs/prm)*(qz + qz.forward)*0.5 ) / c0 )
+    src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry)
+    return [u_vx, u_vz, u_txx, u_tzz, u_txz] + src_rec_expr
 
-    return [u_vx, u_vz, u_qx, u_qz, u_txx, u_tzz, u_txz, u_p] + src_rec_expr
-# ------------------------------------------------------------------------------
 
-def poroelastic_3d(model, space_order, save, geometry):
+def elastic_3d(model, space_order, save, geometry):
     """
     3D elastic wave equation FD kernel
     """
-    vp, vs, rho_s, rho_f, phi, k, mu_f, K_dr, K_s, K_f, damp = model.vp, model.vs, model.rho_s, model.rho_f, model.phi, model.k, model.mu_f, model.K_dr, model.K_s, model.K_f, model.damp
+    vp, vs, rho, damp = model.vp, model.vs, model.rho, model.damp
+    s = model.grid.stepping_dim.spacing
+    cp2 = vp*vp
+    cs2 = vs*vs
+    ro = 1/rho
 
-    # Delta T (sic)
-    dt = model.grid.stepping_dim.spacing    # s
-
-    # Biot Coefficient
-    alpha = 1.0 - K_dr/K_s
-
-    # Biot Modulus
-    M =  (phi/K_f + (alpha - phi)/K_s)**-1
-
-    # Bulk Density
-    rho_b = phi*rho_f + (1.0 - phi)*rho_s
-
-    # Shear Modulus of Saturated Rock
-    mu = (vs**2)*rho_b
-
-    # Lame Parameter of Saturated Rock
-    l = rho_b*(vp**2 - 2*(vs**2))
+    mu = cs2*rho
+    l = rho*(cp2 - 2*cs2)
 
     # Create symbols for forward wavefield, source and receivers
     vx, vy, vz = particle_velocity_fields(model, save, space_order)
-    qx, qy, qz = relative_velocity_fields(model, save, space_order)
     txx, tyy, tzz, txy, txz, tyz = stress_fields(model, save, space_order)
 
     # Stencils
-    u_vx = Eq(vx.forward, damp * vx - damp * dt * 1.0/rho_b * (txx.dx + txy.dy + txz.dz))
-    u_vy = Eq(vy.forward, damp * vy - damp * dt * 1.0/rho_b * (txy.dx + tyy.dy + tyz.dz))
-    u_vz = Eq(vz.forward, damp * vz - damp * dt * 1.0/rho_b * (txz.dx + tyz.dy + tzz.dz))
+    u_vx = Eq(vx.forward, damp * vx - damp * s * ro * (txx.dx + txy.dy + txz.dz))
+    u_vy = Eq(vy.forward, damp * vy - damp * s * ro * (txy.dx + tyy.dy + tyz.dz))
+    u_vz = Eq(vz.forward, damp * vz - damp * s * ro * (txz.dx + tyz.dy + tzz.dz))
 
-    u_txx = Eq(txx.forward, damp * txx - damp * (l + 2 * mu) * dt * vx.forward.dx
-                                       - damp * l * dt * (vy.forward.dy + vz.forward.dz))
-    u_tyy = Eq(tyy.forward, damp * tyy - damp * (l + 2 * mu) * dt * vy.forward.dy
-                                       - damp * l * dt * (vx.forward.dx + vz.forward.dz))
-    u_tzz = Eq(tzz.forward, damp * tzz - damp * (l+2*mu)*dt * vz.forward.dz
-                                       - damp * l * dt * (vx.forward.dx + vy.forward.dy))
-    u_txz = Eq(txz.forward, damp * txz - damp * mu * dt * (vx.forward.dz + vz.forward.dx))
-    u_txy = Eq(txy.forward, damp * txy - damp * mu * dt * (vy.forward.dx + vx.forward.dy))
-    u_tyz = Eq(tyz.forward, damp * tyz - damp * mu * dt * (vy.forward.dz + vz.forward.dy))
+    u_txx = Eq(txx.forward, damp * txx - damp * (l + 2 * mu) * s * vx.forward.dx
+                                       - damp * l * s * (vy.forward.dy + vz.forward.dz))
+    u_tyy = Eq(tyy.forward, damp * tyy - damp * (l + 2 * mu) * s * vy.forward.dy
+                                       - damp * l * s * (vx.forward.dx + vz.forward.dz))
+    u_tzz = Eq(tzz.forward, damp * tzz - damp * (l+2*mu)*s * vz.forward.dz
+                                       - damp * l * s * (vx.forward.dx + vy.forward.dy))
+    u_txz = Eq(txz.forward, damp * txz - damp * mu * s * (vx.forward.dz + vz.forward.dx))
+    u_txy = Eq(txy.forward, damp * txy - damp * mu * s * (vy.forward.dx + vx.forward.dy))
+    u_tyz = Eq(tyz.forward, damp * tyz - damp * mu * s * (vy.forward.dz + vz.forward.dy))
 
     src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry)
     return [u_vx, u_vy, u_vz, u_txx, u_tyy, u_tzz, u_txz, u_txy, u_tyz] + src_rec_expr
-# ------------------------------------------------------------------------------
 
-def src_rec(vx, vy, vz, qx, qy, qz, txx, tyy, tzz, p, model, geometry):
+
+def src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry):
     """
     Source injection and receiver interpolation
     """
-    dt = model.grid.time_dim.spacing
+    s = model.grid.time_dim.spacing
     # Source symbol with input wavelet
     src = PointSource(name='src', grid=model.grid, time_range=geometry.time_axis,
                       npoint=geometry.nsrc)
@@ -253,34 +211,29 @@ def src_rec(vx, vy, vz, qx, qy, qz, txx, tyy, tzz, p, model, geometry):
                     npoint=geometry.nrec)
     rec2 = Receiver(name='rec2', grid=model.grid, time_range=geometry.time_axis,
                     npoint=geometry.nrec)
-    M = model.M
+
     # The source injection term
-    #src_xx = src.inject(field=txx.forward, expr=src * (1.0 - model.phi) * dt, offset=model.nbpml)
-    #src_zz = src.inject(field=tzz.forward, expr=src * (1.0 - model.phi) * dt, offset=model.nbpml)
-    #src_xx = src.inject(field=txx.forward, expr=src * dt)
-    #src_zz = src.inject(field=tzz.forward, expr=src * dt)
-    src_pp = src.inject(field=p.forward,   expr=src * M)
-    #src_expr = src_xx + src_zz + src_pp    
-    src_expr = src_pp
+    src_xx = src.inject(field=txx.forward, expr=src * s)
+    src_zz = src.inject(field=tzz.forward, expr=src * s)
+    src_expr = src_xx + src_zz
     if model.grid.dim == 3:
-        src_yy = src.inject(field=tyy.forward, expr=src * (1.0 - model.phi) * dt, offset=model.nbpml)
+        src_yy = src.inject(field=tyy.forward, expr=src * s)
         src_expr += src_yy
 
     # Create interpolation expression for receivers
-    rec_term1 = rec1.interpolate(expr=p, offset=model.nbpml)
+    rec_term1 = rec1.interpolate(expr=tzz)
     if model.grid.dim == 2:
         rec_expr = vx.dx + vz.dy
     else:
         rec_expr = vx.dx + vy.dy + vz.dz
-    rec_term2 = rec2.interpolate(expr=rec_expr, offset=model.nbpml)
+    rec_term2 = rec2.interpolate(expr=rec_expr)
 
     return src_expr + rec_term1 + rec_term2
-# ------------------------------------------------------------------------------
 
-def ForwardOperator(model, geometry, space_order=4,
-                    save=False, **kwargs):
+
+def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     """
-    Constructor method for the forward modelling operator in a poroelastic media
+    Constructor method for the forward modelling operator in an elastic media
 
     :param model: :class:`Model` object containing the physical parameters
     :param source: :class:`PointData` object containing the source geometry
@@ -289,7 +242,6 @@ def ForwardOperator(model, geometry, space_order=4,
     :param save: Saving flag, True saves all time steps, False only the three buffered
                  indices (last three time steps)
     """
-    
     wave = kernels[model.grid.dim]
     pde = wave(model, space_order, geometry.nt if save else None, geometry)
 
@@ -298,4 +250,4 @@ def ForwardOperator(model, geometry, space_order=4,
                     name='Forward', **kwargs)
 
 
-kernels = {3: poroelastic_3d, 2: poroelastic_2d}
+kernels = {3: elastic_3d, 2: elastic_2d}
