@@ -157,8 +157,9 @@ def fuse(csequences, prefix):
         clusters = ClusterSequence.concatenate(*maybe_fusible)
         if len(clusters) == 1 or\
                 any(c.guards or c.itintervals != prefix for c in clusters):
-            processed.extend(maybe_fusible)
+            processed.append(ClusterSequence(clusters, k))
         else:
+            # Perform fusion
             fused = Cluster.from_clusters(*clusters)
             processed.append(ClusterSequence(fused, fused.itintervals))
     return processed
@@ -222,6 +223,10 @@ class ClusterSequence(tuple):
         return flatten(c.exprs for c in self)
 
     @cached_property
+    def scope(self):
+        return Scope(exprs=self.exprs)
+
+    @cached_property
     def itintervals(self):
         """The prefix IterationIntervals common to all Clusters in self."""
         return self._itintervals
@@ -260,7 +265,8 @@ def build_dag(csequences, prefix):
     for i, cs0 in enumerate(csequences):
         for cs1 in csequences[i+1:]:
             scope = Scope(exprs=cs0.exprs + cs1.exprs)
-            if any(dep.cause - prefix for dep in scope.d_all):
+            local_deps = cs0.scope.d_all + cs1.scope.d_all
+            if any(dep.cause - prefix for dep in scope.d_all - local_deps):
                 dag.add_edge(cs0, cs1)
                 break
     return dag
