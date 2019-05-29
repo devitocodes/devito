@@ -190,6 +190,11 @@ class Operator(Callable):
         iet = self._finalize(iet, parameters)
 
         super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
+        config_state = {}
+        self._state['optimizations'] = config_state
+        for key in configuration.keys():
+            config_val = kwargs.get(key, configuration[key])
+            config_state[key] = config_val
 
     # Read-only fields exposed to the outside world
 
@@ -539,6 +544,10 @@ class Operator(Callable):
             gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
             perf("* %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
                  (name, v.oi, v.time, v.gflopss, gpointss))
+
+        perf("* %s configuration:  %s " %
+             (self.name, self._state['optimizations']))
+
         return summary
 
     @cached_property
