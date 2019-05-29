@@ -81,25 +81,34 @@ def schedule(clusters):
 
 
 def lift(clusters, prefix):
+    if not prefix:
+        # No iteration space to be lifted from
+        return clusters
+
     hope_invariant = {i.dim for i in prefix}
     candidates = [c for c in clusters if
+                  any(e.is_Tensor for e in c.exprs) and  # Not just scalar exprs
                   not any(e.is_Increment for e in c.exprs) and  # No reductions
                   not c.used_dimensions & hope_invariant]  # Not an invariant ispace
-
-    # Now check data dependences
     if not candidates:
         return clusters
 
-    scope = Scope(exprs=flatten(c.exprs for c in clusters))
+    # Now check data dependences
+    lifted = []
     processed = []
     for c in clusters:
-        if c in candidates:
-            from IPython import embed; embed()
-            processed.insert(0, lifted)
+        impacted = set(clusters) - {c}
+        if c in candidates and\
+                not any(set(c.functions) & set(i.scope.writes) for i in impacted):
+            # Perform lifting, which requires contracting the iteration space
+            key = lambda d: d not in hope_invariant
+            ispace = c.ispace.project(key)
+            dspace = c.dspace.project(key)
+            lifted.append(Cluster(c.exprs, ispace, dspace, guards=c.guards))
         else:
             processed.append(c)
 
-    return clusters
+    return lifted + processed
 
 
 def toposort(csequences, prefix):
@@ -159,6 +168,7 @@ class Queue(object):
         self.callbacks = as_tuple(callbacks)
 
     def _process(self, elements, level, prefix=None):
+        prefix = prefix or []
         # Divide part
         processed = []
         for pfx, g in groupby(elements, key=lambda i: i.itintervals[:level]):
