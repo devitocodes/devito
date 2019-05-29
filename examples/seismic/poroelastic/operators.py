@@ -195,50 +195,79 @@ def poroelastic_2d(model, space_order, save, geometry):
 
 def poroelastic_3d(model, space_order, save, geometry):
     """
-    3D elastic wave equation FD kernel
+    3D poroelastic wave equation FD kernel
     """
-    vp, vs, rho_s, rho_f, phi, k, mu_f, K_dr, K_s, K_f, damp = model.vp, model.vs, model.rho_s, model.rho_f, model.phi, model.k, model.mu_f, model.K_dr, model.K_s, model.K_f, model.damp
+    rhos        = model.rhos
+    rhof        = model.rhof
+    phi         = model.phi
+    fvs         = model.fvs
+    K_dr        = model.kdr
+    K_f         = model.kfl
+    K_s         = model.ksg
+    mu          = model.shm
+    prm         = model.prm
+    T           = model.T
+    damp        = model.damp
+    
+    # Derived parameters  
+  
+    # Bulk Density
+    rhob = phi*rhof + (1.0-phi)*rhos
 
-    # Delta T (sic)
-    dt = model.grid.stepping_dim.spacing    # s
-
+    # Effective fluid density / mass coupling coefficient, kg/m**3
+    rhom = T * (rhof/phi)  
+    
     # Biot Coefficient
     alpha = 1.0 - K_dr/K_s
+    
+    # Biot modulus
+    biotmod = 1.0/((alpha - phi)/K_s + phi/K_f)
+    
+    # Lame parameter for solid matrix
+    l = K_dr - 2.0*mu/3.0
 
-    # Biot Modulus
-    M =  (phi/K_f + (alpha - phi)/K_s)**-1
-
-    # Bulk Density
-    rho_b = phi*rho_f + (1.0 - phi)*rho_s
-
-    # Shear Modulus of Saturated Rock
-    mu = (vs**2)*rho_b
-
-    # Lame Parameter of Saturated Rock
-    l = rho_b*(vp**2 - 2*(vs**2))
+    # Delta T (sic)
+    dt = model.grid.stepping_dim.spacing #/ 1000.0   # ns ==> s
+    #dt = model.critical_dt                  # s
 
     # Create symbols for forward wavefield, source and receivers
     vx, vy, vz = particle_velocity_fields(model, save, space_order)
     qx, qy, qz = relative_velocity_fields(model, save, space_order)
     txx, tyy, tzz, txy, txz, tyz = stress_fields(model, save, space_order)
+    p = pressure_fields(model, save, space_order) # Different order needed?
 
+    # Account for inertia
+    c0 = (rhob*rhom - rhof*rhof) / dt
+    c1 = c0 + rhob*(fvs/prm)*0.5
+    c2 = c0 - rhob*(fvs/prm)*0.5
+    
     # Stencils
-    u_vx = Eq(vx.forward, damp * vx - damp * dt * 1.0/rho_b * (txx.dx + txy.dy + txz.dz))
-    u_vy = Eq(vy.forward, damp * vy - damp * dt * 1.0/rho_b * (txy.dx + tyy.dy + tyz.dz))
-    u_vz = Eq(vz.forward, damp * vz - damp * dt * 1.0/rho_b * (txz.dx + tyz.dy + tzz.dz))
+        
+    # Calculate fluid pressure, then stresses
+    u_p   = Eq(p.forward,   damp * ( p   + ( -1.0*alpha*biotmod * (vx.dx + vy.dy + vz.dz) - biotmod * (qx.dx + qz.dy + qz.dz) ) * dt ) )
 
-    u_txx = Eq(txx.forward, damp * txx - damp * (l + 2 * mu) * dt * vx.forward.dx
-                                       - damp * l * dt * (vy.forward.dy + vz.forward.dz))
-    u_tyy = Eq(tyy.forward, damp * tyy - damp * (l + 2 * mu) * dt * vy.forward.dy
-                                       - damp * l * dt * (vx.forward.dx + vz.forward.dz))
-    u_tzz = Eq(tzz.forward, damp * tzz - damp * (l+2*mu)*dt * vz.forward.dz
-                                       - damp * l * dt * (vx.forward.dx + vy.forward.dy))
-    u_txz = Eq(txz.forward, damp * txz - damp * mu * dt * (vx.forward.dz + vz.forward.dx))
-    u_txy = Eq(txy.forward, damp * txy - damp * mu * dt * (vy.forward.dx + vx.forward.dy))
-    u_tyz = Eq(tyz.forward, damp * tyz - damp * mu * dt * (vy.forward.dz + vz.forward.dy))
+    u_txx = Eq(txx.forward, damp * ( txx + ( (l + 2*mu)*(vx.dx) + l*(vy.dy + vz.dz) - alpha* ( -1.0*alpha*biotmod * (vx.dx + vy.dy + vz.dz) - biotmod * (qx.dx + qy.dy + qz.dz) ) ) * dt ) )
+    u_tyy = Eq(tyy.forward, damp * ( tzz + ( (l + 2*mu)*(vy.dy) + l*(vx.dx + vz.dz) - alpha* ( -1.0*alpha*biotmod * (vx.dx + vy.dy + vz.dz) - biotmod * (qx.dx + qy.dy + qz.dz) ) ) * dt ) )
+    u_tzz = Eq(tzz.forward, damp * ( tzz + ( (l + 2*mu)*(vz.dz) + l*(vx.dx + vy.dy) - alpha* ( -1.0*alpha*biotmod * (vx.dx + vy.dy + vz.dz) - biotmod * (qx.dx + qy.dy + qz.dz) ) ) * dt ) )
 
-    src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry)
-    return [u_vx, u_vy, u_vz, u_txx, u_tyy, u_tzz, u_txz, u_txy, u_tyz] + src_rec_expr
+    u_txy = Eq(txy.forward, damp * ( txy +  mu * (vx.dy + vy.dx) * dt ) )
+    u_txz = Eq(txz.forward, damp * ( txz +  mu * (vx.dz + vz.dx) * dt ) )    
+    u_tyz = Eq(tyz.forward, damp * ( tyz +  mu * (vy.dz + vz.dy) * dt ) )    
+
+    # Add sources (Use pressure / stress source)
+    src_rec_expr = src_rec(vx, vy, vz, qx, qy, qz, txx, tyy, tzz, p, model, geometry)    
+
+    # Relative velocities
+    u_qx = Eq(qx.forward, damp * (c2*qx + ( -1.0*rhof*(txx.forward.dx + txy.forward.dy + txz.forward.dz) - rhob*p.forward.dx )) / c1 )
+    u_qz = Eq(qz.forward, damp * (c2*qz + ( -1.0*rhof*(txy.forward.dx + tyy.forward.dy + tyz.forward.dz) - rhob*p.forward.dy )) / c1 )
+    u_qz = Eq(qz.forward, damp * (c2*qz + ( -1.0*rhof*(txz.forward.dx + tyz.forward.dy + tzz.forward.dz) - rhob*p.forward.dz )) / c1 )
+
+    # Matrix velocities
+    u_vx = Eq(vx.forward, damp * (vx + ( rhom*(txx.forward.dx + txy.forward.dy + txz.forward.dz) ) + rhof*(p.forward.dx) + rhof*(fvs/prm)*(qx + qx.forward)*0.5 ) / c0 )
+    u_vy = Eq(vy.forward, damp * (vy + ( rhom*(txy.forward.dx + tyy.forward.dy + tyz.forward.dz) ) + rhof*(p.forward.dy) + rhof*(fvs/prm)*(qy + qy.forward)*0.5 ) / c0 )
+    u_vz = Eq(vz.forward, damp * (vz + ( rhom*(txz.forward.dx + tyz.forward.dy + tzz.forward.dz) ) + rhof*(p.forward.dz) + rhof*(fvs/prm)*(qz + qz.forward)*0.5 ) / c0 )
+    
+    return [u_vx, u_vy, u_vz, u_qx, u_qy, u_qz, u_txx, u_tyy, u_tzz, u_txy, u_txz, u_tyz, u_p] + src_rec_expr
 # ------------------------------------------------------------------------------
 
 def src_rec(vx, vy, vz, qx, qy, qz, txx, tyy, tzz, p, model, geometry):
