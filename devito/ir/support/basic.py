@@ -475,10 +475,10 @@ class Access(IterationInstance):
         return obj
 
     def __eq__(self, other):
-        return super(Access, self).__eq__(other) and\
-            isinstance(other, Access) and\
-            self.function == other.function and\
-            self.mode == other.mode
+        return (isinstance(other, Access) and
+                self.function == other.function and
+                self.mode == other.mode and
+                super(Access, self).__eq__(other))
 
     def __hash__(self):
         return super(Access, self).__hash__()
@@ -565,9 +565,9 @@ class TimedAccess(Access):
         return obj
 
     def __eq__(self, other):
-        return super(TimedAccess, self).__eq__(other) and\
-            isinstance(other, TimedAccess) and\
-            self.directions == other.directions
+        return (isinstance(other, TimedAccess) and
+                self.directions == other.directions and
+                super(TimedAccess, self).__eq__(other))
 
     def __hash__(self):
         return super(TimedAccess, self).__hash__()
