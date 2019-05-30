@@ -5,7 +5,7 @@ from operator import mul
 from cached_property import cached_property
 import ctypes
 
-from devito.compiler import jit_compile, load, save
+from devito.compiler import jit_compile
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.equation import Eq
@@ -426,7 +426,7 @@ class Operator(Callable):
         """The JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
             self._compile()
-            self._lib = load(self._soname)
+            self._lib = self._compiler.load(self._soname)
             self._lib.name = self._soname
 
         if self._cfunction is None:
@@ -616,8 +616,8 @@ class Operator(Callable):
                 warning("The pickled and unpickled Operators have different .sonames; "
                         "this might be a bug, or simply a harmless difference in "
                         "`configuration`. You may check they produce the same code.")
-            save(self._soname, binary, self._compiler)
-            self._lib = load(self._soname)
+            self._compiler.save(self._soname, binary)
+            self._lib = self._compiler.load(self._soname)
             self._lib.name = self._soname
 
 
