@@ -154,7 +154,7 @@ class Operator(Callable):
 
         # Internal state. May be used to store information about previous runs,
         # autotuning reports, etc
-        self._state = {}
+        self._state = self._initialize_state(**kwargs)
 
         # Form and gather any required implicit expressions
         expressions = self._add_implicit(expressions)
@@ -190,11 +190,6 @@ class Operator(Callable):
         iet = self._finalize(iet, parameters)
 
         super(Operator, self).__init__(self.name, iet, 'int', parameters, ())
-        config_state = {}
-        self._state['optimizations'] = config_state
-        for key in configuration.keys():
-            config_val = kwargs.get(key, configuration[key])
-            config_state[key] = config_val
 
     # Read-only fields exposed to the outside world
 
@@ -214,6 +209,9 @@ class Operator(Callable):
     @cached_property
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
+
+    def _initialize_state(self, **kwargs):
+        return {'optimizations': {k: kwargs.get(k, v) for k, v in configuration.items()}}
 
     # Compilation
 
