@@ -163,16 +163,20 @@ def toposort(csequences, prefix):
     dag = build_dag(csequences, prefix)
 
     def choose_element(queue, scheduled):
-        # Heuristic: prefer a node having same IterationSpace as that of
+        # Heuristic 1: do not move Clusters computing Arrays (temporaries),
+        # to preserve cross-loop blocking opportunities
+        # Heuristic 2: prefer a node having same IterationSpace as that of
         # the last scheduled node to maximize Cluster fusion
         if not scheduled:
             return queue.pop()
         last = scheduled[-1]
         for i in list(queue):
-            if i.itintervals == last.itintervals:
+            if any(f.is_Array for f in i.scope.writes):
+                continue
+            elif i.itintervals == last.itintervals:
                 queue.remove(i)
                 return i
-        return queue.pop()
+        return queue.popleft()
 
     processed = dag.topological_sort(choose_element)
 
