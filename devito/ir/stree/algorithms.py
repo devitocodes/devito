@@ -42,7 +42,7 @@ def st_schedule(clusters):
         index = 0
         root = stree
         for it0, it1 in zip(c.itintervals, pointers):
-            if it0 != it1 or it0.dim in c.atomics:
+            if it0 != it1:
                 break
             root = mapper[it0]
             index += 1

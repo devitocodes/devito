@@ -25,19 +25,16 @@ class Cluster(object):
         The cluster iteration space.
     dspace : DataSpace
         The cluster data space.
-    atomics : list, optional
-        Dimensions inducing a data dependence with other Clusters.
     guards : dict, optional
         Mapper from Dimensions to expr-like, representing the conditions under
         which the Cluster should be computed.
     """
 
-    def __init__(self, exprs, ispace, dspace, atomics=None, guards=None):
+    def __init__(self, exprs, ispace, dspace, guards=None):
         self._exprs = tuple(ClusterizedEq(i, ispace=ispace, dspace=dspace)
                             for i in as_tuple(exprs))
         self._ispace = ispace
         self._dspace = dspace
-        self._atomics = frozenset(atomics or [])
         self._guards = frozendict(guards or {})
 
     def __repr__(self):
@@ -62,7 +59,7 @@ class Cluster(object):
         Build a new Cluster from a sequence of expressions. All other attributes
         are inherited from ``self``.
         """
-        return Cluster(exprs, self.ispace, self.dspace, self.atomics, self.guards)
+        return Cluster(exprs, self.ispace, self.dspace, self.guards)
 
     @property
     def exprs(self):
@@ -83,10 +80,6 @@ class Cluster(object):
     @property
     def dspace(self):
         return self._dspace
-
-    @property
-    def atomics(self):
-        return self._atomics
 
     @property
     def guards(self):

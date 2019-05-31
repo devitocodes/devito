@@ -313,7 +313,7 @@ def guard(clusters):
             if e.conditionals:
                 # Expressions that need no guarding are kept in a separate Cluster
                 if free:
-                    processed.append(Cluster(free, c.ispace, c.dspace, c.atomics))
+                    processed.append(Cluster(free, c.ispace, c.dspace))
                     free = []
                 # Create a guarded Cluster
                 guards = {}
@@ -321,11 +321,11 @@ def guard(clusters):
                     condition = guards.setdefault(d.parent, [])
                     condition.append(d.condition or CondEq(d.parent % d.factor, 0))
                 guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
-                processed.append(Cluster(e, c.ispace, c.dspace, c.atomics, guards))
+                processed.append(Cluster(e, c.ispace, c.dspace, guards))
             else:
                 free.append(e)
         # Leftover
         if free:
-            processed.append(Cluster(free, c.ispace, c.dspace, c.atomics))
+            processed.append(Cluster(free, c.ispace, c.dspace))
 
     return processed
