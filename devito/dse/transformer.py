@@ -1,4 +1,4 @@
-from devito.ir.clusters import ClusterGroup, schedule
+from devito.ir.clusters import ClusterGroup, optimize
 from devito.dse.promotion import scalarize
 from devito.dse.rewriters import (BasicRewriter, AdvancedRewriter, AggressiveRewriter,
                                   CustomRewriter)
@@ -69,7 +69,7 @@ def rewrite(clusters, mode='advanced'):
     print_profiling(states)
 
     # Schedule and optimize the Rewriters-produced clusters
-    clusters = ClusterGroup(schedule(flatten(i.clusters for i in states)))
+    clusters = ClusterGroup(optimize(flatten(i.clusters for i in states)))
 
     # Turn unnecessary temporary Arrays into scalars
     clusters = scalarize(clusters, rewriter.template)

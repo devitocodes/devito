@@ -10,7 +10,7 @@ from devito.symbolics import CondEq
 from devito.types import Dimension
 from devito.tools import DAG, DefaultOrderedDict, as_tuple, flatten
 
-__all__ = ['clusterize', 'schedule']
+__all__ = ['clusterize', 'optimize']
 
 
 def clusterize(exprs):
@@ -24,7 +24,7 @@ def clusterize(exprs):
     clusters = Queue(enforce).process(clusters)
 
     # Apply optimizations
-    clusters = schedule(clusters)
+    clusters = optimize(clusters)
 
     # Introduce conditional Clusters
     clusters = guard(clusters)
@@ -55,6 +55,7 @@ def enforce(clusters, prefix, backlog=None, known_flow_break=None):
     require_flow_break = (scope.d_flow.cause & scope.d_anti.cause) & candidates
     if require_flow_break and len(clusters) > 1:
         backlog = [clusters[-1]] + (backlog or [])
+        # Try with increasingly smaller Cluster groups until the ambiguity is solved
         return enforce(clusters[:-1], prefix, backlog, require_flow_break)
 
     # Compute iteration directions
@@ -84,7 +85,7 @@ def enforce(clusters, prefix, backlog=None, known_flow_break=None):
     return processed + enforce(backlog, prefix)
 
 
-def schedule(clusters):
+def optimize(clusters):
     """
     Optimize a topologically-ordered sequence of Clusters by applying the
     following transformations:
@@ -264,10 +265,8 @@ class ClusterSequence(tuple):
 
 def build_dag(csequences, prefix):
     """
-    A DAG capturing dependences between ClusterSequences.
-
-    The section of IterationSpace common to all ClusterSequences is described
-    via ``prefix``, a tuple of IterationIntervals.
+    A DAG capturing dependences between ClusterSequences within the ``prefix``
+    IterationIntervals.
 
     Examples
     --------
