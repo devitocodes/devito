@@ -1052,8 +1052,8 @@ class TestDeclarator(object):
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  float t1 = 2.00000000000000F;
   float t0 = 1.00000000000000F;
+  float t1 = 2.00000000000000F;
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
   /* Begin section0 */
@@ -1159,74 +1159,80 @@ class TestLoopScheduler(object):
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
-         '**-', ['xyz'], 'xyz'),
-        # WAR 1->2, 2->3; one may think it should be expected=3, but these are all
-        # Arrays, so ti0 gets optimized through index bumping and array contraction,
-        # which results in expected=2
+         '++-', ['xyz'], 'xyz'),
+        # WAR 1->2, 2->3; expected=2
+        # The second WAR forces a change of iteration direction along z
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
           'Eq(ti3[x,y,z], ti1[x,y,z-2] + 1.)'),
-         '****', ['xyz', 'xyz'], 'xyzz'),
+         '++-+', ['xyz', 'xyz'], 'xyzz'),
+        # WAR 1->2, 2->3, RAW 2->3
+        # In 2->3 there are both a RAW and a WAR, so the compiler enforces a
+        # change of iteration direction. 1->2 caused --, so 2->3 gets ++
+        (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
+          'Eq(ti1[x,y,z], ti0[x,y,z+1])',
+          'Eq(ti3[x,y,z], ti1[x,y,z-2] + ti1[x,y,z+2])'),
+         '++-+', ['xyz', 'xyz'], 'xyzz'),
         # WAR 1->3; expected=1
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y,z+1] + 1.)'),
-         '**-', ['xyz'], 'xyz'),
+         '++-', ['xyz'], 'xyz'),
         # WAR 1->2, 2->3; WAW 1->3; expected=2
         # ti0 is an Array, so the observation made above still holds (expected=2
         # rather than 3)
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], 3*ti0[x,y,z+2])',
           'Eq(ti0[x,y,0], ti0[x,y,0] + 1.)'),
-         '**-', ['xyz', 'xy'], 'xyz'),
+         '++-', ['xyz', 'xy'], 'xyz'),
         # WAR 1->2; WAW 1->3; expected=2
         # Now tu, tv, tw are not Arrays, so they must end up in separate loops
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t,x,y,0], tu[t,x,y,0] + 1.)'),
-         '***-', ['txyz', 'txy'], 'txyz'),
-        # WAR 1->2; RAW 2->3; expected=2
+         '+++-', ['txyz', 'txy'], 'txyz'),
+        # WAR 1->2, 2->3; expected=2
+        # The second WAR forces a change of iteration direction along z
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z-1] + 1.)'),
-         '*****', ['txyz', 'txyz'], 'txyzz'),
+         '+++-+', ['txyz', 'txyz'], 'txyzz'),
         # WAR 1->2; WAW 1->3; expected=2
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
           'Eq(tu[t,3,y,0], tu[t,3,y,0] + 1.)'),
-         '*-***', ['txyz', 'ty'], 'txyzy'),
+         '+-+++', ['txyz', 'ty'], 'txyzy'),
         # RAW 1->2, WAR 2->3; expected=1
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         '**-+', ['txyz'], 'txyz'),
+         '++-+', ['txyz'], 'txyz'),
         # WAR 1->2; WAW 1->3; expected=2
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t-1,x,y,0], tu[t,x,y,0] + 1.)'),
-         '-***', ['txyz', 'txy'], 'txyz'),
+         '-+++', ['txyz', 'txy'], 'txyz'),
         # WAR 1->2; expected=1
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2] + tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z] + 2)'),
-         '-***', ['txyz'], 'txyz'),
+         '-+++', ['txyz'], 'txyz'),
         # Time goes backward so that information flows in time
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tv[t-1,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
-         '-***', ['txyz'], 'txyz'),
+         '-+++', ['txyz'], 'txyz'),
         # Time goes backward so that information flows in time, interleaved
         # with independent Eq
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
-         '-******', ['txyz', 'xyz'], 'txyzxyz'),
-        # Time goes backward so that information flows in time, interleaved
-        # with independent Eq
+         '-++++++', ['txyz', 'xyz'], 'txyzxyz'),
+        # Time goes backward so that information flows in time
         (('Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + ti0[x,y-1,z])'),
-         '*+*-*+*', ['xyz', 'txyz'], 'xyztxyz'),
+         '+++-+++', ['xyz', 'txyz'], 'xyztxyz'),
     ])
     def test_consistency_anti_dependences(self, exprs, directions, expected, visit,
                                           ti0, ti1, ti3, tu, tv, tw):

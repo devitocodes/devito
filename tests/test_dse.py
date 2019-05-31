@@ -76,7 +76,7 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
       'r0*(t0 + t1) + r0*(tv[t, x, y, z] + tw[t, x, y, z] + 5.0)']),
     # across expressions
     (['Eq(tu, tv*4 + tw*5 + tw*5*t0)', 'Eq(tv, tw*5)'],
-     ['5*tw[t, x, y, z]', 'r0', 'r0 + 5*t0*tw[t, x, y, z] + 4*tv[t, x, y, z]']),
+     ['5*tw[t, x, y, z]', 'r0 + 5*t0*tw[t, x, y, z] + 4*tv[t, x, y, z]', 'r0']),
     # intersecting
     pytest.param(['Eq(tu, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
                  ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'],
