@@ -4,8 +4,7 @@ from devito.equation import Eq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
                                Any, Stencil, detect_accesses, detect_oobs, detect_io,
-                               force_directions, detect_flow_directions, build_intervals,
-                               build_iterators)
+                               build_intervals, build_iterators)
 from devito.symbolics import FrozenExpr
 from devito.tools import Pickable, as_tuple
 
@@ -125,11 +124,10 @@ class LoweredEq(sympy.Eq, IREq):
 
         # The iteration space is constructed so that information always flows
         # from an iteration to another (i.e., no anti-dependences are created)
-        directions, _ = force_directions(detect_flow_directions(expr), lambda i: Any)
         iterators = build_iterators(mapper)
         intervals = build_intervals(Stencil.union(*mapper.values()))
         intervals = IntervalGroup(intervals, relations=ordering.relations)
-        ispace = IterationSpace(intervals.zero(), iterators, directions)
+        ispace = IterationSpace(intervals.zero(), iterators)
 
         # The data space is relative to the computational domain. Note that we
         # are deliberately dropping the intervals ordering (by turning `intervals`

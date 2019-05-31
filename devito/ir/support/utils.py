@@ -8,7 +8,7 @@ from devito.tools import as_tuple, flatten, filter_sorted
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['detect_accesses', 'detect_oobs', 'build_iterators', 'build_intervals',
-           'detect_flow_directions', 'force_directions', 'align_accesses', 'detect_io']
+           'align_accesses', 'detect_io']
 
 
 def detect_accesses(expr):
@@ -114,110 +114,6 @@ def align_accesses(expr, key=lambda i: False):
         subs = {i: i + j for i, j in zip(indexed.indices, f._size_halo.left)}
         mapper[indexed] = indexed.xreplace(subs)
     return expr.xreplace(mapper)
-
-
-def detect_flow_directions(exprs):
-    """
-    Return a mapper from Dimensions to Iterables of IterationDirections
-    representing the theoretically necessary directions to evaluate ``exprs``
-    so that the information "naturally flows" from an iteration to another.
-    """
-    exprs = as_tuple(exprs)
-
-    writes = [Access(i.lhs, 'W') for i in exprs]
-    reads = flatten(retrieve_indexed(i.rhs) for i in exprs)
-    reads = [Access(i, 'R') for i in reads]
-
-    # Determine indexed-wise direction by looking at the distance vector
-    mapper = defaultdict(set)
-    for w in writes:
-        for r in reads:
-            if r.name != w.name:
-                continue
-            dimensions = [d for d in w.aindices if d is not None]
-            if not dimensions:
-                continue
-            for d in dimensions:
-                distance = None
-                for i in d._defines:
-                    try:
-                        distance = w.distance(r, i, view=i)
-                    except TypeError:
-                        pass
-                try:
-                    if distance > 0:
-                        mapper[d].add(Forward)
-                        break
-                    elif distance < 0:
-                        mapper[d].add(Backward)
-                        break
-                    else:
-                        mapper[d].add(Any)
-                except TypeError:
-                    # Nothing can be deduced
-                    mapper[d].add(Any)
-                    break
-            # Remainder
-            for d in dimensions[dimensions.index(d) + 1:]:
-                mapper[d].add(Any)
-
-    # Add in any encountered Dimension
-    mapper.update({d: {Any} for d in flatten(i.aindices for i in reads + writes)
-                   if d is not None and d not in mapper})
-
-    # Add in derived-dimensions parents, in case they haven't been detected yet
-    mapper.update({k.parent: set(v) for k, v in mapper.items()
-                   if k.is_Derived and mapper.get(k.parent, {Any}) == {Any}})
-
-    # Add in:
-    # - free Dimensions, ie Dimensions used as symbols rather than as array indices
-    # - implicit Dimensions, ie Dimensions that do not explicitly appear in `exprs`
-    #   (typically used for inline temporaries)
-    for i in exprs:
-        candidates = {s for s in i.free_symbols if isinstance(s, Dimension)}
-        candidates.update(set(i.implicit_dims))
-        mapper.update({d: {Any} for d in candidates if d not in mapper})
-
-    return mapper
-
-
-def force_directions(mapper, key):
-    """
-    Return a mapper ``M : D -> I`` where D is the set of Dimensions
-    found in the input mapper ``M' : D -> {I}``, while I = {Any, Backward,
-    Forward} (i.e., the set of possible IterationDirections).
-
-    The iteration direction is chosen so that the information "naturally flows"
-    from an iteration to another (i.e., to generate "flow" or "read-after-write"
-    dependencies).
-
-    In the case of a clash (e.g., both Forward and Backward should be used
-    for a given dimension in order to have a flow dependence), the function
-    ``key : D -> I`` is used to pick one value.
-    """
-    mapper = {k: set(v) for k, v in mapper.items()}
-    clashes = set(k for k, v in mapper.items() if len(v - {Any}) > 1)
-    directions = {}
-    for k, v in mapper.items():
-        if len(v) == 1:
-            directions[k] = v.pop()
-        elif len(v) == 2:
-            try:
-                v.remove(Any)
-                directions[k] = v.pop()
-            except KeyError:
-                assert k in clashes
-                directions[k] = key(k)
-        else:
-            assert k in clashes
-            directions[k] = key(k)
-
-    # Derived dimensions enforce a direction on the parent
-    for k, v1 in list(directions.items()):
-        if k.is_Derived and directions.get(k.parent) == Any:
-            directions[k.parent] = v1
-
-    return directions, clashes
 
 
 def detect_io(exprs, relax=False):

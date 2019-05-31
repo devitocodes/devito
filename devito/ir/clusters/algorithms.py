@@ -4,8 +4,7 @@ from itertools import chain, groupby
 from cached_property import cached_property
 import sympy
 
-from devito.ir.support import (Any, DataSpace, IterationSpace, Scope,
-                               detect_flow_directions, force_directions)
+from devito.ir.support import Any, Backward, Forward, DataSpace, IterationSpace, Scope
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.symbolics import CondEq
 from devito.types import Dimension
@@ -21,7 +20,7 @@ def clusterize(exprs):
     # Initialization
     clusters = [Cluster(e, e.ispace, e.dspace) for e in exprs]
 
-    # Enforce iteration direction
+    # Enforce iteration directions
     clusters = Queue(enforce).process(clusters)
 
     # Apply optimizations
@@ -33,24 +32,56 @@ def clusterize(exprs):
     return ClusterGroup(clusters)
 
 
-def enforce(clusters, prefix):
+def enforce(clusters, prefix, backlog=None, known_flow_break=None):
     """
-    Replace, where necessary, `Any` IterationDirections with either `Forward` or
-    `Backward`. This is accomplished by analyzing dependences across Clusters.
+    Replace `Any` IterationDirections with either `Forward` or `Backward`
+    so that the information naturally flows from one iteration to another.
     """
-    # Don't waste time building a flow map if there's a single Cluster
-    if len(clusters) == 1:
+    if not prefix:
         return clusters
 
-    mapper = detect_flow_directions(flatten(c.exprs for c in clusters))
+    # Take the innermost Dimension -- no other Clusters other than those in
+    # `clusters` are supposed to share it
+    candidates = prefix[-1].dim._defines
 
+    scope = Scope(exprs=flatten(c.exprs for c in clusters))
+
+    # The most nasty case:
+    # eq0 := u[t+1, x] = ... u[t, x]
+    # eq1 := v[t+1, x] = ... v[t, x] ... u[t-1, x] ... u[t, x] ... u[t+1, x]
+    # Here, `eq0` marches forward along `t`, while `eq1` has both a flow and an
+    # anti dependence with `eq0`, which ultimately will require `eq1` to go in
+    # a separate t-loop
+    require_flow_break = (scope.d_flow.cause & scope.d_anti.cause) & candidates
+    if require_flow_break and len(clusters) > 1:
+        backlog = [clusters[-1]] + (backlog or [])
+        return enforce(clusters[:-1], prefix, backlog, require_flow_break)
+
+    # Compute iteration directions
+    require_backward = scope.d_anti.cause & candidates
+    directions = {d: Backward for d in require_backward}
+    directions.update({d: Forward for d in candidates if d not in directions})
+
+    # Enforce iteration directions on each Cluster
     processed = []
     for c in clusters:
-        directions, _ = force_directions(mapper, lambda d: c.ispace.directions.get(d))
-        ispace = IterationSpace(c.ispace.intervals, c.ispace.sub_iterators, directions)
+        ispace = IterationSpace(c.ispace.intervals, c.ispace.sub_iterators,
+                                {**c.ispace.directions, **directions})
         processed.append(Cluster(c.exprs, ispace, c.dspace))
 
-    return processed
+    if backlog is None:
+        return processed
+
+    # Handle the backlog -- the Clusters characterized by flow+anti dependences along
+    # one or more Dimensions
+    directions = {d: Any for d in known_flow_break}
+    for i, c in enumerate(as_tuple(backlog)):
+        ispace = IterationSpace(c.ispace.intervals.lift(known_flow_break),
+                                c.ispace.sub_iterators,
+                                {**c.ispace.directions, **directions})
+        backlog[i] = Cluster(c.exprs, ispace, c.dspace)
+
+    return processed + enforce(backlog, prefix)
 
 
 def schedule(clusters):
@@ -155,8 +186,7 @@ def fuse(csequences, prefix):
     for k, g in groupby(csequences, key=lambda cs: cs.itintervals):
         maybe_fusible = list(g)
         clusters = ClusterSequence.concatenate(*maybe_fusible)
-        if len(clusters) == 1 or\
-                any(c.guards or c.itintervals != prefix for c in clusters):
+        if len(clusters) == 1 or any(c.guards for c in clusters):
             processed.append(ClusterSequence(clusters, k))
         else:
             # Perform fusion
@@ -260,7 +290,7 @@ def build_dag(csequences, prefix):
        Flow-dependence in `j`, but the `i` IterationInterval is different (e.g.,
        `i*[0,0]` for `cs0` and `i*[-1, 1]` for `cs1`), so `cs1` must go after `cs0`.
     """
-    prefix = set(as_tuple(prefix))
+    prefix = {i.dim for i in as_tuple(prefix)}
     dag = DAG(nodes=csequences)
     for i, cs0 in enumerate(csequences):
         for cs1 in csequences[i+1:]:
