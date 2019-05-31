@@ -5,7 +5,6 @@ from operator import mul
 from cached_property import cached_property
 import ctypes
 
-from devito.compiler import jit_compile
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.equation import Eq
@@ -419,7 +418,7 @@ class Operator(Callable):
         Operator, reagardless of how many times this method is invoked.
         """
         if self._lib is None:
-            jit_compile(self._soname, str(self.ccode), self._compiler)
+            self._compiler.jit_compile(self._soname, str(self.ccode))
 
     @property
     def cfunction(self):

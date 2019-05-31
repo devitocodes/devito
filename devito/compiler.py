@@ -19,7 +19,7 @@ from devito.parameters import configuration
 from devito.tools import (as_tuple, change_directory, filter_ordered,
                           memoized_meth, make_tempdir)
 
-__all__ = ['jit_compile', 'GNUCompiler']
+__all__ = ['GNUCompiler']
 
 
 def sniff_compiler_version(cc):
@@ -245,6 +245,67 @@ class Compiler(GCCToolchain):
         toc = time()
         debug("Make <%s>: run in [%.2f s]" % (" ".join(args), toc-tic))
 
+    def jit_compile(self, soname, code):
+        """
+        JIT compile some source code given as a string.
+
+        This function relies upon codepy's ``compile_from_string``, which performs
+        caching of compilation units and avoids potential race conditions due to
+        multiple processing trying to compile the same object.
+
+        Parameters
+        ----------
+        soname : str
+            Name of the .so file (w/o the suffix).
+        code : str
+            The source code to be JIT compiled.
+        """
+        target = str(self.get_jit_dir().joinpath(soname))
+        src_file = "%s.%s" % (target, self.src_ext)
+
+        cache_dir = self.get_codepy_dir().joinpath(soname[:7])
+        if configuration['jit-backdoor'] is False:
+            # Typically we end up here
+            # Make a suite of cache directories based on the soname
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            # Warning: dropping `code` on the floor in favor to whatever is written
+            # within `src_file`
+            try:
+                with open(src_file, 'r') as f:
+                    code = f.read()
+                # Bypass the devito JIT cache
+                # Note: can't simply use Python's `mkdtemp()` as, with MPI, different
+                # ranks would end up creating different cache dirs
+                cache_dir = cache_dir.joinpath('jit-backdoor')
+                cache_dir.mkdir(parents=True, exist_ok=True)
+            except FileNotFoundError:
+                raise ValueError("Trying to use the JIT backdoor for `%s`, but "
+                                 "the file isn't present" % src_file)
+
+        # `catch_warnings` suppresses codepy complaining that it's taking
+        # too long to acquire the cache lock. This warning can only appear
+        # in a multiprocess session, typically (but not necessarily) when
+        # many processes are frequently attempting jit-compilation (e.g.,
+        # when running the test suite in parallel)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            tic = time()
+            # Spinlock in case of MPI
+            sleep_delay = 0 if configuration['mpi'] else 1
+            _, _, _, recompiled = compile_from_string(
+                self, target, code, src_file,
+                cache_dir=cache_dir,
+                debug=configuration['debug-compiler'],
+                sleep_delay=sleep_delay)
+            toc = time()
+
+        if recompiled:
+            debug("%s: compiled `%s` [%.2f s]" % (self, src_file, toc-tic))
+        else:
+            debug("%s: cache hit `%s` [%.2f s]" % (self, src_file, toc-tic))
+
     def __lookup_cmds__(self):
         self.CC = 'unknown'
         self.CXX = 'unknown'
@@ -411,67 +472,6 @@ class CustomCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
-def jit_compile(soname, code, compiler):
-    """
-    JIT compile some source code given as a string.
-
-    This function relies upon codepy's ``compile_from_string``, which performs
-    caching of compilation units and avoids potential race conditions due to
-    multiple processing trying to compile the same object.
-
-    Parameters
-    ----------
-    soname : str
-        Name of the .so file (w/o the suffix).
-    code : str
-        The source code to be JIT compiled.
-    compiler : Compiler
-        The toolchain used for JIT compilation.
-    """
-    target = str(compiler.get_jit_dir().joinpath(soname))
-    src_file = "%s.%s" % (target, compiler.src_ext)
-
-    cache_dir = compiler.get_codepy_dir().joinpath(soname[:7])
-    if configuration['jit-backdoor'] is False:
-        # Typically we end up here
-        # Make a suite of cache directories based on the soname
-        cache_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        # Warning: dropping `code` on the floor in favor to whatever is written
-        # within `src_file`
-        try:
-            with open(src_file, 'r') as f:
-                code = f.read()
-            # Bypass the devito JIT cache
-            # Note: can't simply use Python's `mkdtemp()` as, with MPI, different
-            # ranks would end up creating different cache dirs
-            cache_dir = cache_dir.joinpath('jit-backdoor')
-            cache_dir.mkdir(parents=True, exist_ok=True)
-        except FileNotFoundError:
-            raise ValueError("Trying to use the JIT backdoor for `%s`, but "
-                             "the file isn't present" % src_file)
-
-    # `catch_warnings` suppresses codepy complaining that it's taking
-    # too long to acquire the cache lock. This warning can only appear
-    # in a multiprocess session, typically (but not necessarily) when
-    # many processes are frequently attempting jit-compilation (e.g.,
-    # when running the test suite in parallel)
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        tic = time()
-        # Spinlock in case of MPI
-        sleep_delay = 0 if configuration['mpi'] else 1
-        _, _, _, recompiled = compile_from_string(compiler, target, code, src_file,
-                                                  cache_dir=cache_dir,
-                                                  debug=configuration['debug-compiler'],
-                                                  sleep_delay=sleep_delay)
-        toc = time()
-
-    if recompiled:
-        debug("%s: compiled `%s` [%.2f s]" % (compiler, src_file, toc-tic))
-    else:
-        debug("%s: cache hit `%s` [%.2f s]" % (compiler, src_file, toc-tic))
 
 
 compiler_registry = {
