@@ -5,7 +5,7 @@ from cached_property import cached_property
 import sympy
 
 from devito.ir.support import Any, Backward, Forward, DataSpace, IterationSpace, Scope
-from devito.ir.clusters.cluster import Cluster, ClusterGroup
+from devito.ir.clusters.cluster import Cluster, ClusterGroup, ClusterSequence
 from devito.symbolics import CondEq
 from devito.types import Dimension
 from devito.tools import DAG, DefaultOrderedDict, as_tuple, flatten
@@ -20,6 +20,13 @@ def clusterize(exprs):
     # Initialization
     clusters = [Cluster(e, e.ispace, e.dspace) for e in exprs]
 
+    # Compute a topological ordering that honours flow- and anti-dependences
+    # Note: heuristically (see toposort.choose_element) this tries to maximize
+    # loop fusion
+    csequences = [ClusterSequence(c, c.itintervals) for c in clusters]
+    csequences = Queue(toposort, aggregate).process(csequences)
+    clusters = ClusterSequence.concatenate(*csequences)
+
     # Enforce iteration directions
     clusters = Queue(enforce).process(clusters)
 
@@ -30,6 +37,126 @@ def clusterize(exprs):
     clusters = guard(clusters)
 
     return ClusterGroup(clusters)
+
+
+class Queue(object):
+
+    """
+    A special queue to process objects in nested IterationSpaces based on
+    a divide-and-conquer algorithm.
+
+    Parameters
+    ----------
+    callbacks : list of callables, optional
+        Routines executed upon conquer.
+    """
+
+    def __init__(self, *callbacks):
+        self.callbacks = as_tuple(callbacks)
+
+    def _process(self, elements, level, prefix=None):
+        prefix = prefix or []
+        # Divide part
+        processed = []
+        for pfx, g in groupby(elements, key=lambda i: i.itintervals[:level]):
+            if level > len(pfx):
+                # Base case
+                processed.extend(list(g))
+            else:
+                # Recursion
+                processed.extend(self._process(list(g), level + 1, pfx))
+        # Conquer part (execute callbacks)
+        for f in self.callbacks:
+            processed = f(processed, prefix)
+        return processed
+
+    def process(self, elements):
+        return self._process(elements, 1)
+
+
+def build_dag(csequences, prefix):
+    """
+    A DAG capturing dependences between ClusterSequences within the ``prefix``
+    IterationIntervals.
+
+    Examples
+    --------
+    When do we need to sequentialize two ClusterSequence `cs0` and `cs1` ?
+
+    Assume `prefix=[i]`
+
+    1) cs0 := b[i, j] = ...
+       cs1 := ... = ... b[i+1, j] ...
+       Anti-dependence in `i`, so `cs1` must go after `cs0`
+
+    2) cs0 := b[i, j] = ...
+       cs1 := ... = ... b[i-1, j+1] ...
+       Flow-dependence in `i`, so `cs1` can safely go before or after `cs0`
+
+    Now assume `prefix=[]`
+
+    3) cs0 := b[i, j] = ...
+       cs1 := ... = ... b[i, j-1] ...
+       Flow-dependence in `j`, but the `i` IterationInterval is different (e.g.,
+       `i*[0,0]` for `cs0` and `i*[-1, 1]` for `cs1`), so `cs1` must go after `cs0`.
+    """
+    prefix = {i.dim for i in as_tuple(prefix)}
+    dag = DAG(nodes=csequences)
+    for i, cs0 in enumerate(csequences):
+        for cs1 in csequences[i+1:]:
+            scope = Scope(exprs=cs0.exprs + cs1.exprs)
+            local_deps = cs0.scope.d_all + cs1.scope.d_all
+            if any(dep.cause - prefix for dep in scope.d_all - local_deps):
+                dag.add_edge(cs0, cs1)
+                break
+    return dag
+
+
+def toposort(csequences, prefix):
+    """
+    A new heuristic-based topological ordering for some ClusterSequences. The
+    heuristic attempts to maximize Cluster fusion by bringing together Clusters
+    with compatible IterationSpace.
+    """
+    # Are there any ClusterSequences that could potentially be fused? If not,
+    # don't waste time computing a new topological ordering
+    counter = Counter(cs.itintervals for cs in csequences)
+    if not any(v > 1 for it, v in counter.most_common()):
+        return csequences
+
+    # Similarly, if all ClusterSequences have the same exact prefix, no need
+    # to topologically resort
+    if len(counter.most_common()) == 1:
+        return csequences
+
+    dag = build_dag(csequences, prefix)
+
+    def choose_element(queue, scheduled):
+        # Heuristic 1: do not move Clusters computing Arrays (temporaries),
+        # to preserve cross-loop blocking opportunities
+        # Heuristic 2: prefer a node having same IterationSpace as that of
+        # the last scheduled node to maximize Cluster fusion
+        if not scheduled:
+            return queue.pop()
+        last = scheduled[-1]
+        for i in list(queue):
+            if any(f.is_Array for f in i.scope.writes):
+                continue
+            elif i.itintervals == last.itintervals:
+                queue.remove(i)
+                return i
+        return queue.popleft()
+
+    processed = dag.topological_sort(choose_element)
+
+    return processed
+
+
+def aggregate(csequences, prefix):
+    """
+    Concatenate a sequence of ClusterSequences into a new ClusterSequence.
+    """
+    return [ClusterSequence(csequences, prefix)]
 
 
 def enforce(clusters, prefix, backlog=None, known_flow_break=None):
@@ -102,12 +229,7 @@ def optimize(clusters):
     clusters = Queue(lift).process(clusters)
 
     # Fusion
-    # Note: we use ClusterSequences, instead of Clusters, as `toposort` needs to
-    # treat sub-sequences of already-processed Clusters as atomic (non-reshuffable)
-    # entities
-    csequences = [ClusterSequence(c, c.itintervals) for c in clusters]
-    csequences = Queue(toposort, fuse).process(csequences)
-    clusters = ClusterSequence.concatenate(*csequences)
+    clusters = fuse(clusters)
 
     return clusters
 
@@ -143,166 +265,22 @@ def lift(clusters, prefix):
     return lifted + processed
 
 
-def toposort(csequences, prefix):
+def fuse(clusters):
     """
-    A new heuristic-based topological ordering for some ClusterSequences. The
-    heuristic attempts to maximize Cluster fusion by bringing together Clusters
-    with compatible IterationSpace.
-    """
-    # Are there any ClusterSequences that could potentially be fused? If not,
-    # don't waste time computing a new topological ordering
-    counter = Counter(cs.itintervals for cs in csequences)
-    if not any(v > 1 for it, v in counter.most_common()):
-        return csequences
-
-    # Similarly, if all ClusterSequences have the same exact prefix, no need
-    # to topologically resort
-    if len(counter.most_common()) == 1:
-        return csequences
-
-    dag = build_dag(csequences, prefix)
-
-    def choose_element(queue, scheduled):
-        # Heuristic 1: do not move Clusters computing Arrays (temporaries),
-        # to preserve cross-loop blocking opportunities
-        # Heuristic 2: prefer a node having same IterationSpace as that of
-        # the last scheduled node to maximize Cluster fusion
-        if not scheduled:
-            return queue.pop()
-        last = scheduled[-1]
-        for i in list(queue):
-            if any(f.is_Array for f in i.scope.writes):
-                continue
-            elif i.itintervals == last.itintervals:
-                queue.remove(i)
-                return i
-        return queue.popleft()
-
-    processed = dag.topological_sort(choose_element)
-
-    return processed
-
-
-def fuse(csequences, prefix):
-    """
-    Fuse ClusterSequences with compatible IterationSpace.
+    Fuse sub-sequences of Clusters with compatible IterationSpace.
     """
     processed = []
-    for k, g in groupby(csequences, key=lambda cs: cs.itintervals):
+    for k, g in groupby(clusters, key=lambda cs: cs.itintervals):
         maybe_fusible = list(g)
-        clusters = ClusterSequence.concatenate(*maybe_fusible)
-        if len(clusters) == 1 or any(c.guards for c in clusters):
-            processed.append(ClusterSequence(clusters, k))
+
+        if len(maybe_fusible) == 1 or any(c.guards for c in maybe_fusible):
+            processed.extend(maybe_fusible)
         else:
             # Perform fusion
-            fused = Cluster.from_clusters(*clusters)
-            processed.append(ClusterSequence(fused, fused.itintervals))
+            fused = Cluster.from_clusters(*maybe_fusible)
+            processed.append(fused)
+
     return processed
-
-
-class Queue(object):
-
-    """
-    A special queue to process objects in nested IterationSpaces based on
-    a divide-and-conquer algorithm.
-
-    Parameters
-    ----------
-    callbacks : list of callables, optional
-        Routines executed upon conquer.
-    """
-
-    def __init__(self, *callbacks):
-        self.callbacks = as_tuple(callbacks)
-
-    def _process(self, elements, level, prefix=None):
-        prefix = prefix or []
-        # Divide part
-        processed = []
-        for pfx, g in groupby(elements, key=lambda i: i.itintervals[:level]):
-            if level > len(pfx):
-                # Base case
-                processed.extend(list(g))
-            else:
-                # Recursion
-                processed.extend(self._process(list(g), level + 1, pfx))
-        # Conquer part (execute callbacks)
-        for f in self.callbacks:
-            processed = f(processed, prefix)
-        return processed
-
-    def process(self, elements):
-        return self._process(elements, 1)
-
-
-class ClusterSequence(tuple):
-
-    """
-    A totally-ordered sequence of Clusters.
-    """
-
-    def __new__(cls, items, itintervals):
-        obj = super(ClusterSequence, cls).__new__(cls, flatten(as_tuple(items)))
-        obj._itintervals = itintervals
-        return obj
-
-    def __repr__(self):
-        return "ClusterSequence([%s])" % ','.join('%s' % c for c in self)
-
-    @classmethod
-    def concatenate(cls, *csequences):
-        return list(chain(*csequences))
-
-    @cached_property
-    def exprs(self):
-        return flatten(c.exprs for c in self)
-
-    @cached_property
-    def scope(self):
-        return Scope(exprs=self.exprs)
-
-    @cached_property
-    def itintervals(self):
-        """The prefix IterationIntervals common to all Clusters in self."""
-        return self._itintervals
-
-
-def build_dag(csequences, prefix):
-    """
-    A DAG capturing dependences between ClusterSequences within the ``prefix``
-    IterationIntervals.
-
-    Examples
-    --------
-    When do we need to sequentialize two ClusterSequence `cs0` and `cs1` ?
-
-    Assume `prefix=[i]`
-
-    1) cs0 := b[i, j] = ...
-       cs1 := ... = ... b[i+1, j] ...
-       Anti-dependence in `i`, so `cs1` must go after `cs0`
-
-    2) cs0 := b[i, j] = ...
-       cs1 := ... = ... b[i-1, j+1] ...
-       Flow-dependence in `i`, so `cs1` can safely go before or after `cs0`
-
-    Now assume `prefix=[]`
-
-    3) cs0 := b[i, j] = ...
-       cs1 := ... = ... b[i, j-1] ...
-       Flow-dependence in `j`, but the `i` IterationInterval is different (e.g.,
-       `i*[0,0]` for `cs0` and `i*[-1, 1]` for `cs1`), so `cs1` must go after `cs0`.
-    """
-    prefix = {i.dim for i in as_tuple(prefix)}
-    dag = DAG(nodes=csequences)
-    for i, cs0 in enumerate(csequences):
-        for cs1 in csequences[i+1:]:
-            scope = Scope(exprs=cs0.exprs + cs1.exprs)
-            local_deps = cs0.scope.d_all + cs1.scope.d_all
-            if any(dep.cause - prefix for dep in scope.d_all - local_deps):
-                dag.add_edge(cs0, cs1)
-                break
-    return dag
 
 
 def guard(clusters):

@@ -7,9 +7,9 @@ from frozendict import frozendict
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import IterationSpace, DataSpace, Scope, detect_io
 from devito.symbolics import estimate_cost, retrieve_indexed
-from devito.tools import as_tuple
+from devito.tools import as_tuple, flatten
 
-__all__ = ["Cluster", "ClusterGroup"]
+__all__ = ["Cluster", "ClusterGroup", "ClusterSequence"]
 
 
 class Cluster(object):
@@ -168,6 +168,38 @@ class Cluster(object):
             else:
                 ret[(i, mode)] = self.ispace.intervals
         return ret
+
+
+class ClusterSequence(tuple):
+
+    """
+    A totally-ordered sequence of Clusters.
+    """
+
+    def __new__(cls, items, itintervals):
+        obj = super(ClusterSequence, cls).__new__(cls, flatten(as_tuple(items)))
+        obj._itintervals = itintervals
+        return obj
+
+    def __repr__(self):
+        return "ClusterSequence([%s])" % ','.join('%s' % c for c in self)
+
+    @classmethod
+    def concatenate(cls, *csequences):
+        return list(chain(*csequences))
+
+    @cached_property
+    def exprs(self):
+        return flatten(c.exprs for c in self)
+
+    @cached_property
+    def scope(self):
+        return Scope(exprs=self.exprs)
+
+    @cached_property
+    def itintervals(self):
+        """The prefix IterationIntervals common to all Clusters in self."""
+        return self._itintervals
 
 
 class ClusterGroup(tuple):
