@@ -455,10 +455,10 @@ def test_aliases_different_nests():
 
     # Leads to 3D aliases
     eqns = [Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
-                          (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1)),
+                           (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1)),
             Inc(u[t+1, i, i, i], g + 1),
             Eq(v.forward, ((v[t, x, y, z] + v[t, x+1, y+1, z+1])*3*u.forward +
-                          (v[t, x+2, y+2, z+2] + v[t, x+3, y+3, z+3])*3*u.forward + 1))]
+                           (v[t, x+2, y+2, z+2] + v[t, x+3, y+3, z+3])*3*u.forward + 1))]
     op0 = Operator(eqns, dse='noop', dle=('noop', {'openmp': True}))
     op1 = Operator(eqns, dse='aggressive', dle=('advanced', {'openmp': True}))
 

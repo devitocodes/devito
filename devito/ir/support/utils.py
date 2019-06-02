@@ -1,7 +1,6 @@
 from collections import OrderedDict, defaultdict
 
-from devito.ir.support.basic import Access
-from devito.ir.support.space import Interval, Backward, Forward, Any
+from devito.ir.support.space import Interval
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, retrieve_terminals
 from devito.tools import as_tuple, flatten, filter_sorted

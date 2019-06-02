@@ -1,8 +1,6 @@
 from collections import OrderedDict
 from itertools import islice
 
-from cached_property import cached_property
-
 from devito.ir.equations import ClusterizedEq
 from devito.symbolics import (as_symbol, retrieve_terminals, q_timedimension)
 from devito.tools import DefaultOrderedDict, flatten

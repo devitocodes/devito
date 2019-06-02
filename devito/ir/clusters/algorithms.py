@@ -1,14 +1,12 @@
 from collections import Counter
-from itertools import chain, groupby
+from itertools import groupby
 
-from cached_property import cached_property
 import sympy
 
-from devito.ir.support import Any, Backward, Forward, DataSpace, IterationSpace, Scope
+from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.symbolics import CondEq
-from devito.types import Dimension
-from devito.tools import DAG, DefaultOrderedDict, as_tuple, flatten
+from devito.tools import DAG, as_tuple, flatten
 
 __all__ = ['clusterize', 'optimize']
 

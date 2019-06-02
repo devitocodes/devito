@@ -11,8 +11,7 @@ from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes, FindSy
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      AFFINE, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
-                                     Any, Forward, Backward)
-from devito.symbolics import indexify
+                                     Forward, Backward)
 from devito.types import Scalar
 from devito.tools import as_tuple
 

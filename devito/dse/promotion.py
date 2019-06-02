@@ -29,7 +29,6 @@ def scalarize(clusters, template):
     return processed
 
 
-
 def _bump_and_scalarize(arrays, cluster, template):
     """
     Scalarize local Arrays.

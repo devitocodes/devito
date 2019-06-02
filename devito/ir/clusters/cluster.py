@@ -6,7 +6,7 @@ from frozendict import frozendict
 
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import IterationSpace, DataSpace, Scope, detect_io
-from devito.symbolics import estimate_cost, retrieve_indexed
+from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten
 
 __all__ = ["Cluster", "ClusterGroup"]
