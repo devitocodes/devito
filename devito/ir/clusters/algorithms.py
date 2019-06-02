@@ -5,7 +5,7 @@ from cached_property import cached_property
 import sympy
 
 from devito.ir.support import Any, Backward, Forward, DataSpace, IterationSpace, Scope
-from devito.ir.clusters.cluster import Cluster, ClusterGroup, ClusterSequence
+from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.symbolics import CondEq
 from devito.types import Dimension
 from devito.tools import DAG, DefaultOrderedDict, as_tuple, flatten
@@ -23,9 +23,9 @@ def clusterize(exprs):
     # Compute a topological ordering that honours flow- and anti-dependences
     # Note: heuristically (see toposort.choose_element) this tries to maximize
     # loop fusion
-    csequences = [ClusterSequence(c, c.itintervals) for c in clusters]
-    csequences = Queue(toposort, aggregate).process(csequences)
-    clusters = ClusterSequence.concatenate(*csequences)
+    cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
+    cgroups = Queue(toposort, aggregate).process(cgroups)
+    clusters = ClusterGroup.concatenate(*cgroups)
 
     # Enforce iteration directions
     clusters = Queue(enforce).process(clusters)
@@ -74,62 +74,62 @@ class Queue(object):
         return self._process(elements, 1)
 
 
-def build_dag(csequences, prefix):
+def build_dag(cgroups, prefix):
     """
-    A DAG capturing dependences between ClusterSequences within the ``prefix``
+    A DAG capturing dependences between ClusterGroups within the ``prefix``
     IterationIntervals.
 
     Examples
     --------
-    When do we need to sequentialize two ClusterSequence `cs0` and `cs1` ?
+    When do we need to sequentialize two ClusterGroup `cg0` and `cg1` ?
 
     Assume `prefix=[i]`
 
-    1) cs0 := b[i, j] = ...
-       cs1 := ... = ... b[i+1, j] ...
-       Anti-dependence in `i`, so `cs1` must go after `cs0`
+    1) cg0 := b[i, j] = ...
+       cg1 := ... = ... b[i+1, j] ...
+       Anti-dependence in `i`, so `cg1` must go after `cg0`
 
-    2) cs0 := b[i, j] = ...
-       cs1 := ... = ... b[i-1, j+1] ...
-       Flow-dependence in `i`, so `cs1` can safely go before or after `cs0`
+    2) cg0 := b[i, j] = ...
+       cg1 := ... = ... b[i-1, j+1] ...
+       Flow-dependence in `i`, so `cg1` can safely go before or after `cg0`
 
     Now assume `prefix=[]`
 
-    3) cs0 := b[i, j] = ...
-       cs1 := ... = ... b[i, j-1] ...
+    3) cg0 := b[i, j] = ...
+       cg1 := ... = ... b[i, j-1] ...
        Flow-dependence in `j`, but the `i` IterationInterval is different (e.g.,
-       `i*[0,0]` for `cs0` and `i*[-1, 1]` for `cs1`), so `cs1` must go after `cs0`.
+       `i*[0,0]` for `cg0` and `i*[-1, 1]` for `cg1`), so `cg1` must go after `cg0`.
     """
     prefix = {i.dim for i in as_tuple(prefix)}
-    dag = DAG(nodes=csequences)
-    for i, cs0 in enumerate(csequences):
-        for cs1 in csequences[i+1:]:
-            scope = Scope(exprs=cs0.exprs + cs1.exprs)
-            local_deps = cs0.scope.d_all + cs1.scope.d_all
+    dag = DAG(nodes=cgroups)
+    for i, cg0 in enumerate(cgroups):
+        for cg1 in cgroups[i+1:]:
+            scope = Scope(exprs=cg0.exprs + cg1.exprs)
+            local_deps = cg0.scope.d_all + cg1.scope.d_all
             if any(dep.cause - prefix for dep in scope.d_all - local_deps):
-                dag.add_edge(cs0, cs1)
+                dag.add_edge(cg0, cg1)
                 break
     return dag
 
 
-def toposort(csequences, prefix):
+def toposort(cgroups, prefix):
     """
-    A new heuristic-based topological ordering for some ClusterSequences. The
+    A new heuristic-based topological ordering for some ClusterGroups. The
     heuristic attempts to maximize Cluster fusion by bringing together Clusters
     with compatible IterationSpace.
     """
-    # Are there any ClusterSequences that could potentially be fused? If not,
+    # Are there any ClusterGroups that could potentially be fused? If not,
     # don't waste time computing a new topological ordering
-    counter = Counter(cs.itintervals for cs in csequences)
+    counter = Counter(cg.itintervals for cg in cgroups)
     if not any(v > 1 for it, v in counter.most_common()):
-        return csequences
+        return cgroups
 
-    # Similarly, if all ClusterSequences have the same exact prefix, no need
+    # Similarly, if all ClusterGroups have the same exact prefix, no need
     # to topologically resort
     if len(counter.most_common()) == 1:
-        return csequences
+        return cgroups
 
-    dag = build_dag(csequences, prefix)
+    dag = build_dag(cgroups, prefix)
 
     def choose_element(queue, scheduled):
         # Heuristic 1: do not move Clusters computing Arrays (temporaries),
@@ -152,11 +152,11 @@ def toposort(csequences, prefix):
     return processed
 
 
-def aggregate(csequences, prefix):
+def aggregate(cgroups, prefix):
     """
-    Concatenate a sequence of ClusterSequences into a new ClusterSequence.
+    Concatenate a sequence of ClusterGroups into a new ClusterGroup.
     """
-    return [ClusterSequence(csequences, prefix)]
+    return [ClusterGroup(cgroups, prefix)]
 
 
 def enforce(clusters, prefix, backlog=None, known_flow_break=None):
@@ -270,7 +270,7 @@ def fuse(clusters):
     Fuse sub-sequences of Clusters with compatible IterationSpace.
     """
     processed = []
-    for k, g in groupby(clusters, key=lambda cs: cs.itintervals):
+    for k, g in groupby(clusters, key=lambda cg: cg.itintervals):
         maybe_fusible = list(g)
 
         if len(maybe_fusible) == 1 or any(c.guards for c in maybe_fusible):

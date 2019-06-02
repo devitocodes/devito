@@ -9,7 +9,7 @@ from devito.ir.support import IterationSpace, DataSpace, Scope, detect_io
 from devito.symbolics import estimate_cost, retrieve_indexed
 from devito.tools import as_tuple, flatten
 
-__all__ = ["Cluster", "ClusterGroup", "ClusterSequence"]
+__all__ = ["Cluster", "ClusterGroup"]
 
 
 class Cluster(object):
@@ -170,23 +170,30 @@ class Cluster(object):
         return ret
 
 
-class ClusterSequence(tuple):
+class ClusterGroup(tuple):
 
     """
-    A totally-ordered sequence of Clusters.
+    An immutable, totally-ordered sequence of Clusters.
+
+    Parameters
+    ----------
+    clusters : list of Clusters
+        Input elements.
+    itintervals : tuple of IterationIntervals, optional
+        The region of iteration space shared by the ``clusters``.
     """
 
-    def __new__(cls, items, itintervals):
-        obj = super(ClusterSequence, cls).__new__(cls, flatten(as_tuple(items)))
+    def __new__(cls, clusters, itintervals=None):
+        obj = super(ClusterGroup, cls).__new__(cls, flatten(as_tuple(clusters)))
         obj._itintervals = itintervals
         return obj
 
     def __repr__(self):
-        return "ClusterSequence([%s])" % ','.join('%s' % c for c in self)
+        return "ClusterGroup([%s])" % ','.join('%s' % c for c in self)
 
     @classmethod
-    def concatenate(cls, *csequences):
-        return list(chain(*csequences))
+    def concatenate(cls, *cgroups):
+        return list(chain(*cgroups))
 
     @cached_property
     def exprs(self):
@@ -201,21 +208,12 @@ class ClusterSequence(tuple):
         """The prefix IterationIntervals common to all Clusters in self."""
         return self._itintervals
 
-
-class ClusterGroup(tuple):
-
-    """An immutable iterable of Clusters."""
-
-    def __new__(cls, items):
-        assert all(isinstance(i, Cluster) for i in items)
-        return super(ClusterGroup, cls).__new__(cls, items)
-
-    @property
+    @cached_property
     def dspace(self):
         """Return the DataSpace of this ClusterGroup."""
         return DataSpace.merge(*[i.dspace for i in self])
 
-    @property
+    @cached_property
     def dtype(self):
         """
         The arithmetic data type of this ClusterGroup. If at least one
@@ -236,7 +234,7 @@ class ClusterGroup(tuple):
         else:
             raise ValueError("Unsupported ClusterGroup [mixed integer arithmetic ?]")
 
-    @property
+    @cached_property
     def meta(self):
         """
         Returns
