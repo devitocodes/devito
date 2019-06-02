@@ -211,7 +211,8 @@ class Operator(Callable):
         return tuple(i for i in self.parameters if i.is_Object)
 
     def _initialize_state(self, **kwargs):
-        return {'optimizations': {k: kwargs.get(k, v) for k, v in configuration.items()}}
+        return {'optimizations': {k: kwargs.get(k, configuration[k])
+                                  for k in ('dse', 'dle')}}
 
     # Compilation
 
