@@ -74,39 +74,57 @@ class Queue(object):
 
 def build_dag(cgroups, prefix):
     """
-    A DAG capturing dependences between ClusterGroups within the ``prefix``
-    IterationIntervals.
+    A DAG capturing dependences between *all* ClusterGroups within an iteration space.
 
     Examples
     --------
-    When do we need to sequentialize two ClusterGroup `cg0` and `cg1` ?
+    When do we need to sequentialize two ClusterGroup `cg0` and `cg1`?
+    Essentially any time there's a dependence between them, apart from when it's
+    a carried flow-dependence within the given iteration space.
 
-    Assume `prefix=[i]`
+    Let's consider two ClusterGroups `cg0` and `cg1` within the iteration space
+    identified by the Dimension `i`.
 
     1) cg0 := b[i, j] = ...
-       cg1 := ... = ... b[i+1, j] ...
-       Anti-dependence in `i`, so `cg1` must go after `cg0`
+       cg1 := ... = ... b[i, j] ...
+       Non-carried flow-dependence, so `cg1` must go after `cg0`
 
     2) cg0 := b[i, j] = ...
-       cg1 := ... = ... b[i-1, j+1] ...
-       Flow-dependence in `i`, so `cg1` can safely go before or after `cg0`
-
-    Now assume `prefix=[]`
+       cg1 := ... = ... b[i, j+1] ...
+       Anti-dependence in `j`, so `cg1` must go after `cg0`
 
     3) cg0 := b[i, j] = ...
+       cg1 := ... = ... b[i-1, j+1] ...
+       Flow-dependence in `i`, so `cg1` can safely go before or after `cg0`
+       (but clearly still within the `i` iteration space).
+       Note: the `j+1` in `cg1` has no impact -- the dependence is in `i`.
+
+    4) cg0 := b[i, j] = ...
        cg1 := ... = ... b[i, j-1] ...
-       Flow-dependence in `j`, but the `i` IterationInterval is different (e.g.,
-       `i*[0,0]` for `cg0` and `i*[-1, 1]` for `cg1`), so `cg1` must go after `cg0`.
+       Flow-dependence in `j`, so `cg1` must go after `cg0`.
+       Unlike case 3), the flow-dependence is along an inner Dimension, so
+       `cg0` and `cg1 need to be sequentialized.
     """
     prefix = {i.dim for i in as_tuple(prefix)}
+
     dag = DAG(nodes=cgroups)
     for i, cg0 in enumerate(cgroups):
         for cg1 in cgroups[i+1:]:
             scope = Scope(exprs=cg0.exprs + cg1.exprs)
-            local_deps = cg0.scope.d_all + cg1.scope.d_all
-            if any(dep.cause - prefix for dep in scope.d_all - local_deps):
+
+            # Handle anti-dependences
+            local_deps = cg0.scope.d_anti + cg1.scope.d_anti
+            if scope.d_anti - local_deps:
                 dag.add_edge(cg0, cg1)
                 break
+
+            # Flow-dependences along one of the `prefix` Dimensions can
+            # be ignored; all others require sequentialization
+            local_deps = cg0.scope.d_flow + cg1.scope.d_flow
+            if any(dep.cause - prefix for dep in scope.d_flow - local_deps):
+                dag.add_edge(cg0, cg1)
+                break
+
     return dag
 
 
