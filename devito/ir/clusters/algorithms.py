@@ -18,15 +18,15 @@ def clusterize(exprs):
     # Initialization
     clusters = [Cluster(e, e.ispace, e.dspace) for e in exprs]
 
+    # Enforce iteration directions
+    clusters = Queue(enforce).process(clusters)
+
     # Compute a topological ordering that honours flow- and anti-dependences
     # Note: heuristically (see toposort.choose_element) this tries to maximize
     # loop fusion
     cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
     cgroups = Queue(toposort, aggregate).process(cgroups)
     clusters = ClusterGroup.concatenate(*cgroups)
-
-    # Enforce iteration directions
-    clusters = Queue(enforce).process(clusters)
 
     # Apply optimizations
     clusters = optimize(clusters)
@@ -202,8 +202,8 @@ def enforce(clusters, prefix, backlog=None, known_flow_break=None):
         return enforce(clusters[:-1], prefix, backlog, require_flow_break)
 
     # Compute iteration directions
-    require_backward = scope.d_anti.cause & candidates
-    directions = {d: Backward for d in require_backward}
+    directions = {d: Backward for d in scope.d_anti.cause & candidates}
+    directions.update({d.Forward for d in scope.d_flow.cause & candidates})
     directions.update({d: Forward for d in candidates if d not in directions})
 
     # Enforce iteration directions on each Cluster
