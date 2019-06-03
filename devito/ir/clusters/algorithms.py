@@ -230,16 +230,16 @@ class Enforce(Queue):
             # Try with increasingly smaller Cluster groups until the ambiguity is solved
             return self.callback(clusters[:-1], prefix, backlog, require_flow_break)
 
-        # Compute iteration directions
-        directions = {d: Backward for d in scope.d_anti.cause & candidates}
-        directions.update({d: Forward for d in scope.d_flow.cause & candidates})
-        directions.update({d: Forward for d in candidates if d not in directions})
+        # Compute iteration direction
+        direction = {d: Backward for d in candidates if d.root in scope.d_anti.cause}
+        direction.update({d: Forward for d in candidates if d.root in scope.d_flow.cause})
+        direction.update({d: Forward for d in candidates if d not in direction})
 
-        # Enforce iteration directions on each Cluster
+        # Enforce iteration direction on each Cluster
         processed = []
         for c in clusters:
             ispace = IterationSpace(c.ispace.intervals, c.ispace.sub_iterators,
-                                    {**c.ispace.directions, **directions})
+                                    {**c.ispace.directions, **direction})
             processed.append(Cluster(c.exprs, ispace, c.dspace))
 
         if backlog is None:
@@ -247,11 +247,11 @@ class Enforce(Queue):
 
         # Handle the backlog -- the Clusters characterized by flow+anti dependences along
         # one or more Dimensions
-        directions = {d: Any for d in known_flow_break}
+        direction = {d: Any for d in known_flow_break}
         for i, c in enumerate(as_tuple(backlog)):
             ispace = IterationSpace(c.ispace.intervals.lift(known_flow_break),
                                     c.ispace.sub_iterators,
-                                    {**c.ispace.directions, **directions})
+                                    {**c.ispace.directions, **direction})
             backlog[i] = Cluster(c.exprs, ispace, c.dspace)
 
         return processed + self.callback(backlog, prefix)
