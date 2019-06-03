@@ -18,7 +18,6 @@ dependencies:
   - sphinx
   - sphinx_rtd_theme
   - distributed>=1.27
-  - scikit-image
   - cython
   - click
   - codecov
