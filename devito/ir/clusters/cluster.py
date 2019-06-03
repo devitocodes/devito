@@ -100,12 +100,12 @@ class Cluster(object):
         return set().union(*[i._defines for i in self.free_symbols if i.is_Dimension])
 
     @cached_property
-    def functions(self):
-        return set.union(*[set(i.dspace.parts) for i in self.exprs])
-
-    @cached_property
     def scope(self):
         return Scope(self.exprs)
+
+    @cached_property
+    def functions(self):
+        return self.scope.functions
 
     @cached_property
     def is_sparse(self):
