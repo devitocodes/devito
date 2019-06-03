@@ -1233,6 +1233,18 @@ class TestLoopScheduler(object):
           'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + ti0[x,y-1,z])'),
          '+++-+++', ['xyz', 'txyz'], 'xyztxyz'),
+        # War 2->1; expected=2
+        # Here the difference is that we're using SubDimensions
+        (('Eq(tv[t,xi,yi,zi], tu[t,xi-1,yi,zi] + tu[t,xi+1,yi,zi])',
+          'Eq(tu[t+1,xi,yi,zi], tu[t,xi,yi,zi] + tv[t,xi-1,yi,zi] + tv[t,xi+1,yi,zi])'),
+         '+++++++', ['txiyizi', 'txiyizi'], 'txiyizixiyizi'),
+        # RAW 3->1; expected=2
+        # Time goes backward, but the third equation should get fused with
+        # the first one, as there dependence is carried along time
+        (('Eq(tv[t-1,x,y,z], tv[t,x-1,y,z] + tv[t,x+1,y,z])',
+          'Eq(tv[t-1,z,z,z], tv[t-1,z,z,z] + 1)',
+          'Eq(f[x,y,z], tu[t-1,x,y,z] + tu[t,x,y,z] + tu[t+1,x,y,z] + tv[t,x,y,z])'),
+         '-++++', ['txyz', 'tz'], 'txyzz'),
     ])
     def test_consistency_anti_dependences(self, exprs, directions, expected, visit):
         """
@@ -1247,6 +1259,7 @@ class TestLoopScheduler(object):
         ti0 = Array(name='ti0', shape=grid.shape, dimensions=grid.dimensions)  # noqa
         ti1 = Array(name='ti1', shape=grid.shape, dimensions=grid.dimensions)  # noqa
         ti3 = Array(name='ti3', shape=grid.shape, dimensions=grid.dimensions)  # noqa
+        f = Function(name='f', grid=grid)  # noqa
         tu = TimeFunction(name='tu', grid=grid)  # noqa
         tv = TimeFunction(name='tv', grid=grid)  # noqa
         tw = TimeFunction(name='tw', grid=grid)  # noqa
