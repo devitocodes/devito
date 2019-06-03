@@ -326,8 +326,8 @@ class IntervalGroup(PartialOrderTuple):
                              relations=self.relations)
 
     def lift(self, d):
-        d = self.dimensions if d is None else as_tuple(d)
-        return IntervalGroup([i.lift() if i.dim in d else i for i in self],
+        d = set(self.dimensions if d is None else as_tuple(d))
+        return IntervalGroup([i.lift() if i.dim._defines & d else i for i in self],
                              relations=self.relations)
 
     def __getitem__(self, key):
