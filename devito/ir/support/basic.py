@@ -921,7 +921,8 @@ class Scope(object):
             for w in v:
                 for r in self.reads.get(k, []):
                     try:
-                        is_flow = (r < w) or (r == w and r.lex_ge(w))
+                        distance = r.distance(w)
+                        is_flow = distance < 0 or (distance == 0 and r.lex_ge(w))
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
@@ -939,7 +940,8 @@ class Scope(object):
             for w in v:
                 for r in self.reads.get(k, []):
                     try:
-                        is_anti = (r > w) or (r == w and r.lex_lt(w))
+                        distance = r.distance(w)
+                        is_anti = distance > 0 or (distance == 0 and r.lex_lt(w))
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
@@ -957,7 +959,8 @@ class Scope(object):
             for w1 in v:
                 for w2 in self.writes.get(k, []):
                     try:
-                        is_output = (w2 > w1) or (w2 == w1 and w2.lex_gt(w1))
+                        distance = w2.distance(w1)
+                        is_output = distance > 0 or (distance == 0 and w2.lex_gt(w1))
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence
