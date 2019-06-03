@@ -115,6 +115,9 @@ before_script:
       git clone https://github.com/opesci/yask.git;
       cd yask; make compiler-api; pip install -e .; cd ../devito;
     fi
+  - if [[ "$RUN_EXAMPLES" == 'TRUE' ]]; then
+      bash scripts/create_ipyparallel_mpi_profile.sh;
+    fi
 
 script:
   - flake8 --builtins=ArgumentError .
@@ -134,6 +137,8 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a --noazimuth; fi
+  # Launch an ipyparallel cluster for notebooks using mpi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then ipcluster start --profile=mpi -n 4 --daemon; fi
   # Test tutorial notebooks for the website using nbval
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/cfd; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/seismic/tutorials; fi
