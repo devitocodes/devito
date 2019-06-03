@@ -10,7 +10,7 @@ from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
 from devito.tools import flatten
-from devito.types import Scalar
+from devito.types import Array, Scalar
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -1234,15 +1234,30 @@ class TestLoopScheduler(object):
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + ti0[x,y-1,z])'),
          '+++-+++', ['xyz', 'txyz'], 'xyztxyz'),
     ])
-    def test_consistency_anti_dependences(self, exprs, directions, expected, visit,
-                                          ti0, ti1, ti3, tu, tv, tw):
+    def test_consistency_anti_dependences(self, exprs, directions, expected, visit):
         """
         Test that anti dependences end up generating multi loop nests, rather
         than a single loop nest enclosing all of the equations.
         """
-        eq1, eq2, eq3 = EVAL(exprs, ti0.base, ti1.base, ti3.base,
-                             tu.base, tv.base, tw.base)
-        op = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions  # noqa
+        xi, yi, zi = grid.interior.dimensions  # noqa
+        t = grid.stepping_dim  # noqa
+
+        ti0 = Array(name='ti0', shape=grid.shape, dimensions=grid.dimensions)  # noqa
+        ti1 = Array(name='ti1', shape=grid.shape, dimensions=grid.dimensions)  # noqa
+        ti3 = Array(name='ti3', shape=grid.shape, dimensions=grid.dimensions)  # noqa
+        tu = TimeFunction(name='tu', grid=grid)  # noqa
+        tv = TimeFunction(name='tv', grid=grid)  # noqa
+        tw = TimeFunction(name='tw', grid=grid)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        eqns = []
+        for e in exprs:
+            eqns.append(eval(e))
+
+        op = Operator(eqns, dse='noop', dle='noop')
+
         trees = retrieve_iteration_tree(op)
         iters = FindNodes(Iteration).visit(op)
         assert len(trees) == len(expected)
