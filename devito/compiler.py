@@ -472,8 +472,6 @@ class CustomCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
-
-
 compiler_registry = {
     'custom': CustomCompiler,
     'gnu': GNUCompiler,
