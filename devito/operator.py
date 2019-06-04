@@ -154,7 +154,7 @@ class Operator(Callable):
 
         # Internal state. May be used to store information about previous runs,
         # autotuning reports, etc
-        self._state = {}
+        self._state = self._initialize_state(**kwargs)
 
         # Form and gather any required implicit expressions
         expressions = self._add_implicit(expressions)
@@ -209,6 +209,10 @@ class Operator(Callable):
     @cached_property
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
+
+    def _initialize_state(self, **kwargs):
+        return {'optimizations': {k: kwargs.get(k, configuration[k])
+                                  for k in ('dse', 'dle')}}
 
     # Compilation
 
@@ -539,6 +543,10 @@ class Operator(Callable):
             gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
             perf("* %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
                  (name, v.oi, v.time, v.gflopss, gpointss))
+
+        perf("* %s configuration:  %s " %
+             (self.name, self._state['optimizations']))
+
         return summary
 
     @cached_property
