@@ -130,7 +130,9 @@ class Toposort(Queue):
         return processed
 
     def _aggregate(self, cgroups, prefix):
-        """Concatenate a sequence of ClusterGroups into a new ClusterGroup."""
+        """
+        Concatenate a sequence of ClusterGroups into a new ClusterGroup.
+        """
         return [ClusterGroup(cgroups, prefix)]
 
     def _build_dag(self, cgroups, prefix):
@@ -282,7 +284,9 @@ def optimize(clusters):
 class Lift(Queue):
 
     """
-    TODO
+    Remove invariant Dimensions from Clusters, to avoid redundant computation.
+    This is conceptually analogous to a general-purpose compiler transformation
+    known as "loop-invariant code motion".
     """
 
     def callback(self, clusters, prefix):
@@ -347,6 +351,7 @@ def guard(clusters):
                 if free:
                     processed.append(Cluster(free, c.ispace, c.dspace))
                     free = []
+
                 # Create a guarded Cluster
                 guards = {}
                 for d in e.conditionals:
