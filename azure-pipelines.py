@@ -32,11 +32,12 @@ if os.environ.get('testWithPip') != 'true':
         runStep("python examples/seismic/tti/tti_example.py -a")
         runStep("python examples/seismic/tti/tti_example.py -a --noazimuth")
         runStep("python examples/seismic/elastic/elastic_example.py")
-        runStep("ipcluster start --profile=mpi -n 4")  # Needed by the MPI-aware notebooks
+        runStep("ipcluster start --profile=mpi -n 4 --daemon")  # Needed by MPI notebooks
         runStep("py.test --nbval examples/cfd")
         runStep("py.test --nbval examples/seismic/tutorials")
         runStep("py.test --nbval examples/compiler")
         runStep("py.test --nbval examples/userapi")
+        runStep("ipcluster stop --profile=mpi")
         runStep("codecov")
     runStep("pushd docs; make html; popd")
 

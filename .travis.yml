@@ -138,12 +138,14 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a --noazimuth; fi
   # Launch an ipyparallel cluster for notebooks using mpi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then ipcluster start --profile=mpi -n 4; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then ipcluster start --profile=mpi -n 4 --daemon; fi
   # Test tutorial notebooks for the website using nbval
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/cfd; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/seismic/tutorials; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/compiler; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/userapi; fi
+  # Tear down the ipyparallel cluster
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then ipcluster stop --profile=mpi; fi
   # Code coverage and documentation generation
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       codecov;
