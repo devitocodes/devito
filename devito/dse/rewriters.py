@@ -2,7 +2,6 @@ import abc
 from collections import OrderedDict
 from time import time
 
-import numpy as np
 from sympy import cos, sin
 
 from devito.equation import Eq
@@ -15,8 +14,7 @@ from devito.dse.manipulation import (common_subexprs_elimination, collect_nested
 from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
-                              iq_timeinvariant, pow_to_mul, retrieve_indexed,
-                              q_affine, q_leaf, q_scalar, q_sum_of_product,
+                              iq_timeinvariant, pow_to_mul, q_leaf, q_sum_of_product,
                               q_terminalop, xreplace_constrained)
 from devito.tools import flatten, generator
 from devito.types import Array, Scalar
@@ -113,29 +111,7 @@ class BasicRewriter(AbstractRewriter):
 
     def _pipeline(self, state):
         self._eliminate_intra_stencil_redundancies(state)
-        self._extract_nonaffine_indices(state)
         self._extract_increments(state)
-
-    @dse_pass
-    def _extract_nonaffine_indices(self, cluster, template, **kwargs):
-        """
-        Extract non-affine array indices, and assign them to temporaries.
-        """
-        make = lambda: Scalar(name=template(), dtype=np.int32).indexify()
-
-        mapper = OrderedDict()
-        for e in cluster.exprs:
-            for indexed in retrieve_indexed(e):
-                for i, d in zip(indexed.indices, indexed.function.indices):
-                    if q_affine(i, d) or q_scalar(i):
-                        continue
-                    elif i not in mapper:
-                        mapper[i] = make()
-
-        processed = [Eq(v, k) for k, v in mapper.items()]
-        processed.extend([e.xreplace(mapper) for e in cluster.exprs])
-
-        return cluster.rebuild(processed)
 
     @dse_pass
     def _extract_increments(self, cluster, template, **kwargs):
