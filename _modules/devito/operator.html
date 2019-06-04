@@ -309,7 +309,7 @@
 
         <span class="c1"># Internal state. May be used to store information about previous runs,</span>
         <span class="c1"># autotuning reports, etc</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_state</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_state</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Form and gather any required implicit expressions</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_implicit</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
@@ -364,6 +364,10 @@
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">objects</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Object</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_initialize_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;optimizations&#39;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
+                                  <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;dse&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">)}}</span>
 
     <span class="c1"># Compilation</span>
 
@@ -694,6 +698,10 @@
             <span class="n">gpointss</span> <span class="o">=</span> <span class="s2">&quot;, </span><span class="si">%.2f</span><span class="s2"> GPts/s&quot;</span> <span class="o">%</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
             <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;* </span><span class="si">%s</span><span class="s2"> with OI=</span><span class="si">%.2f</span><span class="s2"> computed in </span><span class="si">%.3f</span><span class="s2"> s [</span><span class="si">%.2f</span><span class="s2"> GFlops/s</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span>
                  <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">oi</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">))</span>
+
+        <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;* </span><span class="si">%s</span><span class="s2"> configuration:  </span><span class="si">%s</span><span class="s2"> &quot;</span> <span class="o">%</span>
+             <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state</span><span class="p">[</span><span class="s1">&#39;optimizations&#39;</span><span class="p">]))</span>
+
         <span class="k">return</span> <span class="n">summary</span>
 
     <span class="nd">@cached_property</span>
