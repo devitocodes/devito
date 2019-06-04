@@ -185,7 +185,8 @@ class Toposort(Queue):
                 # Flow-dependences along one of the `prefix` Dimensions can
                 # be ignored; all others require sequentialization
                 local_deps = cg0.scope.d_flow + cg1.scope.d_flow
-                if any(not i.cause or i.cause - prefix for i in scope.d_flow-local_deps):
+                if any(not i.cause or not (i.cause & prefix)
+                       for i in scope.d_flow - local_deps):
                     dag.add_edge(cg0, cg1)
                     break
 
