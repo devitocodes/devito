@@ -1003,7 +1003,7 @@ class IndexedData(sympy.IndexedBase, Pickable):
 
     def __new__(cls, label, shape=None, function=None):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
-        if function is not None:
+        if isinstance(label, str):
             label = Symbol(label, dtype=function.dtype)
         obj = sympy.IndexedBase.__new__(cls, label, shape)
         obj.function = function
