@@ -138,7 +138,7 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a --noazimuth; fi
   # Launch an ipyparallel cluster for notebooks using mpi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then ipcluster start --profile=mpi -n 4 --daemon; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then ipcluster start --profile=mpi -n 4; fi
   # Test tutorial notebooks for the website using nbval
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/cfd; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/seismic/tutorials; fi
