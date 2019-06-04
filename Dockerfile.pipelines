@@ -62,7 +62,7 @@ RUN apt-get -y install gcc-$gccVersion g++-$gccVersion
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-$gccVersion 10
 RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-$gccVersion 10
 RUN update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-$gccVersion 10
-RUN update-alternatives --install /usr/bin/ar ar /usr/bin/gcc-ar-$gccVersion 10
+# RUN update-alternatives --install /usr/bin/ar ar /usr/bin/gcc-ar-$gccVersion 10
 RUN update-alternatives --install /usr/bin/nm nm /usr/bin/gcc-nm-$gccVersion 10
 RUN update-alternatives --install /usr/bin/cpp cpp /usr/bin/cpp-$gccVersion 10
 RUN update-alternatives --install /usr/bin/ranlib ranlib /usr/bin/gcc-ranlib-$gccVersion 10
