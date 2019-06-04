@@ -284,9 +284,6 @@ class AdvancedRewriter(BasicRewriter):
            temp1 = 2.0*ti[x,y,z]
            temp2 = 3.0*ti[x,y,z+1]
         """
-        if cluster.is_sparse:
-            return cluster
-
         # For more information about "aliases", refer to collect.__doc__
         aliases = collect(cluster.exprs)
 

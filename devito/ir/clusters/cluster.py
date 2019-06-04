@@ -108,12 +108,14 @@ class Cluster(object):
         return self.scope.functions
 
     @cached_property
-    def is_sparse(self):
-        return any(f.is_SparseFunction for f in self.functions)
-
-    @cached_property
     def is_dense(self):
-        return not self.is_sparse
+        """
+        True if the Cluster writes into DiscreteFunctions through affine access
+        functions, False otherwise.
+        """
+        return (not any(f.is_SparseFunction for f in self.functions) and
+                any(f.is_Function for f in self.scope.writes) and
+                all(a.is_regular for a in self.scope.accesses))
 
     @cached_property
     def dtype(self):
