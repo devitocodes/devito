@@ -160,7 +160,6 @@
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 <span class="kn">import</span> <span class="nn">ctypes</span>
 
-<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">jit_compile</span><span class="p">,</span> <span class="n">load</span><span class="p">,</span> <span class="n">save</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">transform</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">rewrite</span>
 <span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span>
@@ -578,14 +577,14 @@
 <span class="sd">        Operator, reagardless of how many times this method is invoked.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">jit_compile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ccode</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">jit_compile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ccode</span><span class="p">))</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">cfunction</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;The JIT-compiled C function as a ctypes.FuncPtr object.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_compile</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_soname</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -779,8 +778,8 @@
                 <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;The pickled and unpickled Operators have different .sonames; &quot;</span>
                         <span class="s2">&quot;this might be a bug, or simply a harmless difference in &quot;</span>
                         <span class="s2">&quot;`configuration`. You may check they produce the same code.&quot;</span><span class="p">)</span>
-            <span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">,</span> <span class="n">binary</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">,</span> <span class="n">binary</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_soname</span></div>
 
 
