@@ -18,7 +18,7 @@ if os.environ.get('testWithPip') == 'true':
     runStep("python setup.py test", envCmd="")
 
 if os.environ.get('testWithPip') != 'true':
-    runStep("flake8 --exclude .conda,.git --builtins=ArgumentError .")
+    runStep("flake8 --exclude .conda,.git,.ipython --builtins=ArgumentError .")
     runStep("py.test --durations=20 --cov devito tests/")
     if os.environ.get('RUN_EXAMPLES') == 'true':
         runStep(("python benchmarks/user/benchmark.py test " +
