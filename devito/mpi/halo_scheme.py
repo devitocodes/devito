@@ -260,7 +260,11 @@ def hs_comp_locindices(f, dims, ispace, scope):
     """
     loc_indices = {}
     for d in dims:
-        func = max if ispace.is_forward(d.root) else min
+        try:
+            func = max if ispace.is_forward(d.root) else min
+        except KeyError:
+            raise HaloSchemeException("Don't know how to build a HaloScheme as `%s` "
+                                      "doesn't appear in `%s`" % (d, ispace))
         loc_index = func([i[d] for i in scope.getreads(f)], key=lambda i: i-d)
         if d.is_Stepping:
             subiters = ispace.sub_iterators.get(d.root, [])
