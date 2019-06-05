@@ -11,7 +11,9 @@ from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Clust
 from devito.dse.aliases import collect
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
+from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
+from devito.parameters import configuration
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               iq_timeinvariant, pow_to_mul, retrieve_indexed,
                               q_affine, q_leaf, q_scalar, q_sum_of_product,
@@ -382,6 +384,7 @@ class AdvancedRewriter(BasicRewriter):
 class AggressiveRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
+        self._new_pass(state)
         self._extract_sum_of_products(state)
         self._extract_time_invariants(state, with_cse=False)
         self._eliminate_inter_stencil_redundancies(state)
@@ -392,6 +395,16 @@ class AggressiveRewriter(AdvancedRewriter):
 
         self._factorize(state)
         self._eliminate_intra_stencil_redundancies(state)
+
+    @dse_pass
+    def _new_pass(self, cluster, template, **kwargs):
+        """
+        New code pass goes here.
+        """
+
+
+        return cluster
+
 
     @dse_pass
     def _extract_sum_of_products(self, cluster, template, **kwargs):
@@ -405,8 +418,24 @@ class AggressiveRewriter(AdvancedRewriter):
 
         return cluster.rebuild(processed)
 
-
 class CustomRewriter(AggressiveRewriter):
 
+    passes_mapper = {
+        'new_pass':AggressiveRewriter._new_pass
+    }
+
+    def __init__(self, passes, template= None, profile = True):
+        try:
+            passes = passes.split(',')
+        except AttributeError:
+            # Already in tuple format
+            if not all(i in CustomRewriter.passes_mapper for i in passes):
+                raise DSEException("Unknown passes `%s`" % str(passes))
+        self.passes = passes
+        self.template = template
+        self.profile = profile
+        #super(CustomRewriter, self).__init__(params)
+
     def _pipeline(self, state):
-        raise NotImplementedError
+        for i in self.passes:
+            CustomRewriter.passes_mapper[i](self, state)
