@@ -24,6 +24,7 @@ dependencies:
   - pytest-cov
   - multidict
   - frozendict
+  - nb_conda_kernels
   - pip:
     - "git+https://github.com/inducer/codepy"
     - pyrevolve==1.0.2
