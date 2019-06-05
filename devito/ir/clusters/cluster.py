@@ -190,9 +190,6 @@ class ClusterGroup(tuple):
         obj._itintervals = itintervals
         return obj
 
-    def __repr__(self):
-        return "ClusterGroup([%s])" % ','.join('%s' % c for c in self)
-
     @classmethod
     def concatenate(cls, *cgroups):
         return list(chain(*cgroups))
