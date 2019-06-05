@@ -8,7 +8,6 @@ from collections import OrderedDict
 
 from codepy.jit import CacheLockManager, CleanupManager
 
-from devito.compiler import make
 from devito.logger import debug, yask as log, yask_warning as warning
 from devito.tools import Signer, powerset, filter_sorted
 
@@ -106,7 +105,7 @@ class YaskKernel(object):
                 args.append('check=1')   # Activate internal YASK asserts
                 args.append('trace=1')   # Print out verbose progress msgs w/-trace knob
                 args.append('trace_mem=0')   # Print out verbose mem-access msgs
-            make(namespace['path'], args)
+            compiler.make(namespace['path'], args)
 
             # Now we must be able to import the SWIG-generated Python module
             invalidate_caches()
