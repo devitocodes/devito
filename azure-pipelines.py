@@ -36,7 +36,7 @@ if os.environ.get('testWithPip') != 'true':
         runStep("py.test --nbval examples/cfd")
         runStep("py.test --nbval examples/seismic/tutorials")
         runStep("py.test --nbval examples/compiler")
-        runStep("py.test --nbval examples/userapi")
+        runStep("py.test --nbval examples/mpi")
         runStep("ipcluster stop --profile=mpi")
         runStep("codecov")
     runStep("pushd docs; make html; popd")
