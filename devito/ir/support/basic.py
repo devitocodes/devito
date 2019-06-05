@@ -358,6 +358,11 @@ class IterationInstance(LabeledVector):
         Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
         means that the halo is touched along that DataSide.
         """
+        # If an irregularly (non-affine) accessed Dimension, conservatively
+        # assume the halo will be touched
+        if self.irregular(findex):
+            return (True, True)
+
         aindex = self.aindices[findex]
 
         # If the iterator is *not* a distributed Dimension, then surely the
