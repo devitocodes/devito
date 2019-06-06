@@ -13,13 +13,16 @@ from devito.dse.manipulation import (common_subexprs_elimination, collect_nested
                                      compact_temporaries)
 from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
+from devito.parameters import configuration
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
-                              iq_timeinvariant, pow_to_mul, q_leaf, q_sum_of_product,
-                              q_scalar, q_terminalop, xreplace_constrained)
+                              iq_timeinvariant, pow_to_mul, retrieve_indexed,
+                              q_affine, q_leaf, q_scalar, q_sum_of_product,
+                              q_terminalop, xreplace_constrained, xreplace_indices)
 from devito.tools import flatten, generator
 from devito.types import Array, Scalar
+from devito.types import TimeDimension, SteppingDimension, SpaceDimension
 
-__all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'CustomRewriter']
+__all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'SkewingRewriter', 'CustomRewriter']
 
 
 class State(object):
@@ -367,6 +370,64 @@ class AggressiveRewriter(AdvancedRewriter):
         costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
+        return cluster.rebuild(processed)
+
+class SkewingRewriter(AggressiveRewriter):
+
+    def _pipeline(self, state):
+        self._skewing(state)
+        self._extract_sum_of_products(state)
+        self._extract_time_invariants(state, with_cse=False)
+        self._eliminate_inter_stencil_redundancies(state)
+
+        self._extract_sum_of_products(state)
+        self._eliminate_inter_stencil_redundancies(state)
+        self._extract_sum_of_products(state)
+
+        self._factorize(state)
+        self._eliminate_intra_stencil_redundancies(state)
+
+    @dse_pass
+    def _skewing(self, cluster, template, **kwargs):
+        """
+        Function to perform only the basic skewing in order to have valid data
+        dependences.
+        """
+        skew_factor = configuration['skew_factor']
+        skew_dim, mapper, int_mapper = None, {}, []
+        skews = {}
+        total_int = {}
+        intervals, sub_iterators, directions = cluster.ispace.args
+        cnt = 0
+        for dim in cluster.ispace.dimensions:
+            if isinstance(dim, SpaceDimension):
+                mapper[dim] = dim + skew_factor*skew_dim
+                skews[dim] = (skew_factor, skew_dim)
+                int_mapper.append(IntervalGroup([Interval(dim, -skew_factor*skew_dim,
+                                                -skew_factor*skew_dim)]))
+                cnt = cnt + 1
+            elif dim.is_Time:
+                if isinstance(dim, TimeDimension):
+                    int_mapper.append(IntervalGroup([Interval(dim, 0, 0)]))
+                    cnt = cnt + 1
+                    skew_dim = dim
+                elif isinstance(dim.parent, TimeDimension):
+                    int_mapper.append(IntervalGroup([Interval(dim, 0, 0)]))
+                    cnt = cnt + 1
+        if skew_dim is None:
+            return cluster
+
+        if cnt == 5:
+            total_int = IntervalGroup.generate('union', int_mapper[0], int_mapper[1],
+                                               int_mapper[2], int_mapper[3])
+        elif cnt in {3, 4}:
+            total_int = IntervalGroup.generate('union', int_mapper[0], int_mapper[1],
+                                               int_mapper[2])
+
+        ispace = IterationSpace(total_int, sub_iterators, directions)
+
+        cluster._ispace = ispace
+        processed = xreplace_indices(cluster.exprs, mapper)
         return cluster.rebuild(processed)
 
 

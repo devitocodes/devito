@@ -44,6 +44,45 @@ def test_scheduling_after_rewrite():
     assert trees[1][0].dim == trees[2][0].dim == trees[3][0].dim == grid.time_dim
 
 
+def test_trivial_skew_test():
+    """Trivial testing for DSE skewing"""
+    grid = Grid((10, 10))
+    u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
+    u2 = TimeFunction(name="u2", grid=grid, time_order=2)
+    sf1 = SparseTimeFunction(name='sf1', grid=grid, npoint=1, nt=10)
+    const = Function(name="const", grid=grid, space_order=2)
+
+    # Deliberately inject into u1, rather than u1.forward, to create a WAR
+    eqn1 = Eq(u1.forward, u1 + sin(const))
+    eqn2 = sf1.inject(u1.forward, expr=sf1)
+    eqn3 = Eq(u2.forward, u2 - u1.dt2 + sin(const))
+
+    op = Operator([eqn1] + eqn2 + [eqn3], dse='skewing')
+    trees = retrieve_iteration_tree(op)
+
+    # Check loop nest structure
+    assert len(trees) == 4
+    assert all(i.dim == j for i, j in zip(trees[0], grid.dimensions))  # time invariant
+    assert trees[1][0].dim == trees[2][0].dim == trees[3][0].dim == grid.time_dim
+
+
+def test_trivial_jacobi():
+    """Trivial testing for DSE skewing"""
+    nx = 200
+    ny = 200
+    grid = Grid(shape=(nx, ny))
+    u_skew = TimeFunction(name='u_skew', grid=grid)
+    u_adv = TimeFunction(name='u_adv', grid=grid)
+
+    eq_skew = Eq(u_skew.forward, u_skew + 0.1)
+    eq_adv = Eq(u_adv.forward, u_adv + 0.1)
+
+    op_skew = Operator(eq_skew, dse='skewing', dle='noop')
+    op_adv = Operator(eq_adv, dse='advanced', dle='noop')
+    op_skew.apply(time=300)
+    op_adv.apply(time=300)
+    assert np.all(u_skew.data[0] == u_adv.data[0])
+
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(tu, ti0 + ti1 + 5.)'],
@@ -239,7 +278,7 @@ def test_makeit_ssa(exprs, exp_u, exp_v):
     assert np.all(v.data == exp_v)
 
 
-@pytest.mark.parametrize('dse', ['noop', 'basic', 'advanced', 'aggressive'])
+@pytest.mark.parametrize('dse', ['noop', 'basic', 'skewing', 'advanced', 'aggressive'])
 @pytest.mark.parametrize('dle', ['noop', 'advanced', 'speculative'])
 def test_time_dependent_split(dse, dle):
     grid = Grid(shape=(10, 10))
