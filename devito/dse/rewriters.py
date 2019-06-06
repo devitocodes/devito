@@ -13,7 +13,6 @@ from devito.dse.manipulation import (common_subexprs_elimination, collect_nested
                                      compact_temporaries)
 from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
-from devito.parameters import configuration
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               iq_timeinvariant, pow_to_mul, retrieve_indexed,
                               q_affine, q_leaf, q_scalar, q_sum_of_product,
@@ -402,9 +401,7 @@ class AggressiveRewriter(AdvancedRewriter):
         New code pass goes here.
         """
 
-
         return cluster
-
 
     @dse_pass
     def _extract_sum_of_products(self, cluster, template, **kwargs):
@@ -418,13 +415,14 @@ class AggressiveRewriter(AdvancedRewriter):
 
         return cluster.rebuild(processed)
 
+
 class CustomRewriter(AggressiveRewriter):
 
     passes_mapper = {
-        'new_pass':AggressiveRewriter._new_pass
+        'new_pass': AggressiveRewriter._new_pass
     }
 
-    def __init__(self, passes, template= None, profile = True):
+    def __init__(self, passes, template=None, profile=True):
         try:
             passes = passes.split(',')
         except AttributeError:
@@ -434,7 +432,7 @@ class CustomRewriter(AggressiveRewriter):
         self.passes = passes
         self.template = template
         self.profile = profile
-        #super(CustomRewriter, self).__init__(params)
+        # super(CustomRewriter, self).__init__(params)
 
     def _pipeline(self, state):
         for i in self.passes:

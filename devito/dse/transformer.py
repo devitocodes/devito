@@ -1,7 +1,7 @@
 from devito.ir.clusters import ClusterGroup, groupby
 from devito.dse.rewriters import (BasicRewriter, AdvancedRewriter, AggressiveRewriter,
                                   CustomRewriter)
-from devito.logger import dse as log, dse_warning as warning
+from devito.logger import dse as log
 from devito.parameters import configuration
 from devito.tools import flatten
 
