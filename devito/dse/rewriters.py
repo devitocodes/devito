@@ -20,9 +20,10 @@ from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               q_terminalop, xreplace_constrained, xreplace_indices)
 from devito.tools import flatten, generator
 from devito.types import Array, Scalar
-from devito.types import TimeDimension, SteppingDimension, SpaceDimension
+from devito.types import TimeDimension, SpaceDimension
 
-__all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'SkewingRewriter', 'CustomRewriter']
+__all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter',
+           'SkewingRewriter', 'CustomRewriter']
 
 
 class State(object):
@@ -371,6 +372,7 @@ class AggressiveRewriter(AdvancedRewriter):
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
         return cluster.rebuild(processed)
+
 
 class SkewingRewriter(AggressiveRewriter):
 
