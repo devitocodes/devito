@@ -100,6 +100,23 @@ class HaloScheme(object):
     def __hash__(self):
         return self._mapper.__hash__()
 
+    @classmethod
+    def union(self, halo_schemes):
+        """
+        Create a new HaloScheme from the union of a set of HaloSchemes.
+        """
+        fmapper = {}
+        for i in as_tuple(halo_schemes):
+            for k, v in i.fmapper.items():
+                hse = fmapper.setdefault(k, v)
+                # At this point, the `loc_indices` must match
+                if hse.loc_indices != v.loc_indices:
+                    raise ValueError("Cannot compute the union of one or more HaloScheme "
+                                     "when the `loc_indices` differ")
+                fmapper[k] = HaloSchemeEntry(hse.loc_indices, hse.halos | v.halos)
+
+        return HaloScheme(fmapper=fmapper)
+
     @cached_property
     def fmapper(self):
         return OrderedDict([(i, self._mapper[i]) for i in
@@ -152,22 +169,6 @@ class HaloScheme(object):
     @cached_property
     def dimensions(self):
         return filter_ordered(flatten(i.dim for i in set().union(*self.halos.values())))
-
-    def union(self, others):
-        """
-        Create a new HaloScheme representing the union of ``self`` with other HaloSchemes.
-        """
-        fmapper = dict(self.fmapper)
-        for i in as_tuple(others):
-            for k, v in i.fmapper.items():
-                hse = fmapper.setdefault(k, v)
-                # At this point, the `loc_indices` must match
-                if hse.loc_indices != v.loc_indices:
-                    raise ValueError("Cannot compute the union of one or more HaloScheme "
-                                     "when the `loc_indices` differ")
-                fmapper[k] = HaloSchemeEntry(hse.loc_indices, hse.halos | v.halos)
-
-        return HaloScheme(fmapper=fmapper)
 
     def project(self, functions):
         """

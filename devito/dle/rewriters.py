@@ -15,7 +15,7 @@ from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder,
                            Transformer, IsPerfectIteration, compose_nodes, make_efunc,
                            filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv
-from devito.mpi import HaloExchangeBuilder
+from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.parameters import configuration
 from devito.symbolics import ccode
 from devito.tools import DAG, as_tuple, filter_ordered, flatten
@@ -211,8 +211,11 @@ class PlatformRewriter(AbstractRewriter):
         mapper = {}
         for halo_spots in MapNodes(Iteration, HaloSpot).visit(iet).values():
             root = halo_spots[0]
-            halo_schemes = [hs.halo_scheme.project(hs.hoistable) for hs in halo_spots[1:]]
-            mapper[root] = root._rebuild(halo_scheme=root.halo_scheme.union(halo_schemes))
+
+            hss = [root.halo_scheme]
+            hss.extend([hs.halo_scheme.project(hs.hoistable) for hs in halo_spots[1:]])
+
+            mapper[root] = root._rebuild(halo_scheme=HaloScheme.union(hss))
             mapper.update({hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.hoistable))
                            for hs in halo_spots[1:]})
         iet = Transformer(mapper, nested=True).visit(iet)

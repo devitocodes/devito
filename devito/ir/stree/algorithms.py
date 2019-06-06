@@ -90,9 +90,13 @@ def st_make_halo(stree):
             if configuration['mpi']:
                 raise RuntimeError(str(e))
 
-    # Insert the HaloScheme at a suitable level in the ScheduleTree
+    # Split a HaloScheme based on where it should be inserted
+    # For example, it's possible that, for a given HaloScheme, a Function's
+    # halo needs to be exchanged at a certain `stree` depth, while another
+    # Function's halo needs to be exchanged before some other nodes
     mapper = {}
     for k, hs in halo_schemes.items():
+        from IPython import embed; embed()
         for f, v in hs.fmapper.items():
             spot = k
             ancestors = [n for n in k.ancestors if n.is_Iteration]
@@ -102,9 +106,11 @@ def st_make_halo(stree):
                 if test0 or test1:
                     spot = n
                     break
-            mapper.setdefault(spot, []).append((f, v))
-    for spot, entries in mapper.items():
-        insert(NodeHalo(HaloScheme(fmapper=dict(entries))), spot.parent, [spot])
+            mapper.setdefault(spot, []).append(HaloScheme(fmapper={f: v}))
+
+    # Now fuse the HaloSchemes at the same `stree` depth and perform the insertion
+    for spot, halo_schemes in mapper.items():
+        insert(NodeHalo(HaloScheme.union(halo_schemes)), spot.parent, [spot])
 
     return stree
 
