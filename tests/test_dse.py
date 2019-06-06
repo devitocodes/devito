@@ -66,7 +66,7 @@ def test_trivial_skew_test():
     assert trees[1][0].dim == trees[2][0].dim == trees[3][0].dim == grid.time_dim
 
 
-def test_trivial_jacobi():
+def test_skew_vs_advanced():
     """Trivial testing for DSE skewing"""
     nx = 200
     ny = 200
@@ -590,9 +590,44 @@ def test_custom_rewriter():
     assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
 
 
+def test_acoustic_rewrite_skewing():
+    ret1 = run_acoustic_forward(dse=None)
+    ret2 = run_acoustic_forward(dse='skewing')
+
+    assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
+    assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
+
+
 # TTI
 
 def tti_operator(dse=False, dle='advanced', space_order=4):
+    nrec = 101
+    t0 = 0.0
+    tn = 250.
+    nbpml = 10
+    shape = (50, 50, 50)
+    spacing = (20., 20., 20.)
+
+    # Two layer model for true velocity
+    model = demo_model('layers-tti', ratio=3, nbpml=nbpml, space_order=space_order,
+                       shape=shape, spacing=spacing)
+
+    # Source and receiver geometries
+    src_coordinates = np.empty((1, len(spacing)))
+    src_coordinates[0, :] = np.array(model.domain_size) * .5
+    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
+
+    rec_coordinates = np.empty((nrec, len(spacing)))
+    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
+
+    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                   t0=t0, tn=tn, src_type='Gabor', f0=0.010)
+
+    return AnisotropicWaveSolver(model, geometry, space_order=space_order, dse=dse)
+
+
+def tti_operator_skew(dse=False, dle='noop', space_order=4):
     nrec = 101
     t0 = 0.0
     tn = 250.
