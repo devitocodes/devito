@@ -418,6 +418,7 @@ class AggressiveRewriter(AdvancedRewriter):
 
         return cluster.rebuild(processed)
 
+
 class CustomRewriter(AggressiveRewriter):
 
     passes_mapper = {
