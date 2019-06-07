@@ -117,10 +117,17 @@ class Interval(AbstractInterval):
 
     is_Defined = True
 
+<<<<<<< HEAD
     def __init__(self, dim, lower, upper, stamp=0):
         assert is_integer(lower) or isinstance(lower, Expr)
         assert is_integer(upper) or isinstance(upper, Expr)
         super(Interval, self).__init__(dim, stamp)
+=======
+    def __init__(self, dim, lower, upper):
+        assert (is_integer(lower) or isinstance(lower, sympy.Expr))
+        assert (is_integer(upper) or isinstance(lower, sympy.Expr))
+        super(Interval, self).__init__(dim)
+>>>>>>> dse: mul.Mul -->Expr
         self.lower = lower
         self.upper = upper
         self.size = (dim.extreme_max - dim.extreme_min + 1) + (upper - lower)
