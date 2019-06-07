@@ -383,7 +383,6 @@ class AdvancedRewriter(BasicRewriter):
 class AggressiveRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
-        self._new_pass(state)
         self._extract_sum_of_products(state)
         self._extract_time_invariants(state, with_cse=False)
         self._eliminate_inter_stencil_redundancies(state)
@@ -394,14 +393,6 @@ class AggressiveRewriter(AdvancedRewriter):
 
         self._factorize(state)
         self._eliminate_intra_stencil_redundancies(state)
-
-    @dse_pass
-    def _new_pass(self, cluster, template, **kwargs):
-        """
-        New code pass goes here.
-        """
-
-        return cluster
 
     @dse_pass
     def _extract_sum_of_products(self, cluster, template, **kwargs):
@@ -415,11 +406,22 @@ class AggressiveRewriter(AdvancedRewriter):
 
         return cluster.rebuild(processed)
 
+    @dse_pass
+    def _extract_sum_of_products2(self, cluster, template, **kwargs):
+        """
+        Extract sub-expressions in sum-of-product form, and assign them to temporaries.
+        """
+        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
+        rule = q_sum_of_product
+        costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
+        processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
+
+        return cluster.rebuild(processed)
 
 class CustomRewriter(AggressiveRewriter):
 
     passes_mapper = {
-        'new_pass': AggressiveRewriter._new_pass
+        'extract_sum_of_products2': AggressiveRewriter._extract_sum_of_products2
     }
 
     def __init__(self, passes, template=None, profile=True):
@@ -432,7 +434,7 @@ class CustomRewriter(AggressiveRewriter):
         self.passes = passes
         self.template = template
         self.profile = profile
-        # super(CustomRewriter, self).__init__(params)
+        super(CustomRewriter, self).__init__()
 
     def _pipeline(self, state):
         for i in self.passes:

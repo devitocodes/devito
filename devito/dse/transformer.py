@@ -50,16 +50,17 @@ def rewrite(clusters, mode='advanced'):
     if mode is None or mode == 'noop':
         return clusters
 
-    try:
-        rewriter = modes[mode]()
-    except KeyError:
-        rewriter = CustomRewriter(mode)
-
     # We use separate rewriters for dense and sparse clusters; sparse clusters have
     # non-affine index functions, thus making it basically impossible, in general,
     # to apply the more advanced DSE passes.
     # Note: the sparse rewriter uses the same template for temporaries as
     # the dense rewriter, thus temporaries are globally unique
+
+    try:
+        rewriter = modes[mode]()
+    except KeyError:
+        rewriter = CustomRewriter(mode)
+
     fallback = BasicRewriter(False, rewriter.template)
     states = [rewriter.run(c) if c.is_dense else fallback.run(c) for c in clusters]
 
