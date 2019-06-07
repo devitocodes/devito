@@ -2,11 +2,12 @@ from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 
 import sympy
-from sympy import Number, Indexed, Symbol, LM, LC
+from sympy import Number, Indexed, Symbol, LM, LC, Expr
 
 from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_tuple, flatten
+
 
 __all__ = ['freeze', 'unfreeze', 'evaluate', 'xreplace_constrained', 'xreplace_indices',
            'pow_to_mul', 'as_symbol', 'indexify', 'split_affine']
@@ -223,8 +224,9 @@ def as_symbol(expr):
         return Symbol(expr)
     elif isinstance(expr, Dimension):
         return Symbol(expr.name)
-    elif isinstance(expr, sympy.Mul):
-        return Symbol("time")
+    elif (isinstance(expr, sympy.mul.Mul) and isinstance(expr.args[0], Number)
+          and isinstance(expr.args[1], Dimension)):
+        return expr
     elif expr.is_Symbol:
         return expr
     elif isinstance(expr, Indexed):

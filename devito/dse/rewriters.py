@@ -397,14 +397,12 @@ class SkewingRewriter(AggressiveRewriter):
         """
         skew_factor = configuration['skew_factor']
         skew_dim, mapper, int_mapper = None, {}, []
-        skews = {}
         total_int = {}
         intervals, sub_iterators, directions = cluster.ispace.args
         cnt = 0
         for dim in cluster.ispace.dimensions:
             if isinstance(dim, SpaceDimension):
                 mapper[dim] = dim + skew_factor*skew_dim
-                skews[dim] = (skew_factor, skew_dim)
                 int_mapper.append(IntervalGroup([Interval(dim, -skew_factor*skew_dim,
                                                 -skew_factor*skew_dim)]))
                 cnt = cnt + 1
