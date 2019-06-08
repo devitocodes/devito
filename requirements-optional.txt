@@ -1,2 +1,3 @@
 mpi4py
 matplotlib
+ipyparallel
