@@ -1,5 +1,3 @@
-![alt text](https://www.devitoproject.org/images/banner-devito.jpg)
-
 # Devito: Fast Finite Difference Computation from Symbolic Specification
 
 ![Build Status](https://travis-ci.org/opesci/devito.svg?branch=master)
@@ -72,10 +70,9 @@ expressions. Examples of how to define operators are provided:
   directory and run `jupyter notebook`.
 * A set of tutorial notebooks for seismic inversion examples is available in
   `examples/seismic/tutorials`.
-* A set of tutorial notebooks concerning the compiler of Devito can be found in
+* A set of tutorial notebooks concerning the Devito compiler can be found in
   `examples/compiler`.
-* Devito with MPI can be explored in
-  `examples/MPI`.
+* Devito with MPI can be explored in `examples/MPI`.
 * Example implementations of acoustic forward, adjoint, gradient and born
   operators for use in full-waveform inversion (FWI) methods can be found in
   `examples/seismic/acoustic`.
