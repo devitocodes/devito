@@ -406,23 +406,15 @@ class AggressiveRewriter(AdvancedRewriter):
 
         return cluster.rebuild(processed)
 
-    @dse_pass
-    def _extract_sum_of_products2(self, cluster, template, **kwargs):
-        """
-        Extract sub-expressions in sum-of-product form, and assign them to temporaries.
-        """
-        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        rule = q_sum_of_product
-        costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
-        processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
-
-        return cluster.rebuild(processed)
-
 
 class CustomRewriter(AggressiveRewriter):
 
     passes_mapper = {
-        'extract_sum_of_products2': AggressiveRewriter._extract_sum_of_products2
+        'extract_sum_of_products': AggressiveRewriter._extract_sum_of_products,
+        'factorization': AggressiveRewriter._factorize,
+        'eliminate_inter_stencil_redundancies':
+            AggressiveRewriter._eliminate_inter_stencil_redundancies
+
     }
 
     def __init__(self, passes, template=None, profile=True):
