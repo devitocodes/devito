@@ -116,6 +116,9 @@ RUN if [ $installWithPip == "true" ] ; then \
           pip install -e . ; \
         popd ; \
       fi ; \
+      if [ $RUN_EXAMPLES == "true" ] ; then \
+        bash scripts/create_ipyparallel_mpi_profile.sh; \
+      fi ; \
     fi
 
 ENTRYPOINT /home/devito/azure-pipelines.py

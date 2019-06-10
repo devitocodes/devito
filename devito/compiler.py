@@ -17,9 +17,9 @@ from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
 from devito.tools import (as_tuple, change_directory, filter_ordered,
-                          memoized_func, make_tempdir)
+                          memoized_meth, make_tempdir)
 
-__all__ = ['jit_compile', 'load', 'make', 'GNUCompiler']
+__all__ = ['GNUCompiler']
 
 
 def sniff_compiler_version(cc):
@@ -171,6 +171,140 @@ class Compiler(GCCToolchain):
         else:
             # Knowing the version may still be useful to pick supported flags
             self.version = sniff_compiler_version(self.CC)
+
+    @memoized_meth
+    def get_jit_dir(self):
+        """A deterministic temporary directory for jit-compiled objects."""
+        return make_tempdir('jitcache')
+
+    @memoized_meth
+    def get_codepy_dir(self):
+        """A deterministic temporary directory for the codepy cache."""
+        return make_tempdir('codepy')
+
+    def load(self, soname):
+        """
+        Load a compiled shared object.
+
+        Parameters
+        ----------
+        soname : str
+            Name of the .so file (w/o the suffix).
+
+        Returns
+        -------
+        obj
+            The loaded shared object.
+        """
+        return npct.load_library(str(self.get_jit_dir().joinpath(soname)), '.')
+
+    def save(self, soname, binary):
+        """
+        Store a binary into a file within a temporary directory.
+
+        Parameters
+        ----------
+        soname : str
+            Name of the .so file (w/o the suffix).
+        binary : obj
+            The binary data.
+        """
+        sofile = self.get_jit_dir().joinpath(soname).with_suffix(self.so_ext)
+        if sofile.is_file():
+            debug("%s: `%s` was not saved in `%s` as it already exists"
+                  % (self, sofile.name, self.get_jit_dir()))
+        else:
+            with open(str(sofile), 'wb') as f:
+                f.write(binary)
+            debug("%s: `%s` successfully saved in `%s`"
+                  % (self, sofile.name, self.get_jit_dir()))
+
+    def make(self, loc, args):
+        """Invoke the ``make`` command from within ``loc`` with arguments ``args``."""
+        hash_key = sha1((loc + str(args)).encode()).hexdigest()
+        logfile = path.join(self.get_jit_dir(), "%s.log" % hash_key)
+        errfile = path.join(self.get_jit_dir(), "%s.err" % hash_key)
+
+        tic = time()
+        with change_directory(loc):
+            with open(logfile, "w") as lf:
+                with open(errfile, "w") as ef:
+
+                    command = ['make'] + args
+                    lf.write("Compilation command:\n")
+                    lf.write(" ".join(command))
+                    lf.write("\n\n")
+                    try:
+                        check_call(command, stderr=ef, stdout=lf)
+                    except CalledProcessError as e:
+                        raise CompilationError('Command "%s" return error status %d. '
+                                               'Unable to compile code.\n'
+                                               'Compile log in %s\n'
+                                               'Compile errors in %s\n' %
+                                               (e.cmd, e.returncode, logfile, errfile))
+        toc = time()
+        debug("Make <%s>: run in [%.2f s]" % (" ".join(args), toc-tic))
+
+    def jit_compile(self, soname, code):
+        """
+        JIT compile some source code given as a string.
+
+        This function relies upon codepy's ``compile_from_string``, which performs
+        caching of compilation units and avoids potential race conditions due to
+        multiple processing trying to compile the same object.
+
+        Parameters
+        ----------
+        soname : str
+            Name of the .so file (w/o the suffix).
+        code : str
+            The source code to be JIT compiled.
+        """
+        target = str(self.get_jit_dir().joinpath(soname))
+        src_file = "%s.%s" % (target, self.src_ext)
+
+        cache_dir = self.get_codepy_dir().joinpath(soname[:7])
+        if configuration['jit-backdoor'] is False:
+            # Typically we end up here
+            # Make a suite of cache directories based on the soname
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            # Warning: dropping `code` on the floor in favor to whatever is written
+            # within `src_file`
+            try:
+                with open(src_file, 'r') as f:
+                    code = f.read()
+                # Bypass the devito JIT cache
+                # Note: can't simply use Python's `mkdtemp()` as, with MPI, different
+                # ranks would end up creating different cache dirs
+                cache_dir = cache_dir.joinpath('jit-backdoor')
+                cache_dir.mkdir(parents=True, exist_ok=True)
+            except FileNotFoundError:
+                raise ValueError("Trying to use the JIT backdoor for `%s`, but "
+                                 "the file isn't present" % src_file)
+
+        # `catch_warnings` suppresses codepy complaining that it's taking
+        # too long to acquire the cache lock. This warning can only appear
+        # in a multiprocess session, typically (but not necessarily) when
+        # many processes are frequently attempting jit-compilation (e.g.,
+        # when running the test suite in parallel)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            tic = time()
+            # Spinlock in case of MPI
+            sleep_delay = 0 if configuration['mpi'] else 1
+            _, _, _, recompiled = compile_from_string(
+                self, target, code, src_file,
+                cache_dir=cache_dir,
+                debug=configuration['debug-compiler'],
+                sleep_delay=sleep_delay)
+            toc = time()
+
+        if recompiled:
+            debug("%s: compiled `%s` [%.2f s]" % (self, src_file, toc-tic))
+        else:
+            debug("%s: cache hit `%s` [%.2f s]" % (self, src_file, toc-tic))
 
     def __lookup_cmds__(self):
         self.CC = 'unknown'
@@ -336,149 +470,6 @@ class CustomCompiler(Compiler):
         self.CXX = 'g++'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
-
-
-@memoized_func
-def get_jit_dir():
-    """A deterministic temporary directory for jit-compiled objects."""
-    return make_tempdir('jitcache')
-
-
-@memoized_func
-def get_codepy_dir():
-    """A deterministic temporary directory for the codepy cache."""
-    return make_tempdir('codepy')
-
-
-def load(soname):
-    """
-    Load a compiled shared object.
-
-    Parameters
-    ----------
-    soname : str
-        Name of the .so file (w/o the suffix).
-
-    Returns
-    -------
-    obj
-        The loaded shared object.
-    """
-    return npct.load_library(str(get_jit_dir().joinpath(soname)), '.')
-
-
-def save(soname, binary, compiler):
-    """
-    Store a binary into a file within a temporary directory.
-
-    Parameters
-    ----------
-    soname : str
-        Name of the .so file (w/o the suffix).
-    binary : obj
-        The binary data.
-    compiler : Compiler
-        The toolchain used for JIT compilation.
-    """
-    sofile = get_jit_dir().joinpath(soname).with_suffix(compiler.so_ext)
-    if sofile.is_file():
-        debug("%s: `%s` was not saved in `%s` as it already exists"
-              % (compiler, sofile.name, get_jit_dir()))
-    else:
-        with open(str(sofile), 'wb') as f:
-            f.write(binary)
-        debug("%s: `%s` successfully saved in `%s`"
-              % (compiler, sofile.name, get_jit_dir()))
-
-
-def jit_compile(soname, code, compiler):
-    """
-    JIT compile some source code given as a string.
-
-    This function relies upon codepy's ``compile_from_string``, which performs
-    caching of compilation units and avoids potential race conditions due to
-    multiple processing trying to compile the same object.
-
-    Parameters
-    ----------
-    soname : str
-        Name of the .so file (w/o the suffix).
-    code : str
-        The source code to be JIT compiled.
-    compiler : Compiler
-        The toolchain used for JIT compilation.
-    """
-    target = str(get_jit_dir().joinpath(soname))
-    src_file = "%s.%s" % (target, compiler.src_ext)
-
-    cache_dir = get_codepy_dir().joinpath(soname[:7])
-    if configuration['jit-backdoor'] is False:
-        # Typically we end up here
-        # Make a suite of cache directories based on the soname
-        cache_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        # Warning: dropping `code` on the floor in favor to whatever is written
-        # within `src_file`
-        try:
-            with open(src_file, 'r') as f:
-                code = f.read()
-            # Bypass the devito JIT cache
-            # Note: can't simply use Python's `mkdtemp()` as, with MPI, different
-            # ranks would end up creating different cache dirs
-            cache_dir = cache_dir.joinpath('jit-backdoor')
-            cache_dir.mkdir(parents=True, exist_ok=True)
-        except FileNotFoundError:
-            raise ValueError("Trying to use the JIT backdoor for `%s`, but "
-                             "the file isn't present" % src_file)
-
-    # `catch_warnings` suppresses codepy complaining that it's taking
-    # too long to acquire the cache lock. This warning can only appear
-    # in a multiprocess session, typically (but not necessarily) when
-    # many processes are frequently attempting jit-compilation (e.g.,
-    # when running the test suite in parallel)
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        tic = time()
-        # Spinlock in case of MPI
-        sleep_delay = 0 if configuration['mpi'] else 1
-        _, _, _, recompiled = compile_from_string(compiler, target, code, src_file,
-                                                  cache_dir=cache_dir,
-                                                  debug=configuration['debug-compiler'],
-                                                  sleep_delay=sleep_delay)
-        toc = time()
-
-    if recompiled:
-        debug("%s: compiled `%s` [%.2f s]" % (compiler, src_file, toc-tic))
-    else:
-        debug("%s: cache hit `%s` [%.2f s]" % (compiler, src_file, toc-tic))
-
-
-def make(loc, args):
-    """Invoke the ``make`` command from within ``loc`` with arguments ``args``."""
-    hash_key = sha1((loc + str(args)).encode()).hexdigest()
-    logfile = path.join(get_jit_dir(), "%s.log" % hash_key)
-    errfile = path.join(get_jit_dir(), "%s.err" % hash_key)
-
-    tic = time()
-    with change_directory(loc):
-        with open(logfile, "w") as lf:
-            with open(errfile, "w") as ef:
-
-                command = ['make'] + args
-                lf.write("Compilation command:\n")
-                lf.write(" ".join(command))
-                lf.write("\n\n")
-                try:
-                    check_call(command, stderr=ef, stdout=lf)
-                except CalledProcessError as e:
-                    raise CompilationError('Command "%s" return error status %d. '
-                                           'Unable to compile code.\n'
-                                           'Compile log in %s\n'
-                                           'Compile errors in %s\n' %
-                                           (e.cmd, e.returncode, logfile, errfile))
-    toc = time()
-    debug("Make <%s>: run in [%.2f s]" % (" ".join(args), toc-tic))
 
 
 compiler_registry = {

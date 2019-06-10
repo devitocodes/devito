@@ -5,7 +5,6 @@ from operator import mul
 from cached_property import cached_property
 import ctypes
 
-from devito.compiler import jit_compile, load, save
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.equation import Eq
@@ -154,7 +153,7 @@ class Operator(Callable):
 
         # Internal state. May be used to store information about previous runs,
         # autotuning reports, etc
-        self._state = {}
+        self._state = self._initialize_state(**kwargs)
 
         # Form and gather any required implicit expressions
         expressions = self._add_implicit(expressions)
@@ -211,6 +210,10 @@ class Operator(Callable):
     @cached_property
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
+
+    def _initialize_state(self, **kwargs):
+        return {'optimizations': {k: kwargs.get(k, configuration[k])
+                                  for k in ('dse', 'dle')}}
 
     # Compilation
 
@@ -421,14 +424,14 @@ class Operator(Callable):
         Operator, reagardless of how many times this method is invoked.
         """
         if self._lib is None:
-            jit_compile(self._soname, str(self.ccode), self._compiler)
+            self._compiler.jit_compile(self._soname, str(self.ccode))
 
     @property
     def cfunction(self):
         """The JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
             self._compile()
-            self._lib = load(self._soname)
+            self._lib = self._compiler.load(self._soname)
             self._lib.name = self._soname
 
         if self._cfunction is None:
@@ -541,6 +544,10 @@ class Operator(Callable):
             gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
             perf("* %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
                  (name, v.oi, v.time, v.gflopss, gpointss))
+
+        perf("* %s configuration:  %s " %
+             (self.name, self._state['optimizations']))
+
         return summary
 
     @cached_property
@@ -618,8 +625,8 @@ class Operator(Callable):
                 warning("The pickled and unpickled Operators have different .sonames; "
                         "this might be a bug, or simply a harmless difference in "
                         "`configuration`. You may check they produce the same code.")
-            save(self._soname, binary, self._compiler)
-            self._lib = load(self._soname)
+            self._compiler.save(self._soname, binary)
+            self._lib = self._compiler.load(self._soname)
             self._lib.name = self._soname
 
 

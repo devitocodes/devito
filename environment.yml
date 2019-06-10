@@ -18,13 +18,13 @@ dependencies:
   - sphinx
   - sphinx_rtd_theme
   - distributed>=1.27
-  - scikit-image
   - cython
   - click
   - codecov
   - pytest-cov
   - multidict
   - frozendict
+  - nb_conda_kernels
   - pip:
     - "git+https://github.com/inducer/codepy"
     - pyrevolve==1.0.2
