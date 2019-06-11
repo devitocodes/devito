@@ -1230,6 +1230,56 @@ class TestOperatorAdvanced(object):
         if not glb_pos_map[x] and not glb_pos_map[y]:
             assert np.all(u.data_ro_domain[1] == 3)
 
+    @pytest.mark.parallel(mode=[(4, 'full')])
+    def test_coupled_eqs_mixed_dims(self):
+        """
+        Test MPI in an Operator that computes coupled equations over partly
+        disjoint sets of Dimensions (e.g., one Eq over [x, y, z], the other
+        Eq over [x, yi, zi]).
+        """
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        xi, yi = grid.interior.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+
+        u.data_with_halo[:] = 1.
+
+        eqns = [Eq(u[t+1, x, y], u[t, x-1, y] + u[t, x, y] + u[t, x+1, y] + v + 1),
+                Eq(v[t+1, x, yi],
+                   (v[t, x, yi] + u[t, x, yi-1] + u[t, x, yi] + u[t, x, yi+1] + 1))]
+
+        # `u`'s stencil is
+        #
+        #   *
+        # * C *
+        #   *
+        #
+        # Where C is a generic point (x, y) and * are the accessed neighbours
+
+        op = Operator(eqns)
+        op.apply(time=0)
+
+        assert np.all(u.data_ro_domain[1] == 4.)
+
+        glb_pos_map = v.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(v.data_ro_domain[1] == [[0, 4], [0, 4]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(v.data_ro_domain[1] == [[4, 0], [4, 0]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(v.data_ro_domain[1] == [[0, 4], [0, 4]])
+        elif RIGHT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(v.data_ro_domain[1] == [[4, 0], [4, 0]])
+
+        # Same checks as above, but exploiting the user API
+        assert np.all(v.data_ro_domain[1, :, 0] == 0.)
+        assert np.all(v.data_ro_domain[1, :, 1] == 4.)
+        assert np.all(v.data_ro_domain[1, :, 2] == 4.)
+        assert np.all(v.data_ro_domain[1, :, 3] == 0.)
+
 
 class TestIsotropicAcoustic(object):
 
