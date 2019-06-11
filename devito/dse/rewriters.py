@@ -411,10 +411,16 @@ class CustomRewriter(AggressiveRewriter):
 
     passes_mapper = {
         'extract_sum_of_products': AggressiveRewriter._extract_sum_of_products,
-        'factorization': AggressiveRewriter._factorize,
+        'factorize': AggressiveRewriter._factorize,
         'eliminate_inter_stencil_redundancies':
-            AggressiveRewriter._eliminate_inter_stencil_redundancies
-
+            AggressiveRewriter._eliminate_inter_stencil_redundancies,
+        'eliminate_intra_stencil_redundancies':
+            AggressiveRewriter._eliminate_intra_stencil_redundancies,
+        'extract_time_invariants':
+            AdvancedRewriter._extract_time_invariants,
+        'extract_nonaffine_indices': BasicRewriter._extract_nonaffine_indices,
+        'extract_increments': BasicRewriter._extract_increments,
+        'optimize_trigonometry': BasicRewriter._optimize_trigonometry
     }
 
     def __init__(self, passes, template=None, profile=True):
@@ -427,7 +433,7 @@ class CustomRewriter(AggressiveRewriter):
         self.passes = passes
         self.template = template
         self.profile = profile
-        super(CustomRewriter, self).__init__()
+        super(CustomRewriter, self).__init__(self.profile, self.template)
 
     def _pipeline(self, state):
         for i in self.passes:
