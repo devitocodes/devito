@@ -251,6 +251,11 @@ class WaveletSource(PointSource):
             Prescribed time instead of time from this symbol.
         """
         wavelet = wavelet or self.data[:, idx]
+        # FIXME: we cast to ndarray because matplotlib will try to tensor-expand
+        # `wavelet`, but with MPI a Data object with distributed-dimensions cannot
+        # be expanded (yet). So we have to either fix it or provide an API to gather
+        # distributed Data onto one node (as turn it into non-distributed Data)
+        wavelet = wavelet.view(np.ndarray)
         plt.figure()
         plt.plot(self.time_values, wavelet)
         plt.xlabel('Time (ms)')
