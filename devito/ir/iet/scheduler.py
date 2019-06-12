@@ -52,7 +52,7 @@ def iet_make(stree):
             # Order to ensure deterministic code generation
             uindices = sorted(i.sub_iterators, key=lambda d: d.name)
             # Generate Iteration
-            body = Iteration(queues.pop(i), i.dim, i.dim._limits, offsets=i.limits,
+            body = Iteration(queues.pop(i), i.dim, i.limits, offsets=i.offsets,
                              direction=i.direction, uindices=uindices)
 
         elif i.is_Section:

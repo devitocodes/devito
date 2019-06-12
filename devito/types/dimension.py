@@ -125,6 +125,14 @@ class Dimension(AbstractSymbol, ArgProvider):
         return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
     @cached_property
+    def extreme_min(self):
+        return self.symbolic_min
+
+    @cached_property
+    def extreme_max(self):
+        return self.symbolic_max
+
+    @cached_property
     def size_name(self):
         return "%s_size" % self.name
 
@@ -144,10 +152,6 @@ class Dimension(AbstractSymbol, ArgProvider):
     def _maybe_distributed(self):
         """Could it be a distributed Dimension?"""
         return True
-
-    @property
-    def _limits(self):
-        return (self.symbolic_min, self.symbolic_max, 1)
 
     @property
     def _C_name(self):
@@ -520,18 +524,26 @@ class SubDimension(DerivedDimension):
                    thickness=((lst, thickness_left), (rst, thickness_right)),
                    local=local)
 
-    @property
+    @cached_property
     def symbolic_min(self):
         return self._interval.left
 
-    @property
+    @cached_property
     def symbolic_max(self):
         return self._interval.right
 
-    @property
+    @cached_property
     def symbolic_size(self):
         # The size must be given as a function of the parent's size
         return self.symbolic_max - self.symbolic_min + 1
+
+    @cached_property
+    def extreme_min(self):
+        return self._offset_left()[1]
+
+    @cached_property
+    def extreme_max(self):
+        return self._offset_right()[1]
 
     @property
     def local(self):

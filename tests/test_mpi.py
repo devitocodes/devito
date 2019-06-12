@@ -1230,7 +1230,7 @@ class TestOperatorAdvanced(object):
         if not glb_pos_map[x] and not glb_pos_map[y]:
             assert np.all(u.data_ro_domain[1] == 3)
 
-    @pytest.mark.parallel(mode=[(4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap'), (4, 'full')])
     def test_coupled_eqs_mixed_dims(self):
         """
         Test MPI in an Operator that computes coupled equations over partly
