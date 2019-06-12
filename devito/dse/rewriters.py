@@ -410,17 +410,14 @@ class AggressiveRewriter(AdvancedRewriter):
 class CustomRewriter(AggressiveRewriter):
 
     passes_mapper = {
-        'extract_sum_of_products': AggressiveRewriter._extract_sum_of_products,
+        'extract_sop': AggressiveRewriter._extract_sum_of_products,
         'factorize': AggressiveRewriter._factorize,
-        'eliminate_inter_stencil_redundancies':
-            AggressiveRewriter._eliminate_inter_stencil_redundancies,
-        'eliminate_intra_stencil_redundancies':
-            AggressiveRewriter._eliminate_intra_stencil_redundancies,
-        'extract_time_invariants':
-            AdvancedRewriter._extract_time_invariants,
-        'extract_nonaffine_indices': BasicRewriter._extract_nonaffine_indices,
+        'gcse': AggressiveRewriter._eliminate_inter_stencil_redundancies,
+        'cse': AggressiveRewriter._eliminate_intra_stencil_redundancies,
+        'extract_invariants': AdvancedRewriter._extract_time_invariants,
+        'extract_indices': BasicRewriter._extract_nonaffine_indices,
         'extract_increments': BasicRewriter._extract_increments,
-        'optimize_trigonometry': BasicRewriter._optimize_trigonometry
+        'opt_transcedentals': BasicRewriter._optimize_trigonometry
     }
 
     def __init__(self, passes, template=None, profile=True):
@@ -431,9 +428,7 @@ class CustomRewriter(AggressiveRewriter):
             if not all(i in CustomRewriter.passes_mapper for i in passes):
                 raise DSEException("Unknown passes `%s`" % str(passes))
         self.passes = passes
-        self.template = template
-        self.profile = profile
-        super(CustomRewriter, self).__init__(self.profile, self.template)
+        super(CustomRewriter, self).__init__(profile, template)
 
     def _pipeline(self, state):
         for i in self.passes:
