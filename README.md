@@ -2,7 +2,6 @@
 
 ![Build Status](https://travis-ci.org/opesci/devito.svg?branch=master)
 ![Code Coverage](https://codecov.io/gh/opesci/devito/branch/master/graph/badge.svg)
-[![Binder](http://devito.rocks/badge_logo.svg)](http://devito.rocks/v2/gh/opesci/devito/binder)
 
 [Devito](http://www.devitoproject.org) is a software to
 implement optimised finite difference (FD) computation from
@@ -15,7 +14,7 @@ compilation to execute FD kernels on multiple computer platforms.
 
 If you're using Devito, we would like to hear from you. Whether you
 are facing issues or just trying it out, join the
-[conversation](https://opesci-slackin.now.sh). 
+[conversation](https://opesci-slackin.now.sh).
 
 ## Quickstart
 
@@ -25,7 +24,7 @@ install either [Anaconda](https://www.continuum.io/downloads) or
 [Miniconda](https://conda.io/miniconda.html) using the instructions
 provided at the download links. You will need the Python 3.6 version.
 
-To install Devito, including examples, tests and tutorial notebooks, 
+To install Devito, including examples, tests and tutorial notebooks,
 follow these simple passes:
 
 ```sh
@@ -121,7 +120,7 @@ Devito supports two classes of performance optimizations:
  * Loop optimizations - Examples include SIMD vectorization and parallelism
    (via code annotations) and loop blocking. These are performed by the Devito
    Loop Engine (DLE), another sub-module of Devito.
- 
+
 Further, [YASK](https://github.com/intel/yask) is being integrated as a Devito
 backend, for optimized execution on Intel architectures.
 
