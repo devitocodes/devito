@@ -170,7 +170,7 @@
 <span id="operator"></span><h1>Operator<a class="headerlink" href="#module-devito.operator" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="devito.operator.Operator">
-<em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>expressions</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">devito.operator.</code><code class="sig-name descname">Operator</code><span class="sig-paren">(</span><em class="sig-param">expressions</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Generate, JIT-compile and run C code starting from an ordered sequence
 of symbolic expressions.</p>
 <dl class="field-list simple">
@@ -278,7 +278,7 @@ automatically discovered and handled by the Devito compiler. For more informatio
 refer to the relevant documentation.</p>
 <dl class="method">
 <dt id="devito.operator.Operator.apply">
-<code class="descname">apply</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.apply"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.apply" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">apply</code><span class="sig-paren">(</span><em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.apply"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.apply" title="Permalink to this definition">¶</a></dt>
 <dd><p>Execute the Operator.</p>
 <p>With no arguments provided, the Operator runs using the data carried by the
 objects appearing in the input expressions – these are referred to as the
@@ -336,34 +336,34 @@ iteration point along the time dimension must be explicitly specified
 
 <dl class="method">
 <dt id="devito.operator.Operator.arguments">
-<code class="descname">arguments</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.arguments" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">arguments</code><span class="sig-paren">(</span><em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.arguments" title="Permalink to this definition">¶</a></dt>
 <dd><p>Arguments to run the Operator.</p>
 </dd></dl>
 
-<dl class="attribute">
+<dl class="method">
 <dt id="devito.operator.Operator.cfunction">
-<code class="descname">cfunction</code><a class="headerlink" href="#devito.operator.Operator.cfunction" title="Permalink to this definition">¶</a></dt>
+<em class="property">property </em><code class="sig-name descname">cfunction</code><a class="headerlink" href="#devito.operator.Operator.cfunction" title="Permalink to this definition">¶</a></dt>
 <dd><p>The JIT-compiled C function as a ctypes.FuncPtr object.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="devito.operator.Operator.dimensions">
-<code class="descname">dimensions</code><a class="headerlink" href="#devito.operator.Operator.dimensions" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">dimensions</code><a class="headerlink" href="#devito.operator.Operator.dimensions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.operator.Operator.input">
-<code class="descname">input</code><a class="headerlink" href="#devito.operator.Operator.input" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">input</code><a class="headerlink" href="#devito.operator.Operator.input" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.operator.Operator.objects">
-<code class="descname">objects</code><a class="headerlink" href="#devito.operator.Operator.objects" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">objects</code><a class="headerlink" href="#devito.operator.Operator.objects" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.operator.Operator.output">
-<code class="descname">output</code><a class="headerlink" href="#devito.operator.Operator.output" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">output</code><a class="headerlink" href="#devito.operator.Operator.output" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
