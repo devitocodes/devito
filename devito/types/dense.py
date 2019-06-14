@@ -905,7 +905,7 @@ class Function(DiscreteFunction, Differentiable):
 
     >>> f.dxl
     Derivative(f(x, y), x)
-    
+
     Note that the fact that it's a left-derivative isn't captured in the representation.
     However, upon derivative expansion, this becomes clear
 
