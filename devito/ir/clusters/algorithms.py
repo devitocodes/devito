@@ -98,7 +98,6 @@ def guard(clusters):
                 for d in e.conditionals:
                     condition = guards.setdefault(d.parent, [])
                     condition.append(d.condition or CondEq(d.parent % d.factor, 0))
-
                 guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
                 processed.append(PartialCluster(e, c.ispace, c.dspace, c.atomics, guards))
             else:

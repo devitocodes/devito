@@ -133,7 +133,7 @@ class Substitutions(object):
     >>> eq = Eq(u.dt+u.dx, coefficients=subs)
 
     When evaluated, the derivatives will use the custom coefficients. We can
-    can check that by
+    check that by
 
     >>> eq.evaluate
     Eq(0.1*u(t, x, y) - 0.6*u(t, x - h_x, y) + 0.6*u(t, x + h_x, y) \
