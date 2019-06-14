@@ -71,7 +71,7 @@ expressions. Examples of how to define operators are provided:
   `examples/seismic/tutorials`.
 * A set of tutorial notebooks concerning the Devito compiler can be found in
   `examples/compiler`.
-* Devito with MPI can be explored in `examples/MPI`.
+* Devito with MPI can be explored in `examples/mpi`.
 * Example implementations of acoustic forward, adjoint, gradient and born
   operators for use in full-waveform inversion (FWI) methods can be found in
   `examples/seismic/acoustic`.
