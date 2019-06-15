@@ -14,7 +14,7 @@ compilation to execute FD kernels on multiple computer platforms.
 
 If you're using Devito, we would like to hear from you. Whether you
 are facing issues or just trying it out, join the
-[conversation](https://opesci-slackin.now.sh). 
+[conversation](https://opesci-slackin.now.sh).
 
 ## Quickstart
 
@@ -24,7 +24,7 @@ install either [Anaconda](https://www.continuum.io/downloads) or
 [Miniconda](https://conda.io/miniconda.html) using the instructions
 provided at the download links. You will need the Python 3.6 version.
 
-To install Devito, including examples, tests and tutorial notebooks, 
+To install Devito, including examples, tests and tutorial notebooks,
 follow these simple passes:
 
 ```sh
@@ -69,6 +69,9 @@ expressions. Examples of how to define operators are provided:
   directory and run `jupyter notebook`.
 * A set of tutorial notebooks for seismic inversion examples is available in
   `examples/seismic/tutorials`.
+* A set of tutorial notebooks concerning the Devito compiler can be found in
+  `examples/compiler`.
+* Devito with MPI can be explored in `examples/mpi`.
 * Example implementations of acoustic forward, adjoint, gradient and born
   operators for use in full-waveform inversion (FWI) methods can be found in
   `examples/seismic/acoustic`.
@@ -117,7 +120,7 @@ Devito supports two classes of performance optimizations:
  * Loop optimizations - Examples include SIMD vectorization and parallelism
    (via code annotations) and loop blocking. These are performed by the Devito
    Loop Engine (DLE), another sub-module of Devito.
- 
+
 Further, [YASK](https://github.com/intel/yask) is being integrated as a Devito
 backend, for optimized execution on Intel architectures.
 
