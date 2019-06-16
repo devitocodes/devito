@@ -26,7 +26,7 @@ class AcousticWaveSolver(object):
     space_order: int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
     """
-    def __init__(self, model, geometry, kernel='OT2', space_order=2, **kwargs):
+    def __init__(self, model, geometry, kernel='OT2', space_order=4, **kwargs):
         self.model = model
         self.geometry = geometry
 
