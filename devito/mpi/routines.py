@@ -622,8 +622,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             defleft, defright = callcompute.dynamic_defaults[d]
             dmapper = OrderedDict()
             dmapper[(d, CORE, CENTER)] = (defleft, defright)
-            dmapper[(d, OWNED, LEFT)] = (defleft - left, defleft)
-            dmapper[(d, OWNED, RIGHT)] = (defright, defright - right)
+            dmapper[(d, OWNED, LEFT)] = (defleft - left, defleft - 1)
+            dmapper[(d, OWNED, RIGHT)] = (defright + 1, defright - right)
             mapper.update(dmapper)
             items.append(list(dmapper))
 
