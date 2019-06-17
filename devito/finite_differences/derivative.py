@@ -116,7 +116,7 @@ class Derivative(sympy.Derivative, Differentiable):
             orders = as_tuple(orders)
 
         # Finite difference orders
-        fd_orders = kwargs.get('fd_order', expr.space_order)
+        fd_orders = kwargs.get('fd_order', tuple([expr.space_order]*len(dims)))
         if len(dims) == 1 and isinstance(fd_orders, Iterable):
             fd_orders = fd_orders[0]
         # SymPy expects the list of variable w.r.t. which we differentiate to be a list

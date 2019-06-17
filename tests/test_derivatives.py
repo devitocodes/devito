@@ -79,7 +79,10 @@ class TestFD(object):
         (TimeFunction, ['dx2'], 3, 'Derivative(u(t, x, y, z), (x, 2))'),
         (TimeFunction, ['dx2dy'], 3, 'Derivative(u(t, x, y, z), (x, 2), y)'),
         (TimeFunction, ['dx2', 'dy'], 3,
-         'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)')
+         'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)'),
+        (TimeFunction, ['dx', 'dy', 'dx2', 'dz', 'dydz'], 3,
+         'Derivative(Derivative(Derivative(Derivative(Derivative(u(t, x, y, z), x), y),' +
+         ' (x, 2)), z), y, z)')
     ])
     def test_unevaluation(self, SymbolType, derivative, dim, expected):
         u = SymbolType(name='u', grid=self.grid, time_order=2, space_order=2)
@@ -92,13 +95,23 @@ class TestFD(object):
 
     @pytest.mark.parametrize('expr,expected', [
         ('u.dx + u.dy', 'Derivative(u, x) + Derivative(u, y)'),
+        ('u.dxdy', 'Derivative(u, x, y)'),
         ('u.laplace',
          'Derivative(u, (x, 2)) + Derivative(u, (y, 2)) + Derivative(u, (z, 2))'),
-        ('(u.dx*u.dy).dx', 'Derivative(Derivative(u, x) * Derivative(u, y), x)')
+        ('(u.dx + u.dy).dx', 'Derivative(Derivative(u, x) + Derivative(u, y), x)'),
+        ('((u.dx + u.dy).dx + u.dxdy).dx',
+         'Derivative(Derivative(Derivative(u, x) + Derivative(u, y), x) +' +
+         ' Derivative(u, x, y), x)'),
+        ('(u**4).dx', 'Derivative(u**4, x)'),
+        ('(u/4).dx', 'Derivative(u/4, x)'),
+        ('((u.dx + v.dy).dx * v.dx).dy.dz',
+         'Derivative(Derivative(Derivative(Derivative(u, x) + Derivative(v, y), x) *' +
+         ' Derivative(v, x), y), z)')
     ])
     def test_arithmetic(self, expr, expected):
         x, y, z = self.grid.dimensions
         u = Function(name='u', grid=self.grid, time_order=2, space_order=2)  # noqa
+        v = Function(name='v', grid=self.grid, time_order=2, space_order=2)  # noqa
         expr = eval(expr)
         expected = eval(expected)
         assert expr == expected

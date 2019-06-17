@@ -201,6 +201,4 @@ def solve(eq, target, **kwargs):
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
-    if hasattr(eq, 'lhs'):
-        eq = (eq.lhs - eq.rhs)
     return sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
