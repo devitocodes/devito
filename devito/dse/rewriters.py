@@ -11,6 +11,7 @@ from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Clust
 from devito.dse.aliases import collect
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
+from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               iq_timeinvariant, pow_to_mul, retrieve_indexed,
@@ -408,5 +409,27 @@ class AggressiveRewriter(AdvancedRewriter):
 
 class CustomRewriter(AggressiveRewriter):
 
+    passes_mapper = {
+        'extract_sop': AggressiveRewriter._extract_sum_of_products,
+        'factorize': AggressiveRewriter._factorize,
+        'gcse': AggressiveRewriter._eliminate_inter_stencil_redundancies,
+        'cse': AggressiveRewriter._eliminate_intra_stencil_redundancies,
+        'extract_invariants': AdvancedRewriter._extract_time_invariants,
+        'extract_indices': BasicRewriter._extract_nonaffine_indices,
+        'extract_increments': BasicRewriter._extract_increments,
+        'opt_transcedentals': BasicRewriter._optimize_trigonometry
+    }
+
+    def __init__(self, passes, template=None, profile=True):
+        try:
+            passes = passes.split(',')
+        except AttributeError:
+            # Already in tuple format
+            if not all(i in CustomRewriter.passes_mapper for i in passes):
+                raise DSEException("Unknown passes `%s`" % str(passes))
+        self.passes = passes
+        super(CustomRewriter, self).__init__(profile, template)
+
     def _pipeline(self, state):
-        raise NotImplementedError
+        for i in self.passes:
+            CustomRewriter.passes_mapper[i](self, state)

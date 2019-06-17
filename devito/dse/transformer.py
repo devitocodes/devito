@@ -1,11 +1,11 @@
 from devito.ir.clusters import ClusterGroup, groupby
-from devito.dse.rewriters import BasicRewriter, AdvancedRewriter, AggressiveRewriter
-from devito.logger import dse as log, dse_warning as warning
+from devito.dse.rewriters import (BasicRewriter, AdvancedRewriter, AggressiveRewriter,
+                                  CustomRewriter)
+from devito.logger import dse as log
 from devito.parameters import configuration
 from devito.tools import flatten
 
 __all__ = ['dse_registry', 'rewrite']
-
 
 dse_registry = ('basic', 'advanced', 'aggressive')
 
@@ -49,18 +49,19 @@ def rewrite(clusters, mode='advanced'):
 
     if mode is None or mode == 'noop':
         return clusters
-    elif mode not in dse_registry:
-        warning("Unknown rewrite mode(s) %s" % mode)
-        return clusters
 
     # We use separate rewriters for dense and sparse clusters; sparse clusters have
     # non-affine index functions, thus making it basically impossible, in general,
     # to apply the more advanced DSE passes.
     # Note: the sparse rewriter uses the same template for temporaries as
     # the dense rewriter, thus temporaries are globally unique
-    rewriter = modes[mode]()
-    fallback = BasicRewriter(False, rewriter.template)
 
+    try:
+        rewriter = modes[mode]()
+    except KeyError:
+        rewriter = CustomRewriter(mode)
+
+    fallback = BasicRewriter(False, rewriter.template)
     states = [rewriter.run(c) if c.is_dense else fallback.run(c) for c in clusters]
 
     # Print out the profiling data
