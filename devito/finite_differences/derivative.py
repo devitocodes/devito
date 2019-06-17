@@ -78,7 +78,7 @@ class Derivative(sympy.Derivative, Differentiable):
         if type(expr) == sympy.Derivative:
             raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
         if not isinstance(expr, Differentiable):
-            print(expr, type(expr))
+            print(expr, type(expr), dims, kwargs)
             raise ValueError("`expr` must be a Differentiable object")
 
         # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
