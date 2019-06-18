@@ -167,9 +167,10 @@ class Derivative(sympy.Derivative, Differentiable):
     @property
     def T(self):
         """Transpose of the Derivative.
+
         FD derivatives can be represented as matrices and have adjoint/transpose.
-        This is really usefull for more advance FD definitions. For example
-        the conventional laplacian is `.dxl.T * .dxl`
+        This is really useful for more advanced FD definitions. For example
+        the conventional Laplacian is `.dxl.T * .dxl`
         """
         if self._transpose == direct:
             adjoint = transpose

@@ -79,7 +79,7 @@ def dim_with_order(dims, orders):
     """
     ndim = len(dims)
     max_order = np.max(orders)
-    # Get all combinations and remove (0, 0 ,0)
+    # Get all combinations and remove (0, 0, 0)
     all_comb = tuple(product(range(max_order+1), repeat=ndim))[1:]
     # Only keep the one with each dimension maximum order
     all_comb = [c for c in all_comb if all(c[k] <= orders[k] for k in range(ndim))]

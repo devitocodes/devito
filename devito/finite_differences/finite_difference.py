@@ -64,7 +64,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
 
     This is also accessible via the .T shortcut of the first derivative
 
-    >>> (f*g).dx.T
+    >>> (f*g).dx.T.evaluate
     f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
     """
     side = side.adjoint(matvec)

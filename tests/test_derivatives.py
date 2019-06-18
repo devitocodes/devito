@@ -338,12 +338,12 @@ class TestFD(object):
         g_deriv = Function(name='g_deriv', grid=grid, space_order=so)
         g.data[:, :] = np.random.rand(50, 50, 50)
 
-        # Check symbolic expressio nare expected oens for the adjoint .T
+        # Check symbolic expression are expected ones for the adjoint .T
         deriv = getattr(f, derivative)
         expected = adjoint_coeff * getattr(f, adjoint_name).evaluate
         assert deriv.T.evaluate == expected
 
-        # Compute numerical dervivatives and verify dot test
+        # Compute numerical derivatives and verify dot test
         #  i.e <f.dx, g> = <f, g.dx.T>
 
         eq_f = Eq(f_deriv, deriv)

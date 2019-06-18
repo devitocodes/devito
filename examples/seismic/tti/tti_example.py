@@ -60,7 +60,7 @@ if __name__ == "__main__":
                         choices=["noop", "basic", "advanced", "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
     parser.add_argument("-dle", default="advanced",
-                        choices=["noop", "basic", "advanced", "speculative"],
+                        choices=["noop", "advanced", "speculative"],
                         help="Devito loop engine (DLE) mode")
     args = parser.parse_args()
 
