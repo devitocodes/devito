@@ -115,7 +115,7 @@ def flatten(l):
     """Flatten a hierarchy of nested lists into a plain list."""
     newlist = []
     for el in l:
-        if isinstance(el, Iterable) and not isinstance(el, (str, bytes)):
+        if isinstance(el, Iterable) and not isinstance(el, (str, bytes, np.ndarray)):
             for sub in flatten(el):
                 newlist.append(sub)
         else:
