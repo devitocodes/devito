@@ -5,8 +5,14 @@ from unittest.mock import patch
 
 from conftest import skipif, EVAL, x, y, z  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
+<<<<<<< HEAD
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
+=======
+                    SubDimension, Grid, Operator, switchconfig, configuration)
+
+from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree  # noqa
+>>>>>>> dse: Rebase and minor
 from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
 from devito.dse.flowgraph import FlowGraph
@@ -44,44 +50,25 @@ def test_scheduling_after_rewrite():
     assert trees[1][0].dim == trees[2][0].dim == trees[3][0].dim == grid.time_dim
 
 
-def test_trivial_skew_test():
+@pytest.mark.parametrize("skew_factor", [(2), (4), (6), (7)])
+@pytest.mark.parametrize("nx,ny", [(5,6), (4,16), (20,20), (100,100)])
+def test_skew_vs_advanced(skew_factor, nx, ny):
     """Trivial testing for DSE skewing"""
-    grid = Grid((10, 10))
-    u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
-    u2 = TimeFunction(name="u2", grid=grid, time_order=2)
-    sf1 = SparseTimeFunction(name='sf1', grid=grid, npoint=1, nt=10)
-    const = Function(name="const", grid=grid, space_order=2)
-
-    # Deliberately inject into u1, rather than u1.forward, to create a WAR
-    eqn1 = Eq(u1.forward, u1 + sin(const))
-    eqn2 = sf1.inject(u1.forward, expr=sf1)
-    eqn3 = Eq(u2.forward, u2 - u1.dt2 + sin(const))
-
-    op = Operator([eqn1] + eqn2 + [eqn3], dse='skewing')
-    trees = retrieve_iteration_tree(op)
-
-    # Check loop nest structure
-    assert len(trees) == 4
-    assert all(i.dim == j for i, j in zip(trees[0], grid.dimensions))  # time invariant
-    assert trees[1][0].dim == trees[2][0].dim == trees[3][0].dim == grid.time_dim
-
-
-def test_skew_vs_advanced():
-    """Trivial testing for DSE skewing"""
-    nx = 200
-    ny = 200
+    nx = 10
+    ny = 10
+    timesteps = 1
     grid = Grid(shape=(nx, ny))
+    configuration['skew_factor'] = skew_factor
     u_skew = TimeFunction(name='u_skew', grid=grid)
-    u_adv = TimeFunction(name='u_adv', grid=grid)
+    u = TimeFunction(name='u', grid=grid)
 
-    eq_skew = Eq(u_skew.forward, u_skew + 0.1)
-    eq_adv = Eq(u_adv.forward, u_adv + 0.1)
-
+    eq_skew = Eq(u_skew.forward, u_skew.dx + u_skew.dy + u_skew.dy.dy)
+    eq = Eq(u.forward, u.dx + u.dy + u.dy.dy)
     op_skew = Operator(eq_skew, dse='skewing', dle='advanced')
-    op_adv = Operator(eq_adv, dse='advanced', dle='advanced')
-    op_skew.apply(time=300)
-    op_adv.apply(time=300)
-    assert np.all(u_skew.data[0] == u_adv.data[0])
+    op = Operator(eq, dse=None, dle='advanced')
+    op_skew.apply(time=timesteps)
+    op.apply(time=timesteps)
+    assert np.all(u_skew.data[0] == u.data[0])
 
 
 @pytest.mark.parametrize('exprs,expected', [
@@ -422,6 +409,7 @@ def test_contracted_alias_shape_after_blocking_skewing():
     assert np.all(u.data == exp)
 
 
+<<<<<<< HEAD
 @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
 def test_full_alias_shape_with_subdims():
     """
@@ -468,6 +456,8 @@ def test_full_alias_shape_with_subdims():
 
 
 
+=======
+>>>>>>> dse: Rebase and minor
 def test_alias_composite():
     """
     Check that composite alias are optimized away through "smaller" aliases.
@@ -626,7 +616,12 @@ def test_acoustic_rewrite_basic():
 def test_custom_rewriter():
     ret1 = run_acoustic_forward(dse=None)
     ret2 = run_acoustic_forward(dse=('extract_sop', 'factorize',
+<<<<<<< HEAD
                                      'extract_invariants', 'gcse'))
+=======
+                                     'extract_invariants',
+                                     'extract_indices', 'gcse', 'skewing'))
+>>>>>>> dse: Rebase and minor
 
     assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
     assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
@@ -641,35 +636,8 @@ def test_acoustic_rewrite_skewing():
 
 
 # TTI
-
-def tti_operator(dse=False, dle='advanced', space_order=4):
-    nrec = 101
-    t0 = 0.0
-    tn = 250.
-    nbpml = 10
-    shape = (50, 50, 50)
-    spacing = (20., 20., 20.)
-
-    # Two layer model for true velocity
-    model = demo_model('layers-tti', ratio=3, nbpml=nbpml, space_order=space_order,
-                       shape=shape, spacing=spacing)
-
-    # Source and receiver geometries
-    src_coordinates = np.empty((1, len(spacing)))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
-    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
-
-    rec_coordinates = np.empty((nrec, len(spacing)))
-    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
-
-    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=t0, tn=tn, src_type='Gabor', f0=0.010)
-
-    return AnisotropicWaveSolver(model, geometry, space_order=space_order, dse=dse)
-
-
-def tti_operator_skew(dse='skewing', dle='advanced', space_order=4):
+@pytest.mark.parametrize('dse', [(False), ('skewing')])
+def tti_operator(dse='dse', dle='advanced', space_order=4):
     nrec = 101
     t0 = 0.0
     tn = 250.

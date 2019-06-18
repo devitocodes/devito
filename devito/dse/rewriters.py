@@ -22,8 +22,7 @@ from devito.tools import flatten, generator
 from devito.types import Array, Scalar
 from devito.types import TimeDimension, SpaceDimension
 
-__all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter',
-           'SkewingRewriter', 'CustomRewriter']
+__all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'CustomRewriter']
 
 
 class State(object):
@@ -373,56 +372,31 @@ class AggressiveRewriter(AdvancedRewriter):
 
         return cluster.rebuild(processed)
 
-
-class SkewingRewriter(AggressiveRewriter):
-
-    def _pipeline(self, state):
-        self._skewing(state)
-        self._extract_sum_of_products(state)
-        self._extract_time_invariants(state, with_cse=False)
-        self._eliminate_inter_stencil_redundancies(state)
-
-        self._extract_sum_of_products(state)
-        self._eliminate_inter_stencil_redundancies(state)
-        self._extract_sum_of_products(state)
-
-        self._factorize(state)
-        self._eliminate_intra_stencil_redundancies(state)
-
     @dse_pass
     def _skewing(self, cluster, template, **kwargs):
         """
-        Function to perform only the basic skewing in order to have valid data
+        A pass to perform only the basic skewing in order to have valid data
         dependences.
         """
         skew_factor = configuration['skew_factor']
         skew_dim, mapper, int_mapper = None, {}, []
         total_int = {}
         intervals, sub_iterators, directions = cluster.ispace.args
-        cnt = 0
+
         for dim in cluster.ispace.dimensions:
             if isinstance(dim, SpaceDimension):
                 mapper[dim] = dim + skew_factor*skew_dim
                 int_mapper.append(IntervalGroup([Interval(dim, -skew_factor*skew_dim,
                                                 -skew_factor*skew_dim)]))
-                cnt = cnt + 1
             elif dim.is_Time:
                 if isinstance(dim, TimeDimension):
                     int_mapper.append(IntervalGroup([Interval(dim, 0, 0)]))
-                    cnt = cnt + 1
                     skew_dim = dim
-                elif isinstance(dim.parent, TimeDimension):
-                    int_mapper.append(IntervalGroup([Interval(dim, 0, 0)]))
-                    cnt = cnt + 1
+
         if skew_dim is None:
             return cluster
 
-        if cnt == 5:
-            total_int = IntervalGroup.generate('union', int_mapper[0], int_mapper[1],
-                                               int_mapper[2], int_mapper[3])
-        elif cnt in {3, 4}:
-            total_int = IntervalGroup.generate('union', int_mapper[0], int_mapper[1],
-                                               int_mapper[2])
+        total_int = IntervalGroup.generate('union', *int_mapper)
 
         ispace = IterationSpace(total_int, sub_iterators, directions)
 
@@ -438,6 +412,7 @@ class CustomRewriter(AggressiveRewriter):
         'factorize': AggressiveRewriter._factorize,
         'gcse': AggressiveRewriter._eliminate_inter_stencil_redundancies,
         'cse': AggressiveRewriter._eliminate_intra_stencil_redundancies,
+        'skewing': AggressiveRewriter._skewing,
         'extract_invariants': AdvancedRewriter._extract_time_invariants,
         'extract_increments': BasicRewriter._extract_increments,
         'opt_transcedentals': BasicRewriter._optimize_trigonometry
