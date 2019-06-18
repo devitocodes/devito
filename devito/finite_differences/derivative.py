@@ -78,7 +78,6 @@ class Derivative(sympy.Derivative, Differentiable):
         if type(expr) == sympy.Derivative:
             raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
         if not isinstance(expr, Differentiable):
-            print(expr, type(expr), dims, kwargs)
             raise ValueError("`expr` must be a Differentiable object")
 
         # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
@@ -119,6 +118,7 @@ class Derivative(sympy.Derivative, Differentiable):
         fd_orders = kwargs.get('fd_order', tuple([expr.space_order]*len(dims)))
         if len(dims) == 1 and isinstance(fd_orders, Iterable):
             fd_orders = fd_orders[0]
+
         # SymPy expects the list of variable w.r.t. which we differentiate to be a list
         # of 2-tuple `(s, count)` where s is the entity to diff wrt and count is the order
         # of the derivative
@@ -166,7 +166,11 @@ class Derivative(sympy.Derivative, Differentiable):
 
     @property
     def T(self):
-        """Transpose of the Derivative."""
+        """Transpose of the Derivative.
+        FD derivatives can be represented as matrices and have adjoint/transpose.
+        This is really usefull for more advance FD definitions. For example
+        the conventional laplacian is `.dxl.T * .dxl`
+        """
         if self._transpose == direct:
             adjoint = transpose
         else:

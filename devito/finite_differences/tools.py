@@ -2,10 +2,9 @@ from functools import wraps, partial
 from itertools import product
 
 import numpy as np
-import sympy
 from sympy import S
 
-from devito.tools import Tag
+from devito.tools import Tag, as_tuple
 from devito.finite_differences import Differentiable
 
 
@@ -107,18 +106,15 @@ def generate_fd_shortcuts(function):
     from devito.finite_differences.derivative import Derivative
 
     def deriv_function(expr, deriv_order, dims, fd_order, side=centered, **kwargs):
-        if isinstance(dims, (tuple, sympy.Tuple)):
-            return Derivative(expr, *dims, deriv_order=deriv_order, fd_order=fd_order,
-                              side=side, **kwargs)
-        return Derivative(expr, dims, deriv_order=deriv_order, fd_order=fd_order,
-                          side=side, **kwargs)
+        return Derivative(expr, *as_tuple(dims), deriv_order=deriv_order,
+                          fd_order=fd_order, side=side, **kwargs)
 
     side = form_side(dimensions, function)
     all_combs = dim_with_order(dimensions, orders)
 
     derivatives = {}
 
-    # All conventiona fd shortcuts
+    # All conventional FD shortcuts
     for o in all_combs:
         fd_dims = tuple(d for d, o_d in zip(dimensions, o) if o_d > 0)
         d_orders = tuple(o_d for d, o_d in zip(dimensions, o) if o_d > 0)
