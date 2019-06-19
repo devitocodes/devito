@@ -496,6 +496,12 @@ class SubDimension(DerivedDimension):
     __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
     _Thickness = namedtuple('Thickness', 'left right')
+    _SDO = namedtuple('SubDimensionOffset', 'value extreme thickness')
+
+    @classmethod
+    def _symbolic_thickness(cls, name):
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32, is_const=True),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32, is_const=True))
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):
@@ -539,11 +545,11 @@ class SubDimension(DerivedDimension):
 
     @cached_property
     def extreme_min(self):
-        return self._offset_left()[1]
+        return self._offset_left.extreme
 
     @cached_property
     def extreme_max(self):
-        return self._offset_right()[1]
+        return self._offset_right.extreme
 
     @property
     def local(self):
@@ -557,38 +563,35 @@ class SubDimension(DerivedDimension):
     def _maybe_distributed(self):
         return not self.local
 
-    @classmethod
-    def _symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32, is_const=True),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32, is_const=True))
-
     @cached_property
     def _thickness_map(self):
         return dict(self.thickness)
 
+    @cached_property
     def _offset_left(self):
         # The left extreme of the SubDimension can be related to either the
         # min or max of the parent dimension
         try:
             symbolic_thickness = self.symbolic_min - self.parent.symbolic_min
             val = symbolic_thickness.subs(self._thickness_map)
-            return int(val), self.parent.symbolic_min
+            return self._SDO(int(val), self.parent.symbolic_min, symbolic_thickness)
         except TypeError:
             symbolic_thickness = self.symbolic_min - self.parent.symbolic_max
             val = symbolic_thickness.subs(self._thickness_map)
-            return int(val), self.parent.symbolic_max
+            return self._SDO(int(val), self.parent.symbolic_max, symbolic_thickness)
 
+    @cached_property
     def _offset_right(self):
         # The right extreme of the SubDimension can be related to either the
         # min or max of the parent dimension
         try:
             symbolic_thickness = self.symbolic_max - self.parent.symbolic_min
             val = symbolic_thickness.subs(self._thickness_map)
-            return int(val), self.parent.symbolic_min
+            return self._SDO(int(val), self.parent.symbolic_min, symbolic_thickness)
         except TypeError:
             symbolic_thickness = self.symbolic_max - self.parent.symbolic_max
             val = symbolic_thickness.subs(self._thickness_map)
-            return int(val), self.parent.symbolic_max
+            return self._SDO(int(val), self.parent.symbolic_max, symbolic_thickness)
 
     @property
     def _properties(self):
