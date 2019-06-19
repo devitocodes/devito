@@ -5,7 +5,9 @@ from operator import mul
 
 from cached_property import cached_property
 from frozendict import frozendict
+from sympy import Expr
 
+from devito.ir.support.vector import Vector
 from devito.tools import PartialOrderTuple, as_tuple, filter_ordered, toposort, is_integer
 
 
@@ -121,25 +123,24 @@ class Interval(AbstractInterval):
 
     Create an Interval of size:
 
-        dim.size + abs(upper - lower)
+        (dim.extreme_max - dim.extreme_min + 1) + (upper - lower)
     """
 
     is_Defined = True
 
     def __init__(self, dim, lower, upper, stamp=0):
-        assert is_integer(lower)
-        assert is_integer(upper)
+        assert is_integer(lower) or isinstance(lower, Expr)
+        assert is_integer(upper) or isinstance(upper, Expr)
         super(Interval, self).__init__(dim, stamp)
         self.lower = lower
         self.upper = upper
-        self.min_size = abs(upper - lower)
-        self.size = (dim.symbolic_max - dim.symbolic_min + 1) + self.min_size
+        self.size = (dim.extreme_max - dim.extreme_min + 1) + (upper - lower)
 
     def __repr__(self):
         return "%s[%s, %s]" % (self.dim, self.lower, self.upper)
 
     def __hash__(self):
-        return hash((self.dim, self.limits))
+        return hash((self.dim, self.offsets))
 
     def __eq__(self, o):
         return (super(Interval, self).__eq__(o) and
@@ -149,24 +150,36 @@ class Interval(AbstractInterval):
     def _rebuild(self):
         return Interval(self.dim, self.lower, self.upper, self.stamp)
 
+    @cached_property
+    def vlower(self):
+        return Vector(self.lower, smart=True)
+
+    @cached_property
+    def vupper(self):
+        return Vector(self.upper, smart=True)
+
     @property
     def relaxed(self):
         return Interval(self.dim.root, self.lower, self.upper, self.stamp)
 
     @property
-    def limits(self):
+    def offsets(self):
         return (self.lower, self.upper)
 
     def intersection(self, o):
         if self.overlap(o):
-            return Interval(self.dim, max(self.lower, o.lower), min(self.upper, o.upper),
+            return Interval(self.dim,
+                            max(self.vlower, o.vlower)[0],
+                            min(self.vupper, o.vupper)[0],
                             self.stamp)
         else:
             return NullInterval(self.dim)
 
     def union(self, o):
         if self.overlap(o):
-            return Interval(self.dim, min(self.lower, o.lower), max(self.upper, o.upper),
+            return Interval(self.dim,
+                            min(self.vlower, o.vlower)[0],
+                            max(self.vupper, o.vupper)[0],
                             self.stamp)
         elif o.is_Null and self.dim == o.dim:
             return self._rebuild()
@@ -177,7 +190,9 @@ class Interval(AbstractInterval):
         if not self.is_compatible(o):
             return self._rebuild()
         else:
-            return Interval(self.dim, min(self.lower, o.lower), max(self.upper, o.upper),
+            return Interval(self.dim,
+                            min(self.vlower, o.vlower)[0],
+                            max(self.vupper, o.vupper)[0],
                             self.stamp)
 
     def add(self, o):
@@ -212,9 +227,9 @@ class Interval(AbstractInterval):
         try:
             # In the "worst case scenario" the dimension size is 0
             # so we can just neglect it
-            min_size = max(self.min_size, o.min_size)
-            return (self.lower <= o.lower and o.lower <= self.lower + min_size) or\
-                (self.lower >= o.lower and self.lower <= o.lower + min_size)
+            min_size = max(abs(self.upper - self.lower), abs(o.upper - o.lower))
+            return ((self.vlower <= o.vlower and o.vlower <= self.vlower + min_size) or
+                    (self.vlower >= o.vlower and self.vlower <= o.vlower + min_size))
         except AttributeError:
             return False
 
@@ -395,8 +410,8 @@ class IterationInterval(object):
         return self.interval.dim
 
     @property
-    def limits(self):
-        return self.interval.limits
+    def offsets(self):
+        return self.interval.offsets
 
 
 class Space(object):
