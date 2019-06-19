@@ -73,13 +73,10 @@ class HaloScheme(object):
 
         self._mapper = {}
         scope = Scope(exprs)
-        for f, v in hs_classify(scope).items():
-            halos = [Halo(*i) for i, hl in v.items() if hl is STENCIL]
+        for f, (halos, local) in classify(scope, ispace).items():
             if halos:
-                # There is some halo to be exchanged; *what* are the local
-                # (i.e., non-halo) indices?
-                dims = [i for i, hl in v.items() if hl is NONE]
-                loc_indices = hs_comp_locindices(f, dims, ispace, scope)
+                # Handle the non-distributed (local) Dimensions
+                loc_indices = compute_locindices(f, local, ispace, scope)
 
                 self._mapper[f] = HaloSchemeEntry(frozendict(loc_indices),
                                                   frozenset(halos))
@@ -187,7 +184,7 @@ class HaloScheme(object):
         return HaloScheme(fmapper=fmapper)
 
 
-def hs_classify(scope):
+def classify(scope, ispace):
     """
     A mapper ``Function -> (Dimension -> [HaloLabel]`` describing what type of
     halo exchange is expected by the DiscreteFunctions in a given Scope.
@@ -199,9 +196,10 @@ def hs_classify(scope):
         elif f.grid is None:
             # TODO: improve me
             continue
+
         # For each data access, determine if (and what type of) a halo exchange
         # is required
-        halo_labels = defaultdict(list)
+        halo_labels = defaultdict(set)
         for i in r:
             v = {}
             for d in i.findices:
@@ -226,27 +224,30 @@ def hs_classify(scope):
 
             # Finally update the `halo_labels`
             for j, hl in v.items():
-                halo_labels[j].append(hl)
+                halo_labels[j].add(hl)
 
-        # Sanity check and reductions
-        for i, hl in list(halo_labels.items()):
-            unique_hl = set(hl)
-            if unique_hl == {STENCIL, IDENTITY}:
-                halo_labels[i] = STENCIL
-            elif len(unique_hl) == 1:
-                halo_labels[i] = unique_hl.pop()
-            else:
+        # Distinguish between Dimensions requiring a halo exchange and those which don't
+        halos, local = mapper.setdefault(f, ([], []))
+        for i, hl in halo_labels.items():
+            try:
+                hl.remove(IDENTITY)
+            except KeyError:
+                # Currently the IDENTITY information isn't exploited
+                pass
+            if not hl:
+                continue
+            elif len(hl) > 1:
                 raise HaloSchemeException("Inconsistency found while building a halo "
                                           "scheme for `%s` along Dimension `%s`" % (f, d))
-
-        # Ignore unless an actual halo exchange is required
-        if any(i is STENCIL for i in halo_labels.values()):
-            mapper[f] = halo_labels
+            elif hl.pop() is STENCIL:
+                halos.append(Halo(*i))
+            else:
+                local.append(i)
 
     return mapper
 
 
-def hs_comp_locindices(f, dims, ispace, scope):
+def compute_locindices(f, dims, ispace, scope):
     """
     Map the Dimensions in ``dims`` to the local indices necessary
     to perform a halo exchange, as described in HaloScheme.__doc__.
