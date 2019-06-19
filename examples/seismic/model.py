@@ -227,6 +227,7 @@ def demo_model(preset, **kwargs):
         shape = (1601, 401)
         spacing = (7.5, 7.5)
         origin = (0., 0.)
+        nbpml = kwargs.pop('nbpml', 20)
 
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.get('data_path', None)
