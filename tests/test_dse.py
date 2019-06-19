@@ -51,7 +51,7 @@ def test_scheduling_after_rewrite():
 
 
 @pytest.mark.parametrize("skew_factor", [(2), (4), (6), (7)])
-@pytest.mark.parametrize("nx,ny", [(5,6), (4,16), (20,20), (100,100)])
+@pytest.mark.parametrize("nx,ny", [(5, 6), (4, 16), (20, 20), (100, 100)])
 def test_skew_vs_advanced(skew_factor, nx, ny):
     """Trivial testing for DSE skewing"""
     nx = 10
