@@ -214,6 +214,14 @@ class TestSpace(object):
         assert ix.intersection(ix4) == Interval(x, 1, 2)
         assert ix.intersection(ix5) == Interval(x, -2, 0)
 
+        c = Constant(name='c')
+        ix6 = Interval(x, c, c + 4)
+        ix7 = Interval(x, c - 1, c + 5)
+
+        # All defined symbolic
+        assert ix6.intersection(ix7) == Interval(x, c, c + 4)
+        assert ix7.intersection(ix6) == Interval(x, c, c + 4)
+
     def test_intervals_union(self):
         nullx = NullInterval(x)
 
@@ -249,6 +257,14 @@ class TestSpace(object):
         assert ix.union(iy) == IntervalGroup([ix, iy])
         assert iy.union(ix) == IntervalGroup([iy, ix])
 
+        c = Constant(name='c')
+        ix7 = Interval(x, c, c + 4)
+        ix8 = Interval(x, c - 1, c + 5)
+
+        # All defined symbolic
+        assert ix7.union(ix8) == Interval(x, c - 1, c + 5)
+        assert ix8.union(ix7) == Interval(x, c - 1, c + 5)
+
     def test_intervals_merge(self):
         nullx = NullInterval(x)
 
@@ -282,6 +298,14 @@ class TestSpace(object):
         assert ix6.merge(ix) == Interval(x, -2, 11)
         assert ix5.merge(ix6) == Interval(x, -1, 11)
 
+        c = Constant(name='c')
+        ix7 = Interval(x, c - 3, c - 1)
+        ix8 = Interval(x, c + 1, c + 5)
+
+        # All defined symbolic
+        assert ix7.merge(ix8) == Interval(x, c - 3, c + 5)
+        assert ix8.merge(ix7) == Interval(x, c - 3, c + 5)
+
     def test_intervals_subtract(self):
         nullx = NullInterval(x)
 
@@ -302,6 +326,15 @@ class TestSpace(object):
         assert ix2.subtract(ix) == ix
         assert ix.subtract(ix2) == Interval(x, -2, 2)
         assert ix3.subtract(ix) == ix2
+
+        c = Constant(name='c')
+        ix4 = Interval(x, c + 2, c + 4)
+        ix5 = Interval(x, c + 1, c + 5)
+
+        # All defined symbolic
+        assert ix4.subtract(ix5) == Interval(x, 1, -1)
+        assert ix5.subtract(ix4) == Interval(x, -1, 1)
+        assert ix5.subtract(ix) == Interval(x, c - 1, c + 7)
 
 
 class TestDependenceAnalysis(object):
