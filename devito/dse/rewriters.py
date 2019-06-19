@@ -289,19 +289,15 @@ class AdvancedRewriter(BasicRewriter):
             if all(i not in candidates for i in alias.aliased):
                 continue
 
-            # Construct the `alias` iteration space
-            intervals, sub_iterators, directions = cluster.ispace.args
-            intervals = [Interval(i.dim, *alias.relaxed_diameter.get(i.dim, i.limits))
-                         for i in cluster.ispace.intervals]
-            ispace = IterationSpace(intervals, sub_iterators, directions)
-
-            # The write-to space
-            writeto = IntervalGroup(i for i in ispace.intervals if not i.dim.is_Time)
+            # The write-to Intervals
+            writeto = [Interval(i.dim, *alias.relaxed_diameter.get(i.dim, (0, 0)))
+                       for i in cluster.ispace.intervals if not i.dim.is_Time]
+            writeto = IntervalGroup(writeto)
 
             # Optimization: no need to retain a SpaceDimension if it does not
-            # induce a flow/anti dependence (below, `i.limits` captures this, by
+            # induce a flow/anti dependence (below, `i.offsets` captures this, by
             # telling how much halo will be needed to honour such dependences)
-            dep_inducing = [i for i in writeto if any(i.limits)]
+            dep_inducing = [i for i in writeto if any(i.offsets)]
             try:
                 index = writeto.index(dep_inducing[0])
                 writeto = IntervalGroup(writeto[index:])
@@ -328,11 +324,15 @@ class AdvancedRewriter(BasicRewriter):
                     subs[candidates[aliased]] = array[access]
                 subs[aliased] = array[access]
 
-            # Construct the `alias` data space
+            # Construct the `alias` IterationSpace
+            intervals, sub_iterators, directions = cluster.ispace.args
+            ispace = IterationSpace(intervals.add(writeto), sub_iterators, directions)
+
+            # Construct the `alias` DataSpace
             mapper = detect_accesses(expression)
             parts = {k: IntervalGroup(build_intervals(v)).add(ispace.intervals)
                      for k, v in mapper.items() if k}
-            dspace = DataSpace([i.zero() for i in ispace.intervals], parts)
+            dspace = DataSpace(cluster.dspace.intervals, parts)
 
             # Create a new Cluster for `alias`
             alias_clusters.append(Cluster([expression], ispace, dspace))
