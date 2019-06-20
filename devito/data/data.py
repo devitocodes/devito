@@ -41,7 +41,7 @@ class Data(np.ndarray):
     def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=ALLOC_FLAT):
         assert len(shape) == len(modulo)
         ndarray, memfree_args = allocator.alloc(shape, dtype)
-        obj = np.asarray(ndarray).view(cls)
+        obj = ndarray.view(cls)
         obj._allocator = allocator
         obj._memfree_args = memfree_args
         obj._decomposition = decomposition or (None,)*len(shape)
