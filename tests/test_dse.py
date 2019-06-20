@@ -5,14 +5,8 @@ from unittest.mock import patch
 
 from conftest import skipif, EVAL, x, y, z  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-<<<<<<< HEAD
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
-=======
-                    SubDimension, Grid, Operator, switchconfig, configuration)
-
-from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree  # noqa
->>>>>>> dse: Rebase and minor
 from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
 from devito.dse.flowgraph import FlowGraph
@@ -51,7 +45,7 @@ def test_scheduling_after_rewrite():
 
 
 @pytest.mark.parametrize("skew_factor", [(2), (4), (6), (7)])
-@pytest.mark.parametrize("nx,ny", [(5, 6), (4, 16), (20, 20), (100, 100)])
+@pytest.mark.parametrize("nx,ny", [(5,6), (4,16), (20,20), (100,100)])
 def test_skew_vs_advanced(skew_factor, nx, ny):
     """Trivial testing for DSE skewing"""
     nx = 10
@@ -409,7 +403,6 @@ def test_contracted_alias_shape_after_blocking_skewing():
     assert np.all(u.data == exp)
 
 
-<<<<<<< HEAD
 @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
 def test_full_alias_shape_with_subdims():
     """
@@ -456,8 +449,6 @@ def test_full_alias_shape_with_subdims():
 
 
 
-=======
->>>>>>> dse: Rebase and minor
 def test_alias_composite():
     """
     Check that composite alias are optimized away through "smaller" aliases.
@@ -616,12 +607,8 @@ def test_acoustic_rewrite_basic():
 def test_custom_rewriter():
     ret1 = run_acoustic_forward(dse=None)
     ret2 = run_acoustic_forward(dse=('extract_sop', 'factorize',
-<<<<<<< HEAD
-                                     'extract_invariants', 'gcse'))
-=======
                                      'extract_invariants',
                                      'extract_indices', 'gcse', 'skewing'))
->>>>>>> dse: Rebase and minor
 
     assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
     assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
