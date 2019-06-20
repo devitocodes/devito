@@ -375,32 +375,22 @@ class AggressiveRewriter(AdvancedRewriter):
     @dse_pass
     def _skewing(self, cluster, template, **kwargs):
         """
-        A pass to perform only the basic skewing in order to have valid data
-        dependences.
+        Skew the accesses along the time Dimension.
         """
         skew_factor = configuration['skew_factor']
-        skew_dim, mapper, int_mapper = None, {}, []
-        total_int = {}
-        intervals, sub_iterators, directions = cluster.ispace.args
+        skew_dim, mapper, intervals = None, {}, []
 
-        for dim in cluster.ispace.dimensions:
-            if isinstance(dim, SpaceDimension):
-                mapper[dim] = dim + skew_factor*skew_dim
-                int_mapper.append(IntervalGroup([Interval(dim, -skew_factor*skew_dim,
+        for i in cluster.ispace.intervals:
+            if i.dim.is_Time:
+                intervals.append(IntervalGroup([Interval(i.dim, 0, 0)]))
+                skew_dim = i.dim
+            else:
+                mapper[i.dim] = i.dim + skew_factor*skew_dim
+                intervals.append(IntervalGroup([Interval(i.dim, -skew_factor*skew_dim,
                                                 -skew_factor*skew_dim)]))
-            elif dim.is_Time:
-                if isinstance(dim, TimeDimension):
-                    int_mapper.append(IntervalGroup([Interval(dim, 0, 0)]))
-                    skew_dim = dim
 
-        if skew_dim is None:
-            return cluster
+        cluster._ispace._intervals = IntervalGroup.generate('union', *intervals)
 
-        total_int = IntervalGroup.generate('union', *int_mapper)
-
-        ispace = IterationSpace(total_int, sub_iterators, directions)
-
-        cluster._ispace = ispace
         processed = xreplace_indices(cluster.exprs, mapper)
         return cluster.rebuild(processed)
 
