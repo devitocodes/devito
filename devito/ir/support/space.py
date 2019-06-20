@@ -253,6 +253,9 @@ class IntervalGroup(PartialOrderTuple):
         # then then IntervalGroups are considered equal
         return len(self) == len(o) and all(i == j for i, j in zip(self, o))
 
+    def __hash__(self):
+        return hash(tuple(self))
+
     def __repr__(self):
         return "IntervalGroup[%s]" % (', '.join([repr(i) for i in self]))
 
