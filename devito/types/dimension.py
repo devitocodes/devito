@@ -500,8 +500,10 @@ class SubDimension(DerivedDimension):
 
     @classmethod
     def _symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32, is_const=True),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32, is_const=True))
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32,
+                       is_const=True, nonnegative=True),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32,
+                       is_const=True, nonnegative=True))
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):
