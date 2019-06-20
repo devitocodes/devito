@@ -11,7 +11,7 @@ __all__ = ['Vector', 'LabeledVector']
 class Vector(tuple):
 
     """
-    A representation of a vector in Z^n.
+    A representation of an object in Z^n.
 
     The elements of a Vector can be integers or any SymPy expression.
 
@@ -27,19 +27,30 @@ class Vector(tuple):
         (3, 4, 5) > 4 => (3, 4, 5) > (4, 4, 4) => False
 
     2) Comparing Vector entries when these are SymPy expression
-    When we compare two entries that are both generic SymPy expressions, it is
-    generally not possible to determine the truth value of the relation. For
-    example, the truth value of `3*i < 4*j` cannot be determined. In some cases,
-    however, the comparison is feasible; for example, `i + 4 < i` should always
-    return false. A sufficient condition for two Vectors to be comparable is that
-    their pair-wise indices are affine functions of the same variables, with
-    coefficient 1.
+    When we compare two symbolic (SymPy expressions) entries, it might not be
+    possible to determine the truth value of the relation. For example, the
+    truth value of `3*i < 4*j` cannot be determined (unless some information
+    about `i` and `j` is available). In some cases, however, the comparison is
+    feasible; for example, `i + 4 < i` is definitely False. A sufficient condition
+    for two Vectors to be comparable is that their pair-wise indices are affine
+    functions of the same variables, with identical coefficient.
+    If the Vector is instantiated passing the keyword argument ``smart = True``,
+    some manipulation will be attempted to infer the truth value of a non-trivial
+    symbolic relation. This increases the cost of the comparison, while potentially
+    being ineffective, so use it judiciously. By default, ``smart = False``.
+
+    Raises
+    ------
+    TypeError
+        If two Vectors cannot be compared, e.g. due to uncomparable symbolic entries.
     """
 
-    def __new__(cls, *items):
+    def __new__(cls, *items, smart=False):
         if not all(is_integer(i) or isinstance(i, Basic) for i in items):
             raise TypeError("Illegal Vector element type")
-        return super(Vector, cls).__new__(cls, items)
+        obj = super(Vector, cls).__new__(cls, items)
+        obj.smart = smart
+        return obj
 
     def _asvector(relax=False):
         def __asvector(func):
@@ -56,9 +67,12 @@ class Vector(tuple):
             return wrapper
         return __asvector
 
+    def __hash__(self):
+        return super(Vector, self).__hash__()
+
     @_asvector()
     def __add__(self, other):
-        return Vector(*[i + j for i, j in zip(self, other)])
+        return Vector(*[i + j for i, j in zip(self, other)], smart=self.smart)
 
     @_asvector()
     def __radd__(self, other):
@@ -66,7 +80,7 @@ class Vector(tuple):
 
     @_asvector()
     def __sub__(self, other):
-        return Vector(*[i - j for i, j in zip(self, other)])
+        return Vector(*[i - j for i, j in zip(self, other)], smart=self.smart)
 
     @_asvector()
     def __rsub__(self, other):
@@ -76,9 +90,6 @@ class Vector(tuple):
     def __eq__(self, other):
         return super(Vector, self).__eq__(other)
 
-    def __hash__(self):
-        return super(Vector, self).__hash__()
-
     @_asvector(relax=True)
     def __ne__(self, other):
         return super(Vector, self).__ne__(other)
@@ -86,35 +97,81 @@ class Vector(tuple):
     @_asvector()
     def __lt__(self, other):
         # This might raise an exception if the distance between the i-th entry
-        # of /self/ and /other/ isn't integer, but rather a generic function
-        # (and thus not comparable to 0). However, the implementation is "smart",
-        # in the sense that it will return as soon as the first two comparable
-        # entries (i.e., such that their distance is a non-zero integer) are found
+        # of `self` and `other` isn't integer, but rather a generic expression
+        # not comparable to 0. However, the implementation is "smart", in the
+        # sense that it will return as soon as the first two comparable entries
+        # (i.e., such that their distance is a non-zero integer) are found
         for i in self.distance(other):
             try:
                 val = int(i)
+                if val < 0:
+                    return True
+                elif val > 0:
+                    return False
             except TypeError:
-                raise TypeError("Cannot compare due to non-comparable index functions")
-            if val < 0:
-                return True
-            elif val > 0:
-                return False
+                if self.smart:
+                    try:
+                        # Note: the relationals below may be SymPy exprs, hence the ==
+                        if (i < 0) == True:
+                            return True
+                        elif (i >= 0) == True:
+                            return False
+                    except TypeError:
+                        pass
+                raise TypeError("Non-comparable index functions")
+
+        return False
 
     @_asvector()
     def __gt__(self, other):
         return other.__lt__(self)
 
     @_asvector()
-    def __ge__(self, other):
-        return self.__eq__(other) or self.__gt__(other)
+    def __le__(self, other):
+        if self.__eq__(other):
+            return True
+
+        # We cannot simply resort to `__lt__` as it might happen that:
+        # * v0 < v1 --> False
+        # * v0 == v1 --> False
+        # But
+        # * v0 <= v1 --> True
+        #
+        # For example, take `v0 = (a + 2)` and `v1 = (2)`; if `a` is attached
+        # the property that definitely `a >= 0`, then surely `v1 <= v0`, even
+        # though it can't be assumed anything about `v1 < 0` and `v1 == v0`
+        for i in self.distance(other):
+            try:
+                val = int(i)
+                if val < 0:
+                    return True
+                elif val > 0:
+                    return False
+            except TypeError:
+                if self.smart:
+                    try:
+                        # Note: the relationals below may be SymPy exprs, hence the ==
+                        if (i < 0) == True:
+                            return True
+                        elif (i <= 0) == True:
+                            continue
+                        elif (i > 0) == True:
+                            return False
+                    except TypeError:
+                        pass
+                raise TypeError("Non-comparable index functions")
+
+        # Note: unlike `__lt__`, if we end up here, then *it is* <=. For example,
+        # with `v0` and `v1` as above, we would get here
+        return True
 
     @_asvector()
-    def __le__(self, other):
-        return self.__eq__(other) or self.__lt__(other)
+    def __ge__(self, other):
+        return other.__le__(self)
 
     def __getitem__(self, key):
         ret = super(Vector, self).__getitem__(key)
-        return Vector(*ret) if isinstance(key, slice) else ret
+        return Vector(*ret, smart=self.smart) if isinstance(key, slice) else ret
 
     def __repr__(self):
         return "(%s)" % ','.join(str(i) for i in self)
