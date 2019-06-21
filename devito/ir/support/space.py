@@ -68,8 +68,6 @@ class AbstractInterval(object):
     def union(self, o):
         return self._rebuild()
 
-    merge = union
-
     def add(self, o):
         return self._rebuild()
 
@@ -81,10 +79,6 @@ class AbstractInterval(object):
     zero = negate
     flip = negate
     lift = negate
-
-    @abc.abstractmethod
-    def overlap(self, o):
-        return
 
 
 class NullInterval(AbstractInterval):
@@ -109,11 +103,6 @@ class NullInterval(AbstractInterval):
             return o._rebuild()
         else:
             return IntervalGroup([self._rebuild(), o._rebuild()])
-
-    merge = union
-
-    def overlap(self, o):
-        return False
 
 
 class Interval(AbstractInterval):
@@ -150,14 +139,6 @@ class Interval(AbstractInterval):
     def _rebuild(self):
         return Interval(self.dim, self.lower, self.upper, self.stamp)
 
-    @cached_property
-    def vlower(self):
-        return Vector(self.lower, smart=True)
-
-    @cached_property
-    def vupper(self):
-        return Vector(self.upper, smart=True)
-
     @property
     def relaxed(self):
         return Interval(self.dim.root, self.lower, self.upper, self.stamp)
@@ -167,33 +148,22 @@ class Interval(AbstractInterval):
         return (self.lower, self.upper)
 
     def intersection(self, o):
-        if self.overlap(o):
-            return Interval(self.dim,
-                            max(self.vlower, o.vlower)[0],
-                            min(self.vupper, o.vupper)[0],
-                            self.stamp)
+        if self.is_compatible(o):
+            svl, svu = Vector(self.lower, smart=True), Vector(self.upper, smart=True)
+            ovl, ovu = Vector(o.lower, smart=True), Vector(o.upper, smart=True)
+            return Interval(self.dim, max(svl, ovl)[0], min(svu, ovu)[0], self.stamp)
         else:
             return NullInterval(self.dim)
 
     def union(self, o):
-        if self.overlap(o):
-            return Interval(self.dim,
-                            min(self.vlower, o.vlower)[0],
-                            max(self.vupper, o.vupper)[0],
-                            self.stamp)
-        elif o.is_Null and self.dim == o.dim:
+        if o.is_Null and self.dim == o.dim:
             return self._rebuild()
+        elif self.is_compatible(o):
+            svl, svu = Vector(self.lower, smart=True), Vector(self.upper, smart=True)
+            ovl, ovu = Vector(o.lower, smart=True), Vector(o.upper, smart=True)
+            return Interval(self.dim, min(svl, ovl)[0], max(svu, ovu)[0], self.stamp)
         else:
             return IntervalGroup([self._rebuild(), o._rebuild()])
-
-    def merge(self, o):
-        if not self.is_compatible(o):
-            return self._rebuild()
-        else:
-            return Interval(self.dim,
-                            min(self.vlower, o.vlower)[0],
-                            max(self.vupper, o.vupper)[0],
-                            self.stamp)
 
     def add(self, o):
         if not self.is_compatible(o):
@@ -220,18 +190,6 @@ class Interval(AbstractInterval):
 
     def lift(self):
         return Interval(self.dim, self.lower, self.upper, self.stamp + 1)
-
-    def overlap(self, o):
-        if not self.is_compatible(o):
-            return False
-        try:
-            # In the "worst case scenario" the dimension size is 0
-            # so we can just neglect it
-            min_size = max(abs(self.upper - self.lower), abs(o.upper - o.lower))
-            return ((self.vlower <= o.vlower and o.vlower <= self.vlower + min_size) or
-                    (self.vlower >= o.vlower and self.vlower <= o.vlower + min_size))
-        except AttributeError:
-            return False
 
 
 class IntervalGroup(PartialOrderTuple):
@@ -487,15 +445,15 @@ class DataSpace(Space):
         return hash((super(DataSpace, self).__hash__(), self.parts))
 
     @classmethod
-    def merge(cls, *others):
+    def union(cls, *others):
         if not others:
             return DataSpace(IntervalGroup(), {})
-        intervals = IntervalGroup.generate('merge', *[i.intervals for i in others])
+        intervals = IntervalGroup.generate('union', *[i.intervals for i in others])
         parts = {}
         for i in others:
             for k, v in i.parts.items():
                 parts.setdefault(k, []).append(v)
-        parts = {k: IntervalGroup.generate('merge', *v) for k, v in parts.items()}
+        parts = {k: IntervalGroup.generate('union', *v) for k, v in parts.items()}
         return DataSpace(intervals, parts)
 
     @property
@@ -580,12 +538,12 @@ class IterationSpace(Space):
                      self.directions))
 
     @classmethod
-    def merge(cls, *others):
+    def union(cls, *others):
         if not others:
             return IterationSpace(IntervalGroup())
         elif len(others) == 1:
             return others[0]
-        intervals = IntervalGroup.generate('merge', *[i.intervals for i in others])
+        intervals = IntervalGroup.generate('union', *[i.intervals for i in others])
         directions = {}
         for i in others:
             for k, v in i.directions.items():
@@ -594,8 +552,8 @@ class IterationSpace(Space):
                     directions[k] = v
                 elif v is not Any:
                     # Clash detected
-                    raise ValueError("Cannot merge `IterationSpace`s with "
-                                     "incompatible directions")
+                    raise ValueError("Cannot compute the union of `IterationSpace`s "
+                                     "with incompatible directions")
         sub_iterators = {}
         for i in others:
             for k, v in i.sub_iterators.items():
