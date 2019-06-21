@@ -7,7 +7,7 @@ from cached_property import cached_property
 from frozendict import frozendict
 from sympy import Expr
 
-from devito.ir.support.vector import Vector
+from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import PartialOrderTuple, as_tuple, filter_ordered, toposort, is_integer
 
 
@@ -151,7 +151,7 @@ class Interval(AbstractInterval):
         if self.is_compatible(o):
             svl, svu = Vector(self.lower, smart=True), Vector(self.upper, smart=True)
             ovl, ovu = Vector(o.lower, smart=True), Vector(o.upper, smart=True)
-            return Interval(self.dim, max(svl, ovl)[0], min(svu, ovu)[0], self.stamp)
+            return Interval(self.dim, vmax(svl, ovl)[0], vmin(svu, ovu)[0], self.stamp)
         else:
             return NullInterval(self.dim)
 
@@ -161,7 +161,7 @@ class Interval(AbstractInterval):
         elif self.is_compatible(o):
             svl, svu = Vector(self.lower, smart=True), Vector(self.upper, smart=True)
             ovl, ovu = Vector(o.lower, smart=True), Vector(o.upper, smart=True)
-            return Interval(self.dim, min(svl, ovl)[0], max(svu, ovu)[0], self.stamp)
+            return Interval(self.dim, vmin(svl, ovl)[0], vmax(svu, ovu)[0], self.stamp)
         else:
             return IntervalGroup([self._rebuild(), o._rebuild()])
 

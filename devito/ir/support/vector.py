@@ -5,7 +5,7 @@ from sympy import Basic
 from devito.tools import as_tuple, is_integer, memoized_meth
 from devito.types import Dimension
 
-__all__ = ['Vector', 'LabeledVector']
+__all__ = ['Vector', 'LabeledVector', 'vmin', 'vmax']
 
 
 class Vector(tuple):
@@ -309,3 +309,49 @@ class LabeledVector(Vector):
         if self.labels != other.labels:
             raise TypeError("Cannot compute distance due to mismatching `labels`")
         return LabeledVector(list(zip(self.labels, self - other)))
+
+
+# Utility functions
+
+def vmin(*vectors):
+    """
+    Retrieve the minimum out of an iterable of Vectors.
+
+    Raises
+    ------
+    TypeError
+        If there are two non-comparable Vectors.
+    ValueError
+        If an empty sequence is supplied
+    """
+    if not all(isinstance(i, Vector) for i in vectors):
+        raise TypeError("Expected an iterable of Vectors")
+    if len(vectors) == 0:
+        raise ValueError("min() arg is an empty sequence")
+    ret = vectors[0]
+    for i in vectors[1:]:
+        if i < ret or i <= ret:
+            ret = i
+    return ret
+
+
+def vmax(*vectors):
+    """
+    Retrieve the maximum out of an iterable of Vectors.
+
+    Raises
+    ------
+    TypeError
+        If there are two non-comparable Vectors.
+    ValueError
+        If an empty sequence is supplied
+    """
+    if not all(isinstance(i, Vector) for i in vectors):
+        raise TypeError("Expected an iterable of Vectors")
+    if len(vectors) == 0:
+        raise ValueError("min() arg is an empty sequence")
+    ret = vectors[0]
+    for i in vectors[1:]:
+        if i > ret or i >= ret:
+            ret = i
+    return ret
