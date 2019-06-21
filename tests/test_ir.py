@@ -9,7 +9,7 @@ from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree, filter_iterations, make_efunc)
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
-                                     AFFINE, IRREGULAR)
+                                     Vector, AFFINE, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
                                      Forward, Backward)
 from devito.types import Scalar
@@ -18,7 +18,26 @@ from devito.tools import as_tuple
 pytestmark = skipif(['yask', 'ops'])
 
 
-class TestVectorDistanceArithmetic(object):
+class TestVectorHierarchy(object):
+
+    @pytest.fixture
+    def v_num(self):
+        v2 = Vector(2, smart=True)
+        v3 = Vector(3, smart=True)
+        v4 = Vector(4)
+        v11 = Vector(1, 1)
+        v13 = Vector(1, 3)
+        v23 = Vector(2, 3)
+        return v2, v3, v4, v11, v13, v23
+
+    @pytest.fixture
+    def v_literal(self):
+        vx = Vector(x)
+        vxy = Vector(x, y)
+        vx1y = Vector(x + 1, y)
+        s = Scalar(name='s', nonnegative=True)
+        vs3 = Vector(s + 3, smart=True)
+        return vx, vxy, vx1y, vs3
 
     @pytest.fixture
     def ii_num(self, fa, fc):
@@ -46,6 +65,55 @@ class TestVectorDistanceArithmetic(object):
         rev_tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, mixed_directions)
         rev_tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, mixed_directions)
         return tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1
+
+    def test_vector_cmp(self, v_num, v_literal):
+        v2, v3, v4, v11, v13, v23 = v_num
+        vx, vxy, vx1y, vs3 = v_literal
+
+        # Equality check (numeric, symbolic, mixed)
+        assert v4 == v4
+        assert v4 != v11
+        assert vx == vx
+        assert vx != v4
+        assert vx != vxy
+        assert vs3 != v4
+
+        # Lexicographic comparison (numeric, symbolic, mixed)
+        assert v3 < v4
+        assert v11 < v23
+        assert v11 <= v23
+        assert v11 < v13
+        assert v11 <= v13
+        assert v23 > v11
+        assert (vxy < vx1y) is True
+        assert (vxy <= vx1y) is True
+        assert (vx1y > vxy) is True
+        assert (vx1y <= vxy) is False
+
+        # Smart vector comparison
+        # Note: `v3` and `vs3` use the "smart" mode
+        try:
+            v3 < vs3
+            assert False
+        except TypeError:
+            # Nothing can be inferred about the relation `3 < s + 3` (given `s >= 0`)
+            assert True
+        except:
+            assert False
+        assert v3 != vs3
+        assert (v3 <= vs3) is True
+        assert (vs3 < v3) is False
+        try:
+            vs3 <= v3
+            assert False
+        except TypeError:
+            # Nothing can be inferred about the relation `s + 3 <= 3` (given `s >= 0`)
+            assert True
+        except:
+            assert False
+        assert v2 < vs3
+        assert v2 <= vs3
+        assert vs3 > v2
 
     def test_iteration_instance_arithmetic(self, dims, ii_num, ii_literal):
         """
