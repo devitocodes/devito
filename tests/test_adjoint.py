@@ -68,7 +68,7 @@ class TestAdjoint(object):
         term2 = linalg.norm(rec.data.reshape(-1)) ** 2
         info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
-        assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
+        assert np.isclose((term1 - term2)/term1, 0., atol=1.e-12)
 
     @pytest.mark.parametrize('space_order', [4, 8, 12])
     @pytest.mark.parametrize('shape', [(60,), (60, 70), (40, 50, 30)])
@@ -110,7 +110,7 @@ class TestAdjoint(object):
         term2 = linalg.norm(du.data.reshape(-1))**2
         info('<Jx,y>: %f, <x, J^Ty>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
-        assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
+        assert np.isclose((term1 - term2)/term1, 0., atol=1.e-12)
 
     @pytest.mark.parametrize('shape, coords', [
         ((11, 11), [(.05, .9), (.01, .8)]),
