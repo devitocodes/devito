@@ -92,25 +92,11 @@ class TestVectorHierarchy(object):
 
         # Smart vector comparison
         # Note: `v3` and `vs3` use the "smart" mode
-        try:
-            v3 < vs3
-            assert False
-        except TypeError:
-            # Nothing can be inferred about the relation `3 < s + 3` (given `s >= 0`)
-            assert True
-        except:
-            assert False
+        assert (v3 < vs3) is False
+        assert (vs3 < v3) is False
         assert v3 != vs3
         assert (v3 <= vs3) is True
-        assert (vs3 < v3) is False
-        try:
-            vs3 <= v3
-            assert False
-        except TypeError:
-            # Nothing can be inferred about the relation `s + 3 <= 3` (given `s >= 0`)
-            assert True
-        except:
-            assert False
+        assert (vs3 <= v3) is False
         assert v2 < vs3
         assert v2 <= vs3
         assert vs3 > v2
@@ -288,6 +274,16 @@ class TestSpace(object):
         assert ix6.intersection(ix7) == Interval(x, c, c + 4)
         assert ix7.intersection(ix6) == Interval(x, c, c + 4)
 
+        # Symbolic with properties
+        s = Scalar(name='s', nonnegative=True)
+        ix8 = Interval(x, s - 2, s + 2)
+        ix9 = Interval(x, s - 1, s + 1)
+
+        assert ix.intersection(ix8) == Interval(x, s - 2, 2)
+        assert ix8.intersection(ix) == Interval(x, s - 2, 2)
+        assert ix8.intersection(ix9) == Interval(x, s - 1, s + 1)
+        assert ix9.intersection(ix8) == Interval(x, s - 1, s + 1)
+
     def test_intervals_union(self):
         nullx = NullInterval(x)
 
@@ -328,6 +324,16 @@ class TestSpace(object):
 
         assert ix7.union(ix8) == Interval(x, c - 1, c + 5)
         assert ix8.union(ix7) == Interval(x, c - 1, c + 5)
+
+        # Symbolic with properties
+        s = Scalar(name='s', nonnegative=True)
+        ix9 = Interval(x, s - 2, s + 2)
+        ix10 = Interval(x, s - 1, s + 1)
+
+        assert ix.union(ix9) == Interval(x, -2, s + 2)
+        assert ix9.union(ix) == Interval(x, -2, s + 2)
+        assert ix9.union(ix10) == ix9
+        assert ix10.union(ix9) == ix9
 
     def test_intervals_subtract(self):
         nullx = NullInterval(x)
