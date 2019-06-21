@@ -110,14 +110,16 @@ class Vector(tuple):
                     return False
             except TypeError:
                 if self.smart:
-                    try:
-                        # Note: the relationals below may be SymPy exprs, hence the ==
-                        if (i < 0) == True:
-                            return True
-                        elif (i >= 0) == True:
-                            return False
-                    except TypeError:
-                        pass
+                    # Note: the relationals below may be SymPy exprs, hence the ==
+                    if (i < 0) == True:
+                        return True
+                    elif (i <= 0) == True:
+                        # If `i` can assume the value 0 in at least one case, then
+                        # definitely `i < 0` is generally False, so __lt__ must
+                        # return False
+                        return False
+                    elif (i >= 0) == True:
+                        return False
                 raise TypeError("Non-comparable index functions")
 
         return False
@@ -149,16 +151,16 @@ class Vector(tuple):
                     return False
             except TypeError:
                 if self.smart:
-                    try:
-                        # Note: the relationals below may be SymPy exprs, hence the ==
-                        if (i < 0) == True:
-                            return True
-                        elif (i <= 0) == True:
-                            continue
-                        elif (i > 0) == True:
-                            return False
-                    except TypeError:
-                        pass
+                    # Note: the relationals below may be SymPy exprs, hence the ==
+                    if (i < 0) == True:
+                        return True
+                    elif (i <= 0) == True:
+                        continue
+                    elif (i > 0) == True:
+                        return False
+                    elif (i >= 0) == True:
+                        # See analogous considerations in __lt__
+                        return False
                 raise TypeError("Non-comparable index functions")
 
         # Note: unlike `__lt__`, if we end up here, then *it is* <=. For example,
