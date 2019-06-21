@@ -268,25 +268,23 @@ class TestSpace(object):
         ix2 = Interval(x, -8, -3)
         ix3 = Interval(x, 3, 4)
 
-        # All defined disjoint
-        assert ix.intersection(ix2) == nullx
-        assert ix.intersection(ix3) == nullx
-        assert ix2.intersection(ix3) == nullx
+        assert ix.intersection(ix2) == Interval(x, -2, -3)
+        assert ix.intersection(ix3) == Interval(x, 3, 2)
+        assert ix2.intersection(ix3) == Interval(x, 3, -3)
         assert ix.intersection(iy) == nullx
         assert iy.intersection(ix) == nully
 
         ix4 = Interval(x, 1, 4)
         ix5 = Interval(x, -3, 0)
 
-        # All defined overlapping
         assert ix.intersection(ix4) == Interval(x, 1, 2)
         assert ix.intersection(ix5) == Interval(x, -2, 0)
 
+        # Mixed symbolic and non-symbolic
         c = Constant(name='c')
         ix6 = Interval(x, c, c + 4)
         ix7 = Interval(x, c - 1, c + 5)
 
-        # All defined symbolic
         assert ix6.intersection(ix7) == Interval(x, c, c + 4)
         assert ix7.intersection(ix6) == Interval(x, c, c + 4)
 
@@ -298,7 +296,7 @@ class TestSpace(object):
 
         ix = Interval(x, -2, 2)
 
-        # Mixed nulls and defined on the same dimension
+        # Mixed nulls and defined
         assert nullx.union(ix) == ix
         assert ix.union(ix) == ix
         assert ix.union(nullx) == ix
@@ -306,7 +304,6 @@ class TestSpace(object):
         ix2 = Interval(x, 1, 4)
         ix3 = Interval(x, -3, 6)
 
-        # All defined overlapping
         assert ix.union(ix2) == Interval(x, -2, 4)
         assert ix.union(ix3) == ix3
         assert ix2.union(ix3) == ix3
@@ -317,62 +314,20 @@ class TestSpace(object):
         nully = NullInterval(y)
         iy = Interval(y, -2, 2)
 
-        # Mixed disjoint (note: IntervalGroup input order is relevant)
-        assert ix.union(ix4) == IntervalGroup([ix, ix4])
+        assert ix.union(ix4) == Interval(x, -2, 8)
         assert ix.union(ix5) == Interval(x, -3, 2)
-        assert ix6.union(ix) == IntervalGroup([ix6, ix])
+        assert ix6.union(ix) == Interval(x, -10, 2)
         assert ix.union(nully) == IntervalGroup([ix, nully])
         assert ix.union(iy) == IntervalGroup([ix, iy])
         assert iy.union(ix) == IntervalGroup([iy, ix])
 
+        # Mixed symbolic and non-symbolic
         c = Constant(name='c')
         ix7 = Interval(x, c, c + 4)
         ix8 = Interval(x, c - 1, c + 5)
 
-        # All defined symbolic
         assert ix7.union(ix8) == Interval(x, c - 1, c + 5)
         assert ix8.union(ix7) == Interval(x, c - 1, c + 5)
-
-    def test_intervals_merge(self):
-        nullx = NullInterval(x)
-
-        # All nulls
-        assert nullx.merge(nullx) == nullx
-
-        ix = Interval(x, -2, 2)
-
-        # Mixed nulls and defined on the same dimension
-        assert nullx.merge(ix) == ix
-        assert ix.merge(ix) == ix
-        assert ix.merge(nullx) == ix
-
-        ix2 = Interval(x, 1, 4)
-        ix3 = Interval(x, -3, 6)
-
-        # All defined overlapping
-        assert ix.merge(ix2) == Interval(x, -2, 4)
-        assert ix.merge(ix3) == ix3
-        assert ix2.merge(ix3) == ix3
-
-        ix4 = Interval(x, 0, 0)
-        ix5 = Interval(x, -1, -1)
-        ix6 = Interval(x, 9, 11)
-
-        # Non-overlapping
-        assert ix.merge(ix4) == Interval(x, -2, 2)
-        assert ix.merge(ix5) == Interval(x, -2, 2)
-        assert ix4.merge(ix5) == Interval(x, -1, 0)
-        assert ix.merge(ix6) == Interval(x, -2, 11)
-        assert ix6.merge(ix) == Interval(x, -2, 11)
-        assert ix5.merge(ix6) == Interval(x, -1, 11)
-
-        c = Constant(name='c')
-        ix7 = Interval(x, c - 3, c - 1)
-        ix8 = Interval(x, c + 1, c + 5)
-
-        # All defined symbolic
-        assert ix7.merge(ix8) == Interval(x, c - 3, c + 5)
-        assert ix8.merge(ix7) == Interval(x, c - 3, c + 5)
 
     def test_intervals_subtract(self):
         nullx = NullInterval(x)
