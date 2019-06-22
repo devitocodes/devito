@@ -1,8 +1,8 @@
-from devito.symbolics.queries import (q_indexed, q_function, q_terminal,
-                                      q_leaf, q_op, q_trigonometry)
+from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf, q_xop,
+                                      q_trigonometry)
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_ops', 'retrieve_trigonometry', 'search']
+           'retrieve_terminals', 'retrieve_xops', 'retrieve_trigonometry', 'search']
 
 
 class Search(object):
@@ -121,17 +121,17 @@ def search(expr, query, mode='unique', visit='dfs', deep=False):
 # Shorthands
 
 
-def retrieve_indexed(expr, mode='unique', deep=False):
+def retrieve_indexed(expr, mode='all', deep=False):
     """Shorthand to retrieve the Indexeds in ``expr``."""
     return search(expr, q_indexed, mode, 'dfs', deep)
 
 
-def retrieve_functions(expr, mode='unique'):
+def retrieve_functions(expr, mode='all'):
     """Shorthand to retrieve the DiscreteFunctions in ``expr``."""
     return search(expr, q_function, mode, 'dfs')
 
 
-def retrieve_function_carriers(expr, mode='unique'):
+def retrieve_function_carriers(expr, mode='all'):
     """
     Shorthand to retrieve the DiscreteFunction carriers in ``expr``. An
     object carries a DiscreteFunction if any of the following conditions are met: ::
@@ -150,7 +150,7 @@ def retrieve_function_carriers(expr, mode='unique'):
     return retval
 
 
-def retrieve_terminals(expr, mode='unique', deep=False):
+def retrieve_terminals(expr, mode='all', deep=False):
     """Shorthand to retrieve Indexeds and Symbols within ``expr``."""
     return search(expr, q_terminal, mode, 'dfs', deep)
 
@@ -160,6 +160,6 @@ def retrieve_trigonometry(expr):
     return search(expr, q_trigonometry, 'unique', 'dfs')
 
 
-def retrieve_ops(expr):
+def retrieve_xops(expr):
     """Shorthand to retrieve the arithmetic operations within ``expr``."""
-    return search(expr, q_op, 'all', 'dfs')
+    return search(expr, q_xop, 'all', 'dfs')

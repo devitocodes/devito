@@ -501,7 +501,7 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
         g = Function(name='g', grid=grid)
-        op = Operator(Eq(g, g + f))
+        op = Operator(Eq(g, g + f), dle=('advanced', {'openmp': False}))
 
         expected = {
             'x_m': 0, 'x_M': 4,
@@ -511,7 +511,7 @@ class TestArguments(object):
         }
         self.verify_arguments(op.arguments(time=4), expected)
         exp_parameters = ['f', 'g', 'x_m', 'x_M', 'y_m', 'y_M', 'z_m', 'z_M',
-                          'time_m', 'time_M']
+                          'x0_blk_size', 'y0_blk_size', 'time_m', 'time_M']
         self.verify_parameters(op.parameters, exp_parameters)
 
     def test_default_sparse_functions(self):
@@ -1334,14 +1334,15 @@ class TestLoopScheduler(object):
         Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
         """
-        grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time)
+        grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time,
+                    dtype=np.float64)
         a = TimeFunction(name='a', grid=grid, time_order=2, space_order=2)
         p_aux = Dimension(name='p_aux')
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
-                     space_order=2)
+                     space_order=2, dtype=np.float64)
         b.data_with_halo[:] = 1.0
         b2 = Function(name='b2', shape=(10,) + shape, dimensions=(p_aux,) + dimensions,
-                      space_order=2)
+                      space_order=2, dtype=np.float64)
         b2.data_with_halo[:] = 1.0
         eqns = [Eq(a.forward, a.laplace + 1.),
                 Eq(b, time*b*a + b)]
@@ -1363,8 +1364,9 @@ class TestLoopScheduler(object):
         op2(time=10)
 
         for i in range(10):
-            assert(np.allclose(b2.data[i, ...].reshape(-1) -
-                               b.data[..., i].reshape(-1), 0.))
+            assert(np.allclose(b2.data[i, ...].reshape(-1),
+                               b.data[..., i].reshape(-1),
+                               rtol=1e-9))
 
     def test_equations_mixed_timedim_stepdim(self):
         """"

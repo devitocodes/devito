@@ -87,8 +87,8 @@ def mark_iteration_parallel(analysis):
             dims = flatten(dims)
 
             # The i-th Iteration is PARALLEL if for all dependences (d_1, ..., d_n):
-            # test0 := (d_1, ..., d_{i-1}) > 0, OR
-            # test1 := (d_1, ..., d_i) = 0
+            # test0 := (d_1, ..., d_i) = 0, OR
+            # test1 := (d_1, ..., d_{i-1}) > 0
             is_parallel = True
 
             # The i-th Iteration is PARALLEL_IF_ATOMIC if for all dependeces:
@@ -96,16 +96,12 @@ def mark_iteration_parallel(analysis):
             is_atomic_parallel = True
 
             for dep in analysis.scopes[i].d_all:
-                test1 = all(dep.is_indep(d) for d in dims)
-                if test1:
-                    continue
-
-                test0 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
+                test0 = dep.is_indep(i.dim) and all(dep.is_reduce_atmost(d) for d in prev)
                 if test0:
                     continue
 
-                test2 = all(dep.is_reduce_atmost(d) for d in prev) and dep.is_indep(i.dim)
-                if test2:
+                test1 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
+                if test1:
                     continue
 
                 is_parallel = False

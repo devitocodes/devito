@@ -5,7 +5,6 @@ from operator import mul
 from cached_property import cached_property
 import ctypes
 
-from devito.compiler import jit_compile, load, save
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.equation import Eq
@@ -21,6 +20,7 @@ from devito.profiling import create_profile
 from devito.symbolics import indexify
 from devito.tools import (Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
+from devito.types import Dimension
 
 __all__ = ['Operator']
 
@@ -153,7 +153,10 @@ class Operator(Callable):
 
         # Internal state. May be used to store information about previous runs,
         # autotuning reports, etc
-        self._state = {}
+        self._state = self._initialize_state(**kwargs)
+
+        # Form and gather any required implicit expressions
+        expressions = self._add_implicit(expressions)
 
         # Expression lowering: indexification, substitution rules, specialization
         expressions = [indexify(i) for i in expressions]
@@ -206,7 +209,40 @@ class Operator(Callable):
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
 
+    def _initialize_state(self, **kwargs):
+        return {'optimizations': {k: kwargs.get(k, configuration[k])
+                                  for k in ('dse', 'dle')}}
+
     # Compilation
+
+    def _add_implicit(self, expressions):
+        """
+        Create and add any associated implicit expressions.
+
+        Implicit expressions are those not explicitly defined by the user
+        but instead are requisites of some specified functionality.
+        """
+        processed = []
+        seen = set()
+        for e in expressions:
+            if e.subdomain:
+                try:
+                    dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
+                    sub_dims = [d.root for d in e.subdomain.dimensions]
+                    dims = [d for d in dims if d not in frozenset(sub_dims)]
+                    dims.append(e.subdomain.implicit_dimension)
+                    if e.subdomain not in seen:
+                        processed.extend([i.func(*i.args, implicit_dims=dims) for i in
+                                          e.subdomain._create_implicit_exprs()])
+                        seen.add(e.subdomain)
+                    dims.extend(e.subdomain.dimensions)
+                    new_e = Eq(e.lhs, e.rhs, subdomain=e.subdomain, implicit_dims=dims)
+                    processed.append(new_e)
+                except AttributeError:
+                    processed.append(e)
+            else:
+                processed.append(e)
+        return processed
 
     def _apply_substitutions(self, expressions, subs):
         """
@@ -386,14 +422,14 @@ class Operator(Callable):
         Operator, reagardless of how many times this method is invoked.
         """
         if self._lib is None:
-            jit_compile(self._soname, str(self.ccode), self._compiler)
+            self._compiler.jit_compile(self._soname, str(self.ccode))
 
     @property
     def cfunction(self):
         """The JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
             self._compile()
-            self._lib = load(self._soname)
+            self._lib = self._compiler.load(self._soname)
             self._lib.name = self._soname
 
         if self._cfunction is None:
@@ -506,6 +542,10 @@ class Operator(Callable):
             gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
             perf("* %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
                  (name, v.oi, v.time, v.gflopss, gpointss))
+
+        perf("* %s configuration:  %s " %
+             (self.name, self._state['optimizations']))
+
         return summary
 
     @cached_property
@@ -544,7 +584,6 @@ class Operator(Callable):
     def __getstate__(self):
         if self._lib:
             state = dict(self.__dict__)
-            state.pop('_soname')
             # The compiled shared-object will be pickled; upon unpickling, it
             # will be restored into a potentially different temporary directory,
             # so the entire process during which the shared-object is loaded and
@@ -584,7 +623,9 @@ class Operator(Callable):
                 warning("The pickled and unpickled Operators have different .sonames; "
                         "this might be a bug, or simply a harmless difference in "
                         "`configuration`. You may check they produce the same code.")
-            save(self._soname, binary, self._compiler)
+            self._compiler.save(self._soname, binary)
+            self._lib = self._compiler.load(self._soname)
+            self._lib.name = self._soname
 
 
 # Misc helpers

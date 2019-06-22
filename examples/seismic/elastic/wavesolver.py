@@ -10,13 +10,20 @@ class ElasticWaveSolver(object):
     and encapsulates the time and space discretization for a given problem
     setup.
 
-    :param model: Physical model with domain parameters
-    :param source: Sparse point symbol providing the injected wave
-    :param receiver: Sparse point symbol describing an array of receivers
-    :param space_order: Order of the spatial stencil discretisation (default: 4)
+    Parameters
+    ----------
+    model : Model
+        Physical model with domain parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Order of the spatial stencil discretisation. Defaults to 4.
 
-    Note: This is an experimental staggered grid elastic modeling kernel.
-    Only 2D supported
+    Notes
+    -----
+    This is an experimental staggered grid elastic modeling kernel.
+    Only 2D supported.
     """
     def __init__(self, model, geometry, space_order=4, **kwargs):
         self.model = model
@@ -40,21 +47,35 @@ class ElasticWaveSolver(object):
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
 
-        :param src: (Optional) Symbol with time series data for the injected source term
-        :param rec1: (Optional) Symbol to store interpolated (txx) receiver data
-        :param rec2: (Optional) Symbol to store interpolated (tzz) receiver data
-        :param vx: (Optional) Symbol to store the computed horizontal particle velocity
-        :param vz: (Optional) Symbol to store the computed vertical particle velocity
-        :param txx: (Optional) Symbol to store the computed horizontal stress
-        :param tzz: (Optional) Symbol to store the computed vertical stress
-        :param txz: (Optional) Symbol to store the computed diagonal stresss
-        :param vp: (Optional) Symbol for the time-constant P-wave velocity (km/s)
-        :param vs: (Optional) Symbol for the time-constant S-wave velocity (km/s)
-        :param vs: (Optional) Symbol for the time-constant density (rho=1 for water)
-        :param save: Option to store the entire (unrolled) wavefield
+        Parameters
+        ----------
+        geometry : AcquisitionGeometry
+            Geometry object that contains the source (src : SparseTimeFunction) and
+            receivers (rec1(txx) : SparseTimeFunction, rec2(tzz) : SparseTimeFunction)
+            and their position.
+        vx : TimeFunction, optional
+            The computed horizontal particle velocity.
+        vz : TimeFunction, optional
+            The computed vertical particle velocity.
+        txx : TimeFunction, optional
+            The computed horizontal stress.
+        tzz : TimeFunction, optional
+            The computed vertical stress.
+        txz : TimeFunction, optional
+            The computed diagonal stresss.
+        vp : Function, optional
+            The time-constant P-wave velocity (km/s).
+        vs : Function, optional
+            The time-constant S-wave velocity (km/s).
+        rho : Function, optional
+            The time-constant density (rho=1 for water).
+        save : int or Buffer, optional
+            Option to store the entire (unrolled) wavefield.
 
-        :returns: Rec1 (txx), Rec2 (tzz), particle velocities vx and vz, stress txx,
-                  tzz and txz and performance summary
+        Returns
+        -------
+        Rec1 (txx), Rec2 (tzz), particle velocities vx and vz, stress txx,
+        tzz and txz and performance summary.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src

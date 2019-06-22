@@ -59,13 +59,13 @@ class Eq(sympy.Eq):
 
     is_Increment = False
 
-    def __new__(cls, lhs, rhs=0, implicit_dims=None, subdomain=None, coefficients=None,
+    def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, implicit_dims=None,
                 **kwargs):
         kwargs['evaluate'] = False
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
-        obj._implicit_dims = as_tuple(implicit_dims)
         obj._subdomain = subdomain
         obj._substitutions = coefficients
+        obj._implicit_dims = as_tuple(implicit_dims)
         if obj._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
@@ -112,9 +112,8 @@ class Eq(sympy.Eq):
             TypeError('Failed to retrieve symbolic functions')
 
     def xreplace(self, rules):
-        """"""
         return self.func(self.lhs.xreplace(rules), rhs=self.rhs.xreplace(rules),
-                         implicit_dims=self._implicit_dims, subdomain=self._subdomain)
+                         subdomain=self._subdomain, implicit_dims=self._implicit_dims)
 
     def __str__(self):
         return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)

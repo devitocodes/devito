@@ -126,26 +126,30 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     >>> first_derivative(f*g, dim=x, matvec=transpose)
     f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
     """
-
     diff = dim.spacing
     side = side.adjoint(matvec)
     order = fd_order or expr.space_order
 
-    deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
     ind = generate_indices(expr, dim, diff, order, side=side)[0]
 
-    # Finite difference weights from Taylor approximation with this positions
+    # Finite difference weights from Taylor approximation with these positions
     if symbolic:
         c = symbolic_weights(expr, 1, ind, dim)
     else:
         c = finite_diff_weights(1, ind, dim)[-1][-1]
-    all_dims = tuple(set((dim,) + tuple([i for i in expr.indices if i.root == dim])))
+
     # Loop through positions
-    for i in range(0, len(ind)):
+    deriv = 0
+    all_dims = tuple(set((dim,) + tuple([i for i in expr.indices if i.root == dim])))
+    for i in range(len(ind)):
         subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
         deriv += expr.subs(subs) * c[i]
-    return (matvec.val*deriv).evalf(_PRECISION)
+
+    # Evaluate up to _PRECISION digits
+    deriv = (matvec.val*deriv).evalf(_PRECISION)
+
+    return deriv
 
 
 @check_input
@@ -270,24 +274,28 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
     expr-like
         ``deriv-order`` derivative of ``expr``.
     """
-
     diff = dim.spacing
 
+    # Stencil positions
     indices, x0 = generate_indices(expr, dim, diff, fd_order, stagger=stagger)
 
+    # Finite difference weights from Taylor approximation with these positions
     if symbolic:
         c = symbolic_weights(expr, deriv_order, indices, x0)
     else:
         c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
+    # Loop through positions
     deriv = 0
-    all_dims = tuple(set((dim, ) +
-                     tuple([i for i in expr.indices if i.root == dim])))
-    for i in range(0, len(indices)):
+    all_dims = tuple(set((dim,) + tuple(i for i in expr.indices if i.root == dim)))
+    for i in range(len(indices)):
         subs = dict((d, indices[i].subs({dim: d})) for d in all_dims)
         deriv += expr.subs(subs) * c[i]
 
-    return deriv.evalf(_PRECISION)
+    # Evaluate up to _PRECISION digits
+    deriv = deriv.evalf(_PRECISION)
+
+    return deriv
 
 
 def generate_fd_shortcuts(function):
@@ -363,7 +371,7 @@ def generate_fd_shortcuts(function):
 
 def symbolic_weights(function, deriv_order, indices, dim):
     return [function._coeff_symbol(indices[j], deriv_order, function, dim)
-            for j in range(0, len(indices))]
+            for j in range(len(indices))]
 
 
 def generate_indices(func, dim, diff, order, stagger=None, side=None):

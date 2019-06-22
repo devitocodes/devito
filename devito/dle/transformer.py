@@ -3,8 +3,7 @@ from collections import OrderedDict
 from devito.archinfo import Platform, Cpu64
 from devito.ir.iet import Node
 from devito.dle.rewriters import CPU64Rewriter, CustomRewriter, State
-from devito.exceptions import DLEException
-from devito.logger import dle_warning
+from devito.logger import dle as log, dle_warning as warning
 from devito.parameters import configuration
 
 __all__ = ['dle_registry', 'modes', 'transform']
@@ -83,7 +82,7 @@ def transform(iet, mode='advanced', options=None):
     # Parse input options (potentially replacing defaults)
     for k, v in (options or {}).items():
         if k not in params:
-            dle_warning("Illegal DLE option '%s'" % k)
+            warning("Illegal DLE option '%s'" % k)
         else:
             params[k] = v
 
@@ -94,21 +93,40 @@ def transform(iet, mode='advanced', options=None):
     # What is the target platform for which the optimizations are applied?
     platform = configuration['platform']
 
-    # Run the DLE
+    # No-op case
     if mode is None or mode == 'noop':
-        # No-op case
         return iet, State(iet)
+
+    # Fetch the requested rewriter
     try:
-        # Preset rewriter (typical use case)
         rewriter = modes.fetch(platform, mode)(params, platform)
-        return rewriter.run(iet)
     except KeyError:
-        pass
-    try:
         # Fallback: custom rewriter -- `mode` is a specific sequence of
         # transformation passes
         rewriter = CustomRewriter(mode, params, platform)
-        return rewriter.run(iet)
-    except DLEException:
-        dle_warning("Unknown transformer mode(s) %s" % mode)
-        return iet, State(iet)
+
+    # Trigger the DLE passes
+    state = rewriter.run(iet)
+
+    # Print out the profiling data
+    print_profiling(state)
+
+    return state.root, state
+
+
+def print_profiling(state):
+    """
+    Print a summary of the applied transformations.
+    """
+    timings = state.timings
+
+    if configuration['profiling'] in ['basic', 'advanced']:
+        row = "%s (elapsed: %.2f s)"
+        out = "\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k[1:])), v)
+                             for k, v in timings.items())
+        elapsed = sum(timings.values())
+        log("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
+    else:
+        # Shorter summary
+        log("passes: %s (elapsed %.2f s)" % (",".join(i[1:] for i in timings),
+                                             sum(timings.values())))

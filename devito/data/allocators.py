@@ -8,7 +8,6 @@ import numpy as np
 import ctypes
 from ctypes.util import find_library
 
-from devito.archinfo import KNL
 from devito.logger import logger
 from devito.parameters import configuration
 from devito.tools import dtype_to_ctype
@@ -79,7 +78,13 @@ class MemoryAllocator(object):
         # cast to 1D array of the specified size
         ctype_1d = ctype * size
         buf = ctypes.cast(c_pointer, ctypes.POINTER(ctype_1d)).contents
-        pointer = np.frombuffer(buf, dtype=dtype).reshape(shape)
+        pointer = np.frombuffer(buf, dtype=dtype)
+        # pointer.reshape should not be used here because it may introduce a copy
+        # From https://docs.scipy.org/doc/numpy/reference/generated/numpy.reshape.html:
+        # It is not always possible to change the shape of an array without copying the
+        # data. If you want an error to be raised when the data is copied, you should
+        # assign the new shape to the shape attribute of the array:
+        pointer.shape = shape
 
         return (pointer, memfree_args)
 
@@ -310,7 +315,7 @@ ALLOC_NUMA_LOCAL = NumaAllocator('local')
 
 
 def infer_knl_mode():
-    path = os.path.join('sys', 'bus', 'node', 'devices', 'node1')
+    path = os.path.join('/sys', 'bus', 'node', 'devices', 'node1')
     return 'flat' if os.path.exists(path) else 'cache'
 
 
@@ -343,7 +348,7 @@ def default_allocator():
     if configuration['develop-mode']:
         return ALLOC_GUARD
     elif NumaAllocator.available():
-        if configuration['platform'] is KNL and infer_knl_mode() == 'flat':
+        if configuration['platform'].name == 'knl' and infer_knl_mode() == 'flat':
             return ALLOC_KNL_MCDRAM
         else:
             return ALLOC_NUMA_LOCAL

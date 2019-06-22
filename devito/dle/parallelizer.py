@@ -10,7 +10,7 @@ from devito.ir import (Call, Conditional, Block, Expression, List, Prodder,
                        IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq
 from devito.parameters import configuration
-from devito.tools import is_integer
+from devito.tools import is_integer, prod
 from devito.types import Constant, Symbol
 
 
@@ -69,14 +69,22 @@ class Ompizer(object):
     than this threshold.
     """
 
-    COLLAPSE = 32
+    COLLAPSE_NCORES = 32
     """
     Use a collapse clause if the number of available physical cores is greater
     than this threshold.
     """
 
+    COLLAPSE_WORK = 100
+    """
+    Use a collapse clause if the trip count of the collapsable Iterations
+    exceeds this threshold. Note however the trip count is rarely known at
+    compilation time (e.g., this may happen when DefaultDimensions are used).
+    """
+
     lang = {
-        'for': lambda i: c.Pragma('omp for collapse(%d) schedule(static,1)' % i),
+        'for-static': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
+        'for-static-1': lambda i: c.Pragma('omp for collapse(%d) schedule(static,1)' % i),
         'par-for': lambda i, j: c.Pragma('omp parallel for collapse(%d) '
                                          'schedule(static,1) num_threads(%d)' % (i, j)),
         'simd-for': c.Pragma('omp simd'),
@@ -116,14 +124,24 @@ class Ompizer(object):
         partree = Transformer(mapper).visit(partree)
         return partree
 
-    def _make_partree(self, candidates, omp_pragma):
+    def _make_partree(self, candidates, omp_pragma=None):
         """Parallelize `root` attaching a suitable OpenMP pragma."""
         assert candidates
         root = candidates[0]
 
+        # Pick up an omp-pragma template
+        # Caller-provided -> stick to it
+        # Affine -> ... schedule(static,1) ...
+        # Non-affine -> ... schedule(static) ...
+        if omp_pragma is None:
+            if all(i.is_Affine for i in candidates):
+                omp_pragma = self.lang['for-static-1']
+            else:
+                omp_pragma = self.lang['for-static']
+
         # Get the collapsable Iterations
         collapsable = []
-        if ncores() >= Ompizer.COLLAPSE and IsPerfectIteration().visit(root):
+        if ncores() >= Ompizer.COLLAPSE_NCORES and IsPerfectIteration().visit(root):
             for n, i in enumerate(candidates[1:], 1):
                 # The OpenMP specification forbids collapsed loops to use iteration
                 # variables in initializer expressions. E.g., the following is forbidden:
@@ -140,6 +158,14 @@ class Ompizer(object):
                 # Also, we do not want to collapse vectorizable Iterations
                 if i.is_Vectorizable:
                     break
+
+                # Would there be enough work per parallel iteration?
+                try:
+                    work = prod([int(j.dim.symbolic_size) for j in candidates[n+1:]])
+                    if work < Ompizer.COLLAPSE_WORK:
+                        break
+                except TypeError:
+                    pass
 
                 collapsable.append(i)
 
@@ -224,7 +250,7 @@ class Ompizer(object):
                 continue
 
             # Outer parallelism
-            root, partree, collapsed = self._make_partree(candidates, self.lang['for'])
+            root, partree, collapsed = self._make_partree(candidates)
 
             # Nested parallelism
             partree = self._make_nested_partree(partree)
