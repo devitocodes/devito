@@ -348,8 +348,6 @@ class AdvancedRewriter(BasicRewriter):
 
 class AggressiveRewriter(AdvancedRewriter):
 
-
-
     def _pipeline(self, state):
         self._extract_sum_of_products(state)
         self._extract_time_invariants(state, with_cse=False)
@@ -394,7 +392,6 @@ class AggressiveRewriter(AdvancedRewriter):
 
         skew_dim, mapper, intervals = None, {}, []
 
-
         for i in cluster.ispace.intervals:
             if i.dim.is_Time:
                 intervals.append(Interval(i.dim, 0, 0))
@@ -402,7 +399,7 @@ class AggressiveRewriter(AdvancedRewriter):
             else:
                 mapper[i.dim] = i.dim + skew_factor*skew_dim
                 intervals.append(Interval(i.dim, -skew_factor*skew_dim,
-                                                -skew_factor*skew_dim))
+                                          -skew_factor*skew_dim))
 
         # TODO Can I avoid 2 rebuilds?
         processed = xreplace_indices(cluster.exprs, mapper)
