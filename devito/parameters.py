@@ -121,7 +121,6 @@ env_vars_mapper = {
     'DEVITO_LOGGING': 'log-level',
     'DEVITO_FIRST_TOUCH': 'first-touch',
     'DEVITO_DEBUG_COMPILER': 'debug-compiler',
-    'DEVITO_SKEW_FACTOR': 'skew_factor',
     'DEVITO_JIT_BACKDOOR': 'jit-backdoor',
     'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns'
 }

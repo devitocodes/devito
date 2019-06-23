@@ -348,6 +348,8 @@ class AdvancedRewriter(BasicRewriter):
 
 class AggressiveRewriter(AdvancedRewriter):
 
+
+
     def _pipeline(self, state):
         self._extract_sum_of_products(state)
         self._extract_time_invariants(state, with_cse=False)
@@ -377,22 +379,37 @@ class AggressiveRewriter(AdvancedRewriter):
         """
         Skew the accesses along the time Dimension.
         """
-        skew_factor = configuration['skew_factor']
+
+        MAX_SKEW_FACTOR = 8
+        """
+        The maximum skew factor applied for the skewing pass.
+        """
+
+        skew_factor = 2  # TOFIX
+
+        intervals, sub_iterators, directions = cluster.ispace.args
+
+        if skew_factor not in range(0, MAX_SKEW_FACTOR):
+            raise ValueError("skew_factor must be less than %d" % MAX_SKEW_FACTOR)
+
         skew_dim, mapper, intervals = None, {}, []
+
 
         for i in cluster.ispace.intervals:
             if i.dim.is_Time:
-                intervals.append(IntervalGroup([Interval(i.dim, 0, 0)]))
+                intervals.append(Interval(i.dim, 0, 0))
                 skew_dim = i.dim
             else:
                 mapper[i.dim] = i.dim + skew_factor*skew_dim
-                intervals.append(IntervalGroup([Interval(i.dim, -skew_factor*skew_dim,
-                                                -skew_factor*skew_dim)]))
+                intervals.append(Interval(i.dim, -skew_factor*skew_dim,
+                                                -skew_factor*skew_dim))
 
-        cluster._ispace._intervals = IntervalGroup.generate('union', *intervals)
-
+        # TODO Can I avoid 2 rebuilds?
         processed = xreplace_indices(cluster.exprs, mapper)
-        return cluster.rebuild(processed)
+        cluster.rebuild(processed)
+
+        processed2 = xreplace_indices(cluster.exprs, IntervalGroup(intervals))
+        return cluster.rebuild(processed2)
 
 
 class CustomRewriter(AggressiveRewriter):
