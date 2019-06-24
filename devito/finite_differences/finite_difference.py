@@ -51,18 +51,24 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     >>> first_derivative(f*g, dim=x)
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
 
-    This is also more easily obtainable via:
+    Semantically, this is equivalent to
+
+    >>> (f*g).dx
+    Derivative(f(x, y)*g(x, y), x)
+
+    The only difference is that in the latter case derivatives remain unevaluated.
+    The expanded form is obtained via ``evaluate``
 
     >>> (f*g).dx.evaluate
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
 
-    The adjoint mode
+    For the adjoint mode of the first derivative, pass ``matvec=transpose``
 
     >>> g = Function(name='g', grid=grid)
     >>> first_derivative(f*g, dim=x, matvec=transpose)
     f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
 
-    This is also accessible via the .T shortcut of the first derivative
+    This is also accessible via the .T shortcut
 
     >>> (f*g).dx.T.evaluate
     f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
@@ -128,7 +134,13 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
 
-    This is also more easily obtainable via:
+    Semantically, this is equivalent to
+
+    >>> (f*g).dx2
+    Derivative(f(x, y)*g(x, y), (x, 2))
+
+    The only difference is that in the latter case derivatives remain unevaluated.
+    The expanded form is obtained via ``evaluate``
 
     >>> (f*g).dx2.evaluate
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
@@ -176,7 +188,13 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
  0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
  0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
 
-    This is also more easily obtainable via:
+    Semantically, this is equivalent to
+
+    >>> (f*g).dxdy
+    Derivative(f(x, y)*g(x, y), x, y)
+
+    The only difference is that in the latter case derivatives remain unevaluated.
+    The expanded form is obtained via ``evaluate``
 
     >>> (f*g).dxdy.evaluate
     -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
