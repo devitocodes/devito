@@ -189,8 +189,7 @@ class TimeFunction(dense.TimeFunction, Function):
     def __indices_setup__(cls, **kwargs):
         indices = list(dense.TimeFunction.__indices_setup__(**kwargs))
         # Never use a SteppingDimension in the yask backend: it is simply
-        # unnecessary and would only complicate things when creating dummy
-        # vars
+        # unnecessary
         if indices[cls._time_position].is_Stepping:
             indices[cls._time_position] = indices[cls._time_position].root
         return tuple(indices)

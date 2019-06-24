@@ -301,19 +301,30 @@ class YaskContext(Signer):
 
         # Create 'hook' compiler solution
         yc_hook = self.make_yc_solution(name)
-        if obj.indices != self.dimensions:
-            # Note: YASK wants *at least* a var with *all* space (domain) dimensions
-            # *and* the stepping dimension. `obj`, however, may actually employ a
-            # different set of dimensions (e.g., a strict subset and/or some misc
-            # dimensions). In such a case, an extra dummy var is attached
-            # `obj` examples: u(x, d), u(x, y, z)
-            dimensions = [make_yask_ast(i, yc_hook) for i in self.dimensions]
-            yc_hook.new_var('dummy_var_full', dimensions)
-        dimensions = [make_yask_ast(i.root, yc_hook) for i in obj.indices]
-        yc_hook.new_var('dummy_var_true', dimensions)
 
-        # Create 'hook' kernel solution
+        # Tell YASK compiler about *all* space (domain) dimensions *and* the
+        # stepping dimension. This is done to ensure that all hook solutions
+        # have the same list of problem dimensions.  Note: `obj` may
+        # actually employ a different set of dimensions (e.g., a strict
+        # subset and/or some misc dimensions).
+        space_dims = [make_yask_ast(i, yc_hook) for i in self.space_dimensions]
+        yc_hook.set_domain_dims(space_dims)
+        step_dim = make_yask_ast(self.step_dimension, yc_hook)
+        yc_hook.set_step_dim(step_dim)
+
+        # Create YASK compiler variable based on dimensions of `obj`.
+        # This is done to force YASK to generate code to create vars
+        # of this type, which will be needed when creating the YASK
+        # kernel variable below.
+        dimensions = [make_yask_ast(i.root, yc_hook) for i in obj.indices]
+        yc_hook.new_var('template_var', dimensions)
+
+        # Create 'hook' kernel solution from `yc_hook`
         yk_hook = YaskKernel(name, yc_hook)
+
+        # Create YASK kernel variable for `obj`. YASK knows how to
+        # create a variable of these dimesions because of the
+        # 'dummy_var' declared above.
         var = yk_hook.new_var(obj)
 
         # Where should memory be allocated ?
