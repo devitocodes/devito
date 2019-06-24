@@ -348,6 +348,11 @@ class AdvancedRewriter(BasicRewriter):
 
 class AggressiveRewriter(AdvancedRewriter):
 
+    MAX_SKEW_FACTOR = 8
+    """
+    The maximum skew factor applied for the skewing pass.
+    """
+
     def _pipeline(self, state):
         self._extract_sum_of_products(state)
         self._extract_time_invariants(state, with_cse=False)
@@ -378,17 +383,12 @@ class AggressiveRewriter(AdvancedRewriter):
         Skew the accesses along the time Dimension.
         """
 
-        MAX_SKEW_FACTOR = 8
-        """
-        The maximum skew factor applied for the skewing pass.
-        """
+        skew_factor = 3  # TOFIX
 
-        skew_factor = 2  # TOFIX
+        if skew_factor not in range(0, self.MAX_SKEW_FACTOR):
+            raise ValueError("skew_factor must be less than %d" % self.MAX_SKEW_FACTOR)
 
-        intervals, sub_iterators, directions = cluster.ispace.args
-
-        if skew_factor not in range(0, MAX_SKEW_FACTOR):
-            raise ValueError("skew_factor must be less than %d" % MAX_SKEW_FACTOR)
+        _, sub_iterators, directions = cluster.ispace.args
 
         skew_dim, mapper, intervals = None, {}, []
 
@@ -399,14 +399,13 @@ class AggressiveRewriter(AdvancedRewriter):
             else:
                 mapper[i.dim] = i.dim + skew_factor*skew_dim
                 intervals.append(Interval(i.dim, -skew_factor*skew_dim,
-                                          -skew_factor*skew_dim))
+                                         -skew_factor*skew_dim))
 
-        # TODO Can I avoid 2 rebuilds?
+        ispace = IterationSpace(intervals, sub_iterators, directions)
+        cluster = Cluster(cluster.exprs, ispace, cluster.dspace, cluster.atomics,
+                          cluster.guards)
         processed = xreplace_indices(cluster.exprs, mapper)
-        cluster.rebuild(processed)
-
-        processed2 = xreplace_indices(cluster.exprs, IntervalGroup(intervals))
-        return cluster.rebuild(processed2)
+        return cluster.rebuild(processed)
 
 
 class CustomRewriter(AggressiveRewriter):

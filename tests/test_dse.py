@@ -54,8 +54,8 @@ def test_skew_vs_advanced(nx, ny):
     u_skew = TimeFunction(name='u_skew', grid=grid)
     u = TimeFunction(name='u', grid=grid)
 
-    eq_skew = Eq(u_skew.forward, u_skew.dx + u_skew.dy + u_skew.dy.dy)
-    eq = Eq(u.forward, u.dx + u.dy + u.dy.dy)
+    eq_skew = Eq(u_skew.forward, 1 + u_skew.dx + u_skew.dy)
+    eq = Eq(u.forward, 1 + u.dx + u.dy)
     op_skew = Operator(eq_skew, dse='skewing', dle='advanced')
     op = Operator(eq, dse=None, dle='advanced')
     op_skew.apply(time=timesteps)
