@@ -192,11 +192,11 @@ class TestOperatorSimple(object):
     def test_irregular_write(self):
         """
         Compute a simple stencil S w/o offloading it to YASK because of the presence
-        of indirect write accesses (e.g. A[B[i]] = ...); YASK grid functions are however
+        of indirect write accesses (e.g. A[B[i]] = ...); YASK var functions are however
         used in the generated code to access the data at the right location. This
         test checks that the numerical output is correct after this transformation.
 
-        Initially, the input array (a YASK grid, under the hood), at t=0 is (2D view):
+        Initially, the input array (a YASK var, under the hood), at t=0 is (2D view):
 
             0 1 2 3
             0 1 2 3
@@ -249,7 +249,7 @@ class TestOperatorSimple(object):
         Check that all vector temporaries appearing in a offloaded stencil
         equation are: ::
 
-            * mapped to a YASK grid, directly in Python-land,
+            * mapped to a YASK var, directly in Python-land,
             * so no memory needs to be allocated in C-land, and
             * passed down to the generated code, and
             * re-initializaed to 0. at each operator application
@@ -263,10 +263,10 @@ class TestOperatorSimple(object):
         assert 'posix_memalign' not in str(op)
         assert 'run_solution' in str(op)
         # No data has been allocated for the temporaries yet
-        assert list(op.yk_solns.values())[0].grids['r1'].is_storage_allocated() is False
+        assert list(op.yk_solns.values())[0].vars['r1'].is_storage_allocated() is False
         op.apply(yu4D=u, yv3D=v, time=0)
         # Temporary data has already been released after execution
-        assert list(op.yk_solns.values())[0].grids['r1'].is_storage_allocated() is False
+        assert list(op.yk_solns.values())[0].vars['r1'].is_storage_allocated() is False
         assert np.all(v.data == 0.)
         assert np.all(u.data[1] == 5.)
 
@@ -282,7 +282,7 @@ class TestOperatorSimple(object):
         op = Operator([Eq(u.forward, u + c), Eq(p[0, 0], 1. + c)])
         assert 'run_solution' in str(op)
         op.apply(yu4D=u, c=c, time=9)
-        # Check YASK did its job and could read constant grids w/o problems
+        # Check YASK did its job and could read constant vars w/o problems
         assert np.all(u.data[0] == 20.)
         # Check the Constant could be read correctly even in Devito-land, i.e.,
         # outside of run_solution

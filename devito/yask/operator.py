@@ -13,11 +13,11 @@ from devito.tools import Signer, filter_ordered, flatten
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
-from devito.yask.utils import (Offloaded, make_grid_accesses, make_sharedptr_funcall,
+from devito.yask.utils import (Offloaded, make_var_accesses, make_sharedptr_funcall,
                                namespace)
 from devito.yask.wrappers import contexts
 from devito.yask.transformer import yaskit
-from devito.yask.types import YaskGridObject, YaskSolnObject
+from devito.yask.types import YaskVarObject, YaskSolnObject
 
 __all__ = ['Operator']
 
@@ -46,7 +46,7 @@ class OperatorYASK(Operator):
 
         expressions = super(OperatorYASK, self)._specialize_exprs(expressions)
 
-        # No matter whether offloading will occur or not, all YASK grids accept
+        # No matter whether offloading will occur or not, all YASK vars accept
         # negative indices when using the get/set_element_* methods (up to the
         # padding extent), so the OOB-relative data space should be adjusted
         return [LoweredEq(e,
@@ -74,8 +74,8 @@ class OperatorYASK(Operator):
             yc_soln = context.make_yc_solution(name)
 
             try:
-                # Generate YASK grids and populate `yc_soln` with equations
-                local_grids = yaskit(trees, yc_soln)
+                # Generate YASK vars and populate `yc_soln` with equations
+                local_vars = yaskit(trees, yc_soln)
 
                 # Build the new IET nodes
                 yk_soln_obj = YaskSolnObject(namespace['code-soln-name'](n))
@@ -89,12 +89,12 @@ class OperatorYASK(Operator):
                 self._func_table[namespace['code-soln-run']] = MetaCall(None, False)
 
                 # JIT-compile the newly-created YASK kernel
-                yk_soln = context.make_yk_solution(name, yc_soln, local_grids)
+                yk_soln = context.make_yk_solution(name, yc_soln, local_vars)
                 self.yk_solns[(dimensions, yk_soln_obj)] = yk_soln
 
                 # Print some useful information about the newly constructed solution
-                log("Solution '%s' contains %d grid(s) and %d equation(s)." %
-                    (yc_soln.get_name(), yc_soln.get_num_grids(),
+                log("Solution '%s' contains %d var(s) and %d equation(s)." %
+                    (yc_soln.get_name(), yc_soln.get_num_vars(),
                      yc_soln.get_num_equations()))
             except NotImplementedError as e:
                 log("Unable to offload a candidate tree. Reason: [%s]" % str(e))
@@ -106,10 +106,10 @@ class OperatorYASK(Operator):
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences
         # in storage layout employed by Devito and YASK
-        yk_grid_objs = {i.name: YaskGridObject(i.name) for i in self._input
+        yk_var_objs = {i.name: YaskVarObject(i.name) for i in self._input
                         if i.from_YASK}
-        yk_grid_objs.update({i: YaskGridObject(i) for i in self._local_grids})
-        iet = make_grid_accesses(iet, yk_grid_objs)
+        yk_var_objs.update({i: YaskVarObject(i) for i in self._local_vars})
+        iet = make_var_accesses(iet, yk_var_objs)
 
         # Finally optimize all non-yaskized loops
         iet = super(OperatorYASK, self)._specialize_iet(iet, **kwargs)
@@ -117,27 +117,27 @@ class OperatorYASK(Operator):
         return iet
 
     @property
-    def _local_grids(self):
+    def _local_vars(self):
         ret = {}
         for i in self.yk_solns.values():
-            ret.update(i.local_grids)
+            ret.update(i.local_vars)
         return ret
 
     def arguments(self, **kwargs):
         args = {}
         # Add in solution pointers
         args.update({i.name: v.rawpointer for (_, i), v in self.yk_solns.items()})
-        # Add in local grids pointers
-        for k, v in self._local_grids.items():
-            args[namespace['code-grid-name'](k)] = ctypes.cast(int(v),
-                                                               namespace['type-grid'])
+        # Add in local vars pointers
+        for k, v in self._local_vars.items():
+            args[namespace['code-var-name'](k)] = ctypes.cast(int(v),
+                                                               namespace['type-var'])
         return super(OperatorYASK, self).arguments(backend=args, **kwargs)
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
         args = self.arguments(**kwargs)
 
-        # Map default Functions to runtime Functions; will be used for "grid sharing"
+        # Map default Functions to runtime Functions; will be used for "var sharing"
         toshare = {}
         for i in self.input:
             v = kwargs.get(i.name, i)
@@ -174,7 +174,7 @@ class OperatorYASK(Operator):
                 pysofile = f.read()
             state['yk_solns'].append((dimensions, yk_soln_obj, yk_soln.name,
                                       yk_soln.soname, libfile, pyfile,
-                                      pysofile, list(yk_soln.local_grids)))
+                                      pysofile, list(yk_soln.local_vars)))
         return state
 
     def __setstate__(self, state):
@@ -183,7 +183,7 @@ class OperatorYASK(Operator):
         # Restore the YASK solutions (see __getstate__ for more info)
         self.yk_solns = OrderedDict()
         for (dimensions, yk_soln_obj, name, soname,
-             libfile, pyfile, pysofile, local_grids) in yk_solns:
+             libfile, pyfile, pysofile, local_vars) in yk_solns:
             path = Path(namespace['yask-lib'], 'lib%s.so' % soname)
             if not path.is_file():
                 with open(path, 'wb') as f:
@@ -199,6 +199,6 @@ class OperatorYASK(Operator):
             # Finally reinstantiate the YASK solution -- no code generation or JIT
             # will happen at this point, as all necessary files have been restored
             context = contexts.fetch(dimensions, self._dtype)
-            local_grids = [i for i in self.parameters if i.name in local_grids]
-            yk_soln = context.make_yk_solution(name, None, local_grids)
+            local_vars = [i for i in self.parameters if i.name in local_vars]
+            yk_soln = context.make_yk_solution(name, None, local_vars)
             self.yk_solns[(dimensions, yk_soln_obj)] = yk_soln

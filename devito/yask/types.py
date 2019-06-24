@@ -18,7 +18,7 @@ from devito.yask.utils import namespace
 from devito.yask.wrappers import contexts
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'Grid', 'CacheManager',
-           'YaskGridObject', 'YaskSolnObject']
+           'YaskVarObject', 'YaskSolnObject']
 
 
 class Constant(constant.Constant):
@@ -41,7 +41,7 @@ class Constant(constant.Constant):
         args = super(Constant, self)._arg_defaults(alias=alias)
 
         key = alias or self
-        args[namespace['code-grid-name'](key.name)] = None
+        args[namespace['code-var-name'](key.name)] = None
 
         return args
 
@@ -49,7 +49,7 @@ class Constant(constant.Constant):
         values = super(Constant, self)._arg_values(**kwargs)
 
         # Necessary when there's a scalar (i.e., non-Constant) override
-        values[namespace['code-grid-name'](self.name)] = None
+        values[namespace['code-var-name'](self.name)] = None
 
         return values
 
@@ -72,7 +72,7 @@ class Function(dense.Function, Signer):
         return newobj
 
     def _allocate_memory(func):
-        """Allocate memory in terms of YASK grids."""
+        """Allocate memory in terms of YASK vars."""
         def wrapper(self):
             if self._data is None:
                 log("Allocating memory for %s%s" % (self.name, self.shape_allocated))
@@ -80,23 +80,23 @@ class Function(dense.Function, Signer):
                 # Fetch the appropriate context
                 context = contexts.fetch(self.dimensions, self.dtype)
 
-                # Create a YASK grid; this allocates memory
-                grid = context.make_grid(self)
+                # Create a YASK var; this allocates memory
+                var = context.make_var(self)
 
                 # `self._padding` must be updated as (from the YASK docs):
                 # "The value may be slightly larger [...] due to rounding"
                 padding = []
                 for i in self.dimensions:
                     if i.is_Space:
-                        padding.append((grid.get_left_extra_pad_size(i.name),
-                                        grid.get_right_extra_pad_size(i.name)))
+                        padding.append((var.get_left_extra_pad_size(i.name),
+                                        var.get_right_extra_pad_size(i.name)))
                     else:
                         # time and misc dimensions
                         padding.append((0, 0))
                 self._padding = tuple(padding)
                 del self.shape_allocated  # Invalidate cached_property
 
-                self._data = Data(grid, self.shape_allocated, self.indices, self.dtype)
+                self._data = Data(var, self.shape_allocated, self.indices, self.dtype)
                 self._data.reset()
             return func(self)
         return wrapper
@@ -108,7 +108,7 @@ class Function(dense.Function, Signer):
     @property
     @_allocate_memory
     def _data_buffer(self):
-        num_elements = self._data.grid.get_num_storage_elements()
+        num_elements = self._data.var.get_num_storage_elements()
         shape = self.shape_allocated
         ctype_1d = dtype_to_ctype(self.dtype) * reduce(mul, shape)
 
@@ -117,7 +117,7 @@ class Function(dense.Function, Signer):
                     num_elements, str(shape))
 
         buf = ctypes.cast(
-            int(self._data.grid.get_raw_storage_buffer()),
+            int(self._data.var.get_raw_storage_buffer()),
             ctypes.POINTER(ctype_1d)).contents
 
         return np.frombuffer(buf, dtype=self.dtype).reshape(shape)
@@ -155,25 +155,25 @@ class Function(dense.Function, Signer):
         -----
         Alias to ``self.data``.
         """
-        return Data(self._data.grid, self.shape, self.indices, self.dtype,
+        return Data(self._data.var, self.shape, self.indices, self.dtype,
                     offset=self._offset_domain)
 
     @cached_property
     @_allocate_memory
     def data_with_halo(self):
-        return Data(self._data.grid, self.shape_with_halo, self.indices, self.dtype,
+        return Data(self._data.var, self.shape_with_halo, self.indices, self.dtype,
                     offset=self._offset_halo.left)
 
     @cached_property
     @_allocate_memory
     def _data_allocated(self):
-        return Data(self._data.grid, self.shape_allocated, self.indices, self.dtype)
+        return Data(self._data.var, self.shape_allocated, self.indices, self.dtype)
 
     def _arg_defaults(self, alias=None):
         args = super(Function, self)._arg_defaults(alias=alias)
 
         key = alias or self
-        args[namespace['code-grid-name'](key.name)] = self.data.rawpointer
+        args[namespace['code-var-name'](key.name)] = self.data.rawpointer
 
         return args
 
@@ -190,7 +190,7 @@ class TimeFunction(dense.TimeFunction, Function):
         indices = list(dense.TimeFunction.__indices_setup__(**kwargs))
         # Never use a SteppingDimension in the yask backend: it is simply
         # unnecessary and would only complicate things when creating dummy
-        # grids
+        # vars
         if indices[cls._time_position].is_Stepping:
             indices[cls._time_position] = indices[cls._time_position].root
         return tuple(indices)
@@ -244,23 +244,23 @@ class Grid(grid.Grid):
 
 
 basic.Basic.from_YASK = False
-basic.Basic.is_YaskGridObject = False
+basic.Basic.is_YaskVarObject = False
 basic.Array.from_YASK = True
 
 
-class YaskGridObject(basic.Object):
+class YaskVarObject(basic.Object):
 
-    is_YaskGridObject = True
+    is_YaskVarObject = True
 
-    dtype = namespace['type-grid']
+    dtype = namespace['type-var']
     value = None
 
     def __init__(self, mapped_function_name):
         self.mapped_function_name = mapped_function_name
-        self.name = namespace['code-grid-name'](mapped_function_name)
+        self.name = namespace['code-var-name'](mapped_function_name)
 
     def _arg_values(self, args=None, **kwargs):
-        # The C-pointer to a YASK grid is provided directly by Function/TimeFunction
+        # The C-pointer to a YASK var is provided directly by Function/TimeFunction
         return {}
 
     # Pickling support
