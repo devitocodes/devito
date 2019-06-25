@@ -489,8 +489,11 @@ class TestDependenceAnalysis(object):
         grid = Grid((10, 10))
         u2 = TimeFunction(name="u2", grid=grid, time_order=2)
         u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
-        exprs = [LoweredEq(indexify(Eq(u1.forward, u1 + 2.0 - u1.backward))),
-                 LoweredEq(indexify(Eq(u2.forward, u2 + 2*u2.backward - u1.dt2)))]
+
+        exprs = [Eq(u1.forward, u1 + 2.0 - u1.backward).evaluate,
+                 Eq(u2.forward, u2 + 2*u2.backward - u1.dt2).evaluate]
+        exprs = [LoweredEq(indexify(i)) for i in exprs]
+
         mapper = detect_flow_directions(exprs)
         assert mapper.get(grid.stepping_dim) == {Forward}
         assert mapper.get(grid.time_dim) == {Any, Forward}

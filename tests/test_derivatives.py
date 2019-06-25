@@ -1,11 +1,11 @@
 import numpy as np
 import pytest
-from sympy import Derivative, simplify, diff
+from sympy import simplify, diff
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, clear_cache, NODE,
                     ConditionalDimension, left, right, centered, generic_derivative)
-from devito.finite_differences import Differentiable
+from devito.finite_differences import Derivative, Differentiable
 
 _PRECISION = 9
 
@@ -38,6 +38,12 @@ class TestFD(object):
         self.shape = (20, 20, 20)
         self.grid = Grid(self.shape)
 
+    def test_diff(self):
+        """Test that expr.diff returns an object of type devito.Derivative."""
+        u = Function(name='u', grid=self.grid)
+        du = u.diff(x(self.grid))
+        assert isinstance(du, Derivative)
+
     @pytest.mark.parametrize('SymbolType, dim', [
         (Function, x), (Function, y),
         (TimeFunction, x), (TimeFunction, y), (TimeFunction, t),
@@ -63,6 +69,53 @@ class TestFD(object):
         assert(np.allclose(u_di.data, 66.6))
         assert(np.allclose(u_dii.data, 66.6))
 
+    @pytest.mark.parametrize('SymbolType, derivative, dim, expected', [
+        (Function, ['dx2'], 3, 'Derivative(u(x, y, z), (x, 2))'),
+        (Function, ['dx2dy'], 3, 'Derivative(u(x, y, z), (x, 2), y)'),
+        (Function, ['dx2dydz'], 3, 'Derivative(u(x, y, z), (x, 2), y, z)'),
+        (Function, ['dx2', 'dy'], 3, 'Derivative(Derivative(u(x, y, z), (x, 2)), y)'),
+        (Function, ['dx2dy', 'dz2'], 3,
+         'Derivative(Derivative(u(x, y, z), (x, 2), y), (z, 2))'),
+        (TimeFunction, ['dx2'], 3, 'Derivative(u(t, x, y, z), (x, 2))'),
+        (TimeFunction, ['dx2dy'], 3, 'Derivative(u(t, x, y, z), (x, 2), y)'),
+        (TimeFunction, ['dx2', 'dy'], 3,
+         'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)'),
+        (TimeFunction, ['dx', 'dy', 'dx2', 'dz', 'dydz'], 3,
+         'Derivative(Derivative(Derivative(Derivative(Derivative(u(t, x, y, z), x), y),' +
+         ' (x, 2)), z), y, z)')
+    ])
+    def test_unevaluation(self, SymbolType, derivative, dim, expected):
+        u = SymbolType(name='u', grid=self.grid, time_order=2, space_order=2)
+        expr = getattr(u, derivative[0])
+        for d in derivative[1:]:
+            expr = getattr(expr, d)
+        assert(expr.__str__() == expected)
+        # Make sure the FD evaluation executes
+        expr.evaluate
+
+    @pytest.mark.parametrize('expr,expected', [
+        ('u.dx + u.dy', 'Derivative(u, x) + Derivative(u, y)'),
+        ('u.dxdy', 'Derivative(u, x, y)'),
+        ('u.laplace',
+         'Derivative(u, (x, 2)) + Derivative(u, (y, 2)) + Derivative(u, (z, 2))'),
+        ('(u.dx + u.dy).dx', 'Derivative(Derivative(u, x) + Derivative(u, y), x)'),
+        ('((u.dx + u.dy).dx + u.dxdy).dx',
+         'Derivative(Derivative(Derivative(u, x) + Derivative(u, y), x) +' +
+         ' Derivative(u, x, y), x)'),
+        ('(u**4).dx', 'Derivative(u**4, x)'),
+        ('(u/4).dx', 'Derivative(u/4, x)'),
+        ('((u.dx + v.dy).dx * v.dx).dy.dz',
+         'Derivative(Derivative(Derivative(Derivative(u, x) + Derivative(v, y), x) *' +
+         ' Derivative(v, x), y), z)')
+    ])
+    def test_arithmetic(self, expr, expected):
+        x, y, z = self.grid.dimensions
+        u = Function(name='u', grid=self.grid, time_order=2, space_order=2)  # noqa
+        v = Function(name='v', grid=self.grid, time_order=2, space_order=2)  # noqa
+        expr = eval(expr)
+        expected = eval(expected)
+        assert expr == expected
+
     @pytest.mark.parametrize('SymbolType, derivative, dim', [
         (Function, 'dx2', 3), (Function, 'dy2', 3),
         (TimeFunction, 'dx2', 3), (TimeFunction, 'dy2', 3), (TimeFunction, 'dt', 2)
@@ -71,7 +124,7 @@ class TestFD(object):
         """Test the stencil expressions provided by devito objects"""
         u = SymbolType(name='u', grid=self.grid, time_order=2, space_order=2)
         expr = getattr(u, derivative)
-        assert(len(expr.args) == dim)
+        assert(len(expr.evaluate.args) == dim)
 
     @pytest.mark.parametrize('derivative, dim', [
         ('dx', x), ('dy', y), ('dz', z)
@@ -81,7 +134,7 @@ class TestFD(object):
         """Test first derivative expressions against native sympy"""
         dim = dim(self.grid)
         u = TimeFunction(name='u', grid=self.grid, time_order=2, space_order=order)
-        expr = getattr(u, derivative)
+        expr = getattr(u, derivative).evaluate
         # Establish native sympy derivative expression
         width = int(order / 2)
         if order == 1:
@@ -103,7 +156,7 @@ class TestFD(object):
         """
         dim = dim(self.grid)
         u = TimeFunction(name='u', grid=self.grid, time_order=2, space_order=order)
-        expr = getattr(u, derivative)
+        expr = getattr(u, derivative).evaluate
         # Establish native sympy derivative expression
         width = int(order / 2)
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
@@ -252,7 +305,7 @@ class TestFD(object):
         expr = eval(expr)
 
         assert isinstance(expr, Differentiable)
-        assert expected == str(expr)
+        assert expected == str(expr.evaluate)
 
     @pytest.mark.parametrize('so', [2, 5, 8])
     def test_all_shortcuts(self, so):
@@ -268,3 +321,37 @@ class TestFD(object):
 
         for fd in g._fd:
             assert getattr(g, fd)
+
+    @pytest.mark.parametrize('so', [2, 4, 8, 12])
+    @pytest.mark.parametrize('derivative, adjoint_name, adjoint_coeff', [
+        ('dx', 'dx', -1),
+        ('dx2', 'dx2', 1),
+        ('dxl', 'dxr', -1),
+        ('dxr', 'dxl', -1)])
+    def test_fd_adjoint(self, so, derivative, adjoint_name, adjoint_coeff):
+        clear_cache()
+        grid = Grid(shape=(50, 50, 50))
+        f = Function(name='f', grid=grid, space_order=so)
+        f_deriv = Function(name='f_deriv', grid=grid, space_order=so)
+        f.data[:, :] = np.random.rand(50, 50, 50)
+        g = Function(name='g', grid=grid, space_order=so)
+        g_deriv = Function(name='g_deriv', grid=grid, space_order=so)
+        g.data[:, :] = np.random.rand(50, 50, 50)
+
+        # Check symbolic expression are expected ones for the adjoint .T
+        deriv = getattr(f, derivative)
+        expected = adjoint_coeff * getattr(f, adjoint_name).evaluate
+        assert deriv.T.evaluate == expected
+
+        # Compute numerical derivatives and verify dot test
+        #  i.e <f.dx, g> = <f, g.dx.T>
+
+        eq_f = Eq(f_deriv, deriv)
+        eq_g = Eq(g_deriv, getattr(g, derivative).T)
+
+        op = Operator([eq_f, eq_g])
+        op()
+
+        a = np.dot(f_deriv.data.reshape(-1), g.data.reshape(-1))
+        b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
+        assert np.isclose(a, b, atol=1e-3, rtol=1e-3)

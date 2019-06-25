@@ -31,8 +31,8 @@ def test_cache_function_same_indices(FunctionType):
     u0 = FunctionType(name='u', grid=grid)
     u0.data[:] = 6.
     # Pick u(x, y) and u(x + h_x, y) from derivative
-    u1 = u0.dx.args[1].args[2]
-    u2 = u0.dx.args[0].args[1]
+    u1 = u0.dx.evaluate.args[1].args[2]
+    u2 = u0.dx.evaluate.args[0].args[1]
     assert np.allclose(u1.data, 6.)
     assert np.allclose(u2.data, 6.)
 
@@ -44,7 +44,7 @@ def test_cache_function_different_indices(FunctionType):
     u0 = FunctionType(name='u', grid=grid)
     u0.data[:] = 6.
     # Pick u[x + h, y] (different indices) from derivative
-    u = u0.dx.args[0].args[1]
+    u = u0.dx.evaluate.args[0].args[1]
     assert np.allclose(u.data, u0.data)
 
 
@@ -123,7 +123,7 @@ def test_symbol_cache_aliasing_reverse():
     # FIXME: Unreliable cache sizes
     # assert len(_SymbolCache) == 1
     # Ensure u[x + h, y] still holds valid data
-    assert np.allclose(dx.args[0].args[1].data, 6.)
+    assert np.allclose(dx.evaluate.args[0].args[1].data, 6.)
 
     del dx
     clear_cache()

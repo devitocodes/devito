@@ -68,6 +68,6 @@ class TestOPSExpression(object):
         w = TimeFunction(name='w', grid=grid_3d, space_order=2)  # noqa
 
         nfops = OPSNodeFactory()
-        result = make_ops_ast(indexify(eval(equation)), nfops)
+        result = make_ops_ast(indexify(eval(equation).evaluate), nfops)
 
         assert str(result) == expected

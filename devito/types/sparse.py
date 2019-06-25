@@ -650,7 +650,7 @@ class SparseFunction(AbstractSparseFunction):
         idx_subs, temps = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the interpolation coefficients
-        args = [expr.subs(v_sub) * b.subs(v_sub)
+        args = [expr.xreplace(v_sub) * b.xreplace(v_sub)
                 for b, v_sub in zip(self._interpolation_coeffs, idx_subs)]
 
         # Accumulate point-wise contributions into a temporary
@@ -684,7 +684,8 @@ class SparseFunction(AbstractSparseFunction):
         idx_subs, temps = self._interpolation_indices(variables, offset)
 
         # Substitute coordinate base symbols into the interpolation coefficients
-        eqns = [Inc(field.subs(vsub), expr.subs(vsub) * b, implicit_dims=self.dimensions)
+        eqns = [Inc(field.xreplace(vsub), expr.xreplace(vsub) * b,
+                    implicit_dims=self.dimensions)
                 for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
 
         return temps + eqns

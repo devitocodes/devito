@@ -130,7 +130,12 @@ class Substitutions(object):
     Now create a Devito equation and pass to it 'subs'
 
     >>> from devito import Eq
-    >>> Eq(u.dt+u.dx, coefficients=subs)
+    >>> eq = Eq(u.dt+u.dx, coefficients=subs)
+
+    When evaluated, the derivatives will use the custom coefficients. We can
+    check that by
+
+    >>> eq.evaluate
     Eq(0.1*u(t, x, y) - 0.6*u(t, x - h_x, y) + 0.6*u(t, x + h_x, y) \
 - u(t, x, y)/dt + u(t + dt, x, y)/dt, 0)
 

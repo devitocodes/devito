@@ -5,12 +5,12 @@ import sympy
 from cached_property import cached_property
 
 from devito.finite_differences import default_rules
-from devito.tools import as_tuple
+from devito.tools import Evaluable, as_tuple
 
 __all__ = ['Eq', 'Inc', 'solve']
 
 
-class Eq(sympy.Eq):
+class Eq(sympy.Eq, Evaluable):
 
     """
     An equal relation between two objects, the left-hand side and the
@@ -49,7 +49,7 @@ class Eq(sympy.Eq):
 
     >>> from sympy import sin
     >>> Eq(f, sin(f.dx)**2)
-    Eq(f(x, y), sin(f(x, y)/h_x - f(x + h_x, y)/h_x)**2)
+    Eq(f(x, y), sin(Derivative(f(x, y), x))**2)
 
     Notes
     -----
@@ -66,21 +66,29 @@ class Eq(sympy.Eq):
         obj._subdomain = subdomain
         obj._substitutions = coefficients
         obj._implicit_dims = as_tuple(implicit_dims)
-        if obj._uses_symbolic_coefficients:
-            # NOTE: As Coefficients.py is expanded we will not want
-            # all rules to be expunged during this procress.
-            rules = default_rules(obj, obj._symbolic_functions)
-            try:
-                obj = obj.xreplace({**coefficients.rules, **rules})
-            except AttributeError:
-                if bool(rules):
-                    obj = obj.xreplace(rules)
+
         return obj
 
     @property
     def subdomain(self):
         """The SubDomain in which the Eq is defined."""
         return self._subdomain
+
+    @cached_property
+    def evaluate(self):
+        eq = self.func(*self._evaluate_args(), subdomain=self.subdomain,
+                       coefficients=self.substitutions, implicit_dims=self._implicit_dims)
+        if eq._uses_symbolic_coefficients:
+            # NOTE: As Coefficients.py is expanded we will not want
+            # all rules to be expunged during this procress.
+            rules = default_rules(eq, eq._symbolic_functions)
+            try:
+                eq = eq.xreplace({**eq.substitutions.rules, **rules})
+            except AttributeError:
+                if bool(rules):
+                    eq = eq.xreplace(rules)
+
+        return eq
 
     @property
     def substitutions(self):
@@ -166,6 +174,11 @@ class Inc(Eq):
 
     is_Increment = True
 
+    def __str__(self):
+        return "Inc(%s, %s)" % (self.lhs, self.rhs)
+
+    __repr__ = __str__
+
 
 def solve(eq, target, **kwargs):
     """
@@ -188,4 +201,6 @@ def solve(eq, target, **kwargs):
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
-    return sympy.solve(eq, target, **kwargs)[0]
+    if isinstance(eq, Eq):
+        eq = eq.lhs - eq.rhs
+    return sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]

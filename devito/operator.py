@@ -158,7 +158,9 @@ class Operator(Callable):
         # Form and gather any required implicit expressions
         expressions = self._add_implicit(expressions)
 
-        # Expression lowering: indexification, substitution rules, specialization
+        # Expression lowering: evaluation of derivatives, indexification,
+        # substitution rules, specialization
+        expressions = [i.evaluate for i in expressions]
         expressions = [indexify(i) for i in expressions]
         expressions = self._apply_substitutions(expressions, subs)
         expressions = self._specialize_exprs(expressions)
