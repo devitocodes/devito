@@ -202,14 +202,25 @@ finite difference. Defaults to <code class="docutils literal notranslate"><span 
 <span class="go">-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x</span>
 </pre></div>
 </div>
-<p>This is also more easily obtainable via:</p>
+<p>Semantically, this is equivalent to</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dx</span>
+<span class="go">Derivative(f(x, y)*g(x, y), x)</span>
+</pre></div>
+</div>
+<p>The only difference is that in the latter case derivatives remain unevaluated.
+The expanded form is obtained via <code class="docutils literal notranslate"><span class="pre">evaluate</span></code></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dx</span><span class="o">.</span><span class="n">evaluate</span>
 <span class="go">-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x</span>
 </pre></div>
 </div>
-<p>The adjoint mode</p>
+<p>For the adjoint mode of the first derivative, pass <code class="docutils literal notranslate"><span class="pre">matvec=transpose</span></code></p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">g</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">first_derivative</span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">x</span><span class="p">,</span> <span class="n">matvec</span><span class="o">=</span><span class="n">transpose</span><span class="p">)</span>
+<span class="go">f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x</span>
+</pre></div>
+</div>
+<p>This is also accessible via the .T shortcut</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dx</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">evaluate</span>
 <span class="go">f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x</span>
 </pre></div>
 </div>
@@ -246,8 +257,14 @@ the resulting stencil.</p></li>
 <span class="go">-2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 + f(x + h_x, y)*g(x + h_x, y)/h_x**2</span>
 </pre></div>
 </div>
-<p>This is also more easily obtainable via:</p>
+<p>Semantically, this is equivalent to</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dx2</span>
+<span class="go">Derivative(f(x, y)*g(x, y), (x, 2))</span>
+</pre></div>
+</div>
+<p>The only difference is that in the latter case derivatives remain unevaluated.
+The expanded form is obtained via <code class="docutils literal notranslate"><span class="pre">evaluate</span></code></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dx2</span><span class="o">.</span><span class="n">evaluate</span>
 <span class="go">-2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 + f(x + h_x, y)*g(x + h_x, y)/h_x**2</span>
 </pre></div>
 </div>
@@ -285,8 +302,14 @@ the resulting stencil.</p></li>
 <span class="go">-0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x + 0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y + 0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x + 0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y</span>
 </pre></div>
 </div>
-<p>This is also more easily obtainable via:</p>
+<p>Semantically, this is equivalent to</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dxdy</span>
+<span class="go">Derivative(f(x, y)*g(x, y), x, y)</span>
+</pre></div>
+</div>
+<p>The only difference is that in the latter case derivatives remain unevaluated.
+The expanded form is obtained via <code class="docutils literal notranslate"><span class="pre">evaluate</span></code></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">dxdy</span><span class="o">.</span><span class="n">evaluate</span>
 <span class="go">-0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x + 0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y + 0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x + 0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y</span>
 </pre></div>
 </div>
@@ -294,7 +317,7 @@ the resulting stencil.</p></li>
 
 <dl class="function">
 <dt id="devito.finite_differences.finite_difference.generic_derivative">
-<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">generic_derivative</code><span class="sig-paren">(</span><em class="sig-param">expr</em>, <em class="sig-param">dim</em>, <em class="sig-param">fd_order</em>, <em class="sig-param">deriv_order</em>, <em class="sig-param">stagger=None</em>, <em class="sig-param">symbolic=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#generic_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generic_derivative" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.finite_differences.finite_difference.</code><code class="sig-name descname">generic_derivative</code><span class="sig-paren">(</span><em class="sig-param">expr, dim, fd_order, deriv_order, stagger=None, symbolic=False, matvec=direct[1]</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#generic_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generic_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>Arbitrary-order derivative of a given expression.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>

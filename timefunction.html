@@ -242,11 +242,11 @@ to take advantage of the memory hierarchy in a NUMA architecture. Refer to
 </div>
 <p>First-order derivatives through centered finite-difference approximations</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">dx</span>
-<span class="go">-f(t, x, y)/h_x + f(t, x + h_x, y)/h_x</span>
+<span class="go">Derivative(f(t, x, y), x)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">dt</span>
-<span class="go">-f(t, x, y)/dt + f(t + dt, x, y)/dt</span>
+<span class="go">Derivative(f(t, x, y), t)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">g</span><span class="o">.</span><span class="n">dt</span>
-<span class="go">-0.5*g(t - dt, x, y)/dt + 0.5*g(t + dt, x, y)/dt</span>
+<span class="go">Derivative(g(t, x, y), t)</span>
 </pre></div>
 </div>
 <p>When using the alternating buffer protocol, the size of the time dimension

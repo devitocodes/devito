@@ -313,7 +313,9 @@
         <span class="c1"># Form and gather any required implicit expressions</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_implicit</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
 
-        <span class="c1"># Expression lowering: indexification, substitution rules, specialization</span>
+        <span class="c1"># Expression lowering: evaluation of derivatives, indexification,</span>
+        <span class="c1"># substitution rules, specialization</span>
+        <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">evaluate</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">indexify</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_substitutions</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">subs</span><span class="p">)</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_specialize_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>

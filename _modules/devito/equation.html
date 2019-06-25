@@ -160,12 +160,12 @@
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="k">import</span> <span class="n">default_rules</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">Evaluable</span><span class="p">,</span> <span class="n">as_tuple</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;solve&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../equation.html#devito.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">):</span>
+<div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../equation.html#devito.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">,</span> <span class="n">Evaluable</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An equal relation between two objects, the left-hand side and the</span>
@@ -204,7 +204,7 @@
 
 <span class="sd">    &gt;&gt;&gt; from sympy import sin</span>
 <span class="sd">    &gt;&gt;&gt; Eq(f, sin(f.dx)**2)</span>
-<span class="sd">    Eq(f(x, y), sin(f(x, y)/h_x - f(x + h_x, y)/h_x)**2)</span>
+<span class="sd">    Eq(f(x, y), sin(Derivative(f(x, y), x))**2)</span>
 
 <span class="sd">    Notes</span>
 <span class="sd">    -----</span>
@@ -221,21 +221,29 @@
         <span class="n">obj</span><span class="o">.</span><span class="n">_subdomain</span> <span class="o">=</span> <span class="n">subdomain</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_substitutions</span> <span class="o">=</span> <span class="n">coefficients</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_implicit_dims</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">implicit_dims</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">_uses_symbolic_coefficients</span><span class="p">:</span>
-            <span class="c1"># NOTE: As Coefficients.py is expanded we will not want</span>
-            <span class="c1"># all rules to be expunged during this procress.</span>
-            <span class="n">rules</span> <span class="o">=</span> <span class="n">default_rules</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">_symbolic_functions</span><span class="p">)</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="o">**</span><span class="n">coefficients</span><span class="o">.</span><span class="n">rules</span><span class="p">,</span> <span class="o">**</span><span class="n">rules</span><span class="p">})</span>
-            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-                <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">rules</span><span class="p">):</span>
-                    <span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">obj</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">subdomain</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;The SubDomain in which the Eq is defined.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subdomain</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">eq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_evaluate_args</span><span class="p">(),</span> <span class="n">subdomain</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">subdomain</span><span class="p">,</span>
+                       <span class="n">coefficients</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">substitutions</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_implicit_dims</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">eq</span><span class="o">.</span><span class="n">_uses_symbolic_coefficients</span><span class="p">:</span>
+            <span class="c1"># NOTE: As Coefficients.py is expanded we will not want</span>
+            <span class="c1"># all rules to be expunged during this procress.</span>
+            <span class="n">rules</span> <span class="o">=</span> <span class="n">default_rules</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">eq</span><span class="o">.</span><span class="n">_symbolic_functions</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">eq</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="o">**</span><span class="n">eq</span><span class="o">.</span><span class="n">substitutions</span><span class="o">.</span><span class="n">rules</span><span class="p">,</span> <span class="o">**</span><span class="n">rules</span><span class="p">})</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">rules</span><span class="p">):</span>
+                    <span class="n">eq</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">eq</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">substitutions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -319,7 +327,12 @@
 <span class="sd">    programming language (e.g., ``a[i] += c``).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span></div>
+    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;Inc(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
 
 
 <div class="viewcode-block" id="solve"><a class="viewcode-back" href="../../equation.html#devito.equation.solve">[docs]</a><span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -343,7 +356,9 @@
     <span class="c1"># turnaround time</span>
     <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;rational&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Avoid float indices</span>
     <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Do not attempt premature optimisation</span>
-    <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span></div>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">Eq</span><span class="p">):</span>
+        <span class="n">eq</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">lhs</span> <span class="o">-</span> <span class="n">eq</span><span class="o">.</span><span class="n">rhs</span>
+    <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">eq</span><span class="o">.</span><span class="n">evaluate</span><span class="p">,</span> <span class="n">target</span><span class="o">.</span><span class="n">evaluate</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span></div>
 </pre></div>
 
            </div>

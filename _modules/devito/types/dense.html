@@ -1048,27 +1048,31 @@
 <span class="sd">    First-order derivatives through centered finite-difference approximations</span>
 
 <span class="sd">    &gt;&gt;&gt; f.dx</span>
-<span class="sd">    -f(x, y)/h_x + f(x + h_x, y)/h_x</span>
+<span class="sd">    Derivative(f(x, y), x)</span>
 <span class="sd">    &gt;&gt;&gt; f.dy</span>
-<span class="sd">    -f(x, y)/h_y + f(x, y + h_y)/h_y</span>
+<span class="sd">    Derivative(f(x, y), y)</span>
 <span class="sd">    &gt;&gt;&gt; g.dx</span>
-<span class="sd">    -0.5*g(x - h_x, y)/h_x + 0.5*g(x + h_x, y)/h_x</span>
+<span class="sd">    Derivative(g(x, y), x)</span>
 <span class="sd">    &gt;&gt;&gt; (f + g).dx</span>
-<span class="sd">    -(f(x, y) + g(x, y))/h_x + (f(x + h_x, y) + g(x + h_x, y))/h_x</span>
+<span class="sd">    Derivative(f(x, y) + g(x, y), x)</span>
 
 <span class="sd">    First-order derivatives through left/right finite-difference approximations</span>
 
 <span class="sd">    &gt;&gt;&gt; f.dxl</span>
+<span class="sd">    Derivative(f(x, y), x)</span>
+
+<span class="sd">    Note that the fact that it&#39;s a left-derivative isn&#39;t captured in the representation.</span>
+<span class="sd">    However, upon derivative expansion, this becomes clear</span>
+
+<span class="sd">    &gt;&gt;&gt; f.dxl.evaluate</span>
 <span class="sd">    f(x, y)/h_x - f(x - h_x, y)/h_x</span>
-<span class="sd">    &gt;&gt;&gt; g.dxl</span>
-<span class="sd">    1.5*g(x, y)/h_x + 0.5*g(x - 2*h_x, y)/h_x - 2.0*g(x - h_x, y)/h_x</span>
 <span class="sd">    &gt;&gt;&gt; f.dxr</span>
-<span class="sd">    -f(x, y)/h_x + f(x + h_x, y)/h_x</span>
+<span class="sd">    Derivative(f(x, y), x)</span>
 
 <span class="sd">    Second-order derivative through centered finite-difference approximation</span>
 
 <span class="sd">    &gt;&gt;&gt; g.dx2</span>
-<span class="sd">    -2.0*g(x, y)/h_x**2 + g(x - h_x, y)/h_x**2 + g(x + h_x, y)/h_x**2</span>
+<span class="sd">    Derivative(g(x, y), (x, 2))</span>
 
 <span class="sd">    Notes</span>
 <span class="sd">    -----</span>
@@ -1293,11 +1297,11 @@
 <span class="sd">    First-order derivatives through centered finite-difference approximations</span>
 
 <span class="sd">    &gt;&gt;&gt; f.dx</span>
-<span class="sd">    -f(t, x, y)/h_x + f(t, x + h_x, y)/h_x</span>
+<span class="sd">    Derivative(f(t, x, y), x)</span>
 <span class="sd">    &gt;&gt;&gt; f.dt</span>
-<span class="sd">    -f(t, x, y)/dt + f(t + dt, x, y)/dt</span>
+<span class="sd">    Derivative(f(t, x, y), t)</span>
 <span class="sd">    &gt;&gt;&gt; g.dt</span>
-<span class="sd">    -0.5*g(t - dt, x, y)/dt + 0.5*g(t + dt, x, y)/dt</span>
+<span class="sd">    Derivative(g(t, x, y), t)</span>
 
 <span class="sd">    When using the alternating buffer protocol, the size of the time dimension</span>
 <span class="sd">    is given by ``time_order + 1``</span>

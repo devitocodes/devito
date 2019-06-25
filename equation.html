@@ -172,7 +172,7 @@
 <dl class="class">
 <dt id="devito.equation.Eq">
 <em class="property">class </em><code class="sig-prename descclassname">devito.equation.</code><code class="sig-name descname">Eq</code><a class="reference internal" href="_modules/devito/equation.html#Eq"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.equation.Eq" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.tools.abc.Evaluable</span></code></p>
 <p>An equal relation between two objects, the left-hand side and the
 right-hand side.</p>
 <p>The left-hand side may be a Function or a SparseFunction. The right-hand
@@ -204,7 +204,7 @@ constructing an Operator.</p></li>
 <p>Any SymPy expressions may be used in the right-hand side.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">sin</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">sin</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">dx</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
-<span class="go">Eq(f(x, y), sin(f(x, y)/h_x - f(x + h_x, y)/h_x)**2)</span>
+<span class="go">Eq(f(x, y), sin(Derivative(f(x, y), x))**2)</span>
 </pre></div>
 </div>
 <p class="rubric">Notes</p>
