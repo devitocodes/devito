@@ -346,7 +346,7 @@ class AdvancedRewriter(BasicRewriter):
 
 class AggressiveRewriter(AdvancedRewriter):
 
-    MAX_SKEW_FACTOR = 8
+    DEFAULT_SKEW_FACTOR = 8
     """
     The maximum skew factor applied for the skewing pass.
     """
@@ -381,10 +381,7 @@ class AggressiveRewriter(AdvancedRewriter):
         Skew the accesses along the time Dimension.
         """
 
-        skew_factor = 3  # TOFIX
-
-        if skew_factor not in range(0, self.MAX_SKEW_FACTOR):
-            raise ValueError("skew_factor must be less than %d" % self.MAX_SKEW_FACTOR)
+        skew_factor = self.DEFAULT_SKEW_FACTOR
 
         _, sub_iterators, directions = cluster.ispace.args
 
@@ -399,11 +396,10 @@ class AggressiveRewriter(AdvancedRewriter):
                 intervals.append(Interval(i.dim, -skew_factor*skew_dim,
                                           -skew_factor*skew_dim))
 
-        ispace = IterationSpace(intervals, sub_iterators, directions)
-        cluster = Cluster(cluster.exprs, ispace, cluster.dspace, cluster.atomics,
-                          cluster.guards)
         processed = xreplace_indices(cluster.exprs, mapper)
-        return cluster.rebuild(processed)
+        ispace = IterationSpace(intervals, sub_iterators, directions)
+        cluster = Cluster(processed, ispace, cluster.dspace, cluster.guards)
+        return cluster
 
 
 class CustomRewriter(AggressiveRewriter):
