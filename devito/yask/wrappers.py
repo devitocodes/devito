@@ -344,7 +344,7 @@ class YaskContext(Signer):
                 # Note:
                 # From the YASK docs: "If the halo is set to a value larger than
                 # the padding size, the padding size will be automatically increased
-                # to accomodate it."
+                # to accommodate it."
                 var.set_left_halo_size(i.name, h.left)
                 var.set_right_halo_size(i.name, h.right)
             else:
