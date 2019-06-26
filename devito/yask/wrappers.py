@@ -102,12 +102,15 @@ class YaskKernel(object):
                 'api'
             ]
             if configuration['develop-mode']:
-                args.append('check=1')   # Activate internal YASK asserts
-                args.append('trace=1')   # Print out verbose progress msgs w/-trace knob
-                args.append('trace_mem=0')   # Print out verbose mem-access msgs
+                # Activate internal YASK asserts
+                args.append('check=1')
+                # Enable verbose progress msgs w/-trace knob
+                args.append('trace=1')
+                # Enable verbose mem-access msgs w/-trace knob
+                args.append('trace_mem=0')
             compiler.make(namespace['path'], args)
 
-            # Now we must be able to import the SWIG-generated Python module
+            # Import the SWIG-generated Python module
             invalidate_caches()
             yk = import_module(name)
 
@@ -149,9 +152,11 @@ class YaskKernel(object):
 
     def new_var(self, obj):
         """Create a new YASK var."""
-        return self.soln.new_fixed_size_var('%s_%d' % (obj.name, contexts.nvars),
-                                             [str(i.root) for i in obj.indices],
-                                             [int(i) for i in obj.shape])  # cast np.int
+        dims = [str(i.root) for i in obj.indices]
+        sizes = [int(i) for i in obj.shape]  # cast np.int
+        return self.soln.new_fixed_size_var('%s_%d' %
+                                            (obj.name, contexts.nvars),
+                                            dims, sizes)
 
     def pre_apply(self, toshare):
         """
@@ -396,9 +401,10 @@ class YaskContext(Signer):
         return ("YaskContext: %s\n"
                 "- domain: %s\n"
                 "- vars:   [%s]\n"
-                "- solns:  [%s]\n") % (self.name, str(self.space_dimensions),
-                                      ', '.join([i for i in list(self.vars)]),
-                                      ', '.join([i.name for i in self.solutions]))
+                "- solns:  [%s]\n") % (self.name,
+                                       str(self.space_dimensions),
+                                       ', '.join([i for i in list(self.vars)]),
+                                       ', '.join([i.name for i in self.solutions]))
 
 
 class ContextManager(OrderedDict):

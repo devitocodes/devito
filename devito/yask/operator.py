@@ -106,8 +106,9 @@ class OperatorYASK(Operator):
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences
         # in storage layout employed by Devito and YASK
-        yk_var_objs = {i.name: YaskVarObject(i.name) for i in self._input
-                        if i.from_YASK}
+        yk_var_objs = {i.name: YaskVarObject(i.name)
+                       for i in self._input
+                       if i.from_YASK}
         yk_var_objs.update({i: YaskVarObject(i) for i in self._local_vars})
         iet = make_var_accesses(iet, yk_var_objs)
 
@@ -130,7 +131,7 @@ class OperatorYASK(Operator):
         # Add in local vars pointers
         for k, v in self._local_vars.items():
             args[namespace['code-var-name'](k)] = ctypes.cast(int(v),
-                                                               namespace['type-var'])
+                                                              namespace['type-var'])
         return super(OperatorYASK, self).arguments(backend=args, **kwargs)
 
     def apply(self, **kwargs):
