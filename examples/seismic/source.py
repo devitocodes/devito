@@ -166,7 +166,7 @@ class PointSource(SparseTimeFunction):
             new_time_range = TimeAxis(start=start, stop=stop, step=dt)
 
         if np.isclose(dt, dt0):
-            return
+            return self
 
         nsamples, ntraces = self.data.shape
 
