@@ -67,8 +67,7 @@ class YaskKernel(object):
 
             # Write out the stencil file
             yk_codegen_file = os.path.join(yk_codegen, namespace['yask-codegen-file'])
-            yc_soln.format(configuration['platform'].isa,
-                           ofac.new_file_output(yk_codegen_file))
+            yc_soln.output_solution(ofac.new_file_output(yk_codegen_file))
 
             # JIT-compile it
             compiler = configuration.yask['compiler']
@@ -370,6 +369,9 @@ class YaskContext(Signer):
             yc_soln.set_debug_output(ofac.new_file_output(filename))
         else:
             yc_soln.set_debug_output(ofac.new_null_output())
+
+        # Set the target ISA.
+        yc_soln.set_target(configuration['platform'].isa)
 
         # Set data type size
         yc_soln.set_element_bytes(self.dtype().itemsize)
