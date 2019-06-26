@@ -893,27 +893,31 @@ class Function(DiscreteFunction, Differentiable):
     First-order derivatives through centered finite-difference approximations
 
     >>> f.dx
-    -f(x, y)/h_x + f(x + h_x, y)/h_x
+    Derivative(f(x, y), x)
     >>> f.dy
-    -f(x, y)/h_y + f(x, y + h_y)/h_y
+    Derivative(f(x, y), y)
     >>> g.dx
-    -0.5*g(x - h_x, y)/h_x + 0.5*g(x + h_x, y)/h_x
+    Derivative(g(x, y), x)
     >>> (f + g).dx
-    -(f(x, y) + g(x, y))/h_x + (f(x + h_x, y) + g(x + h_x, y))/h_x
+    Derivative(f(x, y) + g(x, y), x)
 
     First-order derivatives through left/right finite-difference approximations
 
     >>> f.dxl
+    Derivative(f(x, y), x)
+
+    Note that the fact that it's a left-derivative isn't captured in the representation.
+    However, upon derivative expansion, this becomes clear
+
+    >>> f.dxl.evaluate
     f(x, y)/h_x - f(x - h_x, y)/h_x
-    >>> g.dxl
-    1.5*g(x, y)/h_x + 0.5*g(x - 2*h_x, y)/h_x - 2.0*g(x - h_x, y)/h_x
     >>> f.dxr
-    -f(x, y)/h_x + f(x + h_x, y)/h_x
+    Derivative(f(x, y), x)
 
     Second-order derivative through centered finite-difference approximation
 
     >>> g.dx2
-    -2.0*g(x, y)/h_x**2 + g(x - h_x, y)/h_x**2 + g(x + h_x, y)/h_x**2
+    Derivative(g(x, y), (x, 2))
 
     Notes
     -----
@@ -1138,11 +1142,11 @@ class TimeFunction(Function):
     First-order derivatives through centered finite-difference approximations
 
     >>> f.dx
-    -f(t, x, y)/h_x + f(t, x + h_x, y)/h_x
+    Derivative(f(t, x, y), x)
     >>> f.dt
-    -f(t, x, y)/dt + f(t + dt, x, y)/dt
+    Derivative(f(t, x, y), t)
     >>> g.dt
-    -0.5*g(t - dt, x, y)/dt + 0.5*g(t + dt, x, y)/dt
+    Derivative(g(t, x, y), t)
 
     When using the alternating buffer protocol, the size of the time dimension
     is given by ``time_order + 1``

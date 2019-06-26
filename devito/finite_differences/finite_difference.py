@@ -1,9 +1,8 @@
-from functools import partial, wraps
+from sympy import finite_diff_weights
 
-from sympy import S, finite_diff_weights
-
-from devito.finite_differences import Differentiable
-from devito.tools import Tag
+from devito.finite_differences.tools import (form_side, symbolic_weights, left, right,
+                                             generate_indices, centered, check_input,
+                                             check_symbolic, direct, transpose)
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'left', 'right', 'centered', 'transpose',
@@ -12,69 +11,6 @@ __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
 _PRECISION = 9
-
-
-class Transpose(Tag):
-    """
-    Utility class to change the sign of a derivative. This is only needed
-    for odd order derivatives, which require a minus sign for the transpose.
-    """
-    pass
-
-
-direct = Transpose('direct', 1)
-transpose = Transpose('transpose', -1)
-
-
-class Side(Tag):
-    """
-    Class encapsulating the side of the shift for derivatives.
-    """
-
-    def adjoint(self, matvec):
-        if matvec == direct:
-            return self
-        else:
-            if self == centered:
-                return centered
-            elif self == right:
-                return left
-            elif self == left:
-                return right
-            else:
-                raise ValueError("Unsupported side value")
-
-
-left = Side('left', -1)
-right = Side('right', 1)
-centered = Side('centered', 0)
-
-
-def check_input(func):
-    @wraps(func)
-    def wrapper(expr, *args, **kwargs):
-        if expr.is_Number:
-            return S.Zero
-        elif not isinstance(expr, Differentiable):
-            raise ValueError("`%s` must be of type Differentiable (found `%s`)"
-                             % (expr, type(expr)))
-        else:
-            return func(expr, *args, **kwargs)
-    return wrapper
-
-
-def check_symbolic(func):
-    @wraps(func)
-    def wrapper(expr, *args, **kwargs):
-        if expr._uses_symbolic_coefficients:
-            expr_dict = expr.as_coefficients_dict()
-            if any(len(expr_dict) > 1 for item in expr_dict):
-                raise NotImplementedError("Applying the chain rule to functions "
-                                          "with symbolic coefficients is not currently "
-                                          "supported")
-        kwargs['symbolic'] = expr._uses_symbolic_coefficients
-        return func(expr, *args, **kwargs)
-    return wrapper
 
 
 @check_input
@@ -115,19 +51,31 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     >>> first_derivative(f*g, dim=x)
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
 
-    This is also more easily obtainable via:
+    Semantically, this is equivalent to
 
     >>> (f*g).dx
+    Derivative(f(x, y)*g(x, y), x)
+
+    The only difference is that in the latter case derivatives remain unevaluated.
+    The expanded form is obtained via ``evaluate``
+
+    >>> (f*g).dx.evaluate
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
 
-    The adjoint mode
+    For the adjoint mode of the first derivative, pass ``matvec=transpose``
 
     >>> g = Function(name='g', grid=grid)
     >>> first_derivative(f*g, dim=x, matvec=transpose)
     f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
+
+    This is also accessible via the .T shortcut
+
+    >>> (f*g).dx.T.evaluate
+    f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
     """
-    diff = dim.spacing
     side = side.adjoint(matvec)
+    diff = dim.spacing
+    adjoint_val = matvec.val
     order = fd_order or expr.space_order
 
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
@@ -147,7 +95,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
         deriv += expr.subs(subs) * c[i]
 
     # Evaluate up to _PRECISION digits
-    deriv = (matvec.val*deriv).evalf(_PRECISION)
+    deriv = (adjoint_val*deriv).evalf(_PRECISION)
 
     return deriv
 
@@ -186,9 +134,15 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
 
-    This is also more easily obtainable via:
+    Semantically, this is equivalent to
 
     >>> (f*g).dx2
+    Derivative(f(x, y)*g(x, y), (x, 2))
+
+    The only difference is that in the latter case derivatives remain unevaluated.
+    The expanded form is obtained via ``evaluate``
+
+    >>> (f*g).dx2.evaluate
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
@@ -234,14 +188,21 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
  0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
  0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
 
-    This is also more easily obtainable via:
+    Semantically, this is equivalent to
 
     >>> (f*g).dxdy
+    Derivative(f(x, y)*g(x, y), x, y)
+
+    The only difference is that in the latter case derivatives remain unevaluated.
+    The expanded form is obtained via ``evaluate``
+
+    >>> (f*g).dxdy.evaluate
     -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
  0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
  0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
  0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
     """
+
     stagger = stagger or [None]*len(dims)
     for d, fd, dim, s in zip(deriv_order, fd_order, dims, stagger):
         expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
@@ -251,7 +212,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
 
 @check_input
 @check_symbolic
-def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=False):
+def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=False,
+                       matvec=direct):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -275,6 +237,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
         ``deriv-order`` derivative of ``expr``.
     """
     diff = dim.spacing
+    adjoint_val = matvec.val**deriv_order
 
     # Stencil positions
     indices, x0 = generate_indices(expr, dim, diff, fd_order, stagger=stagger)
@@ -293,130 +256,6 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
         deriv += expr.subs(subs) * c[i]
 
     # Evaluate up to _PRECISION digits
-    deriv = deriv.evalf(_PRECISION)
+    deriv = (adjoint_val*deriv).evalf(_PRECISION)
 
     return deriv
-
-
-def generate_fd_shortcuts(function):
-    """Create all legal finite-difference derivatives for the given Function."""
-    dimensions = function.indices
-    space_fd_order = function.space_order
-    time_fd_order = function.time_order if (function.is_TimeFunction or
-                                            function.is_SparseTimeFunction) else 0
-
-    deriv_function = generic_derivative
-    c_deriv_function = cross_derivative
-
-    side = form_side(dimensions, function)
-
-    derivatives = dict()
-    done = []
-    for d in dimensions:
-        # Dimension is treated, remove from list
-        done += [d]
-        other_dims = tuple(i for i in dimensions if i not in done)
-        # Dimension name and corresponding FD order
-        dim_order = time_fd_order if d.is_Time else space_fd_order
-        name = 't' if d.is_Time else d.root.name
-        # All possible derivatives go up to the dimension FD order
-        for o in range(1, dim_order + 1):
-            deriv = partial(deriv_function, deriv_order=o, dim=d,
-                            fd_order=dim_order, stagger=side[d])
-            name_fd = 'd%s%d' % (name, o) if o > 1 else 'd%s' % name
-            desciption = 'derivative of order %d w.r.t dimension %s' % (o, d)
-
-            derivatives[name_fd] = (deriv, desciption)
-            # Cross derivatives with the other dimension
-            # Skip already done dimensions a dxdy is the same as dydx
-            for d2 in other_dims:
-                dim_order2 = time_fd_order if d2.is_Time else space_fd_order
-                name2 = 't' if d2.is_Time else d2.root.name
-                for o2 in range(1, dim_order2 + 1):
-                    deriv = partial(c_deriv_function, deriv_order=(o, o2), dims=(d, d2),
-                                    fd_order=(dim_order, dim_order2),
-                                    stagger=(side[d], side[d2]))
-                    name_fd2 = 'd%s%d' % (name, o) if o > 1 else 'd%s' % name
-                    name_fd2 += 'd%s%d' % (name2, o2) if o2 > 1 else 'd%s' % name2
-                    desciption = 'derivative of order (%d, %d) ' % (o, o2)
-                    desciption += 'w.r.t dimension (%s, %s) ' % (d, d2)
-                    derivatives[name_fd2] = (deriv, desciption)
-
-    # Add non-conventional, non-centered first-order FDs
-    for d in dimensions:
-        name = 't' if d.is_Time else d.root.name
-        if function.is_Staggered:
-            # Add centered first derivatives if staggered
-            deriv = partial(deriv_function, deriv_order=1, dim=d,
-                            fd_order=dim_order, stagger=centered)
-            name_fd = 'd%sc' % name
-            desciption = 'centered derivative staggered w.r.t dimension %s' % d
-
-            derivatives[name_fd] = (deriv, desciption)
-        else:
-            # Left
-            dim_order = time_fd_order if d.is_Time else space_fd_order
-            deriv = partial(first_derivative, fd_order=dim_order, dim=d, side=left)
-            name_fd = 'd%sl' % name
-            desciption = 'left first order derivative w.r.t dimension %s' % d
-            derivatives[name_fd] = (deriv, desciption)
-            # Right
-            deriv = partial(first_derivative, fd_order=dim_order, dim=d, side=right)
-            name_fd = 'd%sr' % name
-            desciption = 'right first order derivative w.r.t dimension %s' % d
-            derivatives[name_fd] = (deriv, desciption)
-
-    return derivatives
-
-
-def symbolic_weights(function, deriv_order, indices, dim):
-    return [function._coeff_symbol(indices[j], deriv_order, function, dim)
-            for j in range(len(indices))]
-
-
-def generate_indices(func, dim, diff, order, stagger=None, side=None):
-
-    # Check if called from first_derivative()
-    if bool(side):
-        if side == right:
-            ind = [(dim+i*diff) for i in range(-int(order/2)+1-(order % 2),
-                                               int((order+1)/2)+2-(order % 2))]
-        elif side == left:
-            ind = [(dim-i*diff) for i in range(-int(order/2)+1-(order % 2),
-                                               int((order+1)/2)+2-(order % 2))]
-        else:
-            ind = [(dim+i*diff) for i in range(-int(order/2),
-                                               int((order+1)/2)+1)]
-        x0 = None
-    else:
-        if func.is_Staggered:
-            if stagger == left:
-                off = -.5
-            elif stagger == right:
-                off = .5
-            else:
-                off = 0
-            ind = list(set([(dim + int(i+.5+off) * dim.spacing)
-                            for i in range(-order//2, order//2)]))
-            x0 = (dim + off*diff)
-            if order < 2:
-                ind = [dim + diff, dim] if stagger == right else [dim - diff, dim]
-
-        else:
-            ind = [(dim + i*dim.spacing) for i in range(-order//2, order//2 + 1)]
-            x0 = dim
-            if order < 2:
-                ind = [dim, dim + diff]
-    return ind, x0
-
-
-def form_side(dimensions, function):
-    side = dict()
-    for (d, s) in zip(dimensions, function.staggered):
-        if s == 0:
-            side[d] = left
-        elif s == 1:
-            side[d] = right
-        else:
-            side[d] = centered
-    return side

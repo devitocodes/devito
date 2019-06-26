@@ -6,17 +6,18 @@ from sympy.core.evalf import evalf_table
 
 from cached_property import cached_property
 
-from devito.tools import filter_ordered, flatten
+from devito.tools import Evaluable, filter_ordered, flatten
 
 __all__ = ['Differentiable']
 
 
-class Differentiable(sympy.Expr):
+class Differentiable(sympy.Expr, Evaluable):
+
     """
-    This class represents Devito differentiable objects such as functions,
-    sum of functions, product of function, or any FD approximation. Differentiable
-    objects provide FD shortcuts to easily compute FD approximations.
+    A Differentiable is an algebric expression involving Functions, which can
+    be derived w.r.t. one or more Dimensions.
     """
+
     # Set the operator priority higher than SymPy (10.0) to force the overridden
     # operators to be used
     _op_priority = sympy.Expr._op_priority + 1.
@@ -73,9 +74,9 @@ class Differentiable(sympy.Expr):
         """
         Try calling a dynamically created FD shortcut.
 
-        .. note::
-
-            This method acts as a fallback for __getattribute__
+        Notes
+        -----
+        This method acts as a fallback for __getattribute__
         """
         if name in self._fd:
             return self._fd[name][0](self)
@@ -147,7 +148,7 @@ class Differentiable(sympy.Expr):
     def laplace(self):
         """
         Generates a symbolic expression for the Laplacian, the second
-        derivative wrt. all spatial dimensions.
+        derivative w.r.t all spatial Dimensions.
         """
         space_dims = [d for d in self.indices if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
@@ -155,12 +156,20 @@ class Differentiable(sympy.Expr):
 
     def laplace2(self, weight=1):
         """
-        Generates a symbolic expression for the double Laplacian
-        wrt. all spatial dimensions.
+        Generates a symbolic expression for the double Laplacian w.r.t.
+        all spatial Dimensions.
         """
         space_dims = [d for d in self.indices if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return sum([getattr(self.laplace * weight, d) for d in derivs])
+
+    def diff(self, *symbols, **assumptions):
+        """
+        Like ``sympy.diff``, but return a ``devito.Derivative`` instead of a
+        ``sympy.Derivative``.
+        """
+        from devito.finite_differences.derivative import Derivative
+        return Derivative(self, *symbols, **assumptions)
 
 
 class Add(sympy.Add, Differentiable):

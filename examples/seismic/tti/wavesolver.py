@@ -1,5 +1,5 @@
 # coding: utf-8
-from devito import TimeFunction
+from devito import TimeFunction, warning
 from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, particle_velocity_fields
 from examples.seismic import Receiver
@@ -18,18 +18,23 @@ class AnisotropicWaveSolver(object):
     geometry : AcquisitionGeometry
         Geometry object that contains the source (SparseTimeFunction) and
         receivers (SparseTimeFunction) and their position.
-    time_order : int, optional
-        Order of the time-stepping scheme. Defaults to 2.
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
 
     Notes
     -----
-    Space_order must always be greater than time_order.
+    space_order must be even and it is recommended to be a multiple of 4
     """
-    def __init__(self, model, geometry, space_order=2, **kwargs):
+    def __init__(self, model, geometry, space_order=4, **kwargs):
         self.model = model
         self.geometry = geometry
+
+        if space_order % 2 != 0:
+            raise ValueError("space_order must be even but got %s" % space_order)
+
+        if space_order % 4 != 0:
+            warning("It is recommended for space_order to be a multiple of 4 " +
+                    "but got %s" % space_order)
 
         self.space_order = space_order
         self.dt = self.model.critical_dt

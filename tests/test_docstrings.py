@@ -24,7 +24,8 @@ pytestmark = skipif(['yask', 'ops'])
     'types.basic', 'types.dimension', 'types.constant', 'types.grid',
     'types.dense', 'types.sparse', 'equation', 'operator',
     'data.decomposition', 'finite_differences.finite_difference',
-    'finite_differences.coefficients', 'ir.support.space'
+    'finite_differences.coefficients', 'finite_differences.derivative',
+    'ir.support.space'
 ])
 def test_docstrings(modname):
     module = import_module('devito.%s' % modname)
