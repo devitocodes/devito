@@ -619,7 +619,7 @@ class Model(GenericModel):
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
         dt = self.dtype(coeff * mmin(self.spacing) / (self.scale*mmax(self.vp)))
-        return .001 * int(1000 * dt)
+        return self.dtype("%.3f" % dt)
 
     @property
     def vp(self):
