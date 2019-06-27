@@ -48,8 +48,9 @@ path = os.path.dirname(os.path.dirname(yc.__file__))
 namespace['path'] = path
 namespace['kernel-path'] = os.path.join(path, 'src', 'kernel')
 namespace['yask-output-dir'] = make_tempdir('yask')
-# The YASK compiler expects the generated code under:
+# The YASK compiler expects the generated code in
 # $YASK_OUTPUT_DIR/build/kernel/$stencil.$arch/gen/yask_stencil_code.hpp
+# unless overridden by the YK_CODE_FILE make var
 namespace['yask-lib'] = os.path.join(namespace['yask-output-dir'], 'lib')
 namespace['yask-pylib'] = os.path.join(namespace['yask-output-dir'], 'yask')
 namespace['yask-codegen'] = lambda i, j, k: os.path.join(namespace['yask-output-dir'],

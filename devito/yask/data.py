@@ -12,20 +12,20 @@ from devito.yask.utils import namespace
 class Data(object):
 
     """
-    A view of a YASK grid.
+    A view of a YASK var.
 
     A ``Data`` implements a subset of the ``numpy.ndarray`` API. The subset
     of API implemented should suffice to transition between Devito backends
     w/o changes to the user code.
 
-    From the user level, YASK grids can only be accessed through views.
+    From the user level, YASK vars can only be accessed through views.
     Subclassing ``numpy.ndarray`` is theoretically possible, but it's in
     practice very difficult and inefficient, as multiple data copies would
     have to be maintained. This is because YASK's storage layout is different
     than Devito's, and in particular different than what users want to see
     (a very standard row-majot format).
 
-    The storage layout of a YASK grid looks as follows: ::
+    The storage layout of a YASK var on any given grid dim looks as follows: ::
 
     ------------------------------------------------------------------------------------
     | left_extra_padding | left_halo |              | right_halo | right_extra_padding |
@@ -37,12 +37,12 @@ class Data(object):
 
     Parameters
     ----------
-    grid : YASK.grid
-        The YASK grid for which a view is produced.
+    var : YASK.var
+        The YASK var for which a view is produced.
     shape : tuple of ints
         Shape of the data view in grid points.
     dimensions : tuple of Dimension
-        The Dimensions of `grid`` along which the view is produced.
+        The Dimensions of `var` along which the view is produced.
     dtype : data-type, optional
         The data type of the raw data.
     offset : tuple of ints, optional
@@ -56,9 +56,9 @@ class Data(object):
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __init__(self, grid, shape, dimensions, dtype, offset=None):
+    def __init__(self, var, shape, dimensions, dtype, offset=None):
         assert len(shape) == len(dimensions)
-        self.grid = grid
+        self.var = var
         self.dimensions = dimensions
         self.shape = shape
         self.dtype = dtype
@@ -75,11 +75,11 @@ class Data(object):
         if not shape:
             log("Data: Getting single entry %s" % str(start))
             assert start == stop
-            out = self.grid.get_element(start)
+            out = self.var.get_element(start)
         else:
             log("Data: Getting full-array/block via index [%s]" % str(index))
             out = np.empty(shape, self.dtype, 'C')
-            self.grid.get_elements_in_slice(out.data, start, stop)
+            self.var.get_elements_in_slice(out.data, start, stop)
         return out
 
     def __setitem__(self, index, val):
@@ -87,11 +87,11 @@ class Data(object):
         if all(i == 1 for i in shape):
             log("Data: Setting single entry %s" % str(start))
             assert start == stop
-            self.grid.set_element(val, start)
+            self.var.set_element(val, start)
         elif isinstance(val, np.ndarray):
             log("Data: Setting full-array/block via index [%s]" % str(index))
             if val.shape == shape:
-                self.grid.set_elements_in_slice(val, start, stop)
+                self.var.set_elements_in_slice(val, start, stop)
             elif len(val.shape) > len(shape):
                 raise ValueError("Data: could not broadcast input array from shape "
                                  "%s into shape %s" % (val.shape, shape))
@@ -99,13 +99,13 @@ class Data(object):
                 # Emulate NumPy broadcasting
                 broadcasted = np.empty(shape=shape, dtype=val.dtype)
                 broadcasted[:] = val
-                self.grid.set_elements_in_slice(broadcasted, start, stop)
+                self.var.set_elements_in_slice(broadcasted, start, stop)
         elif all(i == j-1 for i, j in zip(shape, self.shape)):
-            log("Data: Setting full-array to given scalar via single grid sweep")
-            self.grid.set_all_elements_same(val)
+            log("Data: Setting full-array to given scalar via single var sweep")
+            self.var.set_all_elements_same(val)
         else:
             log("Data: Setting block to given scalar via index [%s]" % str(index))
-            self.grid.set_elements_in_slice_same(val, start, stop, True)
+            self.var.set_elements_in_slice_same(val, start, stop, True)
 
     def __getslice__(self, start, stop):
         if stop == sys.maxint:
@@ -151,7 +151,7 @@ class Data(object):
         """
 
         # Note: the '-1' below are because YASK uses '<=', rather than '<', to check
-        # bounds when iterating over grid dimensions
+        # bounds when iterating over var dimensions
 
         assert mode in ['get', 'set']
         index = as_tuple(index)
@@ -215,18 +215,18 @@ class Data(object):
 
     def _give_storage(self, target):
         """
-        Replace meta-data and storage of ``target`` with those of ``self.grid``.
+        Replace meta-data and storage of ``target`` with those of ``self.var``.
         Any subsequent API call via either handle will get data from and/or
-        alter the shared grid.
+        alter the shared var.
         """
-        assert self.grid.is_storage_allocated()
-        target.fuse_grids(self.grid)
+        assert self.var.is_storage_allocated()
+        target.fuse_vars(self.var)
         assert target.is_storage_allocated()
-        assert self.grid.is_storage_allocated()
+        assert self.var.is_storage_allocated()
 
     def __getattr__(self, name):
-        """Proxy to yk::grid methods."""
-        return getattr(self.grid, name)
+        """Proxy to yk::var methods."""
+        return getattr(self.var, name)
 
     def __repr__(self):
         return repr(self[:])
@@ -263,17 +263,17 @@ class Data(object):
 
     @property
     def rawpointer(self):
-        return ctypes.cast(int(self.grid), namespace['type-grid'])
+        return ctypes.cast(int(self.var), namespace['type-var'])
 
     def reset(self):
         """
-        Set all grid entries to 0.
+        Set all var entries to 0.
         """
         self[:] = 0.0
 
     def view(self, *args):
         """
-        View of the YASK grid in standard (i.e., Devito) row-major layout,
+        View of the YASK var in standard (i.e., Devito) row-major layout,
         returned as a :class:`numpy.ndarray`.
         """
         return self[:]
@@ -281,7 +281,7 @@ class Data(object):
 
 class DataScalar(np.float):
 
-    """A YASK grid wrapper for scalar values."""
+    """A YASK var wrapper for scalar values."""
 
     def _give_storage(self, target):
         if not target.is_storage_allocated():

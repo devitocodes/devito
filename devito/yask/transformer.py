@@ -12,7 +12,7 @@ def yaskit(trees, yc_soln):
     """
     Populate a YASK compiler solution with the :class:`Expression`s found in an IET.
 
-    The necessary YASK grids are instantiated.
+    The necessary YASK vars are instantiated.
 
     Parameters
     ----------
@@ -95,7 +95,7 @@ def yaskit(trees, yc_soln):
                         unwound.append((e, v + [nfac.new_equals_node(ydim, expr)]))
                 conditions = unwound
 
-        # Build the YASK equations as well as all necessary grids
+        # Build the YASK equations as well as all necessary vars
         for k, v in conditions:
             yask_expr = make_yask_ast(k, yc_soln, mapper)
 
@@ -114,11 +114,11 @@ def yaskit(trees, yc_soln):
     for to, frm in zip(processed, processed[1:]):
         yc_soln.add_flow_dependency(frm, to)
 
-    # Have we built any local grids (i.e., DSE-produced tensor temporaries)?
-    # If so, eventually these will be mapped to YASK scratch grids
-    local_grids = [i for i in mapper if i.is_Array]
+    # Have we built any local vars (i.e., DSE-produced tensor temporaries)?
+    # If so, eventually these will be mapped to YASK scratch vars
+    local_vars = [i for i in mapper if i.is_Array]
 
-    return local_grids
+    return local_vars
 
 
 def make_yask_ast(expr, yc_soln, mapper=None):
@@ -140,12 +140,12 @@ def make_yask_ast(expr, yc_soln, mapper=None):
     elif expr.is_Symbol:
         function = expr.function
         if function.is_Constant:
-            # Create a YASK grid if it's the first time we encounter the embedded Function
+            # Create a YASK var if it's the first time we encounter the embedded Function
             if function not in mapper:
-                mapper[function] = yc_soln.new_grid(function.name, [])
+                mapper[function] = yc_soln.new_var(function.name, [])
                 # Allow number of time-steps to be set in YASK kernel.
                 mapper[function].set_dynamic_step_alloc(True)
-            return mapper[function].new_grid_point([])
+            return mapper[function].new_var_point([])
         elif function.is_Dimension:
             if expr.is_Time:
                 return nfac.new_step_index(expr.name)
@@ -163,11 +163,11 @@ def make_yask_ast(expr, yc_soln, mapper=None):
             return mapper[function]
     elif expr.is_Indexed:
         function = expr.function
-        # Create a YASK grid if it's the first time we encounter the embedded Function
+        # Create a YASK var if it's the first time we encounter the embedded Function
         if function not in mapper:
             dimensions = [make_yask_ast(i.root, yc_soln, mapper)
                           for i in function.indices]
-            mapper[function] = yc_soln.new_grid(function.name, dimensions)
+            mapper[function] = yc_soln.new_var(function.name, dimensions)
             # Allow number of time-steps to be set in YASK kernel.
             mapper[function].set_dynamic_step_alloc(True)
             # We also get to know some relevant Dimension-related symbols
@@ -178,7 +178,7 @@ def make_yask_ast(expr, yc_soln, mapper=None):
                 mapper[d.symbolic_min] = nfac.new_first_domain_index(node)
                 mapper[d.symbolic_max] = nfac.new_last_domain_index(node)
         indices = [make_yask_ast(i, yc_soln, mapper) for i in expr.indices]
-        return mapper[function].new_grid_point(indices)
+        return mapper[function].new_var_point(indices)
     elif expr.is_Add:
         return nary2binary(expr.args, nfac.new_add_node)
     elif expr.is_Mul:
