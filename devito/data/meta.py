@@ -26,18 +26,6 @@ class DataSide(Tag):
         else:
             self.flip = lambda: self
 
-    def __lt__(self, other):
-        return self.val < other.val
-
-    def __le__(self, other):
-        return self.val <= other.val
-
-    def __gt__(self, other):
-        return self.val > other.val
-
-    def __ge__(self, other):
-        return self.val >= other.val
-
     def __str__(self):
         return self.name
 
