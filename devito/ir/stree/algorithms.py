@@ -105,7 +105,7 @@ def st_make_halo(stree):
                 if test0 or test1:
                     spot = n
                     break
-            mapper.setdefault(spot, []).append(HaloScheme(fmapper={f: v}))
+            mapper.setdefault(spot, []).append(hs.project(f))
 
     # Now fuse the HaloSchemes at the same `stree` depth and perform the insertion
     for spot, halo_schemes in mapper.items():
