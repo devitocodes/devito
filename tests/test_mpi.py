@@ -401,7 +401,7 @@ class TestSparseFunction(object):
 
 class TestOperatorSimple(object):
 
-    @pytest.mark.parallel(mode=[2, 4, 8, 16, 32])
+    @pytest.mark.parallel(mode=[2, 4, 8])
     def test_trivial_eq_1d(self):
         grid = Grid(shape=(32,))
         x = grid.dimensions[0]
