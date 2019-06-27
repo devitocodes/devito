@@ -205,9 +205,11 @@ def classify(scope, ispace):
             for d in i.findices:
                 if f.grid.is_distributed(d):
                     if i.affine(d):
-                        bl, br = i.touched_halo(d)
-                        v[(d, LEFT)] = (bl and STENCIL) or IDENTITY
-                        v[(d, RIGHT)] = (br and STENCIL) or IDENTITY
+                        thl, thr = i.touched_halo(d)
+                        # Note: if the left-HALO is touched (i.e., `thl = True`), then
+                        # the *right-HALO* is to be sent over in a halo exchange
+                        v[(d, LEFT)] = (thr and STENCIL) or IDENTITY
+                        v[(d, RIGHT)] = (thl and STENCIL) or IDENTITY
                     else:
                         v[(d, LEFT)] = STENCIL
                         v[(d, RIGHT)] = STENCIL
