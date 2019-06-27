@@ -5,10 +5,9 @@ from functools import reduce
 from itertools import product
 from operator import mul
 
-from cached_property import cached_property
 from sympy import Integer
 
-from devito.data import CORE, OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
+from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
                            Iteration, LocalExpression, List, Prodder, PARALLEL,
@@ -552,14 +551,14 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         if hs.body.is_Call:
             return None
         else:
-            return make_efunc('compute%s' % key, hs.body, hs.dimensions)
+            return make_efunc('compute%s' % key, hs.body, hs.arguments)
 
     def _call_compute(self, hs, compute, *args):
         if compute is None:
             assert hs.body.is_Call
-            return hs.body._rebuild(dynamic_args_mapper=hs.omapper, incr=True)
+            return hs.body._rebuild(dynamic_args_mapper=hs.omapper.core)
         else:
-            return compute.make_call(dynamic_args_mapper=hs.omapper, incr=True)
+            return compute.make_call(dynamic_args_mapper=hs.omapper.core)
 
     def _make_wait(self, f, hse, key='', msg=None):
         bufs = FieldFromPointer(msg._C_field_bufs, msg)
@@ -615,26 +614,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
     def _make_remainder(self, hs, key, callcompute, *args):
         assert callcompute.is_Call
-
-        items = []
-        mapper = OrderedDict()
-        for d, (left, right) in hs.omapper.items():
-            defleft, defright = callcompute.dynamic_defaults[d]
-            dmapper = OrderedDict()
-            dmapper[(d, CORE, CENTER)] = (defleft, defright)
-            dmapper[(d, OWNED, LEFT)] = (defleft - left, defleft - 1)
-            dmapper[(d, OWNED, RIGHT)] = (defright + 1, defright - right)
-            mapper.update(dmapper)
-            items.append(list(dmapper))
-
-        body = []
-        for i in product(*items):
-            if all(r is CORE for _, r, _ in i):
-                continue
-            dynamic_args_mapper = {d: mapper[(d, r, s)] for d, r, s in i}
-            body.append(callcompute._rebuild(dynamic_args_mapper=dynamic_args_mapper,
-                                             incr=False))
-
+        body = [callcompute._rebuild(dynamic_args_mapper=i) for _, i in hs.omapper.owned]
         return make_efunc('remainder%s' % key, body)
 
     def _call_remainder(self, remainder):
@@ -650,7 +630,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     """
 
     def _make_region(self, hs, key):
-        return MPIRegion('reg%s' % key, hs.omapper)
+        return MPIRegion('reg%s' % key, hs.arguments, hs.omapper.owned)
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
@@ -765,9 +745,15 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         dim = Dimension(name='i')
         regioni = IndexedPointer(region, dim)
-        dynamic_args_mapper = {d: (FieldFromComposite(d.min_name, regioni),
-                                   FieldFromComposite(d.max_name, regioni))
-                               for d in hs.dimensions}
+
+        dynamic_args_mapper = {}
+        for i in hs.arguments:
+            if i.is_Dimension:
+                dynamic_args_mapper[i] = (FieldFromComposite(i.min_name, regioni),
+                                          FieldFromComposite(i.max_name, regioni))
+            else:
+                dynamic_args_mapper[i] = (FieldFromComposite(i.name, regioni),)
+
         iet = callcompute._rebuild(dynamic_args_mapper=dynamic_args_mapper)
         # The -1 below is because an Iteration, by default, generates <=
         iet = Iteration(iet, dim, region.nregions - 1)
@@ -789,7 +775,7 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
             mapper = {i: List(body=[callpoke, i]) for i in
                       FindNodes(ExpressionBundle).visit(hs.body)}
             iet = Transformer(mapper).visit(hs.body)
-            return make_efunc('compute%s' % key, iet, hs.dimensions)
+            return make_efunc('compute%s' % key, iet, hs.arguments)
 
     def _make_poke(self, hs, key, msgs):
         flag = Symbol(name='flag')
@@ -977,12 +963,19 @@ class MPIMsgEnriched(MPIMsg):
 
 class MPIRegion(CompositeObject):
 
-    def __init__(self, name, omapper):
-        self._omapper = omapper
+    def __init__(self, name, arguments, owned):
+        self._owned = owned
+
+        # Sorting for deterministic codegen
+        self._arguments = sorted(arguments, key=lambda i: i.name)
+
         fields = []
-        for d in list(omapper):
-            fields.append((d.min_name, c_int))
-            fields.append((d.max_name, c_int))
+        for i in self.arguments:
+            if i.is_Dimension:
+                fields.append((i.min_name, c_int))
+                fields.append((i.max_name, c_int))
+            else:
+                fields.append((i.name, c_int))
         super(MPIRegion, self).__init__(name, 'region', fields)
 
     def __value_setup__(self, dtype, value):
@@ -992,38 +985,32 @@ class MPIRegion(CompositeObject):
         return (dtype._type_*self.nregions)()
 
     @property
-    def omapper(self):
-        return self._omapper
+    def arguments(self):
+        return self._arguments
 
-    @cached_property
-    def regions(self):
-        items = [((d, CORE, CENTER), (d, OWNED, LEFT), (d, OWNED, RIGHT))
-                 for d in self.omapper]
-        items = list(product(*items))
-        items = [i for i in items if not all(r is CORE for _, r, _ in i)]
-        return items
+    @property
+    def owned(self):
+        return self._owned
 
     @property
     def nregions(self):
-        return len(self.regions)
+        return len(self.owned)
 
     def _arg_values(self, args, **kwargs):
         values = self._arg_defaults()
-        for i, region in enumerate(self.regions):
+        for i, (_, mapper) in enumerate(self.owned):
             entry = values[self.name][i]
-            for d, r, s in region:
-                lofs, rofs = self.omapper[d]
-                if r is CORE:
-                    setattr(entry, d.min_name, args[d.min_name] + lofs)
-                    setattr(entry, d.max_name, args[d.max_name] + rofs)
+            for a in self.arguments:
+                if a.is_Dimension:
+                    a_m, a_M = mapper[a]
+                    setattr(entry, a.min_name, mapper[a][0].subs(args))
+                    setattr(entry, a.max_name, mapper[a][1].subs(args))
                 else:
-                    if s is LEFT:
-                        setattr(entry, d.min_name, args[d.min_name])
-                        setattr(entry, d.max_name, args[d.min_name] + lofs)
-                    else:
-                        setattr(entry, d.min_name, args[d.max_name] + rofs)
-                        setattr(entry, d.max_name, args[d.max_name])
+                    try:
+                        setattr(entry, a.name, mapper[a][0].subs(args))
+                    except AttributeError:
+                        setattr(entry, a.name, mapper[a][0])
         return values
 
     # Pickling support
-    _pickle_args = ['name', 'omapper']
+    _pickle_args = ['name', 'arguments', 'owned']

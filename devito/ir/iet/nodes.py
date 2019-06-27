@@ -861,6 +861,10 @@ class HaloSpot(Node):
         return self.halo_scheme.dimensions
 
     @property
+    def arguments(self):
+        return self.halo_scheme.arguments
+
+    @property
     def is_empty(self):
         return len(self.halo_scheme) == 0
 
