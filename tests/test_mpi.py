@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from unittest.mock import patch
 
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
@@ -1298,6 +1299,46 @@ class TestOperatorAdvanced(object):
         assert np.all(v.data_ro_domain[1, :, 1] == 4.)
         assert np.all(v.data_ro_domain[1, :, 2] == 4.)
         assert np.all(v.data_ro_domain[1, :, 3] == 0.)
+
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2')])
+    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    def test_aliases(self):
+        """
+        Check correctness when the DSE extracts aliases and places them
+        into offset-ed loop (nest). For example, the compiler may generate:
+
+            for i = i_m - 1 to i_M + 1
+              tmp[i] = f(a[i-1], a[i], a[i+1], ...)
+            for i = i_m to i_M
+              u[i] = g(tmp[i-1], tmp[i], ... a[i], ...)
+
+        If the employed MPI scheme doesn't use comp/comm overlap (i.e., `basic`,
+        `diag`), then it's not so different than most of the other tests seen in
+        this module. However, with comp/comm overlap, which exploits the same loops
+        to compute the boundary ("OWNED") regions, the situation is more delicate.
+        """
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions  # noqa
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.
+
+        eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+1, y+1])*3*f +
+                             (u[t, x+2, y+2] + u[t, x+3, y+3])*3*f + 1))
+        op0 = Operator(eqn, dse='noop')
+        op1 = Operator(eqn, dse='aggressive')
+
+        op0(time_M=1)
+        u0_norm = norm(u)
+
+        u._data_with_inhalo[:] = 0.
+        op1(time_M=1)
+        u1_norm = norm(u)
+
+        assert u0_norm == u1_norm
 
 
 class TestIsotropicAcoustic(object):
