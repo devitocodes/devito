@@ -342,6 +342,9 @@ class PlatformRewriter(AbstractRewriter):
 
         iet = Transformer(mapper).visit(iet)
 
+        # Force-unfold if some folded Iterations haven't been blocked in the end
+        iet = unfold_blocked_tree(iet)
+
         return iet, {'dimensions': block_dims, 'efuncs': efuncs,
                      'args': [i.step for i in block_dims]}
 

@@ -166,11 +166,14 @@ def optimize_unfolded_tree(unfolded, root):
     for i, tree in enumerate(unfolded):
         assert len(tree) == len(root)
 
-        # We can optimize the folded trees only if they compute temporary
-        # arrays, but not if they compute input data
-        exprs = FindNodes(Expression).visit(tree[-1])
+        # We can optimize the folded trees only iff:
+        # test0 := they compute temporary arrays, but not if they compute input data
+        # test1 := the outer Iterations have actually been blocked
+        exprs = FindNodes(Expression).visit(tree)
         writes = [j.write for j in exprs if j.is_tensor]
-        if not all(j.is_Array for j in writes):
+        test0 = not all(j.is_Array for j in writes)
+        test1 = any(not isinstance(j.limits[0], BlockDimension) for j in root)
+        if test0 or test1:
             processed.append(compose_nodes(tree))
             root = compose_nodes(root)
             continue
