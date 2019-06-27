@@ -423,6 +423,25 @@ class TestOperatorSimple(object):
         else:
             assert np.all(f.data_ro_domain[0] == 7.)
 
+    @pytest.mark.parallel(mode=[2])
+    def test_trivial_eq_1d_asymmetric(self):
+        grid = Grid(shape=(32,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+
+        op = Operator(Eq(f.forward, f[t, x+1] + 1))
+        op.apply(time=1)
+
+        assert np.all(f.data_ro_domain[1] == 2.)
+        if f.grid.distributor.myrank == 0:
+            assert np.all(f.data_ro_domain[0] == 3.)
+        else:
+            assert np.all(f.data_ro_domain[0, :-1] == 3.)
+            assert f.data_ro_domain[0, -1] == 2.
+
     @pytest.mark.parallel(mode=2)
     def test_trivial_eq_1d_save(self):
         grid = Grid(shape=(32,))
@@ -741,8 +760,8 @@ class TestCodeGeneration(object):
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
         ('f[t,x,y-1] + f[t,x,y+1]', {'cr', 'cl'}),
-        ('f[t,x-1,y-1] + f[t,x,y+1]', {'cl', 'll', 'lc', 'cr'}),
-        ('f[t,x-1,y-1] + f[t,x+1,y+1]', {'cl', 'll', 'lc', 'cr', 'rr', 'rc'}),
+        ('f[t,x-1,y-1] + f[t,x,y+1]', {'cr', 'rr', 'rc', 'cl'}),
+        ('f[t,x-1,y-1] + f[t,x+1,y+1]', {'cr', 'rr', 'rc', 'cl', 'll', 'lc'}),
     ])
     @pytest.mark.parallel(mode=[(1, 'diag')])
     def test_diag_comm_scheme(self, expr, expected):
