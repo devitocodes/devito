@@ -5,15 +5,19 @@ __all__ = ['DOMAIN', 'CORE', 'OWNED', 'HALO', 'NOPAD', 'FULL',
 
 
 class DataRegion(Tag):
-    pass
+
+    def __str__(self):
+        return self.name
+
+    __repr__ = __str__
 
 
-CORE = DataRegion('core')  # within DOMAIN
-OWNED = DataRegion('owned')  # within DOMAIN
-DOMAIN = DataRegion('domain')  # == CORE + OWNED
-HALO = DataRegion('halo')
-NOPAD = DataRegion('nopad')  # == DOMAIN+HALO
-FULL = DataRegion('full')  # == DOMAIN+HALO+PADDING
+HALO = DataRegion('halo', 0)
+CORE = DataRegion('core', 1)  # within DOMAIN
+OWNED = DataRegion('owned', 2)  # within DOMAIN
+DOMAIN = DataRegion('domain', 3)  # == CORE + OWNED
+NOPAD = DataRegion('nopad', 4)  # == DOMAIN+HALO
+FULL = DataRegion('full', 5)  # == DOMAIN+HALO+PADDING
 
 
 class DataSide(Tag):
