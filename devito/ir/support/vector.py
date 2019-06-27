@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from sympy import Basic
+from sympy import Basic, true
 
 from devito.tools import as_tuple, is_integer, memoized_meth
 from devito.types import Dimension
@@ -110,15 +110,14 @@ class Vector(tuple):
                     return False
             except TypeError:
                 if self.smart:
-                    # Note: the relationals below may be SymPy exprs, hence the ==
-                    if (i < 0) == True:
+                    if (i < 0) == true:
                         return True
-                    elif (i <= 0) == True:
+                    elif (i <= 0) == true:
                         # If `i` can assume the value 0 in at least one case, then
                         # definitely `i < 0` is generally False, so __lt__ must
                         # return False
                         return False
-                    elif (i >= 0) == True:
+                    elif (i >= 0) == true:
                         return False
                 raise TypeError("Non-comparable index functions")
 
@@ -151,14 +150,13 @@ class Vector(tuple):
                     return False
             except TypeError:
                 if self.smart:
-                    # Note: the relationals below may be SymPy exprs, hence the ==
-                    if (i < 0) == True:
+                    if (i < 0) == true:
                         return True
-                    elif (i <= 0) == True:
+                    elif (i <= 0) == true:
                         continue
-                    elif (i > 0) == True:
+                    elif (i > 0) == true:
                         return False
-                    elif (i >= 0) == True:
+                    elif (i >= 0) == true:
                         # See analogous considerations in __lt__
                         return False
                 raise TypeError("Non-comparable index functions")
