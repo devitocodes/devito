@@ -126,7 +126,8 @@ class TestDistributor(object):
 
         mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
         obj = distributor._obj_neighborhood
-        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
+        value = obj._arg_defaults()[obj.name]
+        assert all(getattr(value._obj, k) == v for k, v in mapper.items())
 
 
 class TestFunction(object):
