@@ -346,9 +346,9 @@ class AdvancedRewriter(BasicRewriter):
 
 class AggressiveRewriter(AdvancedRewriter):
 
-    DEFAULT_SKEW_FACTOR = 8
+    DEFAULT_SKEW_FACTOR = 2
     """
-    The maximum skew factor applied for the skewing pass.
+    The default skew factor applied for the skewing pass.
     """
 
     def _pipeline(self, state):
@@ -387,18 +387,25 @@ class AggressiveRewriter(AdvancedRewriter):
 
         skew_dim, mapper, intervals = None, {}, []
 
+        # Check if time dim exists
         for i in cluster.ispace.intervals:
             if i.dim.is_Time:
-                intervals.append(Interval(i.dim, 0, 0))
                 skew_dim = i.dim
-            else:
-                mapper[i.dim] = i.dim + skew_factor*skew_dim
-                intervals.append(Interval(i.dim, -skew_factor*skew_dim,
-                                          -skew_factor*skew_dim))
 
-        processed = xreplace_indices(cluster.exprs, mapper)
-        ispace = IterationSpace(intervals, sub_iterators, directions)
-        cluster = Cluster(processed, ispace, cluster.dspace, cluster.guards)
+        if skew_dim is not None:
+            for i in cluster.ispace.intervals:
+                if i.dim.is_Time:
+                    intervals.append(Interval(i.dim, 0, 0))
+                    skew_dim = i.dim
+                else:
+                    mapper[i.dim] = i.dim + skew_factor*skew_dim
+                    intervals.append(Interval(i.dim, -skew_factor*skew_dim,
+                                              -skew_factor*skew_dim))
+
+            processed = xreplace_indices(cluster.exprs, mapper)
+            ispace = IterationSpace(intervals, sub_iterators, directions)
+            cluster = Cluster(processed, ispace, cluster.dspace, guards=cluster.guards)
+
         return cluster
 
 
