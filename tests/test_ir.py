@@ -10,8 +10,8 @@ from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes, FindSy
                            retrieve_iteration_tree, filter_iterations, make_efunc)
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      Vector, AFFINE, IRREGULAR)
-from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
-                                     Forward, Backward)
+from devito.ir.support.space import (NullInterval, Interval, IntervalGroup, Forward,
+                                     Backward, IterationSpace)
 from devito.types import Scalar
 from devito.tools import as_tuple
 
@@ -56,14 +56,15 @@ class TestVectorHierarchy(object):
 
     @pytest.fixture
     def ta_literal(self, fc):
-        fwd_directions = {x: Forward, y: Forward}
-        mixed_directions = {x: Backward, y: Forward}
-        tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, fwd_directions)
-        tcxy_r0 = TimedAccess(fc[x, y], 'R', 0, fwd_directions)
-        tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, fwd_directions)
-        tcx1y_r1 = TimedAccess(fc[x + 1, y], 'R', 1, fwd_directions)
-        rev_tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, mixed_directions)
-        rev_tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, mixed_directions)
+        intervals = [Interval(x, 0, 0), Interval(y, 0, 0)]
+        fwd_ispace = IterationSpace(intervals, directions={x: Forward, y: Forward})
+        mixed_ispace = IterationSpace(intervals, directions={x: Backward, y: Forward})
+        tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, fwd_ispace)
+        tcxy_r0 = TimedAccess(fc[x, y], 'R', 0, fwd_ispace)
+        tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, fwd_ispace)
+        tcx1y_r1 = TimedAccess(fc[x + 1, y], 'R', 1, fwd_ispace)
+        rev_tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, mixed_ispace)
+        rev_tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, mixed_ispace)
         return tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1
 
     def test_vector_cmp(self, v_num, v_literal):

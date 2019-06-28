@@ -68,14 +68,14 @@ if __name__ == "__main__":
     
     
     configuration['autotuning']='off'
-    configuration['dse']='aggressive' ##turning this off there's almost 0 issue 
+    configuration['dse']='advanced' ##turning this off there's almost 0 issue
     configuration['log-level']='DEBUG'
     
     
     #configuration['openmp']=True
     #configuration['openmp']=False ##this also fails, just takes longer
     
-    configuration['mpi']='diag'
+    #configuration['mpi']='diag'
     
     radius = args.radius
     space_order=radius*2
