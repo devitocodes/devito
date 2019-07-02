@@ -1316,35 +1316,78 @@ class SubFunction(Function):
 class SeparableFunction(Differentiable):
     """
     A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
+    Parameters
+    ----------
+        sep: 'sum' or 'prod'
+            type of separation as a product or sum of function
+        dimensions: tuple or Dimension
+            Dimension in which the function is separable
     """
     def __new__(self, *args, **kwargs):
+        # Is it sum or product separable
         sep_op = spearation_op[kwargs.get('sep', 'prod')]
-        
+
+        # Conventional Function inputs
         name = kwargs.get('name')
         grid = kwargs.get('grid')
-        new_obj = sep_op([Function(name=name+'_'+d.name, dimensions=(d,),
-                                   shape=(d.shape,), space_order=kwargs.get('space_order', 1))
-                           for d in grid.dimensions])
-        return new_obj
-        
+        so = kwargs.get('space_order', 1)
+
+        # Initialize subfunctions
+        # Separable dimensions
+        separated = kwargs.get('separated', grid.dimensions)
+        func_list = [Function(name=name+'_'+d.name, dimensions=(d,),
+                              shape=(d.shape,), space_order=so)
+                     for d in separated]
+        # Remaining dimensions
+        nonseparated = tuple(d for d in grid.dimensions if d not in separated)
+        if len(nonseparated) > 0:
+            nonsep_shape = tuple(d.shape for d in nonseparated)
+            func_list += [Function(name=name, dimensions=nonseparated,
+                                   shape=nonsep_shape, space_order=so)]
+        return sep_op(func_list)
+
+
 class SeparableTimeFunction(Differentiable):
     """
     A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
     """
     def __new__(self, *args, **kwargs):
+        # Is it sum or product separable
         sep_op = spearation_op[kwargs.get('sep', 'prod')]
+
+        # Conventional TimeFunction inputs
         name = kwargs.get('name')
         grid = kwargs.get('grid')
-        time_order = kwargs.get('time_order', 1)
+
         save = kwargs.get('save', None)
         time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
-        save = kwargs.get('save', time_order + 1)
-        sub_func = [TimeFunction(name=name+'_t', dimensions=(time_dim,), shape=(save,),
-                               time_order=time_order)]
-        sub_func += [Function(name=name+'_'+d.name, dimensions=(d,),
-                              shape=(d.shape,), space_order=kwargs.get('space_order', 1))
-                     for d in grid.dimensions]
-        
-        return sep_op(sub_func)
+
+        to = kwargs.get('time_order', 1)
+        so = kwargs.get('space_order', 1)
+
+        shape_t = kwargs.get('save', to + 1)
+        # Initialize subfunctions
+        # Separable dimensions
+
+        def func(dim):
+            return TimeFunction if any(d.is_Time for d in as_tuple(dim)) else Function
+
+        def shape(dim):
+            return shape_t if dim.is_Time else dim.shape
+
+        separated = kwargs.get('separated', (time_dim,) + grid.dimensions)
+        func_list = [func(d)(name=name+'_'+d.name, dimensions=(d,),
+                             shape=(shape(d),), space_order=so, time_order=to)
+                     for d in separated]
+        # Remaining dimensions
+        nonsep = tuple(d for d in grid.dimensions if d not in separated)
+        if len(nonsep) > 0:
+            nonsep_shape = tuple(shape(d) for d in nonsep)
+            func_list += [func(nonsep)(name=name, dimensions=nonsep,
+                                       shape=nonsep_shape, space_order=so,
+                                       time_order=to)]
+
+        return sep_op(func_list)
+
 
 spearation_op = {'sum': np.sum, 'prod': np.prod}
