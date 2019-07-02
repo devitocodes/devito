@@ -1318,10 +1318,12 @@ class SeparableFunction(Differentiable):
     A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
     """
     def __new__(self, *args, **kwargs):
+        sep_op = spearation_op[kwargs.get('sep', 'prod')]
+        
         name = kwargs.get('name')
         grid = kwargs.get('grid')
-        new_obj = np.prod([Function(name=name+'_'+d.name, dimensions=(d,),
-                                    shape=(d.shape,), space_order=kwargs.get('space_order', 1))
+        new_obj = sep_op([Function(name=name+'_'+d.name, dimensions=(d,),
+                                   shape=(d.shape,), space_order=kwargs.get('space_order', 1))
                            for d in grid.dimensions])
         return new_obj
         
@@ -1330,16 +1332,19 @@ class SeparableTimeFunction(Differentiable):
     A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
     """
     def __new__(self, *args, **kwargs):
+        sep_op = spearation_op[kwargs.get('sep', 'prod')]
         name = kwargs.get('name')
         grid = kwargs.get('grid')
         time_order = kwargs.get('time_order', 1)
         save = kwargs.get('save', None)
         time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
         save = kwargs.get('save', time_order + 1)
-        new_obj = TimeFunction(name=name+'_t', dimensions=(time_dim,), shape=(save,),
-                               time_order=time_order)
-        new_obj *= np.prod([Function(name=name+'_'+d.name, dimensions=(d,),
-                                     shape=(d.shape,), space_order=kwargs.get('space_order', 1))
-                            for d in grid.dimensions])
+        sub_func = [TimeFunction(name=name+'_t', dimensions=(time_dim,), shape=(save,),
+                               time_order=time_order)]
+        sub_func += [Function(name=name+'_'+d.name, dimensions=(d,),
+                              shape=(d.shape,), space_order=kwargs.get('space_order', 1))
+                     for d in grid.dimensions]
         
-        return new_obj
+        return sep_op(sub_func)
+
+spearation_op = {'sum': np.sum, 'prod': np.prod}
