@@ -78,11 +78,15 @@ RUN if [ "$MPI_INSTALL" == "1" ] ; then \
     fi
 
 # Set up conda
-RUN wget --no-verbose https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh
-RUN bash /tmp/miniconda.sh -b -p /usr/local/miniconda
-ENV PATH=/usr/local/miniconda/bin:$PATH
-RUN conda config --set always_yes yes --set changeps1 no
-RUN conda update -q conda
+RUN if [ $installWithPip == "true" ] ; then \
+      python --version; \
+    else \
+	  wget --no-verbose https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh ; \
+	  bash /tmp/miniconda.sh -b -p /usr/local/miniconda ; \
+	  ENV PATH=/usr/local/miniconda/bin:$PATH ; \
+	  conda config --set always_yes yes --set changeps1 no ; \
+	  conda update -q conda ; \
+    fi
 
 RUN adduser --disabled-password --gecos "" devito
 
