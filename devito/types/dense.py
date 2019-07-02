@@ -25,7 +25,7 @@ from devito.types.args import ArgProvider
 from devito.types.basic import AbstractCachedFunction
 from devito.types.utils import Buffer, NODE, CELL
 
-__all__ = ['Function', 'TimeFunction']
+__all__ = ['Function', 'TimeFunction', 'SeparableFunction', 'SeparableTimeFunction']
 
 
 class DiscreteFunction(AbstractCachedFunction, ArgProvider):
@@ -1311,3 +1311,35 @@ class SubFunction(Function):
         return self._parent
 
     _pickle_kwargs = Function._pickle_kwargs + ['parent']
+
+
+class SeparableFunction(Differentiable):
+    """
+    A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
+    """
+    def __new__(self, *args, **kwargs):
+        name = kwargs.get('name')
+        grid = kwargs.get('grid')
+        new_obj = np.prod([Function(name=name+'_'+d.name, dimensions=(d,),
+                                    shape=(d.shape,), space_order=kwargs.get('space_order', 1))
+                           for d in grid.dimensions])
+        return new_obj
+        
+class SeparableTimeFunction(Differentiable):
+    """
+    A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
+    """
+    def __new__(self, *args, **kwargs):
+        name = kwargs.get('name')
+        grid = kwargs.get('grid')
+        time_order = kwargs.get('time_order', 1)
+        save = kwargs.get('save', None)
+        time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
+        save = kwargs.get('save', time_order + 1)
+        new_obj = TimeFunction(name=name+'_t', dimensions=(time_dim,), shape=(save,),
+                               time_order=time_order)
+        new_obj *= np.prod([Function(name=name+'_'+d.name, dimensions=(d,),
+                                     shape=(d.shape,), space_order=kwargs.get('space_order', 1))
+                            for d in grid.dimensions])
+        
+        return new_obj
