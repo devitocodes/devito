@@ -1316,12 +1316,33 @@ class SubFunction(Function):
 class SeparableFunction(Differentiable):
     """
     A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
+
+    Takes the same parameters as Function and
+
     Parameters
     ----------
         sep: 'sum' or 'prod'
             type of separation as a product or sum of function
-        dimensions: tuple or Dimension
+        separated: tuple or Dimension
             Dimension in which the function is separable
+
+    Examples
+    --------
+
+    Creation
+
+    >>> from devito import Grid, TimeFunction
+    >>> grid = Grid(shape=(4, 4, 5))
+    >>> x, y, z = grid.dimensions
+    >>> a = SeparableFunction(name='a', grid=grid)
+    >>> a
+    a_x(x)*a_y(y)*a_z(z)
+    >>> b = SeparableFunction(name='b', grid=grid, sep='sum')
+    >>> b
+    b_x(x) + b_y(y) + b_z(z)
+    >>> c = SeparableFunction(name='c', grid=grid, sep='sum', separated=x)
+    >>> c
+    c_x(x) + c_yz(y, z)
     """
     def __new__(self, *args, **kwargs):
         # Is it sum or product separable
@@ -1334,22 +1355,62 @@ class SeparableFunction(Differentiable):
 
         # Initialize subfunctions
         # Separable dimensions
-        separated = kwargs.get('separated', grid.dimensions)
+        separated = as_tuple(kwargs.get('separated', grid.dimensions))
         func_list = [Function(name=name+'_'+d.name, dimensions=(d,),
                               shape=(d.shape,), space_order=so)
                      for d in separated]
+
         # Remaining dimensions
+
+        def names(dims):
+            names = ''
+            for d in as_tuple(dims):
+                names += d.name
+            return names
+
         nonseparated = tuple(d for d in grid.dimensions if d not in separated)
         if len(nonseparated) > 0:
             nonsep_shape = tuple(d.shape for d in nonseparated)
-            func_list += [Function(name=name, dimensions=nonseparated,
+            func_list += [Function(name=name+'_'+names(nonseparated),
+                                   dimensions=nonseparated,
                                    shape=nonsep_shape, space_order=so)]
         return sep_op(func_list)
 
 
 class SeparableTimeFunction(Differentiable):
     """
-    A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
+    A function separable in its dimensions, ie f(t, x,y,z) = f(t)f(x)*f(y)*f(z)
+
+    Takes the same parameters as TimeFunction and
+
+    Parameters
+    ----------
+        sep: 'sum' or 'prod'
+            type of separation as a product or sum of function
+        separated: tuple or Dimension
+            Dimension in which the function is separable
+
+    Examples
+    --------
+
+    Creation
+
+    >>> from devito import Grid, TimeFunction
+    >>> grid = Grid(shape=(4, 4, 5))
+    >>> x, y, z = grid.dimensions
+    >>> t = grid.stepping_dim
+    >>> a = SeparableTimeFunction(name='a', grid=grid, space_order=8, time_order=2)
+    >>> a
+    a_t(t)*a_x(x)*a_y(y)*a_z(z)
+    >>> b = SeparableTimeFunction(name='b', grid=grid, sep='sum')
+    >>> b
+    b_t(t) + b_x(x) + b_y(y) + b_z(z)
+    >>> c = SeparableTimeFunction(name='c', grid=grid, sep='sum', separated=t)
+    >>> c
+    c_t(t) + c_xyz(x, y, z)
+    >>> d = SeparableTimeFunction(name='d', grid=grid, separated=(t, x))
+    >>> d
+    d_t(t)*d_x(x)*d_yz(y, z)
     """
     def __new__(self, *args, **kwargs):
         # Is it sum or product separable
@@ -1375,7 +1436,13 @@ class SeparableTimeFunction(Differentiable):
         def shape(dim):
             return shape_t if dim.is_Time else dim.shape
 
-        separated = kwargs.get('separated', (time_dim,) + grid.dimensions)
+        def names(dims):
+            names = ''
+            for d in as_tuple(dims):
+                names += d.name
+            return names
+
+        separated = as_tuple(kwargs.get('separated', (time_dim,) + grid.dimensions))
         func_list = [func(d)(name=name+'_'+d.name, dimensions=(d,),
                              shape=(shape(d),), space_order=so, time_order=to)
                      for d in separated]
@@ -1383,7 +1450,7 @@ class SeparableTimeFunction(Differentiable):
         nonsep = tuple(d for d in grid.dimensions if d not in separated)
         if len(nonsep) > 0:
             nonsep_shape = tuple(shape(d) for d in nonsep)
-            func_list += [func(nonsep)(name=name, dimensions=nonsep,
+            func_list += [func(nonsep)(name=name+'_'+names(nonsep), dimensions=nonsep,
                                        shape=nonsep_shape, space_order=so,
                                        time_order=to)]
 
