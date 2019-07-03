@@ -15,7 +15,7 @@ def runStep(command, *args, **kwargs):
 
 
 if os.environ.get('testWithPip') == 'true':
-    runStep("python setup.py test", envCmd="")
+    runStep("python3 setup.py test", envCmd="")
 
 if os.environ.get('testWithPip') != 'true':
     runStep("flake8 --exclude .conda,.git,.ipython --builtins=ArgumentError .")
