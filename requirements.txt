@@ -14,6 +14,7 @@ click
 codecov
 pytest-cov
 multidict
+matplotlib
 frozendict
 anytree>=2.4.3
 pyzfp>=0.2
