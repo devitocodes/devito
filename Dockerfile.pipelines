@@ -78,6 +78,8 @@ RUN if [ "$MPI_INSTALL" == "1" ] ; then \
     fi
 
 # Set up conda
+ENV PATH=/usr/local/miniconda/bin:$PATH
+
 RUN if [ $installWithPip == "true" ] ; then \ 
       apt-get install -y python3.6-dev python3-pip ; \
     else \
@@ -86,8 +88,6 @@ RUN if [ $installWithPip == "true" ] ; then \
       conda config --set always_yes yes --set changeps1 no ; \
       conda update -q conda ; \
     fi
-
-ENV PATH=/usr/local/miniconda/bin:$PATH
 
 RUN adduser --disabled-password --gecos "" devito
 
@@ -101,7 +101,7 @@ WORKDIR /home/devito
 RUN if [ $installWithPip == "true" ] ; then \
       python3 setup.py install --user ; \
       if [ $MPI_INSTALL == '1' ] ; then \
-        pip3 install --user -e .[extras] ; \
+        python3 -m pip install --user -e .[extras] ; \
       fi ; \
     else \
       conda env create -q -f environment.yml ; \
