@@ -12,43 +12,37 @@ jobs:
     vmImage: 'Ubuntu 16.04'
   strategy:
     matrix:
-      pip-gcc4:
-        gccVersion: '4.9'
+      pip:
         DEVITO_OPENMP: '0'
         MPI_INSTALL: '1'
         installWithPip: 'true'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'false'
-      conda-gcc8:
-        gccVersion: '8'
+      conda:
         DEVITO_OPENMP: '0'
         MPI_INSTALL: '1'
         installWithPip: 'false'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'true'
-      openmp-conda-gcc8:
-        gccVersion: '8'
+      openmp-conda:
         DEVITO_OPENMP: '1'
         MPI_INSTALL: '1'
         installWithPip: 'false'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'true'
-      nompi-conda-gcc5:
-        gccVersion: '5'
+      nompi-conda:
         DEVITO_OPENMP: '0'
         MPI_INSTALL: '0'
         installWithPip: 'false'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'false'
-      ops-conda-gcc7:
-        gccVersion: '7'
+      ops-conda:
         DEVITO_OPENMP: '0'
         MPI_INSTALL: '1'
         installWithPip: 'false'
         DEVITO_BACKEND: 'ops'
         RUN_EXAMPLES: 'false'
-      yask-conda-gcc7:
-        gccVersion: '7'
+      yask-conda:
         DEVITO_OPENMP: '0'
         MPI_INSTALL: '1'
         installWithPip: 'false'
@@ -63,7 +57,6 @@ jobs:
       command: 'build'
       dockerFile: Dockerfile.pipelines
       arguments:
-        --build-arg gccVersion=$(gccVersion)
         --build-arg installWithPip=$(installWithPip)
         --build-arg DEVITO_BACKEND=$(DEVITO_BACKEND)
         --build-arg DEVITO_OPENMP=$(DEVITO_OPENMP)

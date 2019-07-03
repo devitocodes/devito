@@ -1,14 +1,7 @@
-FROM ubuntu:xenial
+FROM ubuntu:bionic
 
 # This DockerFile is looked after by
 MAINTAINER Tim Greaves <tim.greaves@imperial.ac.uk>
-
-# Add the ubuntu-toolchain-r test ppa
-RUN echo "deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu xenial main" > /etc/apt/sources.list.d/ubuntu-toolchain-r-ppa-xenial.list
-
-# Import the Launchpad PPA public key
-RUN gpg --keyserver keyserver.ubuntu.com --recv 1E9377A2BA9EF27F
-RUN gpg --export --armor BA9EF27F | apt-key add -
 
 # Ensure UTF-8 environment is correct for documentation builds
 ENV LC_ALL=C.UTF-8
@@ -25,11 +18,9 @@ RUN apt-get -y dist-upgrade
 # Needed for the conda and devito installs later
 RUN apt-get -y install wget bzip2 git make
 
-# Default gcc version to install
-ARG gccVersion=8
-ENV DEVITO_ARCH=gcc-$gccVersion
-# Set Yask variables in case they are needed
-ENV YC_CXX=g++-$gccVersion
+# Set environment
+ENV DEVITO_ARCH=gcc-7
+ENV YC_CXX=g++-7
 
 # Default devito install method
 ARG installWithPip=false
@@ -56,28 +47,17 @@ ENV RUN_EXAMPLES=$RUN_EXAMPLES
 ENV MPLBACKEND=agg
 
 # Install gcc/g++
-RUN apt-get -y install gcc-$gccVersion g++-$gccVersion
-
-# Set up alternatives
-RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-$gccVersion 10
-RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-$gccVersion 10
-RUN update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-$gccVersion 10
-RUN update-alternatives --install /usr/bin/nm nm /usr/bin/gcc-nm-$gccVersion 10
-RUN update-alternatives --install /usr/bin/cpp cpp /usr/bin/cpp-$gccVersion 10
-RUN update-alternatives --install /usr/bin/ranlib ranlib /usr/bin/gcc-ranlib-$gccVersion 10
-RUN if [ -f /usr/bin/gcov-dump-$gccVersion ] ; then \
-      update-alternatives --install /usr/bin/gcov-dump gcov-dump /usr/bin/gcov-dump-$gccVersion 10 ; \
-    fi
-RUN if [ -f /usr/bin/gcov-tool-$gccVersion ] ; then \
-      update-alternatives --install /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-$gccVersion 10 ; \
-    fi
+RUN apt-get -y install gcc g++
 
 # Install MPI
 RUN if [ "$MPI_INSTALL" == "1" ] ; then \
       apt-get install -y -q mpich libmpich-dev ; \
     fi
 
-# Set up conda
+# Set up path to support (optional) Conda install
+ENV PATH=/usr/local/miniconda/bin:$PATH
+
+# Python installs
 RUN if [ $installWithPip == "true" ] ; then \ 
       apt-get install -y python3.6-dev python3-pip ; \
     else \
@@ -86,8 +66,6 @@ RUN if [ $installWithPip == "true" ] ; then \
       conda config --set always_yes yes --set changeps1 no ; \
       conda update -q conda ; \
     fi
-
-ENV PATH=/usr/local/miniconda/bin:$PATH
 
 RUN adduser --disabled-password --gecos "" devito
 
