@@ -79,7 +79,7 @@ WORKDIR /home/devito
 RUN if [ $installWithPip == "true" ] ; then \
       python3 setup.py install --user ; \
       if [ $MPI_INSTALL == '1' ] ; then \
-        pip3 install --user -e .[extras] ; \
+        python3 -m pip install --user -e .[extras] ; \
       fi ; \
     else \
       conda env create -q -f environment.yml ; \
