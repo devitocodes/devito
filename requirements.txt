@@ -16,8 +16,6 @@ click
 codecov
 pytest-cov
 multidict
-matplotlib<3.0; python_version < '3.6'
-matplotlib; python_version >= '3.6'
 frozendict
 anytree>=2.4.3
 pyzfp>=0.2

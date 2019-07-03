@@ -21,9 +21,13 @@ opt_reqs = []
 opt_links = []
 dict_opt_reqs = {}
 for ir in optionals:
+    # For conditionals like pytest=2.1; python == 3.6
     if ';' in ir:
         entries = ir.split(';')
         dict_opt_reqs[entries[1]] = entries[0]
+    # Git repos
+    # This is still a bit of an issue because it can only catch
+    # version not master
     if ir[0:3] == 'git':
         opt_links += [ir + '#egg=' + ir.split('/')[-1] + '-0']
         opt_reqs += [ir.split('/')[-1]]
