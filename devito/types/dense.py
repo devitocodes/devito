@@ -16,8 +16,9 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.symbolics import Add, FieldFromPointer
+from devito.symbolics import FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
+from devito.finite_differences.differentiable import Mul, Add
 from devito.tools import (EnrichedTuple, ReducerMap, as_tuple, flatten, is_integer,
                           ctypes_to_cstr, memoized_meth, dtype_to_ctype)
 from devito.types.dimension import Dimension
@@ -1344,7 +1345,7 @@ class SeparableFunction(Differentiable):
     >>> c
     c_x(x) + c_yz(y, z)
     """
-    def __new__(self, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
         # Is it sum or product separable
         sep_op = spearation_op[kwargs.get('sep', 'prod')]
 
@@ -1374,10 +1375,43 @@ class SeparableFunction(Differentiable):
             func_list += [Function(name=name+'_'+names(nonseparated),
                                    dimensions=nonseparated,
                                    shape=nonsep_shape, space_order=so)]
-        return sep_op(func_list)
+
+        expr = sep_op(*func_list)
+        new_obj = Differentiable.__new__(cls, expr)
+
+        dims = tuple([d for d in separated] + [nonseparated])
+        new_obj._subfunctions = dict([(d, f) for d, f in zip(dims, func_list)])
+        new_obj._dims = dims
+        new_obj._expr = expr
+
+        return new_obj
+
+    def __repr__(self):
+        return self.expr.__repr__()
+
+    __str__ = __repr__
+
+    @property
+    def expr(self):
+        return self._expr
+
+    @property
+    def dims(self):
+        return self._dims
+
+    @property
+    def subfunctions(self):
+        return self._subfunctions
+
+    def __getitem__(self, dim):
+        return self.subfunctions[dim]
+
+    @property
+    def data(self):
+        return tuple(f.data for f in self.subfunctions.value)
 
 
-class SeparableTimeFunction(Differentiable):
+class SeparableTimeFunction(SeparableFunction):
     """
     A function separable in its dimensions, ie f(t, x,y,z) = f(t)f(x)*f(y)*f(z)
 
@@ -1412,7 +1446,7 @@ class SeparableTimeFunction(Differentiable):
     >>> d
     d_t(t)*d_x(x)*d_yz(y, z)
     """
-    def __new__(self, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
         # Is it sum or product separable
         sep_op = spearation_op[kwargs.get('sep', 'prod')]
 
@@ -1454,7 +1488,15 @@ class SeparableTimeFunction(Differentiable):
                                        shape=nonsep_shape, space_order=so,
                                        time_order=to)]
 
-        return sep_op(func_list)
+        expr = sep_op(*func_list)
+        new_obj = Differentiable.__new__(cls, expr)
+
+        dims = tuple([d for d in separated] + [nonsep])
+        new_obj._subfunctions = dict([(d, f) for d, f in zip(dims, func_list)])
+        new_obj._dims = dims
+        new_obj._expr = expr
+
+        return new_obj
 
 
-spearation_op = {'sum': np.sum, 'prod': np.prod}
+spearation_op = {'sum': Add, 'prod': Mul}

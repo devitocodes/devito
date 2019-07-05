@@ -31,6 +31,14 @@ class TimeFunction(with_metaclass(_BackendSelector, dense.TimeFunction)):
     pass
 
 
+class SeparableFunction(with_metaclass(_BackendSelector, dense.SeparableFunction)):
+    pass
+
+
+class SeparableTimeFunction(with_metaclass(_BackendSelector, dense.SeparableTimeFunction)):  # noqa
+    pass
+
+
 class SparseFunction(with_metaclass(_BackendSelector, sparse.SparseFunction)):
     pass
 
