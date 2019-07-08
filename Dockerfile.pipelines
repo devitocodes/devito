@@ -81,10 +81,11 @@ ENV PATH=/usr/local/miniconda/bin:$PATH
 RUN if [ $installWithPip == "true" ] ; then \ 
       if [ $PYTHON_VERSION == "3.6" ] ; then \
         apt-get install -y python3.6-dev python3-pip ; \
+      rm -f /usr/bin/python && ln -s /usr/bin/python3.6 /usr/bin/python ; \
       else \
         apt-get install -y python3.7-dev python3-pip ; \
+      rm -f /usr/bin/python && ln -s /usr/bin/python3.7 /usr/bin/python ; \
       fi ; \
-      rm -f /usr/bin/python && ln -s /usr/bin/python3 /usr/bin/python ; \
     else \
       wget --no-verbose https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh ; \
       bash /tmp/miniconda.sh -b -p /usr/local/miniconda ; \
