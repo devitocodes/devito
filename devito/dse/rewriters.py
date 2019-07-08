@@ -378,7 +378,6 @@ class CustomRewriter(AggressiveRewriter):
         'gcse': AggressiveRewriter._eliminate_inter_stencil_redundancies,
         'cse': AggressiveRewriter._eliminate_intra_stencil_redundancies,
         'extract_invariants': AdvancedRewriter._extract_time_invariants,
-        'extract_indices': BasicRewriter._extract_nonaffine_indices,
         'extract_increments': BasicRewriter._extract_increments,
         'opt_transcedentals': BasicRewriter._optimize_trigonometry
     }

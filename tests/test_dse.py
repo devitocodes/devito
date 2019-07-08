@@ -525,8 +525,7 @@ def test_acoustic_rewrite_basic():
 def test_custom_rewriter():
     ret1 = run_acoustic_forward(dse=None)
     ret2 = run_acoustic_forward(dse=('extract_sop', 'factorize',
-                                     'extract_invariants',
-                                     'extract_indices', 'gcse'))
+                                     'extract_invariants', 'gcse'))
 
     assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
     assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
