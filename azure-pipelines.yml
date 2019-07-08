@@ -26,13 +26,6 @@ jobs:
         installWithPip: 'false'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'true'
-      conda-gcc9:
-        gccVersion: '9'
-        DEVITO_OPENMP: '0'
-        MPI_INSTALL: '1'
-        installWithPip: 'false'
-        DEVITO_BACKEND: 'core'
-        RUN_EXAMPLES: 'true'
       openmp-conda-gcc8:
         gccVersion: '8'
         DEVITO_OPENMP: '1'
