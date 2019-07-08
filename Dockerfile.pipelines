@@ -79,7 +79,7 @@ ENV PATH=/usr/local/miniconda/bin:$PATH
 
 # Python installs
 RUN if [ $installWithPip == "true" ] ; then \ 
-      if [ $PYTHON_VERSION == '3.6' ] ; then \
+      if [ $PYTHON_VERSION == "3.6" ] ; then \
         apt-get install -y python3.6-dev python3-pip ; \
       else \
         apt-get install -y python3.7-dev python3-pip ; \
