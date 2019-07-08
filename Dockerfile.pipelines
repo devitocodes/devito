@@ -45,6 +45,10 @@ ENV MPI_INSTALL=$MPI_INSTALL
 ARG RUN_EXAMPLES='false'
 ENV RUN_EXAMPLES=$RUN_EXAMPLES
 
+# Python version?
+ARG PYTHON_VERSION='3.6'
+ENV PYTHON_VERSION=$PYTHON_VERSION
+
 # Ensure a non-interactive matplotlib backend
 ENV MPLBACKEND=agg
 
@@ -75,7 +79,11 @@ ENV PATH=/usr/local/miniconda/bin:$PATH
 
 # Python installs
 RUN if [ $installWithPip == "true" ] ; then \ 
-      apt-get install -y python3.6-dev python3-pip ; \
+      if [ $PYTHON_VERSION == '3.6' ] ; then \
+        apt-get install -y python3.6-dev python3-pip ; \
+      else \
+        apt-get install -y python3.7-dev python3-pip ; \
+      fi ; \
       rm -f /usr/bin/python && ln -s /usr/bin/python3 /usr/bin/python ; \
     else \
       wget --no-verbose https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh ; \

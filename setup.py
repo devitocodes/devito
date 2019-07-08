@@ -19,12 +19,12 @@ for ir in required:
 
 opt_reqs = []
 opt_links = []
-dict_opt_reqs = {}
+extras_require = {}
 for ir in optionals:
     # For conditionals like pytest=2.1; python == 3.6
     if ';' in ir:
         entries = ir.split(';')
-        dict_opt_reqs[entries[1]] = entries[0]
+        extras_require[entries[1]] = entries[0]
     # Git repos
     # This is still a bit of an issue because it can only catch
     # version not master
@@ -33,7 +33,7 @@ for ir in optionals:
         opt_reqs += [ir.split('/')[-1]]
     else:
         opt_reqs += [ir]
-dict_opt_reqs['extras'] = opt_reqs
+extras_require['extras'] = opt_reqs
 
 setup(name='devito',
       version=versioneer.get_version(),
@@ -52,6 +52,6 @@ setup(name='devito',
       license='MIT',
       packages=find_packages(exclude=['docs', 'tests', 'examples']),
       install_requires=reqs,
-      extras_require=dict_opt_reqs,
+      extras_require=extras_require,
       dependency_links=links,
       test_suite='tests')
