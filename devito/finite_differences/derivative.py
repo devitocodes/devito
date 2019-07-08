@@ -194,6 +194,6 @@ class Derivative(sympy.Derivative, Differentiable):
                                    matvec=self.transpose, stagger=self.stagger)
         else:
             res = generic_derivative(expr, *self.dims, self.fd_order,
-                                     self.deriv_order, stagger=self.stagger,
+                                     self.deriv_order, stagger=self.stagger[0],
                                      matvec=self.transpose)
         return res

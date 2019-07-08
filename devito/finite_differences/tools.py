@@ -161,6 +161,22 @@ def symbolic_weights(function, deriv_order, indices, dim):
 
 def generate_indices(func, dim, diff, order, stagger=None, side=None):
 
+    # If staggered finited difference
+    if func.is_Staggered:
+        if stagger == left:
+            off = -.5
+        elif stagger == right:
+            off = .5
+        else:
+            off = 0
+        ind = list(set([(dim + int(i+.5+off) * dim.spacing)
+                        for i in range(-order//2, order//2)]))
+        x0 = (dim + off*diff)
+        if order < 2:
+            ind = [dim + diff, dim] if stagger == right else [dim - diff, dim]
+
+        return ind, x0
+
     # Check if called from first_derivative()
     if bool(side):
         if side == right:
@@ -174,24 +190,10 @@ def generate_indices(func, dim, diff, order, stagger=None, side=None):
                                                int((order+1)/2)+1)]
         x0 = None
     else:
-        if func.is_Staggered:
-            if stagger == left:
-                off = -.5
-            elif stagger == right:
-                off = .5
-            else:
-                off = 0
-            ind = list(set([(dim + int(i+.5+off) * dim.spacing)
-                            for i in range(-order//2, order//2)]))
-            x0 = (dim + off*diff)
-            if order < 2:
-                ind = [dim + diff, dim] if stagger == right else [dim - diff, dim]
-
-        else:
-            ind = [(dim + i*dim.spacing) for i in range(-order//2, order//2 + 1)]
-            x0 = dim
-            if order < 2:
-                ind = [dim, dim + diff]
+        ind = [(dim + i*dim.spacing) for i in range(-order//2, order//2 + 1)]
+        x0 = dim
+        if order < 2:
+            ind = [dim, dim + diff]
     return ind, x0
 
 
