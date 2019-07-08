@@ -1316,7 +1316,8 @@ class SubFunction(Function):
 
 class SeparableFunction(Differentiable):
     """
-    A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
+    A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z) or
+    in the more general case f(x,y,z) = \sum_r f(x, r)*f(y, r)*f(z, r)
 
     Takes the same parameters as Function and
 
@@ -1326,6 +1327,8 @@ class SeparableFunction(Differentiable):
             type of separation as a product or sum of function
         separated: tuple or Dimension
             Dimension in which the function is separable
+        rank: Int or tuple
+            Size of the subfunction factors
 
     Examples
     --------
@@ -1354,6 +1357,10 @@ class SeparableFunction(Differentiable):
         grid = kwargs.pop('grid')
         so = kwargs.pop('space_order', 1)
 
+        # Get rank
+        r = kwargs.pop('rank', 1)
+        if rank > 1:
+            rank = DefaultDimension(name='r', value=r)
         # Initialize subfunctions
         # Separable dimensions
         separated = as_tuple(kwargs.get('separated', grid.dimensions))
@@ -1363,7 +1370,6 @@ class SeparableFunction(Differentiable):
                      for d in separated]
 
         # Remaining dimensions
-
         def names(dims):
             names = ''
             for d in as_tuple(dims):
