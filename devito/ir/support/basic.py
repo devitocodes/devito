@@ -24,12 +24,12 @@ class IterationInstance(LabeledVector):
     A representation of the iteration and data points accessed by an
     Indexed object. Three different concepts are distinguished:
 
-        * Index functions: the expressions describing what *iteration* space point
-          are accessed.
+        * Index functions: the expressions describing what *iteration* space
+          points are accessed.
         * ``aindices``: the Dimensions acting as iteration variables.
-          There is one aindex for each index function. If the index function
-          is non-affine, then it may not be possible to detect its aindex;
-          in such a case, None is used as placeholder.
+          There is one aindex for each non-constant affine index function. If
+          the index function is non-affine, then it may not be possible to detect
+          its aindex; in such a case, None is used as placeholder.
         * ``findices``: the Dimensions describing what *data* space point
           are accessed.
 
@@ -132,48 +132,6 @@ class IterationInstance(LabeledVector):
         findices = as_tuple(findices)
         return (set(findices) & set(self.findices)).issubset(set(self.findices_affine))
 
-    def touched_halo(self, findex):
-        """
-        Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
-        means that the halo is touched along that DataSide.
-        """
-        # If an irregularly (non-affine) accessed Dimension, conservatively
-        # assume the halo will be touched
-        if self.irregular(findex):
-            return (True, True)
-
-        aindex = self.aindices[findex]
-
-        # If the iterator is *not* a distributed Dimension, then surely the
-        # halo isn't touched
-        try:
-            if not aindex._maybe_distributed:
-                return (False, False)
-        except AttributeError:
-            pass
-
-        # Given `d` \in aindices, iterating over [0, size_d):
-        # * if `self[d] - d < self.function._size_halo[d].left`, then `self` will
-        #   definitely touch the left-halo when `d=0`
-        # * if `self[d] - d > self.function._size_halo[d].left`, then `self` will
-        #   definitely touch the right-halo when `d=size_d-1`
-        size_halo_left = self.function._size_halo[findex].left
-        try:
-            touch_halo_left = bool(self[findex] - aindex < size_halo_left)
-        except TypeError:
-            # Conservatively assume True. We might end up here, for example,
-            # in the following cases:
-            # * The `aindex` doesn't appear in `self[findex]`, such as when the
-            #   `aindex` is a pure number of a different Dimension
-            # * `self[findex]` isn't affine in the `aindex`
-            touch_halo_left = True
-        try:
-            touch_halo_right = bool(self[findex] - aindex > size_halo_left)
-        except TypeError:
-            # Same considerations as in the try-except above
-            touch_halo_right = True
-        return (touch_halo_left, touch_halo_right)
-
     def irregular(self, findices):
         """
         Return True if all of the provided findices appear in self and are
@@ -251,7 +209,7 @@ class TimedAccess(IterationInstance):
     on the values of the index functions and the access mode (read, write).
     """
 
-    def __new__(cls, indexed, mode, timestamp, ispace):
+    def __new__(cls, indexed, mode, timestamp, ispace=None):
         assert mode in ['R', 'W', 'RI', 'WI']
         assert is_integer(timestamp)
 
@@ -262,10 +220,15 @@ class TimedAccess(IterationInstance):
         obj.mode = mode
         obj.timestamp = timestamp
 
-        # We use `.root` as if a DerivedDimension is in `directions`, then so is
-        # its parent, and the parent (root) direction cannot differ from that
-        # of its child
-        obj.directions = [ispace.directions.get(i.root, Any) for i in obj.findices]
+        if ispace is None:
+            obj.intervals = []
+            obj.directions = []
+        else:
+            obj.intervals = ispace.intervals
+            # We use `.root` as if a DerivedDimension is in `directions`, then so is
+            # its parent, and the parent (root) direction cannot differ from that
+            # of its child
+            obj.directions = [ispace.directions.get(i.root, Any) for i in obj.findices]
 
         return obj
 
@@ -277,6 +240,7 @@ class TimedAccess(IterationInstance):
         return (isinstance(other, TimedAccess) and
                 self.function == other.function and
                 self.mode == other.mode and
+                self.intervals == other.intervals and
                 self.directions == other.directions and
                 super(TimedAccess, self).__eq__(other))
 
@@ -316,6 +280,8 @@ class TimedAccess(IterationInstance):
             raise TypeError("Cannot compare with object of type %s" % type(other))
         if self.directions != other.directions:
             raise TypeError("Cannot compare due to mismatching `direction`")
+        if self.intervals != other.intervals:
+            raise TypeError("Cannot compare due to mismatching `intervals`")
         return super(TimedAccess, self).__lt__(other)
 
     def lex_eq(self, other):
@@ -337,8 +303,6 @@ class TimedAccess(IterationInstance):
         return self.timestamp < other.timestamp
 
     def distance(self, other, findex=None):
-        if self.rank != other.rank:
-            raise TypeError("Cannot order due to mismatching `rank`")
         if not self.rank:
             return Vector()
         findex = findex or self.findices[-1]
@@ -354,6 +318,54 @@ class TimedAccess(IterationInstance):
         directions = self.directions[:self._cached_findices_index[i] + 1]
         assert len(directions) == len(ret)
         return Vector(*[(-i) if d == Backward else i for i, d in zip(ret, directions)])
+
+    def touched_halo(self, findex):
+        """
+        Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
+        means that the halo is touched along that DataSide.
+        """
+        # If an irregularly (non-affine) accessed Dimension, conservatively
+        # assume the halo will be touched
+        if self.irregular(findex):
+            return (True, True)
+
+        d = self.aindices[findex]
+
+        # If the iterator is *not* a distributed Dimension, then surely the halo
+        # isn't touched
+        try:
+            if not d._maybe_distributed:
+                return (False, False)
+        except AttributeError:
+            assert is_integer(d)
+
+        # Given `d`'s iteration Interval `d[m, M]`, we know that `d` iterates between
+        # `d_m + m` and `d_M + M`
+        m, M = self.intervals[d].offsets
+
+        # If `m + (self[d] - d) < self.function._size_halo[d].left`, then `self`
+        # will definitely touch the left-halo, at least when `d=0`
+        size_halo_left = self.function._size_halo[findex].left
+        try:
+            touch_halo_left = bool(m + (self[findex] - d) < size_halo_left)
+        except TypeError:
+            # Two reasons we might end up here:
+            # * `d` is a constant integer
+            # * `m` is a symbol (e.g., a SubDimension-induced offset)
+            #   TODO: we could exploit the properties attached to `m` (if any), such
+            #         as `nonnegative` etc, to do something smarter than just
+            #         assuming, conservatively, `touch_halo_left = True`
+            touch_halo_left = True
+
+        # If `M + (self[d] - d) > self.function._size_halo[d].left`, then
+        # `self` will definitely touch the right-halo, at least when `d=d_M`
+        try:
+            touch_halo_right = bool(M + (self[findex] - d) > size_halo_left)
+        except TypeError:
+            # See comments in the except block above
+            touch_halo_right = True
+
+        return (touch_halo_left, touch_halo_right)
 
 
 class Dependence(object):
@@ -606,7 +618,7 @@ class Scope(object):
         for d in dimensions:
             for j in d.symbolic_size.free_symbols:
                 v = self.reads.setdefault(j.function, [])
-                v.append(TimedAccess(j, 'R', -1, {}))
+                v.append(TimedAccess(j, 'R', -1))
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
