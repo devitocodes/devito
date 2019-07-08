@@ -341,7 +341,16 @@ class TimedAccess(IterationInstance):
 
         # Given `d`'s iteration Interval `d[m, M]`, we know that `d` iterates between
         # `d_m + m` and `d_M + M`
-        m, M = self.intervals[d].offsets
+        try:
+            m, M = self.intervals[d].offsets
+        except AttributeError:
+            if d.is_NonlinearDerived:
+                # We should only end up here with subsampled Dimensions
+                m, M = self.intervals[d.root].offsets
+            else:
+                # A constant (integer) is actually used to index into `findex`
+                assert is_integer(self[findex])
+                m, M = 0, 0
 
         # If `m + (self[d] - d) < self.function._size_halo[d].left`, then `self`
         # will definitely touch the left-halo, at least when `d=0`
