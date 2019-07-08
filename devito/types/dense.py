@@ -1350,15 +1350,16 @@ class SeparableFunction(Differentiable):
         sep_op = spearation_op[kwargs.get('sep', 'prod')]
 
         # Conventional Function inputs
-        name = kwargs.get('name')
-        grid = kwargs.get('grid')
-        so = kwargs.get('space_order', 1)
+        name = kwargs.pop('name')
+        grid = kwargs.pop('grid')
+        so = kwargs.pop('space_order', 1)
 
         # Initialize subfunctions
         # Separable dimensions
         separated = as_tuple(kwargs.get('separated', grid.dimensions))
         func_list = [Function(name=name+'_'+d.name, dimensions=(d,),
-                              shape=(d.shape,), space_order=so)
+                              shape=(d.shape,), space_order=so,
+                              **kwargs)
                      for d in separated]
 
         # Remaining dimensions
@@ -1371,10 +1372,9 @@ class SeparableFunction(Differentiable):
 
         nonseparated = tuple(d for d in grid.dimensions if d not in separated)
         if len(nonseparated) > 0:
-            nonsep_shape = tuple(d.shape for d in nonseparated)
             func_list += [Function(name=name+'_'+names(nonseparated),
-                                   dimensions=nonseparated,
-                                   shape=nonsep_shape, space_order=so)]
+                                   dimensions=nonseparated, grid=grid,
+                                   space_order=so, **kwargs)]
 
         expr = sep_op(*func_list)
         new_obj = Differentiable.__new__(cls, expr)
@@ -1409,6 +1409,16 @@ class SeparableFunction(Differentiable):
     @property
     def data(self):
         return tuple(f.data for f in self.subfunctions.value)
+
+    @property
+    def evaluate(self):
+        return self
+
+    def subs(self, rules):
+        return self.expr.subs(rules)
+
+    def xreplace(self, rules):
+        return self.expr.xreplace(rules)
 
 
 class SeparableTimeFunction(SeparableFunction):
@@ -1451,24 +1461,20 @@ class SeparableTimeFunction(SeparableFunction):
         sep_op = spearation_op[kwargs.get('sep', 'prod')]
 
         # Conventional TimeFunction inputs
-        name = kwargs.get('name')
-        grid = kwargs.get('grid')
+        name = kwargs.pop('name')
+        grid = kwargs.pop('grid')
 
         save = kwargs.get('save', None)
         time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
 
-        to = kwargs.get('time_order', 1)
-        so = kwargs.get('space_order', 1)
+        to = kwargs.pop('time_order', 1)
+        so = kwargs.pop('space_order', 1)
 
-        shape_t = kwargs.get('save', to + 1)
         # Initialize subfunctions
         # Separable dimensions
 
         def func(dim):
             return TimeFunction if any(d.is_Time for d in as_tuple(dim)) else Function
-
-        def shape(dim):
-            return shape_t if dim.is_Time else dim.shape
 
         def names(dims):
             names = ''
@@ -1478,15 +1484,15 @@ class SeparableTimeFunction(SeparableFunction):
 
         separated = as_tuple(kwargs.get('separated', (time_dim,) + grid.dimensions))
         func_list = [func(d)(name=name+'_'+d.name, dimensions=(d,),
-                             shape=(shape(d),), space_order=so, time_order=to)
+                             grid=grid, space_order=so, time_order=to,
+                             **kwargs)
                      for d in separated]
         # Remaining dimensions
         nonsep = tuple(d for d in grid.dimensions if d not in separated)
         if len(nonsep) > 0:
-            nonsep_shape = tuple(shape(d) for d in nonsep)
             func_list += [func(nonsep)(name=name+'_'+names(nonsep), dimensions=nonsep,
-                                       shape=nonsep_shape, space_order=so,
-                                       time_order=to)]
+                                       grid=grid, space_order=so,
+                                       time_order=to, **kwargs)]
 
         expr = sep_op(*func_list)
         new_obj = Differentiable.__new__(cls, expr)

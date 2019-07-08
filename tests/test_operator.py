@@ -4,7 +4,7 @@ import pytest
 from conftest import skipif, EVAL, time, x, y, z
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, configuration)
+                    NODE, CELL, configuration, SeparableTimeFunction)
 from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -389,6 +389,39 @@ class TestArithmetic(object):
         # Exactly in the middle of 4 points, only 1 nonzero is 4
         assert np.all(u.data[1:4, 4:6, 4:6] == pytest.approx(0.75))
         assert np.sum(u.data[:]) == pytest.approx(12*0.75)
+
+    def test_separable_source(self):
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        t = grid.time_dim
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+        u2 = TimeFunction(name='u2', grid=grid, time_order=2, save=5, space_order=0)
+        q = SeparableTimeFunction(name='q', grid=grid, time_order=0, space_order=0,
+                                  sep='prod', separated=t, save=5)
+
+        # Conventional sparse source for reference solution
+        sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
+        sf1.coordinates.data[0, :] = (0.45, 0.45)
+        sf1.data[:, 0] = np.arange(5)
+        op = Operator(sf1.inject(u, expr=3*sf1))
+        op.apply(time_m=1, time_M=3)
+
+        # Source as separable function
+        # Source time signature in q[t]
+        q[t].data[:] = np.asarray(sf1.data[:, 0])
+        # q(x,y) is the spatial weight ie .inject(3)
+        # and only needs the coordinates
+        sf2 = SparseFunction(name='s', grid=grid, npoint=1)
+        sf2.coordinates.data[0, :] = (0.45, 0.45)
+        sf2.data[:] = 3.
+        eq_src = sf2.inject(q[(x, y)], expr=sf2)
+        # Operator. The expression is then
+        # - First get the weights sf.inject
+        # - Secnd the stencil is simply u += q[time]*q[(x,y)]
+        op2 = Operator(eq_src + [Eq(u2, q)])
+        op2(time_m=1, time_M=3)
+        # Both result should be the same
+        assert np.allclose(u.data, u2.data)
 
 
 class TestAllocation(object):
