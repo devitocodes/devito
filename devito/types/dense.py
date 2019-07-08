@@ -21,7 +21,7 @@ from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.finite_differences.differentiable import Mul, Add
 from devito.tools import (EnrichedTuple, ReducerMap, as_tuple, flatten, is_integer,
                           ctypes_to_cstr, memoized_meth, dtype_to_ctype)
-from devito.types.dimension import Dimension
+from devito.types.dimension import Dimension, DefaultDimension
 from devito.types.args import ArgProvider
 from devito.types.basic import AbstractCachedFunction
 from devito.types.utils import Buffer, NODE, CELL
@@ -1316,8 +1316,7 @@ class SubFunction(Function):
 
 class SeparableFunction(Differentiable):
     """
-    A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z) or
-    in the more general case f(x,y,z) = \sum_r f(x, r)*f(y, r)*f(z, r)
+    A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
 
     Takes the same parameters as Function and
 
@@ -1327,7 +1326,7 @@ class SeparableFunction(Differentiable):
             type of separation as a product or sum of function
         separated: tuple or Dimension
             Dimension in which the function is separable
-        rank: Int or tuple
+        rank: Int
             Size of the subfunction factors
 
     Examples
@@ -1357,15 +1356,11 @@ class SeparableFunction(Differentiable):
         grid = kwargs.pop('grid')
         so = kwargs.pop('space_order', 1)
 
-        # Get rank
-        r = kwargs.pop('rank', 1)
-        if rank > 1:
-            rank = DefaultDimension(name='r', value=r)
         # Initialize subfunctions
         # Separable dimensions
         separated = as_tuple(kwargs.get('separated', grid.dimensions))
         func_list = [Function(name=name+'_'+d.name, dimensions=(d,),
-                              shape=(d.shape,), space_order=so,
+                              grid=grid, space_order=so,
                               **kwargs)
                      for d in separated]
 

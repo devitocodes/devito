@@ -4,7 +4,7 @@ import pytest
 from conftest import skipif, EVAL, time, x, y, z
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, configuration, SeparableTimeFunction)
+                    NODE, CELL, configuration, SeparableTimeFunction, Inc)
 from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -391,6 +391,10 @@ class TestArithmetic(object):
         assert np.sum(u.data[:]) == pytest.approx(12*0.75)
 
     def test_separable_source(self):
+        """
+        Test spearable function as
+        u = u + q[t]*q[x,y]
+        """
         grid = Grid(shape=(11, 11))
         x, y = grid.dimensions
         t = grid.time_dim
@@ -422,6 +426,48 @@ class TestArithmetic(object):
         op2(time_m=1, time_M=3)
         # Both result should be the same
         assert np.allclose(u.data, u2.data)
+
+    def test_separable_rec(self):
+        """
+        Test spearable function as
+        q[t] = u[t,x,y]*q[x,y]
+
+        This would be how to wrtie the receiver interpolation
+        as a function product and this would need one of these
+        for each receiver.
+        """
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        t = grid.time_dim
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+        q = SeparableTimeFunction(name='q', grid=grid, time_order=0, space_order=0,
+                                  sep='prod', separated=t, save=5)
+
+        # Conventional sparse source for reference solution
+        sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
+        sf1.coordinates.data[0, :] = (0.45, 0.45)
+
+        op = Operator(sf1.interpolate(u))
+        u.data[:] = 0.0
+        u.data[:, 4, 4] = 8*np.arange(5)+4
+        # Because of time_order=2 this is probably the range we get anyway, but
+        # to be sure...
+        op.apply(time_m=1, time_M=3)
+
+        # Rec as separable function
+        # q(x,y) is the spatial weight ie .inject(3)
+        # and only needs the coordinates
+        sf2 = SparseFunction(name='s', grid=grid, npoint=1)
+        sf2.coordinates.data[0, :] = (0.45, 0.45)
+        sf2.data[:] = 1.
+        eq_src = sf2.inject(q[(x, y)], expr=sf2)
+        # Operator. The expression is then
+        # - First get the weights sf.inject
+        # - Secnd the stencil is simply u += q[time]*q[(x,y)]
+        op2 = Operator(eq_src + [Inc(q[t], u*q[(x, y)])])
+        op2(time_m=1, time_M=3)
+        # Both result should be the same
+        assert np.allclose(sf1.data[:, 0], q[t].data[:])
 
 
 class TestAllocation(object):
