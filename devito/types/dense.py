@@ -21,7 +21,7 @@ from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.finite_differences.differentiable import Mul, Add
 from devito.tools import (EnrichedTuple, ReducerMap, as_tuple, flatten, is_integer,
                           ctypes_to_cstr, memoized_meth, dtype_to_ctype)
-from devito.types.dimension import Dimension, DefaultDimension
+from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.basic import AbstractCachedFunction
 from devito.types.utils import Buffer, NODE, CELL
@@ -960,6 +960,7 @@ class Function(DiscreteFunction, Differentiable):
         grid = kwargs.get('grid')
         dimensions = kwargs.get('dimensions')
         shape = kwargs.get('shape', kwargs.get('shape_global'))
+        print(cls, kwargs)
         if grid is None:
             if shape is None:
                 raise TypeError("Need either `grid` or `shape`")
@@ -1316,35 +1317,29 @@ class SubFunction(Function):
 
 class SeparableFunction(Differentiable):
     """
-    A function separable in its dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
+    A Function separable in its Dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
 
-    Takes the same parameters as Function and
+    Take the same parameters as a Function plus
 
     Parameters
     ----------
-        sep: 'sum' or 'prod'
-            type of separation as a product or sum of function
-        separated: tuple or Dimension
-            Dimension in which the function is separable
-        rank: Int
-            Size of the subfunction factors
+    sep: str
+        Type of separation as a product or sum of Function, 'sum' or 'prod'.
+    separated: Dimension or tuple of Dimensions
+        Dimension in which the Function is separable.
 
     Examples
     --------
-
     Creation
 
     >>> from devito import Grid, TimeFunction
     >>> grid = Grid(shape=(4, 4, 5))
     >>> x, y, z = grid.dimensions
-    >>> a = SeparableFunction(name='a', grid=grid)
-    >>> a
+    >>> SeparableFunction(name='a', grid=grid)
     a_x(x)*a_y(y)*a_z(z)
-    >>> b = SeparableFunction(name='b', grid=grid, sep='sum')
-    >>> b
+    >>> SeparableFunction(name='b', grid=grid, sep='sum')
     b_x(x) + b_y(y) + b_z(z)
-    >>> c = SeparableFunction(name='c', grid=grid, sep='sum', separated=x)
-    >>> c
+    >>> SeparableFunction(name='c', grid=grid, sep='sum', separated=x)
     c_x(x) + c_yz(y, z)
     """
     def __new__(cls, *args, **kwargs):
@@ -1360,8 +1355,8 @@ class SeparableFunction(Differentiable):
         # Separable dimensions
         separated = as_tuple(kwargs.get('separated', grid.dimensions))
         func_list = [Function(name=name+'_'+d.name, dimensions=(d,),
-                              grid=grid, space_order=so,
-                              **kwargs)
+                              shape=(grid.dimension_map[d].loc,),
+                              grid=grid, space_order=so, **kwargs)
                      for d in separated]
 
         # Remaining dimensions
@@ -1375,13 +1370,14 @@ class SeparableFunction(Differentiable):
         if len(nonseparated) > 0:
             func_list += [Function(name=name+'_'+names(nonseparated),
                                    dimensions=nonseparated, grid=grid,
+                                   shape=tuple(grid.dimension_map[d].loc for d in nonseparated),
                                    space_order=so, **kwargs)]
 
         expr = sep_op(*func_list)
         new_obj = Differentiable.__new__(cls, expr)
 
         dims = tuple([d for d in separated] + [nonseparated])
-        new_obj._subfunctions = dict([(d, f) for d, f in zip(dims, func_list)])
+        new_obj._subfunctions = {d: f for d, f in zip(dims, func_list)}
         new_obj._dims = dims
         new_obj._expr = expr
 
@@ -1391,6 +1387,17 @@ class SeparableFunction(Differentiable):
         return self.expr.__repr__()
 
     __str__ = __repr__
+
+    def from_expr(self, expr):
+        new_obj = Differentiable.__new__(SeparableFunction, expr)
+        new_obj._subfunctions = {d: f for d, f in zip(self.dims, expr.args)}
+        new_obj._dims = self.dims
+        new_obj._expr = expr
+
+        return new_obj
+
+    def func(self, *args, **kwargs):
+        return self.from_expr(self.expr.func(*args, **kwargs))
 
     @property
     def expr(self):
@@ -1416,45 +1423,40 @@ class SeparableFunction(Differentiable):
         return self
 
     def subs(self, rules):
-        return self.expr.subs(rules)
+        return self.from_expr(self.expr.subs(rules))
 
     def xreplace(self, rules):
-        return self.expr.xreplace(rules)
+        return self.from_expr(self.expr.xreplace(rules))
 
 
 class SeparableTimeFunction(SeparableFunction):
     """
-    A function separable in its dimensions, ie f(t, x,y,z) = f(t)f(x)*f(y)*f(z)
+    A TimeFunction separable in its Dimensions, ie f(t,x,y,z) = f(t)*f(x)*f(y)*f(z)
 
-    Takes the same parameters as TimeFunction and
+    Take the same parameters as a TimeFunction plus
 
     Parameters
     ----------
-        sep: 'sum' or 'prod'
-            type of separation as a product or sum of function
-        separated: tuple or Dimension
-            Dimension in which the function is separable
+    sep: str
+        Type of separation as a product or sum of Function, 'sum' or 'prod'.
+    separated: Dimension or tuple of Dimensions
+        Dimension in which the TimeFunction is separable.
 
     Examples
     --------
-
     Creation
 
     >>> from devito import Grid, TimeFunction
     >>> grid = Grid(shape=(4, 4, 5))
     >>> x, y, z = grid.dimensions
     >>> t = grid.stepping_dim
-    >>> a = SeparableTimeFunction(name='a', grid=grid, space_order=8, time_order=2)
-    >>> a
+    >>> SeparableTimeFunction(name='a', grid=grid, space_order=8, time_order=2)
     a_t(t)*a_x(x)*a_y(y)*a_z(z)
-    >>> b = SeparableTimeFunction(name='b', grid=grid, sep='sum')
-    >>> b
+    >>> SeparableTimeFunction(name='b', grid=grid, sep='sum')
     b_t(t) + b_x(x) + b_y(y) + b_z(z)
-    >>> c = SeparableTimeFunction(name='c', grid=grid, sep='sum', separated=t)
-    >>> c
+    >>> SeparableTimeFunction(name='c', grid=grid, sep='sum', separated=t)
     c_t(t) + c_xyz(x, y, z)
-    >>> d = SeparableTimeFunction(name='d', grid=grid, separated=(t, x))
-    >>> d
+    >>> SeparableTimeFunction(name='d', grid=grid, separated=(t, x))
     d_t(t)*d_x(x)*d_yz(y, z)
     """
     def __new__(cls, *args, **kwargs):
