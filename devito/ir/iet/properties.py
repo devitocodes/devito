@@ -31,14 +31,25 @@ VECTOR = IterationProperty('vector-dim')
 """The Iteration can be SIMD-vectorized."""
 
 WRAPPABLE = IterationProperty('wrappable')
-"""The Iteration implements modulo buffered iteration and its expressions are so that
+"""
+The Iteration implements modulo buffered iteration and its expressions are so that
 one or more buffer slots can be dropped without affecting correctness. For example,
-u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --> u[t-1, ...] = f(u[t, ...], u[t-1, ...])."""
+u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --> u[t-1, ...] = f(u[t, ...], u[t-1, ...]).
+"""
+
+ROUNDABLE = IterationProperty('roundable')
+"""
+The Iteration writes (only) to Arrays and the trip count can be rounded up to a
+multiple of the SIMD vector length without affecting correctness (thanks to the
+presence of sufficient padding).
+"""
 
 AFFINE = IterationProperty('affine')
-"""All Indexed access functions using the Iteration dimension ``d`` are
+"""
+All Indexed access functions using the Iteration dimension ``d`` are
 affine in ``d``. Further, the Iteration does not contain any Indexed varying in
-``d`` used to indirectly access some other Indexed."""
+``d`` used to indirectly access some other Indexed.
+"""
 
 
 class HaloSpotProperty(Tag):
@@ -51,8 +62,10 @@ class HaloSpotProperty(Tag):
 
 
 USELESS = HaloSpotProperty('useless')
-"""The HaloSpot can be ignored as an halo update at this point would be completely
-useless."""
+"""
+The HaloSpot can be ignored as an halo update at this point would be completely
+useless.
+"""
 
 OVERLAPPABLE = HaloSpotProperty('overlappable')
 """The HaloSpot supports computation-communication overlap."""
