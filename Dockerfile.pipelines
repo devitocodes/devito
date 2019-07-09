@@ -21,6 +21,16 @@ RUN apt-get -y install wget bzip2 git make
 # Default gcc version to install
 ARG gccVersion=8
 ENV DEVITO_ARCH=gcc-$gccVersion
+ENV CC=gcc-$gccVersion
+ENV CXX=g++-$gccVersion
+
+# Get the toolchain for gcc 9 if necessary
+RUN if [ "$DEVITO_ARCH" == "gcc-9" ] ; then \
+      apt-get install -y software-properties-common ; \
+      add-apt-repository ppa:ubuntu-toolchain-r/test ; \
+      apt-get update ; \
+    fi
+
 # Set Yask variables in case they are needed
 ENV YC_CXX=g++-$gccVersion
 
@@ -73,6 +83,9 @@ RUN if [ -f /usr/bin/gcov-tool-$gccVersion ] ; then \
 RUN if [ "$MPI_INSTALL" == "1" ] ; then \
       apt-get install -y -q mpich libmpich-dev ; \
     fi
+
+# Make sure the correct gcc is linked as mpich reinstalls one
+RUN rm -f /usr/bin/gcc && ln -s /usr/bin/gcc-$gccVersion /usr/bin/gcc ;
 
 # Set up path to support (optional) Conda install
 ENV PATH=/usr/local/miniconda/bin:$PATH

@@ -17,9 +17,9 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
           packages:
-            - gcc-7
-            - g++-7
-      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 INSTALL_TYPE=pip_setup RUN_EXAMPLES=False MPI_INSTALL=1
+            - gcc-4.9
+            - g++-4.9
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 INSTALL_TYPE=pip_setup RUN_EXAMPLES=False MPI_INSTALL=1
     - python: 3.7
       dist: xenial
       os: linux

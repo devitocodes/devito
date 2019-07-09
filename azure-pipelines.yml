@@ -12,7 +12,7 @@ jobs:
     vmImage: 'Ubuntu 16.04'
   strategy:
     matrix:
-      pip-gcc8-py36:
+      pip-gcc6-py36:
         gccVersion: '6'
         DEVITO_OPENMP: '0'
         MPI_INSTALL: '0'
@@ -20,16 +20,8 @@ jobs:
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'false'
         PYTHON_VERSION: '3.6'
-      pip-gcc8-py37:
-        gccVersion: '8'
-        DEVITO_OPENMP: '0'
-        MPI_INSTALL: '1'
-        installWithPip: 'true'
-        DEVITO_BACKEND: 'core'
-        RUN_EXAMPLES: 'false'
-        PYTHON_VERSION: '3.7'
-      conda-gcc8:
-        gccVersion: '8'
+      conda-gcc9:
+        gccVersion: '9'
         DEVITO_OPENMP: '0'
         MPI_INSTALL: '1'
         installWithPip: 'false'
