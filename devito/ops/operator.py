@@ -1,3 +1,4 @@
+from devito.ir.iet import Call, List
 from devito.logger import warning
 from devito.operator import Operator
 
@@ -16,4 +17,7 @@ class OperatorOPS(Operator):
 
         warning("The OPS backend is still work-in-progress")
 
-        return iet
+        ops_init = Call("ops_init", [0, 0, 1])
+        ops_exit = Call("ops_exit")
+
+        return List(body=[ops_init, iet, ops_exit])
