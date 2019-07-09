@@ -871,15 +871,17 @@ class Function(DiscreteFunction, Differentiable):
         to ``np.float32``.
     staggered : Dimension or tuple of Dimension or Stagger, optional
         Define how the Function is staggered.
-    padding : int or tuple of ints, optional
-        Allocate extra grid points to maximize data access alignment. When a tuple
-        of ints, one int per Dimension should be provided.
     initializer : callable or any object exposing the buffer interface, optional
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
+    padding : int or tuple of ints, optional
+        .. deprecated:: shouldn't be used; padding is now automatically inserted.
+
+        Allocate extra grid points to maximize data access alignment. When a tuple
+        of ints, one int per Dimension should be provided.
 
     Examples
     --------
@@ -1141,15 +1143,17 @@ class TimeFunction(Function):
         TimeDimension to be used in the TimeFunction. Defaults to ``grid.time_dim``.
     staggered : Dimension or tuple of Dimension or Stagger, optional
         Define how the Function is staggered.
-    padding : int or tuple of ints, optional
-        Allocate extra grid points to maximize data access alignment. When a tuple
-        of ints, one int per Dimension should be provided.
     initializer : callable or any object exposing the buffer interface, optional
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
+    padding : int or tuple of ints, optional
+        .. deprecated:: shouldn't be used; padding is now automatically inserted.
+
+        Allocate extra grid points to maximize data access alignment. When a tuple
+        of ints, one int per Dimension should be provided.
 
     Examples
     --------
