@@ -606,11 +606,11 @@ class SparseFunction(AbstractSparseFunction):
                 ub = sympy.And(p <= d.symbolic_max + self._radius, evaluate=False)
                 condition = sympy.And(lb, ub, evaluate=False)
                 mapper[d] = ConditionalDimension(p.name, self._sparse_dim,
+                                                 spacing=d.spacing,
                                                  condition=condition, indirect=True)
 
             # Track Indexed substitutions
-            idx_subs.append(OrderedDict([(v, v.subs(mapper)) for v in variables
-                                         if v.function is not self]))
+            idx_subs.append(mapper)
 
         # Temporaries for the indirection dimensions
         temps = [Eq(v, k, implicit_dims=self.dimensions) for k, v in points.items()]

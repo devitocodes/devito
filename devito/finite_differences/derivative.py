@@ -114,9 +114,10 @@ class Derivative(sympy.Derivative, Differentiable):
             new_dims = as_tuple(new_dims)
             orders = as_tuple(orders)
 
-        # Finite difference orders
-        fd_orders = kwargs.get('fd_order', tuple([expr.time_order if d.is_Time else
-                                                  expr.space_order for d in new_dims]))
+        # Finite difference orders depending on input dimension (.dt or .dx)
+        fd_orders = kwargs.get('fd_order', tuple([expr.time_order if
+                                                  getattr(d, 'is_Time', False) else
+                                                  expr.space_order for d in dims]))
         if len(dims) == 1 and isinstance(fd_orders, Iterable):
             fd_orders = fd_orders[0]
 
