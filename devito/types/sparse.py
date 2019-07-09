@@ -643,6 +643,13 @@ class SparseFunction(AbstractSparseFunction):
         increment: bool, optional
             If True, generate increments (Inc) rather than assignments (Eq).
         """
+        # Derivatives must be evaluated before the introduction of indirect accesses
+        try:
+            expr = expr.evaluate
+        except AttributeError:
+            # E.g., a generic SymPy expression or a number
+            pass
+
         variables = list(retrieve_function_carriers(expr))
 
         # List of indirection indices for all adjacent grid points
@@ -676,6 +683,12 @@ class SparseFunction(AbstractSparseFunction):
         offset : int, optional
             Additional offset from the boundary.
         """
+        # Derivatives must be evaluated before the introduction of indirect accesses
+        try:
+            expr = expr.evaluate
+        except AttributeError:
+            # E.g., a generic SymPy expression or a number
+            pass
 
         variables = list(retrieve_function_carriers(expr)) + [field]
 
