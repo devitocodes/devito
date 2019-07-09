@@ -693,24 +693,22 @@ class ConditionalDimension(DerivedDimension):
     is_NonlinearDerived = True
     is_Conditional = True
 
-    def __new__(cls, name, parent, factor=None, condition=None, indirect=False,
-                spacing=None):
+    def __new__(cls, name, parent, factor=None, condition=None, indirect=False):
         return ConditionalDimension.__xnew_cached_(cls, name, parent, factor,
-                                                   condition, indirect, spacing)
+                                                   condition, indirect)
 
-    def __new_stage2__(cls, name, parent, factor, condition, indirect, spacing):
+    def __new_stage2__(cls, name, parent, factor, condition, indirect):
         newobj = DerivedDimension.__xnew__(cls, name, parent)
         newobj._factor = factor
         newobj._condition = condition
         newobj._indirect = indirect
-        newobj._spacing = spacing or parent.spacing
         return newobj
 
     __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
     @property
     def spacing(self):
-        return self.factor * self._spacing
+        return self.factor * self.parent.spacing
 
     @property
     def factor(self):

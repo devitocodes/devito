@@ -239,6 +239,28 @@ def test_interpolate_custom(shape, coords, npoints=20):
     assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
 
 
+def test_interpolation_dx():
+    """
+    Test interpolation of a SparseFunction from a Derivative of
+    a Function.
+    """
+    u = unit_box(shape=(11, 11))
+    sf1 = SparseFunction(name='s', grid=u.grid, npoint=1)
+    sf1.coordinates.data[0, :] = (0.5, 0.5)
+
+    op = Operator(sf1.interpolate(u.dx))
+
+    assert sf1.data.shape == (1,)
+    u.data[:] = 0.0
+    u.data[5, 5] = 4.0
+    u.data[4, 5] = 2.0
+    u.data[6, 5] = 2.0
+
+    op.apply()
+    # Exactly in the middle of 4 points, only 1 nonzero is 4
+    assert sf1.data[0] == pytest.approx(-20.0)
+
+
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])

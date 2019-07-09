@@ -317,29 +317,6 @@ class TestArithmetic(object):
         # Exactly in the middle of 4 points, only 1 nonzero is 4
         assert sf1.data[0] == pytest.approx(1.0)
 
-    def test_sparsefunction_interp_dx(self):
-        """
-        Test interpolation of a SparseFunction from a Function
-        """
-        grid = Grid(shape=(11, 11))
-        u = Function(name='u', grid=grid, space_order=1)
-
-        sf1 = SparseFunction(name='s', grid=grid, npoint=1)
-        op = Operator(sf1.interpolate(u.dx))
-
-        assert sf1.data.shape == (1, )
-        sf1.coordinates.data[0, :] = (0.5, 0.5)
-        sf1.data[:] = 0.0
-        u.data[:] = 0.0
-        u.data[5, 5] = 4.0
-        u.data[4, 5] = 2.0
-        u.data[6, 5] = 2.0
-
-        op.apply()
-
-        # Exactly in the middle of 4 points, only 1 nonzero is 4
-        assert sf1.data[0] == pytest.approx(-20.0)
-
     def test_sparsetimefunction_interp(self):
         """
         Test injection of a SparseTimeFunction into a TimeFunction

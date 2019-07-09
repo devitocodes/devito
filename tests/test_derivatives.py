@@ -116,6 +116,31 @@ class TestFD(object):
         expected = eval(expected)
         assert expr == expected
 
+    @pytest.mark.parametrize('expr, rules', [
+        ('u.dx + u.dy', '{u.indices[0]: 1, u.indices[1]: 0}'),
+        ('u.dxdy - u.dxdz', '{u.indices[0]: u.indices[0] + u.indices[0].spacing,' +
+                            'u.indices[1]: 0, u.indices[2]: u.indices[1]}'),
+        ('u.dx2dy + u.dz ', '{u.indices[0]: u.indices[0] + u.indices[0].spacing,' +
+                            'u.indices[2]: u.indices[2] - 10}'),
+    ])
+    def test_derivative_eval_at(self, expr, rules):
+        u = Function(name='u', grid=self.grid, time_order=2, space_order=2)  # noqa
+        expr = eval(expr)
+        rules = eval(rules)
+        assert expr.evaluate.xreplace(rules) == expr.xreplace(rules).evaluate
+
+    @pytest.mark.parametrize('expr, rules', [
+        ('u.dx', '{u.indices[0]: 1}'),
+        ('u.dy', '{u.indices[1]: u.indices[2] - 7}'),
+        ('u.dz', '{u.indices[2]: u.indices[0] + u.indices[1].spacing}'),
+    ])
+    def test_derivative_eval_at_expr(self, expr, rules):
+        u = Function(name='u', grid=self.grid, time_order=2, space_order=2)  # noqa
+        expr = eval(expr)
+        rules = eval(rules)
+        assert expr.evaluate.xreplace(rules) == expr.xreplace(rules).evaluate
+        assert expr.expr == expr.xreplace(rules).expr
+
     @pytest.mark.parametrize('SymbolType, derivative, dim', [
         (Function, 'dx2', 3), (Function, 'dy2', 3),
         (TimeFunction, 'dx2', 3), (TimeFunction, 'dy2', 3), (TimeFunction, 'dt', 2)

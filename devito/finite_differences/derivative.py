@@ -72,7 +72,7 @@ class Derivative(sympy.Derivative, Differentiable):
     Derivative(u(x, y), (x, 2))
     """
 
-    _state = ('expr', 'dims', 'side', 'stagger', 'fd_order', 'transpose')
+    _state = ('expr', 'dims', 'side', 'stagger', 'fd_order', 'transpose', 'eval_at')
 
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) == sympy.Derivative:
@@ -135,12 +135,27 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._side = kwargs.get("side", centered)
         obj._stagger = kwargs.get("stagger", tuple([left]*len(obj._dims)))
         obj._transpose = kwargs.get("transpose", direct)
+        obj._eval_at = kwargs.get("eval_at", {})
 
         return obj
+
+    def _xreplace(self, eval_at):
+        """
+        Helper for xreplace. Tracks whether a replacement actually occurred.
+        """
+        eval_at = {**self.eval_at, **eval_at}
+        new = Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
+                         fd_order=self.fd_order, side=self.side, stagger=self.stagger,
+                         transpose=self.transpose, eval_at=eval_at)
+        return new, True
 
     @cached_property
     def _args_diff(self):
         return tuple(i for i in self.args if isinstance(i, Differentiable))
+
+    @property
+    def eval_at(self):
+        return self._eval_at
 
     @property
     def dims(self):
@@ -196,4 +211,5 @@ class Derivative(sympy.Derivative, Differentiable):
             res = generic_derivative(expr, *self.dims, self.fd_order,
                                      self.deriv_order, stagger=self.stagger[0],
                                      matvec=self.transpose)
-        return res
+
+        return res.xreplace(self.eval_at)

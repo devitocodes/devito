@@ -606,7 +606,6 @@ class SparseFunction(AbstractSparseFunction):
                 ub = sympy.And(p <= d.symbolic_max + self._radius, evaluate=False)
                 condition = sympy.And(lb, ub, evaluate=False)
                 mapper[d] = ConditionalDimension(p.name, self._sparse_dim,
-                                                 spacing=d.spacing,
                                                  condition=condition, indirect=True)
 
             # Track Indexed substitutions
