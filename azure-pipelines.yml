@@ -20,8 +20,8 @@ jobs:
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'false'
         PYTHON_VERSION: '3.6'
-      conda-gcc9:
-        gccVersion: '9'
+      conda-gcc8:
+        gccVersion: '8'
         DEVITO_OPENMP: '0'
         MPI_INSTALL: '1'
         installWithPip: 'false'

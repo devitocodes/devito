@@ -24,13 +24,6 @@ ENV DEVITO_ARCH=gcc-$gccVersion
 ENV CC=gcc-$gccVersion
 ENV CXX=g++-$gccVersion
 
-# Get the toolchain for gcc 9 if necessary
-RUN if [ "$DEVITO_ARCH" == "gcc-9" ] ; then \
-      apt-get install -y software-properties-common ; \
-      add-apt-repository ppa:ubuntu-toolchain-r/test ; \
-      apt-get update ; \
-    fi
-
 # Set Yask variables in case they are needed
 ENV YC_CXX=g++-$gccVersion
 
