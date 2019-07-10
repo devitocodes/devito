@@ -2,21 +2,20 @@ import abc
 from collections import OrderedDict
 from time import time
 
-import numpy as np
 from sympy import cos, sin
 
 from devito.equation import Eq
 from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Cluster,
-                       ClusterGroup, detect_accesses, build_intervals, groupby)
+                       detect_accesses, build_intervals)
 from devito.dse.aliases import collect
+from devito.dse.flowgraph import FlowGraph
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      compact_temporaries)
 from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
-                              iq_timeinvariant, pow_to_mul, retrieve_indexed,
-                              q_affine, q_leaf, q_scalar, q_sum_of_product,
-                              q_terminalop, xreplace_constrained)
+                              iq_timeinvariant, pow_to_mul, q_leaf, q_sum_of_product,
+                              q_scalar, q_terminalop, xreplace_constrained)
 from devito.tools import flatten, generator
 from devito.types import Array, Scalar
 
@@ -112,29 +111,7 @@ class BasicRewriter(AbstractRewriter):
 
     def _pipeline(self, state):
         self._eliminate_intra_stencil_redundancies(state)
-        self._extract_nonaffine_indices(state)
         self._extract_increments(state)
-
-    @dse_pass
-    def _extract_nonaffine_indices(self, cluster, template, **kwargs):
-        """
-        Extract non-affine array indices, and assign them to temporaries.
-        """
-        make = lambda: Scalar(name=template(), dtype=np.int32).indexify()
-
-        mapper = OrderedDict()
-        for e in cluster.exprs:
-            for indexed in retrieve_indexed(e):
-                for i, d in zip(indexed.indices, indexed.function.indices):
-                    if q_affine(i, d) or q_scalar(i):
-                        continue
-                    elif i not in mapper:
-                        mapper[i] = make()
-
-        processed = [Eq(v, k) for k, v in mapper.items()]
-        processed.extend([e.xreplace(mapper) for e in cluster.exprs])
-
-        return cluster.rebuild(processed)
 
     @dse_pass
     def _extract_increments(self, cluster, template, **kwargs):
@@ -146,7 +123,7 @@ class BasicRewriter(AbstractRewriter):
         for e in cluster.exprs:
             if e.is_Increment and e.lhs.function.is_Input:
                 handle = Scalar(name=template(), dtype=e.dtype).indexify()
-                if e.rhs.is_Symbol:
+                if q_scalar(e.rhs):
                     extracted = e.rhs
                 else:
                     extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
@@ -222,7 +199,7 @@ class AdvancedRewriter(BasicRewriter):
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        rule = iq_timeinvariant(cluster.flowgraph)
+        rule = iq_timeinvariant(FlowGraph(cluster.exprs))
         costmodel = lambda e: estimate_cost(e) > 0
         processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
@@ -283,20 +260,17 @@ class AdvancedRewriter(BasicRewriter):
            temp1 = 2.0*ti[x,y,z]
            temp2 = 3.0*ti[x,y,z+1]
         """
-        if cluster.is_sparse:
-            return cluster
-
         # For more information about "aliases", refer to collect.__doc__
         aliases = collect(cluster.exprs)
 
         # Redundancies will be stored in space-varying temporaries
-        g = cluster.flowgraph
-        time_invariants = {v.rhs: g.time_invariant(v) for v in g.values()}
+        graph = FlowGraph(cluster.exprs)
+        time_invariants = {v.rhs: graph.time_invariant(v) for v in graph.values()}
 
         # Find the candidate expressions
         processed = []
         candidates = OrderedDict()
-        for k, v in g.items():
+        for k, v in graph.items():
             # Cost check (to keep the memory footprint under control)
             naliases = len(aliases.get(v.rhs))
             cost = estimate_cost(v, True)*naliases
@@ -309,7 +283,7 @@ class AdvancedRewriter(BasicRewriter):
 
         # Create alias Clusters and all necessary substitution rules
         # for the new temporaries
-        alias_clusters = ClusterGroup()
+        alias_clusters = []
         subs = {}
         for origin, alias in aliases.items():
             if all(i not in candidates for i in alias.aliased):
@@ -321,35 +295,28 @@ class AdvancedRewriter(BasicRewriter):
                          for i in cluster.ispace.intervals]
             ispace = IterationSpace(intervals, sub_iterators, directions)
 
-            if all(time_invariants.get(i, True) for i in alias.aliased):
-                # Optimization: the alising expressions are time-invariant so
-                # we can contract the iteration space (e.g., [t, x, y] -> [x, y])
-                ispace = ispace.project(lambda i: not i.is_Time)
+            # The write-to space
+            writeto = IntervalGroup(i for i in ispace.intervals if not i.dim.is_Time)
 
-                # The write-to space
-                writeto = ispace.intervals
-            else:
-                # The write-to space
-                writeto = IntervalGroup(i for i in ispace.intervals if not i.dim.is_Time)
-
-                # Optimization: no need to retain a SpaceDimension if it does not
-                # induce a flow/anti dependence (below, `i.limits` captures this, by
-                # telling how much halo will be needed to honour such dependences)
-                dep_inducing = [i for i in writeto if any(i.limits)]
-                try:
-                    index = writeto.index(dep_inducing[0])
-                    writeto = IntervalGroup(writeto[index:])
-                except IndexError:
-                    warning("Failed optimisation of detected redundancies")
+            # Optimization: no need to retain a SpaceDimension if it does not
+            # induce a flow/anti dependence (below, `i.limits` captures this, by
+            # telling how much halo will be needed to honour such dependences)
+            dep_inducing = [i for i in writeto if any(i.limits)]
+            try:
+                index = writeto.index(dep_inducing[0])
+                writeto = IntervalGroup(writeto[index:])
+            except IndexError:
+                warning("Couldn't optimize some of the detected redundancies")
 
             # Create a temporary to store `alias`
+            dimensions = [d.root for d in writeto.dimensions]
             halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
-            function = Array(name=template(), dimensions=writeto.dimensions, halo=halo,
-                             dtype=cluster.dtype)
+            array = Array(name=template(), dimensions=dimensions, halo=halo,
+                          dtype=cluster.dtype)
 
             # Build up the expression evaluating `alias`
             access = tuple(i.dim - i.lower for i in writeto)
-            expression = Eq(function[access], origin)
+            expression = Eq(array[access], origin)
 
             # Create the substitution rules so that we can use the newly created
             # temporary in place of the aliasing expressions
@@ -358,8 +325,8 @@ class AdvancedRewriter(BasicRewriter):
                 access = [i.dim - i.lower + distance[i.dim] for i in writeto]
                 if aliased in candidates:
                     # It would *not* be in `candidates` if part of a composite alias
-                    subs[candidates[aliased]] = function[access]
-                subs[aliased] = function[access]
+                    subs[candidates[aliased]] = array[access]
+                subs[aliased] = array[access]
 
             # Construct the `alias` data space
             mapper = detect_accesses(expression)
@@ -369,10 +336,6 @@ class AdvancedRewriter(BasicRewriter):
 
             # Create a new Cluster for `alias`
             alias_clusters.append(Cluster([expression], ispace, dspace))
-
-        # Group clusters together if possible
-        alias_clusters = groupby(alias_clusters).finalize()
-        alias_clusters.sort(key=lambda i: i.is_dense)
 
         # Switch temporaries in the expression trees
         processed = [e.xreplace(subs) for e in processed]
@@ -415,7 +378,6 @@ class CustomRewriter(AggressiveRewriter):
         'gcse': AggressiveRewriter._eliminate_inter_stencil_redundancies,
         'cse': AggressiveRewriter._eliminate_intra_stencil_redundancies,
         'extract_invariants': AdvancedRewriter._extract_time_invariants,
-        'extract_indices': BasicRewriter._extract_nonaffine_indices,
         'extract_increments': BasicRewriter._extract_increments,
         'opt_transcedentals': BasicRewriter._optimize_trigonometry
     }

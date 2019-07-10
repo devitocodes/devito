@@ -1,7 +1,7 @@
 import ctypes
 from collections import Iterable, OrderedDict
 from functools import reduce
-from itertools import chain, combinations, product, zip_longest
+from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
 
 import numpy as np
@@ -11,7 +11,7 @@ from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'roundm',
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
            'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
-           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep']
+           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal']
 
 
 def prod(iterable, initial=1):
@@ -80,6 +80,12 @@ def grouper(iterable, n):
     """Split an interable into groups of size n, plus a reminder"""
     args = [iter(iterable)] * n
     return ([e for e in t if e is not None] for t in zip_longest(*args))
+
+
+def all_equal(iterable):
+    "Returns True if all the elements are equal to each other"
+    g = groupby(iterable)
+    return next(g, True) and not next(g, False)
 
 
 def split(iterable, f):

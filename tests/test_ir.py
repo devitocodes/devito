@@ -11,9 +11,7 @@ from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes, FindSy
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      AFFINE, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
-                                     Any, Forward, Backward)
-from devito.ir.support.utils import detect_flow_directions
-from devito.symbolics import indexify
+                                     Forward, Backward)
 from devito.types import Scalar
 from devito.tools import as_tuple
 
@@ -153,7 +151,7 @@ class TestVectorDistanceArithmetic(object):
 
         # Equality check
         assert tcxy_w0 == tcxy_w0
-        assert (tcxy_w0 != tcxy_r0) is False
+        assert (tcxy_w0 != tcxy_r0) is True  # Different mode R vs W
         assert tcxy_w0 != tcx1y1_r1
         assert tcxy_w0 != rev_tcxy_w0
 
@@ -483,21 +481,6 @@ class TestDependenceAnalysis(object):
 
         # Sanity check: we did find all of the expected dependences
         assert len(expected) == 0
-
-    def test_flow_detection(self):
-        """Test detection of information flow."""
-        grid = Grid((10, 10))
-        u2 = TimeFunction(name="u2", grid=grid, time_order=2)
-        u1 = TimeFunction(name="u1", grid=grid, save=10, time_order=2)
-
-        exprs = [Eq(u1.forward, u1 + 2.0 - u1.backward).evaluate,
-                 Eq(u2.forward, u2 + 2*u2.backward - u1.dt2).evaluate]
-        exprs = [LoweredEq(indexify(i)) for i in exprs]
-
-        mapper = detect_flow_directions(exprs)
-        assert mapper.get(grid.stepping_dim) == {Forward}
-        assert mapper.get(grid.time_dim) == {Any, Forward}
-        assert all(mapper.get(i) == {Any} for i in grid.dimensions)
 
 
 class TestIETConstruction(object):

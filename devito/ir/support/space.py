@@ -24,8 +24,19 @@ class AbstractInterval(object):
     is_Null = False
     is_Defined = False
 
-    def __init__(self, dim):
+    def __init__(self, dim, stamp=0):
         self.dim = dim
+        self.stamp = stamp
+
+    def __eq__(self, o):
+        return (type(self) == type(o) and
+                self.dim == o.dim and
+                self.stamp == o.stamp)
+
+    is_compatible = __eq__
+
+    def __hash__(self):
+        return hash(self.dim.name)
 
     @classmethod
     def _apply_op(cls, intervals, key):
@@ -67,16 +78,11 @@ class AbstractInterval(object):
 
     zero = negate
     flip = negate
+    lift = negate
 
     @abc.abstractmethod
     def overlap(self, o):
         return
-
-    def __eq__(self, o):
-        return type(self) == type(o) and self.dim == o.dim
-
-    def __hash__(self):
-        return hash(self.dim.name)
 
 
 class NullInterval(AbstractInterval):
@@ -120,10 +126,10 @@ class Interval(AbstractInterval):
 
     is_Defined = True
 
-    def __init__(self, dim, lower, upper):
+    def __init__(self, dim, lower, upper, stamp=0):
         assert is_integer(lower)
         assert is_integer(upper)
-        super(Interval, self).__init__(dim)
+        super(Interval, self).__init__(dim, stamp)
         self.lower = lower
         self.upper = upper
         self.min_size = abs(upper - lower)
@@ -135,12 +141,17 @@ class Interval(AbstractInterval):
     def __hash__(self):
         return hash((self.dim, self.limits))
 
+    def __eq__(self, o):
+        return (super(Interval, self).__eq__(o) and
+                self.lower == o.lower and
+                self.upper == o.upper)
+
     def _rebuild(self):
-        return Interval(self.dim, self.lower, self.upper)
+        return Interval(self.dim, self.lower, self.upper, self.stamp)
 
     @property
     def relaxed(self):
-        return Interval(self.dim.root, self.lower, self.upper)
+        return Interval(self.dim.root, self.lower, self.upper, self.stamp)
 
     @property
     def limits(self):
@@ -148,47 +159,55 @@ class Interval(AbstractInterval):
 
     def intersection(self, o):
         if self.overlap(o):
-            return Interval(self.dim, max(self.lower, o.lower), min(self.upper, o.upper))
+            return Interval(self.dim, max(self.lower, o.lower), min(self.upper, o.upper),
+                            self.stamp)
         else:
             return NullInterval(self.dim)
 
     def union(self, o):
         if self.overlap(o):
-            return Interval(self.dim, min(self.lower, o.lower), max(self.upper, o.upper))
+            return Interval(self.dim, min(self.lower, o.lower), max(self.upper, o.upper),
+                            self.stamp)
         elif o.is_Null and self.dim == o.dim:
             return self._rebuild()
         else:
             return IntervalGroup([self._rebuild(), o._rebuild()])
 
     def merge(self, o):
-        if self.dim != o.dim or o.is_Null:
+        if not self.is_compatible(o):
             return self._rebuild()
         else:
-            return Interval(self.dim, min(self.lower, o.lower), max(self.upper, o.upper))
+            return Interval(self.dim, min(self.lower, o.lower), max(self.upper, o.upper),
+                            self.stamp)
 
     def add(self, o):
-        if self.dim != o.dim or o.is_Null:
+        if not self.is_compatible(o):
             return self._rebuild()
         else:
-            return Interval(self.dim, self.lower + o.lower, self.upper + o.upper)
+            return Interval(self.dim, self.lower + o.lower, self.upper + o.upper,
+                            self.stamp)
 
     def subtract(self, o):
-        if self.dim != o.dim or o.is_Null:
+        if not self.is_compatible(o):
             return self._rebuild()
         else:
-            return Interval(self.dim, self.lower - o.lower, self.upper - o.upper)
+            return Interval(self.dim, self.lower - o.lower, self.upper - o.upper,
+                            self.stamp)
 
     def negate(self):
-        return Interval(self.dim, -self.lower, -self.upper)
+        return Interval(self.dim, -self.lower, -self.upper, self.stamp)
 
     def zero(self):
-        return Interval(self.dim, 0, 0)
+        return Interval(self.dim, 0, 0, self.stamp)
 
     def flip(self):
-        return Interval(self.dim, self.upper, self.lower)
+        return Interval(self.dim, self.upper, self.lower, self.stamp)
+
+    def lift(self):
+        return Interval(self.dim, self.lower, self.upper, self.stamp + 1)
 
     def overlap(self, o):
-        if self.dim != o.dim:
+        if not self.is_compatible(o):
             return False
         try:
             # In the "worst case scenario" the dimension size is 0
@@ -198,10 +217,6 @@ class Interval(AbstractInterval):
                 (self.lower >= o.lower and self.lower <= o.lower + min_size)
         except AttributeError:
             return False
-
-    def __eq__(self, o):
-        return super(Interval, self).__eq__(o) and\
-            self.lower == o.lower and self.upper == o.upper
 
 
 class IntervalGroup(PartialOrderTuple):
@@ -308,6 +323,11 @@ class IntervalGroup(PartialOrderTuple):
     def zero(self, d=None):
         d = self.dimensions if d is None else as_tuple(d)
         return IntervalGroup([i.zero() if i.dim in d else i for i in self],
+                             relations=self.relations)
+
+    def lift(self, d):
+        d = set(self.dimensions if d is None else as_tuple(d))
+        return IntervalGroup([i.lift() if i.dim._defines & d else i for i in self],
                              relations=self.relations)
 
     def __getitem__(self, key):
@@ -430,10 +450,11 @@ class DataSpace(Space):
 
     Parameters
     ----------
-    intervals : tuple of Intervals Data space description.
+    intervals : tuple of Intervals
+        Data space description.
     parts : dict
-        A mapper from Functions to IntervalGroup,
-        describing the individual components of the data space.
+        A mapper from Functions to IntervalGroup, describing the individual
+        components of the data space.
     """
 
     def __init__(self, intervals, parts):
@@ -465,8 +486,10 @@ class DataSpace(Space):
 
     @cached_property
     def relaxed(self):
-        """A view of the DataSpace assuming that any SubDimensions entirely span
-        their root Dimension."""
+        """
+        A view of the DataSpace assuming that any SubDimensions entirely span
+        their root Dimension.
+        """
         return DataSpace(self.intervals.relaxed,
                          {k: v.relaxed for k, v in self.parts.items()})
 
@@ -484,6 +507,22 @@ class DataSpace(Space):
         parts = {k: v.zero(d) for k, v in self.parts.items()}
         return DataSpace(intervals, parts)
 
+    def project(self, cond):
+        """
+        Create a new DataSpace in which only some of the Dimensions in
+        ``self`` are retained. In particular, a dimension ``d`` in ``self``
+        is retained if:
+
+            * either ``cond(d)`` is True (``cond`` is a callable),
+            * or ``d in cond`` is True (``cond`` is an iterable)
+        """
+        if callable(cond):
+            func = cond
+        else:
+            func = lambda i: i in cond
+        intervals = [i for i in self.intervals if func(i.dim)]
+        return DataSpace(intervals, self.parts)
+
 
 class IterationSpace(Space):
 
@@ -498,14 +537,16 @@ class IterationSpace(Space):
         A mapper from Dimensions in ``intervals`` to iterables of
         DerivedDimensions defining sub-regions of iteration.
     directions : dict, optional
-        A mapper from Dimensions in ``intervals`` to
-        IterationDirections.
+        A mapper from Dimensions in ``intervals`` to IterationDirections.
     """
 
     def __init__(self, intervals, sub_iterators=None, directions=None):
         super(IterationSpace, self).__init__(intervals)
         self._sub_iterators = frozendict(sub_iterators or {})
-        self._directions = frozendict(directions or {})
+        if directions is None:
+            self._directions = frozendict([(i.dim, Any) for i in self.intervals])
+        else:
+            self._directions = frozendict(directions)
 
     def __repr__(self):
         ret = ', '.join(["%s%s" % (repr(i), repr(self.directions[i.dim]))
@@ -545,7 +586,8 @@ class IterationSpace(Space):
         return IterationSpace(intervals, sub_iterators, directions)
 
     def project(self, cond):
-        """Create a new IterationSpace in which only some Dimensions
+        """
+        Create a new IterationSpace in which only some Dimensions
         in ``self`` are retained. In particular, a dimension ``d`` in ``self`` is
         retained if:
 
@@ -562,8 +604,10 @@ class IterationSpace(Space):
         return IterationSpace(intervals, sub_iterators, directions)
 
     def is_compatible(self, other):
-        """A relaxed version of ``__eq__``, in which only non-derived dimensions
-        are compared for equality."""
+        """
+        A relaxed version of ``__eq__``, in which only non-derived dimensions
+        are compared for equality.
+        """
         return self.intervals == other.intervals and\
             self.nonderived_directions == other.nonderived_directions
 

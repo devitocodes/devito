@@ -192,7 +192,7 @@ def optimize_unfolded_tree(unfolded, root):
 
             d = r.limits[0]
             assert isinstance(d, BlockDimension)
-            modified_dims[d.parent] = d
+            modified_dims[d.root] = d
 
         # Temporary arrays can now be moved onto the stack
         for w in writes:
@@ -202,7 +202,8 @@ def optimize_unfolded_tree(unfolded, root):
 
         # Substitute iteration variables within the folded trees
         modified_tree = compose_nodes(modified_tree)
-        replaced = xreplace_indices([j.expr for j in exprs], mapper, only_rhs=True)
+        replaced = xreplace_indices([j.expr for j in exprs], mapper,
+                                    lambda i: i.function not in writes, True)
         subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
         processed.append(Transformer(dict(zip(exprs, subs))).visit(modified_tree))
 

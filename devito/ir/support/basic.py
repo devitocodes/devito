@@ -358,6 +358,11 @@ class IterationInstance(LabeledVector):
         Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
         means that the halo is touched along that DataSide.
         """
+        # If an irregularly (non-affine) accessed Dimension, conservatively
+        # assume the halo will be touched
+        if self.irregular(findex):
+            return (True, True)
+
         aindex = self.aindices[findex]
 
         # If the iterator is *not* a distributed Dimension, then surely the
@@ -469,14 +474,16 @@ class Access(IterationInstance):
     def __new__(cls, indexed, mode):
         assert mode in ['R', 'W', 'RI', 'WI']
         obj = super(Access, cls).__new__(cls, indexed)
-        obj.function = indexed.base.function
+        obj.indexed = indexed
+        obj.function = indexed.function
         obj.mode = mode
         return obj
 
     def __eq__(self, other):
-        return super(Access, self).__eq__(other) and\
-            isinstance(other, Access) and\
-            self.function == other.function
+        return (isinstance(other, Access) and
+                self.function == other.function and
+                self.mode == other.mode and
+                super(Access, self).__eq__(other))
 
     def __hash__(self):
         return super(Access, self).__hash__()
@@ -563,9 +570,9 @@ class TimedAccess(Access):
         return obj
 
     def __eq__(self, other):
-        return super(TimedAccess, self).__eq__(other) and\
-            isinstance(other, TimedAccess) and\
-            self.directions == other.directions
+        return (isinstance(other, TimedAccess) and
+                self.directions == other.directions and
+                super(TimedAccess, self).__eq__(other))
 
     def __hash__(self):
         return super(TimedAccess, self).__hash__()
@@ -618,7 +625,7 @@ class TimedAccess(Access):
 class Dependence(object):
 
     """
-    A data dependence between two Access objects.
+    A data dependence between two TimedAccess objects.
     """
 
     def __init__(self, source, sink):
@@ -626,6 +633,14 @@ class Dependence(object):
         assert source.function == sink.function
         self.source = source
         self.sink = sink
+
+    def __eq__(self, other):
+        # If the timestamps are equal in `self` (ie, an inplace dependence) then
+        # they must be equal in `other` too
+        return (self.source == other.source and
+                self.sink == other.sink and
+                ((self.source.timestamp == self.sink.timestamp) ==
+                 (other.source.timestamp == other.sink.timestamp)))
 
     @property
     def function(self):
@@ -834,20 +849,30 @@ class Scope(object):
 
         self.reads = {}
         self.writes = {}
+
         for i, e in enumerate(exprs):
-            # reads
+            # Reads
             for j in retrieve_terminals(e.rhs):
                 v = self.reads.setdefault(j.function, [])
                 mode = 'RI' if e.is_Increment and j.function is e.lhs.function else 'R'
                 v.append(TimedAccess(j, mode, i, e.ispace.directions))
-            # write
+
+            # Write
             v = self.writes.setdefault(e.lhs.function, [])
             mode = 'WI' if e.is_Increment else 'W'
             v.append(TimedAccess(e.lhs, mode, i, e.ispace.directions))
-            # if an increment, we got one implicit read
+
+            # If an increment, we got one implicit read
             if e.is_Increment:
                 v = self.reads.setdefault(e.lhs.function, [])
                 v.append(TimedAccess(e.lhs, 'RI', i, e.ispace.directions))
+
+        # The iterators read symbols too
+        dimensions = set().union(*[e.dimensions for e in exprs])
+        for d in dimensions:
+            for j in d.symbolic_size.free_symbols:
+                v = self.reads.setdefault(j.function, [])
+                v.append(TimedAccess(j, 'R', -1, {}))
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
@@ -890,14 +915,19 @@ class Scope(object):
         return [i for group in groups for i in group]
 
     @cached_property
+    def functions(self):
+        return set(self.reads) | set(self.writes)
+
+    @cached_property
     def d_flow(self):
-        """Retrieve the flow dependencies, or true dependencies, or read-after-write."""
+        """Generate all flow (or "read-after-write") dependences."""
         found = DependenceGroup()
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
                     try:
-                        is_flow = (r < w) or (r == w and r.lex_ge(w))
+                        distance = r.distance(w)
+                        is_flow = distance < 0 or (distance == 0 and r.lex_ge(w))
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
@@ -909,13 +939,14 @@ class Scope(object):
 
     @cached_property
     def d_anti(self):
-        """Retrieve the anti dependencies, or write-after-read."""
+        """Generate all anti (or "write-after-read") dependences."""
         found = DependenceGroup()
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
                     try:
-                        is_anti = (r > w) or (r == w and r.lex_lt(w))
+                        distance = r.distance(w)
+                        is_anti = distance > 0 or (distance == 0 and r.lex_lt(w))
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
@@ -927,13 +958,14 @@ class Scope(object):
 
     @cached_property
     def d_output(self):
-        """Retrieve the output dependencies, or write-after-write."""
+        """Generate all output (or "write-after-write") dependences."""
         found = DependenceGroup()
         for k, v in self.writes.items():
             for w1 in v:
                 for w2 in self.writes.get(k, []):
                     try:
-                        is_output = (w2 > w1) or (w2 == w1 and w2.lex_gt(w1))
+                        distance = w2.distance(w1)
+                        is_output = distance > 0 or (distance == 0 and w2.lex_gt(w1))
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence
@@ -944,11 +976,11 @@ class Scope(object):
 
     @cached_property
     def d_all(self):
-        """Retrieve all flow, anti, and output dependences."""
+        """Generate all flow, anti, and output dependences."""
         return self.d_flow + self.d_anti + self.d_output
 
     @memoized_meth
     def d_from_access(self, access):
-        """Retrieve all dependences involving a given TimedAccess."""
+        """Generate all dependences involving a given TimedAccess."""
         return DependenceGroup(d for d in self.d_all
                                if d.source is access or d.sink is access)
