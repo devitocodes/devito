@@ -64,6 +64,7 @@ class Basic(object):
     is_Array = False
     is_Object = False
     is_LocalObject = False
+    is_FunctionPointer = False
 
     # Created by the user
     is_Input = False
@@ -192,6 +193,14 @@ class Cached(object):
         """The hash value of an object that caches on its type is the
         hash value of the type itself."""
         return hash(type(self))
+
+
+class FunctionPointer(Basic):
+
+    is_FunctionPointer = True
+
+    def __init__(self, fname):
+        self.fname = fname
 
 
 class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):

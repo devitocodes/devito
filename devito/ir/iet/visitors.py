@@ -170,6 +170,8 @@ class CGen(Visitor):
                     ret.append('&%s' % i._C_name)
                 elif i.is_Array:
                     ret.append("(%s)%s" % (i._C_typename, i.name))
+                elif i.is_FunctionPointer:
+                    ret.append("%s" % i.fname)
                 else:
                     ret.append(i._C_name)
             except AttributeError:
