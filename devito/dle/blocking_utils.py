@@ -9,7 +9,7 @@ from devito.ir.iet import (Expression, Iteration, List, FindAdjacent, FindNodes,
                            compose_nodes, filter_iterations, retrieve_iteration_tree)
 from devito.exceptions import InvalidArgument
 from devito.symbolics import as_symbol, xreplace_indices
-from devito.tools import as_tuple, flatten
+from devito.tools import all_equal, as_tuple, flatten
 from devito.types import IncrDimension, Scalar
 
 __all__ = ['Blocker', 'BlockDimension']
@@ -240,9 +240,11 @@ def is_foldable(nodes):
     nodes = as_tuple(nodes)
     if len(nodes) <= 1 or any(not i.is_Iteration for i in nodes):
         return False
-    main = nodes[0]
-    return all(i.dim == main.dim and i.limits == main.limits and i.index == main.index
-               and i.properties == main.properties for i in nodes)
+    if not all({PARALLEL, AFFINE}.issubset(set(i.properties)) for i in nodes):
+        return False
+    return (all_equal(i.dim for i in nodes) and
+            all_equal(i.limits for i in nodes) and
+            all_equal(i.index for i in nodes))
 
 
 def optimize_unfolded_tree(unfolded, root):
