@@ -182,7 +182,8 @@ class SeparableTimeFunction(SeparableFunction):
         func_type = TimeFunction if any(d.is_Time for d in dims) else Function
         names = "".join(d.name for d in dims)
         save = kwargs.get('save', None)
-        shape = tuple(save if d.is_Time else self.grid.dimension_map[d].loc for d in dims)
+        shape = tuple(save or self.time_order+1 if d.is_Time
+                      else self.grid.dimension_map[d].loc for d in dims)
         kwargs["name"] = '%s_%s' % (self.name, names)
         func = func_type(dimensions=dims, shape=shape, **kwargs)
         return func
