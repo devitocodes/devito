@@ -4,7 +4,7 @@ Extended SymPy hierarchy.
 
 import numpy as np
 import sympy
-from sympy import Expr, Integer, Float, Symbol
+from sympy import Expr, Integer, Float, Function, Symbol
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
@@ -13,7 +13,8 @@ from devito.tools import Pickable, as_tuple
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Macro', 'taylor_sin',
-           'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
+           'taylor_cos', 'bhaskara_sin', 'bhaskara_cos', 'INT', 'FLOAT', 'DOUBLE',
+           'FLOOR', 'cast_mapper']
 
 
 class FrozenExpr(Expr):
@@ -354,6 +355,14 @@ class Macro(sympy.Symbol):
     Symbolic representation of a C macro.
     """
     pass
+
+
+INT = Function('INT')
+FLOAT = Function('FLOAT')
+DOUBLE = Function('DOUBLE')
+FLOOR = Function('floor')
+
+cast_mapper = {np.float32: FLOAT, float: DOUBLE, np.float64: DOUBLE}
 
 
 class taylor_sin(TrigonometricFunction):

@@ -1,4 +1,4 @@
-from collections import Callable, Iterable, OrderedDict, Mapping, deque
+from collections import Callable, Iterable, OrderedDict, Mapping, MutableSet, deque
 from functools import reduce
 
 import numpy as np
@@ -8,7 +8,7 @@ from devito.tools.utils import as_tuple, filter_ordered
 from devito.tools.algorithms import toposort
 
 __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'PartialOrderTuple', 'DAG']
+           'OrderedSet', 'PartialOrderTuple', 'DAG']
 
 
 class Bunch(object):
@@ -158,7 +158,63 @@ class DefaultOrderedDict(OrderedDict):
         return type(self)(self.default_factory, self)
 
 
+class OrderedSet(OrderedDict, MutableSet):
+
+    """
+    A simple implementation of an ordered set.
+
+    Notes
+    -----
+    Originally extracted from:
+
+        https://stackoverflow.com/questions/1653970/does-python-have-an-ordered-set
+    """
+
+    def update(self, *args, **kwargs):
+        if kwargs:
+            raise TypeError("update() takes no keyword arguments")
+
+        for s in args:
+            for e in s:
+                self.add(e)
+
+    def add(self, elem):
+        self[elem] = None
+
+    def discard(self, elem):
+        self.pop(elem, None)
+
+    def __le__(self, other):
+        return all(e in other for e in self)
+
+    def __lt__(self, other):
+        return self <= other and self != other
+
+    def __ge__(self, other):
+        return all(e in self for e in other)
+
+    def __gt__(self, other):
+        return self >= other and self != other
+
+    def __repr__(self):
+        return 'OrderedSet([%s])' % (', '.join(map(repr, self.keys())))
+
+    def __str__(self):
+        return '{%s}' % (', '.join(map(repr, self.keys())))
+
+    difference = property(lambda self: self.__sub__)
+    difference_update = property(lambda self: self.__isub__)
+    intersection = property(lambda self: self.__and__)
+    intersection_update = property(lambda self: self.__iand__)
+    issubset = property(lambda self: self.__le__)
+    issuperset = property(lambda self: self.__ge__)
+    symmetric_difference = property(lambda self: self.__xor__)
+    symmetric_difference_update = property(lambda self: self.__ixor__)
+    union = property(lambda self: self.__or__)
+
+
 class PartialOrderTuple(tuple):
+
     """
     A tuple whose elements are ordered according to a set of relations.
 
@@ -200,9 +256,12 @@ class PartialOrderTuple(tuple):
 
 
 class DAG(object):
+
     """
     A trivial implementation of a directed acyclic graph (DAG).
 
+    Notes
+    -----
     Originally extracted from:
 
         https://github.com/thieman/py-dag/
@@ -210,9 +269,15 @@ class DAG(object):
 
     def __init__(self, nodes=None, edges=None):
         self.graph = OrderedDict()
+        self.labels = DefaultOrderedDict(dict)
         for node in as_tuple(nodes):
             self.add_node(node)
-        for ind_node, dep_node in as_tuple(edges):
+        for i in as_tuple(edges):
+            try:
+                ind_node, dep_node = i
+            except ValueError:
+                ind_node, dep_node, label = i
+                self.labels[ind_node][dep_node] = label
             self.add_edge(ind_node, dep_node)
 
     def __contains__(self, key):
@@ -229,13 +294,17 @@ class DAG(object):
             ret.extend([(k, i) for i in v])
         return tuple(ret)
 
+    @property
+    def size(self):
+        return len(self.graph)
+
     def add_node(self, node_name, ignore_existing=False):
         """Add a node if it does not exist yet, or error out."""
         if node_name in self.graph:
             if ignore_existing is True:
                 return
             raise KeyError('node %s already exists' % node_name)
-        self.graph[node_name] = set()
+        self.graph[node_name] = OrderedSet()
 
     def delete_node(self, node_name):
         """Delete a node and all edges referencing it."""
@@ -246,7 +315,7 @@ class DAG(object):
             if node_name in edges:
                 edges.remove(node_name)
 
-    def add_edge(self, ind_node, dep_node, force_add=False):
+    def add_edge(self, ind_node, dep_node, force_add=False, label=None):
         """Add an edge (dependency) between the specified nodes."""
         if force_add is True:
             self.add_node(ind_node, True)
@@ -254,12 +323,24 @@ class DAG(object):
         if ind_node not in self.graph or dep_node not in self.graph:
             raise KeyError('one or more nodes do not exist in graph')
         self.graph[ind_node].add(dep_node)
+        if label is not None:
+            self.labels[ind_node][dep_node] = label
 
     def delete_edge(self, ind_node, dep_node):
         """Delete an edge from the graph."""
         if dep_node not in self.graph.get(ind_node, []):
             raise KeyError('this edge does not exist in graph')
         self.graph[ind_node].remove(dep_node)
+        try:
+            del self.labels[ind_node][dep_node]
+        except KeyError:
+            pass
+
+    def get_label(self, ind_node, dep_node, default=None):
+        try:
+            return self.labels[ind_node][dep_node]
+        except KeyError:
+            return default
 
     def predecessors(self, node):
         """Return a list of all predecessors of the given node."""
@@ -277,7 +358,7 @@ class DAG(object):
         in the dependency graph, in topological order.
         """
         nodes = [node]
-        nodes_seen = set()
+        nodes_seen = OrderedSet()
         i = 0
         while i < len(nodes):
             downstreams = self.downstream(nodes[i])
@@ -289,13 +370,17 @@ class DAG(object):
         return list(filter(lambda node: node in nodes_seen,
                            self.topological_sort()))
 
-    @property
-    def size(self):
-        return len(self.graph)
-
-    def topological_sort(self):
+    def topological_sort(self, choose_element=None):
         """
         Return a topological ordering of the DAG.
+
+        Parameters
+        ----------
+        choose_element : callable, optional
+            A callback to pick an element out of the current candidates (i.e.,
+            all un-scheduled nodes with no incoming edges). The callback takes
+            in input an iterable of schedulable nodes as well as the list of
+            already scheduled nodes; it must remove and return the selected node.
 
         Raises
         ------
@@ -303,7 +388,10 @@ class DAG(object):
             If it is not possible to compute a topological ordering, as the graph
             is invalid.
         """
-        in_degree = {}
+        if choose_element is None:
+            choose_element = lambda q, l: q.pop()
+
+        in_degree = OrderedDict()  # OrderedDict, not dict, for determinism
         for u in self.graph:
             in_degree[u] = 0
 
@@ -318,7 +406,7 @@ class DAG(object):
 
         l = []
         while queue:
-            u = queue.pop()
+            u = choose_element(queue, l)
             l.append(u)
             for v in self.graph[u]:
                 in_degree[v] -= 1

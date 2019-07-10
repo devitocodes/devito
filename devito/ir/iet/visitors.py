@@ -9,10 +9,10 @@ from operator import attrgetter
 
 import cgen as c
 
-from devito.cgen_utils import blankline, ccode
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node, Iteration, Expression, Call
 from devito.ir.support.space import Backward
+from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype_to_cstr
 
 
@@ -299,6 +299,8 @@ class CGen(Visitor):
         return c.Collection(body)
 
     def visit_Operator(self, o):
+        blankline = c.Line("")
+
         # Kernel signature and body
         body = flatten(self._visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)

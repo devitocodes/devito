@@ -1,14 +1,7 @@
-FROM ubuntu:xenial
+FROM ubuntu:bionic
 
 # This DockerFile is looked after by
 MAINTAINER Tim Greaves <tim.greaves@imperial.ac.uk>
-
-# Add the ubuntu-toolchain-r test ppa
-RUN echo "deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu xenial main" > /etc/apt/sources.list.d/ubuntu-toolchain-r-ppa-xenial.list
-
-# Import the Launchpad PPA public key
-RUN gpg --keyserver keyserver.ubuntu.com --recv 1E9377A2BA9EF27F
-RUN gpg --export --armor BA9EF27F | apt-key add -
 
 # Ensure UTF-8 environment is correct for documentation builds
 ENV LC_ALL=C.UTF-8
@@ -28,6 +21,9 @@ RUN apt-get -y install wget bzip2 git make
 # Default gcc version to install
 ARG gccVersion=8
 ENV DEVITO_ARCH=gcc-$gccVersion
+ENV CC=gcc-$gccVersion
+ENV CXX=g++-$gccVersion
+
 # Set Yask variables in case they are needed
 ENV YC_CXX=g++-$gccVersion
 
@@ -51,6 +47,10 @@ ENV MPI_INSTALL=$MPI_INSTALL
 # Run examples?
 ARG RUN_EXAMPLES='false'
 ENV RUN_EXAMPLES=$RUN_EXAMPLES
+
+# Python version?
+ARG PYTHON_VERSION='3.6'
+ENV PYTHON_VERSION=$PYTHON_VERSION
 
 # Ensure a non-interactive matplotlib backend
 ENV MPLBACKEND=agg
@@ -77,12 +77,27 @@ RUN if [ "$MPI_INSTALL" == "1" ] ; then \
       apt-get install -y -q mpich libmpich-dev ; \
     fi
 
-# Set up conda
-RUN wget --no-verbose https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O /tmp/miniconda.sh
-RUN bash /tmp/miniconda.sh -b -p /usr/local/miniconda
+# Make sure the correct gcc is linked as mpich reinstalls one
+RUN rm -f /usr/bin/gcc && ln -s /usr/bin/gcc-$gccVersion /usr/bin/gcc ;
+
+# Set up path to support (optional) Conda install
 ENV PATH=/usr/local/miniconda/bin:$PATH
-RUN conda config --set always_yes yes --set changeps1 no
-RUN conda update -q conda
+
+# Python installs
+RUN if [ $installWithPip == "true" ] ; then \ 
+      if [ $PYTHON_VERSION == "3.6" ] ; then \
+        apt-get install -y python3.6-dev python3-pip ; \
+      rm -f /usr/bin/python && ln -s /usr/bin/python3.6 /usr/bin/python ; \
+      else \
+        apt-get install -y python3.7-dev python3-pip ; \
+      rm -f /usr/bin/python && ln -s /usr/bin/python3.7 /usr/bin/python ; \
+      fi ; \
+    else \
+      wget --no-verbose https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh ; \
+      bash /tmp/miniconda.sh -b -p /usr/local/miniconda ; \
+      conda config --set always_yes yes --set changeps1 no ; \
+      conda update -q conda ; \
+    fi
 
 RUN adduser --disabled-password --gecos "" devito
 
@@ -93,10 +108,10 @@ RUN chown -R devito /home/devito
 USER devito
 WORKDIR /home/devito
 
-RUN if [ $installWithPip == "true" ] ; then \ 
+RUN if [ $installWithPip == "true" ] ; then \
       python setup.py install --user ; \
       if [ $MPI_INSTALL == '1' ] ; then \
-        pip install --user -e .[extras] ; \
+        python -m pip install --user -e .[extras] ; \
       fi ; \
     else \
       conda env create -q -f environment.yml ; \

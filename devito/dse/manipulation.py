@@ -2,10 +2,10 @@ from collections import OrderedDict
 
 from sympy import Add, Mul, collect, collect_const
 
-from devito.ir import FlowGraph
+from devito.dse.flowgraph import FlowGraph
 from devito.symbolics import (Eq, count, estimate_cost, q_xop, q_leaf,
-                              xreplace_constrained)
-from devito.tools import ReducerMap
+                              retrieve_terminals, xreplace_constrained)
+from devito.tools import DAG, ReducerMap
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'compact_temporaries']
 
@@ -82,7 +82,10 @@ def collect_nested(expr):
             # Always collect coefficients
             rebuilt = collect_const(expr.func(*args))
             try:
-                rebuilt = Mul(*rebuilt.args)
+                if rebuilt.args:
+                    # Note: Mul(*()) -> 1, and since sympy.S.Zero.args == (),
+                    # the `if` prevents turning 0 into 1
+                    rebuilt = Mul(*rebuilt.args)
             except AttributeError:
                 pass
 
@@ -145,31 +148,55 @@ def common_subexprs_elimination(exprs, make, mode='default'):
             targets.pop(k)
     processed = mapped + processed
 
-    # Simply renumber the temporaries in ascending order
-    mapper = {i.lhs: j.lhs for i, j in zip(mapped, reversed(mapped))}
-    processed = [e.xreplace(mapper) for e in processed]
+    # Perform topological sorting so that reads-after-writes are honored
+    processed = topological_sort(processed)
 
     return processed
 
 
 def compact_temporaries(temporaries, leaves):
-    """Drop temporaries consisting of single symbols."""
+    """Drop temporaries consisting of isolated symbols."""
     exprs = temporaries + leaves
     targets = {i.lhs for i in leaves}
 
-    g = FlowGraph(exprs)
+    graph = FlowGraph(exprs)
 
-    mapper = {k: v.rhs for k, v in g.items()
+    mapper = {k: v.rhs for k, v in graph.items()
               if v.is_Scalar and
               (q_leaf(v.rhs) or v.rhs.is_Function) and
               not v.readby.issubset(targets)}
 
     processed = []
-    for k, v in g.items():
+    for k, v in graph.items():
         if k not in mapper:
             # The temporary /v/ is retained, and substitutions may be applied
             handle, _ = xreplace_constrained(v, mapper, repeat=True)
             assert len(handle) == 1
             processed.extend(handle)
+
+    return processed
+
+
+def topological_sort(exprs):
+    """Topologically sort a list of equations."""
+    mapper = {e.lhs: e for e in exprs}
+    assert len(mapper) == len(exprs)  # Expect SSA
+
+    dag = DAG(nodes=exprs)
+    for e in exprs:
+        for r in retrieve_terminals(e.rhs):
+            if r not in mapper:
+                continue
+            elif mapper[r] is e:
+                # Avoid cyclic dependences, such as
+                # Eq(f, f + 1)
+                continue
+            elif r.is_Indexed:
+                # Only scalars enforce an ordering
+                continue
+            else:
+                dag.add_edge(mapper[r], e, force_add=True)
+
+    processed = dag.topological_sort()
 
     return processed
