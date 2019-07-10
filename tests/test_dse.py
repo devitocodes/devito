@@ -409,11 +409,11 @@ def test_full_alias_induced_iteration_bounds():
     # Leads to 3D aliases
     eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
                          (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
-    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
-    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
+    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': False}))
+    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': False}))
 
-    x0_blk_size = op1.parameters[6]
-    y0_blk_size = op1.parameters[10]
+    x0_blk_size = op1.parameters[5]
+    y0_blk_size = op1.parameters[9]
     z_size = op1.parameters[-1]
 
     # Check Array shape
@@ -422,12 +422,17 @@ def test_full_alias_induced_iteration_bounds():
     a = arrays[0]
     assert len(a.dimensions) == 3
     assert a.halo == ((1, 1), (1, 1), (1, 1))
-    assert a.padding == ((0, 0), (0, 0), (0, 14))
+    assert a.padding == ((0, 0), (0, 0), (0, 30))
     assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 2
     assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
-    assert Add(*a.symbolic_shape[2].args) == z_size + 16
+    assert Add(*a.symbolic_shape[2].args) == z_size + 32
 
     # Check loop bounds
+    trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
+    assert len(trees) == 2
+    expected_rounded = trees[0].inner
+    assert expected_rounded.symbolic_max ==\
+        z.symbolic_max + (z.symbolic_max - z.symbolic_min + 3) % 16 + 1
 
     # Check numerical output
     op0(time_M=1)
