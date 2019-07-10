@@ -160,12 +160,11 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 
-<span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">cast_mapper</span>
 <span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span>
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="k">import</span> <span class="n">Differentiable</span><span class="p">,</span> <span class="n">generate_fd_shortcuts</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">MPI</span><span class="p">,</span> <span class="n">SparseDistributor</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_function_carriers</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">cast_mapper</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_function_carriers</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">ReducerMap</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">powerset</span><span class="p">,</span>
                           <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">memoized_meth</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="k">import</span> <span class="n">DiscreteFunction</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">SubFunction</span>
@@ -799,6 +798,13 @@
 <span class="sd">        increment: bool, optional</span>
 <span class="sd">            If True, generate increments (Inc) rather than assignments (Eq).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Derivatives must be evaluated before the introduction of indirect accesses</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">evaluate</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># E.g., a generic SymPy expression or a number</span>
+            <span class="k">pass</span>
+
         <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
 
         <span class="c1"># List of indirection indices for all adjacent grid points</span>
@@ -832,6 +838,12 @@
 <span class="sd">        offset : int, optional</span>
 <span class="sd">            Additional offset from the boundary.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Derivatives must be evaluated before the introduction of indirect accesses</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">evaluate</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># E.g., a generic SymPy expression or a number</span>
+            <span class="k">pass</span>
 
         <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span> <span class="o">+</span> <span class="p">[</span><span class="n">field</span><span class="p">]</span>
 
