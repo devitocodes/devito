@@ -9,4 +9,5 @@ from devito.types.utils import *  # noqa
 from devito.types.constant import *  # noqa
 from devito.types.grid import *  # noqa
 from devito.types.dense import * # noqa
+from devito.types.separable import *  # noqa
 from devito.types.sparse import *  # noqa

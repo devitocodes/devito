@@ -6,6 +6,7 @@ from devito.backends import _BackendSelector
 import devito.types.basic as basic
 import devito.types.dense as dense
 import devito.types.grid as grid
+import devito.types.separable as sep
 import devito.types.sparse as sparse
 import devito.types.constant as constant
 import devito.operator as operator
@@ -31,11 +32,11 @@ class TimeFunction(with_metaclass(_BackendSelector, dense.TimeFunction)):
     pass
 
 
-class SeparableFunction(with_metaclass(_BackendSelector, dense.SeparableFunction)):
+class SeparableFunction(with_metaclass(_BackendSelector, sep.SeparableFunction)):
     pass
 
 
-class SeparableTimeFunction(with_metaclass(_BackendSelector, dense.SeparableTimeFunction)):  # noqa
+class SeparableTimeFunction(with_metaclass(_BackendSelector, sep.SeparableTimeFunction)):
     pass
 
 
