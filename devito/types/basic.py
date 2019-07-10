@@ -533,6 +533,16 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
     def __padding_setup__(self, **kwargs):
         return tuple(kwargs.get('padding', [(0, 0) for i in range(self.ndim)]))
 
+    @cached_property
+    def _honors_autopadding(self):
+        """
+        True if the actual padding is greater or equal than whatever autopadding
+        would produce, False otherwise.
+        """
+        autopadding = self.__padding_setup__(autopadding=True)
+        return all(l0 >= l1 and r0 >= r1
+                   for (l0, r0), (l1, r1) in zip(self.padding, autopadding))
+
     @property
     def name(self):
         """The name of the object."""
@@ -811,10 +821,16 @@ class Array(AbstractCachedFunction):
         padding = [(0, 0) for i in range(self.ndim)]
 
         if configuration['autopadding']:
-            # Heuristic: the halo along the Fastest Varying Dimension is rounded
-            # up to the nearest multiple of the SIMD vector length -- this will
-            # be our padding. This will help if at runtime the domain of the Array
-            # turns out to be a multiple of the SIMD vector length too.
+            # Heuristic 1; Arrays are typically introduced for DSE-produced
+            # temporaries, and are almost always used together with loop
+            # blocking.  Since the typical block size is a multiple of the SIMD
+            # vector length, `vl`, padding is made such that the NODOMAIN size
+            # is a multiple of `vl` too
+
+            # Heuristic 2: the right-NODOMAIN size is not only a multiple of
+            # `vl`, but also guaranteed to be *at least* greater or equal than
+            # `vl`, so that the compiler can tweak loop trip counts to maximize
+            # the effectiveness of SIMD vectorization
 
             # Let UB be a function that rounds up a value `x` to the nearest
             # multiple of the SIMD vector length
@@ -822,7 +838,7 @@ class Array(AbstractCachedFunction):
             ub = lambda x: int(ceil(x / vl)) * vl
 
             fvd_halo_size = sum(self.halo[-1])
-            fvd_pad_size = ub(fvd_halo_size) - fvd_halo_size
+            fvd_pad_size = (ub(fvd_halo_size) - fvd_halo_size) + vl
 
             padding[-1] = (0, fvd_pad_size)
 

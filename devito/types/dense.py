@@ -1018,21 +1018,22 @@ class Function(DiscreteFunction, Differentiable):
             if configuration['autopadding']:
                 # Auto-padding
                 # 0-padding in all Dimensions except in the Fastest Varying Dimension,
-                # which is the innermost one
+                # `fvd`, which is the innermost one
                 padding = [(0, 0) for i in self.dimensions[:-1]]
                 fvd = self.dimensions[-1]
                 # Let UB be a function that rounds up a value `x` to the nearest
-                # multiple of the SIMD vector length
+                # multiple of the SIMD vector length, `vl`
                 vl = configuration['platform'].simd_items_per_reg(self.dtype)
                 ub = lambda x: int(ceil(x / vl)) * vl
-                # The left-padding `pl` is so that the first domain grid point
-                # is cache-aligned
-                pl = ub(self._size_halo[fvd].left) - self._size_halo[fvd].left
-                # Given the left-padding, the right-padding `pr` is so that each
-                # first grid point along the `fvd` is cache-aligned
-                before_pr = pl + self._size_nopad[fvd]
-                pr = ub(before_pr) - before_pr
-                padding.append((pl, pr))
+                # Given the HALO and DOMAIN sizes, the right-PADDING is such that:
+                # * the `fvd` size is a multiple of `vl`
+                # * it contains *at least* `vl` points
+                # This way:
+                # * all first grid points along the `fvd` will be cache-aligned
+                # * there is enough room to round up the loop trip counts to maximize
+                #   the effectiveness SIMD vectorization
+                fvd_pad_size = (ub(self._size_nopad[fvd]) - self._size_nopad[fvd]) + vl
+                padding.append((0, fvd_pad_size))
                 return tuple(padding)
             else:
                 return tuple((0, 0) for d in self.dimensions)
