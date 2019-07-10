@@ -10,8 +10,8 @@ env:
 
 matrix:
   include:
-    - os: linux
-      python: "3.6"
+    - python: 3.6
+      os: linux
       addons:
         apt:
           sources:
@@ -20,8 +20,9 @@ matrix:
             - gcc-4.9
             - g++-4.9
       env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 INSTALL_TYPE=pip_setup RUN_EXAMPLES=False MPI_INSTALL=1
-    - os: linux
-      python: "3.6"
+    - python: 3.7
+      dist: xenial
+      os: linux
       addons:
         apt:
           sources:
@@ -30,8 +31,9 @@ matrix:
             - gcc-5
             - g++-5
       env: DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0 RUN_EXAMPLES=False INSTALL_TYPE=conda MPI_INSTALL=0
-    - os: linux
-      python: "3.6"
+    - python: 3.7
+      dist: xenial
+      os: linux
       addons:
         apt:
           sources:
@@ -40,8 +42,9 @@ matrix:
             - gcc-8
             - g++-8
       env: DEVITO_ARCH=gcc-8 DEVITO_OPENMP=1 OMP_NUM_THREADS=2 RUN_EXAMPLES=True INSTALL_TYPE=conda MPI_INSTALL=1 MPI_RESTRAIN=1
-    - os: linux
-      python: "3.6"
+    - python: 3.7
+      dist: xenial
+      os: linux
       addons:
         apt:
           sources:
@@ -50,8 +53,9 @@ matrix:
             - gcc-7
             - g++-7
       env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=1
-    - os: linux
-      python: "3.6"
+    - python: 3.7
+      dist: xenial
+      os: linux
       addons:
         apt:
           sources:
@@ -60,13 +64,6 @@ matrix:
             - gcc-7
             - g++-7
       env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=ops YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=0
-  allow_failures:
-    - os: linux
-      python: "2.7"
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
-    - os: osx
-      python: "2.7"
-      env: DEVITO_ARCH=clang DEVITO_OPENMP=0
 
 addons:
   apt:
@@ -74,22 +71,19 @@ addons:
       - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
 
 before_install:
-  # Setup anaconda
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget https://repo.continuum.io/miniconda/Miniconda2-4.5.4-Linux-x86_64.sh -O miniconda.sh;
-    else
-      wget https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O miniconda.sh;
-    fi
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH"
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
-  # Useful for debugging any issues with conda
-  - conda info -a
   - if [[ "$MPI_INSTALL" == '1' ]]; then
       sudo apt-get install -y -q mpich libmpich-dev;
       export MPICH_CC=$DEVITO_ARCH;
+    fi
+  # Setup anaconda
+  - if [[ $INSTALL_TYPE == 'conda' ]]; then
+      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+      bash miniconda.sh -b -p $HOME/miniconda;
+      export PATH="$HOME/miniconda/bin:$PATH";
+      hash -r;
+      conda config --set always_yes yes --set changeps1 no;
+      conda update -q conda;
+      conda info -a;
     fi
 
 install:
@@ -134,6 +128,8 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a --noazimuth; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/cfd/example_diffusion.py; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test examples/cfd/example_diffusion.py; fi
   # Test tutorial notebooks for the website using nbval
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/cfd; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/seismic/tutorials; fi

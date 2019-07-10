@@ -1,6 +1,8 @@
+pip>=9.0.1
 numpy>=1.14
 sympy>=1.4
 scipy
+pytest>=3.6
 pytest-runner
 flake8>=2.1.0
 jedi
