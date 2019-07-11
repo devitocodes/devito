@@ -125,6 +125,14 @@ class Dimension(AbstractSymbol, ArgProvider):
         return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
     @cached_property
+    def extreme_min(self):
+        return self.symbolic_min
+
+    @cached_property
+    def extreme_max(self):
+        return self.symbolic_max
+
+    @cached_property
     def size_name(self):
         return "%s_size" % self.name
 
@@ -144,10 +152,6 @@ class Dimension(AbstractSymbol, ArgProvider):
     def _maybe_distributed(self):
         """Could it be a distributed Dimension?"""
         return True
-
-    @property
-    def _limits(self):
-        return (self.symbolic_min, self.symbolic_max, 1)
 
     @property
     def _C_name(self):
@@ -492,6 +496,14 @@ class SubDimension(DerivedDimension):
     __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
 
     _Thickness = namedtuple('Thickness', 'left right')
+    _SDO = namedtuple('SubDimensionOffset', 'value extreme thickness')
+
+    @classmethod
+    def _symbolic_thickness(cls, name):
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32,
+                       is_const=True, nonnegative=True),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32,
+                       is_const=True, nonnegative=True))
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):
@@ -520,18 +532,26 @@ class SubDimension(DerivedDimension):
                    thickness=((lst, thickness_left), (rst, thickness_right)),
                    local=local)
 
-    @property
+    @cached_property
     def symbolic_min(self):
         return self._interval.left
 
-    @property
+    @cached_property
     def symbolic_max(self):
         return self._interval.right
 
-    @property
+    @cached_property
     def symbolic_size(self):
         # The size must be given as a function of the parent's size
         return self.symbolic_max - self.symbolic_min + 1
+
+    @cached_property
+    def extreme_min(self):
+        return self._offset_left.extreme
+
+    @cached_property
+    def extreme_max(self):
+        return self._offset_right.extreme
 
     @property
     def local(self):
@@ -545,38 +565,35 @@ class SubDimension(DerivedDimension):
     def _maybe_distributed(self):
         return not self.local
 
-    @classmethod
-    def _symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32, is_const=True),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32, is_const=True))
-
     @cached_property
     def _thickness_map(self):
         return dict(self.thickness)
 
+    @cached_property
     def _offset_left(self):
         # The left extreme of the SubDimension can be related to either the
         # min or max of the parent dimension
         try:
             symbolic_thickness = self.symbolic_min - self.parent.symbolic_min
             val = symbolic_thickness.subs(self._thickness_map)
-            return int(val), self.parent.symbolic_min
+            return self._SDO(int(val), self.parent.symbolic_min, symbolic_thickness)
         except TypeError:
             symbolic_thickness = self.symbolic_min - self.parent.symbolic_max
             val = symbolic_thickness.subs(self._thickness_map)
-            return int(val), self.parent.symbolic_max
+            return self._SDO(int(val), self.parent.symbolic_max, symbolic_thickness)
 
+    @cached_property
     def _offset_right(self):
         # The right extreme of the SubDimension can be related to either the
         # min or max of the parent dimension
         try:
             symbolic_thickness = self.symbolic_max - self.parent.symbolic_min
             val = symbolic_thickness.subs(self._thickness_map)
-            return int(val), self.parent.symbolic_min
+            return self._SDO(int(val), self.parent.symbolic_min, symbolic_thickness)
         except TypeError:
             symbolic_thickness = self.symbolic_max - self.parent.symbolic_max
             val = symbolic_thickness.subs(self._thickness_map)
-            return int(val), self.parent.symbolic_max
+            return self._SDO(int(val), self.parent.symbolic_max, symbolic_thickness)
 
     @property
     def _properties(self):

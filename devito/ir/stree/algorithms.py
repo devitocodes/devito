@@ -51,9 +51,9 @@ def st_schedule(clusters):
 
         # The reused sub-trees might acquire some new sub-iterators
         for i in pointers[:index]:
-            mapper[i].ispace = IterationSpace.merge(mapper[i].ispace,
+            mapper[i].ispace = IterationSpace.union(mapper[i].ispace,
                                                     c.ispace.project([i.dim]))
-        # Later sub-trees, instead, will not be used anymore
+        # Nested sub-trees, instead, will not be used anymore
         for i in pointers[index:]:
             mapper.pop(i)
 
@@ -90,7 +90,10 @@ def st_make_halo(stree):
             if configuration['mpi']:
                 raise RuntimeError(str(e))
 
-    # Insert the HaloScheme at a suitable level in the ScheduleTree
+    # Split a HaloScheme based on where it should be inserted
+    # For example, it's possible that, for a given HaloScheme, a Function's
+    # halo needs to be exchanged at a certain `stree` depth, while another
+    # Function's halo needs to be exchanged before some other nodes
     mapper = {}
     for k, hs in halo_schemes.items():
         for f, v in hs.fmapper.items():
@@ -102,9 +105,11 @@ def st_make_halo(stree):
                 if test0 or test1:
                     spot = n
                     break
-            mapper.setdefault(spot, []).append((f, v))
-    for spot, entries in mapper.items():
-        insert(NodeHalo(HaloScheme(fmapper=dict(entries))), spot.parent, [spot])
+            mapper.setdefault(spot, []).append(hs.project(f))
+
+    # Now fuse the HaloSchemes at the same `stree` depth and perform the insertion
+    for spot, halo_schemes in mapper.items():
+        insert(NodeHalo(HaloScheme.union(halo_schemes)), spot.parent, [spot])
 
     return stree
 

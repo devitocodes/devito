@@ -9,16 +9,35 @@ from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree, filter_iterations, make_efunc)
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
-                                     AFFINE, IRREGULAR)
-from devito.ir.support.space import (NullInterval, Interval, IntervalGroup,
-                                     Forward, Backward)
+                                     Vector, AFFINE, IRREGULAR)
+from devito.ir.support.space import (NullInterval, Interval, IntervalGroup, Forward,
+                                     Backward, IterationSpace)
 from devito.types import Scalar
 from devito.tools import as_tuple
 
 pytestmark = skipif(['yask', 'ops'])
 
 
-class TestVectorDistanceArithmetic(object):
+class TestVectorHierarchy(object):
+
+    @pytest.fixture
+    def v_num(self):
+        v2 = Vector(2, smart=True)
+        v3 = Vector(3, smart=True)
+        v4 = Vector(4)
+        v11 = Vector(1, 1)
+        v13 = Vector(1, 3)
+        v23 = Vector(2, 3)
+        return v2, v3, v4, v11, v13, v23
+
+    @pytest.fixture
+    def v_literal(self):
+        vx = Vector(x)
+        vxy = Vector(x, y)
+        vx1y = Vector(x + 1, y)
+        s = Scalar(name='s', nonnegative=True)
+        vs3 = Vector(s + 3, smart=True)
+        return vx, vxy, vx1y, vs3
 
     @pytest.fixture
     def ii_num(self, fa, fc):
@@ -37,15 +56,51 @@ class TestVectorDistanceArithmetic(object):
 
     @pytest.fixture
     def ta_literal(self, fc):
-        fwd_directions = {x: Forward, y: Forward}
-        mixed_directions = {x: Backward, y: Forward}
-        tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, fwd_directions)
-        tcxy_r0 = TimedAccess(fc[x, y], 'R', 0, fwd_directions)
-        tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, fwd_directions)
-        tcx1y_r1 = TimedAccess(fc[x + 1, y], 'R', 1, fwd_directions)
-        rev_tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, mixed_directions)
-        rev_tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, mixed_directions)
+        intervals = [Interval(x, 0, 0), Interval(y, 0, 0)]
+        fwd_ispace = IterationSpace(intervals, directions={x: Forward, y: Forward})
+        mixed_ispace = IterationSpace(intervals, directions={x: Backward, y: Forward})
+        tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, fwd_ispace)
+        tcxy_r0 = TimedAccess(fc[x, y], 'R', 0, fwd_ispace)
+        tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, fwd_ispace)
+        tcx1y_r1 = TimedAccess(fc[x + 1, y], 'R', 1, fwd_ispace)
+        rev_tcxy_w0 = TimedAccess(fc[x, y], 'W', 0, mixed_ispace)
+        rev_tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1, mixed_ispace)
         return tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1
+
+    def test_vector_cmp(self, v_num, v_literal):
+        v2, v3, v4, v11, v13, v23 = v_num
+        vx, vxy, vx1y, vs3 = v_literal
+
+        # Equality check (numeric, symbolic, mixed)
+        assert v4 == v4
+        assert v4 != v11
+        assert vx == vx
+        assert vx != v4
+        assert vx != vxy
+        assert vs3 != v4
+
+        # Lexicographic comparison (numeric, symbolic, mixed)
+        assert v3 < v4
+        assert v11 < v23
+        assert v11 <= v23
+        assert v11 < v13
+        assert v11 <= v13
+        assert v23 > v11
+        assert (vxy < vx1y) is True
+        assert (vxy <= vx1y) is True
+        assert (vx1y > vxy) is True
+        assert (vx1y <= vxy) is False
+
+        # Smart vector comparison
+        # Note: `v3` and `vs3` use the "smart" mode
+        assert (v3 < vs3) is False
+        assert (vs3 < v3) is False
+        assert v3 != vs3
+        assert (v3 <= vs3) is True
+        assert (vs3 <= v3) is False
+        assert v2 < vs3
+        assert v2 <= vs3
+        assert vs3 > v2
 
     def test_iteration_instance_arithmetic(self, dims, ii_num, ii_literal):
         """
@@ -200,19 +255,35 @@ class TestSpace(object):
         ix2 = Interval(x, -8, -3)
         ix3 = Interval(x, 3, 4)
 
-        # All defined disjoint
-        assert ix.intersection(ix2) == nullx
-        assert ix.intersection(ix3) == nullx
-        assert ix2.intersection(ix3) == nullx
+        assert ix.intersection(ix2) == Interval(x, -2, -3)
+        assert ix.intersection(ix3) == Interval(x, 3, 2)
+        assert ix2.intersection(ix3) == Interval(x, 3, -3)
         assert ix.intersection(iy) == nullx
         assert iy.intersection(ix) == nully
 
         ix4 = Interval(x, 1, 4)
         ix5 = Interval(x, -3, 0)
 
-        # All defined overlapping
         assert ix.intersection(ix4) == Interval(x, 1, 2)
         assert ix.intersection(ix5) == Interval(x, -2, 0)
+
+        # Mixed symbolic and non-symbolic
+        c = Constant(name='c')
+        ix6 = Interval(x, c, c + 4)
+        ix7 = Interval(x, c - 1, c + 5)
+
+        assert ix6.intersection(ix7) == Interval(x, c, c + 4)
+        assert ix7.intersection(ix6) == Interval(x, c, c + 4)
+
+        # Symbolic with properties
+        s = Scalar(name='s', nonnegative=True)
+        ix8 = Interval(x, s - 2, s + 2)
+        ix9 = Interval(x, s - 1, s + 1)
+
+        assert ix.intersection(ix8) == Interval(x, s - 2, 2)
+        assert ix8.intersection(ix) == Interval(x, s - 2, 2)
+        assert ix8.intersection(ix9) == Interval(x, s - 1, s + 1)
+        assert ix9.intersection(ix8) == Interval(x, s - 1, s + 1)
 
     def test_intervals_union(self):
         nullx = NullInterval(x)
@@ -222,7 +293,7 @@ class TestSpace(object):
 
         ix = Interval(x, -2, 2)
 
-        # Mixed nulls and defined on the same dimension
+        # Mixed nulls and defined
         assert nullx.union(ix) == ix
         assert ix.union(ix) == ix
         assert ix.union(nullx) == ix
@@ -230,7 +301,6 @@ class TestSpace(object):
         ix2 = Interval(x, 1, 4)
         ix3 = Interval(x, -3, 6)
 
-        # All defined overlapping
         assert ix.union(ix2) == Interval(x, -2, 4)
         assert ix.union(ix3) == ix3
         assert ix2.union(ix3) == ix3
@@ -241,46 +311,30 @@ class TestSpace(object):
         nully = NullInterval(y)
         iy = Interval(y, -2, 2)
 
-        # Mixed disjoint (note: IntervalGroup input order is relevant)
-        assert ix.union(ix4) == IntervalGroup([ix, ix4])
+        assert ix.union(ix4) == Interval(x, -2, 8)
         assert ix.union(ix5) == Interval(x, -3, 2)
-        assert ix6.union(ix) == IntervalGroup([ix6, ix])
+        assert ix6.union(ix) == Interval(x, -10, 2)
         assert ix.union(nully) == IntervalGroup([ix, nully])
         assert ix.union(iy) == IntervalGroup([ix, iy])
         assert iy.union(ix) == IntervalGroup([iy, ix])
 
-    def test_intervals_merge(self):
-        nullx = NullInterval(x)
+        # Mixed symbolic and non-symbolic
+        c = Constant(name='c')
+        ix7 = Interval(x, c, c + 4)
+        ix8 = Interval(x, c - 1, c + 5)
 
-        # All nulls
-        assert nullx.merge(nullx) == nullx
+        assert ix7.union(ix8) == Interval(x, c - 1, c + 5)
+        assert ix8.union(ix7) == Interval(x, c - 1, c + 5)
 
-        ix = Interval(x, -2, 2)
+        # Symbolic with properties
+        s = Scalar(name='s', nonnegative=True)
+        ix9 = Interval(x, s - 2, s + 2)
+        ix10 = Interval(x, s - 1, s + 1)
 
-        # Mixed nulls and defined on the same dimension
-        assert nullx.merge(ix) == ix
-        assert ix.merge(ix) == ix
-        assert ix.merge(nullx) == ix
-
-        ix2 = Interval(x, 1, 4)
-        ix3 = Interval(x, -3, 6)
-
-        # All defined overlapping
-        assert ix.merge(ix2) == Interval(x, -2, 4)
-        assert ix.merge(ix3) == ix3
-        assert ix2.merge(ix3) == ix3
-
-        ix4 = Interval(x, 0, 0)
-        ix5 = Interval(x, -1, -1)
-        ix6 = Interval(x, 9, 11)
-
-        # Non-overlapping
-        assert ix.merge(ix4) == Interval(x, -2, 2)
-        assert ix.merge(ix5) == Interval(x, -2, 2)
-        assert ix4.merge(ix5) == Interval(x, -1, 0)
-        assert ix.merge(ix6) == Interval(x, -2, 11)
-        assert ix6.merge(ix) == Interval(x, -2, 11)
-        assert ix5.merge(ix6) == Interval(x, -1, 11)
+        assert ix.union(ix9) == Interval(x, -2, s + 2)
+        assert ix9.union(ix) == Interval(x, -2, s + 2)
+        assert ix9.union(ix10) == ix9
+        assert ix10.union(ix9) == ix9
 
     def test_intervals_subtract(self):
         nullx = NullInterval(x)
@@ -302,6 +356,15 @@ class TestSpace(object):
         assert ix2.subtract(ix) == ix
         assert ix.subtract(ix2) == Interval(x, -2, 2)
         assert ix3.subtract(ix) == ix2
+
+        c = Constant(name='c')
+        ix4 = Interval(x, c + 2, c + 4)
+        ix5 = Interval(x, c + 1, c + 5)
+
+        # All defined symbolic
+        assert ix4.subtract(ix5) == Interval(x, 1, -1)
+        assert ix5.subtract(ix4) == Interval(x, -1, 1)
+        assert ix5.subtract(ix) == Interval(x, c - 1, c + 7)
 
 
 class TestDependenceAnalysis(object):

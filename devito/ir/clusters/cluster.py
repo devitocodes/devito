@@ -50,8 +50,8 @@ class Cluster(object):
         root = clusters[0]
         assert all(root.ispace.is_compatible(c.ispace) for c in clusters)
         exprs = chain(*[c.exprs for c in clusters])
-        ispace = IterationSpace.merge(*[c.ispace for c in clusters])
-        dspace = DataSpace.merge(*[c.dspace for c in clusters])
+        ispace = IterationSpace.union(*[c.ispace for c in clusters])
+        dspace = DataSpace.union(*[c.dspace for c in clusters])
         return Cluster(exprs, ispace, dspace)
 
     def rebuild(self, exprs):
@@ -210,7 +210,7 @@ class ClusterGroup(tuple):
     @cached_property
     def dspace(self):
         """Return the DataSpace of this ClusterGroup."""
-        return DataSpace.merge(*[i.dspace for i in self])
+        return DataSpace.union(*[i.dspace for i in self])
 
     @cached_property
     def dtype(self):

@@ -1,24 +1,21 @@
 import abc
 from collections import OrderedDict
-from itertools import product
 from functools import partial
 from time import time
 
 import cgen
 
-from devito.dle.blocking_utils import (BlockDimension, fold_blockable_tree,
-                                       unfold_blocked_tree)
+from devito.dle.blocking_utils import Blocker, BlockDimension
 from devito.dle.parallelizer import Ompizer
 from devito.exceptions import DLEException
-from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder, PARALLEL,
-                           AFFINE, FindSymbols, FindNodes, FindAdjacent, MapNodes,
-                           Transformer, IsPerfectIteration, compose_nodes, make_efunc,
-                           filter_iterations, retrieve_iteration_tree)
+from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder,
+                           FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
+                           compose_nodes, filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv
-from devito.mpi import HaloExchangeBuilder
+from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.parameters import configuration
 from devito.symbolics import ccode
-from devito.tools import DAG, as_tuple, filter_ordered, flatten
+from devito.tools import DAG, as_tuple, filter_ordered
 
 __all__ = ['PlatformRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter',
            'ArmRewriter', 'SpeculativeRewriter', 'DeviceOffloadingRewriter',
@@ -139,6 +136,10 @@ class AbstractRewriter(object):
         self.params = params
         self.platform = platform
 
+        # Iteration blocker (i.e., for "loop blocking")
+        self._node_blocker = Blocker(params.get('blockinner'), params.get('blockalways'))
+
+        # Shared-memory parallelizer
         self._node_parallelizer = self._node_parallelizer_type()
 
     def run(self, iet):
@@ -211,8 +212,11 @@ class PlatformRewriter(AbstractRewriter):
         mapper = {}
         for halo_spots in MapNodes(Iteration, HaloSpot).visit(iet).values():
             root = halo_spots[0]
-            halo_schemes = [hs.halo_scheme.project(hs.hoistable) for hs in halo_spots[1:]]
-            mapper[root] = root._rebuild(halo_scheme=root.halo_scheme.union(halo_schemes))
+
+            hss = [root.halo_scheme]
+            hss.extend([hs.halo_scheme.project(hs.hoistable) for hs in halo_spots[1:]])
+
+            mapper[root] = root._rebuild(halo_scheme=HaloScheme.union(hss))
             mapper.update({hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.hoistable))
                            for hs in halo_spots[1:]})
         iet = Transformer(mapper, nested=True).visit(iet)
@@ -263,84 +267,7 @@ class PlatformRewriter(AbstractRewriter):
         """
         Apply loop blocking to PARALLEL Iteration trees.
         """
-        blockinner = bool(self.params.get('blockinner'))
-        blockalways = bool(self.params.get('blockalways'))
-
-        # Make sure loop blocking will span as many Iterations as possible
-        iet = fold_blockable_tree(iet, blockinner)
-
-        mapper = {}
-        efuncs = []
-        block_dims = []
-        for tree in retrieve_iteration_tree(iet):
-            # Is the Iteration tree blockable ?
-            iterations = filter_iterations(tree, lambda i: i.is_Parallel)
-            if not blockinner:
-                iterations = iterations[:-1]
-            if len(iterations) <= 1:
-                continue
-            root = iterations[0]
-            if not blockalways:
-                # Heuristically bypass loop blocking if we think `tree`
-                # won't be computationally expensive. This will help with code
-                # size/redability, JIT time, and auto-tuning time
-                if not (tree.root.is_Sequential or iet.is_Callable):
-                    # E.g., not inside a time-stepping Iteration
-                    continue
-                if any(i.dim.is_Sub and i.dim.local for i in tree):
-                    # At least an outer Iteration is over a local SubDimension,
-                    # which suggests the computational cost of this Iteration
-                    # nest will be negligible w.r.t. the "core" Iteration nest
-                    # (making use of non-local (Sub)Dimensions only)
-                    continue
-            if not IsPerfectIteration().visit(root):
-                # Don't know how to block non-perfect nests
-                continue
-
-            # Apply loop blocking to `tree`
-            interb = []
-            intrab = []
-            for i in iterations:
-                d = BlockDimension(i.dim, name="%s%d_blk" % (i.dim.name, len(mapper)))
-                block_dims.append(d)
-                # Build Iteration over blocks
-                properties = (PARALLEL,) + ((AFFINE,) if i.is_Affine else ())
-                interb.append(Iteration([], d, d.symbolic_max, properties=properties))
-                # Build Iteration within a block
-                intrab.append(i._rebuild([], limits=(d, d+d.step-1, 1), offsets=(0, 0)))
-
-            # Construct the blocked tree
-            blocked = compose_nodes(interb + intrab + [iterations[-1].nodes])
-            blocked = unfold_blocked_tree(blocked)
-
-            # Promote to a separate Callable
-            dynamic_parameters = flatten((bi.dim, bi.dim.symbolic_size) for bi in interb)
-            efunc = make_efunc("bf%d" % len(mapper), blocked, dynamic_parameters)
-            efuncs.append(efunc)
-
-            # Compute the iteration ranges
-            ranges = []
-            for i, bi in zip(iterations, interb):
-                maxb = i.symbolic_max - (i.symbolic_size % bi.dim.step)
-                ranges.append(((i.symbolic_min, maxb, bi.dim.step),
-                               (maxb + 1, i.symbolic_max, i.symbolic_max - maxb)))
-
-            # Build Calls to the `efunc`
-            body = []
-            for p in product(*ranges):
-                dynamic_args_mapper = {}
-                for bi, (m, M, b) in zip(interb, p):
-                    dynamic_args_mapper[bi.dim] = (m, M)
-                    dynamic_args_mapper[bi.dim.step] = (b,)
-                call = efunc.make_call(dynamic_args_mapper)
-                body.append(List(body=call))
-
-            mapper[root] = List(body=body)
-
-        iet = Transformer(mapper).visit(iet)
-
-        return iet, {'dimensions': block_dims, 'efuncs': efuncs,
-                     'args': [i.step for i in block_dims]}
+        return self._node_blocker.make_blocking(iet)
 
     @dle_pass
     def _dist_parallelize(self, iet):

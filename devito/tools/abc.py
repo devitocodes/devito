@@ -24,6 +24,18 @@ class Tag(abc.ABC):
             return False
         return self.name == other.name and self.val == other.val
 
+    def __lt__(self, other):
+        return self.val < other.val
+
+    def __le__(self, other):
+        return self.val <= other.val
+
+    def __gt__(self, other):
+        return self.val > other.val
+
+    def __ge__(self, other):
+        return self.val >= other.val
+
     def __hash__(self):
         return hash((self.name, self.val))
 

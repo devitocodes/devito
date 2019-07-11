@@ -1,18 +1,114 @@
-from itertools import groupby
+from itertools import groupby, product
 
 import cgen as c
 import numpy as np
 from cached_property import cached_property
 
-from devito.ir.iet import (Expression, Iteration, List, FindAdjacent,
-                           FindNodes, IsPerfectIteration, Transformer,
-                           compose_nodes, retrieve_iteration_tree)
+from devito.ir.iet import (Expression, Iteration, List, FindAdjacent, FindNodes,
+                           IsPerfectIteration, Transformer, PARALLEL, AFFINE, make_efunc,
+                           compose_nodes, filter_iterations, retrieve_iteration_tree)
 from devito.logger import warning
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import as_tuple, flatten
 from devito.types import IncrDimension, Scalar
 
-__all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
+__all__ = ['Blocker', 'BlockDimension']
+
+
+class Blocker(object):
+
+    def __init__(self, blockinner, blockalways):
+        self.blockinner = bool(blockinner)
+        self.blockalways = bool(blockalways)
+
+        self.nblocked = 0
+
+    def make_blocking(self, iet):
+        """
+        Apply loop blocking to PARALLEL Iteration trees.
+        """
+        # Make sure loop blocking will span as many Iterations as possible
+        iet = fold_blockable_tree(iet, self.blockinner)
+
+        mapper = {}
+        efuncs = []
+        block_dims = []
+        for tree in retrieve_iteration_tree(iet):
+            # Is the Iteration tree blockable ?
+            iterations = filter_iterations(tree, lambda i: i.is_Parallel)
+            if not self.blockinner:
+                iterations = iterations[:-1]
+            if len(iterations) <= 1:
+                continue
+            root = iterations[0]
+            if not self.blockalways:
+                # Heuristically bypass loop blocking if we think `tree`
+                # won't be computationally expensive. This will help with code
+                # size/readbility, JIT time, and auto-tuning time
+                if not (tree.root.is_Sequential or iet.is_Callable):
+                    # E.g., not inside a time-stepping Iteration
+                    continue
+                if any(i.dim.is_Sub and i.dim.local for i in tree):
+                    # At least an outer Iteration is over a local SubDimension,
+                    # which suggests the computational cost of this Iteration
+                    # nest will be negligible w.r.t. the "core" Iteration nest
+                    # (making use of non-local (Sub)Dimensions only)
+                    continue
+            if not IsPerfectIteration().visit(root):
+                # Don't know how to block non-perfect nests
+                continue
+
+            # Apply loop blocking to `tree`
+            interb = []
+            intrab = []
+            for i in iterations:
+                d = BlockDimension(i.dim, name="%s%d_blk" % (i.dim.name, self.nblocked))
+                block_dims.append(d)
+                # Build Iteration over blocks
+                properties = (PARALLEL,) + ((AFFINE,) if i.is_Affine else ())
+                interb.append(Iteration([], d, d.symbolic_max, properties=properties))
+                # Build Iteration within a block
+                intrab.append(i._rebuild([], limits=(d, d+d.step-1, 1), offsets=(0, 0)))
+
+            # Construct the blocked tree
+            blocked = compose_nodes(interb + intrab + [iterations[-1].nodes])
+            blocked = unfold_blocked_tree(blocked)
+
+            # Promote to a separate Callable
+            dynamic_parameters = flatten((bi.dim, bi.dim.symbolic_size) for bi in interb)
+            efunc = make_efunc("bf%d" % self.nblocked, blocked, dynamic_parameters)
+            efuncs.append(efunc)
+
+            # Compute the iteration ranges
+            ranges = []
+            for i, bi in zip(iterations, interb):
+                maxb = i.symbolic_max - (i.symbolic_size % bi.dim.step)
+                ranges.append(((i.symbolic_min, maxb, bi.dim.step),
+                               (maxb + 1, i.symbolic_max, i.symbolic_max - maxb)))
+
+            # Build Calls to the `efunc`
+            body = []
+            for p in product(*ranges):
+                dynamic_args_mapper = {}
+                for bi, (m, M, b) in zip(interb, p):
+                    dynamic_args_mapper[bi.dim] = (m, M)
+                    dynamic_args_mapper[bi.dim.step] = (b,)
+                call = efunc.make_call(dynamic_args_mapper)
+                body.append(List(body=call))
+
+            mapper[root] = List(body=body)
+
+            # Next blockable nest, use different (unique) variable/function names
+            self.nblocked += 1
+
+        iet = Transformer(mapper).visit(iet)
+
+        # Force-unfold if some folded Iterations haven't been blocked in the end
+        iet = unfold_blocked_tree(iet)
+
+        return iet, {'dimensions': block_dims,
+                     'efuncs': efuncs,
+                     'args': [i.step for i in block_dims]}
 
 
 def fold_blockable_tree(iet, blockinner=True):
@@ -166,11 +262,14 @@ def optimize_unfolded_tree(unfolded, root):
     for i, tree in enumerate(unfolded):
         assert len(tree) == len(root)
 
-        # We can optimize the folded trees only if they compute temporary
-        # arrays, but not if they compute input data
-        exprs = FindNodes(Expression).visit(tree[-1])
+        # We can optimize the folded trees only iff:
+        # test0 := they compute temporary arrays, but not if they compute input data
+        # test1 := the outer Iterations have actually been blocked
+        exprs = FindNodes(Expression).visit(tree)
         writes = [j.write for j in exprs if j.is_tensor]
-        if not all(j.is_Array for j in writes):
+        test0 = not all(j.is_Array for j in writes)
+        test1 = any(not isinstance(j.limits[0], BlockDimension) for j in root)
+        if test0 or test1:
             processed.append(compose_nodes(tree))
             root = compose_nodes(root)
             continue

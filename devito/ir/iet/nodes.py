@@ -439,7 +439,7 @@ class Iteration(Node):
         except TypeError:
             # A symbolic expression
             pass
-        return (_min + as_symbol(self.offsets[0]), _max + as_symbol(self.offsets[1]))
+        return (_min + self.offsets[0], _max + self.offsets[1])
 
     @property
     def symbolic_size(self):
@@ -859,6 +859,10 @@ class HaloSpot(Node):
     @property
     def dimensions(self):
         return self.halo_scheme.dimensions
+
+    @property
+    def arguments(self):
+        return self.halo_scheme.arguments
 
     @property
     def is_empty(self):

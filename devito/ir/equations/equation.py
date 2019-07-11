@@ -122,21 +122,34 @@ class LoweredEq(sympy.Eq, IREq):
         oobs = detect_oobs(mapper)
         conditionals = [i for i in ordering if i.is_Conditional]
 
-        # The iteration space is constructed so that information always flows
-        # from an iteration to another (i.e., no anti-dependences are created)
-        iterators = build_iterators(mapper)
+        # Construct Intervals for IterationSpace and DataSpace
         intervals = build_intervals(Stencil.union(*mapper.values()))
-        intervals = IntervalGroup(intervals, relations=ordering.relations)
-        ispace = IterationSpace(intervals.zero(), iterators)
+        iintervals = []  # iteration Intervals
+        dintervals = []  # data Intervals
+        for i in intervals:
+            d = i.dim
+            if d in oobs:
+                iintervals.append(i.zero())
+                dintervals.append(i)
+            elif d.is_Sub:
+                v = Interval(d, d._offset_left.thickness, d._offset_right.thickness)
+                iintervals.append(v)
+                dintervals.append(v)
+            else:
+                iintervals.append(i.zero())
+                dintervals.append(i.zero())
 
-        # The data space is relative to the computational domain. Note that we
-        # are deliberately dropping the intervals ordering (by turning `intervals`
-        # into a list), as this is irrelevant (even more: dangerous) for data spaces
-        intervals = [i if i.dim in oobs else i.zero() for i in intervals]
-        intervals += [Interval(i, 0, 0) for i in ordering
-                      if i not in ispace.dimensions + conditionals]
-        parts = {k: IntervalGroup(build_intervals(v)) for k, v in mapper.items() if k}
-        dspace = DataSpace(intervals, parts)
+        # Construct the IterationSpace
+        iintervals = IntervalGroup(iintervals, relations=ordering.relations)
+        iterators = build_iterators(mapper)
+        ispace = IterationSpace(iintervals, iterators)
+
+        # Construct the DataSpace
+        dintervals.extend([Interval(i, 0, 0) for i in ordering
+                           if i not in ispace.dimensions + conditionals])
+        parts = {k: IntervalGroup(build_intervals(v)).add(iintervals)
+                 for k, v in mapper.items() if k}
+        dspace = DataSpace(dintervals, parts)
 
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
