@@ -280,6 +280,14 @@
         <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">is_const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">extreme_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_min</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">extreme_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_max</span>
+
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">size_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_size&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
 
@@ -299,10 +307,6 @@
     <span class="k">def</span> <span class="nf">_maybe_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Could it be a distributed Dimension?&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="kc">True</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_limits</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">symbolic_min</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_max</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_C_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -647,6 +651,14 @@
     <span class="n">__xnew_cached_</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">cacheit</span><span class="p">(</span><span class="n">__new_stage2__</span><span class="p">))</span>
 
     <span class="n">_Thickness</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Thickness&#39;</span><span class="p">,</span> <span class="s1">&#39;left right&#39;</span><span class="p">)</span>
+    <span class="n">_SDO</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;SubDimensionOffset&#39;</span><span class="p">,</span> <span class="s1">&#39;value extreme thickness&#39;</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_symbolic_thickness</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_ltkn&quot;</span> <span class="o">%</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+                       <span class="n">is_const</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nonnegative</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+                <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_rtkn&quot;</span> <span class="o">%</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+                       <span class="n">is_const</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nonnegative</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">left</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span> <span class="n">local</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
@@ -675,18 +687,26 @@
                    <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="n">thickness_left</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">thickness_right</span><span class="p">)),</span>
                    <span class="n">local</span><span class="o">=</span><span class="n">local</span><span class="p">)</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interval</span><span class="o">.</span><span class="n">left</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interval</span><span class="o">.</span><span class="n">right</span>
 
-    <span class="nd">@property</span>
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># The size must be given as a function of the parent&#39;s size</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_min</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">extreme_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_left</span><span class="o">.</span><span class="n">extreme</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">extreme_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset_right</span><span class="o">.</span><span class="n">extreme</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">local</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -700,38 +720,35 @@
     <span class="k">def</span> <span class="nf">_maybe_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span>
 
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">_symbolic_thickness</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_ltkn&quot;</span> <span class="o">%</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">is_const</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
-                <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_rtkn&quot;</span> <span class="o">%</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">is_const</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
-
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_thickness_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">thickness</span><span class="p">)</span>
 
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_offset_left</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># The left extreme of the SubDimension can be related to either the</span>
         <span class="c1"># min or max of the parent dimension</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">symbolic_thickness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_min</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span>
             <span class="n">val</span> <span class="o">=</span> <span class="n">symbolic_thickness</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_thickness_map</span><span class="p">)</span>
-            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_SDO</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span><span class="p">,</span> <span class="n">symbolic_thickness</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
             <span class="n">symbolic_thickness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_min</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span>
             <span class="n">val</span> <span class="o">=</span> <span class="n">symbolic_thickness</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_thickness_map</span><span class="p">)</span>
-            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_SDO</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span><span class="p">,</span> <span class="n">symbolic_thickness</span><span class="p">)</span>
 
+    <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_offset_right</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># The right extreme of the SubDimension can be related to either the</span>
         <span class="c1"># min or max of the parent dimension</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">symbolic_thickness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span>
             <span class="n">val</span> <span class="o">=</span> <span class="n">symbolic_thickness</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_thickness_map</span><span class="p">)</span>
-            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_SDO</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span><span class="p">,</span> <span class="n">symbolic_thickness</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
             <span class="n">symbolic_thickness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span>
             <span class="n">val</span> <span class="o">=</span> <span class="n">symbolic_thickness</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_thickness_map</span><span class="p">)</span>
-            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_SDO</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span><span class="p">,</span> <span class="n">symbolic_thickness</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_properties</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
