@@ -373,12 +373,7 @@ class Distributor(AbstractDistributor):
         A CompositeObject describing the calling MPI rank's neighborhood
         in the decomposed grid.
         """
-        entries = list(product([LEFT, CENTER, RIGHT], repeat=self.ndim))
-        fields = [''.join(j.name[0] for j in i) for i in entries]
-        obj = MPINeighborhood(fields)
-        for name, i in zip(fields, entries):
-            setattr(obj.value._obj, name, self.neighborhood[i])
-        return obj
+        return MPINeighborhood(self.neighborhood)
 
 
 class SparseDistributor(AbstractDistributor):
@@ -479,9 +474,21 @@ class MPICommObject(Object):
 
 class MPINeighborhood(CompositeObject):
 
-    def __init__(self, fields):
-        super(MPINeighborhood, self).__init__('nb', 'neighborhood',
-                                              [(i, c_int) for i in fields])
+    def __init__(self, neighborhood):
+        self._neighborhood = neighborhood
+
+        self._entries = [i for i in neighborhood if isinstance(i, tuple)]
+
+        fields = [(''.join(j.name[0] for j in i), c_int) for i in self.entries]
+        super(MPINeighborhood, self).__init__('nb', 'neighborhood', fields)
+
+    @property
+    def entries(self):
+        return self._entries
+
+    @property
+    def neighborhood(self):
+        return self._neighborhood
 
     @cached_property
     def _C_typedecl(self):
@@ -501,8 +508,14 @@ class MPINeighborhood(CompositeObject):
         return Struct(self.pname, [Value(ctypes_to_cstr(i), ', '.join(j))
                                    for i, j in groups])
 
+    def _arg_defaults(self):
+        values = super(MPINeighborhood, self)._arg_defaults()
+        for name, i in zip(self.fields, self.entries):
+            setattr(values[self.name]._obj, name, self.neighborhood[i])
+        return values
+
     # Pickling support
-    _pickle_args = ['fields']
+    _pickle_args = ['neighborhood']
 
 
 def compute_dims(nprocs, ndim):

@@ -52,7 +52,7 @@ class Profiler(object):
             for i in bundles:
                 for k, v in i.traffic.items():
                     mapper.setdefault(k, []).append(v)
-            traffic = [IntervalGroup.generate('merge', *i) for i in mapper.values()]
+            traffic = [IntervalGroup.generate('union', *i) for i in mapper.values()]
             traffic = sum(i.size for i in traffic)
 
             # Each ExpressionBundle lives in its own iteration space

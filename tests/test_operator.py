@@ -10,7 +10,7 @@ from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import indexify, retrieve_indexed
 from devito.tools import flatten
-from devito.types import Scalar
+from devito.types import Array, Scalar
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -997,7 +997,9 @@ class TestDeclarator(object):
     def test_heap_perfect_2D_stencil(self, a, c):
         operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle=None)
         assert """\
+  float (*a);
   float (*c)[j_size];
+  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
@@ -1006,14 +1008,15 @@ class TestDeclarator(object):
   {
     for (int j = j_m; j <= j_M; j += 1)
     {
-      float sa0 = c[i][j];
-      c[i][j] = sa0*c[i][j];
+      a[i] = c[i][j];
+      c[i][j] = a[i]*c[i][j];
     }
   }
   /* End section0 */
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
+  free(a);
   free(c);
   return 0;""" in str(operator.ccode)
 
@@ -1049,8 +1052,8 @@ class TestDeclarator(object):
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
-  float t1 = 2.00000000000000F;
   float t0 = 1.00000000000000F;
+  float t1 = 2.00000000000000F;
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
   /* Begin section0 */
@@ -1156,84 +1159,118 @@ class TestLoopScheduler(object):
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
-         '**-', ['xyz'], 'xyz'),
-        # WAR 1->2, 2->3; one may think it should be expected=3, but these are all
-        # Arrays, so ti0 gets optimized through index bumping and array contraction,
-        # which results in expected=2
+         '++-', ['xyz'], 'xyz'),
+        # WAR 1->2, 2->3; expected=2
+        # The second WAR forces a change of iteration direction along z
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
           'Eq(ti3[x,y,z], ti1[x,y,z-2] + 1.)'),
-         '****', ['xyz', 'xyz'], 'xyzz'),
+         '++-+', ['xyz', 'xyz'], 'xyzz'),
+        # WAR 1->2, 2->3, RAW 2->3
+        # In 2->3 there are both a RAW and a WAR, so the compiler enforces a
+        # change of iteration direction. 1->2 caused --, so 2->3 gets ++
+        (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
+          'Eq(ti1[x,y,z], ti0[x,y,z+1])',
+          'Eq(ti3[x,y,z], ti1[x,y,z-2] + ti1[x,y,z+2])'),
+         '++-+', ['xyz', 'xyz'], 'xyzz'),
         # WAR 1->3; expected=1
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y,z+1] + 1.)'),
-         '**-', ['xyz'], 'xyz'),
+         '++-', ['xyz'], 'xyz'),
         # WAR 1->2, 2->3; WAW 1->3; expected=2
         # ti0 is an Array, so the observation made above still holds (expected=2
         # rather than 3)
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], 3*ti0[x,y,z+2])',
           'Eq(ti0[x,y,0], ti0[x,y,0] + 1.)'),
-         '**-', ['xyz', 'xy'], 'xyz'),
+         '++-', ['xyz', 'xy'], 'xyz'),
         # WAR 1->2; WAW 1->3; expected=2
         # Now tu, tv, tw are not Arrays, so they must end up in separate loops
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t,x,y,0], tu[t,x,y,0] + 1.)'),
-         '***-', ['txyz', 'txy'], 'txyz'),
-        # WAR 1->2; RAW 2->3; expected=2
+         '+++-', ['txyz', 'txy'], 'txyz'),
+        # WAR 1->2, 2->3; expected=2
+        # The second WAR forces a change of iteration direction along z
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z-1] + 1.)'),
-         '*****', ['txyz', 'txyz'], 'txyzz'),
+         '+++-+', ['txyz', 'txyz'], 'txyzz'),
         # WAR 1->2; WAW 1->3; expected=2
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
           'Eq(tu[t,3,y,0], tu[t,3,y,0] + 1.)'),
-         '*-***', ['txyz', 'ty'], 'txyzy'),
+         '+-+++', ['txyz', 'ty'], 'txyzy'),
         # RAW 1->2, WAR 2->3; expected=1
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         '**-+', ['txyz'], 'txyz'),
+         '++-+', ['txyz'], 'txyz'),
         # WAR 1->2; WAW 1->3; expected=2
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t-1,x,y,0], tu[t,x,y,0] + 1.)'),
-         '-***', ['txyz', 'txy'], 'txyz'),
+         '-+++', ['txyz', 'txy'], 'txyz'),
         # WAR 1->2; expected=1
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2] + tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z] + 2)'),
-         '-***', ['txyz'], 'txyz'),
+         '-+++', ['txyz'], 'txyz'),
         # Time goes backward so that information flows in time
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tv[t-1,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
-         '-***', ['txyz'], 'txyz'),
+         '-+++', ['txyz'], 'txyz'),
         # Time goes backward so that information flows in time, interleaved
         # with independent Eq
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
-         '-******', ['txyz', 'xyz'], 'txyzxyz'),
-        # Time goes backward so that information flows in time, interleaved
-        # with independent Eq
+         '-++++++', ['txyz', 'xyz'], 'txyzxyz'),
+        # Time goes backward so that information flows in time
         (('Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + ti0[x,y-1,z])'),
-         '*+*-*+*', ['xyz', 'txyz'], 'xyztxyz'),
+         '+++-+++', ['xyz', 'txyz'], 'xyztxyz'),
+        # War 2->1; expected=2
+        # Here the difference is that we're using SubDimensions
+        (('Eq(tv[t,xi,yi,zi], tu[t,xi-1,yi,zi] + tu[t,xi+1,yi,zi])',
+          'Eq(tu[t+1,xi,yi,zi], tu[t,xi,yi,zi] + tv[t,xi-1,yi,zi] + tv[t,xi+1,yi,zi])'),
+         '+++++++', ['txiyizi', 'txiyizi'], 'txiyizixiyizi'),
+        # RAW 3->1; expected=2
+        # Time goes backward, but the third equation should get fused with
+        # the first one, as there dependence is carried along time
+        (('Eq(tv[t-1,x,y,z], tv[t,x-1,y,z] + tv[t,x+1,y,z])',
+          'Eq(tv[t-1,z,z,z], tv[t-1,z,z,z] + 1)',
+          'Eq(f[x,y,z], tu[t-1,x,y,z] + tu[t,x,y,z] + tu[t+1,x,y,z] + tv[t,x,y,z])'),
+         '-++++', ['txyz', 'tz'], 'txyzz'),
     ])
-    def test_consistency_anti_dependences(self, exprs, directions, expected, visit,
-                                          ti0, ti1, ti3, tu, tv, tw):
+    def test_consistency_anti_dependences(self, exprs, directions, expected, visit):
         """
         Test that anti dependences end up generating multi loop nests, rather
         than a single loop nest enclosing all of the equations.
         """
-        eq1, eq2, eq3 = EVAL(exprs, ti0.base, ti1.base, ti3.base,
-                             tu.base, tv.base, tw.base)
-        op = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions  # noqa
+        xi, yi, zi = grid.interior.dimensions  # noqa
+        t = grid.stepping_dim  # noqa
+
+        ti0 = Array(name='ti0', shape=grid.shape, dimensions=grid.dimensions)  # noqa
+        ti1 = Array(name='ti1', shape=grid.shape, dimensions=grid.dimensions)  # noqa
+        ti3 = Array(name='ti3', shape=grid.shape, dimensions=grid.dimensions)  # noqa
+        f = Function(name='f', grid=grid)  # noqa
+        tu = TimeFunction(name='tu', grid=grid)  # noqa
+        tv = TimeFunction(name='tv', grid=grid)  # noqa
+        tw = TimeFunction(name='tw', grid=grid)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        eqns = []
+        for e in exprs:
+            eqns.append(eval(e))
+
+        op = Operator(eqns, dse='noop', dle='noop')
+
         trees = retrieve_iteration_tree(op)
         iters = FindNodes(Iteration).visit(op)
         assert len(trees) == len(expected)

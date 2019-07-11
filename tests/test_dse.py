@@ -5,10 +5,11 @@ from unittest.mock import patch
 
 from conftest import skipif, EVAL, x, y, z  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    SubDimension, Grid, Operator, switchconfig, configuration)
-from devito.ir import Stencil, FlowGraph, FindSymbols, retrieve_iteration_tree  # noqa
+                    Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
+from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
 from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
+from devito.dse.flowgraph import FlowGraph
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, estimate_cost,
                               pow_to_mul)
 from devito.tools import generator
@@ -81,7 +82,7 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
                  ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'],
                  marks=pytest.mark.xfail),
     # divisions (== powers with negative exponenet) are always captured
-    (['Eq(tu, tv**-1*(tw*5 + tw*5*t0))', 'Eq(tu, tv**-1*t0)'],
+    (['Eq(tu, tv**-1*(tw*5 + tw*5*t0))', 'Eq(ti0, tv**-1*t0)'],
      ['1/tv[t, x, y, z]', 'r0*(5*t0*tw[t, x, y, z] + 5*tw[t, x, y, z])', 'r0*t0']),
 ])
 def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
@@ -342,6 +343,50 @@ def test_contracted_alias_shape_after_blocking():
     assert np.all(u.data == exp)
 
 
+@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+def test_full_alias_shape_with_subdims():
+    """
+    Like `test_full_alias_shape_after_blocking`, but SubDomains (and therefore
+    SubDimensions) are used. Nevertheless, the temporary shape should still be
+    dictated by the root Dimensions.
+    """
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions  # noqa
+    t = grid.stepping_dim
+
+    f = Function(name='f', grid=grid)
+    f.data_with_halo[:] = 1.
+    u = TimeFunction(name='u', grid=grid, space_order=3)
+    u.data_with_halo[:] = 0.
+
+    # Leads to 3D aliases
+    eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                         (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1),
+             subdomain=grid.interior)
+    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
+    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
+
+    xi0_blk_size = op1.parameters[9]
+    yi0_blk_size = op1.parameters[15]
+    z_size = op1.parameters[20]
+
+    # Check Array shape
+    arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]
+    assert len(arrays) == 1
+    a = arrays[0]
+    assert len(a.dimensions) == 3
+    assert a.halo == [(1, 1), (1, 1), (1, 1)]
+    assert Add(*a.symbolic_shape[0].args) == xi0_blk_size + 2
+    assert Add(*a.symbolic_shape[1].args) == yi0_blk_size + 2
+    assert Add(*a.symbolic_shape[2].args) == z_size + 2
+    # Check numerical output
+    op0(time_M=1)
+    exp = np.copy(u.data[:])
+    u.data_with_halo[:] = 0.
+    op1(time_M=1)
+    assert np.all(u.data == exp)
+
+
 def test_alias_composite():
     """
     Check that composite alias are optimized away through "smaller" aliases.
@@ -389,6 +434,54 @@ def test_alias_composite():
     assert np.allclose(u.data, exp.data, rtol=10e-7)
 
 
+@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+def test_aliases_different_nests():
+    """
+    Check that aliases arising from two sets of equations A and B,
+    characterized by a flow dependence, are scheduled within A's and B's
+    loop nests respectively.
+    """
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions  # noqa
+    t = grid.stepping_dim
+    i = Dimension(name='i')
+
+    f = Function(name='f', grid=grid)
+    f.data_with_halo[:] = 1.
+    g = Function(name='g', shape=(3,), dimensions=(i,))
+    g.data[:] = 2.
+    u = TimeFunction(name='u', grid=grid, space_order=3)
+    v = TimeFunction(name='v', grid=grid, space_order=3)
+
+    # Leads to 3D aliases
+    eqns = [Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                           (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1)),
+            Inc(u[t+1, i, i, i], g + 1),
+            Eq(v.forward, ((v[t, x, y, z] + v[t, x+1, y+1, z+1])*3*u.forward +
+                           (v[t, x+2, y+2, z+2] + v[t, x+3, y+3, z+3])*3*u.forward + 1))]
+    op0 = Operator(eqns, dse='noop', dle=('noop', {'openmp': True}))
+    op1 = Operator(eqns, dse='aggressive', dle=('advanced', {'openmp': True}))
+
+    # Check code generation
+    assert 'bf0' in op1._func_table
+    assert 'bf1' in op1._func_table
+    trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
+    assert len(trees) == 2
+    assert trees[0][-1].nodes[0].body[0].write.is_Array
+    assert trees[1][-1].nodes[0].body[0].write is u
+    trees = retrieve_iteration_tree(op1._func_table['bf1'].root)
+    assert len(trees) == 2
+    assert trees[0][-1].nodes[0].body[0].write.is_Array
+    assert trees[1][-1].nodes[0].body[0].write is v
+
+    # Check numerical output
+    op0(time_M=1)
+    exp = np.copy(u.data[:])
+    u.data_with_halo[:] = 0.
+    op1(time_M=1)
+    assert np.all(u.data == exp)
+
+
 # Acoustic
 
 def run_acoustic_forward(dse=None):
@@ -432,8 +525,7 @@ def test_acoustic_rewrite_basic():
 def test_custom_rewriter():
     ret1 = run_acoustic_forward(dse=None)
     ret2 = run_acoustic_forward(dse=('extract_sop', 'factorize',
-                                     'extract_invariants',
-                                     'extract_indices', 'gcse'))
+                                     'extract_invariants', 'gcse'))
 
     assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
     assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)

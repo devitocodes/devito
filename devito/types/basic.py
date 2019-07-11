@@ -238,11 +238,11 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
     is_AbstractSymbol = True
 
-    def __new__(cls, name, dtype=np.int32):
-        return AbstractSymbol.__xnew_cached_(cls, name, dtype)
+    def __new__(cls, name, dtype=np.int32, **assumptions):
+        return AbstractSymbol.__xnew_cached_(cls, name, dtype, **assumptions)
 
-    def __new_stage2__(cls, name, dtype):
-        newobj = sympy.Symbol.__xnew__(cls, name)
+    def __new_stage2__(cls, name, dtype, **assumptions):
+        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
         newobj._dtype = dtype
         return newobj
 
@@ -397,15 +397,18 @@ class Scalar(Symbol, ArgProvider):
     is_const : bool, optional
         True if the symbol value cannot be modified within an Operator,
         False otherwise. Defaults to False.
+    **assumptions
+        Any SymPy assumptions, such as ``nonnegative=True``. Refer to the
+        SymPy documentation for more information.
     """
 
     is_Scalar = True
 
-    def __new__(cls, name, dtype=np.float32, is_const=False):
-        return Scalar.__xnew_cached_(cls, name, dtype, is_const)
+    def __new__(cls, name, dtype=np.float32, is_const=False, **assumptions):
+        return Scalar.__xnew_cached_(cls, name, dtype, is_const, **assumptions)
 
-    def __new_stage2__(cls, name, dtype, is_const):
-        newobj = Symbol.__xnew__(cls, name, dtype)
+    def __new_stage2__(cls, name, dtype, is_const, **assumptions):
+        newobj = Symbol.__xnew__(cls, name, dtype, **assumptions)
         newobj._is_const = is_const
         return newobj
 
@@ -1011,6 +1014,9 @@ class IndexedData(sympy.IndexedBase, Pickable):
     """
 
     def __new__(cls, label, shape=None, function=None):
+        # Make sure `label` is a devito.Symbol, not a sympy.Symbol
+        if isinstance(label, str):
+            label = Symbol(label, dtype=function.dtype)
         obj = sympy.IndexedBase.__new__(cls, label, shape)
         obj.function = function
         return obj
@@ -1039,6 +1045,8 @@ class Indexed(sympy.Indexed):
     # required changes are cumbersome and many...
     is_Symbol = False
     is_Atom = False
+
+    is_Dimension = False
 
     def _hashable_content(self):
         return super(Indexed, self)._hashable_content() + (self.base.function,)

@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from unittest.mock import patch
 
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
@@ -125,7 +126,8 @@ class TestDistributor(object):
 
         mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
         obj = distributor._obj_neighborhood
-        assert all(getattr(obj.value._obj, k) == v for k, v in mapper.items())
+        value = obj._arg_defaults()[obj.name]
+        assert all(getattr(value._obj, k) == v for k, v in mapper.items())
 
 
 class TestFunction(object):
@@ -401,7 +403,7 @@ class TestSparseFunction(object):
 
 class TestOperatorSimple(object):
 
-    @pytest.mark.parallel(mode=[2, 4, 8, 16, 32])
+    @pytest.mark.parallel(mode=[2, 4, 8])
     def test_trivial_eq_1d(self):
         grid = Grid(shape=(32,))
         x = grid.dimensions[0]
@@ -422,6 +424,25 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, :-1] == 7.)
         else:
             assert np.all(f.data_ro_domain[0] == 7.)
+
+    @pytest.mark.parallel(mode=[2])
+    def test_trivial_eq_1d_asymmetric(self):
+        grid = Grid(shape=(32,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+
+        op = Operator(Eq(f.forward, f[t, x+1] + 1))
+        op.apply(time=1)
+
+        assert np.all(f.data_ro_domain[1] == 2.)
+        if f.grid.distributor.myrank == 0:
+            assert np.all(f.data_ro_domain[0] == 3.)
+        else:
+            assert np.all(f.data_ro_domain[0, :-1] == 3.)
+            assert f.data_ro_domain[0, -1] == 2.
 
     @pytest.mark.parallel(mode=2)
     def test_trivial_eq_1d_save(self):
@@ -741,8 +762,8 @@ class TestCodeGeneration(object):
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
         ('f[t,x,y-1] + f[t,x,y+1]', {'cr', 'cl'}),
-        ('f[t,x-1,y-1] + f[t,x,y+1]', {'cl', 'll', 'lc', 'cr'}),
-        ('f[t,x-1,y-1] + f[t,x+1,y+1]', {'cl', 'll', 'lc', 'cr', 'rr', 'rc'}),
+        ('f[t,x-1,y-1] + f[t,x,y+1]', {'cr', 'rr', 'rc', 'cl'}),
+        ('f[t,x-1,y-1] + f[t,x+1,y+1]', {'cr', 'rr', 'rc', 'cl', 'll', 'lc'}),
     ])
     @pytest.mark.parallel(mode=[(1, 'diag')])
     def test_diag_comm_scheme(self, expr, expected):
@@ -1229,6 +1250,128 @@ class TestOperatorAdvanced(object):
         # Check center
         if not glb_pos_map[x] and not glb_pos_map[y]:
             assert np.all(u.data_ro_domain[1] == 3)
+
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap'), (4, 'full')])
+    def test_coupled_eqs_mixed_dims(self):
+        """
+        Test MPI in an Operator that computes coupled equations over partly
+        disjoint sets of Dimensions (e.g., one Eq over [x, y, z], the other
+        Eq over [x, yi, zi]).
+        """
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        xi, yi = grid.interior.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+
+        u.data_with_halo[:] = 1.
+
+        eqns = [Eq(u[t+1, x, y], u[t, x-1, y] + u[t, x, y] + u[t, x+1, y] + v + 1),
+                Eq(v[t+1, x, yi],
+                   (v[t, x, yi] + u[t, x, yi-1] + u[t, x, yi] + u[t, x, yi+1] + 1))]
+
+        # `u`'s stencil is
+        #
+        #   *
+        # * C *
+        #   *
+        #
+        # Where C is a generic point (x, y) and * are the accessed neighbours
+
+        op = Operator(eqns)
+        op.apply(time=0)
+
+        assert np.all(u.data_ro_domain[1] == 4.)
+
+        glb_pos_map = v.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(v.data_ro_domain[1] == [[0, 4], [0, 4]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(v.data_ro_domain[1] == [[4, 0], [4, 0]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(v.data_ro_domain[1] == [[0, 4], [0, 4]])
+        elif RIGHT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(v.data_ro_domain[1] == [[4, 0], [4, 0]])
+
+        # Same checks as above, but exploiting the user API
+        assert np.all(v.data_ro_domain[1, :, 0] == 0.)
+        assert np.all(v.data_ro_domain[1, :, 1] == 4.)
+        assert np.all(v.data_ro_domain[1, :, 2] == 4.)
+        assert np.all(v.data_ro_domain[1, :, 3] == 0.)
+
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2')])
+    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    def test_aliases(self):
+        """
+        Check correctness when the DSE extracts aliases and places them
+        into offset-ed loop (nest). For example, the compiler may generate:
+
+            for i = i_m - 1 to i_M + 1
+              tmp[i] = f(a[i-1], a[i], a[i+1], ...)
+            for i = i_m to i_M
+              u[i] = g(tmp[i-1], tmp[i], ... a[i], ...)
+
+        If the employed MPI scheme doesn't use comp/comm overlap (i.e., `basic`,
+        `diag`), then it's not so different than most of the other tests seen in
+        this module. However, with comp/comm overlap, which exploits the same loops
+        to compute the boundary ("OWNED") regions, the situation is more delicate.
+        """
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.
+
+        eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+1, y+1])*3*f +
+                             (u[t, x+2, y+2] + u[t, x+3, y+3])*3*f + 1))
+        op0 = Operator(eqn, dse='noop')
+        op1 = Operator(eqn, dse='aggressive')
+
+        op0(time_M=1)
+        u0_norm = norm(u)
+
+        u._data_with_inhalo[:] = 0.
+        op1(time_M=1)
+        u1_norm = norm(u)
+
+        assert u0_norm == u1_norm
+
+    @pytest.mark.parallel(mode=[(4, 'overlap2')])
+    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    def test_aliases_with_shifted_diagonal_halo_touch(self):
+        """
+        Like ``test_aliases`` but now the diagonal halos required to compute
+        the aliases are shifted due to the iteration space. Basically, this
+        is checking that ``TimedAccess.touched_halo`` does the right thing
+        using the information stored in ``.intervals``.
+        """
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.
+
+        eqn = Eq(u.forward, ((u[t, x, y] + u[t, x+2, y])*3*f +
+                             (u[t, x+1, y+1] + u[t, x+3, y+1])*3*f + 1))
+        op0 = Operator(eqn, dse='noop')
+        op1 = Operator(eqn, dse='aggressive')
+
+        op0(time_M=1)
+        u0_norm = norm(u)
+
+        u._data_with_inhalo[:] = 0.
+        op1(time_M=1)
+        u1_norm = norm(u)
+
+        assert u0_norm == u1_norm
 
 
 class TestIsotropicAcoustic(object):

@@ -180,7 +180,7 @@ def q_linear(expr, vars):
     Return True if ``expr`` is (separately) linear in the variables ``vars``,
     False otherwise.
     """
-    return q_affine(expr, vars) and all(not i.is_Number for i in expr.args)
+    return q_affine(expr, vars) and all(not i.is_Number for i in expr.args + (expr,))
 
 
 def q_identity(expr, var):
