@@ -261,7 +261,6 @@ def test_time_dependent_split(dse, dle):
     assert np.allclose(v.data[1, 1:-1, 1:-1], 1.0)
 
 
-@switchconfig(autopadding=False)
 @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
 def test_full_alias_shape_after_blocking():
     """
@@ -305,7 +304,6 @@ def test_full_alias_shape_after_blocking():
     assert np.all(u.data == exp)
 
 
-@switchconfig(autopadding=False)
 @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
 def test_contracted_alias_shape_after_blocking():
     """
