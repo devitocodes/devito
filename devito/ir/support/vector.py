@@ -13,7 +13,7 @@ class Vector(tuple):
     """
     A representation of an object in Z^n.
 
-    The elements of a Vector can be integers or any SymPy expression.
+    The elements of a Vector can be integers or generic SymPy expressions.
 
     Notes
     -----
@@ -26,7 +26,7 @@ class Vector(tuple):
 
         (3, 4, 5) > 4 => (3, 4, 5) > (4, 4, 4) => False
 
-    2) Comparing Vector entries when these are SymPy expression
+    2) Comparing Vector entries when these are SymPy expressions
     When we compare two symbolic (SymPy expressions) entries, it might not be
     possible to determine the truth value of the relation. For example, the
     truth value of `3*i < 4*j` cannot be determined (unless some information
@@ -42,7 +42,7 @@ class Vector(tuple):
     Raises
     ------
     TypeError
-        If two Vectors cannot be compared, e.g. due to uncomparable symbolic entries.
+        If two Vectors cannot be compared, e.g. due to incomparable symbolic entries.
     """
 
     def __new__(cls, *items, smart=False):
@@ -318,7 +318,7 @@ def vmin(*vectors):
     Raises
     ------
     TypeError
-        If there are two non-comparable Vectors.
+        If there are two incomparable Vectors.
     ValueError
         If an empty sequence is supplied
     """
@@ -340,7 +340,7 @@ def vmax(*vectors):
     Raises
     ------
     TypeError
-        If there are two non-comparable Vectors.
+        If there are two incomparable Vectors.
     ValueError
         If an empty sequence is supplied
     """

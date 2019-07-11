@@ -44,7 +44,7 @@ class Blocker(object):
             if not self.blockalways:
                 # Heuristically bypass loop blocking if we think `tree`
                 # won't be computationally expensive. This will help with code
-                # size/redability, JIT time, and auto-tuning time
+                # size/readbility, JIT time, and auto-tuning time
                 if not (tree.root.is_Sequential or iet.is_Callable):
                     # E.g., not inside a time-stepping Iteration
                     continue

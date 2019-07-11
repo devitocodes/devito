@@ -53,7 +53,7 @@ def st_schedule(clusters):
         for i in pointers[:index]:
             mapper[i].ispace = IterationSpace.union(mapper[i].ispace,
                                                     c.ispace.project([i.dim]))
-        # Later sub-trees, instead, will not be used anymore
+        # Nested sub-trees, instead, will not be used anymore
         for i in pointers[index:]:
             mapper.pop(i)
 

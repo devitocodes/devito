@@ -124,8 +124,8 @@ class LoweredEq(sympy.Eq, IREq):
 
         # Construct Intervals for IterationSpace and DataSpace
         intervals = build_intervals(Stencil.union(*mapper.values()))
-        iintervals = []
-        dintervals = []
+        iintervals = []  # iteration Intervals
+        dintervals = []  # data Intervals
         for i in intervals:
             d = i.dim
             if d in oobs:
