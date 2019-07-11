@@ -3,7 +3,7 @@ import numpy as np
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
-                    Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, switchconfig)
+                    Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, configuration, switchconfig)
 from devito.data import LEFT, RIGHT, Decomposition
 
 pytestmark = skipif('ops')
@@ -255,21 +255,23 @@ class TestMetaData(object):
         assert u._offset_owned == ((2, 5), (3, 6), (4, 7))
 
     @skipif('yask')
-    @switchconfig(platform='skx')  # To fix autopadding
+    @switchconfig(autopadding=True, platform='skx')  # Platform is to fix pad value
     def test_w_halo_w_autopadding(self):
         grid = Grid(shape=(4, 4, 4))
         u0 = Function(name='u0', grid=grid, space_order=0)
         u1 = Function(name='u1', grid=grid, space_order=3)
 
+        assert configuration['platform'].simd_items_per_reg(u1.dtype) == 8
+
         assert u0._size_halo == ((0, 0), (0, 0), (0, 0))
-        assert u0._size_padding == ((0, 0), (0, 0), (0, 4))  # no left-halo -> no left-pad
+        assert u0._size_padding == ((0, 0), (0, 0), (0, 12))
         assert u0._size_nodomain == u0._size_padding
-        assert u0.shape_allocated == (4, 4, 8)
+        assert u0.shape_allocated == (4, 4, 16)
 
         assert u1._size_halo == ((3, 3), (3, 3), (3, 3))
-        assert u1._size_padding == ((0, 0), (0, 0), (5, 1))
-        assert u1._size_nodomain == ((3, 3), (3, 3), (8, 4))
-        assert u1.shape_allocated == (10, 10, 16)
+        assert u1._size_padding == ((0, 0), (0, 0), (0, 14))  # 14 stems from 6 + 8
+        assert u1._size_nodomain == ((3, 3), (3, 3), (3, 17))
+        assert u1.shape_allocated == (10, 10, 24)
 
 
 @skipif('yask')
@@ -739,6 +741,5 @@ def test_numpy_c_contiguous():
 
 
 if __name__ == "__main__":
-    from devito import configuration
     configuration['mpi'] = True
     TestDataDistributed().test_misc_data()
