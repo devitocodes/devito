@@ -278,7 +278,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             if d not in hse.loc_indices:
                 buf_dims.append(Dimension(name='buf_%s' % d.root))
                 buf_indices.append(d.root)
-        buf = Array(name='buf', dimensions=buf_dims, dtype=f.dtype)
+        buf = Array(name='buf', dimensions=buf_dims, dtype=f.dtype, padding=0)
 
         f_offsets = []
         f_indices = []
@@ -308,8 +308,10 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions
                     if d not in hse.loc_indices]
-        bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype, scope='heap')
-        bufs = Array(name='bufs', dimensions=buf_dims, dtype=f.dtype, scope='heap')
+        bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype,
+                     padding=0, scope='heap')
+        bufs = Array(name='bufs', dimensions=buf_dims, dtype=f.dtype,
+                     padding=0, scope='heap')
 
         ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
         ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
