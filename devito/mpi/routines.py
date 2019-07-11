@@ -746,15 +746,15 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         assert callcompute.is_Call
 
         dim = Dimension(name='i')
-        regioni = IndexedPointer(region, dim)
+        region_i = IndexedPointer(region, dim)
 
         dynamic_args_mapper = {}
         for i in hs.arguments:
             if i.is_Dimension:
-                dynamic_args_mapper[i] = (FieldFromComposite(i.min_name, regioni),
-                                          FieldFromComposite(i.max_name, regioni))
+                dynamic_args_mapper[i] = (FieldFromComposite(i.min_name, region_i),
+                                          FieldFromComposite(i.max_name, region_i))
             else:
-                dynamic_args_mapper[i] = (FieldFromComposite(i.name, regioni),)
+                dynamic_args_mapper[i] = (FieldFromComposite(i.name, region_i),)
 
         iet = callcompute._rebuild(dynamic_args_mapper=dynamic_args_mapper)
         # The -1 below is because an Iteration, by default, generates <=
