@@ -1015,7 +1015,7 @@ class Function(DiscreteFunction, Differentiable):
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
         if padding is None:
-            if configuration['autopadding']:
+            if kwargs.get('autopadding', configuration['autopadding']):
                 # Auto-padding
                 # 0-padding in all Dimensions except in the Fastest Varying Dimension,
                 # `fvd`, which is the innermost one

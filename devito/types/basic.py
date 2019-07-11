@@ -823,7 +823,7 @@ class Array(AbstractCachedFunction):
         padding = kwargs.get('padding')
         if padding is None:
             padding = [(0, 0) for _ in range(self.ndim)]
-            if configuration['autopadding']:
+            if kwargs.get('autopadding', configuration['autopadding']):
                 # Heuristic 1; Arrays are typically introduced for DSE-produced
                 # temporaries, and are almost always used together with loop
                 # blocking.  Since the typical block size is a multiple of the SIMD
