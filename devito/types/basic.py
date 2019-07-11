@@ -793,6 +793,8 @@ class Array(AbstractCachedFunction):
         to ``np.float32``.
     halo : iterable of 2-tuples, optional
         The halo region of the object.
+    padding : iterable of 2-tuples, optional
+        The padding region of the object.
     scope : str, optional
         Control memory allocation. Allowed values: 'heap', 'stack'. Defaults
         to 'heap'.
@@ -818,31 +820,37 @@ class Array(AbstractCachedFunction):
             assert self._scope in ['heap', 'stack']
 
     def __padding_setup__(self, **kwargs):
-        padding = [(0, 0) for i in range(self.ndim)]
+        padding = kwargs.get('padding')
+        if padding is None:
+            padding = [(0, 0) for _ in range(self.ndim)]
+            if configuration['autopadding']:
+                # Heuristic 1; Arrays are typically introduced for DSE-produced
+                # temporaries, and are almost always used together with loop
+                # blocking.  Since the typical block size is a multiple of the SIMD
+                # vector length, `vl`, padding is made such that the NODOMAIN size
+                # is a multiple of `vl` too
 
-        if configuration['autopadding']:
-            # Heuristic 1; Arrays are typically introduced for DSE-produced
-            # temporaries, and are almost always used together with loop
-            # blocking.  Since the typical block size is a multiple of the SIMD
-            # vector length, `vl`, padding is made such that the NODOMAIN size
-            # is a multiple of `vl` too
+                # Heuristic 2: the right-NODOMAIN size is not only a multiple of
+                # `vl`, but also guaranteed to be *at least* greater or equal than
+                # `vl`, so that the compiler can tweak loop trip counts to maximize
+                # the effectiveness of SIMD vectorization
 
-            # Heuristic 2: the right-NODOMAIN size is not only a multiple of
-            # `vl`, but also guaranteed to be *at least* greater or equal than
-            # `vl`, so that the compiler can tweak loop trip counts to maximize
-            # the effectiveness of SIMD vectorization
+                # Let UB be a function that rounds up a value `x` to the nearest
+                # multiple of the SIMD vector length
+                vl = configuration['platform'].simd_items_per_reg(self.dtype)
+                ub = lambda x: int(ceil(x / vl)) * vl
 
-            # Let UB be a function that rounds up a value `x` to the nearest
-            # multiple of the SIMD vector length
-            vl = configuration['platform'].simd_items_per_reg(self.dtype)
-            ub = lambda x: int(ceil(x / vl)) * vl
+                fvd_halo_size = sum(self.halo[-1])
+                fvd_pad_size = (ub(fvd_halo_size) - fvd_halo_size) + vl
 
-            fvd_halo_size = sum(self.halo[-1])
-            fvd_pad_size = (ub(fvd_halo_size) - fvd_halo_size) + vl
-
-            padding[-1] = (0, fvd_pad_size)
-
-        return tuple(padding)
+                padding[-1] = (0, fvd_pad_size)
+            return tuple(padding)
+        elif isinstance(padding, int):
+            return tuple((0, padding) for _ in range(self.ndim))
+        elif isinstance(padding, tuple) and len(padding) == self.ndim:
+            return tuple((0, i) if isinstance(i, int) else i for i in padding)
+        else:
+            raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
