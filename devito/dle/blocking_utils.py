@@ -64,7 +64,7 @@ class Blocker(object):
             level_i = [[] for i in range(1, self.nlevels)]  # Inner levels of blocking
             intra = []  # Within the smallest block
             for i in iterations:
-                template = "%s%d_blk%s" % (i.dim.name, len(mapper), '%d')
+                template = "%s%d_blk%s" % (i.dim.name, self.nblocked, '%d')
                 properties = (PARALLEL,) + ((AFFINE,) if i.is_Affine else ())
 
                 # Build Iteration across `level_0` blocks
