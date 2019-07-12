@@ -1,4 +1,4 @@
-from sympy import Add, cos, sin  # noqa
+from sympy import Add, cos, sin, sqrt  # noqa
 import numpy as np
 import pytest
 from unittest.mock import patch
@@ -480,6 +480,26 @@ def test_aliases_different_nests():
     u.data_with_halo[:] = 0.
     op1(time_M=1)
     assert np.all(u.data == exp)
+
+
+def test_time_invariant_aliases():
+    grid = Grid((10, 10))
+
+    a = Function(name="a", grid=grid, space_order=4)
+    b = Function(name="b", grid=grid, space_order=4)
+    c = Function(name="c", grid=grid, space_order=4)
+    d = Function(name="d", grid=grid, space_order=4)
+
+    e = TimeFunction(name="e", grid=grid, space_order=4)
+
+    deriv = (sqrt((a - 2*b)/c) * e.dx).dy + (sqrt((d - 2*c)/a) * e.dy).dx
+
+    op = Operator(Eq(e.forward, deriv + e))
+
+    # We expect two temporary Arrays, one for each `sqrt` subexpr
+    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+    assert len(arrays) == 2
+    assert all(i._mem_heap and not i._mem_external for i in arrays)
 
 
 # Acoustic
