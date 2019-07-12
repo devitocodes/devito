@@ -141,6 +141,19 @@ class TestFD(object):
         assert expr.evaluate.xreplace(rules) == expr.xreplace(rules).evaluate
         assert expr.expr == expr.xreplace(rules).expr
 
+    @pytest.mark.parametrize('expr, composite_rules', [
+        ('u.dx', '[{u.indices[0]: 1}, {1: 4}]'),
+    ])
+    def test_derivative_eval_at_composite(self, expr, composite_rules):
+        u = Function(name='u', grid=self.grid, time_order=2, space_order=2)  # noqa
+        expr = eval(expr)
+        evaluated_expr = expr.evaluate
+        composite_rules = eval(composite_rules)
+        for mapper in composite_rules:
+            evaluated_expr = evaluated_expr.xreplace(mapper)
+            expr = expr.xreplace(mapper)
+        assert evaluated_expr == expr.evaluate
+
     @pytest.mark.parametrize('SymbolType, derivative, dim', [
         (Function, 'dx2', 3), (Function, 'dy2', 3),
         (TimeFunction, 'dx2', 3), (TimeFunction, 'dy2', 3), (TimeFunction, 'dt', 2)
