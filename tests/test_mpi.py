@@ -760,6 +760,21 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
+    def test_haloupdate_different_locindices(self):
+        """
+        Test that halo updates from multiple timesteps (t, t+1) are supported.
+        """
+        grid = Grid((4, 4))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+
+        op = Operator([Eq(f.forward, f[t, x, y+1]),
+                       Eq(f.forward, f[t+1, x, y+1])])
+
+        assert False
+
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
