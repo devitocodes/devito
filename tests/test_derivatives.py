@@ -371,10 +371,10 @@ class TestFD(object):
         grid = Grid(shape=(50, 50, 50))
         f = Function(name='f', grid=grid, space_order=so)
         f_deriv = Function(name='f_deriv', grid=grid, space_order=so)
-        f.data[:, :] = np.random.rand(50, 50, 50)
+        f.data[:, :] = np.random.rand(50, 50, 50).round(decimals=5)
         g = Function(name='g', grid=grid, space_order=so)
         g_deriv = Function(name='g_deriv', grid=grid, space_order=so)
-        g.data[:, :] = np.random.rand(50, 50, 50)
+        g.data[:, :] = np.random.rand(50, 50, 50).round(decimals=5)
 
         # Check symbolic expression are expected ones for the adjoint .T
         deriv = getattr(f, derivative)
