@@ -593,6 +593,7 @@ class TestOperatorSimple(object):
 
 class TestCodeGeneration(object):
 
+    @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_as_nostencil_basic(self):
         grid = Grid(shape=(12,))
 
@@ -605,6 +606,7 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 0
 
+    @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_as_nostencil_advanced(self):
         grid = Grid(shape=(4, 4))
         u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2, save=None)
@@ -692,6 +694,20 @@ class TestCodeGeneration(object):
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
+
+    @pytest.mark.parallel(mode=1)
+    def test_avoid_haloupdate_with_constant_index(self):
+        grid = Grid(shape=(4,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+
+        eq = Eq(u.forward, u[t, 1] + u[t, 1 + x.symbolic_min] + u[t, x])
+        op = Operator(eq)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
     def test_hoist_haloupdate_if_no_flowdep(self):

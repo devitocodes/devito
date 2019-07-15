@@ -337,7 +337,14 @@ class TimedAccess(IterationInstance):
             if not d._maybe_distributed:
                 return (False, False)
         except AttributeError:
-            assert is_integer(d)
+            pass
+
+        # If a constant (integer, symbolic expr) is used to index into `findex`,
+        # there is actually nothing we can do -- the most likely scenario is that
+        # it's accessing into a *local* SubDomain/SubDimension
+        # TODO: make sure this is indeed the case
+        if is_integer(self[findex]) or d not in self[findex].free_symbols:
+            return (False, False)
 
         # Given `d`'s iteration Interval `d[m, M]`, we know that `d` iterates between
         # `d_m + m` and `d_M + M`
@@ -348,9 +355,7 @@ class TimedAccess(IterationInstance):
                 # We should only end up here with subsampled Dimensions
                 m, M = self.intervals[d.root].offsets
             else:
-                # A constant (integer) is actually used to index into `findex`
-                assert is_integer(self[findex])
-                m, M = 0, 0
+                assert False
 
         # If `m + (self[d] - d) < self.function._size_halo[d].left`, then `self`
         # will definitely touch the left-halo, at least when `d=0`
