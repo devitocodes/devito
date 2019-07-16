@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 
 from conftest import skipif, unit_box, points, unit_box_time, time_points
-from devito.cgen_utils import FLOAT
 from devito import (Grid, Operator, Function, SparseFunction, Dimension, TimeFunction,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction)
+from devito.symbolics import FLOAT
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
                               AcquisitionGeometry)
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -237,6 +237,28 @@ def test_interpolate_custom(shape, coords, npoints=20):
     assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
     assert np.allclose(p.data[1, :], 1.0 * xcoords, rtol=1e-6)
     assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
+
+
+def test_interpolation_dx():
+    """
+    Test interpolation of a SparseFunction from a Derivative of
+    a Function.
+    """
+    u = unit_box(shape=(11, 11))
+    sf1 = SparseFunction(name='s', grid=u.grid, npoint=1)
+    sf1.coordinates.data[0, :] = (0.5, 0.5)
+
+    op = Operator(sf1.interpolate(u.dx))
+
+    assert sf1.data.shape == (1,)
+    u.data[:] = 0.0
+    u.data[5, 5] = 4.0
+    u.data[4, 5] = 2.0
+    u.data[6, 5] = 2.0
+
+    op.apply()
+    # Exactly in the middle of 4 points, only 1 nonzero is 4
+    assert sf1.data[0] == pytest.approx(-20.0)
 
 
 @pytest.mark.parametrize('shape, coords', [

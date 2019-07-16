@@ -72,7 +72,7 @@ class Derivative(sympy.Derivative, Differentiable):
     Derivative(u(x, y), (x, 2))
     """
 
-    _state = ('expr', 'dims', 'side', 'stagger', 'fd_order', 'transpose')
+    _state = ('expr', 'dims', 'side', 'stagger', 'fd_order', 'transpose', '_eval_at')
 
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) == sympy.Derivative:
@@ -114,8 +114,10 @@ class Derivative(sympy.Derivative, Differentiable):
             new_dims = as_tuple(new_dims)
             orders = as_tuple(orders)
 
-        # Finite difference orders
-        fd_orders = kwargs.get('fd_order', tuple([expr.space_order]*len(dims)))
+        # Finite difference orders depending on input dimension (.dt or .dx)
+        fd_orders = kwargs.get('fd_order', tuple([expr.time_order if
+                                                  getattr(d, 'is_Time', False) else
+                                                  expr.space_order for d in dims]))
         if len(dims) == 1 and isinstance(fd_orders, Iterable):
             fd_orders = fd_orders[0]
 
@@ -136,10 +138,15 @@ class Derivative(sympy.Derivative, Differentiable):
 
         return obj
 
-    def __str__(self):
-        return "Derivative(%s)_{}"
-    
-    __repr__ = __str__
+    def _xreplace(self, eval_at):
+        """
+        This is a helper method used internally by SymPy. We exploit it to postpone
+        substitutions until evaluation.
+        """
+        return Derivative_at(self, eval_at.keys(), eval_at.values()), True
+
+    def _subs(self, old, new):
+        return Derivative_at(self, old, new)
 
     @cached_property
     def _args_diff(self):
@@ -197,6 +204,32 @@ class Derivative(sympy.Derivative, Differentiable):
                                    matvec=self.transpose, stagger=self.stagger)
         else:
             res = generic_derivative(expr, *self.dims, self.fd_order,
-                                     self.deriv_order, stagger=self.stagger,
+                                     self.deriv_order, stagger=self.stagger[0],
                                      matvec=self.transpose)
         return res
+
+
+class Derivative_at(Derivative):
+    
+    def __new__(cls, expr, variables, point, **kwargs):
+        variables = as_tuple(variables)
+        point = as_tuple(point)
+        
+        obj = Derivative.__new__(cls, expr.expr, *expr.dims, deriv_order=expr.deriv_order,
+                                 fd_order=expr.fd_order, side=expr.side, stagger=expr.stagger,
+                                 transpose=expr.transpose)
+        obj._eval_rule = {d: v for d, v in zip(variables, point)}
+        obj._expr = expr.expr
+        return obj
+
+    @property
+    def evaluate(self):
+        expr = super(Derivative_at, self).evaluate
+        return expr.xreplace(self._eval_rule)
+
+    def __str__(self):
+        str_subs = ",".join("=".join((k.name, str(v))) for k, v in self._eval_rule.items())
+        
+        return "%s(%s)"%(self.expr.__str__(), str_subs)
+
+    __repr__ = __str__

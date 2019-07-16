@@ -1,8 +1,7 @@
 from collections import OrderedDict
 
-from devito.cgen_utils import INT
 from devito.ir.iet import Expression, ForeignExpression, FindNodes, Transformer
-from devito.symbolics import FunctionFromPointer, ListInitializer, retrieve_indexed
+from devito.symbolics import INT, FunctionFromPointer, ListInitializer, retrieve_indexed
 from devito.tools import ctypes_pointer
 
 __all__ = ['Offloaded', 'make_var_accesses', 'make_sharedptr_funcall']

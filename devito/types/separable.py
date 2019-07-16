@@ -98,22 +98,10 @@ class SeparableFunction(Differentiable, AbstraceCachedAnonymousFunction):
     def __dtype_setup__(cls, **kwargs):
         return kwargs.get('grid').dtype
 
-    def __repr__(self):
+    def __str__(self):
         return self.expr.__repr__()
 
-    __str__ = __repr__
-
-    @property
-    def _sympystr(self):
-        return self.expr._sympystr
-
-    @property
-    def _latex(self):
-        return self.expr._latex
-
-    @property
-    def _pretty(self):
-        return self.expr._pretty
+    __repr__ = __str__
 
     @property
     def evaluate(self):

@@ -3,9 +3,8 @@ import sympy
 from devito.equation import Eq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup,
-                               Any, Stencil, detect_accesses, detect_oobs, detect_io,
-                               force_directions, detect_flow_directions, build_intervals,
-                               build_iterators)
+                               Stencil, detect_accesses, detect_oobs, detect_io,
+                               build_intervals, build_iterators)
 from devito.symbolics import FrozenExpr
 from devito.tools import Pickable, as_tuple
 
@@ -18,7 +17,7 @@ class IREq(object):
     A mixin providing operations common to all :mod:`ir` equation types.
     """
 
-    _state = ('is_Increment', 'ispace', 'dspace', 'conditionals')
+    _state = ('is_Increment', 'ispace', 'dspace', 'conditionals', 'implicit_dims')
 
     @property
     def is_Scalar(self):
@@ -47,6 +46,10 @@ class IREq(object):
         # be in the data space but not in the iteration space (e.g., when a
         # function is indexed with integers only)
         return set(self.dspace.dimensions) | set(self.ispace.dimensions)
+
+    @property
+    def implicit_dims(self):
+        return self._implicit_dims
 
     @property
     def conditionals(self):
@@ -89,7 +92,7 @@ class LoweredEq(sympy.Eq, IREq):
     ``LoweredEq._state`` must appear in ``kwargs``.
     """
 
-    _state = IREq._state + ('reads', 'writes', 'implicit_dims')
+    _state = IREq._state + ('reads', 'writes')
 
     def __new__(cls, *args, **kwargs):
         if len(args) == 1 and isinstance(args[0], LoweredEq):
@@ -119,22 +122,34 @@ class LoweredEq(sympy.Eq, IREq):
         oobs = detect_oobs(mapper)
         conditionals = [i for i in ordering if i.is_Conditional]
 
-        # The iteration space is constructed so that information always flows
-        # from an iteration to another (i.e., no anti-dependences are created)
-        directions, _ = force_directions(detect_flow_directions(expr), lambda i: Any)
-        iterators = build_iterators(mapper)
+        # Construct Intervals for IterationSpace and DataSpace
         intervals = build_intervals(Stencil.union(*mapper.values()))
-        intervals = IntervalGroup(intervals, relations=ordering.relations)
-        ispace = IterationSpace(intervals.zero(), iterators, directions)
+        iintervals = []  # iteration Intervals
+        dintervals = []  # data Intervals
+        for i in intervals:
+            d = i.dim
+            if d in oobs:
+                iintervals.append(i.zero())
+                dintervals.append(i)
+            elif d.is_Sub:
+                v = Interval(d, d._offset_left.thickness, d._offset_right.thickness)
+                iintervals.append(v)
+                dintervals.append(v)
+            else:
+                iintervals.append(i.zero())
+                dintervals.append(i.zero())
 
-        # The data space is relative to the computational domain. Note that we
-        # are deliberately dropping the intervals ordering (by turning `intervals`
-        # into a list), as this is irrelevant (even more: dangerous) for data spaces
-        intervals = [i if i.dim in oobs else i.zero() for i in intervals]
-        intervals += [Interval(i, 0, 0) for i in ordering
-                      if i not in ispace.dimensions + conditionals]
-        parts = {k: IntervalGroup(build_intervals(v)) for k, v in mapper.items() if k}
-        dspace = DataSpace(intervals, parts)
+        # Construct the IterationSpace
+        iintervals = IntervalGroup(iintervals, relations=ordering.relations)
+        iterators = build_iterators(mapper)
+        ispace = IterationSpace(iintervals, iterators)
+
+        # Construct the DataSpace
+        dintervals.extend([Interval(i, 0, 0) for i in ordering
+                           if i not in ispace.dimensions + conditionals])
+        parts = {k: IntervalGroup(build_intervals(v)).add(iintervals)
+                 for k, v in mapper.items() if k}
+        dspace = DataSpace(dintervals, parts)
 
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
@@ -156,10 +171,6 @@ class LoweredEq(sympy.Eq, IREq):
     @property
     def writes(self):
         return self._writes
-
-    @property
-    def implicit_dims(self):
-        return self._implicit_dims
 
     def xreplace(self, rules):
         return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), **self.state)

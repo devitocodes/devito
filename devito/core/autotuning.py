@@ -60,7 +60,7 @@ def autotune(operator, args, level, mode):
     if mode in ['preemptive', 'destructive']:
         for p in operator.parameters:
             if isinstance(p, MPINeighborhood):
-                at_args.update(MPINeighborhood(p.fields)._arg_values())
+                at_args.update(MPINeighborhood(p.neighborhood)._arg_values())
                 for i in p.fields:
                     setattr(at_args[p.name]._obj, i, MPI.PROC_NULL)
             elif isinstance(p, MPIMsgEnriched):
