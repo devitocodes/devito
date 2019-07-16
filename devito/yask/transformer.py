@@ -39,8 +39,8 @@ def yaskit(trees, yc_soln):
             # Can we express both Iteration extremes as
             # `FIRST(i.dim) + integer` OR `LAST(i.dim) + integer` ?
             # If not, one of the following lines will throw a TypeError exception
-            lower_ofs, lower_sym = i.dim._offset_left()
-            upper_ofs, upper_sym = i.dim._offset_right()
+            lvalue, lextreme, _ = i.dim._offset_left
+            rvalue, rextreme, _ = i.dim._offset_right
 
             if i.is_Parallel:
                 # At this point, no issues are expected -- we should just be able to
@@ -49,20 +49,20 @@ def yaskit(trees, yc_soln):
                 ydim = nfac.new_domain_index(i.dim.parent.name)
 
                 # Handle lower extreme
-                if lower_sym == i.dim.parent.symbolic_min:
+                if lextreme == i.dim.parent.symbolic_min:
                     node = nfac.new_first_domain_index(ydim)
                 else:
                     node = nfac.new_last_domain_index(ydim)
-                expr = nfac.new_add_node(node, nfac.new_const_number_node(lower_ofs))
+                expr = nfac.new_add_node(node, nfac.new_const_number_node(lvalue))
                 for _, v in conditions:
                     v.append(nfac.new_not_less_than_node(ydim, expr))
 
                 # Handle upper extreme
-                if upper_sym == i.dim.parent.symbolic_min:
+                if rextreme == i.dim.parent.symbolic_min:
                     node = nfac.new_first_domain_index(ydim)
                 else:
                     node = nfac.new_last_domain_index(ydim)
-                expr = nfac.new_add_node(node, nfac.new_const_number_node(upper_ofs))
+                expr = nfac.new_add_node(node, nfac.new_const_number_node(rvalue))
                 for _, v in conditions:
                     v.append(nfac.new_not_greater_than_node(ydim, expr))
 
@@ -74,8 +74,8 @@ def yaskit(trees, yc_soln):
                 except TypeError:
                     raise NotImplementedError("Found sequential Iteration with "
                                               "statically unknown extent")
-                assert lower_sym == upper_sym  # A corollary of getting up to this point
-                n = lower_sym
+                assert lextreme == rextreme  # A corollary of getting up to this point
+                n = lextreme
 
                 ydim = nfac.new_domain_index(i.dim.parent.name)
                 if n == i.dim.parent.symbolic_min:
@@ -84,9 +84,9 @@ def yaskit(trees, yc_soln):
                     node = nfac.new_last_domain_index(ydim)
 
                 if i.direction is Backward:
-                    _range = range(upper_ofs, lower_ofs - 1, -1)
+                    _range = range(rvalue, lvalue - 1, -1)
                 else:
-                    _range = range(lower_ofs, upper_ofs + 1)
+                    _range = range(lvalue, rvalue + 1)
 
                 unwound = []
                 for e, v in conditions:

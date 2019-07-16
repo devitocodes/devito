@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 
 from conftest import skipif, unit_box, points, unit_box_time, time_points
-from devito.cgen_utils import FLOAT
 from devito import (Grid, Operator, Function, SparseFunction, Dimension, TimeFunction,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction)
+from devito.symbolics import FLOAT
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
                               AcquisitionGeometry)
 from examples.seismic.acoustic import AcousticWaveSolver

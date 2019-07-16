@@ -81,6 +81,12 @@ def test_internal_symbols():
     assert new_s.dtype is np.int32
     assert new_s.is_const is True
 
+    s = Scalar(name='s', nonnegative=True)
+    pkl_s = pickle.dumps(s)
+    new_s = pickle.loads(pkl_s)
+    assert new_s.name == s.name
+    assert new_s.assumptions0['nonnegative'] is True
+
 
 def test_receiver():
     grid = Grid(shape=(3,))

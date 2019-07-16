@@ -8,13 +8,12 @@ from collections import Iterable, OrderedDict, namedtuple
 
 import cgen as c
 
-from devito.cgen_utils import ccode
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, WRAPPABLE, AFFINE, USELESS, OVERLAPPABLE)
 from devito.ir.support import Forward, detect_io
-from devito.symbolics import FunctionFromPointer, as_symbol
+from devito.symbolics import FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
 from devito.types import Symbol, Indexed
@@ -440,7 +439,7 @@ class Iteration(Node):
         except TypeError:
             # A symbolic expression
             pass
-        return (_min + as_symbol(self.offsets[0]), _max + as_symbol(self.offsets[1]))
+        return (_min + self.offsets[0], _max + self.offsets[1])
 
     @property
     def symbolic_size(self):
@@ -860,6 +859,10 @@ class HaloSpot(Node):
     @property
     def dimensions(self):
         return self.halo_scheme.dimensions
+
+    @property
+    def arguments(self):
+        return self.halo_scheme.arguments
 
     @property
     def is_empty(self):

@@ -5,12 +5,11 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
-from devito.cgen_utils import INT, cast_mapper
 from devito.equation import Eq, Inc
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
-from devito.symbolics import indexify, retrieve_function_carriers
+from devito.symbolics import INT, cast_mapper, indexify, retrieve_function_carriers
 from devito.tools import (ReducerMap, flatten, prod, powerset,
                           filter_ordered, memoized_meth)
 from devito.types.dense import DiscreteFunction, Function, SubFunction
@@ -644,6 +643,13 @@ class SparseFunction(AbstractSparseFunction):
         increment: bool, optional
             If True, generate increments (Inc) rather than assignments (Eq).
         """
+        # Derivatives must be evaluated before the introduction of indirect accesses
+        try:
+            expr = expr.evaluate
+        except AttributeError:
+            # E.g., a generic SymPy expression or a number
+            pass
+
         variables = list(retrieve_function_carriers(expr))
 
         # List of indirection indices for all adjacent grid points
@@ -677,6 +683,12 @@ class SparseFunction(AbstractSparseFunction):
         offset : int, optional
             Additional offset from the boundary.
         """
+        # Derivatives must be evaluated before the introduction of indirect accesses
+        try:
+            expr = expr.evaluate
+        except AttributeError:
+            # E.g., a generic SymPy expression or a number
+            pass
 
         variables = list(retrieve_function_carriers(expr)) + [field]
 
