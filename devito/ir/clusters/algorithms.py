@@ -137,17 +137,12 @@ class Toposort(Queue):
 
     def _build_dag(self, cgroups, prefix):
         """
-        A DAG capturing dependences between *all* ClusterGroups within an
-        iteration space.
+        A DAG capturing data dependences between ClusterGroups up to a given
+        iteration space depth.
 
         Examples
         --------
-        When do we need to sequentialize two ClusterGroup `cg0` and `cg1`?
-        Essentially any time there's a dependence between them, apart from when
-        it's a carried flow-dependence within the given iteration space.
-
-        Let's consider two ClusterGroups `cg0` and `cg1` within the iteration
-        space identified by the Dimension `i`.
+        Consider two ClusterGroups `c0` and `c1`, within the iteration space `i`.
 
         1) cg0 := b[i, j] = ...
            cg1 := ... = ... b[i, j] ...
@@ -167,7 +162,7 @@ class Toposort(Queue):
            cg1 := ... = ... b[i, j-1] ...
            Flow-dependence in `j`, so `cg1` must go after `cg0`.
            Unlike case 3), the flow-dependence is along an inner Dimension, so
-           `cg0` and `cg1 need to be sequentialized.
+           `cg0` and `cg1 are sequentialized.
         """
         prefix = {i.dim for i in as_tuple(prefix)}
 
@@ -285,9 +280,12 @@ def optimize(clusters):
 class Lift(Queue):
 
     """
-    Remove invariant Dimensions from Clusters, to avoid redundant computation.
-    This is conceptually analogous to a general-purpose compiler transformation
-    known as "loop-invariant code motion".
+    Remove invariant Dimensions from Clusters to avoid redundant computation.
+
+    Notes
+    -----
+    This is analogous to the compiler transformation known as
+    "loop-invariant code motion".
     """
 
     def callback(self, clusters, prefix):
