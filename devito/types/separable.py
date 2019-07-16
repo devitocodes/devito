@@ -2,13 +2,13 @@
 from devito.finite_differences import Differentiable
 from devito.finite_differences.differentiable import Mul, Add
 from devito.tools import as_tuple
-from devito.types.basic import AbstractCachedSymbol
+from devito.types.basic import AbstraceCachedAnonymousFunction
 from devito.types.dense import Function, TimeFunction
 
 __all__ = ['SeparableFunction', 'SeparableTimeFunction']
 
 
-class SeparableFunction(Differentiable, AbstractCachedSymbol):
+class SeparableFunction(Differentiable, AbstraceCachedAnonymousFunction):
     """
     A Function separable in its Dimensions, ie f(x,y,z) = f(x)*f(y)*f(z)
 
@@ -35,33 +35,38 @@ class SeparableFunction(Differentiable, AbstractCachedSymbol):
     >>> SeparableFunction(name='c', grid=grid, sep='sum', separated=x)
     c_x(x) + c_yz(y, z)
     """
+    _spearation_op = {'sum': Add, 'prod': Mul}
+
     def __init__(self, *args, **kwargs):
-        # Is it sum or product separable
-        self._sep_op = spearation_op[kwargs.get('sep', 'prod')]
+        if not self._cached():
+            # Is it sum or product separable
+            self._sep_op = self._spearation_op[kwargs.get('sep', 'prod')]
 
-        # Conventional Function inputs
-        self._grid = kwargs.get('grid')
-        self._name = kwargs.get('name')
-        self._space_order = kwargs.get('space_order', 1)
+            # Conventional Function inputs
+            self._grid = kwargs.get('grid')
+            self._space_order = kwargs.get('space_order', 1)
 
-        # Initialize subfunctions
-        # Separable dimensions
-        sep = self.separated_dimensions(**kwargs)
-        nonseparated = tuple(d for d in self.grid.dimensions if d not in sep)
-        dims = tuple(d for d in sep) + (nonseparated,)
-        self._dims = dims
+            # Initialize subfunctions
+            # Separable dimensions
+            sep_d, nonsep_d = self.__setup_dimensions__(**kwargs)
+            self._dims = sep_d + (nonsep_d,)
 
-        func_list = [self.function(d, **kwargs) for d in sep]
-        if len(nonseparated) > 0:
-            func_list.append(self.function(nonseparated, **kwargs))
+            func_list = self.__setup_functions__(sep_d, nonsep_d, **kwargs)
 
-        expr = self._sep_op(*func_list)
+            expr = self._sep_op(*func_list)
 
-        dims = tuple(d for d in sep) + (nonseparated,)
-        self._subfunctions = {d: f for d, f in zip(dims, func_list)}
-        self._dims = dims
-        self._expr = expr
-        self._fd = self.expr._fd
+            self._subfunctions = {d: f for d, f in zip(self.dims, func_list)}
+            self._args = (expr,)
+            self._fd = self.expr._fd
+
+
+    def __setup_functions__(self, sep_d, nonsep_d, **kwargs):
+
+        func_list = [self.function(d, **kwargs) for d in sep_d]
+        if len(nonsep_d) > 0:
+            func_list.append(self.function(nonsep_d, **kwargs))
+            
+        return func_list
 
     def function(self, dimensions, **kwargs):
         dims = as_tuple(dimensions)
@@ -84,8 +89,10 @@ class SeparableFunction(Differentiable, AbstractCachedSymbol):
     def space_order(self):
         return self._space_order
 
-    def separated_dimensions(self, **kwargs):
-        return as_tuple(kwargs.get('separated', self.grid.dimensions))
+    def __setup_dimensions__(self, **kwargs):
+        sep = as_tuple(kwargs.get('separated', self.grid.dimensions))
+        nonsep = tuple(d for d in self.grid.dimensions if d not in sep)
+        return sep, nonsep
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
@@ -96,8 +103,17 @@ class SeparableFunction(Differentiable, AbstractCachedSymbol):
 
     __str__ = __repr__
 
-    def func(self, *args, **kwargs):
-        return self.from_expr(self.expr.func(*args, **kwargs))
+    @property
+    def _sympystr(self):
+        return self.expr._sympystr
+
+    @property
+    def _latex(self):
+        return self.expr._latex
+
+    @property
+    def _pretty(self):
+        return self.expr._pretty
 
     @property
     def evaluate(self):
@@ -105,7 +121,7 @@ class SeparableFunction(Differentiable, AbstractCachedSymbol):
 
     @property
     def expr(self):
-        return self._expr
+        return self.args[0]
 
     @property
     def dims(self):
@@ -122,15 +138,20 @@ class SeparableFunction(Differentiable, AbstractCachedSymbol):
     def data(self):
         return tuple(f.data for f in self.subfunctions.value)
 
-    def subs(self, *args, **kwargs):
-        new = super(SeparableFunction, self).subs(*args, **kwargs)
-        new._expr = self.expr.subs(*args, **kwargs)
-        return new
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        grid = kwargs.get('grid')
+        dimensions = kwargs.get('dimensions')
+        if grid is None:
+            if dimensions is None:
+                raise TypeError("Need either `grid` or `dimensions`")
+        elif dimensions is None:
+            dimensions = grid.dimensions
+        return dimensions
 
-    def xreplace(self, rules):
-        new = super(SeparableFunction, self).xreplace(rules)
-        new._expr = self.expr.xreplace(rules)
-        return new
+    @property
+    def args(self):
+        return self._args
 
 
 class SeparableTimeFunction(SeparableFunction):
@@ -163,19 +184,24 @@ class SeparableTimeFunction(SeparableFunction):
     >>> SeparableTimeFunction(name='d', grid=grid, separated=(t, x))
     d_t(t)*d_x(x)*d_yz(y, z)
     """
+    _time_position = 0
+
     def __init__(self, *args, **kwargs):
-        self._time_order = kwargs.get('time_order', 1)
-        super(SeparableTimeFunction, self).__init__(*args, **kwargs)
+        if not self._cached():
+            self._time_order = kwargs.get('time_order', 1)
+            super(SeparableTimeFunction, self).__init__(*args, **kwargs)
 
     @property
     def time_order(self):
         return self._time_order
 
-    def separated_dimensions(self, **kwargs):
+    def __setup_dimensions__(self, **kwargs):
         # Is it sum or product separable
         save = kwargs.get('save')
         time_dim = self.grid.time_dim if isinstance(save, int) else self.grid.stepping_dim
-        return as_tuple(kwargs.get('separated', (time_dim,) + self.grid.dimensions))
+        sep = as_tuple(kwargs.get('separated', (time_dim,) + self.grid.dimensions))
+        nonsep = tuple(d for d in self.grid.dimensions if d not in sep)
+        return sep, nonsep
 
     def function(self, dimensions, **kwargs):
         dims = as_tuple(dimensions)
@@ -188,5 +214,20 @@ class SeparableTimeFunction(SeparableFunction):
         func = func_type(dimensions=dims, shape=shape, **kwargs)
         return func
 
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        dimensions = kwargs.get('dimensions')
+        if dimensions is None:
+            save = kwargs.get('save')
+            grid = kwargs.get('grid')
+            time_dim = kwargs.get('time_dim')
 
-spearation_op = {'sum': Add, 'prod': Mul}
+            if time_dim is None:
+                time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
+            elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
+                raise TypeError("`time_dim` must be a time dimension")
+
+            dimensions = list(Function.__indices_setup__(**kwargs))
+            dimensions.insert(cls._time_position, time_dim)
+
+        return tuple(dimensions)

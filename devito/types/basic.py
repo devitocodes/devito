@@ -460,6 +460,61 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
     is_AbstractFunction = True
 
 
+class AbstraceCachedAnonymousFunction(AbstractFunction, Cached, Evaluable):
+    """
+    Base class for data-free tensor symbols
+
+    For more information, refer to ``AbstraceCachedAnonymousFunction.__doc__``.
+    """
+
+    def __new__(cls, *args, **kwargs):
+        options = kwargs.get('options', {})
+        if cls in _SymbolCache:
+            newobj = sympy.Function.__new__(cls, *args, **options)
+            newobj._cached_init()
+        else:
+            name = kwargs.get('name')
+            indices = cls.__indices_setup__(**kwargs)
+
+            # Create the new Function object and invoke __init__
+            newcls = cls._symbol_type(name)
+            newobj = sympy.Function.__new__(newcls, *indices, **options)
+
+            newobj._name = name
+            newobj._indices = indices
+
+            # Initialization
+            newobj._dtype = cls.__dtype_setup__(**kwargs)
+            newobj.__init__(*args, **kwargs)
+
+            # Store new instance in symbol cache
+            newcls._cache_put(newobj)
+        return newobj
+
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        """Extract the object indices from ``kwargs``."""
+        return ()
+
+    @property
+    def name(self):
+        """The name of the object."""
+        return self._name
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            pass
+
+    # Pickling support
+    _pickle_args = []
+    _pickle_kwargs = ['name', 'dtype']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+    @property
+    def _pickle_reconstruct(self):
+        return self.__class__.__base__
+
+
 class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
     """
     Base class for tensor symbols, cached by both Devito and Sympy.

@@ -136,6 +136,11 @@ class Derivative(sympy.Derivative, Differentiable):
 
         return obj
 
+    def __str__(self):
+        return "Derivative(%s)_{}"
+    
+    __repr__ = __str__
+
     @cached_property
     def _args_diff(self):
         return tuple(i for i in self.args if isinstance(i, Differentiable))
