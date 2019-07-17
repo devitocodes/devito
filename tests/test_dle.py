@@ -266,7 +266,7 @@ def test_cache_blocking_hierarchical(blockshape0, blockshape1, exception):
                                        dle=('blocking', {'blockinner': True,
                                                          'blocklevels': 2}))
         assert not exception
-        assert np.all(wo_blocking == w_blocking)
+        assert np.allclose(wo_blocking, w_blocking, rtol=1e-12)
     except InvalidArgument:
         assert exception
     except:
