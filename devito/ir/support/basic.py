@@ -469,16 +469,20 @@ class Dependence(object):
         return self.source.is_write and self.sink.is_write
 
     @cached_property
-    def is_regular(self):
-        return self.source.is_regular and self.sink.is_regular
-
-    @cached_property
     def is_increment(self):
         return self.source.is_increment and self.sink.is_increment
 
     @cached_property
+    def is_regular(self):
+        return self.source.is_regular and self.sink.is_regular
+
+    @cached_property
     def is_irregular(self):
         return not self.is_regular
+
+    @cached_property
+    def is_cross(self):
+        return self.source.timestamp != self.sink.timestamp
 
     @memoized_meth
     def is_carried(self, dim=None):
@@ -545,6 +549,24 @@ class Dependence(object):
         """Stronger than ``is_indep()``, as it also compares the timestamps."""
         return self.source.lex_eq(self.sink) and self.is_indep(dim)
 
+    @memoized_meth
+    def is_storage_volatile(self, dims=None):
+        """
+        True if a storage-volatile dependence, False otherwise.
+
+        Examples
+        --------
+        * ``self.function`` is a scalar;
+        * ``dim = t`` and `t` is a SteppingDimension appearing in ``self.function``.
+        """
+        if self.function.is_AbstractSymbol:
+            return True
+        for d in self.findices:
+            if (d._defines & set(as_tuple(dims)) and
+                    any(i.is_NonlinearDerived for i in d._defines)):
+                return True
+        return False
+
     def __repr__(self):
         return "%s -> %s" % (self.source, self.sink)
 
@@ -580,6 +602,10 @@ class DependenceGroup(list):
     def inplace(self, dim=None):
         """Return the in-place dependences."""
         return DependenceGroup(i for i in self if i.is_inplace(dim))
+
+    def cross(self):
+        """The dependences whose source and sink are from different timestamps."""
+        return DependenceGroup(i for i in self if i.is_cross)
 
     def __add__(self, other):
         assert isinstance(other, DependenceGroup)
@@ -678,6 +704,12 @@ class Scope(object):
     def functions(self):
         return set(self.reads) | set(self.writes)
 
+    @memoized_meth
+    def a_query(self, timestamps=None, modes=None):
+        return tuple(a for a in self.accesses
+                     if (a.timestamp in as_tuple(timestamps) and
+                         a.mode in as_tuple(modes)))
+
     @cached_property
     def d_flow(self):
         """Generate all flow (or "read-after-write") dependences."""
@@ -740,7 +772,8 @@ class Scope(object):
         return self.d_flow + self.d_anti + self.d_output
 
     @memoized_meth
-    def d_from_access(self, access):
+    def d_from_access(self, accesses):
         """Generate all dependences involving a given TimedAccess."""
         return DependenceGroup(d for d in self.d_all
-                               if d.source is access or d.sink is access)
+                               if (d.source in as_tuple(accesses) or
+                                   d.sink in as_tuple(accesses)))
