@@ -20,16 +20,16 @@ class OPSNodeFactory(object):
 
     def new_ops_arg(self, indexed):
         """
-        Create an :class:`Indexed` node using OPS representation.
+        Create an Indexed node using OPS representation.
 
         Parameters
         ----------
-        indexed : :class:`Indexed`
+        indexed : Indexed
             Indexed object using devito representation.
 
         Returns
         -------
-        :class:`Indexed`
+        Indexed
             Indexed node using OPS representation.
         """
 
