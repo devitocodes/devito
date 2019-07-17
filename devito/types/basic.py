@@ -477,14 +477,12 @@ class AbstraceCachedAnonymousFunction(AbstractFunction, Cached, Evaluable):
             newobj._cached_init()
         else:
             name = kwargs.get('name')
-            indices = cls.__indices_setup__(**kwargs)
 
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
-            newobj = sympy.Function.__new__(newcls, *indices, **options)
+            newobj = sympy.Function.__new__(newcls, **options)
 
             newobj._name = name
-            newobj._indices = indices
 
             # Initialization
             newobj._dtype = cls.__dtype_setup__(**kwargs)
@@ -493,11 +491,6 @@ class AbstraceCachedAnonymousFunction(AbstractFunction, Cached, Evaluable):
             # Store new instance in symbol cache
             newcls._cache_put(newobj)
         return newobj
-
-    @classmethod
-    def __indices_setup__(cls, **kwargs):
-        """Extract the object indices from ``kwargs``."""
-        return ()
 
     @property
     def name(self):

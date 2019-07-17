@@ -401,7 +401,7 @@ class TestArithmetic(object):
         u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
         u2 = TimeFunction(name='u2', grid=grid, time_order=2, save=5, space_order=0)
         q = SeparableTimeFunction(name='q', grid=grid, time_order=0, space_order=0,
-                                  sep='prod', separated=t, save=5)
+                                  op='prod', separated=t, save=5)
 
         # Conventional sparse source for reference solution
         sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
@@ -441,7 +441,7 @@ class TestArithmetic(object):
         t = grid.time_dim
         u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
         q = SeparableTimeFunction(name='q', grid=grid, time_order=0, space_order=0,
-                                  sep='prod', separated=t, save=5)
+                                  op='prod', separated=t, save=5)
 
         # Conventional sparse source for reference solution
         sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)

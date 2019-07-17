@@ -16,9 +16,9 @@ class SeparableFunction(Differentiable, AbstraceCachedAnonymousFunction):
 
     Parameters
     ----------
-    sep: str
+    sep : str
         Type of separation as a product or sum of Function, 'sum' or 'prod'.
-    separated: Dimension or tuple of Dimensions
+    separated : Dimension or tuple of Dimensions
         Dimension in which the Function is separable.
 
     Examples
@@ -30,9 +30,9 @@ class SeparableFunction(Differentiable, AbstraceCachedAnonymousFunction):
     >>> x, y, z = grid.dimensions
     >>> SeparableFunction(name='a', grid=grid)
     a_x(x)*a_y(y)*a_z(z)
-    >>> SeparableFunction(name='b', grid=grid, sep='sum')
+    >>> SeparableFunction(name='b', grid=grid, op='sum')
     b_x(x) + b_y(y) + b_z(z)
-    >>> SeparableFunction(name='c', grid=grid, sep='sum', separated=x)
+    >>> SeparableFunction(name='c', grid=grid, op='sum', separated=x)
     c_x(x) + c_yz(y, z)
     """
     _spearation_op = {'sum': Add, 'prod': Mul}
@@ -40,7 +40,7 @@ class SeparableFunction(Differentiable, AbstraceCachedAnonymousFunction):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             # Is it sum or product separable
-            self._sep_op = self._spearation_op[kwargs.get('sep', 'prod')]
+            self._sep_op = self._spearation_op[kwargs.get('op', 'prod')]
 
             # Conventional Function inputs
             self._grid = kwargs.get('grid')
@@ -59,13 +59,12 @@ class SeparableFunction(Differentiable, AbstraceCachedAnonymousFunction):
             self._args = (expr,)
             self._fd = self.expr._fd
 
-
     def __setup_functions__(self, sep_d, nonsep_d, **kwargs):
 
         func_list = [self.function(d, **kwargs) for d in sep_d]
         if len(nonsep_d) > 0:
             func_list.append(self.function(nonsep_d, **kwargs))
-            
+
         return func_list
 
     def function(self, dimensions, **kwargs):
@@ -104,6 +103,10 @@ class SeparableFunction(Differentiable, AbstraceCachedAnonymousFunction):
     __repr__ = __str__
 
     @property
+    def _latex(self):
+        return self.expr._latex
+
+    @property
     def evaluate(self):
         return self.expr.evaluate
 
@@ -126,17 +129,6 @@ class SeparableFunction(Differentiable, AbstraceCachedAnonymousFunction):
     def data(self):
         return tuple(f.data for f in self.subfunctions.value)
 
-    @classmethod
-    def __indices_setup__(cls, **kwargs):
-        grid = kwargs.get('grid')
-        dimensions = kwargs.get('dimensions')
-        if grid is None:
-            if dimensions is None:
-                raise TypeError("Need either `grid` or `dimensions`")
-        elif dimensions is None:
-            dimensions = grid.dimensions
-        return dimensions
-
     @property
     def args(self):
         return self._args
@@ -150,9 +142,9 @@ class SeparableTimeFunction(SeparableFunction):
 
     Parameters
     ----------
-    sep: str
+    sep : str
         Type of separation as a product or sum of Function, 'sum' or 'prod'.
-    separated: Dimension or tuple of Dimensions
+    separated : Dimension or tuple of Dimensions
         Dimension in which the TimeFunction is separable.
 
     Examples
@@ -165,9 +157,9 @@ class SeparableTimeFunction(SeparableFunction):
     >>> t = grid.stepping_dim
     >>> SeparableTimeFunction(name='a', grid=grid, space_order=8, time_order=2)
     a_t(t)*a_x(x)*a_y(y)*a_z(z)
-    >>> SeparableTimeFunction(name='b', grid=grid, sep='sum')
+    >>> SeparableTimeFunction(name='b', grid=grid, op='sum')
     b_t(t) + b_x(x) + b_y(y) + b_z(z)
-    >>> SeparableTimeFunction(name='c', grid=grid, sep='sum', separated=t)
+    >>> SeparableTimeFunction(name='c', grid=grid, op='sum', separated=t)
     c_t(t) + c_xyz(x, y, z)
     >>> SeparableTimeFunction(name='d', grid=grid, separated=(t, x))
     d_t(t)*d_x(x)*d_yz(y, z)
@@ -201,21 +193,3 @@ class SeparableTimeFunction(SeparableFunction):
         kwargs["name"] = '%s_%s' % (self.name, names)
         func = func_type(dimensions=dims, shape=shape, **kwargs)
         return func
-
-    @classmethod
-    def __indices_setup__(cls, **kwargs):
-        dimensions = kwargs.get('dimensions')
-        if dimensions is None:
-            save = kwargs.get('save')
-            grid = kwargs.get('grid')
-            time_dim = kwargs.get('time_dim')
-
-            if time_dim is None:
-                time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
-            elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
-                raise TypeError("`time_dim` must be a time dimension")
-
-            dimensions = list(Function.__indices_setup__(**kwargs))
-            dimensions.insert(cls._time_position, time_dim)
-
-        return tuple(dimensions)

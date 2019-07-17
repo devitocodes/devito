@@ -143,10 +143,10 @@ class Derivative(sympy.Derivative, Differentiable):
         This is a helper method used internally by SymPy. We exploit it to postpone
         substitutions until evaluation.
         """
-        return Derivative_at(self, eval_at.keys(), eval_at.values()), True
+        return Eval(self, eval_at.keys(), eval_at.values()), True
 
     def _subs(self, old, new):
-        return Derivative_at(self, old, new)
+        return Eval(self, old, new)
 
     @cached_property
     def _args_diff(self):
@@ -209,27 +209,33 @@ class Derivative(sympy.Derivative, Differentiable):
         return res
 
 
-class Derivative_at(Derivative):
+class Eval(Derivative):
+    """
+    Class that represent unevaluated Derivative at a point. This class
+    is used to delay evaluation of subs and xreplace of Derivative and is
+    particularly useful for SparseFunctions injection and interpolations
+    that involve derivatives.
     
+    """
     def __new__(cls, expr, variables, point, **kwargs):
         variables = as_tuple(variables)
         point = as_tuple(point)
-        
+
         obj = Derivative.__new__(cls, expr.expr, *expr.dims, deriv_order=expr.deriv_order,
-                                 fd_order=expr.fd_order, side=expr.side, stagger=expr.stagger,
-                                 transpose=expr.transpose)
-        obj._eval_rule = {d: v for d, v in zip(variables, point)}
-        obj._expr = expr.expr
+                                 fd_order=expr.fd_order, side=expr.side,
+                                 stagger=expr.stagger, transpose=expr.transpose)
+        obj._rule = {d: v for d, v in zip(variables, point)}
+        obj._expr = expr
         return obj
 
     @property
     def evaluate(self):
-        expr = super(Derivative_at, self).evaluate
-        return expr.xreplace(self._eval_rule)
+        return self._expr.evaluate.xreplace(self._rule)
 
     def __str__(self):
-        str_subs = ",".join("=".join((k.name, str(v))) for k, v in self._eval_rule.items())
-        
-        return "%s(%s)"%(self.expr.__str__(), str_subs)
+        str_subs = ",".join("=".join((getattr(k, 'name', str(k)), str(v)))
+                            for k, v in self._rule.items())
+
+        return "%s(%s)" % (self._expr.__str__(), str_subs)
 
     __repr__ = __str__
