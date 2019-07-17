@@ -206,9 +206,12 @@ class Enforce(Queue):
     `t`, we need up-to-date information on the RHS".
     """
 
-    def callback(self, clusters, prefix, backlog=None, known_flow_break=None):
+    def callback(self, clusters, prefix, backlog=None, known_break=None):
         if not prefix:
             return clusters
+
+        known_break = known_break or set()
+        backlog = backlog or []
 
         # Take the innermost Dimension -- no other Clusters other than those in
         # `clusters` are supposed to share it
@@ -216,17 +219,30 @@ class Enforce(Queue):
 
         scope = Scope(exprs=flatten(c.exprs for c in clusters))
 
-        # The most nasty case:
+        # The nastiest case:
         # eq0 := u[t+1, x] = ... u[t, x]
         # eq1 := v[t+1, x] = ... v[t, x] ... u[t, x] ... u[t+1, x] ... u[t+2, x]
         # Here, `eq0` marches forward along `t`, while `eq1` has both a flow and an
         # anti dependence with `eq0`, which ultimately will require `eq1` to go in
         # a separate t-loop
-        require_flow_break = (scope.d_flow.cause & scope.d_anti.cause) & candidates
-        if require_flow_break and len(clusters) > 1:
-            backlog = [clusters[-1]] + (backlog or [])
+        require_break = (scope.d_flow.cause & scope.d_anti.cause) & candidates
+        if require_break and len(clusters) > 1:
+            backlog = [clusters[-1]] + backlog
             # Try with increasingly smaller Cluster groups until the ambiguity is solved
-            return self.callback(clusters[:-1], prefix, backlog, require_flow_break)
+            return self.callback(clusters[:-1], prefix, backlog, require_break)
+
+        # If the flow- or anti-dependences are not coupled, one or more Clusters
+        # might be scheduled separately, to increase parallelism (this is basically
+        # what low-level compilers call "loop fission")
+        for n, _ in enumerate(clusters):
+            d_cross = scope.d_from_access(scope.a_query(n, 'R')).cross()
+            if any(d.is_storage_volatile(candidates) for d in d_cross):
+                break
+            elif d_cross.cause & candidates:
+                if n > 0:
+                    return self.callback(clusters[:n], prefix, clusters[n:] + backlog,
+                                         (d_cross.cause & candidates) | known_break)
+                break
 
         # Compute iteration direction
         direction = {d: Backward for d in candidates if d.root in scope.d_anti.cause}
@@ -240,14 +256,14 @@ class Enforce(Queue):
                                     {**c.ispace.directions, **direction})
             processed.append(Cluster(c.exprs, ispace, c.dspace))
 
-        if backlog is None:
+        if not backlog:
             return processed
 
-        # Handle the backlog -- the Clusters characterized by flow+anti dependences along
-        # one or more Dimensions
-        direction = {d: Any for d in known_flow_break}
-        for i, c in enumerate(as_tuple(backlog)):
-            ispace = IterationSpace(c.ispace.intervals.lift(known_flow_break),
+        # Handle the backlog -- the Clusters characterized by flow- and anti-dependences
+        # along one or more Dimensions
+        direction = {d: Any for d in known_break}
+        for i, c in enumerate(list(backlog)):
+            ispace = IterationSpace(c.ispace.intervals.lift(known_break),
                                     c.ispace.sub_iterators,
                                     {**c.ispace.directions, **direction})
             backlog[i] = Cluster(c.exprs, ispace, c.dspace)
