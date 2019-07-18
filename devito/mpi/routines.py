@@ -72,12 +72,14 @@ class HaloExchangeBuilder(object):
 
         # Callables for send/recv/wait
         for f, hse in hs.fmapper.items():
-            msg = self._make_msg(f, hse, key='%d_%d' % (key, len(self.msgs)))
+            msgkey = '%d_%d' % (key, len(self.msgs))
+            msg = self._make_msg(f, hse, msgkey)
             msg = self._msgs.setdefault((f, hse), msg)
             if (f.ndim, hse) not in self._cache:
                 df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
                                           dimensions=f.dimensions)
-                self._cache[(f.ndim, hse)] = self._make_all(df, hse, key, msg)
+                cachekey = '%d_%d' % (key, len(self._cache))
+                self._cache[(f.ndim, hse)] = self._make_all(df, hse, cachekey, msg)
 
         msgs = [self._msgs[(f, hse)] for f, hse in hs.fmapper.items()]
 
