@@ -735,23 +735,6 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
-    @pytest.mark.parallel(mode=1)
-    def test_stencil_nowrite_implies_haloupdate_anyway(self):
-        grid = Grid(shape=(12,))
-        x = grid.dimensions[0]
-        t = grid.stepping_dim
-
-        f = TimeFunction(name='f', grid=grid)
-        g = Function(name='g', grid=grid)
-
-        # It does a halo update, even though there's no data dependence,
-        # because when the halo updates are placed, the compiler conservatively
-        # assumes there might have been another equation writing to `f` before.
-        op = Operator(Eq(g, f[t, x-1] + f[t, x+1] + 1.))
-
-        calls = FindNodes(Call).visit(op)
-        assert len(calls) == 1
-
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
@@ -1270,9 +1253,8 @@ class TestOperatorAdvanced(object):
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap'), (4, 'full')])
     def test_coupled_eqs_mixed_dims(self):
         """
-        Test MPI in an Operator that computes coupled equations over partly
-        disjoint sets of Dimensions (e.g., one Eq over [x, y, z], the other
-        Eq over [x, yi, zi]).
+        Test an Operator that computes coupled equations over partly disjoint sets
+        of Dimensions (e.g., one Eq over [x, y, z], the other Eq over [x, yi, zi]).
         """
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -1316,6 +1298,29 @@ class TestOperatorAdvanced(object):
         assert np.all(v.data_ro_domain[1, :, 1] == 4.)
         assert np.all(v.data_ro_domain[1, :, 2] == 4.)
         assert np.all(v.data_ro_domain[1, :, 3] == 0.)
+
+    @pytest.mark.parallel(mode=2)
+    def test_haloupdate_same_timestep(self):
+        """
+        Test an Operator that computes coupled equations in which the second
+        one requires a halo update right after the computation of the first one.
+        """
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        u.data_with_halo[:] = 1.
+        v = TimeFunction(name='v', grid=grid)
+        v.data_with_halo[:] = 0.
+
+        eqns = [Eq(u.forward, u + v + 1.),
+                Eq(v.forward, u[t+1, x, y-1] + u[t+1, x, y] + u[t+1, x, y+1])]
+
+        op = Operator(eqns)
+        op.apply(time=0)
+
+        assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2')])
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
@@ -1411,8 +1416,8 @@ class TestIsotropicAcoustic(object):
         op_adj = solver.op_adj()
         adj_calls = FindNodes(Call).visit(op_adj)
 
-        assert len(fwd_calls) == 2
-        assert len(adj_calls) == 2
+        assert len(fwd_calls) == 1
+        assert len(adj_calls) == 1
 
     def run_adjoint_F(self, shape, kernel, space_order, nbpml, save,
                       Eu, Erec, Ev, Esrca):

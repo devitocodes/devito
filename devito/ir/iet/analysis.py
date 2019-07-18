@@ -2,8 +2,8 @@ from collections import OrderedDict
 from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, ROUNDABLE, AFFINE, USELESS, OVERLAPPABLE,
-                           hoistable, MapNodes, Transformer, retrieve_iteration_tree)
+                           VECTOR, WRAPPABLE, ROUNDABLE, AFFINE, OVERLAPPABLE, hoistable,
+                           useless, MapNodes, Transformer, retrieve_iteration_tree)
 from devito.ir.support import Forward, Scope
 from devito.tools import as_tuple, filter_ordered, flatten
 
@@ -263,27 +263,36 @@ def mark_iteration_affine(analysis):
 @propertizer
 def mark_halospot_useless(analysis):
     """
-    Update ``analysis`` detecting the USELESS HaloSpots within ``analysis.iet``.
+    Update ``analysis`` detecting the ``useless`` HaloSpots within ``analysis.iet``.
     """
     properties = OrderedDict()
-    for hs, iterations in MapNodes(HaloSpot, Iteration).visit(analysis.iet).items():
-        # `hs` is USELESS if ...
 
-        # * ANY of its Dimensions turn out to be SEQUENTIAL
+    # If a HaloSpot Dimension turns out to be SEQUENTIAL, then the HaloSpot is useless
+    for hs, iterations in MapNodes(HaloSpot, Iteration).visit(analysis.iet).items():
         if any(SEQUENTIAL in analysis.properties[i]
                for i in iterations if i.dim.root in hs.dimensions):
-            properties[hs] = USELESS
+            properties[hs] = useless(hs.functions)
             continue
 
-        # * ALL reads pertain to an increment expression
-        test = False
-        scope = analysis.scopes[iterations[0]]
-        for f in hs.fmapper:
-            if any(not r.is_increment for r in scope.reads[f]):
-                test = True
-                break
-        if not test:
-            properties[hs] = USELESS
+    # If a Function is never written to, or if all HaloSpot reads pertain to an increment
+    # expression, then the HaloSpot is useless
+    for tree in analysis.trees:
+        scope = analysis.scopes[tree.root]
+
+        for hs, v in MapNodes(HaloSpot).visit(tree.root).items():
+            if hs in properties:
+                continue
+
+            found = []
+            for f in hs.fmapper:
+                test0 = not scope.writes.get(f)
+                test1 = (all(i.is_Expression for i in v) and
+                         all(r.is_increment for r in Scope([i.expr for i in v]).reads[f]))
+                if test0 or test1:
+                    found.append(f)
+
+            if found:
+                properties[hs] = useless(tuple(found))
 
     analysis.update(properties)
 
@@ -291,7 +300,7 @@ def mark_halospot_useless(analysis):
 @propertizer
 def mark_halospot_hoistable(analysis):
     """
-    Update ``analysis`` detecting the HOISTABLE HaloSpots within ``analysis.iet``.
+    Update ``analysis`` detecting the ``hoistable`` HaloSpots within ``analysis.iet``.
     """
     properties = OrderedDict()
     for i, halo_spots in MapNodes(Iteration, HaloSpot).visit(analysis.iet).items():

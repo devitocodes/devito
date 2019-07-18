@@ -61,12 +61,6 @@ class HaloSpotProperty(Tag):
     pass
 
 
-USELESS = HaloSpotProperty('useless')
-"""
-The HaloSpot can be ignored as an halo update at this point would be completely
-useless.
-"""
-
 OVERLAPPABLE = HaloSpotProperty('overlappable')
 """The HaloSpot supports computation-communication overlap."""
 
@@ -77,3 +71,11 @@ def hoistable(i):
     would still be honored.
     """
     return HaloSpotProperty('hoistable', i)
+
+
+def useless(i):
+    """
+    The HaloSpot can be ignored as a halo update at this point would be completely
+    useless.
+    """
+    return HaloSpotProperty('useless', i)

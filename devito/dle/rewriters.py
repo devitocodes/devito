@@ -9,8 +9,8 @@ from devito.dle.blocking_utils import Blocker, BlockDimension
 from devito.dle.parallelizer import Ompizer
 from devito.exceptions import DLEException
 from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, FindSymbols,
-                           FindNodes, FindAdjacent, MapNodes, Transformer,
-                           filter_iterations, retrieve_iteration_tree)
+                           FindNodes, FindAdjacent, Transformer, filter_iterations,
+                           retrieve_iteration_tree)
 from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.parameters import configuration
@@ -211,19 +211,25 @@ class PlatformRewriter(AbstractRewriter):
         """
         Optimize the HaloSpots in ``iet``.
 
-        * Remove all USELESS HaloSpots;
-        * Merge all hoistable HaloSpots with their root HaloSpot, thus
+        * Remove all ``useless`` HaloSpots;
+        * Merge all ``hoistable`` HaloSpots with their root HaloSpot, thus
           removing redundant communications and anticipating communications
           that will be required by later Iterations.
         """
-        # Drop USELESS HaloSpots
-        mapper = {hs: hs.body for hs in FindNodes(HaloSpot).visit(iet) if hs.is_Useless}
+        # Drop `useless` HaloSpots
+        mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.useless))
+                  for hs in FindNodes(HaloSpot).visit(iet)}
         iet = Transformer(mapper, nested=True).visit(iet)
 
         # Handle `hoistable` HaloSpots
         mapper = {}
-        for halo_spots in MapNodes(Iteration, HaloSpot).visit(iet).values():
+        for tree in retrieve_iteration_tree(iet):
+            halo_spots = FindNodes(HaloSpot).visit(tree.root)
+            if not halo_spots:
+                continue
             root = halo_spots[0]
+            if root in mapper:
+                continue
 
             hss = [root.halo_scheme]
             hss.extend([hs.halo_scheme.project(hs.hoistable) for hs in halo_spots[1:]])
