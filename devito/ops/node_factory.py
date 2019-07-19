@@ -4,6 +4,7 @@ from devito import Dimension, TimeFunction
 from devito.ops.utils import namespace
 from devito.symbolics import Macro, split_affine
 from devito.types import Indexed, Array
+from devito.types.dimension import SpaceDimension
 
 
 class OPSNodeFactory(object):
@@ -19,16 +20,16 @@ class OPSNodeFactory(object):
 
     def new_ops_arg(self, indexed):
         """
-        Create an :class:`Indexed` node using OPS representation.
+        Create an Indexed node using OPS representation.
 
         Parameters
         ----------
-        indexed : :class:`Indexed`
+        indexed : Indexed
             Indexed object using devito representation.
 
         Returns
         -------
-        :class:`Indexed`
+        Indexed
             Indexed node using OPS representation.
         """
 
@@ -47,8 +48,8 @@ class OPSNodeFactory(object):
             ops_arg = self.ops_args[ops_arg_id]
 
         # Get the space indices
-        space_indices = [e for i, e in enumerate(
-            indexed.indices) if i != TimeFunction._time_position]
+        space_indices = [i for i in indexed.indices if isinstance(
+            split_affine(i).var, SpaceDimension)]
 
         # Define the Macro used in OPS arg index
         access_macro = Macro('OPS_ACC%d(%s)' % (list(self.ops_args).index(ops_arg_id),
