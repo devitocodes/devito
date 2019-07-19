@@ -8,13 +8,12 @@ import cgen
 from devito.dle.blocking_utils import Blocker, BlockDimension
 from devito.dle.parallelizer import Ompizer
 from devito.exceptions import DLEException
-from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, Prodder,
-                           FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
-                           compose_nodes, filter_iterations, retrieve_iteration_tree)
+from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, FindSymbols,
+                           FindNodes, FindAdjacent, MapNodes, Transformer,
+                           filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.parameters import configuration
-from devito.symbolics import ccode
 from devito.tools import DAG, as_tuple, filter_ordered
 
 __all__ = ['PlatformRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter',
@@ -129,18 +128,9 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    _node_parallelizer_type = None
-    """The local-node IET parallelizer. To be specified by subclasses."""
-
     def __init__(self, params, platform):
         self.params = params
         self.platform = platform
-
-        # Iteration blocker (i.e., for "loop blocking")
-        self._node_blocker = Blocker(params.get('blockinner'), params.get('blockalways'))
-
-        # Shared-memory parallelizer
-        self._node_parallelizer = self._node_parallelizer_type()
 
     def run(self, iet):
         """The optimization pipeline, as a sequence of AST transformation passes."""
@@ -163,6 +153,28 @@ class PlatformRewriter(AbstractRewriter):
     """
     Collection of backend-compiler-specific pragmas.
     """
+
+    _node_parallelizer_type = None
+    """The local-node IET parallelizer. To be specified by subclasses."""
+
+    _default_blocking_levels = 1
+    """
+    Depth of the loop blocking hierarchy. 1 => "blocks", 2 => "blocks" and "sub-blocks",
+    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
+    """
+
+    def __init__(self, params, platform):
+        super(PlatformRewriter, self).__init__(params, platform)
+
+        # Iteration blocker (i.e., for "loop blocking")
+        self._node_blocker = Blocker(
+            params.get('blockinner'),
+            params.get('blockalways'),
+            params.get('blocklevels') or self._default_blocking_levels
+        )
+
+        # Shared-memory parallelizer
+        self._node_parallelizer = self._node_parallelizer_type()
 
     def _pipeline(self, state):
         return
@@ -265,7 +277,7 @@ class PlatformRewriter(AbstractRewriter):
     @dle_pass
     def _loop_blocking(self, iet):
         """
-        Apply loop blocking to PARALLEL Iteration trees.
+        Apply hierarchical loop blocking to PARALLEL Iteration trees.
         """
         return self._node_blocker.make_blocking(iet)
 
@@ -322,6 +334,34 @@ class PlatformRewriter(AbstractRewriter):
         return self._node_parallelizer.make_parallel(iet)
 
     @dle_pass
+    def _minimize_remainders(self, iet):
+        """
+        Adjust ROUNDABLE Iteration bounds so as to avoid the insertion of remainder
+        loops by the backend compiler.
+        """
+        roundable = [i for i in FindNodes(Iteration).visit(iet) if i.is_Roundable]
+
+        mapper = {}
+        for i in roundable:
+            functions = FindSymbols().visit(i)
+
+            # Get the SIMD vector length
+            dtypes = {f.dtype for f in functions if f.is_Tensor}
+            assert len(dtypes) == 1
+            vl = configuration['platform'].simd_items_per_reg(dtypes.pop())
+
+            # Round up `i`'s max point so that at runtime only vector iterations
+            # will be performed (i.e., remainder loops won't be necessary)
+            m, M, step = i.limits
+            limits = (m, M + (i.symbolic_size % vl), step)
+
+            mapper[i] = i._rebuild(limits=limits)
+
+        iet = Transformer(mapper).visit(iet)
+
+        return iet, {}
+
+    @dle_pass
     def _hoist_prodders(self, iet):
         """
         Move Prodders within the outer levels of an Iteration tree.
@@ -358,6 +398,7 @@ class CPU64Rewriter(PlatformRewriter):
         self._simdize(state)
         if self.params['openmp']:
             self._node_parallelize(state)
+        self._minimize_remainders(state)
         self._hoist_prodders(state)
 
 
@@ -452,72 +493,6 @@ class SpeculativeRewriter(CPU64Rewriter):
                 if i.is_Vectorizable:
                     mapper[i] = List(header=pragma, body=i)
         processed = Transformer(mapper).visit(processed)
-
-        return processed, {}
-
-    @dle_pass
-    def _minimize_remainders(self, iet):
-        """
-        Reshape temporary tensors and adjust loop trip counts to prevent as many
-        compiler-generated remainder loops as possible.
-        """
-        # The innermost dimension is the one that might get padded
-        p_dim = -1
-
-        mapper = {}
-        for tree in retrieve_iteration_tree(iet):
-            vector_iterations = [i for i in tree if i.is_Vectorizable]
-            if not vector_iterations or len(vector_iterations) > 1:
-                continue
-            root = vector_iterations[0]
-
-            # Padding
-            writes = [i.write for i in FindNodes(Expression).visit(root)
-                      if i.write.is_Array]
-            padding = []
-            for i in writes:
-                try:
-                    simd_items = self.platform.simd_items_per_reg(i.dtype)
-                except KeyError:
-                    return iet, {}
-                padding.append(simd_items - i.shape[-1] % simd_items)
-            if len(set(padding)) == 1:
-                padding = padding[0]
-                for i in writes:
-                    padded = (i._padding[p_dim][0], i._padding[p_dim][1] + padding)
-                    i.update(padding=i._padding[:p_dim] + (padded,))
-            else:
-                # Padding must be uniform -- not the case, so giving up
-                continue
-
-            # Dynamic trip count adjustment
-            endpoint = root.symbolic_max
-            if not endpoint.is_Symbol:
-                continue
-            condition = []
-            externals = set(i.symbolic_shape[-1] for i in FindSymbols().visit(root)
-                            if i.is_Tensor)
-            for i in root.uindices:
-                for j in externals:
-                    condition.append(root.symbolic_max + padding < j)
-            condition = ' && '.join(ccode(i) for i in condition)
-            endpoint_padded = endpoint.func('_%s' % endpoint.name)
-            init = cgen.Initializer(
-                cgen.Value("const int", endpoint_padded),
-                cgen.Line('(%s) ? %s : %s' % (condition,
-                                              ccode(endpoint + padding),
-                                              endpoint))
-            )
-
-            # Update the Iteration bound
-            limits = list(root.limits)
-            limits[1] = endpoint_padded.func(endpoint_padded.name)
-            rebuilt = list(tree)
-            rebuilt[rebuilt.index(root)] = root._rebuild(limits=limits)
-
-            mapper[tree[0]] = List(header=init, body=compose_nodes(rebuilt))
-
-        processed = Transformer(mapper).visit(iet)
 
         return processed, {}
 

@@ -55,7 +55,11 @@ def detect_oobs(mapper):
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d
             try:
-                if min(v) < 0 or max(v) > sum(f._size_halo[p]):
+                test0 = min(v) < 0
+                test1 = max(v) > f._size_nodomain[p].left + f._size_halo[p].right
+                if test0 or test1:
+                    # It'd mean trying to access a point before the
+                    # left padding (test0) or after the right halo (test1)
                     found.add(p)
             except KeyError:
                 # Unable to detect presence of OOB accesses
@@ -102,15 +106,14 @@ def build_intervals(stencil):
 def align_accesses(expr, key=lambda i: False):
     """
     ``expr -> expr'``, with ``expr'`` semantically equivalent to ``expr``, but
-    with data accesses aligned to the computational domain if ``key(function)``
-    gives True.
+    with data accesses aligned to the domain if ``key(function)`` gives True.
     """
     mapper = {}
     for indexed in retrieve_indexed(expr):
         f = indexed.function
         if not key(f):
             continue
-        subs = {i: i + j for i, j in zip(indexed.indices, f._size_halo.left)}
+        subs = {i: i + j for i, j in zip(indexed.indices, f._size_nodomain.left)}
         mapper[indexed] = indexed.xreplace(subs)
     return expr.xreplace(mapper)
 

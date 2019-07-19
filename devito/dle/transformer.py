@@ -2,14 +2,14 @@ from collections import OrderedDict
 
 from devito.archinfo import Platform, Cpu64
 from devito.ir.iet import Node
-from devito.dle.rewriters import CPU64Rewriter, CustomRewriter, State
+from devito.dle.rewriters import CPU64Rewriter, CustomRewriter, PlatformRewriter, State
 from devito.logger import dle as log, dle_warning as warning
 from devito.parameters import configuration
 
 __all__ = ['dle_registry', 'modes', 'transform']
 
 
-dle_registry = ('advanced', 'speculative')
+dle_registry = ('noop', 'advanced', 'speculative')
 
 
 class DLEModes(OrderedDict):
@@ -39,7 +39,9 @@ class DLEModes(OrderedDict):
 
 
 modes = DLEModes()
-modes.add(Cpu64, {'advanced': CPU64Rewriter, 'speculative': CPU64Rewriter})
+modes.add(Cpu64, {'noop': PlatformRewriter,
+                  'advanced': CPU64Rewriter,
+                  'speculative': CPU64Rewriter})
 
 
 def transform(iet, mode='advanced', options=None):
@@ -69,6 +71,9 @@ def transform(iet, mode='advanced', options=None):
         - ``blockalways``: Pass True to unconditionally apply loop blocking, even when
                            the compiler heuristically thinks that it might not be
                            profitable and/or dangerous for performance.
+        - ``blocklevels``: Levels of blocking for hierarchical tiling (blocks,
+                           sub-blocks, sub-sub-blocks, ...). Different Platforms have
+                           different default values.
     """
     assert isinstance(iet, Node)
 
@@ -76,6 +81,7 @@ def transform(iet, mode='advanced', options=None):
     params = {}
     params['blockinner'] = configuration['dle-options'].get('blockinner', False)
     params['blockalways'] = configuration['dle-options'].get('blockalways', False)
+    params['blocklevels'] = configuration['dle-options'].get('blocklevels', None)
     params['openmp'] = configuration['openmp']
     params['mpi'] = configuration['mpi']
 

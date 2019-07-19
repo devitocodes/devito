@@ -71,6 +71,10 @@ class Function(dense.Function, Signer):
             newobj = cls.__base__.__new__(klass, *args, **kwargs)
         return newobj
 
+    def __padding_setup__(self, **kwargs):
+        # YASK calculates the padding, so we bypass the dense.Function's autopadding
+        return tuple((0, 0) for i in range(self.ndim))
+
     def _allocate_memory(func):
         """Allocate memory in terms of YASK vars."""
         def wrapper(self):

@@ -7,7 +7,7 @@ import os
 import sys
 
 from devito.archinfo import Arm, Cpu64, CPU64, Power
-from devito.dle import modes
+from devito.dle import PlatformRewriter, modes
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.parameters import Parameters, configuration, add_sub_configuration
@@ -101,7 +101,8 @@ env_vars_mapper = {
 add_sub_configuration(yask_configuration, env_vars_mapper)
 
 # Add YASK-specific DLE modes
-modes.add(Cpu64, {'advanced': YaskRewriter,
+modes.add(Cpu64, {'noop': PlatformRewriter,
+                  'advanced': YaskRewriter,
                   'speculative': YaskRewriter})
 
 # The following used by backends.backendSelector

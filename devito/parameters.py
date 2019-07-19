@@ -203,7 +203,11 @@ class switchconfig(object):
                 configuration[k] = v
             result = func(*args, **kwargs)
             for k, v in self.params.items():
-                configuration[k] = previous[k]
+                try:
+                    configuration[k] = previous[k]
+                except ValueError:
+                    # E.g., `platform` and `compiler` will end up here
+                    configuration[k] = previous[k].name
             return result
         return wrapper
 

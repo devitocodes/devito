@@ -2,9 +2,9 @@ from collections import OrderedDict
 from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, AFFINE, USELESS, OVERLAPPABLE, hoistable,
-                           MapNodes, Transformer, retrieve_iteration_tree)
-from devito.ir.support import Scope
+                           VECTOR, WRAPPABLE, ROUNDABLE, AFFINE, USELESS, OVERLAPPABLE,
+                           hoistable, MapNodes, Transformer, retrieve_iteration_tree)
+from devito.ir.support import Forward, Scope
 from devito.tools import as_tuple, filter_ordered, flatten
 
 __all__ = ['iet_analyze']
@@ -43,6 +43,7 @@ def iet_analyze(iet):
     analysis = mark_iteration_parallel(iet)
     analysis = mark_iteration_vectorizable(analysis)
     analysis = mark_iteration_wrappable(analysis)
+    analysis = mark_iteration_roundable(analysis)
     analysis = mark_iteration_affine(analysis)
 
     # Analyze HaloSpots
@@ -64,8 +65,8 @@ def iet_analyze(iet):
 @propertizer
 def mark_iteration_parallel(analysis):
     """
-    Update the ``analysis`` detecting the SEQUENTIAL and PARALLEL Iterations
-    within ``analysis.iet``.
+    Update ``analysis`` detecting the SEQUENTIAL and PARALLEL Iterations within
+    ``analysis.iet``.
     """
     properties = OrderedDict()
     for tree in analysis.trees:
@@ -127,7 +128,7 @@ def mark_iteration_parallel(analysis):
 @propertizer
 def mark_iteration_vectorizable(analysis):
     """
-    Update the ``analysis`` detecting the VECTOR Iterations within ``analysis.iet``.
+    Update ``analysis`` detecting the VECTOR Iterations within ``analysis.iet``.
     """
     for tree in analysis.trees:
         # An Iteration is VECTOR iff:
@@ -153,7 +154,7 @@ def mark_iteration_vectorizable(analysis):
 @propertizer
 def mark_iteration_wrappable(analysis):
     """
-    Update the ``analysis`` detecting the WRAPPABLE Iterations within ``analysis.iet``.
+    Update ``analysis`` detecting the WRAPPABLE Iterations within ``analysis.iet``.
     """
     for i, scope in analysis.scopes.items():
         if not i.dim.is_Time:
@@ -205,9 +206,47 @@ def mark_iteration_wrappable(analysis):
 
 
 @propertizer
+def mark_iteration_roundable(analysis):
+    """
+    Update ``analysis`` detecting the ROUNDABLE Iterations within ``analysis.iet``.
+    """
+    properties = OrderedDict()
+    for tree in analysis.trees:
+        innermost = tree.inner
+        if VECTOR not in analysis.properties.get(innermost):
+            continue
+
+        # All non-scalar writes must be over Arrays, that is temporaries, otherwise
+        # we would end up overwriting user data
+        writes = [w for w in analysis.scopes[innermost].writes if w.is_Tensor]
+        if any(not w.is_Array for w in writes):
+            continue
+
+        # All accessed Functions must have enough room in the PADDING region
+        # so that the `innermost` trip count can safely be rounded up
+        # Note: autopadding guarantees that the padding size along the
+        # Fastest Varying Dimension is a multiple of the SIMD vector length
+        functions = [f for f in analysis.scopes[innermost].functions if f.is_Tensor]
+        if any(not f._honors_autopadding for f in functions):
+            continue
+
+        # Mixed data types (e.g., float and double) is unsupported
+        if len({f.dtype for f in functions}) > 1:
+            continue
+
+        # The iteration direction must be Forward -- ROUNDABLE is for rounding *up*
+        if innermost.direction is not Forward:
+            continue
+
+        properties[innermost] = ROUNDABLE
+
+    analysis.update(properties)
+
+
+@propertizer
 def mark_iteration_affine(analysis):
     """
-    Update the ``analysis`` detecting the AFFINE Iterations within ``analysis.iet``.
+    Update ``analysis`` detecting the AFFINE Iterations within ``analysis.iet``.
     """
     properties = OrderedDict()
     for tree in analysis.trees:
@@ -224,7 +263,7 @@ def mark_iteration_affine(analysis):
 @propertizer
 def mark_halospot_useless(analysis):
     """
-    Update the ``analysis`` detecting the USELESS HaloSpots within ``analysis.iet``.
+    Update ``analysis`` detecting the USELESS HaloSpots within ``analysis.iet``.
     """
     properties = OrderedDict()
     for hs, iterations in MapNodes(HaloSpot, Iteration).visit(analysis.iet).items():
@@ -252,7 +291,7 @@ def mark_halospot_useless(analysis):
 @propertizer
 def mark_halospot_hoistable(analysis):
     """
-    Update the ``analysis`` detecting the HOISTABLE HaloSpots within ``analysis.iet``.
+    Update ``analysis`` detecting the HOISTABLE HaloSpots within ``analysis.iet``.
     """
     properties = OrderedDict()
     for i, halo_spots in MapNodes(Iteration, HaloSpot).visit(analysis.iet).items():
@@ -297,7 +336,7 @@ def mark_halospot_hoistable(analysis):
 @propertizer
 def mark_halospot_overlappable(analysis):
     """
-    Update the ``analysis`` detecting the OVERLAPPABLE HaloSpots within ``analysis.iet``.
+    Update ``analysis`` detecting the OVERLAPPABLE HaloSpots within ``analysis.iet``.
     """
     properties = OrderedDict()
     for hs, iterations in MapNodes(HaloSpot, Iteration).visit(analysis.iet).items():
