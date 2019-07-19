@@ -104,10 +104,10 @@ class HaloExchangeBuilder(object):
 
         # Now build up the HaloSpot body, with explicit Calls to the constructed Callables
         body = [callcompute]
-        for f, hse in hs.fmapper.items():
+        for i, (f, hse) in enumerate(hs.fmapper.items()):
             msg = self._msgs[(f, hse)]
             haloupdate, halowait = self._cache[(f.ndim, hse)]
-            body.insert(0, self._call_haloupdate(haloupdate.name, f, hse, msg))
+            body.insert(i, self._call_haloupdate(haloupdate.name, f, hse, msg))
             if halowait is not None:
                 body.append(self._call_halowait(halowait.name, f, hse, msg))
         if remainder is not None:
