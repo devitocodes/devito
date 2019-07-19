@@ -9,9 +9,9 @@ from devito.dle.blocking_utils import Blocker, BlockDimension
 from devito.dle.parallelizer import Ompizer
 from devito.exceptions import DLEException
 from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, FindSymbols,
-                           FindNodes, FindAdjacent, Transformer, filter_iterations,
-                           retrieve_iteration_tree)
-from devito.logger import perf_adv
+                           FindNodes, FindAdjacent, MapNodes, Transformer,
+                           filter_iterations, retrieve_iteration_tree)
+from devito.logger import perf_adv, dle_warning as warning
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.parameters import configuration
 from devito.tools import DAG, as_tuple, filter_ordered
@@ -196,7 +196,7 @@ class PlatformRewriter(AbstractRewriter):
     @dle_pass
     def _loop_wrapping(self, iet):
         """
-        Emit a performance warning if WRAPPABLE Iterations are found,
+        Emit a performance message if WRAPPABLE Iterations are found,
         as these are a symptom that unnecessary memory is being allocated.
         """
         for i in FindNodes(Iteration).visit(iet):
@@ -222,6 +222,7 @@ class PlatformRewriter(AbstractRewriter):
         iet = Transformer(mapper, nested=True).visit(iet)
 
         # Handle `hoistable` HaloSpots
+        # First, we merge `hoistable` HaloSpots together, to anticipate communications
         mapper = {}
         for tree in retrieve_iteration_tree(iet):
             halo_spots = FindNodes(HaloSpot).visit(tree.root)
@@ -237,6 +238,32 @@ class PlatformRewriter(AbstractRewriter):
             mapper[root] = root._rebuild(halo_scheme=HaloScheme.union(hss))
             mapper.update({hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.hoistable))
                            for hs in halo_spots[1:]})
+        iet = Transformer(mapper, nested=True).visit(iet)
+
+        # Then, we make sure the halo exchanges get performed *before*
+        # the first distributed Dimension. Again, we do this to anticipate
+        # communications, which hopefully has a pay off in performance
+        #
+        # <Iteration x>                    <HaloSpot(u)>, in y
+        #   <HaloSpot(u)>, in y    ---->   <Iteration x>
+        #   <Iteration y>                    <Iteration y>
+        mapper = {}
+        for i, halo_spots in MapNodes(Iteration, HaloSpot).visit(iet).items():
+            hoistable = [hs for hs in halo_spots if hs.hoistable]
+            if not hoistable:
+                continue
+            elif len(hoistable) > 1:
+                # We should never end up here, but for now we can't prove it formally
+                warning("Found multiple hoistable Iterations, skipping optimization")
+                continue
+            hs = hoistable.pop()
+            if hs in mapper:
+                continue
+            if i.dim in hs.dimensions:
+                mapper[hs] = hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.hoistable))
+
+                halo_scheme = hs.halo_scheme.project(hs.hoistable)
+                mapper[i] = hs._rebuild(halo_scheme=halo_scheme, body=i._rebuild())
         iet = Transformer(mapper, nested=True).visit(iet)
 
         # At this point, some HaloSpots may have become empty (i.e., requiring
