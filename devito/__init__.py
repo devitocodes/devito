@@ -51,6 +51,9 @@ configuration.add('log-level', 'INFO', list(logger_registry),
 # and will instead use the custom kernel
 configuration.add('jit-backdoor', 0, [0, 1], lambda i: bool(i), False)
 
+# Enable/disable automatic padding for allocated data
+configuration.add('autopadding', False, [False, True])
+
 # Execution mode setup
 def _reinit_compiler(val):  # noqa
     # Force re-build the compiler

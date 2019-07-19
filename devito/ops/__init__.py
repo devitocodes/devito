@@ -12,7 +12,8 @@ env_vars_mapper = {}
 add_sub_configuration(ops_configuration, env_vars_mapper)
 
 # Add OPS-specific DLE modes
-modes.add(Cpu64, {'advanced': PlatformRewriter,
+modes.add(Cpu64, {'noop': PlatformRewriter,
+                  'advanced': PlatformRewriter,
                   'speculative': PlatformRewriter})
 
 # The following used by backends.backendSelector

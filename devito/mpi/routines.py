@@ -278,7 +278,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             if d not in hse.loc_indices:
                 buf_dims.append(Dimension(name='buf_%s' % d.root))
                 buf_indices.append(d.root)
-        buf = Array(name='buf', dimensions=buf_dims, dtype=f.dtype)
+        buf = Array(name='buf', dimensions=buf_dims, dtype=f.dtype, padding=0)
 
         f_offsets = []
         f_indices = []
@@ -308,8 +308,10 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions
                     if d not in hse.loc_indices]
-        bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype, scope='heap')
-        bufs = Array(name='bufs', dimensions=buf_dims, dtype=f.dtype, scope='heap')
+        bufg = Array(name='bufg', dimensions=buf_dims, dtype=f.dtype,
+                     padding=0, scope='heap')
+        bufs = Array(name='bufs', dimensions=buf_dims, dtype=f.dtype,
+                     padding=0, scope='heap')
 
         ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
         ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
@@ -744,15 +746,15 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         assert callcompute.is_Call
 
         dim = Dimension(name='i')
-        regioni = IndexedPointer(region, dim)
+        region_i = IndexedPointer(region, dim)
 
         dynamic_args_mapper = {}
         for i in hs.arguments:
             if i.is_Dimension:
-                dynamic_args_mapper[i] = (FieldFromComposite(i.min_name, regioni),
-                                          FieldFromComposite(i.max_name, regioni))
+                dynamic_args_mapper[i] = (FieldFromComposite(i.min_name, region_i),
+                                          FieldFromComposite(i.max_name, region_i))
             else:
-                dynamic_args_mapper[i] = (FieldFromComposite(i.name, regioni),)
+                dynamic_args_mapper[i] = (FieldFromComposite(i.name, region_i),)
 
         iet = callcompute._rebuild(dynamic_args_mapper=dynamic_args_mapper)
         # The -1 below is because an Iteration, by default, generates <=

@@ -247,7 +247,7 @@ class AdvancedRewriter(BasicRewriter):
         Search aliasing expressions and capture them into vector temporaries.
 
         Examples
-        ========
+        --------
         1) temp = (a[x,y,z]+b[x,y,z])*c[t,x,y,z]
            >>>
            ti[x,y,z] = a[x,y,z] + b[x,y,z]

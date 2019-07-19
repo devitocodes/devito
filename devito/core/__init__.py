@@ -6,7 +6,8 @@ backend as well) are used to run Devito on standard CPU architectures.
 
 from devito.archinfo import Cpu64, Intel64, Arm, Power, Device
 from devito.dle import (CPU64Rewriter, Intel64Rewriter, ArmRewriter, PowerRewriter,
-                        SpeculativeRewriter, DeviceOffloadingRewriter, modes)
+                        PlatformRewriter, SpeculativeRewriter, DeviceOffloadingRewriter,
+                        modes)
 from devito.parameters import Parameters, add_sub_configuration
 
 core_configuration = Parameters('core')
@@ -14,15 +15,20 @@ env_vars_mapper = {}
 add_sub_configuration(core_configuration, env_vars_mapper)
 
 # Add core-specific DLE modes
-modes.add(Cpu64, {'advanced': CPU64Rewriter,
+modes.add(Cpu64, {'noop': PlatformRewriter,
+                  'advanced': CPU64Rewriter,
                   'speculative': SpeculativeRewriter})
-modes.add(Intel64, {'advanced': Intel64Rewriter,
+modes.add(Intel64, {'noop': PlatformRewriter,
+                    'advanced': Intel64Rewriter,
                     'speculative': SpeculativeRewriter})
-modes.add(Arm, {'advanced': ArmRewriter,
+modes.add(Arm, {'noop': PlatformRewriter,
+                'advanced': ArmRewriter,
                 'speculative': SpeculativeRewriter})
-modes.add(Power, {'advanced': PowerRewriter,
+modes.add(Power, {'noop': PlatformRewriter,
+                  'advanced': PowerRewriter,
                   'speculative': SpeculativeRewriter})
-modes.add(Device, {'advanced': DeviceOffloadingRewriter,
+modes.add(Device, {'noop': PlatformRewriter,
+                   'advanced': DeviceOffloadingRewriter,
                    'speculative': DeviceOffloadingRewriter})
 
 # The following used by backends.backendSelector

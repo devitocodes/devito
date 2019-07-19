@@ -1,6 +1,7 @@
 from collections import namedtuple
 from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
 from functools import wraps, reduce
+from math import ceil
 from operator import mul
 
 import numpy as np
@@ -50,16 +51,18 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(DiscreteFunction, self).__init__(*args, **kwargs)
-
-            # There may or may not be a `Grid` attached to the DiscreteFunction
-            self._grid = kwargs.get('grid')
-
             # A `Distributor` to handle domain decomposition (only relevant for MPI)
             self._distributor = self.__distributor_setup__(**kwargs)
 
             # Staggering metadata
             self._staggered = self.__staggered_setup__(**kwargs)
+
+            # Now that *all* __X_setup__ hooks have been called, we can let the
+            # superclass constructor do its job
+            super(DiscreteFunction, self).__init__(*args, **kwargs)
+
+            # There may or may not be a `Grid` attached to the DiscreteFunction
+            self._grid = kwargs.get('grid')
 
             # Symbolic (finite difference) coefficients
             self._coefficients = kwargs.get('coefficients', 'standard')
@@ -147,17 +150,17 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         staggered = kwargs.get('staggered')
         if staggered is None:
             self.is_Staggered = False
-            return tuple(0 for _ in self.indices)
+            return tuple(0 for _ in self.dimensions)
         else:
             self.is_Staggered = True
             if staggered is NODE:
                 staggered = ()
             elif staggered is CELL:
-                staggered = self.indices
+                staggered = self.dimensions
             else:
                 staggered = as_tuple(staggered)
             mask = []
-            for d in self.indices:
+            for d in self.dimensions:
                 if d in staggered:
                     mask.append(1)
                 elif -d in staggered:
@@ -567,14 +570,14 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     @cached_property
     def space_dimensions(self):
         """Tuple of Dimensions defining the physical space."""
-        return tuple(d for d in self.indices if d.is_Space)
+        return tuple(d for d in self.dimensions if d.is_Space)
 
     @cached_property
     def _dist_dimensions(self):
         """Tuple of MPI-distributed Dimensions."""
         if self._distributor is None:
             return ()
-        return tuple(d for d in self.indices if d in self._distributor.dimensions)
+        return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
 
     @property
     def initializer(self):
@@ -788,7 +791,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
                 # We've been provided a pure-data replacement (array)
                 values = {self.name: new}
                 # Add value overrides for all associated dimensions
-                for i, s, o in zip(self.indices, new.shape, self.staggered):
+                for i, s, o in zip(self.dimensions, new.shape, self.staggered):
                     size = s + o - sum(self._size_nodomain[i])
                     values.update(i._arg_defaults(size=size))
                 # Add MPI-related data structures
@@ -815,11 +818,12 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         key = args[self.name]
         if len(key.shape) != self.ndim:
             raise InvalidArgument("Shape %s of runtime value `%s` does not match "
-                                  "dimensions %s" % (key.shape, self.name, self.indices))
+                                  "dimensions %s" %
+                                  (key.shape, self.name, self.dimensions))
         if key.dtype != self.dtype:
             warning("Data type %s of runtime value `%s` does not match the "
                     "Function data type %s" % (key.dtype, self.name, self.dtype))
-        for i, s in zip(self.indices, key.shape):
+        for i, s in zip(self.dimensions, key.shape):
             i._arg_check(args, s, intervals[i])
 
     def _arg_as_ctype(self, args, alias=None):
@@ -867,15 +871,17 @@ class Function(DiscreteFunction, Differentiable):
         to ``np.float32``.
     staggered : Dimension or tuple of Dimension or Stagger, optional
         Define how the Function is staggered.
-    padding : int or tuple of ints, optional
-        Allocate extra grid points to maximize data access alignment. When a tuple
-        of ints, one int per Dimension should be provided.
     initializer : callable or any object exposing the buffer interface, optional
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
+    padding : int or tuple of ints, optional
+        .. deprecated:: shouldn't be used; padding is now automatically inserted.
+
+        Allocate extra grid points to maximize data access alignment. When a tuple
+        of ints, one int per Dimension should be provided.
 
     Examples
     --------
@@ -1004,12 +1010,35 @@ class Function(DiscreteFunction, Differentiable):
                 halo = (left_points, right_points)
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
-            return tuple(halo if i.is_Space else (0, 0) for i in self.indices)
+            return tuple(halo if i.is_Space else (0, 0) for i in self.dimensions)
 
     def __padding_setup__(self, **kwargs):
-        padding = kwargs.get('padding', 0)
-        if isinstance(padding, int):
-            return tuple((0, padding) if i.is_Space else (0, 0) for i in self.indices)
+        padding = kwargs.get('padding')
+        if padding is None:
+            if kwargs.get('autopadding', configuration['autopadding']):
+                # Auto-padding
+                # 0-padding in all Dimensions except in the Fastest Varying Dimension,
+                # `fvd`, which is the innermost one
+                padding = [(0, 0) for i in self.dimensions[:-1]]
+                fvd = self.dimensions[-1]
+                # Let UB be a function that rounds up a value `x` to the nearest
+                # multiple of the SIMD vector length, `vl`
+                vl = configuration['platform'].simd_items_per_reg(self.dtype)
+                ub = lambda x: int(ceil(x / vl)) * vl
+                # Given the HALO and DOMAIN sizes, the right-PADDING is such that:
+                # * the `fvd` size is a multiple of `vl`
+                # * it contains *at least* `vl` points
+                # This way:
+                # * all first grid points along the `fvd` will be cache-aligned
+                # * there is enough room to round up the loop trip counts to maximize
+                #   the effectiveness SIMD vectorization
+                fvd_pad_size = (ub(self._size_nopad[fvd]) - self._size_nopad[fvd]) + vl
+                padding.append((0, fvd_pad_size))
+                return tuple(padding)
+            else:
+                return tuple((0, 0) for d in self.dimensions)
+        elif isinstance(padding, int):
+            return tuple((0, padding) if d.is_Space else (0, 0) for d in self.dimensions)
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             return tuple((0, i) if isinstance(i, int) else i for i in padding)
         else:
@@ -1115,15 +1144,17 @@ class TimeFunction(Function):
         TimeDimension to be used in the TimeFunction. Defaults to ``grid.time_dim``.
     staggered : Dimension or tuple of Dimension or Stagger, optional
         Define how the Function is staggered.
-    padding : int or tuple of ints, optional
-        Allocate extra grid points to maximize data access alignment. When a tuple
-        of ints, one int per Dimension should be provided.
     initializer : callable or any object exposing the buffer interface, optional
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
+    padding : int or tuple of ints, optional
+        .. deprecated:: shouldn't be used; padding is now automatically inserted.
+
+        Allocate extra grid points to maximize data access alignment. When a tuple
+        of ints, one int per Dimension should be provided.
 
     Examples
     --------
@@ -1181,7 +1212,7 @@ class TimeFunction(Function):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.time_dim = kwargs.get('time_dim', self.indices[self._time_position])
+            self.time_dim = kwargs.get('time_dim', self.dimensions[self._time_position])
             self._time_order = kwargs.get('time_order', 1)
             super(TimeFunction, self).__init__(*args, **kwargs)
 
@@ -1247,7 +1278,7 @@ class TimeFunction(Function):
     def forward(self):
         """Symbol for the time-forward state of the TimeFunction."""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[self._time_position]
+        _t = self.dimensions[self._time_position]
 
         return self.subs(_t, _t + i * _t.spacing)
 
@@ -1255,7 +1286,7 @@ class TimeFunction(Function):
     def backward(self):
         """Symbol for the time-backward state of the TimeFunction."""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[self._time_position]
+        _t = self.dimensions[self._time_position]
 
         return self.subs(_t, _t - i * _t.spacing)
 
@@ -1295,6 +1326,10 @@ class SubFunction(Function):
         if not self._cached():
             super(SubFunction, self).__init__(*args, **kwargs)
             self._parent = kwargs['parent']
+
+    def __padding_setup__(self, **kwargs):
+        # SubFunctions aren't expected to be used in time-consuming loops
+        return tuple((0, 0) for i in range(self.ndim))
 
     def _halo_exchange(self):
         return
