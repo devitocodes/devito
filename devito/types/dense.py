@@ -55,7 +55,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
             self._distributor = self.__distributor_setup__(**kwargs)
 
             # Staggering metadata
-            self._staggered = self.__staggered_setup__(**kwargs)
+            self._staggered, self.is_Staggered = self.__staggered_setup__(**kwargs)
 
             # Now that *all* __X_setup__ hooks have been called, we can let the
             # superclass constructor do its job
@@ -149,10 +149,8 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         """
         staggered = kwargs.get('staggered')
         if staggered is None:
-            self.is_Staggered = False
-            return tuple(0 for _ in self.dimensions)
+            return tuple(0 for _ in self.dimensions), False
         else:
-            self.is_Staggered = True
             if staggered is NODE:
                 staggered = ()
             elif staggered is CELL:
@@ -167,7 +165,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
                     mask.append(-1)
                 else:
                     mask.append(0)
-            return tuple(mask)
+            return tuple(mask), True
 
     def __distributor_setup__(self, **kwargs):
         grid = kwargs.get('grid')
