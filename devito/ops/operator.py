@@ -1,10 +1,9 @@
-from devito.ir.iet import List
+from devito.ir.iet import Call, List
 from devito.logger import warning
+from devito.symbolics import Literal
 from devito.operator import Operator
 
-from devito.ops.types import String
 from devito.ops.utils import namespace
-from devito.ops.nodes import Call
 
 __all__ = ['OperatorOPS']
 
@@ -19,7 +18,7 @@ class OperatorOPS(Operator):
 
         warning("The OPS backend is still work-in-progress")
 
-        ops_partition = Call(namespace['ops_partition'], String(''))
+        ops_partition = Call(namespace['ops_partition'], Literal('""'))
 
         body = [ops_partition, iet]
 
