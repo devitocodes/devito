@@ -66,7 +66,7 @@ class Eq(sympy.Eq, Evaluable):
         obj._subdomain = subdomain
         obj._substitutions = coefficients
         obj._implicit_dims = as_tuple(implicit_dims)
-    
+
         return obj
 
     @property
@@ -91,12 +91,14 @@ class Eq(sympy.Eq, Evaluable):
 
     @property
     def _flatten(self):
-        if (getattr(self.lhs, 'is_VectorValued', False) or
-            getattr(self.lhs, 'is_TensorValued', False)):
+        """
+        Flatten vectorial/tensorial equation into list of equation
+        """
+        try:
             lhss = self.lhs.values()
             rhss = self.rhs.values(symmetric=self.lhs.is_symmetric)
             return [Eq(l, r) for l, r in zip(lhss, rhss)]
-        else:
+        except AttributeError:
             return [self]
 
     @property

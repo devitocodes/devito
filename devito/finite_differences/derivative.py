@@ -181,7 +181,7 @@ class Derivative(sympy.Derivative, Differentiable):
     @property
     def is_TimeDependent(self):
         return self.expr.is_TimeDependent
-    
+
     @property
     def T(self):
         """Transpose of the Derivative.

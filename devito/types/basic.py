@@ -17,7 +17,7 @@ from cgen import Struct, Value
 from devito.data import default_allocator
 from devito.parameters import configuration
 from devito.symbolics import Add
-from devito.tools import (EnrichedTuple, Evaluable, Pickable, flatten,
+from devito.tools import (EnrichedTuple, Evaluable, Pickable,
                           ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
 from devito.types.args import ArgProvider
 

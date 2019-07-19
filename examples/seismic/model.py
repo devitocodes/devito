@@ -129,7 +129,8 @@ def demo_model(preset, **kwargs):
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+        for i in range(1, ratio):
+            v[..., i* int(shape[-1] / ratio):] = i/1.5*vp_bottom  # Bottom velocity
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
@@ -144,7 +145,7 @@ def demo_model(preset, **kwargs):
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
-        nbpml = kwargs.pop('nbpml', 10)
+        nbpml = kwargs.pop('nbpml', 40)
         ratio = kwargs.pop('ratio', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
         vp_bottom = kwargs.pop('vp_bottom', 2.5)
@@ -152,7 +153,8 @@ def demo_model(preset, **kwargs):
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+        for i in range(1, ratio):
+            v[..., i* int(shape[-1] / ratio):] = i/1.5*vp_bottom  # Bottom velocity
 
         vs = 0.5 * v[:]
         rho = v[:]/vp_top
@@ -228,7 +230,9 @@ def demo_model(preset, **kwargs):
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+        v[:] = vp_top  # Top velocity (background)
+        for i in range(1, ratio):
+            v[..., i* int(shape[-1] / ratio):] = i/1.5*vp_bottom  # Bottom velocity
 
         epsilon = scipy_smooth(.3*(v - 1.5))
         delta = scipy_smooth(.2*(v - 1.5))
@@ -333,7 +337,8 @@ def demo_model(preset, **kwargs):
         # Cut the model to make it slightly cheaper
         v = v[301:-300, :]
         vs = .5 * v[:]
-        rho = v[:]/mmax(v[:])
+        rho = 0.31 * (1e3*v)**0.25
+        rho[v < 1.51] = 1.0
 
         return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
                             origin=origin, shape=v.shape,
@@ -714,10 +719,6 @@ class Model(GenericModel):
 
         self._max_vp = np.max(vp)
 
-    @property
-    def m(self):
-        return 1 / (self.vp * self.vp)
-
 
 class ModelElastic(GenericModel):
     """
@@ -773,10 +774,7 @@ class ModelElastic(GenericModel):
         Critical computational time step value from the CFL condition.
         """
         # For a fixed time order this number goes down as the space order increases.
-        #
-        # The CFL condtion is then given by
-        # dt < h / (sqrt(2) * max(vp)))
-        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*mmax(self.vp)))
+        return self.dtype(.95*np.min(self.spacing) / (np.sqrt(2)*mmax(self.vp)))
 
 
 class ModelViscoelastic(ModelElastic):

@@ -192,6 +192,20 @@ class Differentiable(sympy.Expr, Evaluable):
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return Add(*[getattr(self, d) for d in derivs])
 
+    @property
+    def div(self):
+        space_dims = [d for d in self.indices if d.is_Space]
+        derivs = tuple('d%s' % d.name for d in space_dims)
+        return Add(*[getattr(self, d) for d in derivs])
+
+    @property
+    def grad(self):
+        from devito.types.tensor import VectorFunction, VectorTimeFunction
+        comps = [getattr(self, 'd%s' % d.name) for d in self.dimensions if d.is_Space]
+        vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
+        return vec_func(name='grad_%s' % self.name, time_order=self.time_order,
+                        space_order=self.space_order, components=comps, grid=self.grid)
+
     def laplace2(self, weight=1):
         """
         Generates a symbolic expression for the double Laplacian w.r.t.
@@ -242,7 +256,6 @@ class Mod(sympy.Mod, Differentiable):
     def __new__(cls, *args, **kwargs):
         obj = sympy.Mod.__new__(cls, *args, **kwargs)
         return obj
-
 
 
 # Make sure `sympy.evalf` knows how to evaluate the inherited classes

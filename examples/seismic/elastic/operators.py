@@ -17,15 +17,15 @@ def src_rec(v, tau, model, geometry):
                     npoint=geometry.nrec)
 
     # The source injection term
-    src_xx = src.inject(field=tau[0,0].forward, expr=src * s)
-    src_zz = src.inject(field=tau[-1,-1].forward, expr=src * s)
+    src_xx = src.inject(field=tau[0, 0].forward, expr=src * s)
+    src_zz = src.inject(field=tau[-1, -1].forward, expr=src * s)
     src_expr = src_xx + src_zz
     if model.grid.dim == 3:
-        src_yy = src.inject(field=tau[1,1].forward, expr=src * s)
+        src_yy = src.inject(field=tau[1, 1].forward, expr=src * s)
         src_expr += src_yy
 
     # Create interpolation expression for receivers
-    rec_term1 = rec1.interpolate(expr=tau[-1,-1])
+    rec_term1 = rec1.interpolate(expr=tau[-1, -1])
     rec_term2 = rec2.interpolate(expr=div(v))
 
     return src_expr + rec_term1 + rec_term2
@@ -48,22 +48,18 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
         Saving flag, True saves all time steps, False saves three buffered
         indices (last three time steps). Defaults to False.
     """
-    
-    v = VectorTimeFunction(name='v', grid=model.grid, space_order=space_order, time_order=1)
-    tau = TensorTimeFunction(name='t', grid=model.grid, space_order=space_order, time_order=1)
 
-    cp2 = model.vp*model.vp
-    cs2 = model.vs*model.vs
-    ro = 1/model.rho
+    v = VectorTimeFunction(name='v', grid=model.grid,
+                           space_order=space_order, time_order=1)
+    tau = TensorTimeFunction(name='tau', grid=model.grid,
+                             space_order=space_order, time_order=1)
 
-    mu = cs2*ro
-    l = (cp2*ro - 2*mu)
-    
+    l, mu, ro = model.lam, model.m, model.irho
+
     dt = model.critical_dt
-
-    u_v = Eq(v.forward, v - model.damp * (dt * ro * div(tau)))
-    u_t = Eq(tau.forward, tau - model.damp * dt * l * diag(div(v.forward)) - 
-                          model.damp * dt * mu * (grad(v.forward) + grad(v.forward).T))
+    u_v = Eq(v.forward, v - model.damp * dt * ro * div(tau))
+    u_t = Eq(tau.forward, tau - model.damp * dt * l * diag(div(v.forward)) -
+             model.damp * dt * mu * (grad(v.forward) + grad(v.forward).T))
 
     srcrec = src_rec(v, tau, model, geometry)
     op = Operator([u_v] + srcrec + [u_t], subs=model.spacing_map, name="ForwardElastic")

@@ -42,8 +42,8 @@ class ElasticWaveSolver(object):
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order, **self._kwargs)
 
-    def forward(self, src=None, rec1=None, rec2=None, vp=None, vs=None, rho=None,
-                vx=None, vz=None, txx=None, tzz=None, txz=None, save=None, **kwargs):
+    def forward(self, src=None, rec1=None, rec2=None, l=None, mu=None, irho=None,
+                v=None, tau=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -54,22 +54,16 @@ class ElasticWaveSolver(object):
             Geometry object that contains the source (src : SparseTimeFunction) and
             receivers (rec1(txx) : SparseTimeFunction, rec2(tzz) : SparseTimeFunction)
             and their position.
-        vx : TimeFunction, optional
-            The computed horizontal particle velocity.
-        vz : TimeFunction, optional
-            The computed vertical particle velocity.
-        txx : TimeFunction, optional
-            The computed horizontal stress.
-        tzz : TimeFunction, optional
-            The computed vertical stress.
-        txz : TimeFunction, optional
-            The computed diagonal stresss.
-        vp : Function, optional
-            The time-constant P-wave velocity (km/s).
-        vs : Function, optional
-            The time-constant S-wave velocity (km/s).
-        rho : Function, optional
-            The time-constant density (rho=1 for water).
+        v : VectorTimeFunction, optional
+            The computed  particle velocity.
+        tau : TensorTimeFunction, optional
+            The computed symmetric stress tensor
+        l : Function, optional
+            The time-constant first Lame parameter lambda
+        mu : Function, optional
+            The time-constant second Lame parameter mu
+        irho : Function, optional
+            The time-constant inverse density (rho=1 for water).
         save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield.
 
@@ -90,16 +84,18 @@ class ElasticWaveSolver(object):
 
         # Create all the fields vx, vz, tau_xx, tau_zz, tau_xz
         save_t = src.nt if save else None
-        v = VectorTimeFunction(name='v', grid=self.model.grid, space_order=self.space_order, time_order=1)
-        tau = TensorTimeFunction(name='t', grid=self.model.grid, space_order=self.space_order, time_order=1)
+        v = VectorTimeFunction(name='v', grid=self.model.grid, save=save_t,
+                               space_order=self.space_order, time_order=1)
+        tau = TensorTimeFunction(name='tau', grid=self.model.grid, save=save_t,
+                                 space_order=self.space_order, time_order=1)
         kwargs.update({k.name: k for k in v})
         kwargs.update({k.name: k for k in tau})
         # Pick m from model unless explicitly provided
-        vp = vp or self.model.vp
-        vs = vs or self.model.vs
-        rho = rho or self.model.rho
+        l = l or self.model.l
+        mu = rho or self.model.mu
+        irho = irho or self.model.irho
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, vp=vp, vs=vs, rho=rho,
+        summary = self.op_fwd(save).apply(src=src, rec1=rec1, l=l, mu=mu, irho=irho,
                                           rec2=rec2, dt=kwargs.pop('dt', self.dt),
                                           **kwargs)
         return rec1, rec2, v, tau, summary
