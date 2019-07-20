@@ -16,7 +16,6 @@ class OperatorOPS(Operator):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-
     def _specialize_iet(self, iet, **kwargs):
 
         warning("The OPS backend is still work-in-progress")
@@ -28,7 +27,9 @@ class OperatorOPS(Operator):
         for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
             dims.append(len(trees[n].dimensions))
 
-        assert (d == dims[0] for d in dims), "The OPS backend currently assumes that all kernels have the same number of dimension"
+        assert (d == dims[0] for d in dims), \
+            "The OPS backend currently assumes that all kernels \
+            have the same number of dimensions"
 
         self._headers.append(namespace['ops-define-dimension'](dims[0]))
         self._includes.append('stdio.h')
