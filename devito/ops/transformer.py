@@ -5,14 +5,14 @@ def make_ops_ast(expr, nfops):
 
     Parameters
     ----------
-    expr : :class:`Node`
+    expr : Node
         Initial tree node.
-    nfops : :class:`OPSNodeFactory`
+    nfops : OPSNodeFactory
         Generate OPS specific nodes.
 
     Returns
     -------
-    :class:`Node`
+    Node
         Expression alredy translated to OPS syntax.
     """
 
