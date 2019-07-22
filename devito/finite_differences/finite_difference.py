@@ -1,12 +1,12 @@
 from sympy import finite_diff_weights
 
-from devito.finite_differences.tools import (form_side, symbolic_weights, left, right,
+from devito.finite_differences.tools import (symbolic_weights, left, right,
                                              generate_indices, centered, check_input,
                                              check_symbolic, direct, transpose)
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'left', 'right', 'centered', 'transpose',
-           'generate_indices', 'form_side']
+           'generate_indices']
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
@@ -248,7 +248,9 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
 
     # Loop through positions
     deriv = 0
-    all_dims = tuple(set((dim,) + tuple(i for i in expr.indices if i.root == dim)))
+    all_dims = tuple(set((expr.index(dim),) +
+                     tuple(expr.index(i) for i in expr.dimensions if i.root == dim)))
+
     for i in range(len(indices)):
         subs = dict((d, indices[i].subs({dim: d, diff: matvec.val*diff}))
                     for d in all_dims)

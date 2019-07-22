@@ -49,7 +49,7 @@ def diag(func, size=None):
     """
     Creates the diagonal Tensor with func on its diagonal
     """
-    dim = size or len(func.indices)
+    dim = size or len(func.dimensions)
     dim = dim-1 if func.is_TimeDependent else dim
     to = getattr(func, 'time_order', 0)
 

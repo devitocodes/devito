@@ -254,6 +254,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         return ()
 
     @property
+    def dimensions(self):
+        return ()
+
+    @property
     def shape(self):
         return ()
 
@@ -465,7 +469,7 @@ class AbstractCachedTensor(AbstractTensor, Cached, Evaluable):
         else:
             name = kwargs.get('name')
             # Number of dimensions
-            indices = cls.__indices_setup__(**kwargs)
+            indices, _ = cls.__indices_setup__(**kwargs)
 
             # Create the new Function object and invoke __init__
             comps = cls.__setup_subfunc__(*args, **kwargs)
@@ -505,7 +509,7 @@ class AbstractCachedTensor(AbstractTensor, Cached, Evaluable):
         """
         Setup each component as a Devito type
         """
-        return ()
+        return (), ()
 
     @property
     def name(self):
@@ -588,8 +592,7 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
             newobj._cached_init()
         else:
             name = kwargs.get('name')
-            indices = cls.__indices_setup__(**kwargs)
-
+            dimensions, indices = cls.__indices_setup__(**kwargs)
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
             newobj = sympy.Function.__new__(newcls, *indices, **options)
@@ -597,7 +600,8 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
             # Initialization. The following attributes must be available
             # when executing __init__
             newobj._name = name
-            newobj._indices = indices
+            newobj._dimensions = dimensions
+            newobj._index_ref = indices
             newobj._shape = cls.__shape_setup__(**kwargs)
             newobj._dtype = cls.__dtype_setup__(**kwargs)
             newobj.__init__(*args, **kwargs)
@@ -623,7 +627,7 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
     @classmethod
     def __indices_setup__(cls, **kwargs):
         """Extract the object indices from ``kwargs``."""
-        return ()
+        return (), ()
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -659,12 +663,45 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
     @property
     def indices(self):
         """The indices (aka dimensions) of the object."""
-        return self._indices
+        return self.args
+
+    @property
+    def index_ref(self):
+        """The indices (aka dimensions) of the object."""
+        return self._index_ref
+
+    @property
+    def origin(self):
+        return (r - d for r, d in zip(self.index_ref, self.dimensions))
 
     @property
     def dimensions(self):
         """Tuple of Dimensions representing the object indices."""
-        return self.indices
+        return self._dimensions
+
+    @property
+    def evaluate(self):
+        # Average values if at a location not on the Function's grid
+        weight = 1.0
+        avg_list = []
+        for i, ir, d in zip(self.indices, self.index_ref, self.dimensions):
+            off = (i - ir)/d.spacing
+            if not isinstance(off, sympy.Number):
+                pass
+            elif int(off) == off:
+                pass
+            else:
+                weight *= 1/2
+                avg_list.append(self.subs({i: i - d.spacing/2}) +
+                                self.subs({i: i + d.spacing/2}))
+        if len(avg_list) == 0:
+            return self
+
+        return weight * sum(avg_list)
+
+    def index(self, dim):
+        inds = [self.indices[i] for i, d in enumerate(self.dimensions) if d == dim]
+        return inds[0]
 
     @property
     def shape(self):
@@ -690,7 +727,7 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         """
         halo = [Add(*i) for i in self._size_halo]
         padding = [Add(*i) for i in self._size_padding]
-        domain = [i.symbolic_size for i in self.indices]
+        domain = [i.symbolic_size for i in self.dimensions]
         ret = tuple(Add(i, j, k) for i, j, k in zip(domain, halo, padding))
         return EnrichedTuple(*ret, getters=self.dimensions)
 
@@ -846,17 +883,13 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         """
         return default_allocator().guaranteed_alignment
 
-    @property
-    def evaluate(self):
-        return self
-
     def indexify(self, indices=None):
         """Create a types.Indexed from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
 
         # Get spacing symbols for replacement
-        spacings = [i.spacing for i in self.indices]
+        spacings = [i.spacing for i in self.dimensions]
 
         # Only keep the ones used as indices.
         spacings = [s for i, s in enumerate(spacings)
@@ -866,7 +899,7 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         subs = dict([(s, 1) for s in spacings])
 
         # Indices after substitutions
-        indices = [a.subs(subs) for a in self.args]
+        indices = [(a - o).subs(subs) for a, o in zip(self.args, self.origin)]
 
         return Indexed(self.indexed, *indices)
 
@@ -962,7 +995,7 @@ class Array(AbstractCachedFunction):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        return tuple(kwargs['dimensions'])
+        return tuple(kwargs['dimensions']), tuple(kwargs['dimensions'])
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
@@ -994,7 +1027,7 @@ class Array(AbstractCachedFunction):
 
     def update(self, **kwargs):
         self._shape = kwargs.get('shape', self.shape)
-        self._indices = kwargs.get('dimensions', self.indices)
+        self._indices = kwargs.get('dimensions', self.dimensions)
         self._dtype = kwargs.get('dtype', self.dtype)
         self._halo = kwargs.get('halo', self._halo)
         self._padding = kwargs.get('padding', self._padding)

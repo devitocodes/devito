@@ -48,9 +48,10 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
     def __indices_setup__(cls, **kwargs):
         dimensions = kwargs.get('dimensions')
         if dimensions is not None:
-            return dimensions
+            return dimensions, dimensions
         else:
-            return (Dimension(name='p_%s' % kwargs["name"]),)
+            dimensions = (Dimension(name='p_%s' % kwargs["name"]),)
+            return dimensions, dimensions
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -342,9 +343,10 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     def __indices_setup__(cls, **kwargs):
         dimensions = kwargs.get('dimensions')
         if dimensions is not None:
-            return dimensions
+            return dimensions, dimensions
         else:
-            return (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
+            dims = (kwargs['grid'].time_dim, Dimension(name='p_%s' % kwargs["name"]))
+            return dims, dims
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

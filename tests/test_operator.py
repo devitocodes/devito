@@ -418,11 +418,14 @@ class TestAllocation(object):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple([11]*ndim))
+        grid = Grid(shape=tuple([11]*ndim), dimensions=(x, y, z)[:ndim])
         f = Function(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape == tuple([11]*ndim)
+        # Add a non-staggered field to ensure that the auto-derived
+        # dimension size arguments are at maximum
         g = Function(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple(5 for _ in f.staggered)
+        index = tuple(5 for _ in f.dimensions)
         set_f = Eq(f[index], 2.)
         set_g = Eq(g[index], 3.)
 
@@ -438,11 +441,14 @@ class TestAllocation(object):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple([11]*ndim))
+        grid = Grid(shape=tuple([11]*ndim), dimensions=(x, y, z)[:ndim])
         f = TimeFunction(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape[1:] == tuple([11]*ndim)
+        # Add a non-staggered field to ensure that the auto-derived
+        # dimension size arguments are at maximum
         g = TimeFunction(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple([0] + [5 for _ in f.staggered[1:]])
+        index = tuple([0] + [5 for _ in f.dimensions[1:]])
         set_f = Eq(f[index], 2.)
         set_g = Eq(g[index], 3.)
 

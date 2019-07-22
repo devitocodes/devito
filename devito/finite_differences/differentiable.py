@@ -84,6 +84,16 @@ class Differentiable(sympy.Expr, Evaluable):
                                             for i in self._args_diff)))
 
     @cached_property
+    def dimensions(self):
+        return tuple(filter_ordered(flatten(getattr(i, 'dimensions', ())
+                                            for i in self._args_diff)))
+
+    @cached_property
+    def staggered(self):
+        return tuple(filter_ordered(flatten(getattr(i, 'staggered', ())
+                                            for i in self._args_diff)))
+
+    @cached_property
     def is_Staggered(self):
         return any([getattr(i, 'is_Staggered', False) for i in self._args_diff])
 
@@ -178,6 +188,10 @@ class Differentiable(sympy.Expr, Evaluable):
         return super(Differentiable, self).__eq__(other) and\
             all(getattr(self, i, None) == getattr(other, i, None) for i in self._state)
 
+    def index(self, dim):
+        inds = [self.dimensions[i] for i, d in enumerate(self.dimensions) if d == dim]
+        return inds[0]
+
     @property
     def name(self):
         return "".join(f.name for f in self._functions)
@@ -188,7 +202,7 @@ class Differentiable(sympy.Expr, Evaluable):
         Generates a symbolic expression for the Laplacian, the second
         derivative w.r.t all spatial Dimensions.
         """
-        space_dims = [d for d in self.indices if d.is_Space]
+        space_dims = [d for d in self.dimensions if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return Add(*[getattr(self, d) for d in derivs])
 
@@ -211,9 +225,9 @@ class Differentiable(sympy.Expr, Evaluable):
         Generates a symbolic expression for the double Laplacian w.r.t.
         all spatial Dimensions.
         """
-        space_dims = [d for d in self.indices if d.is_Space]
+        space_dims = [d for d in self.dimensions if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
-        return sum([getattr(self.laplace * weight, d) for d in derivs])
+        return Add(*[getattr(self.laplace * weight, d) for d in derivs])
 
     def diff(self, *symbols, **assumptions):
         """

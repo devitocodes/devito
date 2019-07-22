@@ -92,7 +92,7 @@ class ElasticWaveSolver(object):
         kwargs.update({k.name: k for k in tau})
         # Pick m from model unless explicitly provided
         l = l or self.model.l
-        mu = rho or self.model.mu
+        mu = mu or self.model.mu
         irho = irho or self.model.irho
         # Execute operator and return wavefield and receiver data
         summary = self.op_fwd(save).apply(src=src, rec1=rec1, l=l, mu=mu, irho=irho,

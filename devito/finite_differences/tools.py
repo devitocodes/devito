@@ -97,7 +97,7 @@ def deriv_name(dims, orders):
 
 def generate_fd_shortcuts(function):
     """Create all legal finite-difference derivatives for the given Function."""
-    dimensions = function.indices
+    dimensions = function.dimensions
     s_fd_order = function.space_order
     t_fd_order = function.time_order if (function.is_TimeFunction or
                                          function.is_SparseTimeFunction) else 0
@@ -109,7 +109,6 @@ def generate_fd_shortcuts(function):
         return Derivative(expr, *as_tuple(dims), deriv_order=deriv_order,
                           fd_order=fd_order, side=side, **kwargs)
 
-    side = form_side(dimensions, function)
     all_combs = dim_with_order(dimensions, orders)
 
     derivatives = {}
@@ -119,10 +118,8 @@ def generate_fd_shortcuts(function):
         fd_dims = tuple(d for d, o_d in zip(dimensions, o) if o_d > 0)
         d_orders = tuple(o_d for d, o_d in zip(dimensions, o) if o_d > 0)
         fd_orders = tuple(t_fd_order if d.is_Time else s_fd_order for d in fd_dims)
-
         deriv = partial(deriv_function, deriv_order=d_orders, dims=fd_dims,
-                        fd_order=fd_orders,
-                        stagger=tuple(side[d] for d in fd_dims))
+                        fd_order=fd_orders)
         name_fd = deriv_name(fd_dims, d_orders)
         desciption = 'derivative of order %s w.r.t dimension %s' % (d_orders, fd_dims)
         derivatives[name_fd] = (deriv, desciption)
@@ -159,51 +156,44 @@ def symbolic_weights(function, deriv_order, indices, dim):
             for j in range(0, len(indices))]
 
 
-def generate_indices(func, dim, diff, order, stagger=None, side=None):
-
+def generate_indices(func, dim, diff, order, side=None, stagger=None):
     # If staggered finited difference
     if func.is_Staggered:
-        if stagger == left:
-            off = -.5
-        elif stagger == right:
-            off = .5
-        else:
-            off = 0
-        ind = list(set([(dim + int(i+.5+off) * dim.spacing)
-                        for i in range(-order//2, order//2)]))
-        x0 = (dim + off*diff)
-        if order < 2:
-            ind = [dim + diff, dim] if stagger == right else [dim - diff, dim]
-
-        return ind, x0
-
-    # Check if called from first_derivative()
-    if bool(side):
-        if side == right:
-            ind = [(dim+i*diff) for i in range(-int(order/2)+1-(order % 2),
-                                               int((order+1)/2)+2-(order % 2))]
-        elif side == left:
-            ind = [(dim-i*diff) for i in range(-int(order/2)+1-(order % 2),
-                                               int((order+1)/2)+2-(order % 2))]
-        else:
-            ind = [(dim+i*diff) for i in range(-int(order/2),
-                                               int((order+1)/2)+1)]
-        x0 = None
+        ind, x0 = indices_staggered(func, dim, diff, order, stagger, side=side)
     else:
-        ind = [(dim + i*dim.spacing) for i in range(-order//2, order//2 + 1)]
         x0 = dim
-        if order < 2:
-            ind = [dim, dim + diff]
+        # Check if called from first_derivative()
+        ind = indices_cartesian(dim, diff, order, side)
     return ind, x0
 
 
-def form_side(dimensions, function):
-    side = dict()
-    for (d, s) in zip(dimensions, function.staggered):
-        if s == 0:
-            side[d] = left
-        elif s == 1:
-            side[d] = right
-        else:
-            side[d] = centered
-    return side
+def indices_cartesian(dim, diff, order, side):
+    shift = 0
+    if side == left:
+        diff = -diff
+    if side in [left, right]:
+        shift = 1
+    ind = [(dim + (i + shift) * diff) for i in range(-order//2, order//2 + 1)]
+    if order < 2:
+        ind = [dim, dim + diff]
+    return ind
+
+
+def indices_staggered(func, dim, diff, order, stagger, side=None):
+    is_right = side == right or (dim in as_tuple(func.staggered))
+    is_left = side == left or (-dim in as_tuple(func.staggered))
+
+    if is_right:
+        ind = [(dim + dim.spacing/2 - i * diff) for i in range(-order//2, order//2)]
+        x0 = dim + dim.spacing
+        diff = -diff
+    elif is_left:
+        ind = [(dim - dim.spacing/2 + i * diff) for i in range(-order//2, order//2)]
+        x0 = dim
+    else:
+        ind = [(dim + i * diff) for i in range(-order//2, order//2)]
+        x0 = dim - diff/2
+    if order < 2:
+        ind = [x0, x0 + diff]
+
+    return x0, ind

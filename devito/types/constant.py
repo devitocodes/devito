@@ -48,6 +48,10 @@ class Constant(AbstractCachedSymbol, ArgProvider):
         if not self._cached():
             self._value = kwargs.get('value', 0)
 
+    @property
+    def dimensions(self):
+        return self.indices
+
     @classmethod
     def __dtype_setup__(cls, **kwargs):
         return kwargs.get('dtype', np.float32)

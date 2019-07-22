@@ -97,7 +97,7 @@ class Eq(sympy.Eq, Evaluable):
         try:
             lhss = self.lhs.values()
             rhss = self.rhs.values(symmetric=self.lhs.is_symmetric)
-            return [Eq(l, r) for l, r in zip(lhss, rhss)]
+            return [Eq(l, l.at_variable(r)) for l, r in zip(lhss, rhss)]
         except AttributeError:
             return [self]
 

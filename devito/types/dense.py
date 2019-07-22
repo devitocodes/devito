@@ -55,7 +55,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
             self._distributor = self.__distributor_setup__(**kwargs)
 
             # Staggering metadata
-            self._staggered, self.is_Staggered = self.__staggered_setup__(**kwargs)
+            self._staggered = self.__staggered_setup__(**kwargs)
 
             # Now that *all* __X_setup__ hooks have been called, we can let the
             # superclass constructor do its job
@@ -148,25 +148,10 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
             * 0 to non-staggered dimensions;
             * 1 to staggered dimensions.
         """
-        staggered = kwargs.get('staggered')
-        if staggered is None:
-            return tuple(0 for _ in self.dimensions), False
-        else:
-            if staggered is NODE:
-                staggered = ()
-            elif staggered is CELL:
-                staggered = self.dimensions
-            else:
-                staggered = as_tuple(staggered)
-            mask = []
-            for d in self.dimensions:
-                if d in staggered:
-                    mask.append(1)
-                elif -d in staggered:
-                    mask.append(-1)
-                else:
-                    mask.append(0)
-            return tuple(mask), True
+        staggered = kwargs.get('staggered', None)
+        if staggered == CELL:
+            staggered = self.grid.dimensions
+        return staggered
 
     def __distributor_setup__(self, **kwargs):
         grid = kwargs.get('grid')
@@ -239,7 +224,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         In an MPI context, this is the *local* domain region shape.
         Alias to ``self.shape``.
         """
-        return self.shape
+        return self._shape
 
     @cached_property
     def shape_with_halo(self):
@@ -748,7 +733,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s in zip(key.indices, self.shape):
+        for i, s in zip(key.dimensions, self.shape):
             args.update(i._arg_defaults(_min=0, size=s))
 
         # Add MPI-related data structures
@@ -936,6 +921,82 @@ class Function(DiscreteFunction, Differentiable):
             # Dynamically add derivative short-cuts
             self._fd = generate_fd_shortcuts(self)
 
+            # Flag wether it is a paraemter or a variable
+            # Used at operator evaluation to evlauate the function at the variabl
+            # location (ie if the variable is taggered in x the parameter has to be
+            # computed at x + hx/2)
+            self._is_parameter = kwargs.get('parameter', False)
+
+    @property
+    def is_parameter(self):
+        return self._is_parameter
+
+    def at_variable(self, expr):
+        if self.is_parameter or not self.is_Staggered or self.staggered == expr.staggered:
+            return expr
+
+        from devito.symbolics.search import retrieve_functions
+        locations = []
+        for s in as_tuple(self.staggered):
+            if s is NODE:
+                pass
+            elif len(s.args) == 2:
+                locations.append((s.args))
+            else:
+                locations.append((1, s))
+        to_evaluate = [f for f in retrieve_functions(expr) if f.is_parameter]
+        evaluated = [f.eval_at(locations) for f in to_evaluate]
+        return expr.subs({f: fe for f, fe in zip(to_evaluate, evaluated)})
+
+    def eval_at(self, locations):
+        if len(locations) == 1:
+            o, d = locations[0]
+            return .5 * (self +
+                         self.subs({d: d + o * d.spacing}))
+        if len(locations) == 2:
+            d1, d2 = [d for _, d in locations]
+            l1, l2 = [s for s, _ in locations]
+            add = .25 * (self + self.subs({d1: d1 + l1 * d1.spacing}) +
+                         self.subs({d2: d2 + l2 * d2.spacing}) +
+                         self.subs({d1: d1 + l1 * d1.spacing,
+                                    d2: d2 + l2 * d2.spacing}))
+            return add
+        if len(locations) == 3:
+            dims = as_tuple([d for _, d in locations])
+            locs = as_tuple([s for s, _ in locations])
+            add = self + sum(self.subs({d: d + l*d.spacing}) for d, l in zip(dims, locs))
+            add += self.subs({d: d + l*d.spacing for d, l in zip(dims, locs)})
+
+            d1, d2, d3 = [d for _, d in locations]
+            l1, l2, l3 = [d for s, _ in locations]
+
+            add += self.subs({d1 : d1 + l1 * d1.spacing, d2 : d2 + l2 * d2.spacing})
+            add += self.subs({d1 : d1 + l1 * d1.spacing, d3 : d3 + l3 * d3.spacing})
+            add += self.subs({d2 : d2 + l2 * d2.spacing, d3 : d3 + l3 * d3.spacing})
+
+            return add
+        return self
+
+    @classmethod
+    def staggered_indices(cls, *dimensions, **kwargs):
+
+        staggered = kwargs.get("staggered", NODE)
+        if staggered == CELL:
+            staggered = dimensions
+
+        if staggered is NODE:
+            return dimensions
+
+        as_dict = {d: d for d in dimensions}
+        new_inds = {}
+        for s in as_tuple(staggered):
+            if len(s.args) == 2:
+                as_dict.update({s: s.args[1] + s.args[0] * s.args[1].sapcing/2})
+            else:
+                as_dict.update({s: s + s.spacing/2})
+
+        return tuple(as_dict.values())
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
@@ -945,7 +1006,11 @@ class Function(DiscreteFunction, Differentiable):
                 raise TypeError("Need either `grid` or `dimensions`")
         elif dimensions is None:
             dimensions = grid.dimensions
-        return dimensions
+        return dimensions, cls.staggered_indices(*dimensions, **kwargs)
+
+    @property
+    def is_Staggered(self):
+        return self.staggered is not None
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -997,11 +1062,7 @@ class Function(DiscreteFunction, Differentiable):
                 halo = (left_points, right_points)
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
-            base = [halo if i.is_Space else (0, 0) for i in self.dimensions]
-            # left-/right-staggering require extra points
-            extra = [(-i, 0) if i < 0 else (0, i) for i in self.staggered]
-            assert len(base) == len(extra)
-            return tuple((int(i), int(j)) for i, j in np.add(base, extra))
+            return tuple(halo if i.is_Space else (0, 0) for i in self.dimensions)
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -1231,10 +1292,10 @@ class TimeFunction(Function):
             elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
                 raise TypeError("`time_dim` must be a time dimension")
 
-            dimensions = list(Function.__indices_setup__(**kwargs))
+            dimensions = list(Function.__indices_setup__(**kwargs)[0])
             dimensions.insert(cls._time_position, time_dim)
 
-        return tuple(dimensions)
+        return tuple(dimensions), cls.staggered_indices(*dimensions, **kwargs)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

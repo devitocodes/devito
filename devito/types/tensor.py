@@ -37,10 +37,6 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
         funcs = []
         dims = kwargs.get("grid").dimensions
         stagg = kwargs.get("staggered", None)
-        if stagg is not None and len(stagg) != len(dims)*len(dims):
-            ncoeff = len(dims)*len(dims)
-            error("Custom stagger has to be specified for all %s coefficient" % ncoeff +
-                  " as a %s by %s list of list or array" % (ncoeff, ncoeff))
         name = kwargs.get("name")
         symm = kwargs.get('symmetric', True)
         # Fill tensor, only upper diagonal if symmetric
@@ -49,7 +45,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
             funcs2 = [0 for _ in range(i+1)] if symm else []
             for j in range(start, len(dims)):
                 kwargs["name"] = "%s_%s%s" % (name, d.name, dims[j].name)
-                kwargs["staggered"] = (stagg[i, j] if stagg is not None
+                kwargs["staggered"] = (stagg[i][j] if stagg is not None
                                        else (NODE if i == j else (d, dims[j])))
                 funcs2.append(cls._sub_type(**kwargs))
             funcs.append(funcs2)
@@ -59,7 +55,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
             funcs = np.array(funcs) + np.array(funcs).T
             for i in range(len(dims)):
                 kwargs["name"] = "%s_%s%s" % (name, dims[i].name, dims[i].name)
-                kwargs["staggered"] = NODE
+                kwargs["staggered"] = stagg[i][i] if stagg is not None else NODE
                 funcs[i, i] = cls._sub_type(**kwargs)
             funcs = funcs.tolist()
         return funcs
@@ -85,7 +81,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
 
                 def entry(i):
                     return sum(self[i, k]*other[k] for k in range(self.cols))
-                comps = [entry[i] for i in range(self.cols)]
+                comps = [entry(i) for i in range(self.cols)]
                 func = (VectorTimeFunction if self.is_TimeDependent or
                         other.is_TimeDependent else VectorFunction)
                 name = "%s%s" % (self.name, other.name)
@@ -340,9 +336,6 @@ class VectorFunction(TensorFunction):
         funcs = []
         dims = kwargs.get("grid").dimensions
         stagg = kwargs.get("staggered", None)
-        if stagg is not None and len(stagg) != len(dims):
-            ncoeff = len(dims)*len(dims)
-            error("Custom stagger has to be specified for all %s coefficient" % ncoeff)
         name = kwargs.get("name")
         for i, d in enumerate(dims):
             kwargs["name"] = "%s_%s" % (name, d.name)

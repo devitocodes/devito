@@ -96,6 +96,7 @@ class Dimension(AbstractSymbol, ArgProvider):
     def __new_stage2__(cls, name, spacing=None):
         newobj = sympy.Symbol.__xnew__(cls, name)
         newobj._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
+        newobj._staggereing = None
         return newobj
 
     __xnew__ = staticmethod(__new_stage2__)

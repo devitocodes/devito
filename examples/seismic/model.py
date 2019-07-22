@@ -122,15 +122,16 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 10)
-        ratio = kwargs.pop('ratio', 3)
+        nlayers = kwargs.pop('nlayers', 3)
         vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+        vp_bottom = kwargs.pop('vp_bottom', 5.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        for i in range(1, ratio):
-            v[..., i* int(shape[-1] / ratio):] = i/1.5*vp_bottom  # Bottom velocity
+        vp_i = np.linspace(vp_top, vp_bottom, nlayers)
+        for i in range(1, nlayers):
+            v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
@@ -146,18 +147,20 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 40)
-        ratio = kwargs.pop('ratio', 2)
+        nlayers = kwargs.pop('nlayers', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+        vp_bottom = kwargs.pop('vp_bottom', 5.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        for i in range(1, ratio):
-            v[..., i* int(shape[-1] / ratio):] = i/1.5*vp_bottom  # Bottom velocity
+        vp_i = np.linspace(vp_top, vp_bottom, nlayers)
+        for i in range(1, nlayers):
+            v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
         vs = 0.5 * v[:]
         rho = v[:]/vp_top
+        vs[v<1.51] = 0.0
 
         return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
                             origin=origin, shape=shape,
@@ -223,16 +226,16 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 10)
-        ratio = kwargs.pop('ratio', 2)
+        nlayers = kwargs.pop('nlayers', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+        vp_bottom = kwargs.pop('vp_bottom', 5.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        v[:] = vp_top  # Top velocity (background)
-        for i in range(1, ratio):
-            v[..., i* int(shape[-1] / ratio):] = i/1.5*vp_bottom  # Bottom velocity
+        vp_i = np.linspace(vp_top, vp_bottom, nlayers)
+        for i in range(1, nlayers):
+            v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
         epsilon = scipy_smooth(.3*(v - 1.5))
         delta = scipy_smooth(.2*(v - 1.5))
@@ -256,14 +259,16 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 10)
-        ratio = kwargs.pop('ratio', 2)
+        nlayers = kwargs.pop('nlayers', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
         vp_bottom = kwargs.pop('vp_bottom', 2.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+        vp_i = np.linspace(vp_top, vp_bottom, nlayers)
+        for i in range(1, nlayers):
+            v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
         epsilon = .3*(v - 1.5)
         delta = .2*(v - 1.5)
