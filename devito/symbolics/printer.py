@@ -127,6 +127,9 @@ class CodePrinter(C99CodePrinter):
             func_name += 'f'
         return func_name + '(' + self._print(*expr.args) + ')'
 
+    def _print_Basic(self, expr):
+        return str(expr)
+
 
 def ccode(expr, dtype=np.float32, **settings):
     """Generate C++ code from an expression.
