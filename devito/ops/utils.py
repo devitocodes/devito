@@ -9,3 +9,4 @@ namespace['ops_init'] = 'ops_init'
 namespace['ops_timing_output'] = 'ops_timing_output'
 namespace['ops_exit'] = 'ops_exit'
 namespace['ops-define-dimension'] = lambda i: '#define OPS_%sD' % i
+namespace['ops-kernel'] = lambda i: 'OPS_Kernel_%s' % i
