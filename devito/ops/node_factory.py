@@ -1,9 +1,9 @@
 from collections import OrderedDict
 
-from devito import TimeFunction
+from devito import Constant, TimeFunction
 from devito.types.dimension import SpaceDimension
 from devito.symbolics import split_affine
-from devito.ops.types import OpsAccessible
+from devito.ops.types import OpsAccess, OpsAccessible
 
 
 class OPSNodeFactory(object):
@@ -48,9 +48,18 @@ class OPSNodeFactory(object):
             symbol_to_access = self.ops_args[ops_arg_id]
 
         # Get the space indices
-        space_indices = [i for i in indexed.indices if isinstance(
-            split_affine(i).var, SpaceDimension)]
+        space_indices = [
+            split_affine(i).shift for i in indexed.indices
+            if isinstance(split_affine(i).var, SpaceDimension)
+        ]
 
-        access_indices = [split_affine(i).shift for i in space_indices]
+        return OpsAccess(symbol_to_access, space_indices)
 
-        return symbol_to_access(access_indices)
+    def new_ops_gbl(self, c):
+        if c in self.ops_args:
+            return self.ops_args[c]
+
+        new_c = Constant(name='*%s' % c.name, dtype=c.dtype)
+        self.ops_args[c] = new_c
+
+        return new_c
