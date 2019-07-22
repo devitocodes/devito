@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.ir.iet import (Iteration, List, IterationTree, FindSections, FindSymbols,
                            FindNodes, Section, Expression)
-from devito.symbolics import Macro
+from devito.symbolics import Literal, Macro
 from devito.tools import flatten, ReducerMap
 from devito.types import Array, LocalObject
 
@@ -110,7 +110,7 @@ def derive_parameters(nodes, drop_locals=False):
     parameters = tuple(s for s in symbols if s.name not in defines)
 
     # Drop globally-visible objects
-    parameters = [p for p in parameters if not isinstance(p, Macro)]
+    parameters = [p for p in parameters if not isinstance(p, (Literal, Macro))]
 
     # Filter out locally-allocated Arrays and Objects
     if drop_locals:
