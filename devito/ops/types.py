@@ -97,4 +97,10 @@ class OpsAccess(basic.Basic, sympy.Basic):
             ", ".join([str(i) for i in self.indices])
         )
 
+    def as_coeff_Mul(self):
+        return sympy.S.One, self
+
+    def as_coeff_Add(self):
+        return sympy.S.Zero, self
+
     __repr__ = __str__
