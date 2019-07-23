@@ -1250,7 +1250,7 @@ class TestOperatorAdvanced(object):
         if not glb_pos_map[x] and not glb_pos_map[y]:
             assert np.all(u.data_ro_domain[1] == 3)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap'), (4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap'), (4, 'full', True)])
     def test_coupled_eqs_mixed_dims(self):
         """
         Test an Operator that computes coupled equations over partly disjoint sets
@@ -1322,7 +1322,7 @@ class TestOperatorAdvanced(object):
 
         assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2', True)])
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
     def test_aliases(self):
         """
@@ -1362,7 +1362,7 @@ class TestOperatorAdvanced(object):
 
         assert u0_norm == u1_norm
 
-    @pytest.mark.parallel(mode=[(4, 'overlap2')])
+    @pytest.mark.parallel(mode=[(4, 'overlap2', True)])
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
     def test_aliases_with_shifted_diagonal_halo_touch(self):
         """
@@ -1455,9 +1455,8 @@ class TestIsotropicAcoustic(object):
         ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
-    @pytest.mark.parallel(mode=[(4, 'basic', True), (4, 'diag', True),
-                                (4, 'overlap', True), (4, 'overlap2', True),
-                                (4, 'full', True)])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag', True), (4, 'overlap', True),
+                                (4, 'overlap2', True), (4, 'full', True)])
     def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
                        Eu, Erec, Ev, Esrca):
         self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
@@ -1465,7 +1464,7 @@ class TestIsotropicAcoustic(object):
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
         ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
     ])
-    @pytest.mark.parallel(mode=[(8, 'diag'), (8, 'full')])
+    @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
     @switchconfig(openmp=False)
     def test_adjoint_F_no_omp(self, shape, kernel, space_order, nbpml, save,
                               Eu, Erec, Ev, Esrca):
