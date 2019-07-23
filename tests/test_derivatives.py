@@ -4,7 +4,7 @@ from sympy import simplify, diff, cos, sin
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, clear_cache, NODE,
-                    ConditionalDimension, left, right, centered, generic_derivative)
+                    ConditionalDimension, left, right, centered)
 from devito.finite_differences import Derivative, Differentiable
 
 _PRECISION = 9
@@ -254,7 +254,7 @@ class TestFD(object):
         """
         clear_cache()
         # dummy axis dimension
-        nx = 100
+        nx = 101
         xx = np.linspace(-1, 1, nx)
         dx = xx[1] - xx[0]
         # Symbolic data
@@ -265,18 +265,17 @@ class TestFD(object):
         if stagger == left:
             off = -.5
             side = -x
-            xx2 = xx - off * dx
+            xx2 = xx + off * dx
         elif stagger == right:
             off = .5
             side = x
-            xx2 = xx - off * dx
+            xx2 = xx + off * dx
         else:
-            off = 0
             side = NODE
             xx2 = xx
 
-        u = Function(name="u", grid=grid, space_order=space_order, staggered=(side,))
-        du = Function(name="du", grid=grid, space_order=space_order)
+        u = Function(name="u", grid=grid, space_order=space_order, staggered=side)
+        du = Function(name="du", grid=grid, space_order=space_order, staggered=side)
         # Define polynomial with exact fd
         coeffs = np.ones((space_order-1,), dtype=np.float32)
         polynome = sum([coeffs[i]*x**i for i in range(0, space_order-1)])
@@ -285,12 +284,9 @@ class TestFD(object):
         u.data[:] = polyvalues
         # True derivative of the polynome
         Dpolynome = diff(polynome)
-        Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx], np.float32)
-        # FD derivative, symbolic
-        u_deriv = generic_derivative(u, deriv_order=1, fd_order=space_order,
-                                     dim=x, stagger=stagger)
+        Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx2], np.float32)
         # Compute numerical FD
-        stencil = Eq(du, u_deriv)
+        stencil = Eq(du, u.dx)
         op = Operator(stencil, subs={x.spacing: dx})
         op.apply()
 

@@ -51,7 +51,7 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     -------
     Rotated second order derivative w.r.t. z.
     """
-    order1 = space_order / 2
+    order1 = space_order // 2
     x, y, z = field.space_dimensions
     Gz = -(sintheta * cosphi * first_derivative(field, dim=x,
                                                 side=centered, fd_order=order1) +
@@ -91,7 +91,7 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
     -------
     Rotated second order derivative w.r.t. z.
     """
-    order1 = space_order / 2
+    order1 = space_order // 2
     x, y = field.space_dimensions[:2]
     Gz = -(sintheta * first_derivative(field, dim=x, side=centered, fd_order=order1) +
            costheta * first_derivative(field, dim=y, side=centered, fd_order=order1))

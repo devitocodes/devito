@@ -150,7 +150,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         """
         staggered = kwargs.get('staggered', None)
         if staggered == CELL:
-            staggered = self.grid.dimensions
+            staggered = self.dimensions
         return staggered
 
     def __distributor_setup__(self, **kwargs):
@@ -931,69 +931,27 @@ class Function(DiscreteFunction, Differentiable):
     def is_parameter(self):
         return self._is_parameter
 
-    def at_variable(self, expr):
-        if self.is_parameter or not self.is_Staggered or self.staggered == expr.staggered:
-            return expr
+    def eval_at(self, var):
+        if (not self.is_parameter or
+            self.staggered == var.staggered):
+            return self
 
-        from devito.symbolics.search import retrieve_functions
-        locations = []
-        for s in as_tuple(self.staggered):
-            if s is NODE:
-                pass
-            elif len(s.args) == 2:
-                locations.append((s.args))
-            else:
-                locations.append((1, s))
-        to_evaluate = [f for f in retrieve_functions(expr) if f.is_parameter]
-        evaluated = [f.eval_at(locations) for f in to_evaluate]
-        return expr.subs({f: fe for f, fe in zip(to_evaluate, evaluated)})
-
-    def eval_at(self, locations):
-        if len(locations) == 1:
-            o, d = locations[0]
-            return .5 * (self +
-                         self.subs({d: d + o * d.spacing}))
-        if len(locations) == 2:
-            d1, d2 = [d for _, d in locations]
-            l1, l2 = [s for s, _ in locations]
-            add = .25 * (self + self.subs({d1: d1 + l1 * d1.spacing}) +
-                         self.subs({d2: d2 + l2 * d2.spacing}) +
-                         self.subs({d1: d1 + l1 * d1.spacing,
-                                    d2: d2 + l2 * d2.spacing}))
-            return add
-        if len(locations) == 3:
-            dims = as_tuple([d for _, d in locations])
-            locs = as_tuple([s for s, _ in locations])
-            add = self + sum(self.subs({d: d + l*d.spacing}) for d, l in zip(dims, locs))
-            add += self.subs({d: d + l*d.spacing for d, l in zip(dims, locs)})
-
-            d1, d2, d3 = [d for _, d in locations]
-            l1, l2, l3 = [d for s, _ in locations]
-
-            add += self.subs({d1 : d1 + l1 * d1.spacing, d2 : d2 + l2 * d2.spacing})
-            add += self.subs({d1 : d1 + l1 * d1.spacing, d3 : d3 + l3 * d3.spacing})
-            add += self.subs({d2 : d2 + l2 * d2.spacing, d3 : d3 + l3 * d3.spacing})
-
-            return add
-        return self
+        return self.subs({d1: var.ind_map[d1] for d1 in self.index_ref})
 
     @classmethod
     def staggered_indices(cls, *dimensions, **kwargs):
 
-        staggered = kwargs.get("staggered", NODE)
+        staggered = kwargs.get("staggered", None)
         if staggered == CELL:
             staggered = dimensions
 
-        if staggered is NODE:
+        if staggered == NODE:
             return dimensions
 
         as_dict = {d: d for d in dimensions}
-        new_inds = {}
         for s in as_tuple(staggered):
-            if len(s.args) == 2:
-                as_dict.update({s: s.args[1] + s.args[0] * s.args[1].sapcing/2})
-            else:
-                as_dict.update({s: s + s.spacing/2})
+            c, s = s.as_coeff_Mul()
+            as_dict.update({s: s + c * s.spacing/2})
 
         return tuple(as_dict.values())
 

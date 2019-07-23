@@ -6,7 +6,7 @@ from sympy import S
 
 from devito.tools import Tag, as_tuple
 from devito.finite_differences import Differentiable
-
+from devito.types import NODE
 
 class Transpose(Tag):
     """
@@ -130,7 +130,7 @@ def generate_fd_shortcuts(function):
         if function.is_Staggered:
             # Add centered first derivatives if staggered
             deriv = partial(deriv_function, deriv_order=1, dims=d,
-                            fd_order=o, stagger={d: centered})
+                            fd_order=o, side=centered)
             name_fd = 'd%sc' % name
             desciption = 'centered derivative staggered w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
@@ -156,12 +156,12 @@ def symbolic_weights(function, deriv_order, indices, dim):
             for j in range(0, len(indices))]
 
 
-def generate_indices(func, dim, diff, order, side=None, stagger=None):
+def generate_indices(func, dim, diff, order, side=None, x0={}):
     # If staggered finited difference
     if func.is_Staggered:
-        ind, x0 = indices_staggered(func, dim, diff, order, stagger, side=side)
+        x0, ind = indices_staggered(func, dim, diff, order, side=side, x0=x0)
     else:
-        x0 = dim
+        x0 = x0.get(dim, dim)
         # Check if called from first_derivative()
         ind = indices_cartesian(dim, diff, order, side)
     return ind, x0
@@ -173,27 +173,19 @@ def indices_cartesian(dim, diff, order, side):
         diff = -diff
     if side in [left, right]:
         shift = 1
+
     ind = [(dim + (i + shift) * diff) for i in range(-order//2, order//2 + 1)]
     if order < 2:
         ind = [dim, dim + diff]
     return ind
 
 
-def indices_staggered(func, dim, diff, order, stagger, side=None):
-    is_right = side == right or (dim in as_tuple(func.staggered))
-    is_left = side == left or (-dim in as_tuple(func.staggered))
-
-    if is_right:
-        ind = [(dim + dim.spacing/2 - i * diff) for i in range(-order//2, order//2)]
-        x0 = dim + dim.spacing
-        diff = -diff
-    elif is_left:
-        ind = [(dim - dim.spacing/2 + i * diff) for i in range(-order//2, order//2)]
-        x0 = dim
+def indices_staggered(func, dim, diff, order, side=None, x0={}):
+    start = x0.get(dim, func.ind_map[dim])
+    if start != func.ind_map[dim]:
+        ind = [start - diff/2 - i * diff for i in range(0, order//2+1)]
+        ind += [start + diff/2 + i * diff for i in range(0, order//2+1)] 
     else:
-        ind = [(dim + i * diff) for i in range(-order//2, order//2)]
-        x0 = dim - diff/2
-    if order < 2:
-        ind = [x0, x0 + diff]
+        ind = [start + i * diff for i in range(-order//2, order//2+1)]
 
-    return x0, ind
+    return start, ind

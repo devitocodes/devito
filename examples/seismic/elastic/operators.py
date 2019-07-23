@@ -57,8 +57,8 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     l, mu, ro = model.lam, model.m, model.irho
 
     dt = model.critical_dt
-    u_v = Eq(v.forward, v - model.damp * dt * ro * div(tau))
-    u_t = Eq(tau.forward, tau - model.damp * dt * l * diag(div(v.forward)) -
+    u_v = Eq(v.forward, model.damp * v + model.damp * dt * ro * div(tau))
+    u_t = Eq(tau.forward, model.damp * tau + model.damp * dt * l * diag(div(v.forward)) +
              model.damp * dt * mu * (grad(v.forward) + grad(v.forward).T))
 
     srcrec = src_rec(v, tau, model, geometry)

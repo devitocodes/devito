@@ -149,7 +149,7 @@ def demo_model(preset, **kwargs):
         nbpml = kwargs.pop('nbpml', 40)
         nlayers = kwargs.pop('nlayers', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 5.5)
+        vp_bottom = kwargs.pop('vp_bottom', 3.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
@@ -159,8 +159,9 @@ def demo_model(preset, **kwargs):
             v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
         vs = 0.5 * v[:]
-        rho = v[:]/vp_top
-        vs[v<1.51] = 0.0
+        rho = 0.31 * (1e3*v)**0.25
+        rho[v < 1.51] = 1.0
+        vs[v < 1.51] = 0.0
 
         return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
                             origin=origin, shape=shape,
@@ -228,7 +229,7 @@ def demo_model(preset, **kwargs):
         nbpml = kwargs.pop('nbpml', 10)
         nlayers = kwargs.pop('nlayers', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 5.5)
+        vp_bottom = kwargs.pop('vp_bottom', 3.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
@@ -326,28 +327,24 @@ def demo_model(preset, **kwargs):
                      dtype=np.float32, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['marmousi-elastic', 'marmousi2d-elastic']:
-        shape = (1601, 401)
         spacing = (7.5, 7.5)
         origin = (0., 0.)
-
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.get('data_path', None)
         if data_path is None:
             raise ValueError("Path to opesci/data not found! Please specify with "
                              "'data_path=<path/to/opesci/data>'")
-        path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
-        v = np.fromfile(path, dtype='float32', sep="")
-        v = v.reshape(shape)
-
-        # Cut the model to make it slightly cheaper
-        v = v[301:-300, :]
-        vs = .5 * v[:]
-        rho = 0.31 * (1e3*v)**0.25
-        rho[v < 1.51] = 1.0
+        v = np.load(os.path.join(data_path, 'Simple2D/VP_elastic.npy'))
+        vs = np.load(os.path.join(data_path, 'Simple2D/VS_elastic.npy'))
+        rho = np.load(os.path.join(data_path, 'Simple2D/DENSITY_elastic.npy'))
+        # Cut the model to make it slightly cheap
+        v = 1e-3 * np.transpose(v[::6, ::6])
+        vs = scipy_smooth(1e-3 * np.transpose(vs[::6, ::6]))
+        rho = scipy_smooth(np.transpose(rho[::6, ::6]))
 
         return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
                             origin=origin, shape=v.shape,
-                            dtype=np.float32, spacing=spacing, nbpml=20)
+                            dtype=np.float32, spacing=spacing, nbpml=40)
 
     elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti']:
 
@@ -721,8 +718,11 @@ class Model(GenericModel):
                                                                      self.vp.shape))
         else:
             self._vp.data = vp
-
         self._max_vp = np.max(vp)
+
+    @property
+    def m(self):
+        return 1 / (self.vp * self.vp)
 
 
 class ModelElastic(GenericModel):
@@ -757,21 +757,39 @@ class ModelElastic(GenericModel):
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,
                  dtype=np.float32):
         super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
-                                           nbpml=nbpml, dtype=dtype,
-                                           damp_mask=True)
+                                           nbpml=nbpml, dtype=dtype)
+        self.maxvp = np.max(vp)
+        # Create dampening field as symbol `damp`
+        self.damp = Function(name="damp", grid=self.grid)
+        initialize_damp(self.damp, self.nbpml, self.spacing, mask=True)
 
-        physical_parameters = []
+        self._physical_parameters = ()
+        # Create mu Lame parameter
+        if any(isinstance(p, np.ndarray) for p in (vs, rho)):
+            self.mu = Function(name="mu", grid=self.grid, space_order=space_order,
+                               parameter=True)
+            initialize_function(self.mu, vs**2*rho, self.nbpml)
+        else:
+            self.mu = Constant(name="mu", value=vs**2*rho)
+        self._physical_parameters += ('mu',)
 
-        self.vp = self._gen_phys_param(vp, 'vp', space_order)
-        physical_parameters.append('vp')
+        # Create lambda Lame paramter
+        if any(isinstance(p, np.ndarray) for p in (vp, vs, rho)):
+            self.lam = Function(name="l", grid=self.grid, space_order=space_order,
+                                parameter=True)
+            initialize_function(self.lam, (vp**2 - 2 * vs**2)*rho, self.nbpml)
+        else:
+            self.lam = Constant(name="l", value=(vp**2 - 2 * vs**2)*rho)
+        self._physical_parameters += ('l',)
 
-        self.vs = self._gen_phys_param(vs, 'vs', space_order)
-        physical_parameters.append('vs')
-
-        self.rho = self._gen_phys_param(rho, 'rho', space_order)
-        physical_parameters.append('rho')
-
-        self._physical_parameters = as_tuple(physical_parameters)
+        # Create inverse of density
+        if isinstance(rho, np.ndarray):
+            self.irho = Function(name="irho", grid=self.grid, space_order=space_order,
+                                 parameter=True)
+            initialize_function(self.irho, 1/rho, self.nbpml)
+        else:
+            self.rho = Constant(name="irho", value=1/rho)
+        self._physical_parameters += ('irho',)
 
     @property
     def critical_dt(self):
@@ -779,7 +797,11 @@ class ModelElastic(GenericModel):
         Critical computational time step value from the CFL condition.
         """
         # For a fixed time order this number goes down as the space order increases.
-        return self.dtype(.95*np.min(self.spacing) / (np.sqrt(2)*mmax(self.vp)))
+        #
+        # The CFL condtion is then given by
+        # dt < h / (sqrt(2) * max(vp)))
+        coeff = np.sqrt(3) if len(self.shape) == 3 else np.sqrt(3)
+        return self.dtype(.95*mmin(self.spacing) / (coeff*self.maxvp))
 
 
 class ModelViscoelastic(ModelElastic):

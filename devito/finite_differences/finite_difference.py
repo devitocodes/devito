@@ -16,7 +16,7 @@ _PRECISION = 9
 @check_input
 @check_symbolic
 def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
-                     symbolic=False):
+                     symbolic=False, x0={}):
     """
     First-order derivative of a given expression.
 
@@ -78,7 +78,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     order = fd_order or expr.space_order
 
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind = generate_indices(expr, dim, diff, order, side=side)[0]
+    ind = generate_indices(expr, dim, diff, order, side=side, x0=x0)[0]
 
     # Finite difference weights from Taylor approximation with these positions
     if symbolic:
@@ -88,7 +88,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
 
     # Loop through positions
     deriv = 0
-    all_dims = tuple(set((dim,) + tuple([i for i in expr.indices if i.root == dim])))
+    all_dims = tuple(set((expr.index(dim),) +
+                     tuple(expr.index(i) for i in expr.dimensions if i.root == dim)))
     for i in range(len(ind)):
         subs = dict([(d, ind[i].subs({dim: d, diff: matvec.val*diff})) for d in all_dims])
         deriv += expr.subs(subs) * c[i]
@@ -101,7 +102,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
 
 @check_input
 @check_symbolic
-def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
+def second_derivative(expr, dim, fd_order, **kwargs):
     """
     Second-order derivative of a given expression.
 
@@ -146,12 +147,12 @@ def second_derivative(expr, dim, fd_order, stagger=None, **kwargs):
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
 
-    return generic_derivative(expr, dim, fd_order, 2, stagger=None, **kwargs)
+    return generic_derivative(expr, dim, fd_order, 2, **kwargs)
 
 
 @check_input
 @check_symbolic
-def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
+def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -201,18 +202,17 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None, **kwargs):
  0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
  0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
     """
-
-    stagger = stagger or [None]*len(dims)
-    for d, fd, dim, s in zip(deriv_order, fd_order, dims, stagger):
-        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
+    x0 = kwargs.get('x0', {})
+    for d, fd, dim in zip(deriv_order, fd_order, dims):
+        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0)
 
     return expr
 
 
 @check_input
 @check_symbolic
-def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=False,
-                       matvec=direct):
+def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
+                       matvec=direct, x0={}):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -238,7 +238,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
     diff = dim.spacing
 
     # Stencil positions
-    indices, x0 = generate_indices(expr, dim, diff, fd_order, stagger=stagger)
+    indices, x0 = generate_indices(expr, dim, diff, fd_order, x0=x0)
 
     # Finite difference weights from Taylor approximation with these positions
     if symbolic:

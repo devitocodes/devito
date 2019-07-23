@@ -10,6 +10,7 @@ from devito.finite_differences.finite_difference import (generic_derivative,
 from devito.finite_differences.differentiable import Differentiable
 from devito.finite_differences.tools import centered, direct, transpose, left, right
 from devito.tools import as_tuple, filter_ordered
+from devito.types import NODE
 
 __all__ = ['Derivative']
 
@@ -73,7 +74,7 @@ class Derivative(sympy.Derivative, Differentiable):
     Derivative(u(x, y), (x, 2))
     """
 
-    _state = ('expr', 'dims', 'side', 'stagger', 'fd_order', 'transpose', '_eval_at')
+    _state = ('expr', 'dims', 'side', 'fd_order', 'transpose', '_eval_at', 'x0')
 
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) == sympy.Derivative:
@@ -134,10 +135,9 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._fd_order = fd_orders
         obj._deriv_order = orders
         obj._side = kwargs.get("side", centered)
-        obj._stagger = kwargs.get("stagger", tuple([left]*len(obj._dims)))
         obj._transpose = kwargs.get("transpose", direct)
         obj._eval_at = as_tuple(kwargs.get("eval_at"))
-
+        obj._x0 = kwargs.get('x0', {d: d for d in obj._dims})
         return obj
 
     def _xreplace(self, eval_at):
@@ -147,16 +147,16 @@ class Derivative(sympy.Derivative, Differentiable):
         """
         eval_at = self._eval_at + (eval_at,)  # Postponed substitutions
         return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
-                          fd_order=self.fd_order, side=self.side, stagger=self.stagger,
-                          transpose=self.transpose, eval_at=eval_at), True
-
-    @cached_property
-    def _args_diff(self):
-        return tuple(i for i in self.args if isinstance(i, Differentiable))
+                          fd_order=self.fd_order, side=self.side,
+                          transpose=self.transpose, eval_at=eval_at, x0=self.x0), True
 
     @property
     def dims(self):
         return self._dims
+
+    @property
+    def x0(self):
+        return self._x0
 
     @property
     def fd_order(self):
@@ -165,10 +165,6 @@ class Derivative(sympy.Derivative, Differentiable):
     @property
     def deriv_order(self):
         return self._deriv_order
-
-    @property
-    def stagger(self):
-        return self._stagger
 
     @property
     def side(self):
@@ -181,6 +177,10 @@ class Derivative(sympy.Derivative, Differentiable):
     @property
     def is_TimeDependent(self):
         return self.expr.is_TimeDependent
+
+    @property
+    def bonjour_from_deriv(self):
+        return
 
     @property
     def T(self):
@@ -196,22 +196,28 @@ class Derivative(sympy.Derivative, Differentiable):
             adjoint = direct
 
         return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
-                          fd_order=self.fd_order, side=self.side, stagger=self.stagger,
-                          transpose=adjoint)
+                          fd_order=self.fd_order, side=self.side, transpose=adjoint,
+                          x0=self.x0)
 
+    def eval_at(self, var):
+        x0 = {d1: d2 for d1, d2 in zip(var.dimensions, var.index_ref)}
+        return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
+                          fd_order=self.fd_order, side=self.side,
+                          transpose=self.transpose, eval_at=self._eval_at, x0=x0)
+        
     @property
     def evaluate(self):
         expr = getattr(self.expr, 'evaluate', self.expr)
         if self.side in [left, right] and self.deriv_order == 1:
             res = first_derivative(expr, self.dims[0], self.fd_order,
-                                   side=self.side, matvec=self.transpose)
+                                   side=self.side, matvec=self.transpose,
+                                   x0=self.x0)
         elif len(self.dims) > 1:
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
-                                   matvec=self.transpose, stagger=self.stagger)
+                                   matvec=self.transpose, x0=self.x0)
         else:
-            res = generic_derivative(expr, *self.dims, self.fd_order,
-                                     self.deriv_order, stagger=self.stagger[0],
-                                     matvec=self.transpose)
+            res = generic_derivative(expr, *self.dims, self.fd_order, self.deriv_order,
+                                     matvec=self.transpose, x0=self.x0)
         for e in self._eval_at:
             res = res.xreplace(e)
         return res

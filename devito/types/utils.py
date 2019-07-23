@@ -1,3 +1,4 @@
+import sympy
 from devito.tools import Tag
 # Additional Function-related APIs
 

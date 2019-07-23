@@ -39,6 +39,11 @@ def q_function(expr):
     return isinstance(expr, DiscreteFunction)
 
 
+def q_derivative(expr):
+    from devito.finite_differences.derivative import Derivative
+    return isinstance(expr, Derivative)
+
+
 def q_terminal(expr):
     return expr.is_Symbol or expr.is_Indexed
 

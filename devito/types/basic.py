@@ -433,11 +433,13 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable):
                                 |
                       AbstractCachedTensor
                                 |
+                          TensorFunction
+                                |
                  ---------------------------------
                  |                               |
-          VectorFunction                   TensorFunction
-                 |                               |
-          VectorTimeFunction               TensorTimeFunction
+          VectorFunction                 TensorTimeFunction
+                                                 |
+                                         VectorimeFunction
 
     There are four relevant AbstractFunction sub-types: ::
 
@@ -671,8 +673,12 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         return self._index_ref
 
     @property
+    def ind_map(self):
+        return {d1: d2 for d1, d2 in zip(self.dimensions, self.index_ref)}
+
+    @property
     def origin(self):
-        return (r - d for r, d in zip(self.index_ref, self.dimensions))
+        return tuple(r - d for r, d in zip(self.index_ref, self.dimensions))
 
     @property
     def dimensions(self):
@@ -683,7 +689,8 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
     def evaluate(self):
         # Average values if at a location not on the Function's grid
         weight = 1.0
-        avg_list = []
+        avg_list = [self]
+        avg = False
         for i, ir, d in zip(self.indices, self.index_ref, self.dimensions):
             off = (i - ir)/d.spacing
             if not isinstance(off, sympy.Number):
@@ -692,11 +699,12 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
                 pass
             else:
                 weight *= 1/2
-                avg_list.append(self.subs({i: i - d.spacing/2}) +
-                                self.subs({i: i + d.spacing/2}))
-        if len(avg_list) == 0:
-            return self
+                avg = True
+                avg_list = [a.subs({i: i - d.spacing/2}) + a.subs({i: i + d.spacing/2})
+                            for a in avg_list]
 
+        if not avg:
+            return self
         return weight * sum(avg_list)
 
     def index(self, dim):
@@ -1027,7 +1035,7 @@ class Array(AbstractCachedFunction):
 
     def update(self, **kwargs):
         self._shape = kwargs.get('shape', self.shape)
-        self._indices = kwargs.get('dimensions', self.dimensions)
+        self._dimensions = kwargs.get('dimensions', self.dimensions)
         self._dtype = kwargs.get('dtype', self.dtype)
         self._halo = kwargs.get('halo', self._halo)
         self._padding = kwargs.get('padding', self._padding)
@@ -1035,7 +1043,7 @@ class Array(AbstractCachedFunction):
         assert self._scope in ['heap', 'stack']
 
     # Pickling support
-    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['dimensions', 'scope']
+    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['indices', 'scope']
 
 
 # Objects belonging to the Devito API not involving data, such as data structures
@@ -1247,6 +1255,10 @@ class Indexed(sympy.Indexed):
     @property
     def name(self):
         return self.function.name
+
+    @property
+    def origin(self):
+        return self.function.origin
 
 # Utilities
 

@@ -1,6 +1,8 @@
 from collections import ChainMap
 
 import sympy
+from sympy import S
+
 from sympy.functions.elementary.integers import floor
 from sympy.core.evalf import evalf_table
 from sympy.core.decorators import call_highest_priority
@@ -109,6 +111,12 @@ class Differentiable(sympy.Expr, Evaluable):
     def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)
 
+    def eval_at(self, var):
+        if not var.is_Staggered:
+            return self
+        # print([(a, type(a), getattr(a, 'eval_at', lambda x: a)(var)) for a in self.args])
+        return self.func(*[getattr(a, 'eval_at', lambda x: a)(var) for a in self.args])
+
     def __hash__(self):
         return super(Differentiable, self).__hash__()
 
@@ -143,14 +151,12 @@ class Differentiable(sympy.Expr, Evaluable):
     def __rsub__(self, other):
         return Add(other, -self)
 
-    @call_highest_priority('__rmul__')
     def __mul__(self, other):
         return Mul(self, other)
 
     def __imul__(self, other):
         return Mul(self, other)
 
-    @call_highest_priority('__mul__')
     def __rmul__(self, other):
         return Mul(other, self)
 

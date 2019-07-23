@@ -117,10 +117,10 @@ class TestOperatorSimple(object):
             1 4 4 ... 4 1
             1 1 1 ... 1 1
         """
-        grid = Grid(shape=(16, 16, 16))
+        grid = Grid(shape=(17, 17, 17))
         v = TimeFunction(name='yv4D', grid=grid, space_order=space_order)
         v.data_with_halo[:] = 1.
-        op = Operator(Eq(v.forward, v.laplace + 6*v), subs=grid.spacing_map)
+        op = Operator(Eq(v.forward, v.laplace + 6.0*v), subs=grid.spacing_map)
         op(yv4D=v, time=0)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to

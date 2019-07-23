@@ -6,7 +6,8 @@ import pytest
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
                     ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
-                    clear_cache)
+                    VectorFunction, VectorTimeFunction, TensorFunction,
+                    TensorTimeFunction, clear_cache)
 from devito.types.basic import _SymbolCache, Scalar
 
 pytestmark = skipif(['yask', 'ops'])
@@ -24,6 +25,20 @@ def test_cache_function_new(FunctionType):
     assert np.allclose(u1.data, 2.)
 
 
+@pytest.mark.parametrize('FunctionType', [VectorFunction, TensorFunction,
+                                          VectorTimeFunction, TensorTimeFunction])
+def test_cache_tensor_new(FunctionType):
+    """Test that new u[x, y] instances don't cache"""
+    grid = Grid(shape=(3, 4))
+    u0 = FunctionType(name='u', grid=grid)
+    for s in u0:
+        s.data[:] = 6.
+    u1 = FunctionType(name='u', grid=grid)
+    for s in u1:
+        s.data[:] = 2.
+    assert np.all(np.allclose(s.data, 6.) for s in u0)
+
+
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_same_indices(FunctionType):
     """Test caching of derived u[x, y] instance from derivative"""
@@ -37,6 +52,21 @@ def test_cache_function_same_indices(FunctionType):
     assert np.allclose(u2.data, 6.)
 
 
+@pytest.mark.parametrize('FunctionType', [VectorFunction, TensorFunction,
+                                          VectorTimeFunction, TensorTimeFunction])
+def test_cache_tensor_same_indices(FunctionType):
+    """Test caching of derived u[x, y] instance from derivative"""
+    grid = Grid(shape=(3, 4))
+    u0 = FunctionType(name='u', grid=grid)
+    for s in u0:
+        s.data[:] = 6.
+    # Pick u(x, y) and u(x + h_x, y) from derivative
+    u1 = u0.dx.evaluate[0].args[1].args[2]
+    u2 = u0.dx.evaluate[1].args[0].args[1]
+    assert np.allclose(u1.data, 6.)
+    assert np.allclose(u2.data, 6.)
+
+
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_different_indices(FunctionType):
     """Test caching of u[x + h, y] instance from derivative"""
@@ -46,6 +76,19 @@ def test_cache_function_different_indices(FunctionType):
     # Pick u[x + h, y] (different indices) from derivative
     u = u0.dx.evaluate.args[0].args[1]
     assert np.allclose(u.data, u0.data)
+
+
+@pytest.mark.parametrize('FunctionType', [VectorFunction, TensorFunction,
+                                          VectorTimeFunction, TensorTimeFunction])
+def test_cache_tensor_different_indices(FunctionType):
+    """Test caching of u[x + h, y] instance from derivative"""
+    grid = Grid(shape=(3, 4))
+    u0 = FunctionType(name='u', grid=grid)
+    for s in u0:
+        s.data[:] = 6.
+    # Pick u[x + h, y] (different indices) from derivative
+    u = u0.dx.evaluate[0].args[0].args[1]
+    assert np.allclose(u.data, u0[0].data)
 
 
 def test_cache_constant_new():
@@ -99,8 +142,8 @@ def test_symbol_cache_aliasing():
 
 
 def test_symbol_cache_aliasing_reverse():
-    """Test to assert that removing he original u[x, y] instance does
-    not impede our alisaing cache or leaks memory.
+    """Test to assert that removing the original u[x, y] instance does
+    not impede our aliasing cache or leaks memory.
     """
 
     # Ensure a clean cache to start with
@@ -171,6 +214,22 @@ def test_constant_hash():
 
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_function_hash(FunctionType):
+    """Test that different Functions have different hash value."""
+    grid0 = Grid(shape=(3, 3))
+    u0 = FunctionType(name='u', grid=grid0)
+    grid1 = Grid(shape=(4, 4))
+    u1 = FunctionType(name='u', grid=grid1)
+    assert u0 is not u1
+    assert hash(u0) != hash(u1)
+    # Now with the same grid
+    u2 = FunctionType(name='u', grid=grid0)
+    assert u0 is not u2
+    assert hash(u0) != hash(u2)
+
+
+@pytest.mark.parametrize('FunctionType', [TensorFunction, TensorTimeFunction,
+                                          VectorTimeFunction, TimeFunction])
+def test_tensor_hash(FunctionType):
     """Test that different Functions have different hash value."""
     grid0 = Grid(shape=(3, 3))
     u0 = FunctionType(name='u', grid=grid0)

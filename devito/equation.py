@@ -76,8 +76,13 @@ class Eq(sympy.Eq, Evaluable):
 
     @cached_property
     def evaluate(self):
-        eq = self.func(*self._evaluate_args(), subdomain=self.subdomain,
-                       coefficients=self.substitutions, implicit_dims=self._implicit_dims)
+        try:
+            lhs, rhs = self.lhs.evaluate, self.rhs.eval_at(self.lhs).evaluate
+        except AttributeError:
+            lhs, rhs = self._evaluate_args()
+        eq = self.func(lhs, rhs, subdomain=self.subdomain,
+                       coefficients=self.substitutions,
+                       implicit_dims=self._implicit_dims)
         if eq._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
@@ -97,7 +102,7 @@ class Eq(sympy.Eq, Evaluable):
         try:
             lhss = self.lhs.values()
             rhss = self.rhs.values(symmetric=self.lhs.is_symmetric)
-            return [Eq(l, l.at_variable(r)) for l, r in zip(lhss, rhss)]
+            return [Eq(l, r) for l, r in zip(lhss, rhss)]
         except AttributeError:
             return [self]
 
