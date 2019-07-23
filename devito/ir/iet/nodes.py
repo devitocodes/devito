@@ -203,7 +203,7 @@ class Call(Simple, Node):
 
     def __init__(self, name, arguments=None, statement=None):
         self.name = name
-        self.statement = statement if statement is not None else True
+        self.statement = statement or True
         self.arguments = as_tuple(arguments)
 
     def __repr__(self):

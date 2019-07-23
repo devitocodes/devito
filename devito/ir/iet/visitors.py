@@ -167,8 +167,7 @@ class CGen(Visitor):
         for i in args:
             try:
                 if isinstance(i, Call):
-                    res = self.visit(i)
-                    ret.append(res.text)
+                    ret.append(self.visit(i).text)
                 elif i.is_LocalObject:
                     ret.append('&%s' % i._C_name)
                 elif i.is_Array:
@@ -532,7 +531,7 @@ class FindSymbols(Visitor):
 
     def visit_Call(self, o):
         symbols = self._visit(o.children)
-        symbols += [f for f in self.rule(o)]
+        symbols.extend([f for f in self.rule(o)])
         return filter_sorted(symbols, key=attrgetter('name'))
 
     visit_ArrayCast = visit_Expression
