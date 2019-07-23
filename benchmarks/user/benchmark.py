@@ -4,7 +4,9 @@ import sys
 import numpy as np
 import click
 
-from devito import clear_cache, configuration, mode_develop, mode_benchmark, warning
+from devito import (clear_cache, configuration, mode_develop, mode_benchmark, warning,
+                    set_log_level)
+from devito.mpi import MPI
 from devito.tools import as_tuple, sweep
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
@@ -376,4 +378,8 @@ def get_ob_plotter():
 
 
 if __name__ == "__main__":
+    # If running with MPI, we emit logging messages from rank0 only
+    MPI.Init()  # Devito starts off with MPI disabled!
+    set_log_level('INFO', comm=MPI.COMM_WORLD)
+
     benchmark()
