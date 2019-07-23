@@ -259,7 +259,7 @@ class PlatformRewriter(AbstractRewriter):
             hs = hoistable.pop()
             if hs in mapper:
                 continue
-            if i.dim in hs.dimensions:
+            if i.dim.root in hs.dimensions:
                 mapper[hs] = hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.hoistable))
 
                 halo_scheme = hs.halo_scheme.project(hs.hoistable)
