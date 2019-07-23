@@ -8,8 +8,8 @@ import cgen
 from devito.dle.blocking_utils import Blocker, BlockDimension
 from devito.dle.parallelizer import Ompizer
 from devito.exceptions import DLEException
-from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, FindSymbols,
-                           FindNodes, FindAdjacent, MapNodes, Transformer,
+from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL,
+                           FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
                            filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv, dle_warning as warning
 from devito.mpi import HaloExchangeBuilder, HaloScheme
@@ -328,6 +328,20 @@ class PlatformRewriter(AbstractRewriter):
             mapper[hs] = heb.make(hs, i)
         efuncs = sync_heb.efuncs + user_heb.efuncs
         objs = sync_heb.objs + user_heb.objs
+        iet = Transformer(mapper, nested=True).visit(iet)
+
+        # Must drop the PARALLEL tag from the Iterations within which halo
+        # exchanges are performed
+        mapper = {}
+        for tree in retrieve_iteration_tree(iet):
+            for i in reversed(tree):
+                if i in mapper:
+                    # Already seen this subtree, skip
+                    break
+                if FindNodes(Call).visit(i):
+                    mapper.update({n: n._rebuild(properties=set(n.properties)-{PARALLEL})
+                                   for n in tree[:tree.index(i)+1]})
+                    break
         iet = Transformer(mapper, nested=True).visit(iet)
 
         return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'args': objs}
