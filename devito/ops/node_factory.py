@@ -1,10 +1,9 @@
 from collections import OrderedDict
 
-from devito import Dimension, TimeFunction
-from devito.ops.utils import namespace
-from devito.symbolics import Macro, split_affine
-from devito.types import Indexed, Array
+from devito import Constant, TimeFunction
 from devito.types.dimension import SpaceDimension
+from devito.symbolics import split_affine
+from devito.ops.types import OpsAccess, OpsAccessible
 
 
 class OPSNodeFactory(object):
@@ -18,7 +17,7 @@ class OPSNodeFactory(object):
     def __init__(self):
         self.ops_args = OrderedDict()
 
-    def new_ops_arg(self, indexed):
+    def new_ops_arg(self, indexed, is_write):
         """
         Create an Indexed node using OPS representation.
 
@@ -35,28 +34,32 @@ class OPSNodeFactory(object):
 
         # Build the OPS arg identifier
         time_index = split_affine(indexed.indices[TimeFunction._time_position])
-        ops_arg_id = '%s%s%s' % (indexed.name, time_index.var, time_index.shift)
+        ops_arg_id = ('%s%s' % (indexed.name, time_index.var)
+                      if indexed.function.is_TimeFunction else indexed.name)
 
         if ops_arg_id not in self.ops_args:
-            # Create the indexed object
-            ops_arg = Array(name=ops_arg_id,
-                            dimensions=[Dimension(name=namespace['ops_acc'])],
-                            dtype=indexed.dtype)
-
-            self.ops_args[ops_arg_id] = ops_arg
+            symbol_to_access = OpsAccessible(
+                ops_arg_id,
+                indexed.dtype,
+                not is_write
+            )
+            self.ops_args[ops_arg_id] = symbol_to_access
         else:
-            ops_arg = self.ops_args[ops_arg_id]
+            symbol_to_access = self.ops_args[ops_arg_id]
 
         # Get the space indices
-        space_indices = [i for i in indexed.indices if isinstance(
-            split_affine(i).var, SpaceDimension)]
+        space_indices = [
+            split_affine(i).shift for i in indexed.indices
+            if isinstance(split_affine(i).var, SpaceDimension)
+        ]
 
-        # Define the Macro used in OPS arg index
-        access_macro = Macro('OPS_ACC%d(%s)' % (list(self.ops_args).index(ops_arg_id),
-                                                ','.join(str(split_affine(i).shift)
-                                                         for i in space_indices)))
+        return OpsAccess(symbol_to_access, space_indices)
 
-        # Create Indexed object representing the OPS arg access
-        new_indexed = Indexed(ops_arg.indexed, access_macro)
+    def new_ops_gbl(self, c):
+        if c in self.ops_args:
+            return self.ops_args[c]
 
-        return new_indexed
+        new_c = Constant(name='*%s' % c.name, dtype=c.dtype)
+        self.ops_args[c] = new_c
+
+        return new_c

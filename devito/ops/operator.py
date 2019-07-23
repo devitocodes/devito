@@ -3,6 +3,7 @@ from devito.logger import warning
 from devito.operator import Operator
 from devito.symbolics import Literal
 
+from devito.ops.transformer import opsit
 from devito.ops.utils import namespace
 
 __all__ = ['OperatorOPS']
@@ -15,10 +16,10 @@ class OperatorOPS(Operator):
     """
 
     def __init__(self, *args, **kwargs):
+        self._ops_kernels = []
         super().__init__(*args, **kwargs)
 
     def _specialize_iet(self, iet, **kwargs):
-
         warning("The OPS backend is still work-in-progress")
 
         ops_init = Call(namespace['ops_init'], [0, 0, 2])
@@ -27,6 +28,8 @@ class OperatorOPS(Operator):
 
         dims = []
         for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
+            ops_kernel = opsit(trees, n)
+            self._ops_kernels.append(ops_kernel)
             dims.append(len(trees[n].dimensions))
 
         assert (d == dims[0] for d in dims), \
