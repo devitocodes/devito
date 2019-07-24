@@ -5,7 +5,7 @@ from unittest.mock import patch
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, Operator, norm, inner, switchconfig)
+                    SubDimension, Eq, Inc, NODE, Operator, norm, inner, switchconfig)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
 from devito.mpi import MPI
@@ -1393,6 +1393,36 @@ class TestOperatorAdvanced(object):
         u1_norm = norm(u)
 
         assert u0_norm == u1_norm
+
+    @pytest.mark.parallel(mode=[(4, 'full', True)])
+    def test_staggering(self):
+        """
+        Test MPI in presence of staggered grids.
+
+        The equations are semantically meaningless, but they are designed to
+        generate the kind of loop nest structure which is typical of *-elastic
+        problems (e.g., visco-elastic).
+        """
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+
+        so = 2
+        ux = TimeFunction(name='ux', grid=grid, staggered=x, space_order=so)
+        uxx = TimeFunction(name='uxx', grid=grid, staggered=NODE, space_order=so)
+        uxy = TimeFunction(name='uxy', grid=grid, staggered=(x, y), space_order=so)
+
+        eqns = [Eq(ux.forward, ux + 0.2*uxx.dx + uxy.dy + 0.5),
+                Eq(uxx.forward, uxx + ux.forward.dx + ux.forward.dy + 1.),
+                Eq(uxy.forward, 40.*uxy + ux.forward.dx + ux.forward.dy + 3.)]
+
+        op = Operator(eqns)
+
+        op(time_M=2)
+
+        # Expected norms computed "manually" from sequential runs
+        assert np.isclose(norm(ux), 5408.574, rtol=1.e-4)
+        assert np.isclose(norm(uxx), 60904.192, rtol=1.e-4)
+        assert np.isclose(norm(uxy), 58555.359, rtol=1.e-4)
 
 
 class TestIsotropicAcoustic(object):
