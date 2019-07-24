@@ -92,6 +92,7 @@ class MPIReduction(object):
             self.v = comm.allreduce(np.asarray(self.n.data), self.op)[0]
 
 
+@dv.switchconfig(log_level='ERROR')
 def norm(f, order=2):
     """
     Compute the norm of a Function.
