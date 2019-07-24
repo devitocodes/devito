@@ -800,7 +800,7 @@ class TestNestedCalls(object):
 
     def test_nested_calls_cgen(self):
         call = Call('foo', [
-            Call('bar', [], False)
+            Call('bar', [])
         ])
 
         code = CGen().visit(call)

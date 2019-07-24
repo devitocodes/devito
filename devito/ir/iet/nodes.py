@@ -201,9 +201,10 @@ class Call(Simple, Node):
 
     is_Call = True
 
-    def __init__(self, name, arguments=None, statement=None):
+    _traversable = ['arguments']
+
+    def __init__(self, name, arguments=None):
         self.name = name
-        self.statement = statement or True
         self.arguments = as_tuple(arguments)
 
     def __repr__(self):
@@ -228,10 +229,6 @@ class Call(Simple, Node):
     @property
     def defines(self):
         return ()
-
-    @property
-    def children(self):
-        return tuple(i for i in self.arguments if isinstance(i, Call))
 
 
 class Expression(Simple, Node):

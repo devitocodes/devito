@@ -232,9 +232,7 @@ class CGen(Visitor):
     def visit_Call(self, o):
         arguments = self._args_call(o.arguments)
         code = '%s(%s)' % (o.name, ','.join(arguments))
-        if o.statement:
-            return c.Statement(code)
-        return c.Line(code)
+        return c.Statement(code)
 
     def visit_Conditional(self, o):
         then_body = c.Block(self._visit(o.then_body))
