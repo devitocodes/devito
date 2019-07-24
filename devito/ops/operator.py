@@ -1,6 +1,7 @@
 from devito.ir.iet import Call, List, find_affine_trees
 from devito.logger import warning
 from devito.operator import Operator
+from devito.symbolics import Literal
 
 from devito.ops.transformer import opsit
 from devito.ops.utils import namespace
@@ -22,6 +23,7 @@ class OperatorOPS(Operator):
         warning("The OPS backend is still work-in-progress")
 
         ops_init = Call(namespace['ops_init'], [0, 0, 2])
+        ops_partition = Call(namespace['ops_partition'], Literal('""'))
         ops_exit = Call(namespace['ops_exit'])
 
         dims = []
@@ -37,6 +39,6 @@ class OperatorOPS(Operator):
         self._headers.append(namespace['ops-define-dimension'](dims[0]))
         self._includes.append('stdio.h')
 
-        body = [ops_init, iet, ops_exit]
+        body = [ops_init, ops_partition, iet, ops_exit]
 
         return List(body=body)
