@@ -40,7 +40,8 @@ class HaloExchangeBuilder(object):
             obj = object.__new__(FullHaloExchangeBuilder)
         else:
             assert False, "unexpected value `mode=%s`" % mode
-        obj._cache = OrderedDict()
+        obj._halo_cache = OrderedDict()
+        obj._dims_cache = OrderedDict()
         obj._regions = OrderedDict()
         obj._msgs = OrderedDict()
         obj._efuncs = []
@@ -75,11 +76,9 @@ class HaloExchangeBuilder(object):
             msgkey = '%d_%d' % (key, len(self.msgs))
             msg = self._make_msg(f, hse, msgkey)
             msg = self._msgs.setdefault((f, hse), msg)
-            if (f.ndim, hse) not in self._cache:
-                df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
-                                          dimensions=f.dimensions)
-                cachekey = '%d_%d' % (key, len(self._cache))
-                self._cache[(f.ndim, hse)] = self._make_all(df, hse, cachekey, msg)
+            if (f.ndim, hse) not in self._halo_cache:
+                cachekey = '%d_%d' % (key, len(self._halo_cache))
+                self._halo_cache[(f.ndim, hse)] = self._make_all(f, hse, cachekey, msg)
 
         msgs = [self._msgs[(f, hse)] for f, hse in hs.fmapper.items()]
 
@@ -106,7 +105,7 @@ class HaloExchangeBuilder(object):
         body = [callcompute]
         for i, (f, hse) in enumerate(hs.fmapper.items()):
             msg = self._msgs[(f, hse)]
-            haloupdate, halowait = self._cache[(f.ndim, hse)]
+            haloupdate, halowait = self._halo_cache[(f.ndim, hse)]
             body.insert(i, self._call_haloupdate(haloupdate.name, f, hse, msg))
             if halowait is not None:
                 body.append(self._call_halowait(halowait.name, f, hse, msg))
@@ -139,7 +138,7 @@ class HaloExchangeBuilder(object):
         return
 
     @abc.abstractmethod
-    def _make_copy(self, f, hse, key, swap=False):
+    def _make_copy(self, f, hse, swap=False):
         """
         Construct a Callable performing a copy of:
 
@@ -150,7 +149,7 @@ class HaloExchangeBuilder(object):
         return
 
     @abc.abstractmethod
-    def _make_sendrecv(self, f, hse, key, **kwargs):
+    def _make_sendrecv(self, f, hse, **kwargs):
         """
         Construct a Callable performing, for a given DiscreteFunction, a halo exchange
         along given Dimension and DataSide.
@@ -212,7 +211,7 @@ class HaloExchangeBuilder(object):
         return
 
     @abc.abstractmethod
-    def _make_wait(self, f, hse, key, **kwargs):
+    def _make_wait(self, f, hse, **kwargs):
         """
         Construct a Callable performing, for a given DiscreteFunction, a wait on
         a halo exchange along given Dimension and DataSide.
@@ -261,19 +260,24 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         return
 
     def _make_all(self, f, hse, key, msg):
-        haloupdate = self._make_haloupdate(f, hse, key, msg=msg)
-        sendrecv = self._make_sendrecv(f, hse, key, msg=msg)
-        gather = self._make_copy(f, hse, key)
-        scatter = self._make_copy(f, hse, key, swap=True)
+        df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
+                                  dimensions=f.dimensions)
 
-        self._efuncs.extend([haloupdate, sendrecv, gather, scatter])
+        if f.dimensions not in self._dims_cache:
+            sendrecv = self._make_sendrecv(df, hse, msg=msg)
+            gather = self._make_copy(df, hse)
+            scatter = self._make_copy(df, hse, swap=True)
+            self._dims_cache[f.dimensions] = [sendrecv, gather, scatter]
 
-        halowait = self._make_halowait(f, hse, key, msg=msg)
+        haloupdate = self._make_haloupdate(df, hse, key, msg=msg)
+        halowait = self._make_halowait(df, hse, key, msg=msg)
         assert halowait is None
+
+        self._efuncs.extend([haloupdate] + self._dims_cache[f.dimensions])
 
         return haloupdate, halowait
 
-    def _make_copy(self, f, hse, key='', swap=False):
+    def _make_copy(self, f, hse, swap=False):
         buf_dims = []
         buf_indices = []
         for d in f.dimensions:
@@ -289,12 +293,13 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             f_offsets.append(offset)
             f_indices.append(offset + (d.root if d not in hse.loc_indices else 0))
 
+        key = "".join(str(d) for d in f.dimensions)
         if swap is False:
             eq = DummyEq(buf[buf_indices], f[f_indices])
-            name = 'gather%s' % key
+            name = 'gather_%s' % key
         else:
             eq = DummyEq(f[f_indices], buf[buf_indices])
-            name = 'scatter%s' % key
+            name = 'scatter_%s' % key
 
         iet = Expression(eq)
         for i, d in reversed(list(zip(buf_indices, buf_dims))):
@@ -305,7 +310,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         parameters = [buf] + list(buf.shape) + [f] + f_offsets
         return Callable(name, iet, 'void', parameters, ('static',))
 
-    def _make_sendrecv(self, f, hse, key='', **kwargs):
+    def _make_sendrecv(self, f, hse, **kwargs):
         comm = f.grid.distributor._obj_comm
 
         buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions
@@ -321,8 +326,9 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         fromrank = Symbol(name='fromrank')
         torank = Symbol(name='torank')
 
-        gather = Call('gather%s' % key, [bufg] + list(bufg.shape) + [f] + ofsg)
-        scatter = Call('scatter%s' % key, [bufs] + list(bufs.shape) + [f] + ofss)
+        key = "".join(str(d) for d in f.dimensions)
+        gather = Call('gather_%s' % key, [bufg] + list(bufg.shape) + [f] + ofsg)
+        scatter = Call('scatter_%s' % key, [bufs] + list(bufs.shape) + [f] + ofss)
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
@@ -343,7 +349,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
         parameters = ([f] + list(bufs.shape) + ofsg + ofss + [fromrank, torank, comm])
-        return Callable('sendrecv%s' % key, iet, 'void', parameters, ('static',))
+        return Callable('sendrecv_%s' % key, iet, 'void', parameters, ('static',))
 
     def _call_sendrecv(self, name, *args, **kwargs):
         return Call(name, flatten(args))
@@ -352,6 +358,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         distributor = f.grid.distributor
         nb = distributor._obj_neighborhood
         comm = distributor._obj_comm
+        sendrecv = self._dims_cache[f.dimensions][0]
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
@@ -388,14 +395,14 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                 lsizes, lofs = mapper[(d, LEFT, OWNED)]
                 rsizes, rofs = mapper[(d, RIGHT, HALO)]
                 args = [f, lsizes, lofs, rofs, rpeer, lpeer, comm]
-                body.append(self._call_sendrecv('sendrecv%s' % key, *args, **kwargs))
+                body.append(self._call_sendrecv(sendrecv.name, *args, **kwargs))
 
             if (d, RIGHT) in hse.halos:
                 # Sending to right, receiving from left
                 rsizes, rofs = mapper[(d, RIGHT, OWNED)]
                 lsizes, lofs = mapper[(d, LEFT, HALO)]
                 args = [f, rsizes, rofs, lofs, lpeer, rpeer, comm]
-                body.append(self._call_sendrecv('sendrecv%s' % key, *args, **kwargs))
+                body.append(self._call_sendrecv(sendrecv.name, *args, **kwargs))
 
         iet = List(body=body)
         parameters = [f, comm, nb] + list(fixed.values())
@@ -443,6 +450,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
         distributor = f.grid.distributor
         nb = distributor._obj_neighborhood
         comm = distributor._obj_comm
+        sendrecv = self._dims_cache[f.dimensions][0]
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
@@ -467,7 +475,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
 
             kwargs['haloid'] = len(body)
 
-            body.append(self._call_sendrecv('sendrecv%s' % key, f, sizes, ofsg, ofss,
+            body.append(self._call_sendrecv(sendrecv.name, f, sizes, ofsg, ofss,
                                             fromrank, torank, comm, **kwargs))
 
         iet = List(body=body)
@@ -488,21 +496,24 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         return MPIMsg('msg%s' % key, f, halos)
 
     def _make_all(self, f, hse, key, msg):
-        # Callables for asynchronous send/recv
-        haloupdate = self._make_haloupdate(f, hse, key, msg=msg)
-        sendrecv = self._make_sendrecv(f, hse, key, msg=msg)
-        gather = self._make_copy(f, hse, key)
+        df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
+                                  dimensions=f.dimensions)
 
-        # Callables for wait
-        halowait = self._make_halowait(f, hse, key, msg=msg)
-        wait = self._make_wait(f, hse, key, msg=msg)
-        scatter = self._make_copy(f, hse, key, swap=True)
+        if f.dimensions not in self._dims_cache:
+            sendrecv = self._make_sendrecv(df, hse, msg=msg)
+            gather = self._make_copy(df, hse)
+            wait = self._make_wait(df, hse, msg=msg)
+            scatter = self._make_copy(df, hse, swap=True)
+            self._dims_cache[f.dimensions] = [sendrecv, gather, wait, scatter]
 
-        self._efuncs.extend([haloupdate, sendrecv, gather, halowait, wait, scatter])
+        haloupdate = self._make_haloupdate(df, hse, key, msg=msg)
+        halowait = self._make_halowait(df, hse, key, msg=msg)
+
+        self._efuncs.extend([haloupdate, halowait] + self._dims_cache[f.dimensions])
 
         return haloupdate, halowait
 
-    def _make_sendrecv(self, f, hse, key='', msg=None):
+    def _make_sendrecv(self, f, hse, msg=None):
         comm = f.grid.distributor._obj_comm
 
         bufg = FieldFromPointer(msg._C_field_bufg, msg)
@@ -516,8 +527,9 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
 
+        key = "".join(str(d) for d in f.dimensions)
+        gather = Call('gather_%s' % key, [bufg] + sizes + [f] + ofsg)
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
-        gather = Call('gather%s' % key, [bufg] + sizes + [f] + ofsg)
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         count = reduce(mul, sizes, 1)
@@ -530,7 +542,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         iet = List(body=[recv, gather, send])
         parameters = ([f] + ofsg + [fromrank, torank, comm, msg])
-        return Callable('sendrecv%s' % key, iet, 'void', parameters, ('static',))
+        return Callable('sendrecv_%s' % key, iet, 'void', parameters, ('static',))
 
     def _call_sendrecv(self, name, *args, msg=None, haloid=None):
         # Drop `sizes` as this HaloExchangeBuilder conveys them through `msg`
@@ -564,16 +576,17 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         else:
             return compute.make_call(dynamic_args_mapper=hs.omapper.core)
 
-    def _make_wait(self, f, hse, key='', msg=None):
+    def _make_wait(self, f, hse, msg=None):
         bufs = FieldFromPointer(msg._C_field_bufs, msg)
 
         ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
 
         fromrank = Symbol(name='fromrank')
 
+        key = "".join(str(d) for d in f.dimensions)
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
-        scatter = Call('scatter%s' % key, [bufs] + sizes + [f] + ofss)
+        scatter = Call('scatter_%s' % key, [bufs] + sizes + [f] + ofss)
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
@@ -586,10 +599,11 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         iet = List(body=[waitsend, waitrecv, scatter])
         parameters = ([f] + ofss + [fromrank, msg])
-        return Callable('wait%s' % key, iet, 'void', parameters, ('static',))
+        return Callable('wait_%s' % key, iet, 'void', parameters, ('static',))
 
     def _make_halowait(self, f, hse, key='', msg=None):
         nb = f.grid.distributor._obj_neighborhood
+        wait = self._dims_cache[f.dimensions][2]
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
@@ -606,7 +620,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
             msgi = Byref(IndexedPointer(msg, len(body)))
 
-            body.append(Call('wait%s' % key, [f] + ofss + [fromrank, msgi]))
+            body.append(Call(wait.name, [f] + ofss + [fromrank, msgi]))
 
         iet = List(body=body)
         parameters = [f] + list(fixed.values()) + [nb, msg]
@@ -642,20 +656,24 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return MPIMsgEnriched('msg%s' % key, f, halos)
 
     def _make_all(self, f, hse, key, msg):
-        # Callables for asynchronous send/recv
-        haloupdate = self._make_haloupdate(f, hse, key, msg=msg)
-        gather = self._make_copy(f, hse, key)
+        df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
+                                  dimensions=f.dimensions)
 
-        # Callables for wait
-        halowait = self._make_halowait(f, hse, key, msg=msg)
-        scatter = self._make_copy(f, hse, key, swap=True)
+        if f.dimensions not in self._dims_cache:
+            gather = self._make_copy(df, hse)
+            scatter = self._make_copy(df, hse, swap=True)
+            self._dims_cache[f.dimensions] = [gather, scatter]
 
-        self._efuncs.extend([haloupdate, gather, halowait, scatter])
+        haloupdate = self._make_haloupdate(df, hse, key, msg=msg)
+        halowait = self._make_halowait(df, hse, key, msg=msg)
+
+        self._efuncs.extend([haloupdate, halowait] + self._dims_cache[f.dimensions])
 
         return haloupdate, halowait
 
     def _make_haloupdate(self, f, hse, key='', msg=None):
         comm = f.grid.distributor._obj_comm
+        gather = self._dims_cache[f.dimensions][0]
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
@@ -676,7 +694,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         ofsg = [fixed.get(d) or ofsg.pop(0) for d in f.dimensions]
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
-        gather = Call('gather%s' % key, [bufg] + sizes + [f] + ofsg)
+        gather = Call(gather.name, [bufg] + sizes + [f] + ofsg)
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         # Make Irecv/Isend
@@ -705,6 +723,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
     def _make_halowait(self, f, hse, key='', msg=None):
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+        scatter = self._dims_cache[f.dimensions][1]
 
         dim = Dimension(name='i')
 
@@ -722,7 +741,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
-        scatter = Call('scatter%s' % key, [bufs] + sizes + [f] + ofss)
+        scatter = Call(scatter.name, [bufs] + sizes + [f] + ofss)
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
         rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
