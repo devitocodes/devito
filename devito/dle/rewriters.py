@@ -231,13 +231,21 @@ class PlatformRewriter(AbstractRewriter):
             root = halo_spots[0]
             if root in mapper:
                 continue
-
             hss = [root.halo_scheme]
             hss.extend([hs.halo_scheme.project(hs.hoistable) for hs in halo_spots[1:]])
-
-            mapper[root] = root._rebuild(halo_scheme=HaloScheme.union(hss))
-            mapper.update({hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.hoistable))
-                           for hs in halo_spots[1:]})
+            try:
+                mapper[root] = root._rebuild(halo_scheme=HaloScheme.union(hss))
+            except ValueError:
+                # HaloSpots have non-matching `loc_indices` and therefore can't be merged
+                warning("Found hoistable HaloSpots with disjoint loc_indices, "
+                        "skipping optimization")
+                continue
+            for hs in halo_spots[1:]:
+                halo_scheme = hs.halo_scheme.drop(hs.hoistable)
+                if halo_scheme.is_void:
+                    mapper[hs] = hs.body
+                else:
+                    mapper[hs] = hs._rebuild(halo_scheme=halo_scheme)
         iet = Transformer(mapper, nested=True).visit(iet)
 
         # Then, we make sure the halo exchanges get performed *before*
@@ -254,26 +262,20 @@ class PlatformRewriter(AbstractRewriter):
                 continue
             elif len(hoistable) > 1:
                 # We should never end up here, but for now we can't prove it formally
-                warning("Found multiple hoistable Iterations, skipping optimization")
+                warning("Found multiple hoistable HaloSpots, skipping optimization")
                 continue
             hs = hoistable.pop()
             if hs in mapper:
                 continue
             if i.dim.root in hs.dimensions:
-                mapper[hs] = hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.hoistable))
+                halo_scheme = hs.halo_scheme.drop(hs.hoistable)
+                if halo_scheme.is_void:
+                    mapper[hs] = hs.body
+                else:
+                    mapper[hs] = hs._rebuild(halo_scheme=halo_scheme)
 
                 halo_scheme = hs.halo_scheme.project(hs.hoistable)
                 mapper[i] = hs._rebuild(halo_scheme=halo_scheme, body=i._rebuild())
-        iet = Transformer(mapper, nested=True).visit(iet)
-
-        # At this point, some HaloSpots may have become empty (i.e., requiring
-        # no communications), hence they can be removed
-        #
-        # <HaloSpot(u,v)>           HaloSpot(u,v)
-        #   <A>                       <A>
-        # <HaloSpot()>      ---->   <B>
-        #   <B>
-        mapper = {i: i.body for i in FindNodes(HaloSpot).visit(iet) if i.is_empty}
         iet = Transformer(mapper, nested=True).visit(iet)
 
         # Finally, we try to move HaloSpot-free Iteration nests within HaloSpot
