@@ -3,6 +3,7 @@ Utilities to turn SymPy objects into C strings.
 """
 
 import numpy as np
+import devito
 
 from mpmath.libmp import prec_to_dps, to_str
 from sympy.printing.ccode import C99CodePrinter
@@ -31,6 +32,11 @@ class CodePrinter(C99CodePrinter):
         # There exist no unknown Functions
         if expr.func.__name__ not in self.known_functions:
             self.known_functions[expr.func.__name__] = expr.func.__name__
+        if isinstance(expr, devito.types.SymbolicArray):
+            return "%s%s" % (
+                expr.name,
+                "".join(["[%s]" % dim for dim in expr.dimensions])
+            )
         return super(CodePrinter, self)._print_Function(expr)
 
     def _print_CondEq(self, expr):

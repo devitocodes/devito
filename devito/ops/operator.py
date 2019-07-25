@@ -27,8 +27,11 @@ class OperatorOPS(Operator):
         ops_exit = Call(namespace['ops_exit'])
 
         dims = []
+        pre_time_loop = []
         for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
-            ops_kernel = opsit(trees, n)
+            pre_loop, ops_kernel = opsit(trees, n)
+
+            pre_time_loop.extend(pre_loop)
             self._ops_kernels.append(ops_kernel)
             dims.append(len(trees[n].dimensions))
 
@@ -39,6 +42,6 @@ class OperatorOPS(Operator):
         self._headers.append(namespace['ops-define-dimension'](dims[0]))
         self._includes.append('stdio.h')
 
-        body = [ops_init, ops_partition, iet, ops_exit]
+        body = [ops_init, ops_partition, *pre_time_loop, iet, ops_exit]
 
         return List(body=body)

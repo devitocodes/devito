@@ -1,6 +1,14 @@
-from devito.ir.iet.nodes import Callable, Expression, List
-from devito.ir.iet.visitors import FindNodes, FindSymbols
+import numpy as np
+import itertools
+
+from devito import Eq
+from devito.symbolics import ListInitializer
+from devito.ir.equations import ClusterizedEq
+from devito.ir.iet.nodes import Callable, Expression
+from devito.ir.iet.visitors import FindNodes
+from devito.types import SymbolicArray
 from devito.ops.node_factory import OPSNodeFactory
+from devito.ops.types import OpsAccessible
 from devito.ops.utils import namespace
 
 
@@ -25,10 +33,7 @@ def opsit(trees, count):
     for expr in expressions:
         ops_expressions.append(Expression(make_ops_ast(expr.expr, node_factory)))
 
-    parameters = FindSymbols('symbolics').visit(List(body=ops_expressions))
-    to_remove = FindSymbols('defines').visit(List(body=expressions))
-    parameters = [p for p in parameters if p not in to_remove]
-    parameters = sorted(parameters, key=lambda i: (i.is_Constant, i.name))
+    parameters = sorted(node_factory.ops_params, key=lambda i: (i.is_Constant, i.name))
 
     ops_kernel = Callable(
         namespace['ops-kernel'](count),
@@ -37,7 +42,31 @@ def opsit(trees, count):
         parameters
     )
 
-    return ops_kernel
+    stencil_arrays_initializations = [
+        to_stencil_array(p, node_factory.ops_args_accesses[p])
+        for p in parameters if isinstance(p, OpsAccessible)
+    ]
+
+    pre_time_loop = stencil_arrays_initializations
+
+    return pre_time_loop, ops_kernel
+
+
+def to_stencil_array(param, accesses):
+    dims = len(accesses[0])
+    pts = len(accesses)
+    stencil_name = "s%s_%s_%spt" % (dims, param.name, pts)
+
+    stencil_array = SymbolicArray(
+        name=stencil_name,
+        dimensions=(pts * dims,),
+        dtype=np.int32
+    )
+
+    return Expression(ClusterizedEq(Eq(
+        stencil_array,
+        ListInitializer(list(itertools.chain(*accesses)))
+    )))
 
 
 def make_ops_ast(expr, nfops, is_write=False):

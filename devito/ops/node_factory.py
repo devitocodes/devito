@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import defaultdict, OrderedDict
 
 from devito import Constant, TimeFunction
 from devito.types.dimension import SpaceDimension
@@ -16,6 +16,8 @@ class OPSNodeFactory(object):
 
     def __init__(self):
         self.ops_args = OrderedDict()
+        self.ops_args_accesses = defaultdict(list)
+        self.ops_params = []
 
     def new_ops_arg(self, indexed, is_write):
         """
@@ -44,6 +46,7 @@ class OPSNodeFactory(object):
                 not is_write
             )
             self.ops_args[ops_arg_id] = symbol_to_access
+            self.ops_params.append(symbol_to_access)
         else:
             symbol_to_access = self.ops_args[ops_arg_id]
 
@@ -53,6 +56,8 @@ class OPSNodeFactory(object):
             if isinstance(split_affine(i).var, SpaceDimension)
         ]
 
+        self.ops_args_accesses[symbol_to_access].append(space_indices)
+
         return OpsAccess(symbol_to_access, space_indices)
 
     def new_ops_gbl(self, c):
@@ -61,5 +66,6 @@ class OPSNodeFactory(object):
 
         new_c = Constant(name='*%s' % c.name, dtype=c.dtype)
         self.ops_args[c] = new_c
+        self.ops_params.append(new_c)
 
         return new_c
