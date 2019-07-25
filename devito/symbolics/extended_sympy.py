@@ -12,7 +12,7 @@ from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
-           'ListInitializer', 'Byref', 'IndexedPointer', 'Macro', 'taylor_sin',
+           'ListInitializer', 'Byref', 'IndexedPointer', 'Macro', 'Literal', 'taylor_sin',
            'taylor_cos', 'bhaskara_sin', 'bhaskara_cos', 'INT', 'FLOAT', 'DOUBLE',
            'FLOOR', 'cast_mapper']
 
@@ -353,6 +353,14 @@ class Macro(sympy.Symbol):
 
     """
     Symbolic representation of a C macro.
+    """
+    pass
+
+
+class Literal(sympy.Symbol):
+
+    """
+    Symbolic representation of a Literal element.
     """
     pass
 
