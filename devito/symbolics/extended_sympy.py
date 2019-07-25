@@ -11,10 +11,10 @@ from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
-           'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
-           'ListInitializer', 'Byref', 'IndexedPointer', 'Macro', 'Literal', 'taylor_sin',
-           'taylor_cos', 'bhaskara_sin', 'bhaskara_cos', 'INT', 'FLOAT', 'DOUBLE',
-           'FLOOR', 'cast_mapper']
+           'FunctionFromPointer', 'FieldFromPointer', 'ExternalFunctionCall',
+           'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
+           'Macro', 'Literal', 'taylor_sin', 'taylor_cos', 'bhaskara_sin',
+           'bhaskara_cos', 'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'cast_mapper']
 
 
 class FrozenExpr(Expr):
@@ -198,6 +198,48 @@ class FunctionFromPointer(sympy.Expr, Pickable):
 
     # Pickling support
     _pickle_args = ['function', 'pointer']
+    _pickle_kwargs = ['params']
+    __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class ExternalFunctionCall(sympy.Expr, Pickable):
+
+    """
+    Symbolic representation of the C notation ``pointer->function(params)``.
+    """
+
+    def __new__(cls, function, params=None):
+        args = []
+        if isinstance(function, FunctionFromPointer):
+            args.append(function)
+        elif not isinstance(function, str):
+            raise ValueError("`function` must be FunctionFromPointer or str")
+        _params = []
+        for p in as_tuple(params):
+            if isinstance(p, str):
+                _params.append(Symbol(p))
+            elif isinstance(p, int):
+                _params.append(Integer(p))
+            elif not isinstance(p, Expr):
+                raise ValueError("`params` must be an iterable of Expr, str or int")
+            else:
+                _params.append(p)
+        args.extend(_params)
+        obj = sympy.Expr.__new__(cls, *args)
+        obj.function = function
+        obj.params = tuple(_params)
+        return obj
+
+    def __str__(self):
+        return '%s(%s)' % (self.function, ",".join(str(i) for i in as_tuple(self.params)))
+
+    __repr__ = __str__
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.function,) + self.params
+
+    # Pickling support
+    _pickle_args = ['function']
     _pickle_kwargs = ['params']
     __reduce_ex__ = Pickable.__reduce_ex__
 

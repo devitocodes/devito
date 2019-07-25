@@ -2,13 +2,13 @@ import numpy as np
 import itertools
 
 from devito import Eq
-from devito.symbolics import ListInitializer
+from devito.symbolics import ExternalFunctionCall, ListInitializer, Literal
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Callable, Expression
 from devito.ir.iet.visitors import FindNodes
-from devito.types import SymbolicArray
+from devito.types import SymbolicArray, Symbol
 from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.types import OpsAccessible
+from devito.ops.types import OpsAccessible, OpsStencil
 from devito.ops.utils import namespace
 
 
@@ -42,10 +42,10 @@ def opsit(trees, count):
         parameters
     )
 
-    stencil_arrays_initializations = [
+    stencil_arrays_initializations = itertools.chain(*[
         to_stencil_array(p, node_factory.ops_args_accesses[p])
         for p in parameters if isinstance(p, OpsAccessible)
-    ]
+    ])
 
     pre_time_loop = stencil_arrays_initializations
 
@@ -63,10 +63,23 @@ def to_stencil_array(param, accesses):
         dtype=np.int32
     )
 
-    return Expression(ClusterizedEq(Eq(
-        stencil_array,
-        ListInitializer(list(itertools.chain(*accesses)))
-    )))
+    ops_stencil = OpsStencil(stencil_name.upper())
+
+    return [
+        Expression(ClusterizedEq(Eq(
+            stencil_array,
+            ListInitializer(list(itertools.chain(*accesses)))
+        ))),
+        Expression(ClusterizedEq(Eq(
+            ops_stencil,
+            ExternalFunctionCall("ops_decl_stencil", [
+                dims,
+                pts,
+                Symbol(stencil_array.name),
+                Literal('"%s"' % stencil_name.upper())
+            ])
+        )))
+    ]
 
 
 def make_ops_ast(expr, nfops, is_write=False):

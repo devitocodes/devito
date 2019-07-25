@@ -942,6 +942,10 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
     def _C_ctype(self):
         return self.dtype
 
+    @property
+    def function(self):
+        return self
+
     # Pickling support
     _pickle_args = ['name', 'dtype']
     __reduce_ex__ = Pickable.__reduce_ex__
