@@ -201,8 +201,6 @@ class Call(Simple, Node):
 
     is_Call = True
 
-    _traversable = ['arguments']
-
     def __init__(self, name, arguments=None):
         self.name = name
         self.arguments = as_tuple(arguments)
@@ -213,6 +211,10 @@ class Call(Simple, Node):
     @property
     def functions(self):
         return tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
+
+    @property
+    def children(self):
+        return tuple(i for i in self.arguments if isinstance(i, Call))
 
     @cached_property
     def free_symbols(self):
