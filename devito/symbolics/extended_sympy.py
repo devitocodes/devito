@@ -210,7 +210,7 @@ class ExternalFunctionCall(sympy.Expr, Pickable):
 
     def __new__(cls, function, params=None):
         args = []
-        if isinstance(function, FunctionFromPointer):
+        if isinstance(function, ExternalFunctionCall):
             args.append(function)
         elif not isinstance(function, str):
             raise ValueError("`function` must be FunctionFromPointer or str")
@@ -237,6 +237,10 @@ class ExternalFunctionCall(sympy.Expr, Pickable):
 
     def _hashable_content(self):
         return super()._hashable_content() + (self.function,) + self.params
+
+    @property
+    def base(self):
+        return self
 
     # Pickling support
     _pickle_args = ['function']
