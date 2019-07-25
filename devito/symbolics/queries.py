@@ -40,7 +40,7 @@ def q_function(expr):
 
 
 def q_terminal(expr):
-    return expr.is_Symbol or expr.is_Indexed
+    return not isinstance(expr, int) and (expr.is_Symbol or expr.is_Indexed)
 
 
 def q_trigonometry(expr):

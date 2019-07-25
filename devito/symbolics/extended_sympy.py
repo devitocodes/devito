@@ -262,6 +262,8 @@ class ListInitializer(sympy.Expr, Pickable):
         for p in as_tuple(params):
             if isinstance(p, str):
                 args.append(Symbol(p))
+            elif isinstance(p, int):
+                args.append(Integer(p))
             elif not isinstance(p, Expr):
                 raise ValueError("`params` must be an iterable of Expr or str")
             else:

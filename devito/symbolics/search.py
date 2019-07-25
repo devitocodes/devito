@@ -46,6 +46,8 @@ class Search(object):
         self.deep = deep
 
     def _next(self, expr):
+        if isinstance(expr, int):
+            return ()
         if self.deep is True and expr.is_Indexed:
             return expr.indices
         elif q_leaf(expr):
