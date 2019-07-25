@@ -1,3 +1,4 @@
+import numpy as np
 import sympy
 
 import devito.types.basic as basic
@@ -104,3 +105,23 @@ class OpsAccess(basic.Basic, sympy.Basic):
         return sympy.S.Zero, self
 
     __repr__ = __str__
+
+
+class OPSDeclarator(basic.LocalObject):
+    """
+    OPS declarator
+
+    Parameters
+    ----------
+    name : str
+        Symbol to access
+    dtype : data-type
+    """
+
+    def __init__(self, name, dtype, *args, **kwargs):
+        super().__init__(name, np.void, *args, **kwargs)
+        self.dtype = dtype
+
+    @property
+    def _C_typename(self):
+        return self.dtype
