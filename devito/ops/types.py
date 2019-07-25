@@ -109,13 +109,14 @@ class OpsAccess(basic.Basic, sympy.Basic):
 
 class OPSDeclarator(basic.LocalObject):
     """
-    OPS declarator
+    OPS declarator is used for any declarations that need to pass a type defined in OPS.
 
     Parameters
     ----------
     name : str
-        Symbol to access
-    dtype : data-type
+        Variable name that will be created in C code.
+    dtype : str
+        The data type of the raw data.
     """
 
     def __init__(self, name, dtype, *args, **kwargs):
