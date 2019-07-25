@@ -4,7 +4,7 @@ import numpy as np
 
 from conftest import skipif
 from sympy import Integer
-from sympy.core.numbers import Zero, One # noqa
+from sympy.core.numbers import Zero, One  # noqa
 
 pytestmark = skipif('noops', whole_module=True)
 
@@ -14,12 +14,12 @@ pytestmark = skipif('noops', whole_module=True)
 # `pytestmark` above
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
-from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil # noqa
-from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock # noqa
-from devito.ops.utils import namespace # noqa
-from devito.symbolics import Byref, indexify, Literal # noqa
-from devito.tools import dtype_to_cstr # noqa
-from devito.types import Buffer, Constant, Symbol # noqa
+from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil  # noqa
+from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock  # noqa
+from devito.ops.utils import namespace  # noqa
+from devito.symbolics import Byref, indexify, Literal  # noqa
+from devito.tools import dtype_to_cstr  # noqa
+from devito.types import Buffer, Constant, Symbol  # noqa
 
 
 class TestOPSExpression(object):

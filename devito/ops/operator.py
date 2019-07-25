@@ -7,6 +7,7 @@ from devito.operator import Operator
 from devito.symbolics import Literal
 from devito.tools import filter_sorted
 
+from devito.ops import ops_configuration
 from devito.ops.transformer import create_ops_dat, opsit
 from devito.ops.types import OpsBlock
 from devito.ops.utils import namespace
@@ -22,7 +23,8 @@ class OperatorOPS(Operator):
 
     def __init__(self, *args, **kwargs):
         self._ops_kernels = []
-        super().__init__(*args, **kwargs)
+        super(OperatorOPS,self).__init__(*args, **kwargs)
+        self._compiler = ops_configuration['compiler'].copy()
 
     def _specialize_iet(self, iet, **kwargs):
         warning("The OPS backend is still work-in-progress")
@@ -86,3 +88,14 @@ class OperatorOPS(Operator):
         body = [ops_init, ops_block_init, *pre_time_loop, ops_partition, iet, ops_exit]
 
         return List(body=body)
+
+    @property
+    def hcode(self):
+        code = ''
+        for kernel in self._ops_kernels:
+            code = code + str(kernel)
+        return code
+
+    def _compile(self):
+        if self._lib is None:
+            self._compiler.jit_compile_ops(self._soname, str(self.ccode), str(self.hcode))
