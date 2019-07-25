@@ -17,7 +17,7 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.symbolics import Add, FieldFromPointer
+from devito.symbolics import FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.tools import (EnrichedTuple, ReducerMap, as_tuple, flatten, is_integer,
                           ctypes_to_cstr, memoized_meth, dtype_to_ctype)
@@ -55,7 +55,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
             self._distributor = self.__distributor_setup__(**kwargs)
 
             # Staggering metadata
-            self._staggered = self.__staggered_setup__(**kwargs)
+            self._staggered, self.is_Staggered = self.__staggered_setup__(**kwargs)
 
             # Now that *all* __X_setup__ hooks have been called, we can let the
             # superclass constructor do its job
@@ -149,10 +149,8 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         """
         staggered = kwargs.get('staggered')
         if staggered is None:
-            self.is_Staggered = False
-            return tuple(0 for _ in self.dimensions)
+            return tuple(0 for _ in self.dimensions), False
         else:
-            self.is_Staggered = True
             if staggered is NODE:
                 staggered = ()
             elif staggered is CELL:
@@ -167,7 +165,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
                     mask.append(-1)
                 else:
                     mask.append(0)
-            return tuple(mask)
+            return tuple(mask), True
 
     def __distributor_setup__(self, **kwargs):
         grid = kwargs.get('grid')
@@ -227,7 +225,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         -----
         In an MPI context, this is the *local* domain region shape.
         """
-        return self.shape_domain
+        return self._shape
 
     @cached_property
     def shape_domain(self):
@@ -240,7 +238,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         In an MPI context, this is the *local* domain region shape.
         Alias to ``self.shape``.
         """
-        return tuple(i - j for i, j in zip(self._shape, self.staggered))
+        return self.shape
 
     @cached_property
     def shape_with_halo(self):
@@ -255,8 +253,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         the outhalo of boundary ranks contains a number of elements depending
         on the rank position in the decomposed grid (corner, side, ...).
         """
-        return tuple(j + i + k for i, (j, k) in zip(self.shape_domain,
-                                                    self._size_outhalo))
+        return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo))
 
     _shape_with_outhalo = shape_with_halo
 
@@ -273,7 +270,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         Typically, this property won't be used in user code, but it may come
         in handy for testing or debugging
         """
-        return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
+        return tuple(j + i + k for i, (j, k) in zip(self.shape, self._halo))
 
     @cached_property
     def shape_allocated(self):
@@ -586,19 +583,6 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         else:
             return self._initializer
 
-    @cached_property
-    def symbolic_shape(self):
-        """
-        The symbolic shape of the object. This includes:
-
-            * the domain, halo, and padding regions. While halo and padding are
-              known quantities (integers), the domain size is represented by a symbol.
-            * the shifting induced by the ``staggered`` mask.
-        """
-        symbolic_shape = super(DiscreteFunction, self).symbolic_shape
-        ret = tuple(Add(i, -j) for i, j in zip(symbolic_shape, self.staggered))
-        return EnrichedTuple(*ret, getters=self.dimensions)
-
     _C_structname = 'dataobj'
     _C_typename = 'struct %s *' % _C_structname
     _C_field_data = 'data'
@@ -761,8 +745,8 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s, o in zip(key.indices, self.shape, self.staggered):
-            args.update(i._arg_defaults(_min=0, size=s+o))
+        for i, s in zip(key.indices, self.shape):
+            args.update(i._arg_defaults(_min=0, size=s))
 
         # Add MPI-related data structures
         if self.grid is not None:
@@ -791,8 +775,8 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
                 # We've been provided a pure-data replacement (array)
                 values = {self.name: new}
                 # Add value overrides for all associated dimensions
-                for i, s, o in zip(self.dimensions, new.shape, self.staggered):
-                    size = s + o - sum(self._size_nodomain[i])
+                for i, s in zip(self.dimensions, new.shape):
+                    size = s - sum(self._size_nodomain[i])
                     values.update(i._arg_defaults(size=size))
                 # Add MPI-related data structures
                 if self.grid is not None:
@@ -1010,7 +994,11 @@ class Function(DiscreteFunction, Differentiable):
                 halo = (left_points, right_points)
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
-            return tuple(halo if i.is_Space else (0, 0) for i in self.dimensions)
+            base = [halo if i.is_Space else (0, 0) for i in self.dimensions]
+            # left-/right-staggering require extra points
+            extra = [(-i, 0) if i < 0 else (0, i) for i in self.staggered]
+            assert len(base) == len(extra)
+            return tuple((int(i), int(j)) for i, j in np.add(base, extra))
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')

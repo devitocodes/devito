@@ -145,6 +145,10 @@ class HaloScheme(object):
                             sorted(self._mapper, key=attrgetter('name'))])
 
     @cached_property
+    def is_void(self):
+        return len(self.fmapper) == 0
+
+    @cached_property
     def omapper(self):
         """
         Logical decomposition of the DOMAIN region into OWNED and CORE sub-regions.

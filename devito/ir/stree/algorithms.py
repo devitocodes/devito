@@ -100,9 +100,9 @@ def st_make_halo(stree):
             spot = k
             ancestors = [n for n in k.ancestors if n.is_Iteration]
             for n in ancestors:
-                test0 = any(n.dim is i.dim for i in v.halos)
-                test1 = n.dim not in [i.root for i in v.loc_indices]
-                if test0 or test1:
+                # Place the halo exchange right before the first
+                # distributed Dimension which requires it
+                if any(n.dim is i.dim for i in v.halos):
                     spot = n
                     break
             mapper.setdefault(spot, []).append(hs.project(f))

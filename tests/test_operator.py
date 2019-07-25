@@ -420,9 +420,6 @@ class TestAllocation(object):
         """
         grid = Grid(shape=tuple([11]*ndim))
         f = Function(name='f', grid=grid, staggered=stagg)
-        assert f.data.shape == tuple(11-i for i in f.staggered)
-        # Add a non-staggered field to ensure that the auto-derived
-        # dimension size arguments are at maximum
         g = Function(name='g', grid=grid)
         # Test insertion into a central point
         index = tuple(5 for _ in f.staggered)
@@ -443,9 +440,6 @@ class TestAllocation(object):
         """
         grid = Grid(shape=tuple([11]*ndim))
         f = TimeFunction(name='f', grid=grid, staggered=stagg)
-        assert f.data.shape[1:] == tuple(11-i for i in f.staggered[1:])
-        # Add a non-staggered field to ensure that the auto-derived
-        # dimension size arguments are at maximum
         g = TimeFunction(name='g', grid=grid)
         # Test insertion into a central point
         index = tuple([0] + [5 for _ in f.staggered[1:]])

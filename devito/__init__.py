@@ -1,12 +1,16 @@
 from collections import namedtuple
 from itertools import product
 
+# Import the global `configuration` dict
+from devito.parameters import *  # noqa
+
 # API imports
 from devito.base import *  # noqa
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.equation import *  # noqa
 from devito.finite_differences import *  # noqa
+from devito.mpi import MPI  # noqa
 from devito.types import NODE, CELL, Buffer, SubDomain, SubDomainSet  # noqa
 from devito.types.dimension import *  # noqa
 
@@ -17,7 +21,6 @@ from devito.compiler import compiler_registry
 from devito.dle import dle_registry
 from devito.dse import dse_registry
 from devito.logger import error, warning, info, logger_registry, set_log_level  # noqa
-from devito.parameters import *  # noqa
 from devito.profiling import profiler_registry
 
 

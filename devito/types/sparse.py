@@ -253,8 +253,8 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         # self's local domain only
         for k, v in self._dist_scatter().items():
             args[mapper[k].name] = v
-            for i, s, o in zip(mapper[k].indices, v.shape, k.staggered):
-                args.update(i._arg_defaults(_min=0, size=s+o))
+            for i, s in zip(mapper[k].indices, v.shape):
+                args.update(i._arg_defaults(_min=0, size=s))
 
         # Add MPI-related data structures
         args.update(self.grid._arg_defaults())
@@ -274,8 +274,8 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
                 values = {}
                 for k, v in self._dist_scatter(new).items():
                     values[k.name] = v
-                    for i, s, o in zip(k.indices, v.shape, k.staggered):
-                        size = s + o - sum(k._size_nodomain[i])
+                    for i, s in zip(k.indices, v.shape):
+                        size = s - sum(k._size_nodomain[i])
                         values.update(i._arg_defaults(size=size))
                 # Add MPI-related data structures
                 values.update(self.grid._arg_defaults())

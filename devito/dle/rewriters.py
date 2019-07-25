@@ -8,10 +8,10 @@ import cgen
 from devito.dle.blocking_utils import Blocker, BlockDimension
 from devito.dle.parallelizer import Ompizer
 from devito.exceptions import DLEException
-from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, FindSymbols,
-                           FindNodes, FindAdjacent, MapNodes, Transformer,
+from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL,
+                           FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
                            filter_iterations, retrieve_iteration_tree)
-from devito.logger import perf_adv
+from devito.logger import perf_adv, dle_warning as warning
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.parameters import configuration
 from devito.tools import DAG, as_tuple, filter_ordered
@@ -196,7 +196,7 @@ class PlatformRewriter(AbstractRewriter):
     @dle_pass
     def _loop_wrapping(self, iet):
         """
-        Emit a performance warning if WRAPPABLE Iterations are found,
+        Emit a performance message if WRAPPABLE Iterations are found,
         as these are a symptom that unnecessary memory is being allocated.
         """
         for i in FindNodes(Iteration).visit(iet):
@@ -211,36 +211,71 @@ class PlatformRewriter(AbstractRewriter):
         """
         Optimize the HaloSpots in ``iet``.
 
-        * Remove all USELESS HaloSpots;
-        * Merge all hoistable HaloSpots with their root HaloSpot, thus
+        * Remove all ``useless`` HaloSpots;
+        * Merge all ``hoistable`` HaloSpots with their root HaloSpot, thus
           removing redundant communications and anticipating communications
           that will be required by later Iterations.
         """
-        # Drop USELESS HaloSpots
-        mapper = {hs: hs.body for hs in FindNodes(HaloSpot).visit(iet) if hs.is_Useless}
+        # Drop `useless` HaloSpots
+        mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.useless))
+                  for hs in FindNodes(HaloSpot).visit(iet)}
         iet = Transformer(mapper, nested=True).visit(iet)
 
         # Handle `hoistable` HaloSpots
+        # First, we merge `hoistable` HaloSpots together, to anticipate communications
         mapper = {}
-        for halo_spots in MapNodes(Iteration, HaloSpot).visit(iet).values():
+        for tree in retrieve_iteration_tree(iet):
+            halo_spots = FindNodes(HaloSpot).visit(tree.root)
+            if not halo_spots:
+                continue
             root = halo_spots[0]
-
+            if root in mapper:
+                continue
             hss = [root.halo_scheme]
             hss.extend([hs.halo_scheme.project(hs.hoistable) for hs in halo_spots[1:]])
-
-            mapper[root] = root._rebuild(halo_scheme=HaloScheme.union(hss))
-            mapper.update({hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(hs.hoistable))
-                           for hs in halo_spots[1:]})
+            try:
+                mapper[root] = root._rebuild(halo_scheme=HaloScheme.union(hss))
+            except ValueError:
+                # HaloSpots have non-matching `loc_indices` and therefore can't be merged
+                warning("Found hoistable HaloSpots with disjoint loc_indices, "
+                        "skipping optimization")
+                continue
+            for hs in halo_spots[1:]:
+                halo_scheme = hs.halo_scheme.drop(hs.hoistable)
+                if halo_scheme.is_void:
+                    mapper[hs] = hs.body
+                else:
+                    mapper[hs] = hs._rebuild(halo_scheme=halo_scheme)
         iet = Transformer(mapper, nested=True).visit(iet)
 
-        # At this point, some HaloSpots may have become empty (i.e., requiring
-        # no communications), hence they can be removed
+        # Then, we make sure the halo exchanges get performed *before*
+        # the first distributed Dimension. Again, we do this to anticipate
+        # communications, which hopefully has a pay off in performance
         #
-        # <HaloSpot(u,v)>           HaloSpot(u,v)
-        #   <A>                       <A>
-        # <HaloSpot()>      ---->   <B>
-        #   <B>
-        mapper = {i: i.body for i in FindNodes(HaloSpot).visit(iet) if i.is_empty}
+        # <Iteration x>                    <HaloSpot(u)>, in y
+        #   <HaloSpot(u)>, in y    ---->   <Iteration x>
+        #   <Iteration y>                    <Iteration y>
+        mapper = {}
+        for i, halo_spots in MapNodes(Iteration, HaloSpot).visit(iet).items():
+            hoistable = [hs for hs in halo_spots if hs.hoistable]
+            if not hoistable:
+                continue
+            elif len(hoistable) > 1:
+                # We should never end up here, but for now we can't prove it formally
+                warning("Found multiple hoistable HaloSpots, skipping optimization")
+                continue
+            hs = hoistable.pop()
+            if hs in mapper:
+                continue
+            if i.dim.root in hs.dimensions:
+                halo_scheme = hs.halo_scheme.drop(hs.hoistable)
+                if halo_scheme.is_void:
+                    mapper[hs] = hs.body
+                else:
+                    mapper[hs] = hs._rebuild(halo_scheme=halo_scheme)
+
+                halo_scheme = hs.halo_scheme.project(hs.hoistable)
+                mapper[i] = hs._rebuild(halo_scheme=halo_scheme, body=i._rebuild())
         iet = Transformer(mapper, nested=True).visit(iet)
 
         # Finally, we try to move HaloSpot-free Iteration nests within HaloSpot
@@ -295,6 +330,20 @@ class PlatformRewriter(AbstractRewriter):
             mapper[hs] = heb.make(hs, i)
         efuncs = sync_heb.efuncs + user_heb.efuncs
         objs = sync_heb.objs + user_heb.objs
+        iet = Transformer(mapper, nested=True).visit(iet)
+
+        # Must drop the PARALLEL tag from the Iterations within which halo
+        # exchanges are performed
+        mapper = {}
+        for tree in retrieve_iteration_tree(iet):
+            for i in reversed(tree):
+                if i in mapper:
+                    # Already seen this subtree, skip
+                    break
+                if FindNodes(Call).visit(i):
+                    mapper.update({n: n._rebuild(properties=set(n.properties)-{PARALLEL})
+                                   for n in tree[:tree.index(i)+1]})
+                    break
         iet = Transformer(mapper, nested=True).visit(iet)
 
         return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'args': objs}

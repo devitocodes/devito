@@ -11,7 +11,7 @@ import cgen as c
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, ROUNDABLE, AFFINE, USELESS, OVERLAPPABLE)
+                           VECTOR, WRAPPABLE, ROUNDABLE, AFFINE, OVERLAPPABLE)
 from devito.ir.support import Forward, detect_io
 from devito.symbolics import FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
@@ -888,8 +888,11 @@ class HaloSpot(Node):
         return ()
 
     @property
-    def is_Useless(self):
-        return USELESS in self.properties
+    def useless(self):
+        for i in self.properties:
+            if i.name == 'useless':
+                return i.val
+        return ()
 
     @property
     def is_Overlappable(self):

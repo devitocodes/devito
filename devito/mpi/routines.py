@@ -72,12 +72,14 @@ class HaloExchangeBuilder(object):
 
         # Callables for send/recv/wait
         for f, hse in hs.fmapper.items():
-            msg = self._make_msg(f, hse, key='%d_%d' % (key, len(self.msgs)))
+            msgkey = '%d_%d' % (key, len(self.msgs))
+            msg = self._make_msg(f, hse, msgkey)
             msg = self._msgs.setdefault((f, hse), msg)
             if (f.ndim, hse) not in self._cache:
                 df = f.__class__.__base__(name='a', grid=f.grid, shape=f.shape_global,
                                           dimensions=f.dimensions)
-                self._cache[(f.ndim, hse)] = self._make_all(df, hse, key, msg)
+                cachekey = '%d_%d' % (key, len(self._cache))
+                self._cache[(f.ndim, hse)] = self._make_all(df, hse, cachekey, msg)
 
         msgs = [self._msgs[(f, hse)] for f, hse in hs.fmapper.items()]
 
@@ -102,10 +104,10 @@ class HaloExchangeBuilder(object):
 
         # Now build up the HaloSpot body, with explicit Calls to the constructed Callables
         body = [callcompute]
-        for f, hse in hs.fmapper.items():
+        for i, (f, hse) in enumerate(hs.fmapper.items()):
             msg = self._msgs[(f, hse)]
             haloupdate, halowait = self._cache[(f.ndim, hse)]
-            body.insert(0, self._call_haloupdate(haloupdate.name, f, hse, msg))
+            body.insert(i, self._call_haloupdate(haloupdate.name, f, hse, msg))
             if halowait is not None:
                 body.append(self._call_halowait(halowait.name, f, hse, msg))
         if remainder is not None:

@@ -269,7 +269,7 @@ class TestFD(object):
         elif stagger == right:
             off = .5
             side = x
-            xx2 = xx[:-1] - off * dx
+            xx2 = xx - off * dx
         else:
             off = 0
             side = NODE
