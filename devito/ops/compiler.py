@@ -2,12 +2,12 @@ from codepy.jit import compile_from_string
 from time import time
 import warnings
 
-from devito.compiler import Compiler
-from devito.logger import debug, warning, error
+from devito.logger import debug
 from devito.parameters import configuration
-from devito.tools import (as_tuple, change_directory, filter_ordered,
-                          memoized_meth, make_tempdir)
+
+
 __all__ = ['CompilerOPS']
+
 
 class CompilerOPS(configuration['compiler'].__class__):
     def __init__(self, *args, **kwargs):
@@ -35,7 +35,7 @@ class CompilerOPS(configuration['compiler'].__class__):
                 cache_dir.mkdir(parents=True, exist_ok=True)
             except FileNotFoundError:
                 raise ValueError("Trying to use the JIT backdoor for `%s`, but "
-                                "the file isn't present" % src_file)
+                                 "the file isn't present" % src_file)
 
         # `catch_warnings` suppresses codepy complaining that it's taking
         # too long to acquire the cache lock. This warning can only appear
@@ -48,14 +48,16 @@ class CompilerOPS(configuration['compiler'].__class__):
             tic = time()
             # Spinlock in case of MPI
             sleep_delay = 0 if configuration['mpi'] else 1
-            _, _, _, recompiled = compile_from_string(self, target, code, src_file,
-                                                    cache_dir=cache_dir,
-                                                    debug=configuration['debug-compiler'],
-                                                    sleep_delay=sleep_delay)
-            _, _, _, recompiled_kernel = compile_from_string(self, target, hcode, src_file2,
-                                                    cache_dir=cache_dir,
-                                                    debug=configuration['debug-compiler'],
-                                                    sleep_delay=sleep_delay)
+            _, _, _, recompiled = \
+                compile_from_string(self, target, code, src_file,
+                                    cache_dir=cache_dir,
+                                    debug=configuration['debug-compiler'],
+                                    sleep_delay=sleep_delay)
+            _, _, _, recompiled_kernel = \
+                compile_from_string(self, target, hcode, src_file2,
+                                    cache_dir=cache_dir,
+                                    debug=configuration['debug-compiler'],
+                                    sleep_delay=sleep_delay)
 
             toc = time()
 
@@ -66,4 +68,7 @@ class CompilerOPS(configuration['compiler'].__class__):
         elif recompiled and not recompiled_kernel:
             debug("%s: cache hit `%s` [%.2f s]" % (self, src_file2, toc-tic))
         else:
-            debug("%s: cache hit `%s` and `%s` [%.2f s]" % (self, src_file, src_file2, toc-tic))
+            debug("%s: cache hit `%s` and `%s` [%.2f s]" % (self,
+                                                            src_file,
+                                                            src_file2,
+                                                            toc-tic))

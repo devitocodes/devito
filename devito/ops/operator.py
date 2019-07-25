@@ -23,7 +23,7 @@ class OperatorOPS(Operator):
 
     def __init__(self, *args, **kwargs):
         self._ops_kernels = []
-        super(OperatorOPS,self).__init__(*args, **kwargs)
+        super(OperatorOPS, self).__init__(*args, **kwargs)
         self._compiler = ops_configuration['compiler'].copy()
 
     def _specialize_iet(self, iet, **kwargs):
