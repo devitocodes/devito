@@ -43,7 +43,7 @@ def opsit(trees, count):
     )
 
     stencil_arrays_initializations = itertools.chain(*[
-        to_stencil_array(p, node_factory.ops_args_accesses[p])
+        to_ops_stencil(p, node_factory.ops_args_accesses[p])
         for p in parameters if isinstance(p, OpsAccessible)
     ])
 
@@ -52,10 +52,10 @@ def opsit(trees, count):
     return pre_time_loop, ops_kernel
 
 
-def to_stencil_array(param, accesses):
+def to_ops_stencil(param, accesses):
     dims = len(accesses[0])
     pts = len(accesses)
-    stencil_name = "s%s_%s_%spt" % (dims, param.name, pts)
+    stencil_name = "s%sd_%s_%spt" % (dims, param.name, pts)
 
     stencil_array = SymbolicArray(
         name=stencil_name,

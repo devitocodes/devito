@@ -56,7 +56,8 @@ class OPSNodeFactory(object):
             if isinstance(split_affine(i).var, SpaceDimension)
         ]
 
-        self.ops_args_accesses[symbol_to_access].append(space_indices)
+        if space_indices not in self.ops_args_accesses[symbol_to_access]:
+            self.ops_args_accesses[symbol_to_access].append(space_indices)
 
         return OpsAccess(symbol_to_access, space_indices)
 
