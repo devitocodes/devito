@@ -3,7 +3,7 @@ import sys
 
 import numpy as np
 import click
-
+import os
 from devito import (clear_cache, configuration, mode_develop, mode_benchmark, warning,
                     set_log_level)
 from devito.mpi import MPI
@@ -334,6 +334,20 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params['dse'] = params['dse']
             devito_params['dle'] = params['dle']
             devito_params['at'] = params['autotune']
+
+            if configuration['openmp']:
+                devito_params['nt'] = os.environ.get(
+                        'OMP_NUM_THREADS', configuration['platform'].cores_physical)
+            else:
+                devito_params['nt'] = 1
+
+            if configuration['mpi']:
+                devito_params['np'] = MPI.COMM_WORLD.size
+                devito_params['rank'] = MPI.COMM_WORLD.rank
+            else:
+                devito_params['np'] = 1
+                devito_params['rank'] = 0
+
             return '_'.join(['%s[%s]' % (k, v) for k, v in devito_params.items()])
 
     return DevitoBenchmark(name=problem, resultsdir=resultsdir, parameters=parameters)
@@ -379,7 +393,8 @@ def get_ob_plotter():
 
 if __name__ == "__main__":
     # If running with MPI, we emit logging messages from rank0 only
-    MPI.Init()  # Devito starts off with MPI disabled!
-    set_log_level('INFO', comm=MPI.COMM_WORLD)
+    if configuration['mpi']:
+        MPI.Init()  # Devito starts off with MPI disabled!
+        set_log_level('DEBUG', comm=MPI.COMM_WORLD)
 
     benchmark()

@@ -166,9 +166,7 @@ class CGen(Visitor):
         ret = []
         for i in args:
             try:
-                if isinstance(i, Call):
-                    ret.append(self.visit(i).text)
-                elif i.is_LocalObject:
+                if i.is_LocalObject:
                     ret.append('&%s' % i._C_name)
                 elif i.is_Array:
                     ret.append("(%s)%s" % (i._C_typename, i.name))
@@ -231,8 +229,7 @@ class CGen(Visitor):
 
     def visit_Call(self, o):
         arguments = self._args_call(o.arguments)
-        code = '%s(%s)' % (o.name, ','.join(arguments))
-        return c.Statement(code)
+        return c.Statement('%s(%s)' % (o.name, ','.join(arguments)))
 
     def visit_Conditional(self, o):
         then_body = c.Block(self._visit(o.then_body))
@@ -527,12 +524,8 @@ class FindSymbols(Visitor):
     def visit_Expression(self, o):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
-    def visit_Call(self, o):
-        symbols = self._visit(o.children)
-        symbols.extend([f for f in self.rule(o)])
-        return filter_sorted(symbols, key=attrgetter('name'))
-
     visit_ArrayCast = visit_Expression
+    visit_Call = visit_Expression
 
 
 class FindNodes(Visitor):

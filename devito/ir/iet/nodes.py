@@ -212,10 +212,6 @@ class Call(Simple, Node):
     def functions(self):
         return tuple(i for i in self.arguments if isinstance(i, AbstractFunction))
 
-    @property
-    def children(self):
-        return tuple(i for i in self.arguments if isinstance(i, Call))
-
     @cached_property
     def free_symbols(self):
         free = set()

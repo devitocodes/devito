@@ -6,14 +6,13 @@ from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
                     Operator, Dimension, SubDimension, switchconfig)
 from devito.ir.equations import DummyEq, LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
-from devito.ir.iet import (Call, Conditional, Expression, Iteration, CGen, FindNodes,
-                           FindSymbols, retrieve_iteration_tree, filter_iterations,
-                           make_efunc)
+from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes, FindSymbols,
+                           retrieve_iteration_tree, filter_iterations, make_efunc)
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      Vector, AFFINE, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, IntervalGroup, Forward,
                                      Backward, IterationSpace)
-from devito.types import Scalar, Symbol
+from devito.types import Scalar
 from devito.tools import as_tuple
 
 pytestmark = skipif(['yask', 'ops'])
@@ -794,32 +793,3 @@ class TestEquationAlgorithms(object):
         expr = eval(expr)
 
         assert list(dimension_sort(expr)) == eval(expected)
-
-
-class TestNestedCalls(object):
-
-    def test_nested_calls_cgen(self):
-        call = Call('foo', [
-            Call('bar', [])
-        ])
-
-        code = CGen().visit(call)
-
-        assert str(code) == 'foo(bar());'
-
-    @pytest.mark.parametrize('mode,expected', [
-        ('free-symbols', '["f", "x"]'),
-        ('symbolics', '["f"]')
-    ])
-    def test_find_symbols_nested(self, mode, expected):
-        grid = Grid(shape=(4, 4, 4))
-        call = Call('foo', [
-            Call('bar', [
-                Symbol(name='x'),
-                Call('baz', [Function(name='f', grid=grid)])
-            ])
-        ])
-
-        found = FindSymbols(mode).visit(call)
-
-        assert [f.name for f in found] == eval(expected)
