@@ -1,6 +1,8 @@
 import numpy as np
 import itertools
 
+from sympy import Integer
+
 from devito import Eq
 from devito.symbolics import ExternalFunctionCall, ListInitializer, Literal
 from devito.ir.equations import ClusterizedEq
@@ -59,7 +61,7 @@ def to_ops_stencil(param, accesses):
 
     stencil_array = SymbolicArray(
         name=stencil_name,
-        dimensions=(pts * dims,),
+        dimensions=(Integer(pts * dims),),
         dtype=np.int32
     )
 
