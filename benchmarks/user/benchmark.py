@@ -3,8 +3,10 @@ import sys
 
 import numpy as np
 import click
-
-from devito import clear_cache, configuration, mode_develop, mode_benchmark, warning
+import os
+from devito import (clear_cache, configuration, mode_develop, mode_benchmark, warning,
+                    set_log_level)
+from devito.mpi import MPI
 from devito.tools import as_tuple, sweep
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
@@ -312,7 +314,7 @@ def plot(problem, **kwargs):
 
 
 def get_ob_bench(problem, resultsdir, parameters):
-    """Return a special :class:`opescibench.Benchmark` to manage performance runs."""
+    """Return a special ``opescibench.Benchmark`` to manage performance runs."""
     try:
         from opescibench import Benchmark
     except:
@@ -332,13 +334,27 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params['dse'] = params['dse']
             devito_params['dle'] = params['dle']
             devito_params['at'] = params['autotune']
+
+            if configuration['openmp']:
+                default_nthreads = configuration['platform'].cores_physical
+                devito_params['nt'] = os.environ.get('OMP_NUM_THREADS', default_nthreads)
+            else:
+                devito_params['nt'] = 1
+
+            if configuration['mpi']:
+                devito_params['np'] = MPI.COMM_WORLD.size
+                devito_params['rank'] = MPI.COMM_WORLD.rank
+            else:
+                devito_params['np'] = 1
+                devito_params['rank'] = 0
+
             return '_'.join(['%s[%s]' % (k, v) for k, v in devito_params.items()])
 
     return DevitoBenchmark(name=problem, resultsdir=resultsdir, parameters=parameters)
 
 
 def get_ob_exec(func):
-    """Return a special :class:`opescibench.Executor` to execute performance runs."""
+    """Return a special ``opescibench.Executor`` to execute performance runs."""
     try:
         from opescibench import Executor
     except:
@@ -348,7 +364,7 @@ def get_ob_exec(func):
     class DevitoExecutor(Executor):
 
         def __init__(self, func):
-            super(DevitoExecutor, self).__init__()
+            super(DevitoExecutor, self).__init__(comm=MPI.COMM_WORLD)
             self.func = func
 
         def run(self, *args, **kwargs):
@@ -376,4 +392,16 @@ def get_ob_plotter():
 
 
 if __name__ == "__main__":
+    # If running with MPI, we emit logging messages from rank0 only
+    MPI.Init()  # Devito starts off with MPI disabled!
+    set_log_level('DEBUG', comm=MPI.COMM_WORLD)
+
+    if MPI.COMM_WORLD.size > 1 and not configuration['mpi']:
+        warning("It seems that you're running over MPI with %d processes, but "
+                "DEVITO_MPI is unset. Setting `DEVITO_MPI=basic`...")
+        configuration['mpi'] = 'basic'
+
+    # Profiling at max level
+    configuration['profiling'] = 'advanced'
+
     benchmark()
