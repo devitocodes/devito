@@ -336,8 +336,8 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params['at'] = params['autotune']
 
             if configuration['openmp']:
-                devito_params['nt'] = os.environ.get(
-                        'OMP_NUM_THREADS', configuration['platform'].cores_physical)
+                default_nthreads = configuration['platform'].cores_physical
+                devito_params['nt'] = os.environ.get('OMP_NUM_THREADS', default_nthreads)
             else:
                 devito_params['nt'] = 1
 
