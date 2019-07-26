@@ -205,7 +205,7 @@ class FunctionFromPointer(sympy.Expr, Pickable):
 class ExternalFunctionCall(sympy.Expr, Pickable):
 
     """
-    Symbolic representation of the C notation ``pointer->function(params)``.
+    Symbolic representation of the C notation ``function(params)``.
     """
 
     def __new__(cls, function, params=None):
