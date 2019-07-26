@@ -314,7 +314,7 @@ def plot(problem, **kwargs):
 
 
 def get_ob_bench(problem, resultsdir, parameters):
-    """Return a special :class:`opescibench.Benchmark` to manage performance runs."""
+    """Return a special ``opescibench.Benchmark`` to manage performance runs."""
     try:
         from opescibench import Benchmark
     except:
@@ -354,7 +354,7 @@ def get_ob_bench(problem, resultsdir, parameters):
 
 
 def get_ob_exec(func):
-    """Return a special :class:`opescibench.Executor` to execute performance runs."""
+    """Return a special ``opescibench.Executor`` to execute performance runs."""
     try:
         from opescibench import Executor
     except:
@@ -364,7 +364,7 @@ def get_ob_exec(func):
     class DevitoExecutor(Executor):
 
         def __init__(self, func):
-            super(DevitoExecutor, self).__init__()
+            super(DevitoExecutor, self).__init__(comm=MPI.COMM_WORLD)
             self.func = func
 
         def run(self, *args, **kwargs):
@@ -393,8 +393,15 @@ def get_ob_plotter():
 
 if __name__ == "__main__":
     # If running with MPI, we emit logging messages from rank0 only
-    if configuration['mpi']:
-        MPI.Init()  # Devito starts off with MPI disabled!
-        set_log_level('DEBUG', comm=MPI.COMM_WORLD)
+    MPI.Init()  # Devito starts off with MPI disabled!
+    set_log_level('DEBUG', comm=MPI.COMM_WORLD)
+
+    if MPI.COMM_WORLD.size > 1 and not configuration['mpi']:
+        warning("It seems that you're running over MPI with %d processes, but "
+                "DEVITO_MPI is unset. Setting `DEVITO_MPI=basic`...")
+        configuration['mpi'] = 'basic'
+
+    # Profiling at max level
+    configuration['profiling'] = 'advanced'
 
     benchmark()
