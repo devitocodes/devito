@@ -36,11 +36,13 @@ def opsit(trees, count):
     parameters = sorted(node_factory.ops_params, key=lambda i: (i.is_Constant, i.name))
 
     ops_kernel = Callable(
-        namespace['ops-kernel'](count),
+        namespace['ops_kernel'](count),
         ops_expressions,
         "void",
         parameters
     )
+
+    print(ops_kernel)
 
     stencil_arrays_initializations = itertools.chain(*[
         to_ops_stencil(p, node_factory.ops_args_accesses[p])
@@ -55,7 +57,7 @@ def opsit(trees, count):
 def to_ops_stencil(param, accesses):
     dims = len(accesses[0])
     pts = len(accesses)
-    stencil_name = namespace['ops-stencil-name'](dims, param.name, pts)
+    stencil_name = namespace['ops_stencil_name'](dims, param.name, pts)
 
     stencil_array = Array(
         name=stencil_name,
@@ -72,7 +74,7 @@ def to_ops_stencil(param, accesses):
         ))),
         Expression(ClusterizedEq(Eq(
             ops_stencil,
-            ExternalFunctionCall("ops_decl_stencil", [
+            ExternalFunctionCall(namespace['ops_decl_stencil'], [
                 dims,
                 pts,
                 Symbol(stencil_array.name),

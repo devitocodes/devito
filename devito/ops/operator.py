@@ -39,7 +39,7 @@ class OperatorOPS(Operator):
             "The OPS backend currently assumes that all kernels \
             have the same number of dimensions"
 
-        self._headers.append(namespace['ops-define-dimension'](dims[0]))
+        self._headers.append(namespace['ops_define_dimension'](dims[0]))
         self._includes.append('stdio.h')
 
         body = [ops_init, ops_partition, *pre_time_loop, iet, ops_exit]
