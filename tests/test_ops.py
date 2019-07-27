@@ -97,7 +97,7 @@ class TestOPSExpression(object):
     @pytest.mark.parametrize('_accesses', [
         '[[Zero(), Zero()]]', '[[Zero(), Zero()], [One(), One()]]'
     ])
-    def test_to_stencil_array(self, _accesses):
+    def test_to_ops_stencil(self, _accesses):
         param = Symbol('foo')
         accesses = eval(_accesses)
 
@@ -109,7 +109,7 @@ class TestOPSExpression(object):
         assert result[0].expr.rhs.params == tuple(itertools.chain(*accesses))
 
         assert result[1].expr.lhs.name == stencil_name.upper()
-        assert result[1].expr.rhs.function == "ops_decl_stencil"
+        assert result[1].expr.rhs.function == 'ops_decl_stencil'
         assert result[1].expr.rhs.params == (
             2,
             len(accesses),
