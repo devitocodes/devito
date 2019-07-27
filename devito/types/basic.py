@@ -21,7 +21,7 @@ from devito.tools import (EnrichedTuple, Evaluable, Pickable,
 
 from devito.types.args import ArgProvider
 
-__all__ = ['Symbol', 'Scalar', 'Array', 'SymbolicArray', 'Indexed', 'Object',
+__all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
            'LocalObject', 'CompositeObject']
 
 # This cache stores a reference to each created data object
@@ -891,10 +891,6 @@ class Array(AbstractCachedFunction):
 
     # Pickling support
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['dimensions', 'scope']
-
-
-class SymbolicArray(Array):
-    is_Symbol = True
 
 
 # Objects belonging to the Devito API not involving data, such as data structures
