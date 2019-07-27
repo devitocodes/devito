@@ -1,6 +1,8 @@
 import itertools
 import pytest
 
+from sympy.core.numbers import Zero, One # noqa
+
 from devito import Eq, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.operator import OperatorOPS # noqa
@@ -93,7 +95,7 @@ class TestOPSExpression(object):
                 assert idx in v
 
     @pytest.mark.parametrize('_accesses', [
-        '[[0, 0]]', '[[0, 0], [1, 1]]'
+        '[[Zero(), Zero()]]', '[[Zero(), Zero()], [One(), One()]]'
     ])
     def test_to_stencil_array(self, _accesses):
         param = Symbol('foo')
