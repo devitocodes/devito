@@ -147,7 +147,7 @@ def iet_insert_decls(iet, external):
     allocator = Allocator()
     for k, v in MapSections().visit(iet).items():
         if k.is_Expression:
-            if k.is_scalar_assign:
+            if k.is_scalar_assign or k.is_tensor_assign:
                 # On the stack
                 site = v if v else iet
                 allocator.push_scalar_on_stack(site[-1], k)

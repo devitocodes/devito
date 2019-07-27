@@ -32,10 +32,10 @@ class CodePrinter(C99CodePrinter):
         # There exist no unknown Functions
         if expr.func.__name__ not in self.known_functions:
             self.known_functions[expr.func.__name__] = expr.func.__name__
-        if isinstance(expr, devito.types.SymbolicArray):
+        if isinstance(expr, devito.types.Array):
             return "%s%s" % (
                 expr.name,
-                "".join(["[%s]" % dim for dim in expr.dimensions])
+                "".join(["[%s]" % dim.symbolic_size for dim in expr.dimensions])
             )
         return super(CodePrinter, self)._print_Function(expr)
 

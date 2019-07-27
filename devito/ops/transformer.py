@@ -1,14 +1,12 @@
 import numpy as np
 import itertools
 
-from sympy import Integer
-
 from devito import Eq
 from devito.symbolics import ExternalFunctionCall, ListInitializer, Literal
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Callable, Expression
 from devito.ir.iet.visitors import FindNodes
-from devito.types import SymbolicArray, Symbol
+from devito.types import Array, DefaultDimension, Symbol
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.types import OpsAccessible, OpsStencil
 from devito.ops.utils import namespace
@@ -57,12 +55,12 @@ def opsit(trees, count):
 def to_ops_stencil(param, accesses):
     dims = len(accesses[0])
     pts = len(accesses)
-    stencil_name = "s%sd_%s_%spt" % (dims, param.name, pts)
+    stencil_name = namespace['ops-stencil-name'](dims, param.name, pts)
 
-    stencil_array = SymbolicArray(
+    stencil_array = Array(
         name=stencil_name,
-        dimensions=(Integer(pts * dims),),
-        dtype=np.int32
+        dimensions=(DefaultDimension(name='len', default_value=dims * pts),),
+        dtype=np.int32,
     )
 
     ops_stencil = OpsStencil(stencil_name.upper())
