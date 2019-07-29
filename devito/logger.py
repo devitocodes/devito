@@ -12,6 +12,7 @@ __all__ = ('set_log_level', 'set_log_noperf',
 
 logger = logging.getLogger('Devito')
 stream_handler = logging.StreamHandler()
+logger.addHandler(stream_handler)
 
 # Add extra logging levels (note: INFO has value=20, WARNING has value=30)
 DEBUG = logging.DEBUG
@@ -90,12 +91,12 @@ def set_log_level(level, comm=None):
     if level not in logger_registry:
         raise ValueError("Illegal logging level %s" % level)
 
-    if comm is not None and comm.rank != 0:
-        logger.removeHandler(stream_handler)
-        logger.addHandler(logging.NullHandler())
-    else:
-        logger.addHandler(stream_handler)
-        logger.setLevel(level)
+    if comm is not None:
+        if comm.rank != 0:
+            logger.removeHandler(stream_handler)
+            logger.addHandler(logging.NullHandler())
+
+    logger.setLevel(level)
 
 
 def set_log_noperf():

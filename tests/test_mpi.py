@@ -778,7 +778,7 @@ class TestCodeGeneration(object):
 
         op = Operator(Eq(f.forward, eval(expr)), dle=('advanced', {'openmp': False}))
 
-        calls = FindNodes(Call).visit(op._func_table['haloupdate0_0'])
+        calls = FindNodes(Call).visit(op._func_table['haloupdate0'])
         destinations = {i.arguments[-2].field for i in calls}
         assert destinations == expected
 
@@ -801,7 +801,7 @@ class TestCodeGeneration(object):
         assert len(tree.root.nodes) == 2
         call = tree.root.nodes[0]
         assert call.name == 'pokempi0'
-        assert call.arguments[0].name == 'msg0_0'
+        assert call.arguments[0].name == 'msg0'
 
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
@@ -814,7 +814,7 @@ class TestCodeGeneration(object):
         assert len(tree.root.nodes[0].nodes) == 2
         call = tree.root.nodes[0].nodes[0]
         assert call.name == 'pokempi0'
-        assert call.arguments[0].name == 'msg0_0'
+        assert call.arguments[0].name == 'msg0'
 
 
 class TestOperatorAdvanced(object):

@@ -14,7 +14,7 @@ from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL,
 from devito.logger import perf_adv, dle_warning as warning
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.parameters import configuration
-from devito.tools import DAG, as_tuple, filter_ordered
+from devito.tools import DAG, as_tuple, filter_ordered, generator
 
 __all__ = ['PlatformRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter',
            'ArmRewriter', 'SpeculativeRewriter', 'DeviceOffloadingRewriter',
@@ -322,12 +322,14 @@ class PlatformRewriter(AbstractRewriter):
         Add MPI routines performing halo exchanges to emit distributed-memory
         parallel code.
         """
-        sync_heb = HaloExchangeBuilder('basic')
-        user_heb = HaloExchangeBuilder(self.params['mpi'])
+        # To produce unique object names
+        generators = {'msg': generator(), 'comm': generator(), 'comp': generator()}
+        sync_heb = HaloExchangeBuilder('basic', **generators)
+        user_heb = HaloExchangeBuilder(self.params['mpi'], **generators)
         mapper = {}
-        for i, hs in enumerate(FindNodes(HaloSpot).visit(iet)):
+        for hs in FindNodes(HaloSpot).visit(iet):
             heb = user_heb if hs.is_Overlappable else sync_heb
-            mapper[hs] = heb.make(hs, i)
+            mapper[hs] = heb.make(hs)
         efuncs = sync_heb.efuncs + user_heb.efuncs
         objs = sync_heb.objs + user_heb.objs
         iet = Transformer(mapper, nested=True).visit(iet)
