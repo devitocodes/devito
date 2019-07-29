@@ -100,7 +100,7 @@ def option_performance(f):
                      help='Devito loop engine (DLE) mode'),
         click.option('-a', '--autotune', default='aggressive',
                      type=click.Choice(['off', 'basic', 'aggressive', 'max']),
-                     help='Switch auto tuning on/off')
+                     help='Select autotuning mode')
     ]
     for option in reversed(options):
         f = option(f)
@@ -234,7 +234,6 @@ def cli_plot(problem, **kwargs):
     """
     Plotting mode to generate plots for performance analysis.
     """
-    mode_benchmark()
     plot(problem, **kwargs)
 
 
