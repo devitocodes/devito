@@ -366,12 +366,11 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
+    shape = tuple(i + 2*nbpml for i in damp.grid.subdomains['phydomain'].shape)
+    data = np.zeros(shape)
 
-    phy_shape = damp.grid.subdomains['phydomain'].shape
-    data = np.ones(phy_shape) if mask else np.zeros(phy_shape)
-
-    pad_widths = [(nbpml, nbpml) for i in range(damp.ndim)]
-    data = np.pad(data, pad_widths, 'edge')
+    if mask:
+        data[tuple(slice(nbpml, -nbpml) for i in shape)] = 1.
 
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
 
@@ -391,7 +390,7 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
             all_ind[i] = slice(data.shape[i]-j, data.shape[i]-j+1)
             data[tuple(all_ind)] += val/spacing[i]
 
-    initialize_function(damp, data, 0)
+    damp.data[:] = data
 
 
 def initialize_function(function, data, nbpml, pad_mode='edge'):
