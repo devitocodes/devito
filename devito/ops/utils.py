@@ -14,4 +14,5 @@ namespace['ops_define_dimension'] = lambda i: '#define OPS_%sD' % i
 namespace['ops_kernel'] = lambda i: 'OPS_Kernel_%s' % i
 namespace['ops_stencil_name'] = lambda dims, name, pts: 's%dd_%s_%dpt' % (dims, name, pts)
 namespace['ops_decl_stencil'] = Function(name='ops_decl_stencil')
+namespace['ops_decl_block'] = Function(name='ops_decl_block')
 namespace['ops_stencil_type'] = 'ops_stencil'
