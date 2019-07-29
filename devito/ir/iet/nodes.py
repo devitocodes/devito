@@ -288,7 +288,7 @@ class Expression(Simple, Node):
         return not self.is_scalar
 
     @property
-    def is_assign(self):
+    def is_definition(self):
         """
         True if it is an assignment, False otherwise
         """
@@ -297,7 +297,7 @@ class Expression(Simple, Node):
 
     @property
     def defines(self):
-        return (self.write,) if self.is_scalar or self.is_assign else ()
+        return (self.write,) if self.is_scalar or self.is_definition else ()
 
     @property
     def free_symbols(self):
