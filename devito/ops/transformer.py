@@ -1,14 +1,17 @@
 import numpy as np
 import itertools
 
+from sympy import sympify
+from sympy.core.numbers import Zero
+
 from devito import Eq
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Callable, Expression
 from devito.ir.iet.visitors import FindNodes
 from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.types import Array, OpsAccessible, OpsStencil
+from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
 from devito.ops.utils import namespace
-from devito.symbolics import ListInitializer, Literal
+from devito.symbolics import Byref, ListInitializer, Literal
 from devito.types import DefaultDimension, Symbol
 
 
@@ -80,6 +83,102 @@ def to_ops_stencil(param, accesses):
             )
         )))
     ]
+
+
+def create_ops_dat(f, name_to_ops_dat, block):
+    ndim = f.ndim - (1 if f.is_TimeFunction else 0)
+
+    dim = Array(
+        name=namespace['ops_dat_dim'](f.name),
+        dimensions=(DefaultDimension(name='dim', default_value=ndim),),
+        dtype=np.int32
+    )
+    base = Array(
+        name=namespace['ops_dat_base'](f.name),
+        dimensions=(DefaultDimension(name='base', default_value=ndim),),
+        dtype=np.int32
+    )
+    d_p = Array(
+        name=namespace['ops_dat_d_p'](f.name),
+        dimensions=(DefaultDimension(name='d_p', default_value=ndim),),
+        dtype=np.int32
+    )
+    d_m = Array(
+        name=namespace['ops_dat_d_m'](f.name),
+        dimensions=(DefaultDimension(name='d_m', default_value=ndim),),
+        dtype=np.int32
+    )
+
+    res = []
+    base_val = [Zero() for i in range(ndim)]
+
+    if f.is_TimeFunction:
+        time_pos = f._time_position
+        time_index = f.indices[time_pos]
+        time_dims = f.shape[time_pos]
+
+        dim_shape = sympify(f.shape[:time_pos] + f.shape[time_pos + 1:])
+        padding = f.padding[:time_pos] + f.padding[time_pos + 1:]
+        halo = f.halo[:time_pos] + f.halo[time_pos + 1:]
+        d_p_val = tuple(sympify([p[0] + h[0] for p, h in zip(padding, halo)]))
+        d_m_val = tuple(sympify([-(p[1] + h[1]) for p, h in zip(padding, halo)]))
+
+        ops_dat_array = Array(
+            name=namespace['ops_dat_name'](f.name),
+            dimensions=(DefaultDimension(name='dat', default_value=time_dims),),
+            dtype='ops_dat',
+        )
+
+        dat_decls = []
+        for i in range(time_dims):
+            name = '%s%s%s' % (f.name, time_index, i)
+            name_to_ops_dat[name] = ops_dat_array.indexify([i])
+            dat_decls.append(namespace['ops_decl_dat'](
+                block,
+                1,
+                Symbol(dim.name),
+                Symbol(base.name),
+                Symbol(d_m.name),
+                Symbol(d_p.name),
+                Byref(f.indexify([i])),
+                Literal('"%s"' % f._C_typedata),
+                Literal('"%s"' % name)
+            ))
+
+        ops_decl_dat = Expression(ClusterizedEq(Eq(
+            ops_dat_array,
+            ListInitializer(dat_decls)
+        )))
+    else:
+        ops_dat = OpsDat("%s_dat" % f.name)
+        name_to_ops_dat[f.name] = ops_dat
+
+        d_p_val = tuple(sympify([p[0] + h[0] for p, h in zip(f.padding, f.halo)]))
+        d_m_val = tuple(sympify([-(p[1] + h[1]) for p, h in zip(f.padding, f.halo)]))
+        dim_shape = sympify(f.shape)
+
+        ops_decl_dat = Expression(ClusterizedEq(Eq(
+            ops_dat,
+            namespace['ops_decl_dat'](
+                block,
+                1,
+                Symbol(dim.name),
+                Symbol(base.name),
+                Symbol(d_m.name),
+                Symbol(d_p.name),
+                Byref(f.indexify([0])),
+                Literal('"%s"' % f._C_typedata),
+                Literal('"%s"' % f.name)
+            )
+        )))
+
+    res.append(Expression(ClusterizedEq(Eq(dim, ListInitializer(dim_shape)))))
+    res.append(Expression(ClusterizedEq(Eq(base, ListInitializer(base_val)))))
+    res.append(Expression(ClusterizedEq(Eq(d_p, ListInitializer(d_p_val)))))
+    res.append(Expression(ClusterizedEq(Eq(d_m, ListInitializer(d_m_val)))))
+    res.append(ops_decl_dat)
+
+    return res
 
 
 def make_ops_ast(expr, nfops, is_write=False):
