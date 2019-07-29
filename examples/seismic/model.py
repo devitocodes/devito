@@ -4,6 +4,7 @@ import numpy as np
 
 from examples.seismic.utils import scipy_smooth
 from devito import Grid, SubDomain, Function, Constant, warning, mmin, mmax
+from devito.logger import error
 
 __all__ = ['Model', 'ModelElastic', 'demo_model']
 
@@ -543,12 +544,11 @@ class Model(GenericModel):
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
-            self.m = Function(name="m", grid=self.grid, space_order=space_order)
+            self._vp = Function(name="vp", grid=self.grid, space_order=space_order)
+            initialize_function(self._vp, vp, self.nbpml)
         else:
-            self.m = Constant(name="m", value=1/vp**2)
-        self._physical_parameters = ('m',)
-        # Set model velocity, which will also set `m`
-        self.vp = vp
+            self._vp = Constant(name="vp", value=vp)
+        self._physical_parameters = ('vp',)
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
@@ -641,13 +641,21 @@ class Model(GenericModel):
         vp : float or array
             New velocity in km/s.
         """
-        self._vp = vp
-
         # Update the square slowness according to new value
         if isinstance(vp, np.ndarray):
-            initialize_function(self.m, 1 / (self.vp * self.vp), self.nbpml)
+            if vp.shape == self.vp.shape:
+                self.vp.data[:] = vp[:]
+            elif vp.shape == self.shape:
+                initialize_function(self._vp, vp, self.nbpml)
+            else:
+                error("Incorrect input size %s for model of size" % vp.shape +
+                      " %s without or %s with padding" % (self.shape, self.vp.shape))
         else:
-            self.m.data = 1 / vp**2
+            self._vp.data = vp
+
+    @property
+    def m(self):
+        return 1 / (self.vp * self.vp)
 
 
 class ModelElastic(GenericModel):

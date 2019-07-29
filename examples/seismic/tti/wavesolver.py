@@ -49,7 +49,7 @@ class AnisotropicWaveSolver(object):
                                space_order=self.space_order,
                                kernel=kernel, **self._kwargs)
 
-    def forward(self, src=None, rec=None, u=None, v=None, m=None,
+    def forward(self, src=None, rec=None, u=None, v=None, vp=None,
                 epsilon=None, delta=None, theta=None, phi=None,
                 save=False, kernel='centered', **kwargs):
         """
@@ -119,7 +119,7 @@ class AnisotropicWaveSolver(object):
                 kwargs["vy"] = vy
 
         # Pick m from model unless explicitly provided
-        kwargs.update(self.model.physical_params(m=m, epsilon=epsilon, delta=delta,
+        kwargs.update(self.model.physical_params(vp=vp, epsilon=epsilon, delta=delta,
                                                  theta=theta, phi=phi))
         # Execute operator and return wavefield and receiver data
         op = self.op_fwd(kernel, save)

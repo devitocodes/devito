@@ -52,10 +52,10 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     if preset == 'constant':
         # With  a new m as Constant
-        m0 = Constant(name="m", value=.25, dtype=np.float32)
-        solver.forward(save=save, m=m0)
+        v0 = Constant(name="v", value=2.0, dtype=np.float32)
+        solver.forward(save=save, vp=v0)
         # With a new m as a scalar value
-        solver.forward(save=save, m=.25)
+        solver.forward(save=save, vp=2.0)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
@@ -63,7 +63,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     # Smooth velocity
     initial_vp = Function(name='v0', grid=solver.model.grid, space_order=space_order)
     smooth(initial_vp, solver.model.m)
-    dm = np.float32(initial_vp.data**2 - solver.model.m.data)
+    dm = np.float32(initial_vp.data**(-2) - solver.model.vp.data**(-2))
 
     info("Applying Adjoint")
     solver.adjoint(rec, autotune=autotune)

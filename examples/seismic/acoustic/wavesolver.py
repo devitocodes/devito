@@ -71,7 +71,7 @@ class AcousticWaveSolver(object):
                             kernel=self.kernel, space_order=self.space_order,
                             **self._kwargs)
 
-    def forward(self, src=None, rec=None, u=None, m=None, save=None, **kwargs):
+    def forward(self, src=None, rec=None, u=None, vp=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -106,14 +106,14 @@ class AcousticWaveSolver(object):
                               time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
-        m = m or self.model.m
+        vp = vp or self.model.vp
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, m=m,
+        summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, vp=vp,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, u, summary
 
-    def adjoint(self, rec, srca=None, v=None, m=None, **kwargs):
+    def adjoint(self, rec, srca=None, v=None, vp=None, **kwargs):
         """
         Adjoint modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
@@ -145,14 +145,14 @@ class AcousticWaveSolver(object):
                               time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
-        m = m or self.model.m
+        vp = vp or self.model.vp
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_adj().apply(srca=srca, rec=rec, v=v, m=m,
+        summary = self.op_adj().apply(srca=srca, rec=rec, v=v, vp=vp,
                                       dt=kwargs.pop('dt', self.dt), **kwargs)
         return srca, v, summary
 
-    def gradient(self, rec, u, v=None, grad=None, m=None, checkpointing=False, **kwargs):
+    def gradient(self, rec, u, v=None, grad=None, vp=None, checkpointing=False, **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
         Linearized Born modelling function, ie. the action of the
@@ -182,7 +182,7 @@ class AcousticWaveSolver(object):
                               time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
-        m = m or self.model.m
+        vp = vp or self.model.vp
 
         if checkpointing:
             u = TimeFunction(name='u', grid=self.model.grid,
@@ -190,20 +190,20 @@ class AcousticWaveSolver(object):
             cp = DevitoCheckpoint([u])
             n_checkpoints = None
             wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.geometry.src,
-                                         u=u, m=m, dt=dt)
+                                         u=u, vp=vp, dt=dt)
             wrap_rev = CheckpointOperator(self.op_grad(save=False), u=u, v=v,
-                                          m=m, rec=rec, dt=dt, grad=grad)
+                                          vp=vp, rec=rec, dt=dt, grad=grad)
 
             # Run forward
             wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
             wrp.apply_forward()
             summary = wrp.apply_reverse()
         else:
-            summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, m=m,
+            summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, vp=vp,
                                            dt=dt, **kwargs)
         return grad, summary
 
-    def born(self, dmin, src=None, rec=None, u=None, U=None, m=None, **kwargs):
+    def born(self, dmin, src=None, rec=None, u=None, U=None, vp=None, **kwargs):
         """
         Linearized Born modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
@@ -235,9 +235,9 @@ class AcousticWaveSolver(object):
                               time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
-        m = m or self.model.m
+        vp = vp or self.model.vp
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_born().apply(dm=dmin, u=u, U=U, src=src, rec=rec,
-                                       m=m, dt=kwargs.pop('dt', self.dt), **kwargs)
+                                       vp=vp, dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, u, U, summary
