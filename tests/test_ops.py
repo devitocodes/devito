@@ -1,14 +1,21 @@
 import itertools
 import pytest
 
+from conftest import skipif
 from sympy.core.numbers import Zero, One # noqa
 
+pytestmark = skipif('noops', whole_module=True)
+
+# All ops-specific imports *must* be avoided if `backend != ops`, otherwise
+# a backend reinitialization would be triggered via `devito/ops/.__init__.py`,
+# thus invalidating all of the future tests. This is guaranteed by the
+# `pytestmark` above
 from devito import Eq, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.operator import OperatorOPS # noqa
 from devito.ops.transformer import make_ops_ast, to_ops_stencil # noqa
 from devito.symbolics import Literal, indexify # noqa
-from devito.types import Symbol
+from devito.types import Symbol # noqa
 
 
 class TestOPSExpression(object):
