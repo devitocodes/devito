@@ -98,7 +98,8 @@ def option_performance(f):
         click.option('--dle', callback=from_value,
                      type=click.Choice(['noop'] + configuration._accepted['dle']),
                      help='Devito loop engine (DLE) mode'),
-        click.option('-a', '--autotune', is_flag=True,
+        click.option('-a', '--autotune', default='aggressive',
+                     type=click.Choice(['off', 'basic', 'aggressive', 'max']),
                      help='Switch auto tuning on/off')
     ]
     for option in reversed(options):
@@ -134,10 +135,10 @@ def run(problem, **kwargs):
     # Should a specific block-shape be used? Useful if one wants to skip
     # the autotuning pass as a good block-shape is already known
     if block_shapes:
-        if autotune:
+        if autotune != 'off':
             warning("Skipping autotuning (using explicit block-shape `%s`)"
                     % str(block_shapes))
-            autotune = False
+            autotune = 'off'
         # This is horribly hacky, but it works for now
         for i, bs in enumerate(block_shapes):
             for d, s in zip(['x', 'y', 'z'], bs):
@@ -188,8 +189,11 @@ def cli_bench(problem, **kwargs):
     """
     Complete benchmark with multiple simulation and performance parameters.
     """
+
     mode_benchmark()
-    kwargs['autotune'] = configuration['autotuning'].level
+    if kwargs['autotune'] != configuration['autotuning'].level:
+        configuration['autotuning'] = [kwargs['autotune'], 'preemptive']
+
     bench(problem, **kwargs)
 
 
@@ -230,6 +234,7 @@ def cli_plot(problem, **kwargs):
     """
     Plotting mode to generate plots for performance analysis.
     """
+    mode_benchmark()
     plot(problem, **kwargs)
 
 
@@ -242,6 +247,7 @@ def plot(problem, **kwargs):
     max_bw = kwargs.pop('max_bw')
     flop_ceils = kwargs.pop('flop_ceil')
     point_runtime = kwargs.pop('point_runtime')
+    autotune = kwargs['autotune']
 
     arch = kwargs['arch']
     space_order = "[%s]" % ",".join(str(i) for i in kwargs['space_order'])
@@ -256,17 +262,17 @@ def plot(problem, **kwargs):
         warning("Could not load any results, nothing to plot. Exiting...")
         sys.exit(0)
 
-    gflopss = bench.lookup(params=kwargs, measure="gflopss", event='main')
-    oi = bench.lookup(params=kwargs, measure="oi", event='main')
-    time = bench.lookup(params=kwargs, measure="timings", event='main')
+    gflopss = bench.lookup(params=kwargs, measure="gflopss", event='section0')
+    oi = bench.lookup(params=kwargs, measure="oi", event='section0')
+    time = bench.lookup(params=kwargs, measure="timings", event='section0')
 
     # What plot am I?
     modes = [i for i in ['dse', 'dle', 'autotune']
              if len(set(dict(j)[i] for j in gflopss)) > 1]
 
     # Filename
-    figname = "%s_dim%s_so%s_to%s_arch[%s]_bkend[%s].pdf" % (
-        problem, shape, space_order, time_order, arch, backend
+    figname = "%s_dim%s_so%s_to%s_arch[%s]_bkend[%s]_at[%s]pdf" % (
+        problem, shape, space_order, time_order, arch, backend, autotune
     )
 
     # Legend setup. Do not plot a legend if there's no variation in performance

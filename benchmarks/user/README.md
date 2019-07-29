@@ -127,7 +127,7 @@ in the generated code.
 With `autotune=True`, the auto-tuner gets set in `basic` mode, which will only
 attempt a small batch of block shapes. With `autotune='aggressive'`, the
 auto-tuning phase will take up more time, but it will also evaluate more
-block-shapes. 
+block-shapes.
 
 When running `python benchmark.py -a ...`, the underlying Operators will
 automatically be run in aggressive mode, that is as
@@ -211,6 +211,7 @@ Do not forget to pin processes, especially on NUMA systems; below, we do so with
 ```
 numactl --cpubind=0 --membind=0 python benchmark.py ...
 ```
+
 While a benchmark is running, you can have some useful programs running in
 background in other shells. For example, to monitor pinning:
 ```
@@ -235,6 +236,60 @@ to submit jobs on HPC clusters. Take a look at `python make-pbs.py --help`
 for more information, and in particular `python make-pbs.py generate --help`.
 `make-pbs.py` is especially indicated if interested in running strong scaling
 experiments.
+
+## Benchmarks' output
+
+The GFlops/s and GPoints/s performance, Operational Intensity (OI) and
+execution time are emitted to standard output at the end of each run.
+Further, when running in bench mode, a `.json` file is produced
+(see `python benchmark.py bench --help` for more info) in a folder named
+`results` except if otherwise specified with the `-r` option specifying
+the results directory.
+
+So the isotropic acoustic wave forward Operator in a `512**3` grid, space order
+12, and a simulation time of 100ms:
+
+```
+`DEVITO_LOGGING=DEBUG` python benchmark.py bench -P acoustic -d 512 512 512 -so 12 --tn 100
+```
+
+## Generating a roofline model
+
+To generate a roofline model from the results obtained in `bench` mode,
+one can execute `benchmark.py` in `plot` mode. For example, the command
+
+```
+python benchmark.py plot -P acoustic -d 512 512 512 -so 12 --tn 100 -a --max-bw 12.8
+--flop-ceil 80 linpack
+```
+
+will generate a roofline model for the results obtained from
+
+```
+python benchmark.py bench -P acoustic -d 512 512 512 -so 12 --tn 100 -a
+```
+
+The `plot` mode expects the same arguments used in `bench` mode plus
+two additional arguments to generate the roofline:
+
+*    --max-bw FLOAT
+    DRAM bandwidth (GB/s)
+*    --flop-ceil <FLOAT TEXT>
+    CPU machine peak. A 2-tuple (float, str) is expected,
+    representing the performance ceil (GFlops/s) and how the ceil was obtained
+     (ideal peak, linpack, ...), respectively
+
+In addition, points can be annotated with the runtime value, passing the
+`--point-runtime` argument.
+
+To obtain the DRAM bandwidth of a system, we advise to use
+ [STREAM][http://www.cs.virginia.edu/stream/ref.html].
+
+To obtain the ideal CPU peak, one should instantiate this formula
+
+#[cores] · #[avx units] · #[vector lanes] · #[FMA ports] · [ISA base frequency]
+
+More details in this [paper][https://arxiv.org/pdf/1807.03032.pdf].
 
 ## Known limitations and possible work arounds
 
