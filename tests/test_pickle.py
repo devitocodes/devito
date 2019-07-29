@@ -331,7 +331,7 @@ def test_full_model():
     # Test Model pickling
     pkl_model = pickle.dumps(model)
     new_model = pickle.loads(pkl_model)
-    assert np.isclose(np.linalg.norm(model.vp-new_model.vp), 0)
+    assert np.isclose(np.linalg.norm(model.vp.data-new_model.vp.data), 0)
 
     f0 = .010
     dt = model.critical_dt

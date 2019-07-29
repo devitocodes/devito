@@ -65,8 +65,8 @@ class AnisotropicWaveSolver(object):
             The computed wavefield first component.
         v : TimeFunction, optional
             The computed wavefield second component.
-        m : Function or float, optional
-            The time-constant square slowness.
+        vp : Function or float, optional
+            The time-constant velocity.
         epsilon : Function or float, optional
             The time-constant first Thomsen parameter.
         delta : Function or float, optional

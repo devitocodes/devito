@@ -84,8 +84,8 @@ class AcousticWaveSolver(object):
             The interpolated receiver data.
         u : TimeFunction, optional
             Stores the computed wavefield.
-        m : Function or float, optional
-            The time-constant square slowness.
+        vp : Function or float, optional
+            The time-constant velocity.
         save : int or Buffer, optional
             The entire (unrolled) wavefield.
 
@@ -128,8 +128,8 @@ class AcousticWaveSolver(object):
             original source location.
         v: TimeFunction, optional
             The computed wavefield.
-        m : float, optional
-            The time-constant square slowness.
+        vp : Function or float, optional
+            The time-constant velocity.
 
         Returns
         -------
@@ -168,6 +168,8 @@ class AcousticWaveSolver(object):
             Stores the computed wavefield.
         grad : Function, optional
             Stores the gradient field.
+        vp : Function or float, optional
+            The time-constant velocity.
 
         Returns
         -------
@@ -218,8 +220,8 @@ class AcousticWaveSolver(object):
             The forward wavefield.
         U : TimeFunction, optional
             The linearized wavefield.
-        m : Function or float, optional
-            The time-constant square slowness.
+        vp : Function or float, optional
+            The time-constant velocity.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src

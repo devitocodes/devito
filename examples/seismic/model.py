@@ -514,7 +514,7 @@ class Model(GenericModel):
     space_order : int
         Order of the spatial stencil discretisation.
     vp : array_like or float
-        Velocity in km/s
+        Velocity in km/s.
     nbpml : int, optional
         The number of PML layers for boundary damping.
     dtype : np.float32 or np.float64
@@ -615,7 +615,7 @@ class Model(GenericModel):
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
-        dt = self.dtype(coeff * mmin(self.spacing) / (self.scale*mmax(self.vp)))
+        dt = self.dtype(coeff * mmin(self.spacing) / (self.scale*mmax(self.vp.data)))
         return self.dtype("%.3f" % dt)
 
     @property
