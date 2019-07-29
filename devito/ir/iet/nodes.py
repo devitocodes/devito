@@ -288,18 +288,16 @@ class Expression(Simple, Node):
         return not self.is_scalar
 
     @property
-    def is_scalar_assign(self):
-        """True if a scalar, non-increment expression."""
-        return self.is_scalar and not self.is_Increment
-
-    @property
-    def is_tensor_assign(self):
-        """True if an array initialization"""
-        return self.is_tensor and isinstance(self.expr.rhs, ListInitializer)
+    def is_assign(self):
+        """
+        True if it is an assignment, False otherwise
+        """
+        return ((self.is_scalar and not self.is_Increment) or
+                (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
 
     @property
     def defines(self):
-        return (self.write,) if self.is_scalar or self.is_tensor_assign else ()
+        return (self.write,) if self.is_scalar or self.is_assign else ()
 
     @property
     def free_symbols(self):

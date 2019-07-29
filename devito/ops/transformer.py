@@ -42,8 +42,6 @@ def opsit(trees, count):
         parameters
     )
 
-    print(ops_kernel)
-
     stencil_arrays_initializations = itertools.chain(*[
         to_ops_stencil(p, node_factory.ops_args_accesses[p])
         for p in parameters if isinstance(p, OpsAccessible)
