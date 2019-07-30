@@ -35,7 +35,7 @@ def generate(**kwargs):
     template = """\
 #!/bin/bash
 
-#PBS -lselect=%(nn)s:ncpus=%(ncpus)s:mem=120gb:mpiprocs=%(np)s:ompthreads=%(nt)s
+#PBS -lselect=%(nn)s:ncpus=%(ncpus)s:mem=120gb:mpiprocs=%(np)s:ompthreads=%(nt)s:cpumodel=%(ncpus)s
 #PBS -lwalltime=02:00:00
 
 %(load)s
