@@ -62,7 +62,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     # Smooth velocity
     initial_vp = Function(name='v0', grid=solver.model.grid, space_order=space_order)
-    smooth(initial_vp, solver.model.m)
+    smooth(initial_vp, solver.model.vp)
     dm = np.float32(initial_vp.data**(-2) - solver.model.vp.data**(-2))
 
     info("Applying Adjoint")
