@@ -13,7 +13,7 @@ def menu():
 
 @menu.command(name='generate')
 @option_simulation
-@click.option('-nn', '-nnodes', multiple=True, default=[1], help='Number of nodes')
+@click.option('-nn', multiple=True, default=[1], help='Number of nodes')
 @click.option('-ncpus', default=1, help='Number of cores *per node*')  # Should be ncores
 @click.option('-mem', default=120, help='Requested DRAM *per node*')
 @click.option('-np', default=1, help='Number of MPI processes *per node*')
@@ -35,7 +35,7 @@ def generate(**kwargs):
     template = """\
 #!/bin/bash
 
-#PBS -lselect=%(nnodes)s:ncpus=%(ncpus)s:mem=120gb:mpiprocs=%(np)s:ompthreads=%(nt)s
+#PBS -lselect=%(nn)s:ncpus=%(ncpus)s:mem=120gb:mpiprocs=%(np)s:ompthreads=%(nt)s
 #PBS -lwalltime=02:00:00
 
 %(load)s
@@ -56,10 +56,10 @@ mpiexec python benchmark.py bench -P %(problem)s -bm O2 -d %(shape)s -so %(space
 """  # noqa
 
     # Generate one PBS file for each `np` value
-    for nn in kwargs['nnodes']:
-        args['nnodes'] = nn
+    for nn in kwargs['nn']:
+        args['nn'] = nn
 
-        with open('pbs_nnodes%d.gen.sh' % int(nn), 'w') as f:
+        with open('pbs_nn%d.gen.sh' % int(nn), 'w') as f:
             f.write(template % args)
 
 
