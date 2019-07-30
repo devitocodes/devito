@@ -6,7 +6,7 @@ from sympy import S
 
 from devito.tools import Tag, as_tuple
 from devito.finite_differences import Differentiable
-from devito.types import NODE
+
 
 class Transpose(Tag):
     """
@@ -156,19 +156,20 @@ def symbolic_weights(function, deriv_order, indices, dim):
             for j in range(0, len(indices))]
 
 
-def generate_indices(func, dim, diff, order, side=None, x0={}):
+def generate_indices(func, dim, order, side=None, x0={}):
     # If staggered finited difference
-    if func.is_Staggered:
-        x0, ind = indices_staggered(func, dim, diff, order, side=side, x0=x0)
+    if func.is_Staggered and not dim.is_Time:
+        x0, ind = indices_staggered(func, dim, order, side=side, x0=x0)
     else:
         x0 = x0.get(dim, dim)
         # Check if called from first_derivative()
-        ind = indices_cartesian(dim, diff, order, side)
+        ind = indices_cartesian(dim, order, side)
     return ind, x0
 
 
-def indices_cartesian(dim, diff, order, side):
+def indices_cartesian(dim, order, side):
     shift = 0
+    diff = dim.spacing
     if side == left:
         diff = -diff
     if side in [left, right]:
@@ -180,12 +181,17 @@ def indices_cartesian(dim, diff, order, side):
     return ind
 
 
-def indices_staggered(func, dim, diff, order, side=None, x0={}):
+def indices_staggered(func, dim, order, side=None, x0={}):
+    diff = dim.spacing
     start = x0.get(dim, func.ind_map[dim])
     if start != func.ind_map[dim]:
-        ind = [start - diff/2 - i * diff for i in range(0, order//2+1)]
-        ind += [start + diff/2 + i * diff for i in range(0, order//2+1)] 
+        ind = [start - diff/2 - i * diff for i in range(0, order//2)]
+        ind += [start + diff/2 + i * diff for i in range(0, order//2)]
+        if order < 2:
+            ind = [start - diff/2, start + diff/2]
     else:
         ind = [start + i * diff for i in range(-order//2, order//2+1)]
+        if order < 2:
+            ind = [start, start + diff]
 
     return start, ind

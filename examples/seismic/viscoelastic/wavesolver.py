@@ -39,8 +39,8 @@ class ViscoelasticWaveSolver(object):
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order, **self._kwargs)
 
-    def forward(self, src=None, rec1=None, rec2=None, vp=None, qp=None, vs=None, qs=None,
-                rho=None, vx=None, vz=None, txx=None, tzz=None, txz=None, rxx=None,
+    def forward(self, src=None, rec1=None, rec2=None, lam=None, qp=None, mu=None, qs=None,
+                irho=None, vx=None, vz=None, txx=None, tzz=None, txz=None, rxx=None,
                 rzz=None, rxz=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
@@ -68,16 +68,16 @@ class ViscoelasticWaveSolver(object):
             The computed vertical memory variable.
         rxz: TimeFunction, optional
             The computed diagonal memory variable.
-        vp : Function, optional
-            The time-constant P-wave velocity (km/s).
+        lambda : Function, optional
+            The time-constant first Lame parameter (rho * vp**2 - rho * vs **2)
         qp : Function, optional
             The P-wave quality factor (dimensionless).
-        vs : Function, optional
-            The time-constant S-wave velocity (km/s).
+        mu : Function, optional
+            The Shear modulus (rho * vs*2)
         qs : Function, optional
             The S-wave quality factor (dimensionless)
-        rho : Function, optional
-            The time-constant density (rho=1 for water).
+        irho : Function, optional
+            The time-constant inverse density (1/rho=1 for water).
         save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield.
 
@@ -120,13 +120,13 @@ class ViscoelasticWaveSolver(object):
             kwargs['rxy'] = rxy
             kwargs['ryz'] = ryz
         # Pick physical parameters from model unless explicitly provided
-        vp = vp or self.model.vp
+        lam = lam or self.model.lam
         qp = qp or self.model.qp
-        vs = vs or self.model.vs
+        mu = mu or self.model.mu
         qs = qs or self.model.qs
-        rho = rho or self.model.rho
+        irho = irho or self.model.irho
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, vp=vp, qp=qp, vs=vs,
-                                          qs=qs, rho=rho, rec2=rec2,
+        summary = self.op_fwd(save).apply(src=src, rec1=rec1, mu=mu, qp=qp, lam=lam,
+                                          qs=qs, irho=irho, rec2=rec2,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec1, rec2, vx, vz, txx, tzz, txz, summary

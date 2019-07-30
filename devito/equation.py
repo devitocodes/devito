@@ -76,6 +76,10 @@ class Eq(sympy.Eq, Evaluable):
 
     @cached_property
     def evaluate(self):
+        """
+        Evaluate the equation or system of equation.
+        The rhs of the equation is evaluated at the indices of the lhs if required.
+        """
         try:
             lhs, rhs = self.lhs.evaluate, self.rhs.eval_at(self.lhs).evaluate
         except AttributeError:
@@ -102,7 +106,7 @@ class Eq(sympy.Eq, Evaluable):
         try:
             lhss = self.lhs.values()
             rhss = self.rhs.values(symmetric=self.lhs.is_symmetric)
-            return [Eq(l, r) for l, r in zip(lhss, rhss)]
+            return [self.func(l, r) for l, r in zip(lhss, rhss)]
         except AttributeError:
             return [self]
 
@@ -219,5 +223,15 @@ def solve(eq, target, **kwargs):
     kwargs['simplify'] = False  # Do not attempt premature optimisation
     kwargs['manual'] = True  # Force sympy to solve one line at a time for VectorFunction
     if isinstance(eq, Eq):
-        eq = eq.lhs - eq.rhs
-    return sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
+        eq = eq.lhs - eq.rhs if eq.rhs != 0 else eq.lhs
+    sol = sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
+
+    # We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions
+    # Also need to rebuild the expressiosn that are turned into sympy core types
+    from devito.types import TensorFunction
+    from devito.finite_differences.differentiable import to_differentiable
+    if isinstance(target, TensorFunction):
+        sol = [to_differentiable(s) for s in sol]
+        return target.new_from_mat(list(sol))
+    else:
+        return to_differentiable(sol)

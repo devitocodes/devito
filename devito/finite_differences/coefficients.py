@@ -179,7 +179,7 @@ class Substitutions(object):
 
             subs = {}
 
-            indices, x0 = generate_indices(function, dim, dim.spacing, fd_ordr, side=None)
+            indices, x0 = generate_indices(function, dim, fd_ordr, side=None)
 
             for j in range(len(weights)):
                 subs.update({function._coeff_symbol
@@ -212,7 +212,7 @@ def default_rules(obj, functions):
 
         subs = {}
 
-        indices, x0 = generate_indices(function, dim, dim.spacing, fd_order, side=None)
+        indices, x0 = generate_indices(function, dim, fd_order, side=None)
 
         coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 

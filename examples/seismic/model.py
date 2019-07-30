@@ -124,7 +124,7 @@ def demo_model(preset, **kwargs):
         nbpml = kwargs.pop('nbpml', 10)
         nlayers = kwargs.pop('nlayers', 3)
         vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 5.5)
+        vp_bottom = kwargs.pop('vp_bottom', 3.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
@@ -327,7 +327,7 @@ def demo_model(preset, **kwargs):
                      dtype=np.float32, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['marmousi-elastic', 'marmousi2d-elastic']:
-        spacing = (7.5, 7.5)
+        spacing = (5.0, 5.0)
         origin = (0., 0.)
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.get('data_path', None)
@@ -338,9 +338,9 @@ def demo_model(preset, **kwargs):
         vs = np.load(os.path.join(data_path, 'Simple2D/VS_elastic.npy'))
         rho = np.load(os.path.join(data_path, 'Simple2D/DENSITY_elastic.npy'))
         # Cut the model to make it slightly cheap
-        v = 1e-3 * np.transpose(v[::6, ::6])
-        vs = scipy_smooth(1e-3 * np.transpose(vs[::6, ::6]))
-        rho = scipy_smooth(np.transpose(rho[::6, ::6]))
+        v = 1e-3 * np.transpose(v[::4, ::4])
+        vs = 1e-3 * np.transpose(vs[::4, ::4])
+        rho = np.transpose(rho[::4, ::4])
 
         return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
                             origin=origin, shape=v.shape,
@@ -763,33 +763,19 @@ class ModelElastic(GenericModel):
         self.damp = Function(name="damp", grid=self.grid)
         initialize_damp(self.damp, self.nbpml, self.spacing, mask=True)
 
-        self._physical_parameters = ()
-        # Create mu Lame parameter
-        if any(isinstance(p, np.ndarray) for p in (vs, rho)):
-            self.mu = Function(name="mu", grid=self.grid, space_order=space_order,
-                               parameter=True)
-            initialize_function(self.mu, vs**2*rho, self.nbpml)
-        else:
-            self.mu = Constant(name="mu", value=vs**2*rho)
-        self._physical_parameters += ('mu',)
+        physical_parameters = []
 
-        # Create lambda Lame paramter
-        if any(isinstance(p, np.ndarray) for p in (vp, vs, rho)):
-            self.lam = Function(name="l", grid=self.grid, space_order=space_order,
-                                parameter=True)
-            initialize_function(self.lam, (vp**2 - 2 * vs**2)*rho, self.nbpml)
-        else:
-            self.lam = Constant(name="l", value=(vp**2 - 2 * vs**2)*rho)
-        self._physical_parameters += ('l',)
+        self.lam = self._gen_phys_param((vp**2 - 2 * vs**2)*rho, 'lam', space_order,
+                                        is_param=True)
+        physical_parameters.append('lam')
 
-        # Create inverse of density
-        if isinstance(rho, np.ndarray):
-            self.irho = Function(name="irho", grid=self.grid, space_order=space_order,
-                                 parameter=True)
-            initialize_function(self.irho, 1/rho, self.nbpml)
-        else:
-            self.rho = Constant(name="irho", value=1/rho)
-        self._physical_parameters += ('irho',)
+        self.mu = self._gen_phys_param(vs**2 * rho, 'mu', space_order, is_param=True)
+        physical_parameters.append('mu')
+
+        self.irho = self._gen_phys_param(1/rho, 'irho', space_order, is_param=True)
+        physical_parameters.append('irho')
+
+        self._physical_parameters = as_tuple(physical_parameters)
 
     @property
     def critical_dt(self):

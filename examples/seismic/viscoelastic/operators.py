@@ -1,22 +1,86 @@
 import sympy as sp
 
-from devito import Eq, Operator
-from examples.seismic.elastic import tensor_function, vector_function, src_rec
+from devito import Eq, Operator, TimeFunction, NODE
+from examples.seismic.elastic import src_rec
+
+
+def vector_function(name, model, save, space_order):
+    """
+    Create a vector function such as the particle velocity fields
+    """
+    if model.grid.dim == 2:
+        x, z = model.space_dimensions
+        stagg_x = x
+        stagg_z = z
+        # Create symbols for forward wavefield, source and receivers
+        vx = TimeFunction(name=name+'x', grid=model.grid, staggered=stagg_x,
+                          time_order=1, space_order=space_order)
+        vz = TimeFunction(name=name+'z', grid=model.grid, staggered=stagg_z,
+                          time_order=1, space_order=space_order)
+        vy = None
+    elif model.grid.dim == 3:
+        x, y, z = model.space_dimensions
+        stagg_x = x
+        stagg_y = y
+        stagg_z = z
+        # Create symbols for forward wavefield, source and receivers
+        vx = TimeFunction(name=name+'x', grid=model.grid, staggered=stagg_x,
+                          time_order=1, space_order=space_order)
+        vy = TimeFunction(name=name+'y', grid=model.grid, staggered=stagg_y,
+                          time_order=1, space_order=space_order)
+        vz = TimeFunction(name=name+'z', grid=model.grid, staggered=stagg_z,
+                          time_order=1, space_order=space_order)
+
+    return vx, vy, vz
+
+
+def tensor_function(name, model, save, space_order):
+    """
+    Create a tensor function such as the stress tensor.
+    """
+    if model.grid.dim == 2:
+        x, z = model.space_dimensions
+        stagg_xx = stagg_zz = NODE
+        stagg_xz = (x, z)
+        # Create symbols for forward wavefield, source and receivers
+        txx = TimeFunction(name=name+'xx', grid=model.grid, staggered=stagg_xx, save=save,
+                           time_order=1, space_order=space_order)
+        tzz = TimeFunction(name=name+'zz', grid=model.grid, staggered=stagg_zz, save=save,
+                           time_order=1, space_order=space_order)
+        txz = TimeFunction(name=name+'xz', grid=model.grid, staggered=stagg_xz, save=save,
+                           time_order=1, space_order=space_order)
+        tyy = txy = tyz = None
+    elif model.grid.dim == 3:
+        x, y, z = model.space_dimensions
+        stagg_xx = stagg_yy = stagg_zz = NODE
+        stagg_xz = (x, z)
+        stagg_yz = (y, z)
+        stagg_xy = (x, y)
+        # Create symbols for forward wavefield, source and receivers
+        txx = TimeFunction(name=name+'xx', grid=model.grid, staggered=stagg_xx, save=save,
+                           time_order=1, space_order=space_order)
+        tzz = TimeFunction(name=name+'zz', grid=model.grid, staggered=stagg_zz, save=save,
+                           time_order=1, space_order=space_order)
+        tyy = TimeFunction(name=name+'yy', grid=model.grid, staggered=stagg_yy, save=save,
+                           time_order=1, space_order=space_order)
+        txz = TimeFunction(name=name+'xz', grid=model.grid, staggered=stagg_xz, save=save,
+                           time_order=1, space_order=space_order)
+        txy = TimeFunction(name=name+'xy', grid=model.grid, staggered=stagg_xy, save=save,
+                           time_order=1, space_order=space_order)
+        tyz = TimeFunction(name=name+'yz', grid=model.grid, staggered=stagg_yz, save=save,
+                           time_order=1, space_order=space_order)
+
+    return txx, tyy, tzz, txy, txz, tyz
 
 
 def viscoelastic_2d(model, space_order, save, geometry):
     """
     2D viscoelastic wave equation FD kernel
     """
-    vp, qp, vs, qs, rho, damp = \
-        model.vp, model.qp, model.vs, model.qs, model.rho, model.damp
+    l, qp, mu, qs, ro, damp = \
+        model.lam, model.qp, model.mu, model.qs, model.irho, model.damp
     s = model.grid.stepping_dim.spacing
-    cp2 = vp*vp
-    cs2 = vs*vs
-    ro = 1/rho
 
-    mu = cs2*rho
-    l = rho*(cp2 - 2*cs2)
     pi = l + 2*mu
 
     f0 = geometry._f0
@@ -61,15 +125,9 @@ def viscoelastic_3d(model, space_order, save, geometry):
     """
     3D viscoelastic wave equation FD kernel
     """
-    vp, qp, vs, qs, rho, damp = \
-        model.vp, model.qp, model.vs, model.qs, model.rho, model.damp
+    l, qp, mu, qs, ro, damp = \
+        model.lam, model.qp, model.mu, model.qs, model.irho, model.damp
     s = model.grid.stepping_dim.spacing
-    cp2 = vp*vp
-    cs2 = vs*vs
-    ro = 1/rho
-
-    mu = cs2*rho
-    l = rho*(cp2 - 2*cs2)
     pi = l + 2*mu
 
     f0 = geometry._f0

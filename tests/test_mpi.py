@@ -1445,9 +1445,9 @@ class TestOperatorAdvanced(object):
         op(time_M=2)
 
         # Expected norms computed "manually" from sequential runs
-        assert np.isclose(norm(ux), 5408.574, rtol=1.e-4)
-        assert np.isclose(norm(uxx), 60904.192, rtol=1.e-4)
-        assert np.isclose(norm(uxy), 58555.359, rtol=1.e-4)
+        assert np.isclose(norm(ux), 6148.0819, rtol=1.e-4)
+        assert np.isclose(norm(uxx), 31925.259, rtol=1.e-4)
+        assert np.isclose(norm(uxy), 61405.077, rtol=1.e-4)
 
 
 class TestIsotropicAcoustic(object):
@@ -1491,14 +1491,14 @@ class TestIsotropicAcoustic(object):
         # Run forward operator
         rec, u, _ = solver.forward(save=save)
 
-        assert np.isclose(norm(u), Eu, rtol=Eu*1.e-8)
-        assert np.isclose(norm(rec), Erec, rtol=Erec*1.e-8)
+        assert np.isclose(norm(u) / Eu, 1.0)
+        assert np.isclose(norm(rec) / Erec, 1.0)
 
         # Run adjoint operator
         srca, v, _ = solver.adjoint(rec=rec)
 
-        assert np.isclose(norm(v), Ev, rtol=Ev*1.e-8)
-        assert np.isclose(norm(srca), Esrca, rtol=Esrca*1.e-8)
+        assert np.isclose(norm(v) / Ev, 1.0)
+        assert np.isclose(norm(srca) / Esrca, 1.0)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = inner(srca, solver.geometry.src)
@@ -1506,9 +1506,9 @@ class TestIsotropicAcoustic(object):
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, ), 'OT2', 4, 10, False, 385.627, 12993.527, 63818503.321, 101159204.362),
-        ((60, 70), 'OT2', 8, 10, False, 342.925, 867.47, 405805.482, 239444.952),
-        ((60, 70, 80), 'OT2', 12, 10, False, 151.6396, 205.9027, 27484.635, 11736.917)
+        ((60, ), 'OT2', 4, 10, False, 514.951, 17422.67, 85646599.436, 155482859.110),
+        ((60, 70), 'OT2', 8, 10, False, 414.960, 1025.991, 406469.145, 283181.721),
+        ((60, 70, 80), 'OT2', 12, 10, False, 156.135, 243.575, 27437.429, 13883.473)
     ])
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag', True), (4, 'overlap', True),
                                 (4, 'overlap2', True), (4, 'full', True)])
@@ -1517,7 +1517,7 @@ class TestIsotropicAcoustic(object):
         self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, 70, 80), 'OT2', 12, 10, False, 151.6396, 205.9027, 27484.635, 11736.917)
+        ((60, 70, 80), 'OT2', 12, 10, False, 156.135, 243.575, 27437.429, 13883.473)
     ])
     @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
     @switchconfig(openmp=False)

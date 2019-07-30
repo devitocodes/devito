@@ -424,8 +424,8 @@ class Scalar(Symbol, ArgProvider):
 
 class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable):
     """
-    Base class for vectro and tensor valued functions. It inherits from and
-    mimicks the behavior of a sympy.Matrix
+    Base class for vector and tensor valued functions. It inherits from and
+    mimicks the behavior of a sympy.ImmutableDenseMatrix
 
     The sub-hierachy is as follows
 
@@ -438,8 +438,8 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable):
                  ---------------------------------
                  |                               |
           VectorFunction                 TensorTimeFunction
-                                                 |
-                                         VectorimeFunction
+                        \-------\                |
+                                 \------- VectorimeFunction
 
     There are four relevant AbstractFunction sub-types: ::
 
@@ -476,8 +476,7 @@ class AbstractCachedTensor(AbstractTensor, Cached, Evaluable):
             # Create the new Function object and invoke __init__
             comps = cls.__setup_subfunc__(*args, **kwargs)
             newcls = cls._symbol_type(name)
-            newobj = sympy.Matrix.__new__(newcls, comps)
-
+            newobj = sympy.ImmutableDenseMatrix.__new__(newcls, comps)
             # Initialization. The following attributes must be available
             newobj._indices = indices
             newobj._name = name
@@ -1043,7 +1042,7 @@ class Array(AbstractCachedFunction):
         assert self._scope in ['heap', 'stack']
 
     # Pickling support
-    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['indices', 'scope']
+    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['dimensions', 'scope']
 
 
 # Objects belonging to the Devito API not involving data, such as data structures

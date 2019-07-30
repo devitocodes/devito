@@ -1,11 +1,9 @@
 from collections import ChainMap
 
 import sympy
-from sympy import S
 
 from sympy.functions.elementary.integers import floor
 from sympy.core.evalf import evalf_table
-from sympy.core.decorators import call_highest_priority
 
 from cached_property import cached_property
 
@@ -27,6 +25,13 @@ class Differentiable(sympy.Expr, Evaluable):
     _op_priority = sympy.Expr._op_priority + 1.
 
     _state = ('space_order', 'time_order', 'indices')
+
+    @classmethod
+    def _rebuild(cls, seq):
+        if not seq:
+            return []
+        seq = [to_differentiable(a) for a in seq]
+        return seq
 
     @cached_property
     def _functions(self):
@@ -114,7 +119,6 @@ class Differentiable(sympy.Expr, Evaluable):
     def eval_at(self, var):
         if not var.is_Staggered:
             return self
-        # print([(a, type(a), getattr(a, 'eval_at', lambda x: a)(var)) for a in self.args])
         return self.func(*[getattr(a, 'eval_at', lambda x: a)(var) for a in self.args])
 
     def __hash__(self):

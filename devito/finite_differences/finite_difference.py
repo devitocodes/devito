@@ -74,11 +74,10 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     -f(x, y)*g(x, y)/h_x + f(x - h_x, y)*g(x - h_x, y)/h_x
     """
     side = side
-    diff = dim.spacing
     order = fd_order or expr.space_order
 
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind = generate_indices(expr, dim, diff, order, side=side, x0=x0)[0]
+    ind = generate_indices(expr, dim, order, side=side, x0=x0)[0]
 
     # Finite difference weights from Taylor approximation with these positions
     if symbolic:
@@ -86,18 +85,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     else:
         c = finite_diff_weights(1, ind, dim)[-1][-1]
 
-    # Loop through positions
-    deriv = 0
-    all_dims = tuple(set((expr.index(dim),) +
-                     tuple(expr.index(i) for i in expr.dimensions if i.root == dim)))
-    for i in range(len(ind)):
-        subs = dict([(d, ind[i].subs({dim: d, diff: matvec.val*diff})) for d in all_dims])
-        deriv += expr.subs(subs) * c[i]
-
-    # Evaluate up to _PRECISION digits
-    deriv = deriv.evalf(_PRECISION)
-
-    return deriv
+    return from_ind_w(expr, dim, ind, c, matvec=matvec.val)
 
 
 @check_input
@@ -235,10 +223,8 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     expr-like
         ``deriv-order`` derivative of ``expr``.
     """
-    diff = dim.spacing
-
     # Stencil positions
-    indices, x0 = generate_indices(expr, dim, diff, fd_order, x0=x0)
+    indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
 
     # Finite difference weights from Taylor approximation with these positions
     if symbolic:
@@ -246,17 +232,22 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     else:
         c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
-    # Loop through positions
+    return from_ind_w(expr, dim, indices, c, matvec=matvec.val)
+
+
+def from_ind_w(expr, dim, inds, weights, matvec=1):
+    """
+    Expression from list of indices and weights
+    """
+    diff = dim.spacing
     deriv = 0
     all_dims = tuple(set((expr.index(dim),) +
                      tuple(expr.index(i) for i in expr.dimensions if i.root == dim)))
 
-    for i in range(len(indices)):
-        subs = dict((d, indices[i].subs({dim: d, diff: matvec.val*diff}))
-                    for d in all_dims)
-        deriv += expr.subs(subs) * c[i]
+    d0 = ([d for d in expr.dimensions if d.root == dim] or [dim])[0]
+    # Loop through weights
+    for i, c in zip(inds, weights):
+        subs = dict((d, i.subs({dim: d0, diff: matvec*diff})) for d in all_dims)
+        deriv += expr.subs(subs) * c
 
-    # Evaluate up to _PRECISION digits
-    deriv = deriv.evalf(_PRECISION)
-
-    return deriv
+    return deriv.evalf(_PRECISION)
