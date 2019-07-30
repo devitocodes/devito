@@ -221,6 +221,11 @@ or to keep the memory footprint under control:
 watch numastat -m
 ```
 
+## Running on HPC clusters
+
+`make-pbs.py` is a simple program to generate PBS files to submit jobs on HPC
+clusters.
+
 ## Known limitations and possible work arounds
 
  * The DSE `aggressive` mode might not work in combination with OpenMP if the
