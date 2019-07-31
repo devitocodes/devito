@@ -222,7 +222,7 @@ class CGen(Visitor):
                                          ccode(o.expr.rhs, dtype=o.dtype)))
 
     def visit_LocalExpression(self, o):
-        if o.expr.lhs.is_Array:
+        if o.write.is_Array:
             lhs = '%s%s' % (
                 o.expr.lhs.name,
                 ''.join(['[%s]' % d.symbolic_size for d in o.expr.lhs.dimensions])
