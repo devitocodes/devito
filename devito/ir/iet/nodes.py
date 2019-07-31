@@ -297,7 +297,7 @@ class Expression(Simple, Node):
 
     @property
     def defines(self):
-        return (self.write,) if self.is_scalar or self.is_definition else ()
+        return (self.write,) if self.is_definition else ()
 
     @property
     def free_symbols(self):
