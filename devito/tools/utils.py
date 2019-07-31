@@ -162,9 +162,6 @@ def filter_sorted(elements, key=None):
 
 def dtype_to_cstr(dtype):
     """Translate numpy.dtype into C string."""
-    if isinstance(dtype, str):
-        return dtype
-
     return cgen_dtype_to_ctype(dtype)
 
 
