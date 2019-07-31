@@ -14,6 +14,7 @@ from devito import Eq, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.operator import OperatorOPS # noqa
 from devito.ops.transformer import make_ops_ast, to_ops_stencil # noqa
+from devito.ops.utils import namespace # noqa
 from devito.symbolics import Literal, indexify # noqa
 from devito.types import Symbol # noqa
 
@@ -116,8 +117,8 @@ class TestOPSExpression(object):
         assert result[0].expr.rhs.params == tuple(itertools.chain(*accesses))
 
         assert result[1].expr.lhs.name == stencil_name.upper()
-        assert result[1].expr.rhs.function == 'ops_decl_stencil'
-        assert result[1].expr.rhs.params == (
+        assert result[1].expr.rhs.name == namespace['ops_decl_stencil'].name
+        assert result[1].expr.rhs.args == (
             2,
             len(accesses),
             Symbol(stencil_name),
