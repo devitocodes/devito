@@ -221,6 +221,21 @@ or to keep the memory footprint under control:
 watch numastat -m
 ```
 
+## Running on HPC clusters
+
+`benchmark.py` can be used to evaluate MPI on multi-node systems:
+```
+mpiexec python benchmark.py ...
+```
+In `bench` mode, each MPI rank will produce a different `.json` file
+summarizing the achieved performance in a structured format.
+
+Further, we provide `make-pbs.py`, a simple program to generate PBS files
+to submit jobs on HPC clusters. Take a look at `python make-pbs.py --help`
+for more information, and in particular `python make-pbs.py generate --help`.
+`make-pbs.py` is especially indicated if interested in running strong scaling
+experiments.
+
 ## Known limitations and possible work arounds
 
  * The DSE `aggressive` mode might not work in combination with OpenMP if the

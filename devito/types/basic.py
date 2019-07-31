@@ -9,6 +9,7 @@ from operator import mul
 
 import numpy as np
 import sympy
+
 from sympy.core.cache import cacheit
 from cached_property import cached_property
 from cgen import Struct, Value
@@ -18,11 +19,10 @@ from devito.parameters import configuration
 from devito.symbolics import Add
 from devito.tools import (EnrichedTuple, Evaluable, Pickable,
                           ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
-
 from devito.types.args import ArgProvider
 
-__all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object', 'LocalObject',
-           'CompositeObject']
+__all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
+           'LocalObject', 'CompositeObject']
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
@@ -880,6 +880,10 @@ class Array(AbstractCachedFunction):
     def _C_typename(self):
         return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
 
+    @property
+    def free_symbols(self):
+        return super().free_symbols - {d for d in self.dimensions if d.is_Default}
+
     def update(self, **kwargs):
         self._shape = kwargs.get('shape', self.shape)
         self._indices = kwargs.get('dimensions', self.indices)
@@ -937,6 +941,10 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
     @property
     def _C_ctype(self):
         return self.dtype
+
+    @property
+    def function(self):
+        return self
 
     # Pickling support
     _pickle_args = ['name', 'dtype']
