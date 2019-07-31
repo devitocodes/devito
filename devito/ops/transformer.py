@@ -2,7 +2,7 @@ import numpy as np
 import itertools
 
 from devito import Eq
-from devito.symbolics import ExternalFunctionCall, ListInitializer, Literal
+from devito.symbolics import ListInitializer, Literal
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Callable, Expression
 from devito.ir.iet.visitors import FindNodes
@@ -72,12 +72,12 @@ def to_ops_stencil(param, accesses):
         ))),
         Expression(ClusterizedEq(Eq(
             ops_stencil,
-            ExternalFunctionCall(namespace['ops_decl_stencil'], [
+            namespace['ops_decl_stencil'](
                 dims,
                 pts,
                 Symbol(stencil_array.name),
                 Literal('"%s"' % stencil_name.upper())
-            ])
+            )
         )))
     ]
 
