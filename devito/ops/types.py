@@ -4,6 +4,7 @@ import sympy
 import devito.types.basic as basic
 
 from devito.tools import dtype_to_cstr
+from devito.ops.utils import namespace
 
 
 class OpsAccessible(basic.Symbol):
@@ -114,4 +115,4 @@ class OpsStencil(basic.LocalObject):
 
     @property
     def _C_typename(self):
-        return "ops_stencil"
+        return namespace['ops_stencil_type']
