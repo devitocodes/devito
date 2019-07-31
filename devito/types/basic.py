@@ -9,11 +9,12 @@ from operator import mul
 
 import numpy as np
 import sympy
+
 from sympy.core.cache import cacheit
 from cached_property import cached_property
 from cgen import Struct, Value
 
-import devito.types as types
+import devito
 
 from devito.data import default_allocator
 from devito.parameters import configuration
@@ -884,7 +885,8 @@ class Array(AbstractCachedFunction):
     @property
     def free_symbols(self):
         return [
-            s for s in super().free_symbols if not isinstance(s, types.DefaultDimension)
+            s for s in super().free_symbols
+            if not isinstance(s, devito.types.DefaultDimension)
         ]
 
     def update(self, **kwargs):
