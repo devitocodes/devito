@@ -102,11 +102,6 @@ class CodePrinter(C99CodePrinter):
     def _print_FrozenExpr(self, expr):
         return self._print(expr.args[0])
 
-    def _print_ExternalFunctionCall(self, expr):
-        print("yeet boiii")
-        indices = [self._print(i) for i in expr.params]
-        return "%s(%s)" % (expr.function, ', '.join(indices))
-
     def _print_FunctionFromPointer(self, expr):
         indices = [self._print(i) for i in expr.params]
         return "%s->%s(%s)" % (expr.pointer, expr.function, ', '.join(indices))
