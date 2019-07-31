@@ -129,9 +129,11 @@ attempt a small batch of block shapes. With `autotune='aggressive'`, the
 auto-tuning phase will take up more time, but it will also evaluate more
 block-shapes.
 
-When running `python benchmark.py -a ...`, the underlying Operators will
+When running `python benchmark.py ...`, the underlying Operators will
 automatically be run in aggressive mode, that is as
 `op.apply(autotune='aggressive')`.
+
+The autotuning method can be selected with `-a ... ` 
 
 `benchmark.py` uses the so called "pre-emptive" auto-tuning, which implies two
 things:
@@ -197,21 +199,20 @@ The isotropic acoustic wave forward Operator in a `512**3` grid, space order
 python benchmark.py run -P acoustic -d 512 512 512 -so 12 --tn 100
 ```
 Like before, but with a specific optimization mode (O2) selected and auto-tuning
-enabled:
+in `basic` mode:
 ```
-python benchmark.py run -P acoustic -bm O2 -d 512 512 512 -so 12 -a --tn 100
+python benchmark.py run -P acoustic -bm O2 -d 512 512 512 -so 12 -a basic --tn 100
 ```
 It is also possible to run a TTI forward operator -- here in a 512x402x890
 grid:
 ```
-python benchmark.py run -P tti -bm O3 -d 512 402 890 -so 12 -a --tn 100
+python benchmark.py run -P tti -bm O3 -d 512 402 890 -so 12 -a basic --tn 100
 ```
 Do not forget to pin processes, especially on NUMA systems; below, we do so with
 `numactl` on a dual-socket system.
 ```
 numactl --cpubind=0 --membind=0 python benchmark.py ...
 ```
-
 While a benchmark is running, you can have some useful programs running in
 background in other shells. For example, to monitor pinning:
 ```
@@ -259,7 +260,8 @@ To generate a roofline model from the results obtained in `bench` mode,
 one can execute `benchmark.py` in `plot` mode. For example, the command
 
 ```
-python benchmark.py plot -P acoustic -d 512 512 512 -so 12 --tn 100 -a --max-bw 12.8
+python benchmark.py plot -P acoustic -d 512 512 512 -so 12 --tn 100 -a aggressive
+ --max-bw 12.8
 --flop-ceil 80 linpack
 ```
 

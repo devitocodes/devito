@@ -99,7 +99,7 @@ def option_performance(f):
                      type=click.Choice(['noop'] + configuration._accepted['dle']),
                      help='Devito loop engine (DLE) mode'),
         click.option('-a', '--autotune', default='aggressive',
-                     type=click.Choice(['off', 'basic', 'aggressive', 'max']),
+                     type=click.Choice(configuration._accepted['autotuning']),
                      help='Select autotuning mode')
     ]
     for option in reversed(options):
@@ -193,6 +193,8 @@ def cli_bench(problem, **kwargs):
     mode_benchmark()
     if kwargs['autotune'] != configuration['autotuning'].level:
         configuration['autotuning'] = [kwargs['autotune'], 'preemptive']
+    elif kwargs['autotune'] == 'off':
+        configuration['autotuning'] = [False, 'preemptive']
 
     bench(problem, **kwargs)
 

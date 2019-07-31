@@ -22,15 +22,15 @@ if os.environ.get('testWithPip') != 'true':
     runStep("py.test --durations=20 --cov devito tests/")
     if os.environ.get('RUN_EXAMPLES') == 'true':
         runStep(("python benchmarks/user/benchmark.py test " +
-                 "-P tti -so 4 -a -d 20 20 20 -n 5"))
-        runStep("python benchmarks/user/benchmark.py test -P acoustic -a")
+                 "-P tti -so 4 -a aggressive -d 20 20 20 -n 5"))
+        runStep("python benchmarks/user/benchmark.py test -P acoustic -a aggressive")
         runStep("python examples/seismic/acoustic/acoustic_example.py --full")
         runStep(("python examples/seismic/acoustic/acoustic_example.py " +
                 "--full --checkpointing"))
         runStep("python examples/seismic/acoustic/acoustic_example.py --constant --full")
         runStep("python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec")
-        runStep("python examples/seismic/tti/tti_example.py -a")
-        runStep("python examples/seismic/tti/tti_example.py -a --noazimuth")
+        runStep("python examples/seismic/tti/tti_example.py -a aggressive")
+        runStep("python examples/seismic/tti/tti_example.py -a aggressive --noazimuth")
         runStep("python examples/seismic/elastic/elastic_example.py")
         runStep("python examples/cfd/example_diffusion.py")
         runStep("py.test examples/cfd/example_diffusion.py")

@@ -126,8 +126,8 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/elastic/elastic_example.py --2d; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/elastic/elastic_example.py; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a; fi
-  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a --noazimuth; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a aggressive; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a aggressive --noazimuth; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/cfd/example_diffusion.py; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test examples/cfd/example_diffusion.py; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test examples/seismic/elastic/elastic_example.py; fi
