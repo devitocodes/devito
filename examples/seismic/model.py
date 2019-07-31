@@ -368,10 +368,7 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         not mask => 0 inside the domain and increase in the layer
     """
     shape = tuple(i + 2*nbpml for i in damp.grid.subdomains['phydomain'].shape)
-    data = np.zeros(shape)
-
-    if mask:
-        data[tuple(slice(nbpml, -nbpml) for i in shape)] = 1.
+    data = np.ones(shape) if mask else np.zeros(shape)
 
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
 
