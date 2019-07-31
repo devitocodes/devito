@@ -42,6 +42,6 @@ class OperatorOPS(Operator):
         self._headers.append(namespace['ops_define_dimension'](dims[0]))
         self._includes.append('stdio.h')
 
-        body = [ops_init, ops_partition, *pre_time_loop, iet, ops_exit]
+        body = [ops_init, *pre_time_loop, ops_partition, iet, ops_exit]
 
         return List(body=body)
