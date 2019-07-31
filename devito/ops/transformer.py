@@ -6,9 +6,9 @@ from devito.symbolics import ListInitializer, Literal
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Callable, Expression
 from devito.ir.iet.visitors import FindNodes
-from devito.types import Array, DefaultDimension, Symbol
+from devito.types import DefaultDimension, Symbol
 from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.types import OpsAccessible, OpsStencil
+from devito.ops.types import Array, OpsAccessible, OpsStencil
 from devito.ops.utils import namespace
 
 

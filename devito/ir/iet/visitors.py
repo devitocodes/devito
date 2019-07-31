@@ -13,7 +13,7 @@ from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import Node, Iteration, Expression, Call
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode
-from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten, dtype_to_cstr
+from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapSections', 'MapNodes',
@@ -220,8 +220,15 @@ class CGen(Visitor):
                                          ccode(o.expr.rhs, dtype=o.dtype)))
 
     def visit_LocalExpression(self, o):
-        return c.Initializer(c.Value(dtype_to_cstr(o.dtype),
-                             ccode(o.expr.lhs, dtype=o.dtype)),
+        if o.expr.lhs.is_Array:
+            lhs = '%s%s' % (
+                o.expr.lhs.name,
+                ''.join(['[%s]' % d.symbolic_size for d in o.expr.lhs.dimensions])
+            )
+        else:
+            lhs = ccode(o.expr.lhs, dtype=o.dtype)
+
+        return c.Initializer(c.Value(o.expr.lhs._C_typename, lhs),
                              ccode(o.expr.rhs, dtype=o.dtype))
 
     def visit_ForeignExpression(self, o):

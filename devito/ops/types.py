@@ -7,6 +7,16 @@ from devito.tools import dtype_to_cstr
 from devito.ops.utils import namespace
 
 
+class Array(basic.Array):
+
+    @property
+    def _C_typename(self):
+        if isinstance(self.dtype, str):
+            return self.dtype
+
+        return dtype_to_cstr(self.dtype)
+
+
 class OpsAccessible(basic.Symbol):
     """
     OPS accessible symbol
