@@ -13,12 +13,13 @@ from sympy.core.cache import cacheit
 from cached_property import cached_property
 from cgen import Struct, Value
 
+import devito.types as types
+
 from devito.data import default_allocator
 from devito.parameters import configuration
 from devito.symbolics import Add
 from devito.tools import (EnrichedTuple, Evaluable, Pickable,
                           ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
-
 from devito.types.args import ArgProvider
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
@@ -879,6 +880,12 @@ class Array(AbstractCachedFunction):
     @property
     def _C_typename(self):
         return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
+
+    @property
+    def free_symbols(self):
+        return [
+            s for s in super().free_symbols if not isinstance(s, types.DefaultDimension)
+        ]
 
     def update(self, **kwargs):
         self._shape = kwargs.get('shape', self.shape)
