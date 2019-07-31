@@ -1,6 +1,14 @@
-from devito.ir.iet.nodes import Callable, Expression, List
-from devito.ir.iet.visitors import FindNodes, FindSymbols
+import numpy as np
+import itertools
+
+from devito import Eq
+from devito.symbolics import ListInitializer, Literal
+from devito.ir.equations import ClusterizedEq
+from devito.ir.iet.nodes import Callable, Expression
+from devito.ir.iet.visitors import FindNodes
+from devito.types import DefaultDimension, Symbol
 from devito.ops.node_factory import OPSNodeFactory
+from devito.ops.types import Array, OpsAccessible, OpsStencil
 from devito.ops.utils import namespace
 
 
@@ -25,19 +33,53 @@ def opsit(trees, count):
     for expr in expressions:
         ops_expressions.append(Expression(make_ops_ast(expr.expr, node_factory)))
 
-    parameters = FindSymbols('symbolics').visit(List(body=ops_expressions))
-    to_remove = FindSymbols('defines').visit(List(body=expressions))
-    parameters = [p for p in parameters if p not in to_remove]
-    parameters = sorted(parameters, key=lambda i: (i.is_Constant, i.name))
+    parameters = sorted(node_factory.ops_params, key=lambda i: (i.is_Constant, i.name))
 
     ops_kernel = Callable(
-        namespace['ops-kernel'](count),
+        namespace['ops_kernel'](count),
         ops_expressions,
         "void",
         parameters
     )
 
-    return ops_kernel
+    stencil_arrays_initializations = itertools.chain(*[
+        to_ops_stencil(p, node_factory.ops_args_accesses[p])
+        for p in parameters if isinstance(p, OpsAccessible)
+    ])
+
+    pre_time_loop = stencil_arrays_initializations
+
+    return pre_time_loop, ops_kernel
+
+
+def to_ops_stencil(param, accesses):
+    dims = len(accesses[0])
+    pts = len(accesses)
+    stencil_name = namespace['ops_stencil_name'](dims, param.name, pts)
+
+    stencil_array = Array(
+        name=stencil_name,
+        dimensions=(DefaultDimension(name='len', default_value=dims * pts),),
+        dtype=np.int32,
+    )
+
+    ops_stencil = OpsStencil(stencil_name.upper())
+
+    return [
+        Expression(ClusterizedEq(Eq(
+            stencil_array,
+            ListInitializer(list(itertools.chain(*accesses)))
+        ))),
+        Expression(ClusterizedEq(Eq(
+            ops_stencil,
+            namespace['ops_decl_stencil'](
+                dims,
+                pts,
+                Symbol(stencil_array.name),
+                Literal('"%s"' % stencil_name.upper())
+            )
+        )))
+    ]
 
 
 def make_ops_ast(expr, nfops, is_write=False):

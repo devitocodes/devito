@@ -1,8 +1,20 @@
+import numpy as np
 import sympy
 
 import devito.types.basic as basic
 
 from devito.tools import dtype_to_cstr
+from devito.ops.utils import namespace
+
+
+class Array(basic.Array):
+
+    @property
+    def _C_typename(self):
+        if isinstance(self.dtype, str):
+            return self.dtype
+
+        return dtype_to_cstr(self.dtype)
 
 
 class OpsAccessible(basic.Symbol):
@@ -104,3 +116,13 @@ class OpsAccess(basic.Basic, sympy.Basic):
         return sympy.S.Zero, self
 
     __repr__ = __str__
+
+
+class OpsStencil(basic.LocalObject):
+
+    def __init__(self, name, *args, **kwargs):
+        super().__init__(name, np.void, *args, **kwargs)
+
+    @property
+    def _C_typename(self):
+        return namespace['ops_stencil_type']

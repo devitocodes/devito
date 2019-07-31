@@ -12,9 +12,9 @@ from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
-           'ListInitializer', 'Byref', 'IndexedPointer', 'Macro', 'Literal', 'taylor_sin',
-           'taylor_cos', 'bhaskara_sin', 'bhaskara_cos', 'INT', 'FLOAT', 'DOUBLE',
-           'FLOOR', 'cast_mapper']
+           'ListInitializer', 'Byref', 'IndexedPointer', 'Macro', 'Literal',
+           'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos',
+           'INT', 'FLOAT', 'DOUBLE', 'FLOOR', 'cast_mapper']
 
 
 class FrozenExpr(Expr):
@@ -262,6 +262,8 @@ class ListInitializer(sympy.Expr, Pickable):
         for p in as_tuple(params):
             if isinstance(p, str):
                 args.append(Symbol(p))
+            elif isinstance(p, int):
+                args.append(p)
             elif not isinstance(p, Expr):
                 raise ValueError("`params` must be an iterable of Expr or str")
             else:
