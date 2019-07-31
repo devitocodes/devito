@@ -1,4 +1,5 @@
-from collections import Callable, Iterable, OrderedDict, Mapping, MutableSet, deque
+from collections import OrderedDict, deque
+from collections.abc import Callable, Iterable, MutableSet, Mapping
 from functools import reduce
 
 import numpy as np

@@ -1,4 +1,5 @@
-from collections import Iterable, OrderedDict, namedtuple
+from collections import OrderedDict, namedtuple
+from collections.abc import Iterable
 
 import sympy
 from sympy import Number, Indexed, Symbol, LM, LC
