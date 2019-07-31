@@ -9,8 +9,7 @@ from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
 from devito.mpi.routines import MPIStatusObject, MPIRequestObject
 from devito.types import Symbol as dSymbol, Scalar
 from devito.profiling import Timer
-from devito.symbolics import (IntDiv, ListInitializer, ExternalFunctionCall,
-                              FunctionFromPointer)
+from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
 
@@ -154,11 +153,6 @@ def test_symbolics():
     pkl_ffp = pickle.dumps(ffp)
     new_ffp = pickle.loads(pkl_ffp)
     assert ffp == new_ffp
-
-    efc = ExternalFunctionCall('foo', ['b', 'c'])
-    pkl_efc = pickle.dumps(efc)
-    new_efc = pickle.loads(pkl_efc)
-    assert efc == new_efc
 
     li = ListInitializer(['a', 'b'])
     pkl_li = pickle.dumps(li)
