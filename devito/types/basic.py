@@ -14,8 +14,6 @@ from sympy.core.cache import cacheit
 from cached_property import cached_property
 from cgen import Struct, Value
 
-import devito
-
 from devito.data import default_allocator
 from devito.parameters import configuration
 from devito.symbolics import Add
@@ -884,10 +882,7 @@ class Array(AbstractCachedFunction):
 
     @property
     def free_symbols(self):
-        return [
-            s for s in super().free_symbols
-            if not isinstance(s, devito.types.DefaultDimension)
-        ]
+        return super().free_symbols - {d for d in self.dimensions if d.is_Default}
 
     def update(self, **kwargs):
         self._shape = kwargs.get('shape', self.shape)
