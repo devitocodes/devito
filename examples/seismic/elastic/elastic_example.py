@@ -45,6 +45,13 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     return rec1, rec2, vx, vz, txx, tzz, txz, summary
 
 
+def test_elastic():
+    rec1, rec2, vx, vz, txx, tzz, txz, summary = run()
+    norm = lambda x: np.linalg.norm(x.data.reshape(-1))
+    assert np.isclose(norm(rec1), 20.9175, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec2), 1.81198, atol=1e-3, rtol=0)
+
+
 if __name__ == "__main__":
     description = ("Example script for a set of elastic operators.")
     parser = ArgumentParser(description=description)
