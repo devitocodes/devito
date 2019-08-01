@@ -66,12 +66,12 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
 
     >>> g = Function(name='g', grid=grid)
     >>> first_derivative(f*g, dim=x, matvec=transpose)
-    f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
+    -f(x, y)*g(x, y)/h_x + f(x - h_x, y)*g(x - h_x, y)/h_x
 
     This is also accessible via the .T shortcut
 
     >>> (f*g).dx.T.evaluate
-    f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
+    -f(x, y)*g(x, y)/h_x + f(x - h_x, y)*g(x - h_x, y)/h_x
     """
     side = side
     diff = dim.spacing

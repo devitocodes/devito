@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import simplify, diff
+from sympy import simplify, diff, cos, sin
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, clear_cache, NODE,
@@ -370,14 +370,14 @@ class TestFD(object):
     def test_fd_adjoint(self, so, ndim, derivative, adjoint_name, adjoint_coeff):
         clear_cache()
         grid = Grid(shape=tuple([51]*ndim), extent=tuple([25]*ndim))
+        x = grid.dimensions[0]
         f = Function(name='f', grid=grid, space_order=so)
         f_deriv = Function(name='f_deriv', grid=grid, space_order=so)
-        f.data[:] = np.random.rand(51,).round(decimals=5)
         g = Function(name='g', grid=grid, space_order=so)
         g_deriv = Function(name='g_deriv', grid=grid, space_order=so)
 
-        # Filtering to make it smooth
-        op_s = Operator([Eq(g, f.dx2), Eq(f, g.dx2)]).apply()
+        # Fill f and g with smooth cos/sin
+        Operator([Eq(g, cos(2*np.pi*x/5)), Eq(f, sin(2*np.pi*x/8))]).apply()
         # Check symbolic expression are expected ones for the adjoint .T
         deriv = getattr(f, derivative)
         expected = adjoint_coeff * getattr(f, adjoint_name).evaluate

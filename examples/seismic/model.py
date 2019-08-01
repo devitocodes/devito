@@ -4,7 +4,6 @@ import numpy as np
 
 from examples.seismic.utils import scipy_smooth
 from devito import Grid, SubDomain, Function, Constant, warning, mmin, mmax
-from devito.logger import error
 
 __all__ = ['Model', 'ModelElastic', 'demo_model']
 
