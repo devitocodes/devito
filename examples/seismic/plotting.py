@@ -29,7 +29,7 @@ def plot_perturbation(model, model1, colorbar=True):
     domain_size = 1.e-3 * np.array(model.domain_size)
     extent = [model.origin[0], model.origin[0] + domain_size[0],
               model.origin[1] + domain_size[1], model.origin[1]]
-    dv = np.transpose(model.vp) - np.transpose(model1.vp)
+    dv = np.transpose(model.vp.data) - np.transpose(model1.vp.data)
 
     plot = plt.imshow(dv, animated=True, cmap=cm.jet,
                       vmin=min(dv.reshape(-1)), vmax=max(dv.reshape(-1)),
@@ -67,8 +67,9 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
     extent = [model.origin[0], model.origin[0] + domain_size[0],
               model.origin[1] + domain_size[1], model.origin[1]]
 
-    plot = plt.imshow(np.transpose(model.vp), animated=True, cmap=cm.jet,
-                      vmin=np.min(model.vp), vmax=np.max(model.vp), extent=extent)
+    plot = plt.imshow(np.transpose(model.vp.data), animated=True, cmap=cm.jet,
+                      vmin=np.min(model.vp.data), vmax=np.max(model.vp.data),
+                      extent=extent)
     plt.xlabel('X position (km)')
     plt.ylabel('Depth (km)')
 

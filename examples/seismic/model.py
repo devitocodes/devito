@@ -4,6 +4,7 @@ import numpy as np
 
 from examples.seismic.utils import scipy_smooth
 from devito import Grid, SubDomain, Function, Constant, warning, mmin, mmax
+from devito.logger import error
 
 __all__ = ['Model', 'ModelElastic', 'demo_model']
 
@@ -366,12 +367,8 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
-
-    phy_shape = damp.grid.subdomains['phydomain'].shape
-    data = np.ones(phy_shape) if mask else np.zeros(phy_shape)
-
-    pad_widths = [(nbpml, nbpml) for i in range(damp.ndim)]
-    data = np.pad(data, pad_widths, 'edge')
+    shape = tuple(i + 2*nbpml for i in damp.grid.subdomains['phydomain'].shape)
+    data = np.ones(shape) if mask else np.zeros(shape)
 
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
 
@@ -391,7 +388,7 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
             all_ind[i] = slice(data.shape[i]-j, data.shape[i]-j+1)
             data[tuple(all_ind)] += val/spacing[i]
 
-    initialize_function(damp, data, 0)
+    damp.data[:] = data
 
 
 def initialize_function(function, data, nbpml, pad_mode='edge'):
@@ -514,7 +511,7 @@ class Model(GenericModel):
     space_order : int
         Order of the spatial stencil discretisation.
     vp : array_like or float
-        Velocity in km/s
+        Velocity in km/s.
     nbpml : int, optional
         The number of PML layers for boundary damping.
     dtype : np.float32 or np.float64
@@ -544,12 +541,12 @@ class Model(GenericModel):
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
-            self.m = Function(name="m", grid=self.grid, space_order=space_order)
+            self._vp = Function(name="vp", grid=self.grid, space_order=space_order)
+            initialize_function(self._vp, vp, self.nbpml)
         else:
-            self.m = Constant(name="m", value=1/vp**2)
-        self._physical_parameters = ('m',)
-        # Set model velocity, which will also set `m`
-        self.vp = vp
+            self._vp = Constant(name="vp", value=vp)
+        self._physical_parameters = ('vp',)
+        self._max_vp = np.max(vp)
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
@@ -616,7 +613,7 @@ class Model(GenericModel):
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
-        dt = self.dtype(coeff * mmin(self.spacing) / (self.scale*mmax(self.vp)))
+        dt = self.dtype(coeff * mmin(self.spacing) / (self.scale*self._max_vp))
         return self.dtype("%.3f" % dt)
 
     @property
@@ -642,13 +639,23 @@ class Model(GenericModel):
         vp : float or array
             New velocity in km/s.
         """
-        self._vp = vp
-
         # Update the square slowness according to new value
         if isinstance(vp, np.ndarray):
-            initialize_function(self.m, 1 / (self.vp * self.vp), self.nbpml)
+            if vp.shape == self.vp.shape:
+                self.vp.data[:] = vp[:]
+            elif vp.shape == self.shape:
+                initialize_function(self._vp, vp, self.nbpml)
+            else:
+                error("Incorrect input size %s for model of size" % vp.shape +
+                      " %s without or %s with padding" % (self.shape, self.vp.shape))
         else:
-            self.m.data = 1 / vp**2
+            self._vp.data = vp
+
+        self._max_vp = np.max(vp)
+
+    @property
+    def m(self):
+        return 1 / (self.vp * self.vp)
 
 
 class ModelElastic(GenericModel):

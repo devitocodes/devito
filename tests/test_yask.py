@@ -485,6 +485,10 @@ class TestIsotropicAcoustic(object):
         return self.model.m
 
     @cached_property
+    def vp(self):
+        return self.model.vp
+
+    @cached_property
     def damp(self):
         return self.model.damp
 
@@ -535,7 +539,7 @@ class TestIsotropicAcoustic(object):
         op = Operator(self.eqn, subs=self.model.spacing_map)
         assert 'run_solution' in str(op)
 
-        op.apply(u=self.u, m=self.m, damp=self.damp, time=10, dt=dt)
+        op.apply(u=self.u, vp=self.vp, damp=self.damp, time=10, dt=dt)
 
         assert np.linalg.norm(self.u.data[:]) == 0.0
 
@@ -551,7 +555,7 @@ class TestIsotropicAcoustic(object):
         op = Operator(eqns, subs=self.model.spacing_map)
         assert 'run_solution' in str(op)
 
-        op.apply(u=self.u, m=self.m, damp=self.damp, src=self.src, dt=dt)
+        op.apply(u=self.u, vp=self.vp, damp=self.damp, src=self.src, dt=dt)
 
         exp_u = 154.05
         assert np.isclose(np.linalg.norm(self.u.data[:]), exp_u, atol=exp_u*1.e-2)
@@ -569,7 +573,7 @@ class TestIsotropicAcoustic(object):
         op = Operator(eqns, subs=self.model.spacing_map)
         assert 'run_solution' in str(op)
 
-        op.apply(u=self.u, m=self.m, damp=self.damp, src=self.src, rec=self.rec, dt=dt)
+        op.apply(u=self.u, vp=self.vp, damp=self.damp, src=self.src, rec=self.rec, dt=dt)
 
         # The expected norms have been computed "by hand" looking at the output
         # of test_adjointA's forward operator w/o using the YASK backend.

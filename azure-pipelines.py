@@ -34,6 +34,7 @@ if os.environ.get('testWithPip') != 'true':
         runStep("python examples/seismic/elastic/elastic_example.py")
         runStep("python examples/cfd/example_diffusion.py")
         runStep("py.test examples/cfd/example_diffusion.py")
+        runStep("py.test examples/seismic/elastic/elastic_example.py")
         runStep("ipcluster start --profile=mpi -n 4 --daemon")  # Needed by MPI notebooks
         runStep("py.test --nbval examples/cfd")
         runStep("py.test --nbval examples/seismic/tutorials")

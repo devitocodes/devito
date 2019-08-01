@@ -95,15 +95,15 @@ class TestAdjoint(object):
                             nbpml=nbpml, dtype=np.float64, grid=solver.model.grid)
 
         # Compute the full wavefield u0
-        _, u0, _ = solver.forward(save=True, m=model0.m)
+        _, u0, _ = solver.forward(save=True, vp=model0.vp)
 
         # Compute initial born perturbation from m - m0
-        dm = (solver.model.m.data - model0.m.data)
+        dm = (solver.model.vp.data**(-2) - model0.vp.data**(-2))
 
-        du, _, _, _ = solver.born(dm, m=model0.m)
+        du, _, _, _ = solver.born(dm, vp=model0.vp)
 
         # Compute gradientfrom initial perturbation
-        im, _ = solver.gradient(du, u0, m=model0.m)
+        im, _ = solver.gradient(du, u0, vp=model0.vp)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
