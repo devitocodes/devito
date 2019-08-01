@@ -105,7 +105,7 @@ class AcousticWaveSolver(object):
                               save=self.geometry.nt if save else None,
                               time_order=2, space_order=self.space_order)
 
-        # Pick m from model unless explicitly provided
+        # Pick vp from model unless explicitly provided
         vp = vp or self.model.vp
 
         # Execute operator and return wavefield and receiver data
@@ -144,7 +144,7 @@ class AcousticWaveSolver(object):
         v = v or TimeFunction(name='v', grid=self.model.grid,
                               time_order=2, space_order=self.space_order)
 
-        # Pick m from model unless explicitly provided
+        # Pick vp from model unless explicitly provided
         vp = vp or self.model.vp
 
         # Execute operator and return wavefield and receiver data
@@ -183,7 +183,7 @@ class AcousticWaveSolver(object):
         v = v or TimeFunction(name='v', grid=self.model.grid,
                               time_order=2, space_order=self.space_order)
 
-        # Pick m from model unless explicitly provided
+        # Pick vp from model unless explicitly provided
         vp = vp or self.model.vp
 
         if checkpointing:
@@ -236,7 +236,7 @@ class AcousticWaveSolver(object):
         U = U or TimeFunction(name='U', grid=self.model.grid,
                               time_order=2, space_order=self.space_order)
 
-        # Pick m from model unless explicitly provided
+        # Pick vp from model unless explicitly provided
         vp = vp or self.model.vp
 
         # Execute operator and return wavefield and receiver data

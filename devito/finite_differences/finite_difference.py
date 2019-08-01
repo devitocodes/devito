@@ -73,9 +73,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     >>> (f*g).dx.T.evaluate
     f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
     """
-    side = side.adjoint(matvec)
+    side = side
     diff = dim.spacing
-    adjoint_val = matvec.val
     order = fd_order or expr.space_order
 
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
@@ -91,11 +90,11 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     deriv = 0
     all_dims = tuple(set((dim,) + tuple([i for i in expr.indices if i.root == dim])))
     for i in range(len(ind)):
-        subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
+        subs = dict([(d, ind[i].subs({dim: d, diff: matvec.val*diff})) for d in all_dims])
         deriv += expr.subs(subs) * c[i]
 
     # Evaluate up to _PRECISION digits
-    deriv = (adjoint_val*deriv).evalf(_PRECISION)
+    deriv = deriv.evalf(_PRECISION)
 
     return deriv
 
@@ -236,8 +235,8 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
     expr-like
         ``deriv-order`` derivative of ``expr``.
     """
-    diff = dim.spacing
     adjoint_val = matvec.val**deriv_order
+    diff = dim.spacing
 
     # Stencil positions
     indices, x0 = generate_indices(expr, dim, diff, fd_order, stagger=stagger)
@@ -252,10 +251,11 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
     deriv = 0
     all_dims = tuple(set((dim,) + tuple(i for i in expr.indices if i.root == dim)))
     for i in range(len(indices)):
-        subs = dict((d, indices[i].subs({dim: d})) for d in all_dims)
+        subs = dict((d, indices[i].subs({dim: d, diff: matvec.val*diff}))
+                    for d in all_dims)
         deriv += expr.subs(subs) * c[i]
 
     # Evaluate up to _PRECISION digits
-    deriv = (adjoint_val*deriv).evalf(_PRECISION)
+    deriv = deriv.evalf(_PRECISION)
 
     return deriv

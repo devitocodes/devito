@@ -368,14 +368,16 @@ class TestFD(object):
         ('dxr', 'dxl', -1)])
     def test_fd_adjoint(self, so, derivative, adjoint_name, adjoint_coeff):
         clear_cache()
-        grid = Grid(shape=(50, 50, 50))
+        grid = Grid(shape=(51,), extent=(25,))
         f = Function(name='f', grid=grid, space_order=so)
         f_deriv = Function(name='f_deriv', grid=grid, space_order=so)
-        f.data[:, :] = np.random.rand(50, 50, 50).round(decimals=5)
+        f.data[:] = np.random.rand(51,).round(decimals=5)
         g = Function(name='g', grid=grid, space_order=so)
         g_deriv = Function(name='g_deriv', grid=grid, space_order=so)
-        g.data[:, :] = np.random.rand(50, 50, 50).round(decimals=5)
 
+        # Laplace filtering to make it smooth
+        op_s = Operator([Eq(g, f.dx2), Eq(f, g.dx2)])
+        op_s.apply()
         # Check symbolic expression are expected ones for the adjoint .T
         deriv = getattr(f, derivative)
         expected = adjoint_coeff * getattr(f, adjoint_name).evaluate
@@ -392,4 +394,4 @@ class TestFD(object):
 
         a = np.dot(f_deriv.data.reshape(-1), g.data.reshape(-1))
         b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
-        assert np.isclose(a, b, atol=1e-3, rtol=1e-3)
+        assert np.isclose(1 - a/b, 0, atol=1e-5)
