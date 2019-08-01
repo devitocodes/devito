@@ -47,8 +47,9 @@ if __name__ == "__main__":
                         help="Preset to determine the physical problem setup")
     parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
                         help="Whether or not to use an azimuth angle")
-    parser.add_argument('-a', '--autotune', default=False, action='store_true',
-                        help="Enable autotuning for block sizes")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=['off', 'basic', 'max', 'aggressive'],
+                        help="Choice of autotuning method for block sizes")
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
