@@ -5,6 +5,7 @@ from devito.ir.iet.visitors import FindSymbols
 from devito.logger import warning
 from devito.operator import Operator
 from devito.symbolics import Literal
+from devito.tools import filter_sorted
 
 from devito.ops.transformer import create_ops_dat, opsit
 from devito.ops.types import OpsBlock
@@ -39,6 +40,8 @@ class OperatorOPS(Operator):
             symbols = set(FindSymbols('symbolics').visit(trees[0].root))
             symbols -= set(FindSymbols('defines').visit(trees[0].root))
             to_dat |= symbols
+
+        to_dat = filter_sorted(to_dat)
 
         name_to_ops_dat = {}
         pre_time_loop = []
