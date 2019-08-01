@@ -133,7 +133,7 @@ When running `python benchmark.py ...`, the underlying Operators will
 automatically be run in aggressive mode, that is as
 `op.apply(autotune='aggressive')`.
 
-The autotuning method can be selected with `-a ... ` 
+The autotuning mode can be selected with `-a mode `
 
 `benchmark.py` uses the so called "pre-emptive" auto-tuning, which implies two
 things:
@@ -238,14 +238,13 @@ for more information, and in particular `python make-pbs.py generate --help`.
 `make-pbs.py` is especially indicated if interested in running strong scaling
 experiments.
 
-## Benchmarks' output
+## Benchmark output
 
 The GFlops/s and GPoints/s performance, Operational Intensity (OI) and
 execution time are emitted to standard output at the end of each run.
 Further, when running in bench mode, a `.json` file is produced
 (see `python benchmark.py bench --help` for more info) in a folder named
-`results` except if otherwise specified with the `-r` option specifying
-the results directory.
+`results` except if otherwise specified with the `-r` option.
 
 So the isotropic acoustic wave forward Operator in a `512**3` grid, space order
 12, and a simulation time of 100ms:
@@ -260,9 +259,7 @@ To generate a roofline model from the results obtained in `bench` mode,
 one can execute `benchmark.py` in `plot` mode. For example, the command
 
 ```
-python benchmark.py plot -P acoustic -d 512 512 512 -so 12 --tn 100 -a aggressive
- --max-bw 12.8
---flop-ceil 80 linpack
+python benchmark.py plot -P acoustic -d 512 512 512 -so 12 --tn 100 -a aggressive --max-bw 12.8 --flop-ceil 80 linpack
 ```
 
 will generate a roofline model for the results obtained from
@@ -277,9 +274,9 @@ two additional arguments to generate the roofline:
 *    --max-bw FLOAT
     DRAM bandwidth (GB/s)
 *    --flop-ceil <FLOAT TEXT>
-    CPU machine peak. A 2-tuple (float, str) is expected,
-    representing the performance ceil (GFlops/s) and how the ceil was obtained
-     (ideal peak, linpack, ...), respectively
+    CPU machine peak. A 2-tuple (float, str) is expected, representing the
+    performance ceil (GFlops/s) and how the ceil was obtained (ideal peak,
+    linpack, ...), respectively
 
 In addition, points can be annotated with the runtime value, passing the
 `--point-runtime` argument.
