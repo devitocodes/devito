@@ -89,13 +89,6 @@ class OperatorOPS(Operator):
 
         return List(body=body)
 
-    @property
-    def hcode(self):
-        code = ''
-        for kernel in self._ops_kernels:
-            code = code + str(kernel)
-        return code
-
     def _compile(self):
         if self._lib is None:
-            self._compiler.jit_compile_ops(self._soname, str(self.ccode), str(self.hcode))
+            self._compiler.jit_compile(self._soname, str(self.ccode), ''.join(str(kernel) for kernel in self._ops_kernels))
