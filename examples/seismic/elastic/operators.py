@@ -2,20 +2,50 @@ from devito import Eq, Operator, TimeFunction, NODE
 from examples.seismic import PointSource, Receiver
 
 
-def stress_fields(model, save, space_order):
+def vector_function(name, model, save, space_order):
     """
-    Create the TimeFunction objects for the stress fields in the elastic formulation.
+    Create a vector function such as the particle velocity fields
+    """
+    if model.grid.dim == 2:
+        x, z = model.space_dimensions
+        stagg_x = x
+        stagg_z = z
+        # Create symbols for forward wavefield, source and receivers
+        vx = TimeFunction(name=name+'x', grid=model.grid, staggered=stagg_x,
+                          time_order=1, space_order=space_order)
+        vz = TimeFunction(name=name+'z', grid=model.grid, staggered=stagg_z,
+                          time_order=1, space_order=space_order)
+        vy = None
+    elif model.grid.dim == 3:
+        x, y, z = model.space_dimensions
+        stagg_x = x
+        stagg_y = y
+        stagg_z = z
+        # Create symbols for forward wavefield, source and receivers
+        vx = TimeFunction(name=name+'x', grid=model.grid, staggered=stagg_x,
+                          time_order=1, space_order=space_order)
+        vy = TimeFunction(name=name+'y', grid=model.grid, staggered=stagg_y,
+                          time_order=1, space_order=space_order)
+        vz = TimeFunction(name=name+'z', grid=model.grid, staggered=stagg_z,
+                          time_order=1, space_order=space_order)
+
+    return vx, vy, vz
+
+
+def tensor_function(name, model, save, space_order):
+    """
+    Create a tensor function such as the stress tensor.
     """
     if model.grid.dim == 2:
         x, z = model.space_dimensions
         stagg_xx = stagg_zz = NODE
         stagg_xz = (x, z)
         # Create symbols for forward wavefield, source and receivers
-        txx = TimeFunction(name='txx', grid=model.grid, staggered=stagg_xx, save=save,
+        txx = TimeFunction(name=name+'xx', grid=model.grid, staggered=stagg_xx, save=save,
                            time_order=1, space_order=space_order)
-        tzz = TimeFunction(name='tzz', grid=model.grid, staggered=stagg_zz, save=save,
+        tzz = TimeFunction(name=name+'zz', grid=model.grid, staggered=stagg_zz, save=save,
                            time_order=1, space_order=space_order)
-        txz = TimeFunction(name='txz', grid=model.grid, staggered=stagg_xz, save=save,
+        txz = TimeFunction(name=name+'xz', grid=model.grid, staggered=stagg_xz, save=save,
                            time_order=1, space_order=space_order)
         tyy = txy = tyz = None
     elif model.grid.dim == 3:
@@ -25,50 +55,20 @@ def stress_fields(model, save, space_order):
         stagg_yz = (y, z)
         stagg_xy = (x, y)
         # Create symbols for forward wavefield, source and receivers
-        txx = TimeFunction(name='txx', grid=model.grid, staggered=stagg_xx, save=save,
+        txx = TimeFunction(name=name+'xx', grid=model.grid, staggered=stagg_xx, save=save,
                            time_order=1, space_order=space_order)
-        tzz = TimeFunction(name='tzz', grid=model.grid, staggered=stagg_zz, save=save,
+        tzz = TimeFunction(name=name+'zz', grid=model.grid, staggered=stagg_zz, save=save,
                            time_order=1, space_order=space_order)
-        tyy = TimeFunction(name='tyy', grid=model.grid, staggered=stagg_yy, save=save,
+        tyy = TimeFunction(name=name+'yy', grid=model.grid, staggered=stagg_yy, save=save,
                            time_order=1, space_order=space_order)
-        txz = TimeFunction(name='txz', grid=model.grid, staggered=stagg_xz, save=save,
+        txz = TimeFunction(name=name+'xz', grid=model.grid, staggered=stagg_xz, save=save,
                            time_order=1, space_order=space_order)
-        txy = TimeFunction(name='txy', grid=model.grid, staggered=stagg_xy, save=save,
+        txy = TimeFunction(name=name+'xy', grid=model.grid, staggered=stagg_xy, save=save,
                            time_order=1, space_order=space_order)
-        tyz = TimeFunction(name='tyz', grid=model.grid, staggered=stagg_yz, save=save,
+        tyz = TimeFunction(name=name+'yz', grid=model.grid, staggered=stagg_yz, save=save,
                            time_order=1, space_order=space_order)
 
     return txx, tyy, tzz, txy, txz, tyz
-
-
-def particle_velocity_fields(model, save, space_order):
-    """
-    Create the particle velocity fields
-    """
-    if model.grid.dim == 2:
-        x, z = model.space_dimensions
-        stagg_x = x
-        stagg_z = z
-        # Create symbols for forward wavefield, source and receivers
-        vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order)
-        vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order)
-        vy = None
-    elif model.grid.dim == 3:
-        x, y, z = model.space_dimensions
-        stagg_x = x
-        stagg_y = y
-        stagg_z = z
-        # Create symbols for forward wavefield, source and receivers
-        vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
-                          time_order=1, space_order=space_order)
-        vy = TimeFunction(name='vy', grid=model.grid, staggered=stagg_y,
-                          time_order=1, space_order=space_order)
-        vz = TimeFunction(name='vz', grid=model.grid, staggered=stagg_z,
-                          time_order=1, space_order=space_order)
-
-    return vx, vy, vz
 
 
 def elastic_2d(model, space_order, save, geometry):
@@ -85,8 +85,8 @@ def elastic_2d(model, space_order, save, geometry):
     l = rho*(cp2 - 2*cs2)
 
     # Create symbols for forward wavefield, source and receivers
-    vx, vy, vz = particle_velocity_fields(model, save, space_order)
-    txx, tyy, tzz, _, txz, _ = stress_fields(model, save, space_order)
+    vx, vy, vz = vector_function('v', model, save, space_order)
+    txx, tyy, tzz, _, txz, _ = tensor_function('t', model, save, space_order)
 
     # Stencils
     u_vx = Eq(vx.forward, damp * vx - damp * s * ro * (txx.dx + txz.dy))
@@ -116,8 +116,8 @@ def elastic_3d(model, space_order, save, geometry):
     l = rho*(cp2 - 2*cs2)
 
     # Create symbols for forward wavefield, source and receivers
-    vx, vy, vz = particle_velocity_fields(model, save, space_order)
-    txx, tyy, tzz, txy, txz, tyz = stress_fields(model, save, space_order)
+    vx, vy, vz = vector_function('v', model, save, space_order)
+    txx, tyy, tzz, txy, txz, tyz = tensor_function('t', model, save, space_order)
 
     # Stencils
     u_vx = Eq(vx.forward, damp * vx - damp * s * ro * (txx.dx + txy.dy + txz.dz))

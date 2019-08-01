@@ -1,10 +1,10 @@
 from devito.tools import memoized_meth
 from examples.seismic import Receiver
-from examples.seismic.elastic.operators import (ForwardOperator, tensor_function,
-                                                vector_function)
+from examples.seismic.viscoelastic.operators import (ForwardOperator, tensor_function,
+                                                     vector_function)
 
 
-class ElasticWaveSolver(object):
+class ViscoelasticWaveSolver(object):
     """
     Solver object that provides operators for seismic inversion problems
     and encapsulates the time and space discretization for a given problem
@@ -22,15 +22,13 @@ class ElasticWaveSolver(object):
 
     Notes
     -----
-    This is an experimental staggered grid elastic modeling kernel.
-    Only 2D supported.
+    This is an experimental staggered grid viscoelastic modeling kernel.
     """
     def __init__(self, model, geometry, space_order=4, **kwargs):
         self.model = model
         self.geometry = geometry
 
         self.space_order = space_order
-        # Time step can be \sqrt{3}=1.73 bigger with 4th order
         self.dt = self.model.critical_dt
         # Cache compiler options
         self._kwargs = kwargs
@@ -41,8 +39,9 @@ class ElasticWaveSolver(object):
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order, **self._kwargs)
 
-    def forward(self, src=None, rec1=None, rec2=None, vp=None, vs=None, rho=None,
-                vx=None, vz=None, txx=None, tzz=None, txz=None, save=None, **kwargs):
+    def forward(self, src=None, rec1=None, rec2=None, vp=None, qp=None, vs=None, qs=None,
+                rho=None, vx=None, vz=None, txx=None, tzz=None, txz=None, rxx=None,
+                rzz=None, rxz=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -63,10 +62,20 @@ class ElasticWaveSolver(object):
             The computed vertical stress.
         txz : TimeFunction, optional
             The computed diagonal stresss.
+        rxx: TimeFunction, optional
+            The computed horizontal memory variable.
+        rzz: TimeFunction, optional
+            The computed vertical memory variable.
+        rxz: TimeFunction, optional
+            The computed diagonal memory variable.
         vp : Function, optional
             The time-constant P-wave velocity (km/s).
+        qp : Function, optional
+            The P-wave quality factor (dimensionless).
         vs : Function, optional
             The time-constant S-wave velocity (km/s).
+        qs : Function, optional
+            The S-wave quality factor (dimensionless)
         rho : Function, optional
             The time-constant density (rho=1 for water).
         save : int or Buffer, optional
@@ -75,7 +84,7 @@ class ElasticWaveSolver(object):
         Returns
         -------
         Rec1 (txx), Rec2 (tzz), particle velocities vx and vz, stress txx,
-        tzz and txz and performance summary.
+        tzz and txz, memory variables rxx, rzz, rxz and performance summary.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
@@ -87,27 +96,37 @@ class ElasticWaveSolver(object):
                                 time_range=self.geometry.time_axis,
                                 coordinates=self.geometry.rec_positions)
 
-        # Create all the fields vx, vz, tau_xx, tau_zz, tau_xz
+        # Create all the fields vx, vz, tau_xx, tau_zz, tau_xz, r_xx, r_zz, r_xz
         save_t = src.nt if save else None
         vx, vy, vz = vector_function('v', self.model, save_t, self.space_order)
         txx, tyy, tzz, txy, txz, tyz = tensor_function('t', self.model, save_t,
+                                                       self.space_order)
+        rxx, ryy, rzz, rxy, rxz, ryz = tensor_function('r', self.model, save_t,
                                                        self.space_order)
         kwargs['vx'] = vx
         kwargs['vz'] = vz
         kwargs['txx'] = txx
         kwargs['tzz'] = tzz
         kwargs['txz'] = txz
+        kwargs['rxx'] = rxx
+        kwargs['rzz'] = rzz
+        kwargs['rxz'] = rxz
         if self.model.grid.dim == 3:
             kwargs['vy'] = vy
             kwargs['tyy'] = tyy
             kwargs['txy'] = txy
             kwargs['tyz'] = tyz
+            kwargs['ryy'] = ryy
+            kwargs['rxy'] = rxy
+            kwargs['ryz'] = ryz
         # Pick physical parameters from model unless explicitly provided
         vp = vp or self.model.vp
+        qp = qp or self.model.qp
         vs = vs or self.model.vs
+        qs = qs or self.model.qs
         rho = rho or self.model.rho
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, vp=vp, vs=vs, rho=rho,
-                                          rec2=rec2, dt=kwargs.pop('dt', self.dt),
-                                          **kwargs)
+        summary = self.op_fwd(save).apply(src=src, rec1=rec1, vp=vp, qp=qp, vs=vs,
+                                          qs=qs, rho=rho, rec2=rec2,
+                                          dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec1, rec2, vx, vz, txx, tzz, txz, summary

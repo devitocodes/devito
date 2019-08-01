@@ -4,7 +4,8 @@ import abc
 import inspect
 import numbers
 from cached_property import cached_property
-from collections import Iterable, OrderedDict, namedtuple
+from collections import OrderedDict, namedtuple
+from collections.abc import Iterable
 
 import cgen as c
 

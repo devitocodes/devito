@@ -1,4 +1,4 @@
-from collections import Hashable
+from collections.abc import Hashable
 from functools import partial
 
 __all__ = ['memoized_func', 'memoized_meth']

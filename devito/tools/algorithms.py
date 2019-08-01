@@ -1,4 +1,5 @@
-from collections import Iterable, OrderedDict, Mapping
+from collections import OrderedDict
+from collections.abc import Iterable, Mapping
 from functools import reduce
 
 from devito.tools.utils import filter_sorted, flatten
