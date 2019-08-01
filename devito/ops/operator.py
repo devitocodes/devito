@@ -91,4 +91,5 @@ class OperatorOPS(Operator):
 
     def _compile(self):
         if self._lib is None:
-            self._compiler.jit_compile(self._soname, str(self.ccode), ''.join(str(kernel) for kernel in self._ops_kernels))
+            hcode = ''.join(kernel for kernel in self._ops_kernels)
+            self._compiler.jit_compile(self._soname, str(self.ccode), hcode)
