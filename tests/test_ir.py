@@ -615,6 +615,32 @@ else
 
             assert efunc.make_call()
 
+    def test_nested_calls_cgen(self):
+        call = Call('foo', [
+            Call('bar', [])
+        ])
+
+        code = CGen().visit(call)
+
+        assert str(code) == 'foo(bar());'
+
+    @pytest.mark.parametrize('mode,expected', [
+        ('free-symbols', '["f", "x"]'),
+        ('symbolics', '["f"]')
+    ])
+    def test_find_symbols_nested(self, mode, expected):
+        grid = Grid(shape=(4, 4, 4))
+        call = Call('foo', [
+            Call('bar', [
+                Symbol(name='x'),
+                Call('baz', [Function(name='f', grid=grid)])
+            ])
+        ])
+
+        found = FindSymbols(mode).visit(call)
+
+        assert [f.name for f in found] == eval(expected)
+
 
 class TestIETAnalysis(object):
 
@@ -794,32 +820,3 @@ class TestEquationAlgorithms(object):
         expr = eval(expr)
 
         assert list(dimension_sort(expr)) == eval(expected)
-
-
-class TestNestedCalls(object):
-
-    def test_nested_calls_cgen(self):
-        call = Call('foo', [
-            Call('bar', [])
-        ])
-
-        code = CGen().visit(call)
-
-        assert str(code) == 'foo(bar());'
-
-    @pytest.mark.parametrize('mode,expected', [
-        ('free-symbols', '["f", "x"]'),
-        ('symbolics', '["f"]')
-    ])
-    def test_find_symbols_nested(self, mode, expected):
-        grid = Grid(shape=(4, 4, 4))
-        call = Call('foo', [
-            Call('bar', [
-                Symbol(name='x'),
-                Call('baz', [Function(name='f', grid=grid)])
-            ])
-        ])
-
-        found = FindSymbols(mode).visit(call)
-
-        assert [f.name for f in found] == eval(expected)
