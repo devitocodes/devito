@@ -1,7 +1,6 @@
 import os
 import subprocess
 
-from devito.logger import debug
 from devito.parameters import configuration
 
 
