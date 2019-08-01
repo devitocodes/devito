@@ -132,7 +132,9 @@ def create_ops_dat(f, name_to_ops_dat, block):
         dat_decls = []
         for i in range(time_dims):
             name = '%s%s%s' % (f.name, time_index, i)
-            name_to_ops_dat[name] = ops_dat_array.indexify([i])
+            name_to_ops_dat[name] = ops_dat_array.indexify(
+                [Symbol('%s%s' % (time_index, i))]
+            )
             dat_decls.append(namespace['ops_decl_dat'](
                 block,
                 1,
