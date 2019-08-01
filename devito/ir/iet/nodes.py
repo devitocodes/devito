@@ -14,7 +14,7 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                            VECTOR, WRAPPABLE, ROUNDABLE, AFFINE, OVERLAPPABLE)
 from devito.ir.support import Forward, detect_io
-from devito.symbolics import FunctionFromPointer, as_symbol, ccode
+from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
 from devito.types import Symbol, Indexed
@@ -293,13 +293,16 @@ class Expression(Simple, Node):
         return not self.is_scalar
 
     @property
-    def is_scalar_assign(self):
-        """True if a scalar, non-increment expression."""
-        return self.is_scalar and not self.is_Increment
+    def is_definition(self):
+        """
+        True if it is an assignment, False otherwise
+        """
+        return ((self.is_scalar and not self.is_Increment) or
+                (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
 
     @property
     def defines(self):
-        return (self.write,) if self.is_scalar else ()
+        return (self.write,) if self.is_definition else ()
 
     @property
     def free_symbols(self):
