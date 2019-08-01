@@ -1,5 +1,6 @@
 import ctypes
-from collections import Iterable, OrderedDict
+from collections import OrderedDict
+from collections.abc import Iterable
 from functools import reduce
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
