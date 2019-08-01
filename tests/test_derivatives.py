@@ -361,23 +361,23 @@ class TestFD(object):
             assert getattr(g, fd)
 
     @pytest.mark.parametrize('so', [2, 4, 8, 12])
+    @pytest.mark.parametrize('ndim', [1, 2])
     @pytest.mark.parametrize('derivative, adjoint_name, adjoint_coeff', [
         ('dx', 'dx', -1),
         ('dx2', 'dx2', 1),
         ('dxl', 'dxr', -1),
         ('dxr', 'dxl', -1)])
-    def test_fd_adjoint(self, so, derivative, adjoint_name, adjoint_coeff):
+    def test_fd_adjoint(self, so, ndim, derivative, adjoint_name, adjoint_coeff):
         clear_cache()
-        grid = Grid(shape=(51,), extent=(25,))
+        grid = Grid(shape=tuple([51]*ndim), extent=tuple([25]*ndim))
         f = Function(name='f', grid=grid, space_order=so)
         f_deriv = Function(name='f_deriv', grid=grid, space_order=so)
         f.data[:] = np.random.rand(51,).round(decimals=5)
         g = Function(name='g', grid=grid, space_order=so)
         g_deriv = Function(name='g_deriv', grid=grid, space_order=so)
 
-        # Laplace filtering to make it smooth
-        op_s = Operator([Eq(g, f.dx2), Eq(f, g.dx2)])
-        op_s.apply()
+        # Filtering to make it smooth
+        op_s = Operator([Eq(g, f.dx2), Eq(f, g.dx2)]).apply()
         # Check symbolic expression are expected ones for the adjoint .T
         deriv = getattr(f, derivative)
         expected = adjoint_coeff * getattr(f, adjoint_name).evaluate

@@ -646,8 +646,9 @@ class Model(GenericModel):
             elif vp.shape == self.shape:
                 initialize_function(self._vp, vp, self.nbpml)
             else:
-                error("Incorrect input size %s for model of size" % vp.shape +
-                      " %s without or %s with padding" % (self.shape, self.vp.shape))
+                raise ValueError("Incorrect input size %s for model of size" % vp.shape +
+                                 " %s without or %s with padding" % (self.shape,
+                                                                     self.vp.shape))
         else:
             self._vp.data = vp
 

@@ -235,7 +235,6 @@ def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None, symbolic=
     expr-like
         ``deriv-order`` derivative of ``expr``.
     """
-    adjoint_val = matvec.val**deriv_order
     diff = dim.spacing
 
     # Stencil positions
