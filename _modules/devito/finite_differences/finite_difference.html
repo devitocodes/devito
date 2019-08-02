@@ -221,16 +221,15 @@
 
 <span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, grid=grid)</span>
 <span class="sd">    &gt;&gt;&gt; first_derivative(f*g, dim=x, matvec=transpose)</span>
-<span class="sd">    f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x</span>
+<span class="sd">    -f(x, y)*g(x, y)/h_x + f(x - h_x, y)*g(x - h_x, y)/h_x</span>
 
 <span class="sd">    This is also accessible via the .T shortcut</span>
 
 <span class="sd">    &gt;&gt;&gt; (f*g).dx.T.evaluate</span>
-<span class="sd">    f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x</span>
+<span class="sd">    -f(x, y)*g(x, y)/h_x + f(x - h_x, y)*g(x - h_x, y)/h_x</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">side</span> <span class="o">=</span> <span class="n">side</span><span class="o">.</span><span class="n">adjoint</span><span class="p">(</span><span class="n">matvec</span><span class="p">)</span>
+    <span class="n">side</span> <span class="o">=</span> <span class="n">side</span>
     <span class="n">diff</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span>
-    <span class="n">adjoint_val</span> <span class="o">=</span> <span class="n">matvec</span><span class="o">.</span><span class="n">val</span>
     <span class="n">order</span> <span class="o">=</span> <span class="n">fd_order</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">space_order</span>
 
     <span class="c1"># Stencil positions for non-symmetric cross-derivatives with symmetric averaging</span>
@@ -246,11 +245,11 @@
     <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">all_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">((</span><span class="n">dim</span><span class="p">,)</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="o">==</span> <span class="n">dim</span><span class="p">])))</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ind</span><span class="p">)):</span>
-        <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">d</span><span class="p">,</span> <span class="n">ind</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">d</span><span class="p">}))</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">all_dims</span><span class="p">])</span>
+        <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">d</span><span class="p">,</span> <span class="n">ind</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">d</span><span class="p">,</span> <span class="n">diff</span><span class="p">:</span> <span class="n">matvec</span><span class="o">.</span><span class="n">val</span><span class="o">*</span><span class="n">diff</span><span class="p">}))</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">all_dims</span><span class="p">])</span>
         <span class="n">deriv</span> <span class="o">+=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
 
     <span class="c1"># Evaluate up to _PRECISION digits</span>
-    <span class="n">deriv</span> <span class="o">=</span> <span class="p">(</span><span class="n">adjoint_val</span><span class="o">*</span><span class="n">deriv</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span>
+    <span class="n">deriv</span> <span class="o">=</span> <span class="n">deriv</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">deriv</span></div>
 
@@ -392,7 +391,6 @@
 <span class="sd">        ``deriv-order`` derivative of ``expr``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">diff</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span>
-    <span class="n">adjoint_val</span> <span class="o">=</span> <span class="n">matvec</span><span class="o">.</span><span class="n">val</span><span class="o">**</span><span class="n">deriv_order</span>
 
     <span class="c1"># Stencil positions</span>
     <span class="n">indices</span><span class="p">,</span> <span class="n">x0</span> <span class="o">=</span> <span class="n">generate_indices</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">diff</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">,</span> <span class="n">stagger</span><span class="o">=</span><span class="n">stagger</span><span class="p">)</span>
@@ -407,11 +405,12 @@
     <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">all_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">set</span><span class="p">((</span><span class="n">dim</span><span class="p">,)</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">root</span> <span class="o">==</span> <span class="n">dim</span><span class="p">)))</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices</span><span class="p">)):</span>
-        <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">d</span><span class="p">}))</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">all_dims</span><span class="p">)</span>
+        <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">d</span><span class="p">,</span> <span class="n">diff</span><span class="p">:</span> <span class="n">matvec</span><span class="o">.</span><span class="n">val</span><span class="o">*</span><span class="n">diff</span><span class="p">}))</span>
+                    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">all_dims</span><span class="p">)</span>
         <span class="n">deriv</span> <span class="o">+=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="o">*</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
 
     <span class="c1"># Evaluate up to _PRECISION digits</span>
-    <span class="n">deriv</span> <span class="o">=</span> <span class="p">(</span><span class="n">adjoint_val</span><span class="o">*</span><span class="n">deriv</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span>
+    <span class="n">deriv</span> <span class="o">=</span> <span class="n">deriv</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">_PRECISION</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">deriv</span></div>
 </pre></div>
