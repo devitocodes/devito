@@ -81,6 +81,38 @@ def opsit(trees, count, block):
     return pre_time_loop, ops_kernel
 
 
+def get_ops_args(args, stencils):
+    ops_args = []
+
+    for arg in args:
+        if arg.is_Constant:
+            ops_args.append(
+                Call(
+                    "ops_arg_gbl",
+                    [
+                        Byref(Constant(name=arg.name[1:])),
+                        1,
+                        String(dtype_to_cstr(arg.dtype)),
+                        OPS_READ
+                    ], False
+                )
+            )
+        else:
+            ops_args.append(
+                Call(
+                    "ops_arg_dat",
+                    [
+                        arg.name,
+                        1,
+                        stencils[arg.name],
+                        String(dtype_to_cstr(arg.dtype)),
+                        OPS_WRITE if arg.is_Write else OPS_READ
+                    ], False)
+            )
+
+    return ops_args
+
+
 def to_ops_stencil(param, accesses):
     dims = len(accesses[0])
     pts = len(accesses)
