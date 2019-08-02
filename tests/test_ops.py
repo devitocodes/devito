@@ -2,6 +2,7 @@ import itertools
 import pytest
 
 from conftest import skipif
+from sympy import Integer
 from sympy.core.numbers import Zero, One # noqa
 
 pytestmark = skipif('noops', whole_module=True)
@@ -10,12 +11,13 @@ pytestmark = skipif('noops', whole_module=True)
 # a backend reinitialization would be triggered via `devito/ops/.__init__.py`,
 # thus invalidating all of the future tests. This is guaranteed by the
 # `pytestmark` above
-from devito import Eq, Grid, Operator, TimeFunction, configuration  # noqa
+from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.operator import OperatorOPS # noqa
-from devito.ops.transformer import make_ops_ast, to_ops_stencil # noqa
+from devito.ops.transformer import create_ops_dat, make_ops_ast, to_ops_stencil # noqa
+from devito.ops.types import OpsBlock # noqa
 from devito.ops.utils import namespace # noqa
-from devito.symbolics import Literal, indexify # noqa
+from devito.symbolics import Byref, Literal, indexify # noqa
 from devito.types import Symbol # noqa
 
 
@@ -123,4 +125,99 @@ class TestOPSExpression(object):
             len(accesses),
             Symbol(stencil_name),
             Literal('"%s"' % stencil_name.upper())
+        )
+
+    def test_create_ops_dat_time_function(self):
+        grid = Grid(shape=(4))
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+
+        block = OpsBlock('block')
+
+        name_to_ops_dat = {}
+
+        result = create_ops_dat(u, name_to_ops_dat, block)
+
+        assert name_to_ops_dat['ut0'].base.name == namespace['ops_dat_name'](u.name)
+        assert name_to_ops_dat['ut0'].indices == (Symbol('t0'),)
+        assert name_to_ops_dat['ut1'].base.name == namespace['ops_dat_name'](u.name)
+        assert name_to_ops_dat['ut1'].indices == (Symbol('t1'),)
+
+        assert result[0].expr.lhs.name == namespace['ops_dat_dim'](u.name)
+        assert result[0].expr.rhs.params == (Integer(4),)
+
+        assert result[1].expr.lhs.name == namespace['ops_dat_base'](u.name)
+        assert result[1].expr.rhs.params == (Zero(),)
+
+        assert result[2].expr.lhs.name == namespace['ops_dat_d_p'](u.name)
+        assert result[2].expr.rhs.params == (Integer(2),)
+
+        assert result[3].expr.lhs.name == namespace['ops_dat_d_m'](u.name)
+        assert result[3].expr.rhs.params == (Integer(-2),)
+
+        assert result[4].expr.lhs.name == namespace['ops_dat_name'](u.name)
+        assert len(result[4].expr.rhs.params) == 2
+        assert result[4].expr.rhs.params[0].name == namespace['ops_decl_dat'].name
+        assert result[4].expr.rhs.params[0].args == (
+            block,
+            1,
+            Symbol(namespace['ops_dat_dim'](u.name)),
+            Symbol(namespace['ops_dat_base'](u.name)),
+            Symbol(namespace['ops_dat_d_m'](u.name)),
+            Symbol(namespace['ops_dat_d_p'](u.name)),
+            Byref(u.indexify((0,))),
+            Literal('"%s"' % u._C_typedata),
+            Literal('"ut0"')
+        )
+        assert result[4].expr.rhs.params[1].name == namespace['ops_decl_dat'].name
+        assert result[4].expr.rhs.params[1].args == (
+            block,
+            1,
+            Symbol(namespace['ops_dat_dim'](u.name)),
+            Symbol(namespace['ops_dat_base'](u.name)),
+            Symbol(namespace['ops_dat_d_m'](u.name)),
+            Symbol(namespace['ops_dat_d_p'](u.name)),
+            Byref(u.indexify((1,))),
+            Literal('"%s"' % u._C_typedata),
+            Literal('"ut1"')
+        )
+
+    def test_create_ops_dat_function(self):
+        grid = Grid(shape=(4))
+
+        u = Function(name='u', grid=grid, space_order=2)
+
+        block = OpsBlock('block')
+
+        name_to_ops_dat = {}
+
+        result = create_ops_dat(u, name_to_ops_dat, block)
+
+        assert name_to_ops_dat['u'].name == namespace['ops_dat_name'](u.name)
+        assert name_to_ops_dat['u']._C_typename == namespace['ops_dat_type']
+
+        assert result[0].expr.lhs.name == namespace['ops_dat_dim'](u.name)
+        assert result[0].expr.rhs.params == (Integer(4),)
+
+        assert result[1].expr.lhs.name == namespace['ops_dat_base'](u.name)
+        assert result[1].expr.rhs.params == (Zero(),)
+
+        assert result[2].expr.lhs.name == namespace['ops_dat_d_p'](u.name)
+        assert result[2].expr.rhs.params == (Integer(2),)
+
+        assert result[3].expr.lhs.name == namespace['ops_dat_d_m'](u.name)
+        assert result[3].expr.rhs.params == (Integer(-2),)
+
+        assert result[4].expr.lhs == name_to_ops_dat['u']
+        assert result[4].expr.rhs.name == namespace['ops_decl_dat'].name
+        assert result[4].expr.rhs.args == (
+            block,
+            1,
+            Symbol(namespace['ops_dat_dim'](u.name)),
+            Symbol(namespace['ops_dat_base'](u.name)),
+            Symbol(namespace['ops_dat_d_m'](u.name)),
+            Symbol(namespace['ops_dat_d_p'](u.name)),
+            Byref(u.indexify((0,))),
+            Literal('"%s"' % u._C_typedata),
+            Literal('"u"')
         )
