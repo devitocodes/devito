@@ -33,6 +33,7 @@ class OperatorOPS(Operator):
 
         ops_block = OpsBlock('block')
 
+        # Extract all symbols that need to be converted to ops_dat
         dims = []
         to_dat = set()
         for section, trees in find_affine_trees(iet).items():
@@ -41,6 +42,8 @@ class OperatorOPS(Operator):
             symbols -= set(FindSymbols('defines').visit(trees[0].root))
             to_dat |= symbols
 
+        # To ensure deterministic code generation we order the datasets to
+        # be generated (since a set is an unordered collection)
         to_dat = filter_sorted(to_dat)
 
         name_to_ops_dat = {}

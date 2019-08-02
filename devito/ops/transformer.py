@@ -112,6 +112,8 @@ def create_ops_dat(f, name_to_ops_dat, block):
     res = []
     base_val = [Zero() for i in range(ndim)]
 
+    # If f is a TimeFunction we need to create a ops_dat for each time stepping
+    # variable (eg: t1, t2)
     if f.is_TimeFunction:
         time_pos = f._time_position
         time_index = f.indices[time_pos]
