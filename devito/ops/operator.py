@@ -52,10 +52,12 @@ class OperatorOPS(Operator):
             if f.is_Constant:
                 continue
 
-            pre_time_loop.extend(create_ops_dat(f, name_to_ops_dat, ops_block))
+            _ops_dat = create_ops_dat(f, name_to_ops_dat, ops_block)
+            # create_ops_arg_dat(_ops_dat[-1], 1, )
+            pre_time_loop.extend(_ops_dat)
 
         for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
-            pre_loop, ops_kernel = opsit(trees, n)
+            pre_loop, ops_kernel = opsit(trees, n, ops_block)
 
             pre_time_loop.extend(pre_loop)
             self._ops_kernels.append(ops_kernel)

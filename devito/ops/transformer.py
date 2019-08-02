@@ -6,7 +6,7 @@ from sympy.core.numbers import Zero
 
 from devito import Eq
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet.nodes import Callable, Expression
+from devito.ir.iet.nodes import Call, Callable, Expression, IterationTree
 from devito.ir.iet.visitors import FindNodes
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
@@ -15,7 +15,7 @@ from devito.symbolics import Byref, ListInitializer, Literal
 from devito.types import DefaultDimension, Symbol
 
 
-def opsit(trees, count):
+def opsit(trees, count, block):
     """
     Given an affine tree, generate a Callable representing an OPS Kernel.
 
@@ -30,8 +30,23 @@ def opsit(trees, count):
     expressions = []
     ops_expressions = []
 
+    it_range = []
     for tree in trees:
         expressions.extend(FindNodes(Expression).visit(tree.inner))
+        if isinstance(tree, IterationTree):
+            it_range = [it.bounds() for it in tree]
+
+    par_loop_array = Array(
+        name=namespace['ops_par_loop_range_name'],
+        dimensions=(DefaultDimension(name='len', default_value=sum(len(x)
+                                                                   for x in it_range)),),
+        dtype=np.int32,
+    )
+
+    par_loop_range = Expression(ClusterizedEq(Eq(
+        par_loop_array,
+        ListInitializer(list(itertools.chain(*it_range)))
+    )))
 
     for expr in expressions:
         ops_expressions.append(Expression(make_ops_ast(expr.expr, node_factory)))
@@ -50,9 +65,52 @@ def opsit(trees, count):
         for p in parameters if isinstance(p, OpsAccessible)
     ])
 
-    pre_time_loop = stencil_arrays_initializations
+    ops_args = []
+
+    par_loop = Call("ops_par_loop", [
+        Literal(ops_kernel.name),
+        Literal('"%s"' % ops_kernel.name),
+        block,
+        2,
+        par_loop_array,
+        *ops_args
+    ])
+    pre_time_loop = itertools.chain(
+        *[stencil_arrays_initializations], [par_loop_range], [par_loop])
 
     return pre_time_loop, ops_kernel
+
+
+def get_ops_args(args, stencils):
+    ops_args = []
+
+    for arg in args:
+        if arg.is_Constant:
+            ops_args.append(
+                Call(
+                    "ops_arg_gbl",
+                    [
+                        Byref(Constant(name=arg.name[1:])),
+                        1,
+                        String(dtype_to_cstr(arg.dtype)),
+                        OPS_READ
+                    ], False
+                )
+            )
+        else:
+            ops_args.append(
+                Call(
+                    "ops_arg_dat",
+                    [
+                        arg.name,
+                        1,
+                        stencils[arg.name],
+                        String(dtype_to_cstr(arg.dtype)),
+                        OPS_WRITE if arg.is_Write else OPS_READ
+                    ], False)
+            )
+
+    return ops_args
 
 
 def to_ops_stencil(param, accesses):
