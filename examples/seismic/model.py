@@ -4,7 +4,6 @@ import numpy as np
 
 from examples.seismic.utils import scipy_smooth
 from devito import Grid, SubDomain, Function, Constant, warning, mmin, mmax
-from devito.logger import error
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
@@ -720,8 +719,9 @@ class Model(GenericModel):
             elif vp.shape == self.shape:
                 initialize_function(self._vp, vp, self.nbpml)
             else:
-                error("Incorrect input size %s for model of size" % vp.shape +
-                      " %s without or %s with padding" % (self.shape, self.vp.shape))
+                raise ValueError("Incorrect input size %s for model of size" % vp.shape +
+                                 " %s without or %s with padding" % (self.shape,
+                                                                     self.vp.shape))
         else:
             self._vp.data = vp
 

@@ -118,7 +118,7 @@ class AnisotropicWaveSolver(object):
             if vy is not None:
                 kwargs["vy"] = vy
 
-        # Pick m from model unless explicitly provided
+        # Pick vp and Thomsen parameters from model unless explicitly provided
         kwargs.update(self.model.physical_params(vp=vp, epsilon=epsilon, delta=delta,
                                                  theta=theta, phi=phi))
         # Execute operator and return wavefield and receiver data

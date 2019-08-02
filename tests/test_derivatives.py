@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import simplify, diff
+from sympy import simplify, diff, cos, sin
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, clear_cache, NODE,
@@ -361,21 +361,23 @@ class TestFD(object):
             assert getattr(g, fd)
 
     @pytest.mark.parametrize('so', [2, 4, 8, 12])
+    @pytest.mark.parametrize('ndim', [1, 2])
     @pytest.mark.parametrize('derivative, adjoint_name, adjoint_coeff', [
         ('dx', 'dx', -1),
         ('dx2', 'dx2', 1),
         ('dxl', 'dxr', -1),
         ('dxr', 'dxl', -1)])
-    def test_fd_adjoint(self, so, derivative, adjoint_name, adjoint_coeff):
+    def test_fd_adjoint(self, so, ndim, derivative, adjoint_name, adjoint_coeff):
         clear_cache()
-        grid = Grid(shape=(50, 50, 50))
+        grid = Grid(shape=tuple([51]*ndim), extent=tuple([25]*ndim))
+        x = grid.dimensions[0]
         f = Function(name='f', grid=grid, space_order=so)
         f_deriv = Function(name='f_deriv', grid=grid, space_order=so)
-        f.data[:, :] = np.random.rand(50, 50, 50).round(decimals=5)
         g = Function(name='g', grid=grid, space_order=so)
         g_deriv = Function(name='g_deriv', grid=grid, space_order=so)
-        g.data[:, :] = np.random.rand(50, 50, 50).round(decimals=5)
 
+        # Fill f and g with smooth cos/sin
+        Operator([Eq(g, cos(2*np.pi*x/5)), Eq(f, sin(2*np.pi*x/8))]).apply()
         # Check symbolic expression are expected ones for the adjoint .T
         deriv = getattr(f, derivative)
         expected = adjoint_coeff * getattr(f, adjoint_name).evaluate
@@ -392,4 +394,4 @@ class TestFD(object):
 
         a = np.dot(f_deriv.data.reshape(-1), g.data.reshape(-1))
         b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
-        assert np.isclose(a, b, atol=1e-3, rtol=1e-3)
+        assert np.isclose(1 - a/b, 0, atol=1e-5)

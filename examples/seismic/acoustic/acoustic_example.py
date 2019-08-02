@@ -54,7 +54,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         # With  a new m as Constant
         v0 = Constant(name="v", value=2.0, dtype=np.float32)
         solver.forward(save=save, vp=v0)
-        # With a new m as a scalar value
+        # With a new vp as a scalar value
         solver.forward(save=save, vp=2.0)
 
     if not full_run:
