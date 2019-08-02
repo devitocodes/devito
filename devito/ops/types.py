@@ -126,3 +126,23 @@ class OpsStencil(basic.LocalObject):
     @property
     def _C_typename(self):
         return namespace['ops_stencil_type']
+
+
+class OpsBlock(basic.LocalObject):
+
+    def __init__(self, name, *args, **kwargs):
+        super().__init__(name, np.void, *args, **kwargs)
+
+    @property
+    def _C_typename(self):
+        return namespace['ops_block_type']
+
+
+class OpsDat(basic.LocalObject):
+
+    def __init__(self, name, *args, **kwargs):
+        super().__init__(name, np.void, *args, **kwargs)
+
+    @property
+    def _C_typename(self):
+        return namespace['ops_dat_type']

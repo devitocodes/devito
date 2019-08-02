@@ -10,6 +10,16 @@ from devito.mpi import MPI
 from devito.tools import as_tuple, sweep
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
 from examples.seismic.tti.tti_example import run as tti_run, tti_setup
+from examples.seismic.elastic.elastic_example import run as elastic_run, elastic_setup
+from examples.seismic.viscoelastic.viscoelastic_example import run as viscoelastic_run, \
+    viscoelastic_setup
+
+
+model_type = {'viscoelastic': {'run': viscoelastic_run, 'setup': viscoelastic_setup},
+              'elastic': {'run': elastic_run, 'setup': elastic_setup},
+              'tti': {'run': tti_run, 'setup': tti_setup},
+              'acoustic': {'run': acoustic_run, 'setup': acoustic_setup}
+              }
 
 
 @click.group()
@@ -33,7 +43,8 @@ def option_simulation(f):
         return list(value if len(value) > 0 else (2, ))
 
     options = [
-        click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti']),
+        click.option('-P', '--problem', type=click.Choice(['acoustic', 'tti',
+                                                           'elastic', 'viscoelastic']),
                      help='Problem name'),
         click.option('-d', '--shape', default=(50, 50, 50),
                      help='Number of grid points along each axis'),
@@ -112,7 +123,7 @@ def run(problem, **kwargs):
     """
     A single run with a specific set of performance parameters.
     """
-    setup = tti_setup if problem == 'tti' else acoustic_setup
+    setup = model_type[problem]['setup']
     options = {}
 
     time_order = kwargs.pop('time_order')[0]
@@ -151,7 +162,7 @@ def test(problem, **kwargs):
     """
     Test numerical correctness with different parameters.
     """
-    run = tti_run if problem == 'tti' else acoustic_run
+    run = model_type[problem]['run']
     sweep_options = ('space_order', 'time_order', 'dse', 'dle', 'autotune')
 
     last_res = None
@@ -186,7 +197,7 @@ def bench(problem, **kwargs):
     """
     Complete benchmark with multiple simulation and performance parameters.
     """
-    run = tti_run if problem == 'tti' else acoustic_run
+    run = model_type[problem]['run']
     resultsdir = kwargs.pop('resultsdir')
     repeats = kwargs.pop('repeats')
 
