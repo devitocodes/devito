@@ -14,7 +14,7 @@ def demo_model(preset, **kwargs):
     Utility function to create preset `Model` objects for
     demonstration and testing purposes. The particular presets are ::
 
-    * `constant-isotropic` : Constant velocity (1.5km/sec) isotropic model
+    * `constant-isotropic` : Constant velocity (1.5 km/sec) isotropic model
     * `constant-tti` : Constant anisotropic model. Velocity is 1.5 km/sec and
                       Thomsen parameters are epsilon=.3, delta=.2, theta = .7rad
                       and phi=.35rad for 3D. 2d/3d is defined from the input shape
@@ -42,7 +42,7 @@ def demo_model(preset, **kwargs):
 
     if preset.lower() in ['constant-elastic']:
         # A constant single-layer model in a 2D or 3D domain
-        # with velocity 1.5km/s.
+        # with velocity 1.5 km/s.
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
@@ -58,7 +58,7 @@ def demo_model(preset, **kwargs):
 
     if preset.lower() in ['constant-viscoelastic']:
         # A constant single-layer model in a 2D or 3D domain
-        # with velocity 2.2km/s.
+        # with velocity 2.2 km/s.
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
@@ -77,7 +77,7 @@ def demo_model(preset, **kwargs):
 
     if preset.lower() in ['constant-isotropic']:
         # A constant single-layer model in a 2D or 3D domain
-        # with velocity 1.5km/s.
+        # with velocity 1.5 km/s.
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
@@ -90,7 +90,7 @@ def demo_model(preset, **kwargs):
 
     elif preset.lower() in ['constant-tti']:
         # A constant single-layer model in a 2D or 3D domain
-        # with velocity 1.5km/s.
+        # with velocity 1.5 km/s.
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
