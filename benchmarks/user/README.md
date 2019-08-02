@@ -127,7 +127,7 @@ in the generated code.
 With `autotune=True`, the auto-tuner gets set in `basic` mode, which will only
 attempt a small batch of block shapes. With `autotune='aggressive'`, the
 auto-tuning phase will take up more time, but it will also evaluate more
-block-shapes.
+block shapes.
 
 When running `python benchmark.py ...`, the underlying Operators will
 automatically be run in aggressive mode, that is as
@@ -242,16 +242,9 @@ experiments.
 
 The GFlops/s and GPoints/s performance, Operational Intensity (OI) and
 execution time are emitted to standard output at the end of each run.
-Further, when running in bench mode, a `.json` file is produced
+Further, when running in `bench` mode, a `.json` file is produced
 (see `python benchmark.py bench --help` for more info) in a folder named
 `results` except if otherwise specified with the `-r` option.
-
-So the isotropic acoustic wave forward Operator in a `512**3` grid, space order
-12, and a simulation time of 100ms:
-
-```
-`DEVITO_LOGGING=DEBUG` python benchmark.py bench -P acoustic -d 512 512 512 -so 12 --tn 100
-```
 
 ## Generating a roofline model
 

@@ -57,10 +57,7 @@ def option_simulation(f):
         click.option('-to', '--time-order', type=int, multiple=True,
                      callback=default_list, help='Time order of the simulation'),
         click.option('-t', '--tn', default=250,
-                     help='End time of the simulation in ms'),
-        click.option('-a', '--autotune', default='aggressive',
-                     type=click.Choice(configuration._accepted['autotuning']),
-                     help='Select autotuning mode')
+                     help='End time of the simulation in ms')
     ]
     for option in reversed(options):
         f = option(f)
@@ -100,7 +97,10 @@ def option_performance(f):
                      help='Devito symbolic engine (DSE) mode'),
         click.option('--dle', callback=from_value,
                      type=click.Choice(['noop'] + configuration._accepted['dle']),
-                     help='Devito loop engine (DLE) mode')
+                     help='Devito loop engine (DLE) mode'),
+        click.option('-a', '--autotune', default='aggressive',
+                     type=click.Choice(configuration._accepted['autotuning']),
+                     help='Select autotuning mode')
     ]
     for option in reversed(options):
         f = option(f)
