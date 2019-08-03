@@ -128,7 +128,7 @@ class OpsStencil(basic.LocalObject):
         return namespace['ops_stencil_type']
 
 
-class OpsBlock(basic.LocalObject):
+class OpsBlock(basic.Symbol):
 
     def __init__(self, name, *args, **kwargs):
         super().__init__(name, np.void, *args, **kwargs)

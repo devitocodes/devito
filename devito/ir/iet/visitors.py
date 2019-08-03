@@ -172,7 +172,10 @@ class CGen(Visitor):
                 elif i.is_LocalObject:
                     ret.append('&%s' % i._C_name)
                 elif i.is_Array:
-                    ret.append("(%s)%s" % (i._C_typename, i.name))
+                    if i._mem_local:
+                        ret.append(i.name)
+                    else:
+                        ret.append("(%s)%s" % (i._C_typename, i.name))
                 else:
                     ret.append(i._C_name)
             except AttributeError:

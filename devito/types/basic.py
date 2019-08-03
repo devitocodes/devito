@@ -796,7 +796,7 @@ class Array(AbstractCachedFunction):
     padding : iterable of 2-tuples, optional
         The padding region of the object.
     scope : str, optional
-        Control memory allocation. Allowed values: 'heap', 'stack'. Defaults
+        Control memory allocation. Allowed values: 'heap', 'stack', 'local'. Defaults
         to 'heap'.
 
     Warnings
@@ -817,7 +817,7 @@ class Array(AbstractCachedFunction):
             super(Array, self).__init__(*args, **kwargs)
 
             self._scope = kwargs.get('scope', 'heap')
-            assert self._scope in ['heap', 'stack']
+            assert self._scope in ['heap', 'stack', 'local']
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -875,6 +875,10 @@ class Array(AbstractCachedFunction):
     @property
     def _mem_heap(self):
         return self._scope == 'heap'
+
+    @property
+    def _mem_local(self):
+        return self._scope == 'local'
 
     @property
     def _C_typename(self):

@@ -113,12 +113,14 @@ class TestOPSExpression(object):
 
         stencil_name = 's2d_foo_%spt' % len(accesses)
 
-        result = to_ops_stencil(param, accesses)
+        stencil, result = to_ops_stencil(param, accesses)
+
+        assert stencil.name == stencil_name.upper()
 
         assert result[0].expr.lhs.name == stencil_name
         assert result[0].expr.rhs.params == tuple(itertools.chain(*accesses))
 
-        assert result[1].expr.lhs.name == stencil_name.upper()
+        assert result[1].expr.lhs == stencil
         assert result[1].expr.rhs.name == namespace['ops_decl_stencil'].name
         assert result[1].expr.rhs.args == (
             2,
