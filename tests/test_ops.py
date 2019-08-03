@@ -36,8 +36,8 @@ class TestOPSExpression(object):
          'void OPS_Kernel_0(ACC<float> & vt0, const float *h_x, const float *h_y)\n'
          '{\n  r1 = 1.0/*h_y;\n  r0 = 1.0/*h_x;\n  '
          'vt0(0, 0) = 5.0e-1F*(-vt0(2, 0)*r0 + vt0(-2, 0)*r0 - '
-         'vt0(0, -2)*r1 + vt0(0, 2)*r1) + 2.0F*(-vt0(2, 0)*r0 + '
-         'vt0(-2, 0)*r0 - vt0(0, -2)*r1 + vt0(0, 2)*r1);\n}'),
+         'vt0(0, -2)*r1 + vt0(0, 2)*r1) + 2.0F*(-vt0(-1, 0)*r0 + '
+         'vt0(1, 0)*r0 - vt0(0, 1)*r1 + vt0(0, -1)*r1);\n}'),
         ('Eq(v,v**2 - 3*v)',
          'void OPS_Kernel_0(ACC<float> & vt0)\n'
          '{\n  vt0(0, 0) = -3*vt0(0, 0) + vt0(0, 0)*vt0(0, 0);\n}'),

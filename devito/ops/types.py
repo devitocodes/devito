@@ -74,7 +74,7 @@ class OpsAccess(basic.Basic, sympy.Basic):
         super().__init__(*args, **kwargs)
 
     def _hashable_content(self):
-        return (self.base,)
+        return (self.base, ','.join([str(i) for i in self.indices]))
 
     @property
     def function(self):
