@@ -17,24 +17,24 @@ __all__ = ['platform_registry',
 
 @memoized_func
 def get_cpu_info():
+    # Obtain textual cpu info
     try:
-        # On linux, the following should work and is super quick
-        cpu_info = {}
         with open('/proc/cpuinfo', 'r') as f:
             lines = f.readlines()
+    except FileNotFoundError:
+        lines = []
+
+    cpu_info = {}
+
+    # Extract CPU flags and branch
+    if lines:
         get = lambda k: [i for i in lines if i.startswith(k)][0].split(':')[1].strip()
         cpu_info['flags'] = get('flags').split()
         cpu_info['brand'] = get('model name')
-        # TODO: Other info omitted as currently unused
-    except:
-        # Fallback: rely on the slower `cpuinfo`
-        cpu_info = cpuinfo.get_cpu_info()
-
-    # At this point we have some information about the CPU, but we can't distinguish
-    # between physical and logical cores yet, as:
-    # 1) `/proc/cpuinfo` isn't as detailed on Power architectures as on Xeons
-    # 2) `cpuinfo.get_cpu_info` only gives the logical core count
-    # So below we try another approach
+    else:
+        ci = cpuinfo.get_cpu_info()
+        cpu_info['flags'] = ci['flags']
+        cpu_info['brand'] = ci['brand']
 
     # Detect number of logical cores
     logical = psutil.cpu_count(logical=True)
@@ -50,11 +50,29 @@ def get_cpu_info():
             cpu_info['logical'] = 1
 
     # Detect number of physical cores
-    physical = psutil.cpu_count(logical=False)
+    # TODO: can't use psutil due to `https://github.com/giampaolo/psutil/issues/1558`
+    mapper = {}
+    if lines:
+        # Copied and readapted from psutil
+        current_info = {}
+        for i in lines:
+            line = i.strip().lower()
+            if not line:
+                # New section
+                if ('physical id' in current_info and 'cpu cores' in current_info):
+                    mapper[current_info['physical id']] = current_info['cpu cores']
+                current_info = {}
+            else:
+                # Ongoing section
+                if (line.startswith('physical id') or line.startswith('cpu cores')):
+                    key, value = line.split('\t:', 1)
+                    current_info[key] = int(value)
+    physical = sum(mapper.values())
     if physical:
         cpu_info['physical'] = physical
     else:
         # Fallback: we might end up here on more exotic platforms such a Power8
+        # Hopefully we can rely on `lscpu`
         try:
             cpu_info['physical'] = lscpu()['Core(s) per socket'] * lscpu()['Socket(s)']
         except KeyError:
