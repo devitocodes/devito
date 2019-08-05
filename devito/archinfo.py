@@ -84,18 +84,22 @@ def get_cpu_info():
 
 @memoized_func
 def lscpu():
-    p1 = Popen(['lscpu'], stdout=PIPE, stderr=PIPE)
-    output, _ = p1.communicate()
-    if output:
-        lines = output.decode("utf-8").strip().split('\n')
-        mapper = {}
-        for k, v in [tuple(i.split(':')) for i in lines]:
-            try:
-                mapper[k] = int(v)
-            except ValueError:
-                mapper[k] = v.strip()
-        return mapper
-    else:
+    try:
+        p1 = Popen(['lscpu'], stdout=PIPE, stderr=PIPE)
+        output, _ = p1.communicate()
+        if output:
+            lines = output.decode("utf-8").strip().split('\n')
+            mapper = {}
+            for k, v in [tuple(i.split(':')) for i in lines]:
+                try:
+                    mapper[k] = int(v)
+                except ValueError:
+                    mapper[k] = v.strip()
+            return mapper
+        else:
+            return {}
+    except OSError:
+        warning("lscpu does not exist on current OS (i.e OSX, Windows)")
         return {}
 
 
