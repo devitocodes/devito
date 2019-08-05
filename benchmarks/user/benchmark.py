@@ -15,10 +15,26 @@ from examples.seismic.viscoelastic.viscoelastic_example import run as viscoelast
 
 
 model_type = {
-    'viscoelastic': {'run': viscoelastic_run, 'setup': viscoelastic_setup},
-    'elastic': {'run': elastic_run, 'setup': elastic_setup},
-    'tti': {'run': tti_run, 'setup': tti_setup},
-    'acoustic': {'run': acoustic_run, 'setup': acoustic_setup}
+    'viscoelastic': {
+        'run': viscoelastic_run,
+        'setup': viscoelastic_setup,
+        'default-section': 'section0'
+    },
+    'elastic': {
+        'run': elastic_run,
+        'setup': elastic_setup,
+        'default-section': 'section0'
+    },
+    'tti': {
+        'run': tti_run,
+        'setup': tti_setup,
+        'default-section': 'section1'
+    },
+    'acoustic': {
+        'run': acoustic_run,
+        'setup': acoustic_setup,
+        'default-section': 'section0'
+    }
 }
 
 
@@ -246,6 +262,8 @@ def bench(problem, **kwargs):
                    'ceil was obtained (ideal peak, linpack, ...)')
 @click.option('--point-runtime', is_flag=True, default=True,
               help='Annotate points with runtime values')
+@click.option('--section', default=None,
+              help='Code section for which the roofline is plotted')
 @option_simulation
 @option_performance
 def cli_plot(problem, **kwargs):
@@ -271,6 +289,12 @@ def plot(problem, **kwargs):
     time_order = kwargs['time_order']
     shape = "[%s]" % ",".join(str(i) for i in kwargs['shape'])
 
+    section = kwargs.pop('section')
+    if not section:
+        warning("No `section` provided. Using `%s`'s default `%s`"
+                % (problem, model_type[problem]['default-section']))
+        section = model_type[problem]['default-section']
+
     RooflinePlotter = get_ob_plotter()
     bench = get_ob_bench(problem, resultsdir, kwargs)
 
@@ -279,9 +303,9 @@ def plot(problem, **kwargs):
         warning("Could not load any results, nothing to plot. Exiting...")
         sys.exit(0)
 
-    gflopss = bench.lookup(params=kwargs, measure="gflopss", event='section0')
-    oi = bench.lookup(params=kwargs, measure="oi", event='section0')
-    time = bench.lookup(params=kwargs, measure="timings", event='section0')
+    gflopss = bench.lookup(params=kwargs, measure="gflopss", event=section)
+    oi = bench.lookup(params=kwargs, measure="oi", event=section)
+    time = bench.lookup(params=kwargs, measure="timings", event=section)
 
     # What plot am I?
     modes = [i for i in ['dse', 'dle', 'autotune']

@@ -260,12 +260,14 @@ python benchmark.py bench -P acoustic -d 512 512 512 -so 12 --tn 100 -a
 The `plot` mode expects the same arguments used in `bench` mode plus
 two additional arguments to generate the roofline:
 
-*    `--max-bw` (float): DRAM bandwidth (GB/s)
-*    `--flop-ceil` (float, str): CPU machine peak. The CPU performance ceil
+*    `--max-bw <float>`: DRAM bandwidth (GB/s).
+*    `--flop-ceil <float, str>`: CPU machine peak. The CPU performance ceil
         (GFlops/s) and how the ceil was obtained (ideal peak, linpack, ...).
 
-In addition, points can be annotated with the runtime value, passing the
-`--point-runtime` argument.
+There also are two optional arguments:
+
+*   `--point-runtime` (bool switch): Annotate points with the runtime value.
+*   `--section <str>`:  The code section for which the roofline is produced.
 
 To obtain the DRAM bandwidth of a system, we advise to use
  [STREAM](http://www.cs.virginia.edu/stream/ref.html).
