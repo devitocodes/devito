@@ -21,9 +21,6 @@ if os.environ.get('testWithPip') != 'true':
     runStep("flake8 --exclude .conda,.git,.ipython --builtins=ArgumentError .")
     runStep("py.test --durations=20 --cov devito tests/")
     if os.environ.get('RUN_EXAMPLES') == 'true':
-        runStep(("python benchmarks/user/benchmark.py test " +
-                 "-P tti -so 4 -d 20 20 20 -n 5"))
-        runStep("python benchmarks/user/benchmark.py test -P acoustic")
         runStep("python examples/seismic/acoustic/acoustic_example.py --full")
         runStep(("python examples/seismic/acoustic/acoustic_example.py " +
                 "--full --checkpointing"))
