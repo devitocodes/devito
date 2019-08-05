@@ -100,12 +100,14 @@ def option_performance(f):
                         % str(ctx.params['block_shape']))
                 level = False
             else:
+                # Make sure to always run in preemptive mode
+                configuration['autotuning'] = [value, 'preemptive']
                 # We apply blocking to all parallel loops, including the innermost ones
                 configuration['dle-options']['blockinner'] = True
                 level = value
         else:
             level = False
-        return (level, 'preemptive')
+        return level
 
     options = [
         click.option('-bm', '--bench-mode', is_eager=True,
@@ -139,6 +141,8 @@ def cli_run(problem, **kwargs):
     """
     A single run with a specific set of performance parameters.
     """
+    configuration['develop-mode'] = False
+
     run(problem, **kwargs)
 
 
@@ -146,8 +150,6 @@ def run(problem, **kwargs):
     """
     A single run with a specific set of performance parameters.
     """
-    configuration['develop-mode'] = False
-
     setup = model_type[problem]['setup']
     options = {}
 
@@ -209,7 +211,6 @@ def cli_bench(problem, **kwargs):
     Complete benchmark with multiple simulation and performance parameters.
     """
     configuration['develop-mode'] = False
-    configuration['autotuning'] = list(kwargs['autotune'])
 
     bench(problem, **kwargs)
 
@@ -218,8 +219,6 @@ def bench(problem, **kwargs):
     """
     Complete benchmark with multiple simulation and performance parameters.
     """
-    configuration['develop-mode'] = False
-
     run = model_type[problem]['run']
     resultsdir = kwargs.pop('resultsdir')
     repeats = kwargs.pop('repeats')
