@@ -24,7 +24,7 @@ unpredictable way.
 
 It is important that *both* the Python process running Devito (process*es* if
 running with MPI) and the OpenMP threads spawned while running an Operator are
-pinned to specific CPU cores, to get reliable and determinisic results. There
+pinned to specific CPU cores, to get reliable and deterministic results. There
 are several ways to achieve this:
 
 * Through environment variables. All MPI/OpenMP distributions provide a set of
@@ -115,8 +115,8 @@ below.
 
 ## Auto-tuning
 
-Auto-tuning can greatly improve the run-time performance of an Operator. It
-can be enabled on an Operator basis (it is off by default):
+Auto-tuning can significantly improve the run-time performance of an Operator. It
+can be enabled on an Operator basis:
 ```
 op = Operator(...)
 op.apply(autotune=True)
@@ -124,33 +124,29 @@ op.apply(autotune=True)
 The auto-tuner will discover a suitable block shape for each blocked loop nest
 in the generated code.
 
-With `autotune=True`, the auto-tuner gets set in `basic` mode, which will only
-attempt a small batch of block shapes. With `autotune='aggressive'`, the
-auto-tuning phase will take up more time, but it will also evaluate more
-block shapes.
+With `autotune=True`, the auto-tuner operates in `basic` mode, which only attempts
+a small batch of block shapes. With `autotune='aggressive'`, the auto-tuning phase
+will likely take up more time, but it will also evaluate more block shapes.
 
-When running `python benchmark.py ...`, the underlying Operators will
-automatically be run in aggressive mode, that is as
-`op.apply(autotune='aggressive')`.
-
-The autotuning mode can be selected with `-a mode `
-
-`benchmark.py` uses the so called "pre-emptive" auto-tuning, which implies two
-things:
+By default, `benchmark.py` runs Operators with auto-tuning in aggressive mode,
+that is as `op.apply(autotune='aggressive')`. This can be changed with the
+`-a/--autotune` flags. In particular, `benchmark.py` uses the so called
+"pre-emptive" auto-tuning, which implies two things:
 
 * The Operator's output fields are copied, and the Operator will write to these
-  copies while auto-tuning. So the memory footprint is at worst doubled during
+  copies while auto-tuning. So the memory footprint is temporarily larger during
   this phase.
-* The auto-tuner is separated from the actual computation, as useless values
-  get computed and eventually ditched.
+* The auto-tuning phase produces values that are eventually ditched;
+  afterwards, the actual computation takes place. The execution time of the
+  latter does not include auto-tuning.
 
-Note that when benchmarking is not the goal, one should/would rather exploit
-the so called "runtime auto-tuning":
+Note that in production runs one should/would rather use the so called "runtime
+auto-tuning":
 ```
 op.apply(autotune=('aggressive', 'runtime'))
 ```
 in which auto-tuning, as the name suggests, will be performed during the first N
-timesteps of the actual computation, after which the best block shapes will be
+timesteps of the actual computation, after which the best block shapes are
 selected and used for all remaining timesteps.
 
 ## Choice of the backend compiler
@@ -264,24 +260,21 @@ python benchmark.py bench -P acoustic -d 512 512 512 -so 12 --tn 100 -a
 The `plot` mode expects the same arguments used in `bench` mode plus
 two additional arguments to generate the roofline:
 
-*    --max-bw FLOAT
-    DRAM bandwidth (GB/s)
-*    --flop-ceil <FLOAT TEXT>
-    CPU machine peak. A 2-tuple (float, str) is expected, representing the
-    performance ceil (GFlops/s) and how the ceil was obtained (ideal peak,
-    linpack, ...), respectively
+*    `--max-bw` (float): DRAM bandwidth (GB/s)
+*    `--flop-ceil` (float, str): CPU machine peak. The CPU performance ceil
+        (GFlops/s) and how the ceil was obtained (ideal peak, linpack, ...).
 
 In addition, points can be annotated with the runtime value, passing the
 `--point-runtime` argument.
 
 To obtain the DRAM bandwidth of a system, we advise to use
- [STREAM][http://www.cs.virginia.edu/stream/ref.html].
+ [STREAM](http://www.cs.virginia.edu/stream/ref.html).
 
 To obtain the ideal CPU peak, one should instantiate this formula
 
 #[cores] · #[avx units] · #[vector lanes] · #[FMA ports] · [ISA base frequency]
 
-More details in this [paper][https://arxiv.org/pdf/1807.03032.pdf].
+More details in this [paper](https://arxiv.org/pdf/1807.03032.pdf).
 
 ## Known limitations and possible work arounds
 
