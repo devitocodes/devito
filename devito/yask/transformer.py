@@ -10,7 +10,7 @@ __all__ = ['yaskit', 'make_yask_ast']
 
 def yaskit(trees, yc_soln):
     """
-    Populate a YASK compiler solution with the :class:`Expression`s found in an IET.
+    Populate a YASK compiler solution with the Expressions found in an IET.
 
     The necessary YASK vars are instantiated.
 

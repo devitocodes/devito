@@ -503,7 +503,7 @@ class FindSymbols(Visitor):
     ----------
     mode : str, optional
         Drive the search. Accepted:
-        - ``symbolics``: Collect :class:`AbstractSymbol` objects, default.
+        - ``symbolics``: Collect AbstractSymbol objects, default.
         - ``free-symbols``: Collect all free symbols.
         - ``defines``: Collect all defined (bound) objects.
     """
@@ -648,7 +648,7 @@ class FindAdjacent(Visitor):
 class IsPerfectIteration(Visitor):
 
     """
-    Return True if an :class:`Iteration` defines a perfect loop nest, False otherwise.
+    Return True if an Iteration defines a perfect loop nest, False otherwise.
     """
 
     def visit_object(self, o, **kwargs):
@@ -734,7 +734,7 @@ class Transformer(Visitor):
 
 class XSubs(Transformer):
     """
-    :class:`Transformer` that performs substitutions on :class:`Expression`s
+    Transformer that performs substitutions on Expressions
     in a given tree, akin to SymPy's ``subs``.
 
     Parameters

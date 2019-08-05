@@ -34,8 +34,8 @@ class Profiler(object):
     def instrument(self, iet):
         """
         Enrich the Iteration/Expression tree ``iet`` adding nodes for C-level
-        performance profiling. In particular, turn all :class:`Section`s within ``iet``
-        into :class:`TimedList`s.
+        performance profiling. In particular, turn all Sections within ``iet``
+        into TimedLists.
         """
         sections = FindNodes(Section).visit(iet)
         for section in sections:
@@ -76,7 +76,7 @@ class Profiler(object):
 
     def summary(self, arguments, dtype):
         """
-        Return a :class:`PerformanceSummary` of the profiled sections. See
+        Return a PerformanceSummary of the profiled sections. See
         summary under the class AdvancedProfiler below for further details.
         """
         summary = PerformanceSummary()
@@ -100,7 +100,7 @@ class AdvancedProfiler(Profiler):
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, arguments, dtype):
         """
-        Return a :class:`PerformanceSummary` of the profiled sections.
+        Return a PerformanceSummary of the profiled sections.
 
         Parameters
         ----------
@@ -234,11 +234,11 @@ SectionData = namedtuple('SectionData', 'ops sops points traffic itershapes')
 
 
 PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
-"""Runtime profiling data for a :class:`Section`."""
+"""Runtime profiling data for a Section."""
 
 
 def create_profile(name):
-    """Create a new :class:`Profiler`."""
+    """Create a new Profiler."""
     if configuration['log-level'] == 'DEBUG':
         # Enforce performance profiling in DEBUG mode
         level = 'advanced'

@@ -84,7 +84,7 @@ def set_log_level(level, comm=None):
     comm : MPI communicator, optional
         An MPI communicator the logger should be collective over. If provided, only
         rank-0 on that communicator will write to the registered handlers, other
-        ranks will use a :class:`logging.NullHandler`.  By default, ``comm`` is set
+        ranks will use a `logging.NullHandler`.  By default, ``comm`` is set
         to ``None``, so all ranks will use the default handlers.  This could be
         used, for example, if one wants to log to one file per rank.
     """
