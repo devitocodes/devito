@@ -16,7 +16,7 @@ class OperatorCore(Operator):
         return super(OperatorCore, self)._specialize_exprs(expressions)
 
     def _autotune(self, args, setup):
-        if setup is False:
+        if setup in [False, 'off']:
             return args
         elif setup is True:
             level = configuration['autotuning'].level or 'basic'
