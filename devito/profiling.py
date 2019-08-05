@@ -76,8 +76,16 @@ class Profiler(object):
 
     def summary(self, arguments, dtype):
         """
-        Return a PerformanceSummary of the profiled sections. See
-        summary under the class AdvancedProfiler below for further details.
+        Return a PerformanceSummary of the profiled sections.
+
+        Parameters
+        ----------
+        arguments : dict
+            A mapper from argument names to run-time values from which the Profiler
+            infers iteration space and execution times of a run.
+        dtype : data-type, optional
+            The data type of the objects in the profiled sections. Used to compute
+            the operational intensity.
         """
         summary = PerformanceSummary()
         for section, data in self._sections.items():
@@ -99,18 +107,7 @@ class AdvancedProfiler(Profiler):
 
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, arguments, dtype):
-        """
-        Return a PerformanceSummary of the profiled sections.
 
-        Parameters
-        ----------
-        arguments : dict
-            A mapper from argument names to run-time values from which the Profiler
-            infers iteration space and execution times of a run.
-        dtype : data-type, optional
-            The data type of the objects in the profiled sections. Used to compute
-            the operational intensity.
-        """
         summary = PerformanceSummary()
         for section, data in self._sections.items():
             # Time to run the section
