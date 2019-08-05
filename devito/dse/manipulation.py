@@ -191,7 +191,7 @@ def topological_sort(exprs):
                 # Avoid cyclic dependences, such as
                 # Eq(f, f + 1)
                 continue
-            elif r.is_Indexed:
+            elif r.is_Indexed and r not in mapper.keys():
                 # Only scalars enforce an ordering
                 continue
             else:
