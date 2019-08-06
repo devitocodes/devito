@@ -338,7 +338,7 @@ class Operator(Callable):
         args = args.reduce_all()
 
         # All DiscreteFunctions should be defined on the same Grid
-        grids = {getattr(p, 'grid', None) for p in self.input} - {None}
+        grids = {getattr(p, 'grid', None) for p in overrides + defaults} - {None}
         if len(grids) > 1 and configuration['mpi']:
             raise ValueError("Multiple Grids found")
         try:
