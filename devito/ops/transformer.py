@@ -112,7 +112,7 @@ def opsit(trees, count, block):
     pre_time_loop = itertools.chain(
         *[pre_loop], *[stencil_arrays_initializations], [par_loop_range])
 
-    return pre_time_loop, ops_kernel
+    return pre_time_loop, par_loop, ops_kernel
 
 
 def to_ops_stencil(param, accesses, name_to_ops_stencil):
