@@ -1,13 +1,11 @@
 from devito import Eq
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import Call, List, Expression, find_affine_trees
-from devito.ir.iet.visitors import FindSymbols
 from devito.logger import warning
 from devito.operator import Operator
 from devito.symbolics import Literal
-from devito.tools import filter_sorted
 
-from devito.ops.transformer import create_ops_dat, opsit
+from devito.ops.transformer import opsit
 from devito.ops.types import OpsBlock
 from devito.ops.utils import namespace
 
@@ -33,29 +31,11 @@ class OperatorOPS(Operator):
 
         ops_block = OpsBlock('block')
 
-        # Extract all symbols that need to be converted to ops_dat
         dims = []
-        to_dat = set()
         for section, trees in find_affine_trees(iet).items():
             dims.append(len(trees[0].dimensions))
-            symbols = set(FindSymbols('symbolics').visit(trees[0].root))
-            symbols -= set(FindSymbols('defines').visit(trees[0].root))
-            to_dat |= symbols
 
-        # To ensure deterministic code generation we order the datasets to
-        # be generated (since a set is an unordered collection)
-        to_dat = filter_sorted(to_dat)
-
-        name_to_ops_dat = {}
         pre_time_loop = []
-        for f in to_dat:
-            if f.is_Constant:
-                continue
-
-            _ops_dat = create_ops_dat(f, name_to_ops_dat, ops_block)
-            # create_ops_arg_dat(_ops_dat[-1], 1, )
-            pre_time_loop.extend(_ops_dat)
-
         for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
             pre_loop, ops_kernel = opsit(trees, n, ops_block)
 

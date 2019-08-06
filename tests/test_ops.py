@@ -113,7 +113,7 @@ class TestOPSExpression(object):
 
         stencil_name = 's2d_foo_%spt' % len(accesses)
 
-        result = to_ops_stencil(param, accesses)
+        result = to_ops_stencil(param, accesses, {})
 
         assert result[0].expr.lhs.name == stencil_name
         assert result[0].expr.rhs.params == tuple(itertools.chain(*accesses))

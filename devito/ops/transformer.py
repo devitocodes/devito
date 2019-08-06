@@ -7,12 +7,13 @@ from sympy.core.numbers import Zero
 from devito import Eq
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Call, Callable, Expression, IterationTree
-from devito.ir.iet.visitors import FindNodes
+from devito.ir.iet.visitors import FindNodes, FindSymbols
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
 from devito.ops.utils import namespace
 from devito.symbolics import Byref, ListInitializer, Literal
 from devito.types import DefaultDimension, Symbol
+from devito.tools import filter_sorted
 
 
 def opsit(trees, count, block):
@@ -44,7 +45,7 @@ def opsit(trees, count, block):
     )
 
     par_loop_range = Expression(ClusterizedEq(Eq(
-        par_loop_array,
+        Symbol(par_loop_array.name),
         ListInitializer(list(itertools.chain(*it_range)))
     )))
 
@@ -60,28 +61,61 @@ def opsit(trees, count, block):
         parameters
     )
 
-    stencil_arrays_initializations = itertools.chain(*[
-        to_ops_stencil(p, node_factory.ops_args_accesses[p])
+    # Extract all symbols that need to be converted to ops_dat
+    to_dat = set()
+    symbols = set(FindSymbols('symbolics').visit(trees[0].root))
+    symbols -= set(FindSymbols('defines').visit(trees[0].root))
+    to_dat |= symbols
+
+    # To ensure deterministic code generation we order the datasets to
+    # be generated (since a set is an unordered collection)
+    to_dat = filter_sorted(to_dat)
+
+    name_to_ops_dat = {}
+    pre_loop = []
+    for f in to_dat:
+        if f.is_Constant:
+            continue
+
+        _ops_dat = create_ops_dat(f, name_to_ops_dat, block)
+        pre_loop.extend(_ops_dat)
+
+    name_to_ops_stencil = {}
+    stencil_arrays_initializations = [
+        to_ops_stencil(p, node_factory.ops_args_accesses[p], name_to_ops_stencil)
         for p in parameters if isinstance(p, OpsAccessible)
-    ])
+    ]
 
     ops_args = []
+    for p in parameters:
+        if not isinstance(p, OpsAccessible):
+            ops_args.append(Call(namespace['ops_arg_gbl'],
+                                 [Byref(Literal(p.name.replace('*', ''))),
+                                  1, Literal('"%s"' % p._C_typedata),
+                                  Literal(namespace['ops_read'])]))
+        else:
+            ops_args.append(Call(namespace['ops_arg_dat'],
+                                 [Literal('%s' % name_to_ops_dat[p.name]), 1,
+                                  Literal(name_to_ops_stencil[p.name]),
+                                  Literal('"float"'),
+                                  Literal('%s' % namespace['ops_read']
+                                          if p.read_only else namespace['ops_write'])]))
 
-    par_loop = Call("ops_par_loop", [
+    par_loop = Call(namespace['ops_par_loop'], [
         Literal(ops_kernel.name),
         Literal('"%s"' % ops_kernel.name),
-        block,
+        Symbol(block.name),
         2,
-        par_loop_array,
+        Symbol(par_loop_array.name),
         *ops_args
     ])
     pre_time_loop = itertools.chain(
-        *[stencil_arrays_initializations], [par_loop_range], [par_loop])
+        *[pre_loop], *[stencil_arrays_initializations], [par_loop_range])
 
     return pre_time_loop, ops_kernel
 
 
-def to_ops_stencil(param, accesses):
+def to_ops_stencil(param, accesses, name_to_ops_stencil):
     dims = len(accesses[0])
     pts = len(accesses)
     stencil_name = namespace['ops_stencil_name'](dims, param.name, pts)
@@ -93,6 +127,7 @@ def to_ops_stencil(param, accesses):
     )
 
     ops_stencil = OpsStencil(stencil_name.upper())
+    name_to_ops_stencil[param.name] = ops_stencil.name
 
     return [
         Expression(ClusterizedEq(Eq(
