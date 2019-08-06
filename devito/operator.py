@@ -194,6 +194,9 @@ class Operator(Callable):
 
     # Read-only fields exposed to the outside world
 
+    def __call__(self, **kwargs):
+        self.apply(**kwargs)
+
     @cached_property
     def output(self):
         return tuple(self._output)
@@ -211,11 +214,11 @@ class Operator(Callable):
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
 
+    # Compilation
+
     def _initialize_state(self, **kwargs):
         return {'optimizations': {k: kwargs.get(k, configuration[k])
                                   for k in ('dse', 'dle')}}
-
-    # Compilation
 
     def _add_implicit(self, expressions):
         """
@@ -555,6 +558,8 @@ class Operator(Callable):
 
         return summary
 
+    # Misc properties
+
     @cached_property
     def _mem_summary(self):
         """
@@ -582,9 +587,6 @@ class Operator(Callable):
         summary['total'] = external + heap + stack
 
         return summary
-
-    def __call__(self, **kwargs):
-        self.apply(**kwargs)
 
     # Pickling support
 
