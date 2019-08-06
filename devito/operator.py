@@ -391,6 +391,9 @@ class Operator(Callable):
                 if k not in self._known_arguments:
                     raise ValueError("Unrecognized argument %s=%s" % (k, v))
 
+        # Attach `grid` to the arguments map
+        args = ArgumentsMap(grid, **args)
+
         return args
 
     def _postprocess_arguments(self, args, **kwargs):
@@ -638,6 +641,13 @@ class Operator(Callable):
 
 
 # Misc helpers
+
+
+class ArgumentsMap(dict):
+
+    def __init__(self, grid, *args, **kwargs):
+        super(ArgumentsMap, self).__init__(*args, **kwargs)
+        self.grid = grid
 
 
 def set_dse_mode(mode):
