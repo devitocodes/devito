@@ -38,19 +38,19 @@ def get_cpu_info():
 
     # Detect number of logical cores
     logical = psutil.cpu_count(logical=True)
-    if logical:
-        cpu_info['logical'] = logical
-    else:
+    if not logical:
         # Never bumped into a platform that make us end up here, yet
         # But we try to cover this case anyway, with `lscpu`
         try:
-            cpu_info['logical'] = lscpu()['CPU(s)']
+            logical = lscpu()['CPU(s)']
         except KeyError:
             warning("Logical core count autodetection failed")
-            cpu_info['logical'] = 1
+            logical = 1
+    cpu_info['logical'] = logical
 
     # Detect number of physical cores
-    # TODO: can't use psutil due to `https://github.com/giampaolo/psutil/issues/1558`
+    # TODO: on multi-socket systems + unix, can't use psutil due to
+    # `https://github.com/giampaolo/psutil/issues/1558`
     mapper = {}
     if lines:
         # Copied and readapted from psutil
@@ -68,23 +68,28 @@ def get_cpu_info():
                     key, value = line.split('\t:', 1)
                     current_info[key] = int(value)
     physical = sum(mapper.values())
-    if physical:
-        cpu_info['physical'] = physical
-    else:
-        # Fallback: we might end up here on more exotic platforms such a Power8
-        # Hopefully we can rely on `lscpu`
-        try:
-            cpu_info['physical'] = lscpu()['Core(s) per socket'] * lscpu()['Socket(s)']
-        except KeyError:
-            warning("Physical core count autodetection failed")
-            cpu_info['physical'] = 1
+    if not physical:
+        # Fallback 1: it should now be fine to use psutil
+        physical = psutil.cpu_count(logical=False)
+        if not physical:
+            # Fallback 2: we might end up here on more exotic platforms such a Power8
+            # Hopefully we can rely on `lscpu`
+            try:
+                physical = lscpu()['Core(s) per socket'] * lscpu()['Socket(s)']
+            except KeyError:
+                warning("Physical core count autodetection failed")
+                physical = 1
+    cpu_info['physical'] = physical
 
     return cpu_info
 
 
 @memoized_func
 def lscpu():
-    p1 = Popen(['lscpu'], stdout=PIPE, stderr=PIPE)
+    try:
+        p1 = Popen(['lscpu'], stdout=PIPE, stderr=PIPE)
+    except OSError:
+        return {}
     output, _ = p1.communicate()
     if output:
         lines = output.decode("utf-8").strip().split('\n')
