@@ -881,10 +881,6 @@ class Array(AbstractCachedFunction):
         return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
 
     @property
-    def _C_typedata(self):
-        return ctypes_to_cstr(dtype_to_ctype(self.dtype))
-
-    @property
     def free_symbols(self):
         return super().free_symbols - {d for d in self.dimensions if d.is_Default}
 
