@@ -12,7 +12,7 @@ __all__ = ['filter_iterations', 'retrieve_iteration_tree',
 
 def retrieve_iteration_tree(node, mode='normal'):
     """
-    A list with all :class:`Iteration` sub-trees within an IET.
+    A list with all Iteration sub-trees within an IET.
 
     Examples
     --------

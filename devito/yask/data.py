@@ -274,7 +274,7 @@ class Data(object):
     def view(self, *args):
         """
         View of the YASK var in standard (i.e., Devito) row-major layout,
-        returned as a :class:`numpy.ndarray`.
+        returned as a `numpy.ndarray`.
         """
         return self[:]
 

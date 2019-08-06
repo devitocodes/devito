@@ -64,7 +64,7 @@ class OpsAccess(basic.Basic, sympy.Basic):
     ----------
     base : OpsAccessible
         Symbol to access
-    indices: [int]
+    indices: list of tuples of int
         Indices to access
     """
 

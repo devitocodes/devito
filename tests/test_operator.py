@@ -223,7 +223,7 @@ class TestArithmetic(object):
         assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
     def test_indexed_w_indirections(self):
-        """Test point-wise arithmetic with indirectly indexed :class:`Function`s."""
+        """Test point-wise arithmetic with indirectly indexed Functions."""
         grid = Grid(shape=(10, 10))
         x, y = grid.dimensions
 
@@ -532,7 +532,7 @@ class TestArguments(object):
 
     def test_override_function_size(self):
         """
-        Test runtime size overrides for :class:`Function` dimensions.
+        Test runtime size overrides for Function dimensions.
 
         Note: The current behaviour for size-only arguments seems
         ambiguous (eg. op(x=3, y=4), as it sets `dim_size` as well as
@@ -541,7 +541,7 @@ class TestArguments(object):
         provided data. This should error out, or potentially we could
         set the corresponding size, while aliasing `dim` to `dim_e`?
 
-        The same should be tested for :class:`TimeFunction` once fixed.
+        The same should be tested for TimeFunction once fixed.
         """
         grid = Grid(shape=(5, 6, 7))
         g = Function(name='g', grid=grid)
@@ -565,7 +565,7 @@ class TestArguments(object):
 
     def test_override_function_subrange(self):
         """
-        Test runtime start/end override for :class:`Function` dimensions.
+        Test runtime start/end override for Function dimensions.
         """
         grid = Grid(shape=(5, 6, 7))
         g = Function(name='g', grid=grid)
@@ -589,7 +589,7 @@ class TestArguments(object):
 
     def test_override_timefunction_subrange(self):
         """
-        Test runtime start/end overrides for :class:`TimeFunction` dimensions.
+        Test runtime start/end overrides for TimeFunction dimensions.
         """
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid, time_order=0)
@@ -620,7 +620,7 @@ class TestArguments(object):
 
     def test_override_function_data(self):
         """
-        Test runtime data overrides for :class:`Function` symbols.
+        Test runtime data overrides for Function symbols.
         """
         grid = Grid(shape=(5, 6, 7))
         a = Function(name='a', grid=grid)
@@ -651,7 +651,7 @@ class TestArguments(object):
 
     def test_override_timefunction_data(self):
         """
-        Test runtime data overrides for :class:`TimeFunction` symbols.
+        Test runtime data overrides for TimeFunction symbols.
         """
         grid = Grid(shape=(5, 6, 7))
         a = TimeFunction(name='a', grid=grid, save=2)
@@ -815,7 +815,7 @@ class TestArguments(object):
         assert(op_arguments[time.max_name] == nt - 2)
 
     def test_derive_constant_value(self):
-        """Ensure that values for :class:`Constant` symbols are derived correctly."""
+        """Ensure that values for Constant symbols are derived correctly."""
         grid = Grid(shape=(5, 6))
         f = Function(name='f', grid=grid)
         a = Constant(name='a', value=3.)

@@ -97,7 +97,7 @@ class GenericVisitor(object):
 
     def visit(self, o, *args, **kwargs):
         """
-        Apply this :class:`Visitor` to an object.
+        Apply this Visitor to an object.
 
         Parameters
         ----------

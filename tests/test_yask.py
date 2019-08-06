@@ -272,7 +272,7 @@ class TestOperatorSimple(object):
 
     def test_constants(self):
         """
-        Check that :class:`Constant` objects are treated correctly.
+        Check that Constant objects are treated correctly.
         """
         grid = Grid(shape=(4, 4, 4))
         c = Constant(name='c', value=2., dtype=grid.dtype)
@@ -296,7 +296,7 @@ class TestOperatorSimple(object):
 
     def test_partial_offloading(self):
         """
-        Check that :class:`Function` objects not using any :class:`SpaceDimension`
+        Check that Function objects not using any SpaceDimension
         are computed in Devito-land, rather than via YASK.
         """
         shape = (4, 4, 4)
@@ -366,8 +366,7 @@ class TestOperatorAdvanced(object):
 
     def test_misc_dims(self):
         """
-        Tests grid-independent :class:`Function`s, which require YASK's "misc"
-        dimensions.
+        Tests grid-independent Functions, which require YASK's "misc" dimensions.
         """
         dx = Dimension(name='dx')
         grid = Grid(shape=(10, 10))

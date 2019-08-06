@@ -111,7 +111,7 @@ class TestSubDimension(object):
         """
         Tests application of an Operator consisting of multiple equations
         defined over different sub-regions, explicitly created through the
-        use of :class:`SubDimension`s.
+        use of SubDimensions.
         """
         grid = Grid(shape=(20, 20))
         x, y = grid.dimensions
@@ -147,7 +147,7 @@ class TestSubDimension(object):
     @skipif('yask')
     def test_flow_detection_interior(self):
         """
-        Test detection of flow directions when :class:`SubDimension`s are used
+        Test detection of flow directions when SubDimensions are used
         (in this test they are induced by the ``interior`` subdomain).
 
         Stencil uses values at new timestep as well as those at previous ones
@@ -257,7 +257,7 @@ class TestSubDimension(object):
         """
         Tests application of an Operator consisting of a subdimension
         defined over different sub-regions, explicitly created through the
-        use of :class:`SubDimension`s.
+        use of SubDimensions.
         """
         grid = Grid(shape=(20, 20))
         x, y = grid.dimensions
@@ -297,7 +297,7 @@ class TestSubDimension(object):
         """
         Tests application of an Operator consisting of a subdimension
         defined over different sub-regions, explicitly created through the
-        use of :class:`SubDimension`s.
+        use of SubDimensions.
 
         This tests that flow direction is not being automatically inferred
         from whether the subdimension is on the left or right boundary.
@@ -333,7 +333,7 @@ class TestSubDimension(object):
         """
         Tests application of an Operator consisting of a subdimension
         defined over different sub-regions, explicitly created through the
-        use of :class:`SubDimension`s.
+        use of SubDimensions.
 
         Different from ``test_subdimmiddle_parallel`` because an interior
         dimension cannot be evaluated in parallel.
@@ -374,7 +374,7 @@ class TestSubDimension(object):
         """
         Tests application of an Operator consisting of a subdimension
         defined over different sub-regions, explicitly created through the
-        use of :class:`SubDimension`s.
+        use of SubDimensions.
 
         This tests that flow direction is not being automatically inferred
         from whether the subdimension is on the left or right boundary.
@@ -456,7 +456,7 @@ class TestSubDimension(object):
 class TestConditionalDimension(object):
 
     """A collection of tests to check the correct functioning of
-    :class:`ConditionalDimension`s."""
+    ConditionalDimensions."""
 
     def test_basic(self):
         nt = 19

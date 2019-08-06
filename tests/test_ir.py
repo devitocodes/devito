@@ -802,7 +802,7 @@ class TestEquationAlgorithms(object):
     ])
     def test_dimension_sort(self, expr, expected):
         """
-        Tests that ``dimension_sort()`` provides meaningful :class:`Dimension` orderings.
+        Tests that ``dimension_sort()`` provides meaningful Dimension orderings.
         """
         grid = Grid(shape=(10, 10))
         p = Dimension('p')

@@ -23,8 +23,7 @@ def make_sharedptr_funcall(call, params, sharedptr):
 def make_var_accesses(node, yk_var_objs):
     """
     Construct a new Iteration/Expression based on ``node``, in which all
-    :class:`types.Indexed` accesses have been converted into YASK var
-    accesses.
+    Indexed accesses have been converted into YASK var accesses.
     """
 
     def make_var_gets(expr):

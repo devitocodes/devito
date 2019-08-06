@@ -58,7 +58,7 @@ class TestOPSExpression(object):
         Parameters
         ----------
         equation : str
-            A string with a :class:`Eq`to be evaluated.
+            A string with a Eq to be evaluated.
         expected : str
             Expected expression to be generated from devito.
         """
