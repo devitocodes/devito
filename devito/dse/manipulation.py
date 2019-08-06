@@ -194,7 +194,7 @@ def topological_sort(exprs):
             elif r.is_Indexed and r not in mapper.keys():
                 # Only scalars or indexed that not lhs of equations
                 continue
-            elif not e.lhs.is_Indexed:
+            elif r.is_Indexed and not e.lhs.is_Indexed:
                 # Skip dependency if lhs is a temporary that automatically caries
                 # dependency
                 continue
