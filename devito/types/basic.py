@@ -798,6 +798,7 @@ class Array(AbstractCachedFunction):
     scope : str, optional
         Control memory allocation. Allowed values: 'heap', 'stack', 'local'. Defaults
         to 'heap'.
+        'local' arrays are created and initialised inline using a ListInitializer
 
     Warnings
     --------
