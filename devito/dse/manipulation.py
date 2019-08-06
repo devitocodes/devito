@@ -178,12 +178,14 @@ def compact_temporaries(temporaries, leaves):
 
 
 def topological_sort(exprs):
-    """Topologically sort a list of equations."""
+    """Topologically sort the temporaries in a list of equations."""
     mapper = {e.lhs: e for e in exprs}
     assert len(mapper) == len(exprs)  # Expect SSA
 
-    dag = DAG(nodes=exprs)
-    for e in exprs:
+    # Only sort temporaries
+    r_exprs = [e for e in exprs if not e.lhs.is_Indexed]
+    dag = DAG(nodes=r_exprs)
+    for e in r_exprs:
         for r in retrieve_terminals(e.rhs):
             if r not in mapper:
                 continue
@@ -191,16 +193,14 @@ def topological_sort(exprs):
                 # Avoid cyclic dependences, such as
                 # Eq(f, f + 1)
                 continue
-            elif r.is_Indexed and r not in mapper.keys():
-                # Only scalars or indexed that not lhs of equations
-                continue
-            elif r.is_Indexed and not e.lhs.is_Indexed:
-                # Skip dependency if lhs is a temporary that automatically caries
-                # dependency
+            elif r.is_Indexed:
+                # Only scalars enforce an ordering
                 continue
             else:
                 dag.add_edge(mapper[r], e, force_add=True)
 
     processed = dag.topological_sort()
+    # Append indexed eqaution at the  end in the user-provided order
+    processed.extend(e for e in exprs if e not in r_exprs)
 
     return processed
