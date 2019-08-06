@@ -192,7 +192,11 @@ def topological_sort(exprs):
                 # Eq(f, f + 1)
                 continue
             elif r.is_Indexed and r not in mapper.keys():
-                # Only scalars enforce an ordering
+                # Only scalars or indexed that not lhs of equations
+                continue
+            elif not e.lhs.is_Indexed:
+                # Skip dependency if lhs is a temporary that automatically caries
+                # dependency
                 continue
             else:
                 dag.add_edge(mapper[r], e, force_add=True)
