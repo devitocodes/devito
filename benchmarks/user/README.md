@@ -268,6 +268,15 @@ There also are two optional arguments:
 
 *   `--point-runtime` (bool switch): Annotate points with the runtime value.
 *   `--section <str>`:  The code section for which the roofline is produced.
+        An Operator consists of multiple sections. Each section typically
+        comprises a loop nest and a sequence of equations. Different sections
+        are created for logically-distinct parts of the computation
+        (finite-difference stencils, boundary conditions, interpolation, etc.).
+        The naming convention is `sectionX`, where `X` is a progress id (`section0`,
+        `section1`, ...). In the generated code the beginning and the end
+        of a section are marked with suitable comments. Currently, there is
+        no way other than looking at the generated code to understand which
+        section the user-provided equations belong to.
 
 To obtain the DRAM bandwidth of a system, we advise to use
  [STREAM](http://www.cs.virginia.edu/stream/ref.html).
