@@ -112,7 +112,8 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
                 self._data = Data(self.shape_allocated, self.dtype,
-                                  modulo=self._mask_modulo, allocator=self._allocator)
+                                  modulo=self._mask_modulo, allocator=self._allocator,
+                                  distributor=self._distributor)
                 if self._first_touch:
                     assign(self, 0)
                 if callable(self._initializer):
