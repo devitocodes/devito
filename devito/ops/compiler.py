@@ -13,5 +13,4 @@ class CompilerOPS(configuration['compiler'].__class__):
         target = str(self.get_jit_dir().joinpath(soname))
         h_file = "%s.h" % (target)
         kernel_file = open(h_file, "w")
-        for kernel in hcode:
-            kernel_file.write(kernel)
+        kernel_file.write(hcode)
