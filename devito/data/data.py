@@ -1,8 +1,10 @@
 from collections.abc import Iterable
+from functools import wraps
 
 import numpy as np
 
 from devito.data.allocators import ALLOC_FLAT
+from devito.data.utils import *
 from devito.parameters import configuration
 from devito.tools import Tag, as_tuple, is_integer
 
@@ -26,6 +28,9 @@ class Data(np.ndarray):
         If the i-th entry is True, then the i-th array dimension uses modulo indexing.
     allocator : MemoryAllocator, optional
         Used to allocate memory. Defaults to ``ALLOC_FLAT``.
+    distributor : Distributor, optional
+        The distributor from which the original decomposition was produced. Note that
+        the decomposition Parameter above may be different to distributor.decomposition.
 
     Notes
     -----
@@ -38,7 +43,8 @@ class Data(np.ndarray):
     Data.
     """
 
-    def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=ALLOC_FLAT):
+    def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=ALLOC_FLAT,
+                distributor=None):
         assert len(shape) == len(modulo)
         ndarray, memfree_args = allocator.alloc(shape, dtype)
         obj = ndarray.view(cls)
@@ -46,6 +52,7 @@ class Data(np.ndarray):
         obj._memfree_args = memfree_args
         obj._decomposition = decomposition or (None,)*len(shape)
         obj._modulo = modulo or (False,)*len(shape)
+        obj._distributor = distributor
 
         # This cannot be a property, as Data objects constructed from this
         # object might not have any `decomposition`, but they would still be
@@ -76,6 +83,7 @@ class Data(np.ndarray):
             # `self` was created through __new__()
             return
 
+        self._distributor = None
         self._index_stash = None
 
         # Views or references created via operations on `obj` do not get an
@@ -91,6 +99,7 @@ class Data(np.ndarray):
         elif obj._index_stash is not None:
             # From `__getitem__`
             self._is_distributed = obj._is_distributed
+            self._distributor = obj._distributor
             glb_idx = obj._normalize_index(obj._index_stash)
             self._modulo = tuple(m for i, m in zip(glb_idx, obj._modulo)
                                  if not is_integer(i))
@@ -105,6 +114,7 @@ class Data(np.ndarray):
             self._decomposition = tuple(decomposition)
         else:
             self._is_distributed = obj._is_distributed
+            self._distributor = obj._distributor
             if self.ndim == obj.ndim:
                 # E.g., from a ufunc, such as `np.add`
                 self._modulo = obj._modulo
@@ -132,6 +142,27 @@ class Data(np.ndarray):
         ret._is_distributed = any(i is not None for i in decomposition)
         return ret
 
+    def _check_idx(func):
+        """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
+        @wraps(func)
+        def wrapper(data, *args, **kwargs):
+            glb_idx = args[0]
+            if len(args) > 1 and isinstance(args[1], Data) \
+                    and args[1]._is_mpi_distributed:
+                comm_type = index_by_index
+            elif data._is_mpi_distributed:
+                for i in as_tuple(glb_idx):
+                    if isinstance(i, slice) and i.step is not None and i.step < 0:
+                        comm_type = index_by_index
+                        break
+                    else:
+                        comm_type = serial
+            else:
+                comm_type = serial
+            kwargs['comm_type'] = comm_type
+            return func(data, *args, **kwargs)
+        return wrapper
+
     @property
     def _is_mpi_distributed(self):
         return self._is_distributed and configuration['mpi']
@@ -139,9 +170,53 @@ class Data(np.ndarray):
     def __repr__(self):
         return super(Data, self._local).__repr__()
 
-    def __getitem__(self, glb_idx):
-        loc_idx = self._convert_index(glb_idx)
-        if loc_idx is NONLOCAL:
+    @_check_idx
+    def __getitem__(self, glb_idx, comm_type):
+        loc_idx = self._index_glb_to_loc(glb_idx)
+        if comm_type is index_by_index:
+            # Retrieve the pertinent local data prior to mpi send/receive operations
+            data_idx = loc_data_idx(loc_idx)
+            local_val = super(Data, self).__getitem__(data_idx)
+
+            comm = self._distributor.comm
+            rank = comm.Get_rank()
+
+            owners, send, global_si, local_si = \
+                mpi_index_maps(loc_idx, local_val.shape, self._distributor.topology,
+                               self._distributor.all_coords, comm)
+
+            retval = Data(local_val.shape, local_val.dtype.type,
+                          decomposition=local_val._decomposition,
+                          modulo=local_val._modulo)
+            it = np.nditer(owners, flags=['refs_ok', 'multi_index'])
+            # Iterate over each element of data
+            while not it.finished:
+                index = it.multi_index
+                if rank == owners[index] and rank == send[index]:
+                    # Current index and destination index are on the same rank
+                    loc_ind = local_si[index]
+                    send_ind = local_si[global_si[index]]
+                    retval.data[send_ind] = local_val.data[loc_ind]
+                elif rank == owners[index]:
+                    # Current index is on this rank and hence need to send
+                    # the data to the appropriate rank
+                    loc_ind = local_si[index]
+                    send_rank = send[index]
+                    send_ind = global_si[index]
+                    send_val = local_val.data[loc_ind]
+                    reqs = comm.isend([send_ind, send_val], dest=send_rank)
+                    reqs.wait()
+                elif rank == send[index]:
+                    # Current rank is required to receive data from this index
+                    recval = comm.irecv(source=owners[index])
+                    local_dat = recval.wait()
+                    loc_ind = local_si[local_dat[0]]
+                    retval.data[loc_ind] = local_dat[1]
+                else:
+                    pass
+                it.iternext()
+            return retval
+        elif loc_idx is NONLOCAL:
             # Caller expects a scalar. However, `glb_idx` doesn't belong to
             # self's data partition, so None is returned
             return None
@@ -151,8 +226,9 @@ class Data(np.ndarray):
             self._index_stash = None
             return retval
 
-    def __setitem__(self, glb_idx, val):
-        loc_idx = self._convert_index(glb_idx)
+    @_check_idx
+    def __setitem__(self, glb_idx, val, comm_type):
+        loc_idx = self._index_glb_to_loc(glb_idx)
         if loc_idx is NONLOCAL:
             # no-op
             return
@@ -164,7 +240,26 @@ class Data(np.ndarray):
             else:
                 super(Data, self).__setitem__(glb_idx, val)
         elif isinstance(val, Data) and val._is_distributed:
-            if self._is_distributed:
+            if comm_type is index_by_index:
+                glb_idx, val = self._process_args(glb_idx, val)
+                val_idx = as_tuple([slice(i.glb_min, i.glb_max+1, 1) for
+                                    i in val._decomposition])
+                idx = self._set_global_idx(val, glb_idx, val_idx)
+                comm = self._distributor.comm
+                nprocs = self._distributor.nprocs
+                # Prepare global lists:
+                data_global = []
+                idx_global = []
+                for j in range(nprocs):
+                    data_global.append(comm.bcast(np.array(val), root=j))
+                    idx_global.append(comm.bcast(idx, root=j))
+                # Set the data:
+                for j in range(nprocs):
+                    skip = any(i is None for i in idx_global[j]) \
+                        or data_global[j].size == 0
+                    if not skip:
+                        self.__setitem__(idx_global[j], data_global[j])
+            elif self._is_distributed:
                 # `val` is decomposed, `self` is decomposed -> local set
                 super(Data, self).__setitem__(glb_idx, val)
             else:
@@ -173,9 +268,10 @@ class Data(np.ndarray):
         elif isinstance(val, np.ndarray):
             if self._is_distributed:
                 # `val` is replicated, `self` is decomposed -> `val` gets decomposed
-                val_idx = self._normalize_index(glb_idx)
+                glb_idx = self._normalize_index(glb_idx)
+                glb_idx, val = self._process_args(glb_idx, val)
                 val_idx = [index_dist_to_repl(i, dec) for i, dec in
-                           zip(val_idx, self._decomposition)]
+                           zip(glb_idx, self._decomposition)]
                 if NONLOCAL in val_idx:
                     # no-op
                     return
@@ -188,6 +284,15 @@ class Data(np.ndarray):
                 # * one of them is 1
                 # Conceptually, below we apply the same rule
                 val_idx = val_idx[len(val_idx)-val.ndim:]
+                processed = []
+                # Handle step size > 1
+                for i, j in zip(glb_idx, val_idx):
+                    if isinstance(i, slice) and i.step is not None and i.step > 1 and \
+                            j.stop > j.start:
+                        processed.append(slice(j.start, j.stop, 1))
+                    else:
+                        processed.append(j)
+                val_idx = as_tuple(processed)
                 val = val[val_idx]
             else:
                 # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
@@ -195,8 +300,9 @@ class Data(np.ndarray):
             super(Data, self).__setitem__(glb_idx, val)
         elif isinstance(val, Iterable):
             if self._is_mpi_distributed:
-                raise NotImplementedError("With MPI data can only be set "
-                                          "via scalars or numpy arrays")
+                raise NotImplementedError("With MPI, data can only be set "
+                                          "via scalars, numpy arrays or "
+                                          "other data ")
             super(Data, self).__setitem__(glb_idx, val)
         else:
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
@@ -210,16 +316,61 @@ class Data(np.ndarray):
             if any(i is Ellipsis for i in idx):
                 # Explicitly replace the Ellipsis
                 items = (slice(None),)*(self.ndim - len(idx) + 1)
-                return idx[:idx.index(Ellipsis)] + items + idx[idx.index(Ellipsis)+1:]
+                items = idx[:idx.index(Ellipsis)] + items + idx[idx.index(Ellipsis)+1:]
             else:
-                return idx + (slice(None),)*(self.ndim - len(idx))
+                items = idx + (slice(None),)*(self.ndim - len(idx))
+            # Normalize slice steps:
+            processed = [slice(i.start, i.stop, 1) if
+                         (isinstance(i, slice) and i.step is None)
+                         else i for i in items]
+            return as_tuple(processed)
 
-    def _convert_index(self, glb_idx):
+    def _process_args(self, idx, val):
+        """If comm_type is parallel we need to first retrieve local unflipped data."""
+        if any(isinstance(i, slice) and i.step is not None and i.step < 0
+               for i in as_tuple(idx)):
+            processed = []
+            transform = []
+            for j, k in zip(idx, self._distributor.glb_shape):
+                if isinstance(j, slice) and j.step is not None and j.step < 0:
+                    if j.start is None:
+                        stop = None
+                    else:
+                        stop = j.start + 1
+                    if j.stop is None and j.start is None:
+                        start = int(np.mod(k-1, -j.step))
+                    elif j.stop is None:
+                        start = int(np.mod(j.start, -j.step))
+                    else:
+                        start = j.stop + 1
+                    processed.append(slice(start, stop, -j.step))
+                    transform.append(slice(None, None, np.sign(j.step)))
+                else:
+                    processed.append(j)
+            if isinstance(val, Data) and len(transform) > 0 and \
+                    len(val._distributor.shape) > len(val.shape):
+                # Rebuild the distributor since the dimension of the slice
+                # is different to that of the original array
+                distributor = \
+                    val._distributor._rebuild(val.shape,
+                                              self._distributor.dimensions,
+                                              self._distributor.comm)
+                new_val = Data(val.shape, val.dtype.type,
+                               decomposition=val._decomposition, modulo=val._modulo,
+                               distributor=distributor)
+                slc = as_tuple([slice(None, None, 1) for j in transform])
+                new_val[slc] = val[slc]
+                return as_tuple(processed), new_val[as_tuple(transform)]
+            else:
+                return as_tuple(processed), val[as_tuple(transform)]
+        else:
+            return idx, val
+
+    def _index_glb_to_loc(self, glb_idx):
         glb_idx = self._normalize_index(glb_idx)
-
         if len(glb_idx) > self.ndim:
             # Maybe user code is trying to add a new axis (see np.newaxis),
-            # so the resulting array will be higher dimensional than `self`,
+            # so the resulting array will be higher dimensional than `self`
             if self._is_mpi_distributed:
                 raise ValueError("Cannot increase dimensionality of MPI-distributed Data")
             else:
@@ -235,7 +386,7 @@ class Data(np.ndarray):
                 # Need to convert the user-provided global indices into local indices.
                 # Obviously this will have no effect if MPI is not used
                 try:
-                    v = index_glb_to_loc(i, dec)
+                    v = convert_index(i, dec, mode='glb_to_loc')
                 except TypeError:
                     if self._is_mpi_distributed:
                         raise NotImplementedError("Unsupported advanced indexing with "
@@ -260,108 +411,54 @@ class Data(np.ndarray):
 
         return loc_idx[0] if len(loc_idx) == 1 else tuple(loc_idx)
 
+    def _set_global_idx(self, val, idx, val_idx):
+        """
+        Compute the global indices to which val (the locally stored data) correspond.
+        """
+        data_loc_idx = as_tuple(val._index_glb_to_loc(val_idx))
+        data_glb_idx = []
+        # Convert integers to slices so that shape dims are preserved
+        if is_integer(as_tuple(idx)[0]):
+            data_glb_idx.append(slice(0, 1, 1))
+        for i, j in zip(data_loc_idx, val._decomposition):
+            if not j.loc_empty:
+                data_glb_idx.append(j.index_loc_to_glb(i))
+            else:
+                data_glb_idx.append(None)
+        mapped_idx = []
+        # Based `data_glb_idx` the indices to which the locally stored data
+        # block correspond can now be computed
+        for i, j, k in zip(data_glb_idx, as_tuple(idx), self._decomposition):
+            if isinstance(j, slice) and j.start is None:
+                norm = 0
+            elif isinstance(j, slice) and j.start is not None:
+                norm = j.start
+            else:
+                norm = j
+            if i is not None:
+                loc_max = k.loc_abs_max
+                if isinstance(j, slice) and j.step is not None:
+                    stop = j.step*i.stop+norm
+                else:
+                    stop = i.stop+norm
+                if stop > loc_max+1:
+                    stop = loc_max+1
+            if i is not None:
+                if isinstance(j, slice) and j.step is not None:
+                    mapped_idx.append(slice(j.step*i.start+norm,
+                                            stop, j.step))
+                else:
+                    mapped_idx.append(slice(i.start+norm, stop, i.step))
+            else:
+                mapped_idx.append(None)
+        return as_tuple(mapped_idx)
+
     def reset(self):
         """Set all Data entries to 0."""
         self[:] = 0.0
 
 
-class Index(Tag):
+class CommType(Tag):
     pass
-NONLOCAL = Index('nonlocal')  # noqa
-PROJECTED = Index('projected')
-
-
-def index_is_basic(idx):
-    if is_integer(idx):
-        return True
-    elif isinstance(idx, (slice, np.ndarray)):
-        return False
-    else:
-        return all(is_integer(i) or (i is NONLOCAL) for i in idx)
-
-
-def index_apply_modulo(idx, modulo):
-    if is_integer(idx):
-        return idx % modulo
-    elif isinstance(idx, slice):
-        if idx.start is None:
-            start = idx.start
-        elif idx.start >= 0:
-            start = idx.start % modulo
-        else:
-            start = -(idx.start % modulo)
-        if idx.stop is None:
-            stop = idx.stop
-        elif idx.stop >= 0:
-            stop = idx.stop % (modulo + 1)
-        else:
-            stop = -(idx.stop % (modulo + 1))
-        return slice(start, stop, idx.step)
-    elif isinstance(idx, (tuple, list)):
-        return [i % modulo for i in idx]
-    elif isinstance(idx, np.ndarray):
-        return idx
-    else:
-        raise ValueError("Cannot apply modulo to index of type `%s`" % type(idx))
-
-
-def index_dist_to_repl(idx, decomposition):
-    """Convert a distributed array index into a replicated array index."""
-    if decomposition is None:
-        return PROJECTED if is_integer(idx) else slice(None)
-
-    # Derive shift value
-    value = idx.start if isinstance(idx, slice) else idx
-    if value is None:
-        value = 0
-    elif not is_integer(value):
-        raise ValueError("Cannot derive shift value from type `%s`" % type(value))
-
-    # Convert into absolute local index
-    idx = decomposition.convert_index(idx, rel=False)
-
-    if is_integer(idx):
-        return PROJECTED
-    elif idx is None:
-        return NONLOCAL
-    elif isinstance(idx, (tuple, list)):
-        return [i - value for i in idx]
-    elif isinstance(idx, np.ndarray):
-        return idx - value
-    elif isinstance(idx, slice):
-        return slice(idx.start - value, idx.stop - value, idx.step)
-    else:
-        raise ValueError("Cannot apply shift to type `%s`" % type(idx))
-
-
-def index_glb_to_loc(idx, decomposition):
-    """Convert a global index into a local index."""
-    if is_integer(idx) or isinstance(idx, slice):
-        return decomposition(idx)
-    elif isinstance(idx, (tuple, list)):
-        return [decomposition(i) for i in idx]
-    elif isinstance(idx, np.ndarray):
-        return np.vectorize(lambda i: decomposition(i))(idx)
-    else:
-        raise ValueError("Cannot convert global index of type `%s` into a local index"
-                         % type(idx))
-
-
-def index_handle_oob(idx):
-    # distributed.convert_index returns None when the index is globally
-    # legal, but out-of-bounds for the calling MPI rank
-    if idx is None:
-        return NONLOCAL
-    elif isinstance(idx, (tuple, list)):
-        return [i for i in idx if i is not None]
-    elif isinstance(idx, np.ndarray):
-        if idx.dtype == np.bool_:
-            # A boolean mask, nothing to do
-            return idx
-        elif idx.ndim == 1:
-            return np.delete(idx, np.where(idx == None))  # noqa
-        else:
-            raise ValueError("Cannot identify OOB accesses when using "
-                             "multidimensional index arrays")
-    else:
-        return idx
+index_by_index = CommType('index_by_index')  # noqa
+serial = CommType('serial')
