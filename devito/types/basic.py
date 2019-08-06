@@ -796,9 +796,8 @@ class Array(AbstractCachedFunction):
     padding : iterable of 2-tuples, optional
         The padding region of the object.
     scope : str, optional
-        Control memory allocation. Allowed values: 'heap', 'stack', 'local'. Defaults
+        Control memory allocation. Allowed values: 'heap', 'stack'. Defaults
         to 'heap'.
-        'local' arrays are created and initialised inline using a ListInitializer
 
     Warnings
     --------
@@ -818,7 +817,7 @@ class Array(AbstractCachedFunction):
             super(Array, self).__init__(*args, **kwargs)
 
             self._scope = kwargs.get('scope', 'heap')
-            assert self._scope in ['heap', 'stack', 'local']
+            assert self._scope in ['heap', 'stack']
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -878,12 +877,12 @@ class Array(AbstractCachedFunction):
         return self._scope == 'heap'
 
     @property
-    def _mem_local(self):
-        return self._scope == 'local'
-
-    @property
     def _C_typename(self):
         return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
+
+    @property
+    def _C_typedata(self):
+        return ctypes_to_cstr(dtype_to_ctype(self.dtype))
 
     @property
     def free_symbols(self):

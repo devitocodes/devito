@@ -102,22 +102,26 @@ def create_ops_dat(f, name_to_ops_dat, block):
     dim = Array(
         name=namespace['ops_dat_dim'](f.name),
         dimensions=(DefaultDimension(name='dim', default_value=ndim),),
-        dtype=np.int32
+        dtype=np.int32,
+        scope='stack'
     )
     base = Array(
         name=namespace['ops_dat_base'](f.name),
         dimensions=(DefaultDimension(name='base', default_value=ndim),),
-        dtype=np.int32
+        dtype=np.int32,
+        scope='stack'
     )
     d_p = Array(
         name=namespace['ops_dat_d_p'](f.name),
         dimensions=(DefaultDimension(name='d_p', default_value=ndim),),
-        dtype=np.int32
+        dtype=np.int32,
+        scope='stack'
     )
     d_m = Array(
         name=namespace['ops_dat_d_m'](f.name),
         dimensions=(DefaultDimension(name='d_m', default_value=ndim),),
-        dtype=np.int32
+        dtype=np.int32,
+        scope='stack'
     )
 
     res = []
@@ -140,6 +144,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
             name=namespace['ops_dat_name'](f.name),
             dimensions=(DefaultDimension(name='dat', default_value=time_dims),),
             dtype='ops_dat',
+            scope='stack'
         )
 
         dat_decls = []
@@ -208,7 +213,7 @@ def create_ops_par_loop(
         name='%s_range' % ops_kernel.name,
         dimensions=(DefaultDimension(name='range', default_value=len(it_range)),),
         dtype=np.int32,
-        scope='local'
+        scope='stack'
     )
 
     range_array_init = Expression(ClusterizedEq(Eq(

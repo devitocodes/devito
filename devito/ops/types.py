@@ -10,11 +10,11 @@ from devito.ops.utils import namespace
 class Array(basic.Array):
 
     @property
-    def _C_typename(self):
+    def _C_typedata(self):
         if isinstance(self.dtype, str):
             return self.dtype
 
-        return dtype_to_cstr(self.dtype)
+        return super()._C_typedata
 
 
 class OpsAccessible(basic.Symbol):

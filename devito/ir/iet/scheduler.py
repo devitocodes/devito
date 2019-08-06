@@ -171,7 +171,7 @@ def iet_insert_decls(iet, external):
                         key = lambda i: not i.is_Parallel
                         site = filter_iterations(v, key=key) or iet
                         allocator.push_object_on_stack(site[-1], i)
-                    elif i._mem_heap:
+                    else:
                         # On the heap
                         allocator.push_array_on_heap(i)
             except AttributeError:

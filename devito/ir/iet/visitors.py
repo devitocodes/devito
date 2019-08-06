@@ -172,10 +172,7 @@ class CGen(Visitor):
                 elif i.is_LocalObject:
                     ret.append('&%s' % i._C_name)
                 elif i.is_Array:
-                    if i._mem_local:
-                        ret.append(i.name)
-                    else:
-                        ret.append("(%s)%s" % (i._C_typename, i.name))
+                    ret.append("(%s)%s" % (i._C_typename, i.name))
                 else:
                     ret.append(i._C_name)
             except AttributeError:
@@ -234,7 +231,7 @@ class CGen(Visitor):
         else:
             lhs = ccode(o.expr.lhs, dtype=o.dtype)
 
-        return c.Initializer(c.Value(o.expr.lhs._C_typename, lhs),
+        return c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs),
                              ccode(o.expr.rhs, dtype=o.dtype))
 
     def visit_ForeignExpression(self, o):
