@@ -45,7 +45,7 @@ def opsit(trees, count, block):
     )
 
     par_loop_range = Expression(ClusterizedEq(Eq(
-        Symbol(par_loop_array.name),
+        par_loop_array,
         ListInitializer(list(itertools.chain(*it_range)))
     )))
 
