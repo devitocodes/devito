@@ -1,6 +1,7 @@
 import numpy as np
 from argparse import ArgumentParser
 
+from devito import configuration
 from devito.logger import info
 from examples.seismic.elastic import ElasticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
@@ -57,8 +58,9 @@ if __name__ == "__main__":
     parser = ArgumentParser(description=description)
     parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
                         help="Preset to determine the physical problem setup")
-    parser.add_argument('-a', '--autotune', default=False, action='store_true',
-                        help="Enable autotuning for block sizes")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=(configuration._accepted['autotuning']),
+                        help="Operator auto-tuning mode")
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,

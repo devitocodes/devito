@@ -1,6 +1,6 @@
 import numpy as np
 from argparse import ArgumentParser
-
+from devito import configuration
 from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
@@ -47,8 +47,9 @@ if __name__ == "__main__":
                         help="Preset to determine the physical problem setup")
     parser.add_argument('--noazimuth', dest='azi', default=False, action='store_true',
                         help="Whether or not to use an azimuth angle")
-    parser.add_argument('-a', '--autotune', default=False, action='store_true',
-                        help="Enable autotuning for block sizes")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=(configuration._accepted['autotuning']),
+                        help="Operator auto-tuning mode")
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,

@@ -2,7 +2,7 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import info
-from devito import Constant, Function, smooth
+from devito import Constant, Function, smooth, configuration
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 
@@ -80,8 +80,9 @@ if __name__ == "__main__":
                         help="Preset to determine the number of dimensions")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
-    parser.add_argument('-a', '--autotune', default=False, action='store_true',
-                        help="Enable autotuning for block sizes")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=(configuration._accepted['autotuning']),
+                        help="Operator auto-tuning mode")
     parser.add_argument("-so", "--space_order", default=6,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,

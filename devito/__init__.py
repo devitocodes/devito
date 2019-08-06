@@ -126,10 +126,3 @@ def mode_performance():
     # With the autotuner in `aggressive` mode, a more aggressive blocking strategy
     # which also tiles the innermost loop) is beneficial
     configuration['dle-options']['blockinner'] = True
-
-
-def mode_benchmark():
-    """Like ``mode_performance``, but also switch YASK's autotuner mode to
-    ``preemptive``."""
-    mode_performance()
-    configuration['autotuning'] = ['aggressive', 'preemptive']
