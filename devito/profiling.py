@@ -1,8 +1,10 @@
 from collections import OrderedDict, namedtuple
+from contextlib import contextmanager
 from ctypes import c_double
 from functools import reduce
 from operator import mul
 from pathlib import Path
+from time import time as seq_time
 import os
 
 from cached_property import cached_property
@@ -11,6 +13,7 @@ from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
                            FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
 from devito.logger import warning
+from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import estimate_cost
 from devito.tools import flatten
@@ -27,7 +30,12 @@ class Profiler(object):
 
     def __init__(self, name):
         self.name = name
+
+        # C-level code sections
         self._sections = OrderedDict()
+
+        # Python-level timers
+        self.py_timers = OrderedDict()
 
         self.initialized = True
 
@@ -74,6 +82,31 @@ class Profiler(object):
 
         return iet
 
+    @contextmanager
+    def timer_on(self, name, comm=None):
+        """
+        Measure the execution time of a Python-level code region.
+
+        Parameters
+        ----------
+        name : str
+            A representative string for the timed region.
+        comm : MPI communicator, optional
+            If provided, the global execution time is derived by a single MPI
+            rank, with timers started and stopped right after an MPI barrier.
+        """
+        if MPI.Is_initialized() and comm is not None:
+            comm.Barrier()
+            tic = MPI.Wtime()
+            yield
+            comm.Barrier()
+            toc = MPI.Wtime()
+        else:
+            tic = seq_time()
+            yield
+            toc = seq_time()
+        self.py_timers[name] = toc - tic
+
     def summary(self, arguments, dtype):
         """
         Return a PerformanceSummary of the profiled sections.
@@ -107,7 +140,6 @@ class AdvancedProfiler(Profiler):
 
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, arguments, dtype):
-
         summary = PerformanceSummary()
         for section, data in self._sections.items():
             # Time to run the section

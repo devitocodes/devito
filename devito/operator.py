@@ -522,7 +522,8 @@ class Operator(Callable):
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
         try:
-            self.cfunction(*arg_values)
+            with self._profiler.timer_on('apply', comm=args.grid.comm):
+                self.cfunction(*arg_values)
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
@@ -542,21 +543,26 @@ class Operator(Callable):
 
     def _profile_output(self, args):
         """Produce a performance summary of the profiled sections."""
+        info("Operator `%s` run in %.2f s" % (self.name,
+                                              self._profiler.py_timers['apply']))
+
         summary = self._profiler.summary(args, self._dtype)
-        info("Operator `%s` run in %.2f s" % (self.name, sum(summary.timings.values())))
         for k, v in summary.items():
+            gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
                 name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
+                perf("* %s with OI=%.2f computed in %.2f s [%.2f GFlops/s%s]" %
+                     (name, v.oi, v.time, v.gflopss, gpointss))
             elif len(itershapes) == 1:
                 name = "%s<%s>" % (k, itershapes[0])
+                perf("* %s with OI=%.2f computed in %.2f s [%.2f GFlops/s%s]" %
+                     (name, v.oi, v.time, v.gflopss, gpointss))
             else:
-                name = None
-            gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
-            perf("* %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
-                 (name, v.oi, v.time, v.gflopss, gpointss))
+                name = k
+                perf("* %s computed in %.2f s" % (name, v.time))
 
-        perf("* %s configuration:  %s " %
+        perf("`%s` configuration:  %s " %
              (self.name, self._state['optimizations']))
 
         return summary
