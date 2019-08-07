@@ -12,7 +12,7 @@ from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
 from devito.ops.utils import namespace
 from devito.symbolics import Byref, ListInitializer, Literal
-from devito.types import DefaultDimension, Symbol
+from devito.types import Constant, DefaultDimension, Symbol
 from devito.tools import filter_sorted
 
 
@@ -77,8 +77,7 @@ def opsit(trees, count, block):
         if f.is_Constant:
             continue
 
-        _ops_dat = create_ops_dat(f, name_to_ops_dat, block)
-        pre_loop.extend(_ops_dat)
+        pre_loop.extend(create_ops_dat(f, name_to_ops_dat, block))
 
     name_to_ops_stencil = {}
     stencil_arrays_initializations = [
@@ -88,31 +87,40 @@ def opsit(trees, count, block):
 
     ops_args = []
     for p in parameters:
-        if not isinstance(p, OpsAccessible):
-            ops_args.append(Call(namespace['ops_arg_gbl'],
-                                 [Byref(Literal(p.name.replace('*', ''))),
-                                  1, Literal('"%s"' % p._C_typedata),
-                                  Literal(namespace['ops_read'])]))
-        else:
-            ops_args.append(Call(namespace['ops_arg_dat'],
-                                 [Literal('%s' % name_to_ops_dat[p.name]), 1,
-                                  Literal(name_to_ops_stencil[p.name]),
-                                  Literal('"float"'),
-                                  Literal('%s' % namespace['ops_read']
-                                          if p.read_only else namespace['ops_write'])]))
+        ops_args.append(create_ops_arg(p, name_to_ops_dat, name_to_ops_stencil))
 
-    par_loop = Call(namespace['ops_par_loop'], [
+    par_loop = create_ops_par_loop(block, ops_kernel, par_loop_array, ops_args)
+
+    pre_time_loop = itertools.chain(
+        *[pre_loop], *[stencil_arrays_initializations], [par_loop_range])
+
+    return pre_time_loop, par_loop, ops_kernel
+
+
+def create_ops_arg(data, name_to_ops_dat, name_to_ops_stencil):
+    if data.is_Constant:
+        return Call(namespace['ops_arg_gbl'],
+                             [Byref(Constant(name=data.name.replace('*', ''))),
+                              1, Literal('"%s"' % data._C_typedata),
+                              Literal(namespace['ops_read'])])
+    else:
+        return Call(namespace['ops_arg_dat'],
+                             [Literal('%s' % name_to_ops_dat[data.name]), 1,
+                              Literal(name_to_ops_stencil[data.name]),
+                              Literal('"float"'),
+                              Literal('%s' % namespace['ops_read']
+                                      if data.read_only else namespace['ops_write'])])
+
+
+def create_ops_par_loop(block, ops_kernel, par_loop_array, args):
+    return Call(namespace['ops_par_loop'], [
         Literal(ops_kernel.name),
         Literal('"%s"' % ops_kernel.name),
         Symbol(block.name),
         2,
         Symbol(par_loop_array.name),
-        *ops_args
+        *args
     ])
-    pre_time_loop = itertools.chain(
-        *[pre_loop], *[stencil_arrays_initializations], [par_loop_range])
-
-    return pre_time_loop, par_loop, ops_kernel
 
 
 def to_ops_stencil(param, accesses, name_to_ops_stencil):
