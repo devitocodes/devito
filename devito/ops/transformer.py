@@ -13,7 +13,7 @@ from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
 from devito.ops.utils import namespace
 from devito.symbolics import Byref, ListInitializer, Literal
 from devito.types import Constant, DefaultDimension, Symbol
-from devito.tools import filter_sorted
+from devito.tools import filter_sorted, dtype_to_cstr
 
 
 def opsit(trees, count, block):
@@ -101,13 +101,13 @@ def create_ops_arg(data, name_to_ops_dat, name_to_ops_stencil):
     if data.is_Constant:
         return Call(namespace['ops_arg_gbl'],
                              [Byref(Constant(name=data.name.replace('*', ''))),
-                              1, Literal('"%s"' % data._C_typedata),
+                              1, Literal('"%s"' % dtype_to_cstr(data.dtype)),
                               Literal(namespace['ops_read'])])
     else:
         return Call(namespace['ops_arg_dat'],
                              [Literal('%s' % name_to_ops_dat[data.name]), 1,
                               Literal(name_to_ops_stencil[data.name]),
-                              Literal('"float"'),
+                              Literal('"%s"' % dtype_to_cstr(data.dtype)),
                               Literal('%s' % namespace['ops_read']
                                       if data.read_only else namespace['ops_write'])])
 
