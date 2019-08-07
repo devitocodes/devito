@@ -55,7 +55,7 @@ def viscoelastic_2d(model, space_order, save, geometry):
                - damp*s*1/t_s*(rxz+mu*(t_es/t_s-1)*(vx.forward.dz+vz.forward.dx)))
 
     src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, rxx, ryy, rzz, model, geometry)
-    return [u_vx, u_vz, u_txx, u_tzz, u_txz, u_rxx, u_rzz, u_rxz] + src_rec_expr
+    return [u_vx, u_vz, u_rxx, u_rzz, u_rxz, u_txx, u_tzz, u_txz] + src_rec_expr
 
 
 def viscoelastic_3d(model, space_order, save, geometry):
@@ -137,8 +137,8 @@ def viscoelastic_3d(model, space_order, save, geometry):
                - damp*s*1/t_s*(ryz+mu*(t_es/t_s-1)*(vy.forward.dz+vz.forward.dy)))
 
     src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry)
-    return [u_vx, u_vy, u_vz, u_txx, u_tyy, u_tzz, u_txz, u_txy, u_tyz,
-            u_rxx, u_ryy, u_rzz, u_rxz, u_rxy, u_ryz] + src_rec_expr
+    return [u_vx, u_vy, u_vz, u_rxx, u_ryy, u_rzz, u_rxz, u_rxy, u_ryz,
+            u_txx, u_tyy, u_tzz, u_txz, u_txy, u_tyz] + src_rec_expr
 
 
 def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):

@@ -144,7 +144,7 @@ class AbstractDistributor(ABC):
             The global index Dimension.
         *args
             There are several possibilities, documented in
-            :meth:`Decomposition.convert_index`.
+            :meth:`Decomposition.index_glb_to_loc`.
         strict : bool, optional
             If False, return args without raising an error if `dim` does not appear
             among the Distributor Dimensions.
@@ -154,7 +154,7 @@ class AbstractDistributor(ABC):
                 raise ValueError("`%s` must be one of the Distributor dimensions" % dim)
             else:
                 return args[0]
-        return self.decomposition[dim].convert_index(*args)
+        return self.decomposition[dim].index_glb_to_loc(*args)
 
 
 class Distributor(AbstractDistributor):
@@ -374,6 +374,10 @@ class Distributor(AbstractDistributor):
         in the decomposed grid.
         """
         return MPINeighborhood(self.neighborhood)
+
+    def _rebuild(self, shape=None, dimensions=None, comm=None):
+        return Distributor(shape or self.shape, dimensions or self.dimensions,
+                           comm or self.comm)
 
 
 class SparseDistributor(AbstractDistributor):

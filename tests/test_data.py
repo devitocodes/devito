@@ -4,7 +4,8 @@ import numpy as np
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
                     Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, configuration, switchconfig)
-from devito.data import LEFT, RIGHT, Decomposition
+from devito.data import LEFT, RIGHT, Decomposition, loc_data_idx, convert_index
+from devito.tools import as_tuple
 
 pytestmark = skipif('ops')
 
@@ -62,6 +63,17 @@ class TestDataBasic(object):
         assert np.all(u.data[1, :, -1] == 0.)
         assert np.all(u.data[1, :, :, 0] == 0.)
         assert np.all(u.data[1, :, :, -1] == 0.)
+
+    @skipif('yask')
+    def test_negative_step(self):
+        """Test slicing with a negative step."""
+        grid = Grid(shape=(6, 6, 6))
+        u = TimeFunction(name='u', grid=grid, dtype=np.int32)
+        u.data[:] = 0.
+        dat = np.array([1, 2, 3, 4, 5, 6])
+        u.data[0, :, 0, 0] = dat
+        assert (np.array(u.data[0, 3::-1, 0, 0]) == dat[3::-1]).all()
+        assert (np.array(u.data[0, 5:1:-1, 0, 0]) == dat[5:1:-1]).all()
 
     def test_halo_indexing(self):
         """Test data packing/unpacking in presence of a halo region."""
@@ -189,6 +201,27 @@ class TestDataBasic(object):
         assert np.all(sf.data[1:-1, 0] == np.arange(8))
 
 
+class TestLocDataIDX(object):
+    """
+    Test the support function loc_data_idx.
+    """
+    @pytest.mark.parametrize('idx, expected', [
+        ('(slice(10, None, -1), slice(11, None, -3))',
+         '(slice(0, 11, 1), slice(2, 12, 3))'),
+        ('(2, 5)', '(slice(2, 3, 1), slice(5, 6, 1))')
+    ])
+    def test_loc_data_idx(self, idx, expected):
+        """
+        Test loc_data_idx located in devio/data/utils.py
+        """
+        idx = eval(idx)
+        expected = eval(expected)
+
+        result = loc_data_idx(idx)
+
+        assert result == expected
+
+
 class TestMetaData(object):
 
     """
@@ -284,28 +317,51 @@ class TestDecomposition(object):
     will pass.
     """
 
-    def test_convert_index(self):
+    def test_glb_to_loc_index_conversions(self):
         d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
 
         # A global index as single argument
-        assert d.convert_index(5) == 0
-        assert d.convert_index(6) == 1
-        assert d.convert_index(7) == 2
-        assert d.convert_index(3) is None
+        assert d.index_glb_to_loc(5) == 0
+        assert d.index_glb_to_loc(6) == 1
+        assert d.index_glb_to_loc(7) == 2
+        assert d.index_glb_to_loc(3) is None
 
         # Retrieve relative local min/man given global min/max
-        assert d.convert_index((5, 7)) == (0, 2)
-        assert d.convert_index((5, 9)) == (0, 2)
-        assert d.convert_index((1, 3)) == (-1, -3)
-        assert d.convert_index((1, 6)) == (0, 1)
-        assert d.convert_index((None, None)) == (0, 2)
+        assert d.index_glb_to_loc((5, 7)) == (0, 2)
+        assert d.index_glb_to_loc((5, 9)) == (0, 2)
+        assert d.index_glb_to_loc((1, 3)) == (-1, -3)
+        assert d.index_glb_to_loc((1, 6)) == (0, 1)
+        assert d.index_glb_to_loc((None, None)) == (0, 2)
 
         # Retrieve absolute local min/man given global min/max
-        assert d.convert_index((5, 7), rel=False) == (5, 7)
-        assert d.convert_index((5, 9), rel=False) == (5, 7)
-        assert d.convert_index((1, 3), rel=False) == (-1, -3)
-        assert d.convert_index((1, 6), rel=False) == (5, 6)
-        assert d.convert_index((None, None), rel=False) == (5, 7)
+        assert d.index_glb_to_loc((5, 7), rel=False) == (5, 7)
+        assert d.index_glb_to_loc((5, 9), rel=False) == (5, 7)
+        assert d.index_glb_to_loc((1, 3), rel=False) == (-1, -3)
+        assert d.index_glb_to_loc((1, 6), rel=False) == (5, 6)
+        assert d.index_glb_to_loc((None, None), rel=False) == (5, 7)
+
+    def test_loc_to_glb_index_conversions(self):
+        d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+
+        # Convert local indices to global indices
+        assert d.index_loc_to_glb((0, 2)) == (5, 7)
+
+        d2 = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 0)
+        assert d2.index_loc_to_glb((0, 2)) == (0, 2)
+        d3 = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 3)
+        assert d3.index_loc_to_glb((1, 3)) == (9, 11)
+
+    def test_convert_index(self):
+        d0 = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+        d1 = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 3)
+        decomposition = (d0, d1)
+
+        idx0 = (5, slice(8, 11, 1))
+        result0 = []
+        for i, j in zip(idx0, decomposition):
+            result0.append(convert_index(i, j))
+        expected0 = (0, slice(0, 3, 1))
+        assert as_tuple(result0) == expected0
 
     def test_reshape_identity(self):
         d = Decomposition([[0, 1], [2, 3]], 2)
@@ -499,6 +555,423 @@ class TestDataDistributed(object):
         else:
             assert np.all(u.data[2:, 2:] == myrank)
             assert u.data[:2, 2:].size == u.data[2:, :2].size == u.data[:2, :2].size == 0
+
+    @pytest.mark.parallel(mode=4)
+    def test_slicing_ns(self):
+        # Test slicing with a negative step
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        myrank = grid.distributor.myrank
+        u = Function(name='u', grid=grid, space_order=0)
+
+        u.data[:] = myrank
+
+        dat = np.arange(16, dtype=np.int32)
+        dat = dat.reshape(grid.shape)
+
+        u.data[::-1, ::-1] = dat
+
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data == [[15, 14], [11, 10]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data == [[13, 12], [9, 8]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data == [[7, 6], [3, 2]])
+        else:
+            assert np.all(u.data == [[5, 4], [1, 0]])
+
+    @pytest.mark.parallel(mode=4)
+    def test_getitem(self):
+        # __getitem__ mpi slicing tests:
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+        test_dat = np.arange(64, dtype=np.int32)
+        a = test_dat.reshape(grid.shape)
+
+        f.data[:] = a
+
+        result = np.array(f.data[::-1, ::-1])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(result[0] == [[63, 62, 61, 60]])
+            assert np.all(result[1] == [[55, 54, 53, 52]])
+            assert np.all(result[2] == [[47, 46, 45, 44]])
+            assert np.all(result[3] == [[39, 38, 37, 36]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(result[0] == [[59, 58, 57, 56]])
+            assert np.all(result[1] == [[51, 50, 49, 48]])
+            assert np.all(result[2] == [[43, 42, 41, 40]])
+            assert np.all(result[3] == [[35, 34, 33, 32]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(result[0] == [[31, 30, 29, 28]])
+            assert np.all(result[1] == [[23, 22, 21, 20]])
+            assert np.all(result[2] == [[15, 14, 13, 12]])
+            assert np.all(result[3] == [[7, 6, 5, 4]])
+        else:
+            assert np.all(result[0] == [[27, 26, 25, 24]])
+            assert np.all(result[1] == [[19, 18, 17, 16]])
+            assert np.all(result[2] == [[11, 10, 9, 8]])
+            assert np.all(result[3] == [[3, 2, 1, 0]])
+
+        result1 = np.array(f.data[5, 6:1:-1])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert result1.size == 0
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert result1.size == 0
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(result1 == [[46, 45]])
+        else:
+            assert np.all(result1 == [[44, 43, 42]])
+
+        result2 = np.array(f.data[6:4:-1, 6:1:-1])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert result2.size == 0
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert result2.size == 0
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(result2[0] == [[54, 53]])
+            assert np.all(result2[1] == [[46, 45]])
+        else:
+            assert np.all(result2[0] == [[52, 51, 50]])
+            assert np.all(result2[1] == [[44, 43, 42]])
+
+        result3 = np.array(f.data[6:4:-1, 2:7])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert result3.size == 0
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert result3.size == 0
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(result3[0] == [[50, 51]])
+            assert np.all(result3[1] == [[42, 43]])
+        else:
+            assert np.all(result3[0] == [[52, 53, 54]])
+            assert np.all(result3[1] == [[44, 45, 46]])
+
+        result4 = np.array(f.data[4:2:-1, 6:1:-1])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(result4 == [[38, 37]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(result4 == [[36, 35, 34]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(result4 == [[30, 29]])
+        else:
+            assert np.all(result4 == [[28, 27, 26]])
+
+    @pytest.mark.parallel(mode=4)
+    def test_big_steps(self):
+        # Test slicing with a step size > 1
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+        test_dat = np.arange(64, dtype=np.int32)
+        a = test_dat.reshape(grid.shape)
+
+        f.data[:] = a
+
+        r0 = np.array(f.data[::3, ::3])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(r0 == [[0, 3], [24, 27]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(r0 == [[6], [30]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(r0 == [[48, 51]])
+        else:
+            assert np.all(r0 == [[54]])
+
+        r1 = np.array(f.data[1::3, 1::3])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(r1 == [[9]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(r1 == [[12, 15]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(r1 == [[33], [57]])
+        else:
+            assert np.all(r1 == [[36, 39], [60, 63]])
+
+        r2 = np.array(f.data[::-3, ::-3])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(r2 == [[63]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(r2 == [[60, 57]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(r2 == [[39], [15]])
+        else:
+            assert np.all(r2 == [[36, 33], [12, 9]])
+
+        r3 = np.array(f.data[6::-3, 6::-3])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(r3 == [[54, 51], [30, 27]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(r3 == [[48], [24]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(r3 == [[6, 3]])
+        else:
+            assert np.all(r3 == [[0]])
+
+    @pytest.mark.parallel(mode=4)
+    def test_setitem(self):
+        # __setitem__ mpi slicing tests
+        grid = Grid(shape=(12, 12))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        g = Function(name='g', grid=grid, space_order=0, dtype=np.int32)
+        h = Function(name='h', grid=grid, space_order=0, dtype=np.int32)
+
+        grid1 = Grid(shape=(8, 8))
+        f = Function(name='f', grid=grid1, space_order=0, dtype=np.int32)
+        test_dat = np.arange(64, dtype=np.int32)
+        a = test_dat.reshape(grid1.shape)
+
+        f.data[:] = a
+
+        g.data[0, 0:3] = f.data[7, 4:7]
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(np.array(g.data) == [[60, 61, 62, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(np.array(g.data)) == 0
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(np.array(g.data)) == 0
+        else:
+            assert np.all(np.array(g.data)) == 0
+
+        h.data[2:10, 2:10] = f.data[::-1, ::-1]
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(np.array(h.data) == [[0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 63, 62, 61, 60],
+                                               [0, 0, 55, 54, 53, 52],
+                                               [0, 0, 47, 46, 45, 44],
+                                               [0, 0, 39, 38, 37, 36]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(np.array(h.data) == [[0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [59, 58, 57, 56, 0, 0],
+                                               [51, 50, 49, 48, 0, 0],
+                                               [43, 42, 41, 40, 0, 0],
+                                               [35, 34, 33, 32, 0, 0]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(np.array(h.data) == [[0, 0, 31, 30, 29, 28],
+                                               [0, 0, 23, 22, 21, 20],
+                                               [0, 0, 15, 14, 13, 12],
+                                               [0, 0, 7, 6, 5, 4],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0]])
+        else:
+            assert np.all(np.array(h.data) == [[27, 26, 25, 24, 0, 0],
+                                               [19, 18, 17, 16, 0, 0],
+                                               [11, 10, 9, 8, 0, 0],
+                                               [3, 2, 1, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0]])
+
+    @pytest.mark.parallel(mode=4)
+    def test_hd_slicing(self):
+        # Test higher dimension slices
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        t = Function(name='t', grid=grid, space_order=0)
+        dat = np.arange(64, dtype=np.int32)
+        b = dat.reshape(grid.shape)
+        t.data[:] = b
+
+        c = np.array(t.data[::-1, ::-1, ::-1])
+        if LEFT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
+            assert np.all(c[0, :, :] == [[63, 62],
+                                         [59, 58]])
+            assert np.all(c[3, :, :] == [[15, 14],
+                                         [11, 10]])
+        elif LEFT in glb_pos_map[y] and RIGHT in glb_pos_map[z]:
+            assert np.all(c[0, :, :] == [[61, 60],
+                                         [57, 56]])
+            assert np.all(c[3, :, :] == [[13, 12],
+                                         [9, 8]])
+        elif RIGHT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
+            assert np.all(c[0, :, :] == [[55, 54],
+                                         [51, 50]])
+            assert np.all(c[3, :, :] == [[7, 6],
+                                         [3, 2]])
+        else:
+            assert np.all(c[0, :, :] == [[53, 52],
+                                         [49, 48]])
+            assert np.all(c[3, :, :] == [[5, 4],
+                                         [1, 0]])
+
+        d = np.array(t.data[::-1])
+        if LEFT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
+            assert np.all(d[1, :, :] == [[32, 33],
+                                         [36, 37]])
+            assert np.all(d[2, :, :] == [[16, 17],
+                                         [20, 21]])
+        elif LEFT in glb_pos_map[y] and RIGHT in glb_pos_map[z]:
+            assert np.all(d[1, :, :] == [[34, 35],
+                                         [38, 39]])
+            assert np.all(d[2, :, :] == [[18, 19],
+                                         [22, 23]])
+        elif RIGHT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
+            assert np.all(d[1, :, :] == [[40, 41],
+                                         [44, 45]])
+            assert np.all(d[2, :, :] == [[24, 25],
+                                         [28, 29]])
+        else:
+            assert np.all(d[1, :, :] == [[42, 43],
+                                         [46, 47]])
+            assert np.all(d[2, :, :] == [[26, 27],
+                                         [30, 31]])
+
+        e = np.array(t.data[:, 3:2:-1])
+        if LEFT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
+            assert e.size == 0
+        elif LEFT in glb_pos_map[y] and RIGHT in glb_pos_map[z]:
+            assert e.size == 0
+        elif RIGHT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
+            assert np.all(e[0] == [[12, 13]])
+            assert np.all(e[1] == [[28, 29]])
+            assert np.all(e[2] == [[44, 45]])
+            assert np.all(e[3] == [[60, 61]])
+        else:
+            assert np.all(e[0] == [[14, 15]])
+            assert np.all(e[1] == [[30, 31]])
+            assert np.all(e[2] == [[46, 47]])
+            assert np.all(e[3] == [[62, 63]])
+
+    @pytest.mark.parallel(mode=4)
+    def test_niche_slicing(self):
+        grid0 = Grid(shape=(8, 8))
+        x0, y0 = grid0.dimensions
+        glb_pos_map0 = grid0.distributor.glb_pos_map
+        f = Function(name='f', grid=grid0, space_order=0, dtype=np.int32)
+        dat = np.arange(64, dtype=np.int32)
+        a = dat.reshape(grid0.shape)
+        f.data[:] = a
+
+        grid1 = Grid(shape=(12, 12))
+        x1, y1 = grid1.dimensions
+        glb_pos_map1 = grid1.distributor.glb_pos_map
+        h = Function(name='h', grid=grid1, space_order=0, dtype=np.int32)
+
+        grid2 = Grid(shape=(4, 4, 4))
+        t = Function(name='t', grid=grid2, space_order=0)
+        b = dat.reshape(grid2.shape)
+        t.data[:] = b
+
+        tdat0 = np.array(f.data[-2::, -2::])
+        if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
+            assert tdat0.size == 0
+        elif LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0]:
+            assert tdat0.size == 0
+        elif RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
+            assert tdat0.size == 0
+        else:
+            assert np.all(tdat0 == [[54, 55],
+                                    [62, 63]])
+
+        h.data[9:1:-1, 9:1:-1] = f.data[:, :]
+        if LEFT in glb_pos_map1[x1] and LEFT in glb_pos_map1[y1]:
+            assert np.all(np.array(h.data) == [[0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 63, 62, 61, 60],
+                                               [0, 0, 55, 54, 53, 52],
+                                               [0, 0, 47, 46, 45, 44],
+                                               [0, 0, 39, 38, 37, 36]])
+        elif LEFT in glb_pos_map1[x1] and RIGHT in glb_pos_map1[y1]:
+            assert np.all(np.array(h.data) == [[0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [59, 58, 57, 56, 0, 0],
+                                               [51, 50, 49, 48, 0, 0],
+                                               [43, 42, 41, 40, 0, 0],
+                                               [35, 34, 33, 32, 0, 0]])
+        elif RIGHT in glb_pos_map1[x1] and LEFT in glb_pos_map1[y1]:
+            assert np.all(np.array(h.data) == [[0, 0, 31, 30, 29, 28],
+                                               [0, 0, 23, 22, 21, 20],
+                                               [0, 0, 15, 14, 13, 12],
+                                               [0, 0, 7, 6, 5, 4],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0]])
+        else:
+            assert np.all(np.array(h.data) == [[27, 26, 25, 24, 0, 0],
+                                               [19, 18, 17, 16, 0, 0],
+                                               [11, 10, 9, 8, 0, 0],
+                                               [3, 2, 1, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0],
+                                               [0, 0, 0, 0, 0, 0]])
+
+        f.data[:] = 0
+        f.data[::2, ::2] = t.data[0, :, :]
+        if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
+            assert np.all(np.array(f.data) == [[0, 0, 1, 0],
+                                               [0, 0, 0, 0],
+                                               [4, 0, 5, 0],
+                                               [0, 0, 0, 0]])
+        elif LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0]:
+            assert np.all(np.array(f.data) == [[2, 0, 3, 0],
+                                               [0, 0, 0, 0],
+                                               [6, 0, 7, 0],
+                                               [0, 0, 0, 0]])
+        elif RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
+            assert np.all(np.array(f.data) == [[8, 0, 9, 0],
+                                               [0, 0, 0, 0],
+                                               [12, 0, 13, 0],
+                                               [0, 0, 0, 0]])
+        else:
+            assert np.all(np.array(f.data) == [[10, 0, 11, 0],
+                                               [0, 0, 0, 0],
+                                               [14, 0, 15, 0],
+                                               [0, 0, 0, 0]])
+
+        f.data[:] = 0
+        f.data[1::2, 1::2] = t.data[0, :, :]
+        if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
+            assert np.all(np.array(f.data) == [[0, 0, 0, 0],
+                                               [0, 0, 0, 1],
+                                               [0, 0, 0, 0],
+                                               [0, 4, 0, 5]])
+        elif LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0]:
+            assert np.all(np.array(f.data) == [[0, 0, 0, 0],
+                                               [0, 2, 0, 3],
+                                               [0, 0, 0, 0],
+                                               [0, 6, 0, 7]])
+        elif RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
+            assert np.all(np.array(f.data) == [[0, 0, 0, 0],
+                                               [0, 8, 0, 9],
+                                               [0, 0, 0, 0],
+                                               [0, 12, 0, 13]])
+        else:
+            assert np.all(np.array(f.data) == [[0, 0, 0, 0],
+                                               [0, 10, 0, 11],
+                                               [0, 0, 0, 0],
+                                               [0, 14, 0, 15]])
+
+        f.data[:] = 0
+        f.data[6::-2, 6::-2] = t.data[0, :, :]
+        if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
+            assert np.all(np.array(f.data) == [[15, 0, 14, 0],
+                                               [0, 0, 0, 0],
+                                               [11, 0, 10, 0],
+                                               [0, 0, 0, 0]])
+        elif LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0]:
+            assert np.all(np.array(f.data) == [[13, 0, 12, 0],
+                                               [0, 0, 0, 0],
+                                               [9, 0, 8, 0],
+                                               [0, 0, 0, 0]])
+        elif RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
+            assert np.all(np.array(f.data) == [[7, 0, 6, 0],
+                                               [0, 0, 0, 0],
+                                               [3, 0, 2, 0],
+                                               [0, 0, 0, 0]])
+        else:
+            assert np.all(np.array(f.data) == [[5, 0, 4, 0],
+                                               [0, 0, 0, 0],
+                                               [1, 0, 0, 0],
+                                               [0, 0, 0, 0]])
 
     @pytest.mark.parallel(mode=4)
     def test_indexing_in_views(self):
