@@ -75,6 +75,16 @@ class TestDataBasic(object):
         assert (np.array(u.data[0, 3::-1, 0, 0]) == dat[3::-1]).all()
         assert (np.array(u.data[0, 5:1:-1, 0, 0]) == dat[5:1:-1]).all()
 
+    @skipif('yask')
+    def test_negative_start(self):
+        """Test slicing with a negative start."""
+        grid = Grid(shape=(13,))
+        f = Function(name='f', grid=grid)
+        idx = slice(-4, None, 1)
+        dat = np.array([1, 2, 3, 4])
+        f.data[idx] = dat
+        assert np.all(np.array(f.data[9:]) == dat)
+
     def test_halo_indexing(self):
         """Test data packing/unpacking in presence of a halo region."""
         domain_shape = (16, 16, 16)
