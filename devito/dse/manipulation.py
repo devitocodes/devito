@@ -5,7 +5,7 @@ from sympy import Add, Mul, collect, collect_const
 from devito.dse.flowgraph import FlowGraph
 from devito.symbolics import (Eq, count, estimate_cost, q_xop, q_leaf,
                               retrieve_terminals, xreplace_constrained)
-from devito.tools import DAG, ReducerMap
+from devito.tools import DAG, ReducerMap, split
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'compact_temporaries']
 
@@ -182,10 +182,10 @@ def topological_sort(exprs):
     mapper = {e.lhs: e for e in exprs}
     assert len(mapper) == len(exprs)  # Expect SSA
 
-    # Only sort temporaries
-    r_exprs = [e for e in exprs if not e.lhs.is_Indexed]
-    dag = DAG(nodes=r_exprs)
-    for e in r_exprs:
+    # Build DAG and topologically-sort temporaries
+    temporaries, tensors = split(exprs, lambda e: not e.lhs.is_Indexed)
+    dag = DAG(nodes=temporaries)
+    for e in temporaries:
         for r in retrieve_terminals(e.rhs):
             if r not in mapper:
                 continue
@@ -198,9 +198,9 @@ def topological_sort(exprs):
                 continue
             else:
                 dag.add_edge(mapper[r], e, force_add=True)
-
     processed = dag.topological_sort()
-    # Append indexed eqaution at the  end in the user-provided order
-    processed.extend(e for e in exprs if e not in r_exprs)
+
+    # Append tensor equations at the end in user-provided order
+    processed.extend(tensors)
 
     return processed
