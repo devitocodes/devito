@@ -1,9 +1,11 @@
 import itertools
 import pytest
 
+import numpy as np
+
 from conftest import skipif
 from sympy import Integer
-from sympy.core.numbers import Zero, One # noqa
+from sympy.core.numbers import Zero, One  # noqa
 
 pytestmark = skipif('noops', whole_module=True)
 
@@ -13,12 +15,12 @@ pytestmark = skipif('noops', whole_module=True)
 # `pytestmark` above
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
-from devito.ops.operator import OperatorOPS # noqa
-from devito.ops.transformer import create_ops_dat, make_ops_ast, to_ops_stencil # noqa
-from devito.ops.types import OpsBlock # noqa
-from devito.ops.utils import namespace # noqa
-from devito.symbolics import Byref, Literal, indexify # noqa
-from devito.types import Symbol # noqa
+from devito.ops.operator import OperatorOPS  # noqa
+from devito.ops.transformer import create_ops_dat, make_ops_ast, to_ops_stencil, create_ops_arg  # noqa
+from devito.ops.types import OpsAccessible, OpsBlock, OpsDat, OpsStencil  # noqa
+from devito.ops.utils import namespace  # noqa
+from devito.symbolics import Byref, Literal, indexify  # noqa
+from devito.types import Constant, Symbol  # noqa
 
 
 class TestOPSExpression(object):
@@ -221,3 +223,34 @@ class TestOPSExpression(object):
             Literal('"%s"' % u._C_typedata),
             Literal('"u"')
         )
+
+    def test_create_ops_arg_gbl(self):
+        arg_const1 = Constant(name='*arg_const')
+        arg_const2 = Constant(name='arg_const')
+
+        result1 = create_ops_arg(arg_const1, {}, {})
+        result2 = create_ops_arg(arg_const2, {}, {})
+
+        assert result1.is_Call
+
+        assert result1.name == namespace['ops_arg_gbl']
+        assert result2.name == namespace['ops_arg_gbl']
+
+        assert result1.ccode.text == 'ops_arg_gbl(&arg_const,1,"float",OPS_READ)'
+        assert result2.ccode.text == 'ops_arg_gbl(&arg_const,1,"float",OPS_READ)'
+
+    def test_create_ops_arg_dat(self):
+        u = OpsAccessible('u', np.float32, True)
+        v = OpsAccessible('v', np.float32, False)
+
+        read = create_ops_arg(u, {'u': 'dat'}, {'u': 'stencil'})
+        write = create_ops_arg(v, {'v': 'dat'}, {'v': 'stencil'})
+
+        assert read.is_Call
+        assert write.is_Call
+
+        assert read.name == namespace['ops_arg_dat']
+        assert write.name == namespace['ops_arg_dat']
+
+        assert read.ccode.text == 'ops_arg_dat(dat,1,stencil,"float",OPS_READ)'
+        assert write.ccode.text == 'ops_arg_dat(dat,1,stencil,"float",OPS_WRITE)'
