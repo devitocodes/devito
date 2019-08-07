@@ -65,6 +65,9 @@ def index_dist_to_repl(idx, decomposition):
     elif not is_integer(value):
         raise ValueError("Cannot derive shift value from type `%s`" % type(value))
 
+    if value < 0:
+        value += decomposition.glb_max + 1
+
     # Convert into absolute local index
     idx = decomposition.index_glb_to_loc(idx, rel=False)
 
