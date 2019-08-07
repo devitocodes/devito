@@ -32,6 +32,7 @@ if os.environ.get('testWithPip') != 'true':
         runStep("python examples/seismic/tti/tti_example.py -a basic")
         runStep("python examples/seismic/tti/tti_example.py -a basic --noazimuth")
         runStep("python examples/seismic/elastic/elastic_example.py")
+        runStep("python examples/seismic/viscoelastic/viscoelastic_example.py")
         runStep("python examples/cfd/example_diffusion.py")
         runStep("py.test examples/cfd/example_diffusion.py")
         runStep("py.test examples/seismic/elastic/elastic_example.py")
