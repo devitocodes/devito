@@ -14,13 +14,14 @@ pytestmark = skipif('noops', whole_module=True)
 # thus invalidating all of the future tests. This is guaranteed by the
 # `pytestmark` above
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
+from devito.ir.iet import Call, Callable # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.operator import OperatorOPS  # noqa
-from devito.ops.transformer import create_ops_dat, make_ops_ast, to_ops_stencil, create_ops_arg  # noqa
-from devito.ops.types import OpsAccessible, OpsBlock, OpsDat, OpsStencil  # noqa
+from devito.ops.transformer import create_ops_dat, make_ops_ast, to_ops_stencil, create_ops_arg, create_ops_par_loop  # noqa
+from devito.ops.types import Array, OpsAccessible, OpsBlock, OpsDat, OpsStencil  # noqa
 from devito.ops.utils import namespace  # noqa
 from devito.symbolics import Byref, Literal, indexify  # noqa
-from devito.types import Constant, Symbol  # noqa
+from devito.types import Constant, DefaultDimension, Symbol  # noqa
 
 
 class TestOPSExpression(object):
@@ -254,3 +255,37 @@ class TestOPSExpression(object):
 
         assert read.ccode.text == 'ops_arg_dat(dat,1,stencil,"float",OPS_READ)'
         assert write.ccode.text == 'ops_arg_dat(dat,1,stencil,"float",OPS_WRITE)'
+
+    def test_create_ops_par_loop(self):
+        block = OpsBlock('block')
+        name_to_ops_dat = {'arg_const': 'arg_const_dat',
+                           'arg_dat1': 'arg_dat1_dat',
+                           'arg_dat2': 'arg_dat2_dat'}
+        name_to_ops_stencil = {'arg_const': 'arg_const_stencil',
+                               'arg_dat1': 'arg_dat1_stencil',
+                               'arg_dat2': 'arg_dat2_stencil'}
+
+        arg_const = Constant(name='*arg_const')
+        arg_dat1 = OpsAccessible('arg_dat1', np.float32, True)
+        arg_dat2 = OpsAccessible('arg_dat2', np.float32, False)
+
+        arguments = [arg_const, arg_dat1, arg_dat2]
+        args = [create_ops_arg(a, name_to_ops_dat, name_to_ops_stencil)
+                for a in arguments]
+
+        ops_kernel = Callable(namespace['ops_kernel'](0), [], "void")
+        par_loop_array = Array(
+            name=namespace['ops_par_loop_range_name'],
+            dimensions=(DefaultDimension(name='len', default_value=0),),
+            dtype=np.int32,
+        )
+
+        par_loop = create_ops_par_loop(block, ops_kernel, par_loop_array, args)
+
+        mandatory_parameters = ['kernel', 'name', 'block', 'dims', 'kernel_range']
+
+        assert par_loop.ccode.text.replace(' ', '') == 'ops_par_loop(OPS_Kernel_0,"OPS_Kernel_0",block,2,par_loop_range,ops_arg_gbl(&arg_const,1,"float",OPS_READ),ops_arg_dat(arg_dat1_dat,1,arg_dat1_stencil,"float",OPS_READ),ops_arg_dat(arg_dat2_dat,1,arg_dat2_stencil,"float",OPS_WRITE))' # noqa
+        assert len(par_loop.arguments) == len(mandatory_parameters) + len(args)
+        assert isinstance(par_loop, Call)
+        for arg in par_loop.arguments[len(mandatory_parameters):]:
+            assert isinstance(arg, Call)

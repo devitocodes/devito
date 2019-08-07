@@ -32,12 +32,12 @@ class OperatorOPS(Operator):
         ops_block = OpsBlock('block')
 
         dims = []
-        for section, trees in find_affine_trees(iet).items():
+        for _, trees in find_affine_trees(iet).items():
             dims.append(len(trees[0].dimensions))
 
         pre_time_loop = []
         mapper = {}
-        for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
+        for n, (_, trees) in enumerate(find_affine_trees(iet).items()):
             pre_loop, ops_call_par_loop, ops_kernel = opsit(trees, n, ops_block)
             pre_time_loop.extend(pre_loop)
             self._ops_kernels.append(ops_kernel)
