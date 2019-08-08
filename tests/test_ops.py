@@ -1,5 +1,6 @@
 import itertools
 import pytest
+import numpy as np
 
 from conftest import skipif
 from sympy import Integer
@@ -14,11 +15,12 @@ pytestmark = skipif('noops', whole_module=True)
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.operator import OperatorOPS # noqa
-from devito.ops.transformer import create_ops_dat, make_ops_ast, to_ops_stencil # noqa
-from devito.ops.types import OpsBlock # noqa
+from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil # noqa
+from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock # noqa
 from devito.ops.utils import namespace # noqa
 from devito.symbolics import Byref, Literal, indexify # noqa
-from devito.types import Symbol # noqa
+from devito.tools import dtype_to_cstr # noqa
+from devito.types import Constant, Symbol # noqa
 
 
 class TestOPSExpression(object):
@@ -113,12 +115,14 @@ class TestOPSExpression(object):
 
         stencil_name = 's2d_foo_%spt' % len(accesses)
 
-        result = to_ops_stencil(param, accesses)
+        stencil, result = to_ops_stencil(param, accesses)
+
+        assert stencil.name == stencil_name.upper()
 
         assert result[0].expr.lhs.name == stencil_name
         assert result[0].expr.rhs.params == tuple(itertools.chain(*accesses))
 
-        assert result[1].expr.lhs.name == stencil_name.upper()
+        assert result[1].expr.lhs == stencil
         assert result[1].expr.rhs.name == namespace['ops_decl_stencil'].name
         assert result[1].expr.rhs.args == (
             2,
@@ -221,3 +225,34 @@ class TestOPSExpression(object):
             Literal('"%s"' % u._C_typedata),
             Literal('"u"')
         )
+
+        def test_create_ops_arg_constant(self):
+            a = Constant(name='*a')
+
+            res = create_ops_arg(a, {}, {})
+
+            assert res.name == namespace['ops_arg_gbl'].name
+            assert res.args == [
+                Byref(Constant(name='a')),
+                1,
+                Literal('"%s"' % dtype_to_cstr(a.dtype)),
+                namespace['ops_read']
+            ]
+
+        @pytest.mark.parametrize('read', [True, False])
+        def test_create_ops_arg_function(self, read):
+            u = OpsAccessible('u', np.float32, read)
+
+            dat = OpsDat('u_dat')
+            stencil = OpsStencil('stencil')
+
+            res = create_ops_arg(u, {'u': dat}, {u: stencil})
+
+            assert res.name == namespace['ops_arg_dat'].name
+            assert res.args == [
+                dat,
+                1,
+                stencil,
+                Literal('"%s"' % dtype_to_cstr(u.dtype)),
+                namespace['ops_read'] if read else namespace['ops_write']
+            ]

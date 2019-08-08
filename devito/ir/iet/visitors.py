@@ -231,7 +231,7 @@ class CGen(Visitor):
         else:
             lhs = ccode(o.expr.lhs, dtype=o.dtype)
 
-        return c.Initializer(c.Value(o.expr.lhs._C_typename, lhs),
+        return c.Initializer(c.Value(o.expr.lhs._C_typedata, lhs),
                              ccode(o.expr.rhs, dtype=o.dtype))
 
     def visit_ForeignExpression(self, o):
