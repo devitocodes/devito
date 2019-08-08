@@ -151,7 +151,7 @@ class OperatorYASK(Operator):
             i.pre_apply(toshare)
 
         arg_values = [args[p.name] for p in self.parameters]
-        with self._profiler.timer_on('apply', comm=args.grid.comm):
+        with self._profiler.timer_on('apply', comm=args.comm):
             self.cfunction(*arg_values)
 
         for i in self.yk_solns.values():

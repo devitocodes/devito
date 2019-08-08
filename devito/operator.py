@@ -522,7 +522,7 @@ class Operator(Callable):
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
         try:
-            with self._profiler.timer_on('apply', comm=args.grid.comm):
+            with self._profiler.timer_on('apply', comm=args.comm):
                 self.cfunction(*arg_values)
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
@@ -654,6 +654,11 @@ class ArgumentsMap(dict):
     def __init__(self, grid, *args, **kwargs):
         super(ArgumentsMap, self).__init__(*args, **kwargs)
         self.grid = grid
+
+    @property
+    def comm(self):
+        """The MPI communicator the arguments are collective over."""
+        return self.grid.comm if self.grid is not None else None
 
 
 def set_dse_mode(mode):
