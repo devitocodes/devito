@@ -125,6 +125,7 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/acoustic/acoustic_example.py --constant --full; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/elastic/elastic_example.py --2d; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/elastic/elastic_example.py; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/viscoelastic/viscoelastic_example.py --2d; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a basic; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python examples/seismic/tti/tti_example.py -a basic --noazimuth; fi

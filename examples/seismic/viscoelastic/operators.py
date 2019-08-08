@@ -1,4 +1,3 @@
-import numpy as np
 import sympy as sp
 
 from devito import Eq, Operator
@@ -21,7 +20,7 @@ def viscoelastic_2d(model, space_order, save, geometry):
     pi = l + 2*mu
 
     f0 = geometry._f0
-    t_s = (np.sqrt(1.+1./qp**2)-1./qp)/f0
+    t_s = (sp.sqrt(1.+1./qp**2)-1./qp)/f0
     t_ep = 1./(f0**2*t_s)
     t_es = (1.+f0*qs*t_s)/(f0*qs-f0**2*t_s)
 
@@ -34,27 +33,27 @@ def viscoelastic_2d(model, space_order, save, geometry):
     u_vx = Eq(vx.forward, damp * vx + damp * s * ro * (txx.dx + txz.dy))
     u_vz = Eq(vz.forward, damp * vz + damp * ro * s * (txz.dx + tzz.dy))
 
-    u_txx = Eq(txx.forward, damp*txx + damp*s*pi*t_ep/t_s*(vx.forward.dx+vz.forward.dz)
-               - damp*2.*s*mu*t_es/t_s*(vz.forward.dz) + damp*s*rxx.forward)
+    u_txx = Eq(txx.forward, damp*txx + damp*s*pi*t_ep/t_s*(vx.forward.dx+vz.forward.dy)
+               - damp*2.*s*mu*t_es/t_s*(vz.forward.dy) + damp*s*rxx.forward)
 
-    u_tzz = Eq(tzz.forward, damp*tzz + damp*s*pi*t_ep/t_s*(vx.forward.dx+vz.forward.dz)
+    u_tzz = Eq(tzz.forward, damp*tzz + damp*s*pi*t_ep/t_s*(vx.forward.dx+vz.forward.dy)
                - damp*2.*s*mu*t_es/t_s*(vx.forward.dx) + damp*s*rzz.forward)
 
-    u_txz = Eq(txz.forward, damp*txz + damp*s*mu*t_es/t_s*(vx.forward.dz+vz.forward.dx)
+    u_txz = Eq(txz.forward, damp*txz + damp*s*mu*t_es/t_s*(vx.forward.dy+vz.forward.dx)
                + damp*s*rxz.forward)
 
     u_rxx = Eq(rxx.forward, damp*rxx
-               - damp*s*1./t_s*(rxx+pi*(t_ep/t_s-1)*(vx.forward+vz.forward.dz)
-                                - 2*mu*(t_es/t_s-1)*vz.forward.dz))
+               - damp*s*1./t_s*(rxx+pi*(t_ep/t_s-1)*(vx.forward+vz.forward.dy)
+                                - 2*mu*(t_es/t_s-1)*vz.forward.dy))
 
     u_rzz = Eq(rzz.forward, damp*rzz
-               - damp*s*1./t_s*(rzz+pi*(t_ep/t_s-1)*(vx.forward.dx+vz.forward.dz)
+               - damp*s*1./t_s*(rzz+pi*(t_ep/t_s-1)*(vx.forward.dx+vz.forward.dy)
                                 - 2*mu*(t_es/t_s-1)*vx.forward.dx))
 
     u_rxz = Eq(rxz.forward, damp*rxz
-               - damp*s*1/t_s*(rxz+mu*(t_es/t_s-1)*(vx.forward.dz+vz.forward.dx)))
+               - damp*s*1/t_s*(rxz+mu*(t_es/t_s-1)*(vx.forward.dy+vz.forward.dx)))
 
-    src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, rxx, ryy, rzz, model, geometry)
+    src_rec_expr = src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry)
     return [u_vx, u_vz, u_rxx, u_rzz, u_rxz, u_txx, u_tzz, u_txz] + src_rec_expr
 
 
