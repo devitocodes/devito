@@ -46,8 +46,7 @@ class TestSubdomains(object):
         stencil = Eq(f.forward, solve(Eq(f.dt, 1), f.forward),
                      subdomain=grid.subdomains['inner'])
 
-        # FIXME: Need to fix the need for dle='noop'
-        op = Operator(stencil, dle='noop')
+        op = Operator(stencil)
         op(time_m=0, time_M=9, dt=1)
         result = f.data[0]
 
@@ -86,7 +85,7 @@ class TestSubdomains(object):
         eq2 = Eq(g, g+1)
         eq3 = Eq(h, h+2, subdomain=grid.subdomains['mydomains'])
 
-        op = Operator([eq1, eq2, eq3], dle='noop')
+        op = Operator([eq1, eq2, eq3])
         op.apply()
 
         expected1 = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -149,7 +148,7 @@ class TestSubdomains(object):
         eq1 = Eq(f, f+1, subdomain=grid.subdomains['mydomains1'])
         eq2 = Eq(g, g+2, subdomain=grid.subdomains['mydomains2'])
 
-        op = Operator([eq1, eq2], dle='noop')
+        op = Operator([eq1, eq2])
         op.apply()
 
         expected = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
