@@ -2,7 +2,6 @@ import os
 import subprocess
 
 from devito.parameters import configuration
-from devito.logger import warning
 
 
 __all__ = ['CompilerOPS']
