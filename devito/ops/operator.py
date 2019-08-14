@@ -108,4 +108,8 @@ class OperatorOPS(Operator):
 
     def _compile(self):
         if self._lib is None:
+<<<<<<< 67244a44c128716e87149ba3f0c5758cda9311d8
             self._compiler.prepare_ops(self._soname, str(self.ccode), str(self.hcode))
+=======
+            self._compiler.create_files(self._soname, str(self.ccode), str(self.hcode))
+>>>>>>> Simplifying the compiler, removing jit_compilation
