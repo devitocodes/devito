@@ -139,9 +139,9 @@ def test_tensor_custom_dims(func1):
 @pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction])
 def test_tensor_transpose(func1):
     grid = Grid(tuple([5]*3))
-    f1 = func1(name="f1", grid=grid)
+    f1 = func1(name="f1", grid=grid, symmetric=False)
     f2 = f1.T
-    assert np.all(f1[i, j] == f2[j, i] for i in range(3) for j in range(3))
+    assert np.all([f1[i, j] == f2[j, i] for i in range(3) for j in range(3)])
 
 
 @pytest.mark.parametrize('func1', [VectorFunction, VectorTimeFunction])
@@ -150,4 +150,4 @@ def test_vector_transpose(func1):
     f1 = func1(name="f1", grid=grid)
     f2 = f1.T
     assert f2.shape == f1.shape[::-1]
-    assert np.all(f1[i] == f2[i] for i in range(3))
+    assert np.all([f1[i] == f2[i] for i in range(3)])

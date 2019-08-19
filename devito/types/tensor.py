@@ -282,7 +282,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
     def _eval_transpose(self):
         if self.is_symmetric:
             return self
-        mat = [[self[j, i] for i in range(self.cols)] for j in range(self.rows)]
+        mat = [[self[j, i] for j in range(self.cols)] for i in range(self.rows)]
         func = tens_func(self, self)
         name = '%s_T' % self.name
         to = getattr(self, 'time_order', 0)
@@ -299,8 +299,8 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
         else:
             val = super(TensorFunction, self).values()
             if symmetric:
-                val = [self[i, j] for i in range(self.rows)
-                       for j in range(self.cols) if j >= i]
+                val = [self[i, j] for j in range(self.cols)
+                       for i in range(self.rows) if j >= i]
             return val
 
     def _eval_add(self, other):

@@ -221,8 +221,12 @@ class Derivative(sympy.Derivative, Differentiable):
         # was evaluated, split it and rebuild it as each term may have a different
         # staggereing and needs a separate FD computation
         if expr.is_Add:
-            return expr.func(*[e.evaluate for e in expr.args])
+            return expr.func(*[self._eval_fd(e) for e in expr.args])
 
+        return self._eval_fd(expr)
+
+    def _eval_fd(self, expr):
+        expr = getattr(expr, 'evaluate', expr)
         if self.side in [left, right] and self.deriv_order == 1:
             res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side, matvec=self.transpose,
