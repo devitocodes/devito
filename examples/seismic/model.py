@@ -1,9 +1,11 @@
 import os
 
 import numpy as np
+from sympy import sin
 
 from examples.seismic.utils import scipy_smooth
-from devito import Grid, SubDomain, Function, Constant, warning, mmin, mmax
+from devito import (Grid, SubDomain, Function, Constant, warning, mmin, mmax,
+                    SubDimension, Eq, Inc, Operator)
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
@@ -436,28 +438,26 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
-    shape = tuple(i + 2*nbpml for i in damp.grid.subdomains['phydomain'].shape)
-    data = np.ones(shape) if mask else np.zeros(shape)
+    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbpml)
 
-    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
+    eqs = [Eq(damp, 1.0)] if mask else []
+    for d in damp.dimensions:
+        # left
+        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
+                                  thickness=nbpml)
+        pos = np.abs((nbpml - (dim_l - d.symbolic_min) + 1) / float(nbpml))
+        val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
+        val = -val if mask else val
+        eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
+        # right
+        dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
+                                   thickness=nbpml)
+        pos = np.abs((nbpml - (d.symbolic_max - dim_r) + 1) / float(nbpml))
+        val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
+        val = -val if mask else val
+        eqs += [Inc(damp.subs({d: dim_r}), val/d.spacing)]
 
-    for i in range(damp.ndim):
-        for j in range(nbpml):
-            # Dampening coefficient
-            pos = np.abs((nbpml - j + 1) / float(nbpml))
-            val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-            if mask:
-                val = -val
-            # : slices
-            all_ind = [slice(0, d) for d in data.shape]
-            # Left slice for dampening for dimension i
-            all_ind[i] = slice(j, j+1)
-            data[tuple(all_ind)] += val/spacing[i]
-            # right slice for dampening for dimension i
-            all_ind[i] = slice(data.shape[i]-j, data.shape[i]-j+1)
-            data[tuple(all_ind)] += val/spacing[i]
-
-    damp.data[:] = data
+    Operator(eqs).apply()
 
 
 def initialize_function(function, data, nbpml, pad_mode='edge'):
