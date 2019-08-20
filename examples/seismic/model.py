@@ -1,11 +1,11 @@
 import os
 
 import numpy as np
-from sympy import sin
+from sympy import sin, Abs
 
 from examples.seismic.utils import scipy_smooth
 from devito import (Grid, SubDomain, Function, Constant, warning, mmin, mmax,
-                    SubDimension, Eq, Inc, Operator)
+                    SubDimension, Eq, Inc, Operator, switchconfig)
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
@@ -421,6 +421,7 @@ def demo_model(preset, **kwargs):
         raise ValueError("Unknown model preset name")
 
 
+@switchconfig(log_level='ERROR')
 def initialize_damp(damp, nbpml, spacing, mask=False):
     """
     Initialise damping field with an absorbing PML layer.
@@ -438,21 +439,21 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
-    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbpml)
+    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40)
 
     eqs = [Eq(damp, 1.0)] if mask else []
     for d in damp.dimensions:
         # left
         dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
                                   thickness=nbpml)
-        pos = np.abs((nbpml - (dim_l - d.symbolic_min) + 1) / float(nbpml))
+        pos = Abs((nbpml - (dim_l - d.symbolic_min) + 1) / float(nbpml))
         val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
         val = -val if mask else val
         eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
         # right
         dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
                                    thickness=nbpml)
-        pos = np.abs((nbpml - (d.symbolic_max - dim_r) + 1) / float(nbpml))
+        pos = Abs((nbpml - (d.symbolic_max - dim_r) + 1) / float(nbpml))
         val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
         val = -val if mask else val
         eqs += [Inc(damp.subs({d: dim_r}), val/d.spacing)]
