@@ -35,16 +35,19 @@ def opsit(trees, count, name_to_ops_dat, block, dims):
         expressions.extend(FindNodes(Expression).visit(tree.inner))
 
     for expr in expressions:
-        ops_expressions.append(Expression(make_ops_ast(expr.expr, node_factory)))
+        ops_expressions.append(Expression(
+            make_ops_ast(expr.expr, node_factory)))
 
-    parameters = sorted(node_factory.ops_params, key=lambda i: (i.is_Constant, i.name))
+    parameters = sorted(node_factory.ops_params,
+                        key=lambda i: (i.is_Constant, i.name))
 
     stencil_arrays_initializations = []
     par_to_ops_stencil = {}
 
     for p in parameters:
         if isinstance(p, OpsAccessible):
-            stencil, initialization = to_ops_stencil(p, node_factory.ops_args_accesses[p])
+            stencil, initialization = to_ops_stencil(
+                p, node_factory.ops_args_accesses[p])
 
             par_to_ops_stencil[p] = stencil
             stencil_arrays_initializations.append(initialization)
@@ -138,12 +141,13 @@ def create_ops_dat(f, name_to_ops_dat, block):
         padding = f.padding[:time_pos] + f.padding[time_pos + 1:]
         halo = f.halo[:time_pos] + f.halo[time_pos + 1:]
         d_p_val = tuple(sympify([p[0] + h[0] for p, h in zip(padding, halo)]))
-        d_m_val = tuple(sympify([-(p[1] + h[1]) for p, h in zip(padding, halo)]))
+        d_m_val = tuple(sympify([-(p[1] + h[1])
+                                 for p, h in zip(padding, halo)]))
 
         ops_dat_array = Array(
             name=namespace['ops_dat_name'](f.name),
             dimensions=(DefaultDimension(name='dat', default_value=time_dims),),
-            dtype=namespace['ops_dat_type'],
+            dtype=namespace['ops_dat_type'],            
             scope='stack'
         )
 
@@ -173,8 +177,10 @@ def create_ops_dat(f, name_to_ops_dat, block):
         ops_dat = OpsDat("%s_dat" % f.name)
         name_to_ops_dat[f.name] = ops_dat
 
-        d_p_val = tuple(sympify([p[0] + h[0] for p, h in zip(f.padding, f.halo)]))
-        d_m_val = tuple(sympify([-(p[1] + h[1]) for p, h in zip(f.padding, f.halo)]))
+        d_p_val = tuple(sympify([p[0] + h[0]
+                                 for p, h in zip(f.padding, f.halo)]))
+        d_m_val = tuple(sympify([-(p[1] + h[1])
+                                 for p, h in zip(f.padding, f.halo)]))
         dim_shape = sympify(f.shape)
 
         ops_decl_dat = Expression(ClusterizedEq(Eq(
@@ -201,6 +207,25 @@ def create_ops_dat(f, name_to_ops_dat, block):
     return res
 
 
+def create_ops_fetch(f, name_to_ops_dat):
+
+    if f.is_TimeFunction:
+        ops_fetch = [Call(namespace['ops_dat_fetch_data'], [
+            name_to_ops_dat['%s%s%d' % (f.name,
+                                        f.indices[f._time_position],
+                                        i)],
+            0,
+            Byref(f.indexify([i]))
+        ]) for i in range(f.shape[f._time_position])]
+
+    else:
+        ops_fetch = Call(namespace['ops_dat_fetch_data'], [
+            name_to_ops_dat[f.name], 0,  Byref(f.indexify([0]))
+        ])
+
+    return ops_fetch
+
+
 def create_ops_par_loop(
         trees, ops_kernel, parameters, block, name_to_ops_dat, par_to_ops_stencil, dims):
     it_range = []
@@ -211,7 +236,8 @@ def create_ops_par_loop(
 
     range_array = Array(
         name='%s_range' % ops_kernel.name,
-        dimensions=(DefaultDimension(name='range', default_value=len(it_range)),),
+        dimensions=(DefaultDimension(
+            name='range', default_value=len(it_range)),),
         dtype=np.int32,
         scope='stack'
     )

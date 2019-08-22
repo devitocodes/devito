@@ -8,7 +8,7 @@ from devito.symbolics import Literal
 from devito.tools import filter_sorted
 
 from devito.ops import ops_configuration
-from devito.ops.transformer import create_ops_dat, opsit
+from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.types import OpsBlock
 from devito.ops.utils import namespace
 
@@ -58,11 +58,15 @@ class OperatorOPS(Operator):
 
         name_to_ops_dat = {}
         pre_time_loop = []
+        after_time_loop = []
         for f in to_dat:
             if f.is_Constant:
                 continue
 
             pre_time_loop.extend(create_ops_dat(f, name_to_ops_dat, ops_block))
+            # To return the result to Devito, it is necessary to copy the data
+            # from the GPU into the CPU memory
+            after_time_loop.append(create_ops_fetch(f, name_to_ops_dat))
 
         # Generate ops kernels for each offloadable iteration tree
         mapper = {}
@@ -74,7 +78,8 @@ class OperatorOPS(Operator):
             pre_time_loop.extend(pre_loop)
             self._ops_kernels.append(ops_kernel)
             mapper[trees[0].root] = ops_par_loop_call
-            mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
+            mapper.update({i.root: mapper.get(i.root)
+                           for i in trees})  # Drop trees
 
         iet = Transformer(mapper).visit(iet)
 
@@ -85,7 +90,8 @@ class OperatorOPS(Operator):
         self._headers.append(namespace['ops_define_dimension'](dims[0]))
         self._includes.append('stdio.h')
 
-        body = [ops_init, ops_block_init, *pre_time_loop, ops_partition, iet, ops_exit]
+        body = [ops_init, ops_block_init, *pre_time_loop,
+                ops_partition, iet, *after_time_loop, ops_exit]
 
         return List(body=body)
 
