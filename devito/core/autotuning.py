@@ -80,7 +80,7 @@ def autotune(operator, args, level, mode):
         timesteps = 1
     elif len(steppers) == 1:
         stepper = steppers.pop()
-        timesteps = init_time_bounds(stepper, at_args)
+        timesteps = init_time_bounds(stepper, at_args, args)
         if timesteps is None:
             return args, {}
     else:
@@ -198,17 +198,23 @@ class Record(object):
         return self.time < other.time
 
 
-def init_time_bounds(stepper, at_args):
+def init_time_bounds(stepper, at_args, args):
     if stepper is None:
         return
     dim = stepper.dim.root
     if stepper.direction is Backward:
         at_args[dim.min_name] = at_args[dim.max_name] - options['squeezer']
+        if dim.size_name in args:
+            # May need to shrink to avoid OOB accesses
+            at_args[dim.min_name] = max(at_args[dim.min_name], args[dim.min_name])
         if at_args[dim.max_name] < at_args[dim.min_name]:
             warning("too few time iterations; skipping")
             return False
     else:
         at_args[dim.max_name] = at_args[dim.min_name] + options['squeezer']
+        if dim.size_name in args:
+            # May need to shrink to avoid OOB accesses
+            at_args[dim.max_name] = min(at_args[dim.max_name], args[dim.max_name])
         if at_args[dim.min_name] > at_args[dim.max_name]:
             warning("too few time iterations; skipping")
             return False
