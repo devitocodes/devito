@@ -101,7 +101,7 @@ class Eq(sympy.Eq, Evaluable):
     @property
     def _flatten(self):
         """
-        Flatten vectorial/tensorial equation into list of equation
+        Flatten vectorial/tensorial Equation into list of scalar Equations
         """
         try:
             lhss = self.lhs.values()
@@ -227,7 +227,7 @@ def solve(eq, target, **kwargs):
     sol = sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
 
     # We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions
-    # Also need to rebuild the expressiosn that are turned into sympy core types
+    # Also need to rebuild the expressions that are turned into sympy core types
     from devito.types import TensorFunction
     from devito.finite_differences.differentiable import to_differentiable
     if isinstance(target, TensorFunction):

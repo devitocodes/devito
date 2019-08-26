@@ -40,7 +40,7 @@ class Derivative(sympy.Derivative, Differentiable):
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
         finite difference. Defaults to ``direct``.
     x0 : Dict, optional
-        Dictionary of origins for the FD, ie {x: x, y: y + h_y/2}.
+        Dictionary of origins for the FD, i.e. {x: x, y: y + h_y/2}.
 
     Examples
     --------
@@ -141,7 +141,6 @@ class Derivative(sympy.Derivative, Differentiable):
         return obj
 
     def subs(self, *args, **kwargs):
-        print(args, dict(*args))
         return self.xreplace(dict(*args), **kwargs)
 
     def _xreplace(self, eval_at):
@@ -183,10 +182,6 @@ class Derivative(sympy.Derivative, Differentiable):
         return self.expr.is_TimeDependent
 
     @property
-    def bonjour_from_deriv(self):
-        return
-
-    @property
     def T(self):
         """Transpose of the Derivative.
 
@@ -219,7 +214,7 @@ class Derivative(sympy.Derivative, Differentiable):
         expr = getattr(self.expr, 'evaluate', self.expr)
         # If the expression is an addition, for example if expr was a derivative that
         # was evaluated, split it and rebuild it as each term may have a different
-        # staggereing and needs a separate FD computation
+        # staggering and needs a separate FD computation
         if expr.is_Add:
             return expr.func(*[self._eval_fd(e) for e in expr.args])
 
@@ -239,4 +234,4 @@ class Derivative(sympy.Derivative, Differentiable):
                                      matvec=self.transpose, x0=self.x0)
         for e in self._eval_at:
             res = res.xreplace(e)
-        return res
+        return res.evaluate

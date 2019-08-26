@@ -90,7 +90,7 @@ class ElasticWaveSolver(object):
                                  space_order=self.space_order, time_order=1)
         kwargs.update({k.name: k for k in v})
         kwargs.update({k.name: k for k in tau})
-        # Pick m from model unless explicitly provided
+        # Pick Lame parameters from model unless explicitly provided
         lam = lam or self.model.lam
         mu = mu or self.model.mu
         irho = irho or self.model.irho

@@ -4,7 +4,10 @@ from devito.logger import error
 def div(func):
     """
     Divergence of the input func.
-    Func can be a Function, VectorFunction or TensorFunction
+
+    Parameters
+    ----------
+    func: Function, VectorFunction or TensorFunction
     """
     try:
         return func.div
@@ -15,7 +18,10 @@ def div(func):
 def grad(func):
     """
     Gradient of the input func.
-    Func can be a Function or a VectorFunction
+
+    Parameters
+    ----------
+    func: Function, VectorFunction
     """
     try:
         return func.grad
@@ -26,18 +32,24 @@ def grad(func):
 def curl(func):
     """
     Curl of the input func.
-    Func can be a Function or a VectorFunction
+
+    Parameters
+    ----------
+    func: Function, VectorFunction
     """
     try:
         return func.curl
     except AttributeError:
-        error("Curl only supported for 3D VectorFunction and VectorTimeFunction")
+        raise AttributeError("Curl only supported for 3D VectorFunction")
 
 
 def Laplacian(func):
     """
     Laplacian of the input func.
-    Func can be a Function, VectorFunction or TensorFunction
+
+    Parameters
+    ----------
+    func: Function, VectorFunction or TensorFunction
     """
     try:
         return func.laplace
@@ -47,7 +59,11 @@ def Laplacian(func):
 
 def diag(func, size=None):
     """
-    Creates the diagonal Tensor with func on its diagonal
+    Creates the diagonal Tensor with func on its diagonal.
+
+    Parameters
+    ----------
+    func: Function, Constant or Float
     """
     dim = size or len(func.dimensions)
     dim = dim-1 if func.is_TimeDependent else dim

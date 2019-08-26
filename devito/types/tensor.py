@@ -16,8 +16,8 @@ __all__ = ['TensorFunction', 'TensorTimeFunction', 'VectorFunction', 'VectorTime
 
 class TensorFunction(AbstractCachedTensor, Differentiable):
     """
-    Tensor valued Function represented as an ImmutableMatrix
-    Each component is a Function or TimeFunction
+    Tensor valued Function represented as an ImmutableMatrix.
+    Each component is a Function or TimeFunction.
 
     A TensorFunction and the classes that inherit from it takes the same parameters as
     a DiscreteFunction and additionally:
@@ -25,9 +25,9 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
     Parameters
     ----------
     symmetric : Bool, optional
-        Wether the tensor is symmetric or not. Defaults to True
+        Wether the tensor is symmetric or not. Defaults to True.
     diagonal : Bool, optional
-        Wether the tensor is diagonal or not. Defaults to False
+        Wether the tensor is diagonal or not. Defaults to False.
     staggered: Tuple of Dimension, optional
         Staggering of each component, needs to have the size of the tensor. Defaults
         to the Dimensions.
@@ -48,7 +48,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
     def __setup_subfunc__(cls, *args, **kwargs):
         """
         Creates the components of the TensorFunction
-        either from input or from input dimensions
+        either from input or from input Dimensions.
         """
         comps = kwargs.get("components")
         if comps is not None:
@@ -101,7 +101,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
     def __mul__(self, other):
         """
         Multiplication of a TensorFunction T as T*u where u can be a TensorFunction,
-        a VectorFunction or a Function/scalar
+        a VectorFunction or a Function/scalar.
         """
         other = sympy.sympify(other)
         try:
@@ -172,7 +172,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
         """
         Right multiplication of a TensorFunction T as T*u where u can be a TensorFunction,
         a VectorFunction or a Function/scalar.
-        Computes it via mul with tranposes
+        Computes it via mul with tranposes.
         """
         other = sympy.sympify(other)
         try:
@@ -328,7 +328,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
     @property
     def div(self):
         """
-        Diverenece of the TensorFunction (is a VectorFunction)
+        Divergence of the TensorFunction (is a VectorFunction).
         """
         comps = []
         to = getattr(self, 'time_order', 0)
@@ -342,7 +342,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
     @property
     def laplace(self):
         """
-        Laplacian of the TensorFunction
+        Laplacian of the TensorFunction.
         """
         comps = []
         to = getattr(self, 'time_order', 0)
@@ -368,7 +368,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
 
 class TensorTimeFunction(TensorFunction):
     """
-    Time varying TensorFunction
+    Time varying TensorFunction.
     """
     is_TimeDependent = True
     is_TensorValued = True
@@ -412,7 +412,7 @@ class TensorTimeFunction(TensorFunction):
 
 class VectorFunction(TensorFunction):
     """
-    Vector valued space varying Function as a rank 1 tensor of Function
+    Vector valued space varying Function as a rank 1 tensor of Function.
     """
     is_VectorValued = True
     is_TensorValued = False
@@ -441,7 +441,7 @@ class VectorFunction(TensorFunction):
     def __setup_subfunc__(cls, *args, **kwargs):
         """
         Creates the components of the VectorFunction
-        either from input or from input dimensions
+        either from input or from input dimensions.
         """
         comps = kwargs.get("components")
         if comps is not None:
@@ -512,7 +512,7 @@ class VectorFunction(TensorFunction):
     @property
     def div(self):
         """
-        Divergence of the VectorFunction, creates the diveregence Function
+        Divergence of the VectorFunction, creates the diveregence Function.
         """
         return sum([getattr(self[i], 'd%s' % d.name)
                     for i, d in enumerate(self.space_dimensions)])
@@ -520,14 +520,14 @@ class VectorFunction(TensorFunction):
     @property
     def laplace(self):
         """
-        Laplacian of the VectorFunction, creates the Laplacian VectorFunction
+        Laplacian of the VectorFunction, creates the Laplacian VectorFunction.
         """
         return (self.grad).div
 
     @property
     def curl(self):
         """
-        Gradient of the (3D) VectorFunction, creates the curl VectorFunction
+        Gradient of the (3D) VectorFunction, creates the curl VectorFunction.
         """
         if len(self.space_dimensions) != 3:
             error("Curl only defined in three dimensions")
@@ -546,7 +546,7 @@ class VectorFunction(TensorFunction):
     @property
     def grad(self):
         """
-        Gradient of the VectorFunction, creates the gradient TensorFunction
+        Gradient of the VectorFunction, creates the gradient TensorFunction.
         """
         to = getattr(self, 'time_order', 0)
         func = tens_func(self, self)
@@ -566,7 +566,7 @@ class VectorFunction(TensorFunction):
 
 class VectorTimeFunction(VectorFunction, TensorTimeFunction):
     """
-    Time varying VectorFunction
+    Time varying VectorFunction.
     """
     is_VectorValued = True
     is_TensorValued = False
