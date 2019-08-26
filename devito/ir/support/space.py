@@ -274,6 +274,23 @@ class IntervalGroup(PartialOrderTuple):
     def relaxed(self):
         return IntervalGroup.generate('union', IntervalGroup(i.relaxed for i in self))
 
+    def is_compatible(self, o):
+        """
+        Two IntervalGroups are compatible iff they can be ordered according
+        to some common partial ordering.
+        """
+        if set(self) != set(o):
+            return False
+        if all(i == j for i, j in zip(self, o)):
+            # Same input ordering, definitely compatible
+            return True
+        try:
+            self.add(o)
+            return True
+        except ValueError:
+            # Cyclic dependence detected, there is no common partial ordering
+            return False
+
     def intersection(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.intersection(mapper.get(i.dim, i)) for i in self]
@@ -584,8 +601,8 @@ class IterationSpace(Space):
         A relaxed version of ``__eq__``, in which only non-derived dimensions
         are compared for equality.
         """
-        return self.intervals == other.intervals and\
-            self.nonderived_directions == other.nonderived_directions
+        return (self.intervals.is_compatible(other.intervals) and
+                self.nonderived_directions == other.nonderived_directions)
 
     def is_forward(self, dim):
         return self.directions[dim] is Forward
