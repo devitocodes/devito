@@ -1535,3 +1535,27 @@ class TestLoopScheduling(object):
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(trees[0][0] is i[0] for i in trees)
+
+    def test_scheduling_with_free_dims(self):
+        """Tests loop scheduling in presence of free dimensions."""
+        grid = Grid((4, 4))
+        time = grid.time_dim
+        x, y = grid.dimensions
+
+        u = TimeFunction(name="u", grid=grid)
+        f = Function(name="f", grid=grid)
+
+        eq0 = Eq(u.forward, u + 1)
+        eq1 = Eq(f, time*2)
+
+        # Note that `eq1` doesn't impose any constraint on the ordering of
+        # the `time` Dimension w.r.t. the `grid` Dimensions, as `time` appears
+        # as a free Dimension and not within an array access such as [time, x, y]
+        op = Operator([eq0, eq1])
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+        tree = trees[0]
+        assert len(tree) == 3
+        assert tree[0].dim is time
+        assert tree[1].dim is x
+        assert tree[2].dim is y
