@@ -85,7 +85,7 @@ class IterationInstance(LabeledVector):
                 try:
                     # There's still hope it's regular if a DerivedDimension is used
                     candidate = dims.pop()
-                    if candidate.root == fi and q_monoaffine(i, candidate, self.findices):
+                    if candidate.root is fi and q_monoaffine(i, candidate, self.findices):
                         index_mode.append(AFFINE)
                         continue
                 except (KeyError, AttributeError):
@@ -110,12 +110,12 @@ class IterationInstance(LabeledVector):
 
     @cached_property
     def findices_affine(self):
-        return tuple(fi for fi, im in zip(self.findices, self.index_mode) if im == AFFINE)
+        return tuple(fi for fi, im in zip(self.findices, self.index_mode) if im is AFFINE)
 
     @cached_property
     def findices_irregular(self):
         return tuple(fi for fi, im in zip(self.findices, self.index_mode)
-                     if im == IRREGULAR)
+                     if im is IRREGULAR)
 
     def affine(self, findices):
         """
@@ -238,7 +238,7 @@ class TimedAccess(IterationInstance):
 
     def __eq__(self, other):
         return (isinstance(other, TimedAccess) and
-                self.function == other.function and
+                self.function is other.function and
                 self.mode == other.mode and
                 self.intervals == other.intervals and
                 self.directions == other.directions and
@@ -308,16 +308,16 @@ class TimedAccess(IterationInstance):
         findex = findex or self.findices[-1]
         ret = []
         for i, sd, od in zip(self.findices, self.directions, other.directions):
-            if sd == od:
+            if sd is od:
                 ret = list(super(TimedAccess, self).distance(other, i))
-                if i == findex:
+                if i is findex:
                     break
             else:
                 ret.append(S.Infinity)
                 break
         directions = self.directions[:self._cached_findices_index[i] + 1]
         assert len(directions) == len(ret)
-        return Vector(*[(-i) if d == Backward else i for i, d in zip(ret, directions)])
+        return Vector(*[(-i) if d is Backward else i for i, d in zip(ret, directions)])
 
     def touched_halo(self, findex):
         """
@@ -390,7 +390,7 @@ class Dependence(object):
 
     def __init__(self, source, sink):
         assert isinstance(source, TimedAccess) and isinstance(sink, TimedAccess)
-        assert source.function == sink.function
+        assert source.function is sink.function
         self.source = source
         self.sink = sink
 
