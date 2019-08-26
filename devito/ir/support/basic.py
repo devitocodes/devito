@@ -779,6 +779,10 @@ class Scope(object):
     @memoized_meth
     def d_from_access(self, accesses):
         """Generate all dependences involving a given TimedAccess."""
-        return DependenceGroup(d for d in self.d_all
-                               if (d.source in as_tuple(accesses) or
-                                   d.sink in as_tuple(accesses)))
+        accesses = as_tuple(accesses)
+        found = DependenceGroup()
+        for d in self.d_all:
+            for i in accesses:
+                if d.source is i or d.sink is i:
+                    found.append(d)
+        return found
