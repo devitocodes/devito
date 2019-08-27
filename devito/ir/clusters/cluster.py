@@ -48,7 +48,9 @@ class Cluster(object):
         """
         assert len(clusters) > 0
         root = clusters[0]
-        assert all(root.ispace.is_compatible(c.ispace) for c in clusters)
+        if not all(root.ispace.is_compatible(c.ispace) for c in clusters):
+            raise ValueError("Cannot build a Cluster from Clusters with "
+                             "incompatible IterationSpace")
         exprs = chain(*[c.exprs for c in clusters])
         ispace = IterationSpace.union(*[c.ispace for c in clusters])
         dspace = DataSpace.union(*[c.dspace for c in clusters])
