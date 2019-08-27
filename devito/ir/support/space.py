@@ -32,7 +32,7 @@ class AbstractInterval(object):
 
     def __eq__(self, o):
         return (type(self) == type(o) and
-                self.dim == o.dim and
+                self.dim is o.dim and
                 self.stamp == o.stamp)
 
     is_compatible = __eq__
@@ -99,7 +99,7 @@ class NullInterval(AbstractInterval):
         return NullInterval(self.dim.root)
 
     def union(self, o):
-        if self.dim == o.dim:
+        if self.dim is o.dim:
             return o._rebuild()
         else:
             return IntervalGroup([self._rebuild(), o._rebuild()])
@@ -156,7 +156,7 @@ class Interval(AbstractInterval):
             return NullInterval(self.dim)
 
     def union(self, o):
-        if o.is_Null and self.dim == o.dim:
+        if o.is_Null and self.dim is o.dim:
             return self._rebuild()
         elif self.is_compatible(o):
             svl, svu = Vector(self.lower, smart=True), Vector(self.upper, smart=True)
@@ -274,6 +274,23 @@ class IntervalGroup(PartialOrderTuple):
     def relaxed(self):
         return IntervalGroup.generate('union', IntervalGroup(i.relaxed for i in self))
 
+    def is_compatible(self, o):
+        """
+        Two IntervalGroups are compatible iff they can be ordered according
+        to some common partial ordering.
+        """
+        if set(self) != set(o):
+            return False
+        if all(i == j for i, j in zip(self, o)):
+            # Same input ordering, definitely compatible
+            return True
+        try:
+            self.add(o)
+            return True
+        except ValueError:
+            # Cyclic dependence detected, there is no common partial ordering
+            return False
+
     def intersection(self, o):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.intersection(mapper.get(i.dim, i)) for i in self]
@@ -361,7 +378,7 @@ class IterationInterval(object):
 
     def __eq__(self, other):
         return isinstance(other, IterationInterval) and\
-            self.interval == other.interval and self.direction == other.direction
+            self.interval == other.interval and self.direction is other.direction
 
     def __hash__(self):
         return hash((self.interval, self.direction))
@@ -530,8 +547,9 @@ class IterationSpace(Space):
         return "IterationSpace[%s]" % ret
 
     def __eq__(self, other):
-        return isinstance(other, IterationSpace) and\
-            self.intervals == other.intervals and self.directions == other.directions
+        return (isinstance(other, IterationSpace) and
+                self.intervals == other.intervals and
+                self.directions == other.directions)
 
     def __hash__(self):
         return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
@@ -584,8 +602,8 @@ class IterationSpace(Space):
         A relaxed version of ``__eq__``, in which only non-derived dimensions
         are compared for equality.
         """
-        return self.intervals == other.intervals and\
-            self.nonderived_directions == other.nonderived_directions
+        return (self.intervals.is_compatible(other.intervals) and
+                self.nonderived_directions == other.nonderived_directions)
 
     def is_forward(self, dim):
         return self.directions[dim] is Forward

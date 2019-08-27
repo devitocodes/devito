@@ -340,15 +340,20 @@ def fuse(clusters):
     Fuse sub-sequences of Clusters with compatible IterationSpace.
     """
     processed = []
-    for k, g in groupby(clusters, key=lambda cg: cg.itintervals):
+    for k, g in groupby(clusters, key=lambda c: set(c.itintervals)):
         maybe_fusible = list(g)
 
         if len(maybe_fusible) == 1 or any(c.guards for c in maybe_fusible):
             processed.extend(maybe_fusible)
         else:
-            # Perform fusion
-            fused = Cluster.from_clusters(*maybe_fusible)
-            processed.append(fused)
+            try:
+                # Perform fusion
+                fused = Cluster.from_clusters(*maybe_fusible)
+                processed.append(fused)
+            except ValueError:
+                # We end up here if, for example, some Clusters have same
+                # iteration Dimensions but different (partial) orderings
+                processed.extend(maybe_fusible)
 
     return processed
 
