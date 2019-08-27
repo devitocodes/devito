@@ -458,7 +458,7 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         val = -val if mask else val
         eqs += [Inc(damp.subs({d: dim_r}), val/d.spacing)]
 
-    Operator(eqs).apply()
+    Operator(eqs, name='initdamp', dse='noop', dle='noop')()
 
 
 def initialize_function(function, data, nbpml, pad_mode='edge'):

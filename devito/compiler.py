@@ -342,6 +342,7 @@ class GNUCompiler(Compiler):
 
         self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
                         '-Wno-unused-but-set-variable', '--fast-math']
+        self.libraries += ['m']
 
         try:
             if self.version >= version.StrictVersion("4.9.0"):
