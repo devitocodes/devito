@@ -331,3 +331,23 @@ def test_multiple_threads():
     assert op._state['autotuning'][0]['runs'] == 60  # Would be 30 with `aggressive`
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 3
+
+
+def test_few_timesteps():
+    grid = Grid(shape=(16, 16, 16))
+
+    save = 3
+    assert save < options['squeezer']
+    v = TimeFunction(name='v', grid=grid, save=save)
+
+    # Try forward propagation first
+    op = Operator(Eq(v.forward, v + 1))
+    op.apply(autotune=True)
+    assert op._state['autotuning'][0]['runs'] == 2
+    assert op._state['autotuning'][0]['tpr'] == 2  # Induced by `save`
+
+    # Now try backward propagation
+    op = Operator(Eq(v.backward, v + 1))
+    op.apply(autotune=True)
+    assert op._state['autotuning'][0]['runs'] == 2
+    assert op._state['autotuning'][0]['tpr'] == 2  # Induced by `save`
