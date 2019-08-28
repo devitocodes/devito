@@ -801,7 +801,7 @@ class ModelElastic(GenericModel):
         # The CFL condtion is then given by
         # dt < h / (sqrt(2) * max(vp)))
         # FIXME: Fix 'Constant' so that that mmax(self.vp) returns the data value
-        return self.dtype(.5*mmin(self.spacing) / (np.sqrt(2)*mmax(self.vp.data)))
+        return self.dtype(.5*mmin(self.spacing) / (np.sqrt(2)*mmax(self.vp)))
 
 
 class ModelViscoelastic(ModelElastic):
@@ -864,4 +864,4 @@ class ModelViscoelastic(ModelElastic):
         # for further details:
         # FIXME: Fix 'Constant' so that that mmax(self.vp) returns the data value
         return self.dtype(6.*mmin(self.spacing) /
-                          (7.*np.sqrt(self.grid.dim)*mmax(self.vp.data)))
+                          (7.*np.sqrt(self.grid.dim)*mmax(self.vp)))

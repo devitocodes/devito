@@ -451,13 +451,17 @@ def get_ob_plotter():
 
 if __name__ == "__main__":
     # If running with MPI, we emit logging messages from rank0 only
-    MPI.Init()  # Devito starts off with MPI disabled!
-    set_log_level('DEBUG', comm=MPI.COMM_WORLD)
+    try:
+        MPI.Init()  # Devito starts off with MPI disabled!
+        set_log_level('DEBUG', comm=MPI.COMM_WORLD)
 
-    if MPI.COMM_WORLD.size > 1 and not configuration['mpi']:
-        warning("It seems that you're running over MPI with %d processes, but "
-                "DEVITO_MPI is unset. Setting `DEVITO_MPI=basic`...")
-        configuration['mpi'] = 'basic'
+        if MPI.COMM_WORLD.size > 1 and not configuration['mpi']:
+            warning("It seems that you're running over MPI with %d processes, but "
+                    "DEVITO_MPI is unset. Setting `DEVITO_MPI=basic`...")
+            configuration['mpi'] = 'basic'
+    except TypeError:
+    # MPI not available
+        pass
 
     # Profiling at max level
     configuration['profiling'] = 'advanced'

@@ -1,14 +1,14 @@
 import numpy as np
 from argparse import ArgumentParser
 
+from devito import configuration
 from devito.logger import info
 from examples.seismic.viscoelastic import ViscoelasticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 
 
-def viscoelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
-                       space_order=4, nbpml=10,
-                       constant=True, **kwargs):
+def viscoelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,space_order=4,
+                       nbpml=10, constant=True, **kwargs):
 
     nrec = 2*shape[0]
     preset = 'constant-viscoelastic' if constant else 'layers-viscoelastic'
@@ -43,7 +43,8 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     # Define receiver geometry (spread across x, just below surface)
     rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward(autotune=autotune)
 
-    return rec1, rec2, vx, vz, txx, tzz, txz, summary
+    return (summary.gflopss, summary.oi, summary.timings,
+            [rec1, rec2, vx, vz, txx, tzz, txz])
 
 
 if __name__ == "__main__":
@@ -51,8 +52,9 @@ if __name__ == "__main__":
     parser = ArgumentParser(description=description)
     parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
                         help="Preset to determine the physical problem setup")
-    parser.add_argument('-a', '--autotune', default=False, action='store_true',
-                        help="Enable autotuning for block sizes")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=(configuration._accepted['autotuning']),
+                        help="Operator auto-tuning mode")
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,

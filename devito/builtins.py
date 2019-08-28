@@ -6,6 +6,8 @@ from sympy import Abs, Pow
 import numpy as np
 
 import devito as dv
+from devito.logger import warning
+
 
 __all__ = ['assign', 'smooth', 'norm', 'sumall', 'inner', 'mmin', 'mmax']
 
@@ -205,6 +207,9 @@ def mmin(f):
         Input operand.
     """
     if not isinstance(f, dv.Function):
+        if dv.configuration['mpi']:
+            warning("returning local min of array,"
+                    "use mmin(v::Function) for global minimum")
         return np.min(f)
 
     with MPIReduction(f, op=dv.mpi.MPI.MIN) as mr:
@@ -222,6 +227,9 @@ def mmax(f):
         Input operand.
     """
     if not isinstance(f, dv.Function):
+        if dv.configuration['mpi']:
+            warning("Returning local max of array,"
+                    "use mmax(v::Function) for global maximum")
         return np.max(f)
 
     with MPIReduction(f, op=dv.mpi.MPI.MAX) as mr:
