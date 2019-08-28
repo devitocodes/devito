@@ -777,9 +777,9 @@ class ExpressionBundle(List):
 
     is_ExpressionBundle = True
 
-    def __init__(self, shape, ops, traffic, body=None):
+    def __init__(self, ispace, ops, traffic, body=None):
         super(ExpressionBundle, self).__init__(body=body)
-        self.shape = shape
+        self.ispace = ispace
         self.ops = ops
         self.traffic = traffic
 
@@ -789,6 +789,10 @@ class ExpressionBundle(List):
     @property
     def exprs(self):
         return self.body
+
+    @property
+    def shape(self):
+        return tuple(self.ispace.dimension_map.values())
 
 
 class Prodder(Call):

@@ -226,8 +226,9 @@ class IntervalGroup(PartialOrderTuple):
         return reduce(mul, [i.size for i in self]) if self else 0
 
     @property
-    def shape(self):
-        return tuple(i.size for i in self)
+    def dimension_map(self):
+        """Map between Dimensions and their symbolic size."""
+        return OrderedDict([(i.dim, i.size) for i in self])
 
     @cached_property
     def is_well_defined(self):
@@ -432,8 +433,8 @@ class Space(object):
         return self.intervals.size
 
     @property
-    def shape(self):
-        return self.intervals.shape
+    def dimension_map(self):
+        return self.intervals.dimension_map
 
 
 class DataSpace(Space):

@@ -546,21 +546,43 @@ class Operator(Callable):
         info("Operator `%s` run in %.2f s" % (self.name,
                                               self._profiler.py_timers['apply']))
 
-        summary = self._profiler.summary(args, self._dtype)
+        summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
+
+        # With MPI enabled, emit global, i.e. "cross-rank" performance.
+        v = summary.reduced
+        if v is not None:
+            perf("Global \"cross-rank\" performance")
+            indent = " "*2
+            gflopss = "%.2f GFlops/s" % v.gflopss
+            gpointss = "%.2f GPts/s" % v.gpointss if v.gpointss else None
+            metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
+            perf("%s* Operator `%s` with OI=%.2f computed in %.2f s [%s]" %
+                 (indent, self.name, v.oi, v.time, metrics))
+
+            perf("Local \"per-rank\" and \"by-section\" performance")
+        else:
+            indent = ""
+
+        # Emit local, i.e. "per-rank" performance. Without MPI, this is the only
+        # thing that will be emitted
         for k, v in summary.items():
-            gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
+            name = k.name
+            rank = "[rank%d]" % k.rank if k.rank is not None else ""
+            gflopss = "%.2f GFlops/s" % v.gflopss
+            gpointss = "%.2f GPts/s" % v.gpointss if v.gpointss else None
+            metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
-                name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
-                perf("* %s with OI=%.2f computed in %.2f s [%.2f GFlops/s%s]" %
-                     (name, v.oi, v.time, v.gflopss, gpointss))
+                name = "%s%s<%s>" % (name, rank, ",".join("<%s>" % i for i in itershapes))
+                perf("%s* %s with OI=%.2f computed in %.2f s [%s]" %
+                     (indent, name, v.oi, v.time, metrics))
             elif len(itershapes) == 1:
-                name = "%s<%s>" % (k, itershapes[0])
-                perf("* %s with OI=%.2f computed in %.2f s [%.2f GFlops/s%s]" %
-                     (name, v.oi, v.time, v.gflopss, gpointss))
+                name = "%s%s<%s>" % (name, rank, itershapes[0])
+                perf("%s* %s with OI=%.2f computed in %.2f s [%s]" %
+                     (indent, name, v.oi, v.time, metrics))
             else:
-                name = k
-                perf("* %s computed in %.2f s" % (name, v.time))
+                perf("%s* %s%s computed in %.2f s"
+                     % (indent, name, rank, v.time))
 
         perf("Configuration:  %s" % self._state['optimizations'])
 
