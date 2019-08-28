@@ -1,6 +1,7 @@
-from devito import Eq
+from devito import Eq, TimeFunction
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import Call, List, Expression, find_affine_trees
+from devito.ir.iet import (Call, Expression, find_affine_trees,
+                           FindNodes, Iteration, List, retrieve_iteration_tree)
 from devito.ir.iet.visitors import FindSymbols, Transformer
 from devito.logger import warning
 from devito.operator import Operator
@@ -9,7 +10,7 @@ from devito.tools import filter_sorted
 
 from devito.ops import ops_configuration
 from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
-from devito.ops.types import OpsBlock
+from devito.ops.types import OpsBlock, OpsAccessible
 from devito.ops.utils import namespace
 
 __all__ = ['OperatorOPS']
@@ -65,8 +66,8 @@ class OperatorOPS(Operator):
 
             pre_time_loop.extend(create_ops_dat(f, name_to_ops_dat, ops_block))
             # To return the result to Devito, it is necessary to copy the data
-            # from the GPU into the CPU memory
-            after_time_loop.append(create_ops_fetch(f, name_to_ops_dat))
+            # from the dat object into the CPU memory
+            after_time_loop.extend(create_ops_fetch(f, name_to_ops_dat))
 
         # Generate ops kernels for each offloadable iteration tree
         mapper = {}
