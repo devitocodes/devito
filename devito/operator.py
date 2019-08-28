@@ -562,8 +562,7 @@ class Operator(Callable):
                 name = k
                 perf("* %s computed in %.2f s" % (name, v.time))
 
-        perf("`%s` configuration:  %s " %
-             (self.name, self._state['optimizations']))
+        perf("Configuration:  %s" % self._state['optimizations'])
 
         return summary
 
