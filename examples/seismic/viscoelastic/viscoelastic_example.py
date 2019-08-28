@@ -7,7 +7,7 @@ from examples.seismic.viscoelastic import ViscoelasticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 
 
-def viscoelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,space_order=4,
+def viscoelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4,
                        nbpml=10, constant=True, **kwargs):
 
     nrec = 2*shape[0]

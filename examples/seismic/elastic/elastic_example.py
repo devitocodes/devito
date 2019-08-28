@@ -7,8 +7,8 @@ from examples.seismic.elastic import ElasticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 
 
-def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4, nbpml=10,
-                  constant=False, **kwargs):
+def elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4,
+                  nbpml=10, constant=False, **kwargs):
 
     nrec = 2*shape[0]
     preset = 'constant-elastic' if constant else 'layers-elastic'
@@ -43,7 +43,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     # Define receiver geometry (spread across x, just below surface)
     rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward(autotune=autotune)
 
-    return (summary.gflopss, summary.oi, summary.timings, 
+    return (summary.gflopss, summary.oi, summary.timings,
             [rec1, rec2, vx, vz, txx, tzz, txz])
 
 

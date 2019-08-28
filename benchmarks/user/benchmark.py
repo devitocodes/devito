@@ -460,7 +460,7 @@ if __name__ == "__main__":
                     "DEVITO_MPI is unset. Setting `DEVITO_MPI=basic`...")
             configuration['mpi'] = 'basic'
     except TypeError:
-    # MPI not available
+        # MPI not available
         pass
 
     # Profiling at max level
