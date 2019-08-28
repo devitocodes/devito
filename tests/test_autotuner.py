@@ -112,7 +112,7 @@ def test_mode_runtime_forward():
     assert op._state['autotuning'][0]['runs'] == 6
 
     # AT is expected to have executed 30 timesteps
-    assert summary['section0'].itershapes[0][0] == 101-30
+    assert summary[('section0', None)].itershapes[0][0] == 101-30
     assert np.all(f.data[0] == 100)
     assert np.all(f.data[1] == 101)
 
@@ -130,7 +130,7 @@ def test_mode_runtime_backward():
     assert op._state['autotuning'][0]['runs'] == 6
 
     # AT is expected to have executed 30 timesteps
-    assert summary['section0'].itershapes[0][0] == 101-30
+    assert summary[('section0', None)].itershapes[0][0] == 101-30
     assert np.all(f.data[0] == 101)
     assert np.all(f.data[1] == 100)
 

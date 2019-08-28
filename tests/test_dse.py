@@ -630,7 +630,7 @@ def test_tti_rewrite_aggressive_wmpi():
 def test_tti_rewrite_aggressive_opcounts(space_order, expected):
     operator = tti_operator(dse='aggressive', space_order=space_order)
     _, _, _, summary = operator.forward(kernel='centered', save=False)
-    assert summary['section1'].ops == expected
+    assert summary[('section1', None)].ops == expected
 
 
 @switchconfig(profiling='advanced')
