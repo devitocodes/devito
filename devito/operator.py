@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from functools import reduce
 from operator import mul
+from math import ceil
 
 from cached_property import cached_property
 import ctypes
@@ -543,8 +544,11 @@ class Operator(Callable):
 
     def _profile_output(self, args):
         """Produce a performance summary of the profiled sections."""
+        # Rounder to 2 decimal places
+        fround = lambda i: ceil(i * 100) / 100
+
         info("Operator `%s` run in %.2f s" % (self.name,
-                                              self._profiler.py_timers['apply']))
+                                              fround(self._profiler.py_timers['apply'])))
 
         summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
 
@@ -553,11 +557,11 @@ class Operator(Callable):
         if v is not None:
             perf("Global \"cross-rank\" performance")
             indent = " "*2
-            gflopss = "%.2f GFlops/s" % v.gflopss
-            gpointss = "%.2f GPts/s" % v.gpointss if v.gpointss else None
+            gflopss = "%.2f GFlops/s" % fround(v.gflopss)
+            gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
             metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
             perf("%s* Operator `%s` with OI=%.2f computed in %.2f s [%s]" %
-                 (indent, self.name, v.oi, v.time, metrics))
+                 (indent, self.name, fround(v.oi), fround(v.time), metrics))
 
             perf("Local \"per-rank\" and \"by-section\" performance")
         else:
@@ -566,23 +570,24 @@ class Operator(Callable):
         # Emit local, i.e. "per-rank" performance. Without MPI, this is the only
         # thing that will be emitted
         for k, v in summary.items():
-            name = k.name
             rank = "[rank%d]" % k.rank if k.rank is not None else ""
-            gflopss = "%.2f GFlops/s" % v.gflopss
-            gpointss = "%.2f GPts/s" % v.gpointss if v.gpointss else None
+            gflopss = "%.2f GFlops/s" % fround(v.gflopss)
+            gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
             metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
-                name = "%s%s<%s>" % (name, rank, ",".join("<%s>" % i for i in itershapes))
+                name = "%s%s<%s>" % (k.name, rank,
+                                     ",".join("<%s>" % i for i in itershapes))
                 perf("%s* %s with OI=%.2f computed in %.2f s [%s]" %
-                     (indent, name, v.oi, v.time, metrics))
+                     (indent, name, fround(v.oi), fround(v.time), metrics))
             elif len(itershapes) == 1:
-                name = "%s%s<%s>" % (name, rank, itershapes[0])
+                name = "%s%s<%s>" % (k.name, rank, itershapes[0])
                 perf("%s* %s with OI=%.2f computed in %.2f s [%s]" %
-                     (indent, name, v.oi, v.time, metrics))
+                     (indent, name, fround(v.oi), fround(v.time), metrics))
             else:
+                name = k.name
                 perf("%s* %s%s computed in %.2f s"
-                     % (indent, name, rank, v.time))
+                     % (indent, name, rank, fround(v.time)))
 
         perf("Configuration:  %s" % self._state['optimizations'])
 
