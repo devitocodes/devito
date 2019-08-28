@@ -191,16 +191,10 @@ class AdvancedProfiler(Profiler):
                 traffics = comm.allgather(traffic)
                 sops = [data.sops]*comm.size
                 itershapess = comm.allgather(itershapes)
-                # Do not show unexecuted Sections (i.e., loop trip count was 0)
-                if all(i == 0 for i in opss) or all(i == 0 for i in traffics):
-                    continue
                 items = list(zip(times, opss, pointss, traffics, sops, itershapess))
                 for rank in range(comm.size):
                     summary.add(name, rank, *items[rank])
             else:
-                # Do not show unexecuted Sections (i.e., loop trip count was 0)
-                if ops == 0 or traffic == 0:
-                    continue
                 summary.add(name, None, time, ops, points, traffic, data.sops, itershapes)
 
         if mpi_enabled and reduce_over is not None:
@@ -287,6 +281,10 @@ class PerformanceSummary(OrderedDict):
         Add performance data for a given code section. With MPI enabled, the
         performance data is local, that is "per-rank".
         """
+        # Do not show unexecuted Sections (i.e., loop trip count was 0)
+        if ops == 0 or traffic == 0:
+            return
+
         k = self.PerfKey(name, rank)
 
         if ops is None:
