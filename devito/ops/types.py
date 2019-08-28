@@ -139,7 +139,7 @@ class OpsBlock(basic.Symbol):
         return namespace['ops_block_type']
 
 
-class OpsDat(basic.LocalObject):
+class OpsDat(basic.Symbol):
 
     def __init__(self, name, *args, **kwargs):
         super().__init__(name, np.void, *args, **kwargs)

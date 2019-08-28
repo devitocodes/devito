@@ -4,16 +4,16 @@ import numpy as np
 from sympy import sympify, Mod
 from sympy.core.numbers import Zero
 
-from devito import Eq
+from devito import Eq, TimeFunction
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Call, Callable, Expression, IterationTree
 from devito.ir.iet.visitors import FindNodes
 from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
+from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil, OpsAccess
 from devito.ops.utils import namespace
 from devito.symbolics import Add, Byref, ListInitializer, Literal
 from devito.tools import dtype_to_cstr
-from devito.types import Constant, DefaultDimension, Symbol
+from devito.types import Constant, DefaultDimension, Indexed, Symbol
 
 
 def opsit(trees, count, name_to_ops_dat, block, dims):
