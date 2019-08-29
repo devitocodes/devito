@@ -99,7 +99,7 @@ class Profiler(object):
             If provided, the global execution time is derived by a single MPI
             rank, with timers started and stopped right after an MPI barrier.
         """
-        if MPI.Is_initialized() and comm is not None:
+        if comm is not MPI.COMM_NULL:
             comm.Barrier()
             tic = MPI.Wtime()
             yield
@@ -126,8 +126,6 @@ class Profiler(object):
         """
         comm = arguments.comm
 
-        mpi_enabled = MPI.Is_initialized() and comm is not None
-
         summary = PerformanceSummary()
         for section, data in self._sections.items():
             name = section.name
@@ -136,7 +134,7 @@ class Profiler(object):
             time = max(getattr(arguments[self.name]._obj, name), 10e-7)
 
             # Add performance data
-            if mpi_enabled:
+            if comm is not MPI.COMM_NULL:
                 # With MPI enabled, we add one entry per section per rank
                 times = comm.allgather(time)
                 assert comm.size == len(times)
@@ -157,8 +155,6 @@ class AdvancedProfiler(Profiler):
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, arguments, dtype, reduce_over=None):
         comm = arguments.comm
-
-        mpi_enabled = MPI.Is_initialized() and comm is not None
 
         summary = PerformanceSummary()
         for section, data in self._sections.items():
@@ -182,7 +178,7 @@ class AdvancedProfiler(Profiler):
             itershapes = tuple(tuple(i.values()) for i in itermaps)
 
             # Add performance data
-            if mpi_enabled:
+            if comm is not MPI.COMM_NULL:
                 # With MPI enabled, we add one entry per section per rank
                 times = comm.allgather(time)
                 assert comm.size == len(times)
@@ -197,7 +193,7 @@ class AdvancedProfiler(Profiler):
             else:
                 summary.add(name, None, time, ops, points, traffic, data.sops, itershapes)
 
-        if mpi_enabled and reduce_over is not None:
+        if comm is not MPI.COMM_NULL and reduce_over is not None:
             summary.reduce(self.py_timers[reduce_over])
 
         return summary

@@ -16,6 +16,7 @@ from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, MetaCall, iet_build, iet_insert_decls,
                            iet_insert_casts, derive_parameters)
 from devito.ir.stree import st_build
+from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
@@ -684,7 +685,7 @@ class ArgumentsMap(dict):
     @property
     def comm(self):
         """The MPI communicator the arguments are collective over."""
-        return self.grid.comm if self.grid is not None else None
+        return self.grid.comm if self.grid is not None else MPI.COMM_NULL
 
 
 def set_dse_mode(mode):
