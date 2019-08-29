@@ -524,8 +524,9 @@ class Operator(Callable):
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
         try:
+            cfunction = self.cfunction
             with self._profiler.timer_on('apply', comm=args.comm):
-                self.cfunction(*arg_values)
+                cfunction(*arg_values)
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
