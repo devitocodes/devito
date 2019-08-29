@@ -478,16 +478,19 @@ def initialize_function(function, data, nbpml):
     nbpml : int
         Number of PML layers for boundary damping.
     """
-    slices = tuple([slice(nbpml, -nbpml, 1) for _ in range(function.grid.dim)])
+    slices = tuple([slice(nbpml, -nbpml) for _ in range(function.grid.dim)])
     function.data[slices] = data
     eqs = []
-    for d, s in zip(function.dimensions, function.shape_global):
+
+    for d in function.dimensions:
         dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
                                   thickness=nbpml)
-        eqs += [Eq(function.subs({d: dim_l}), function.subs({d: nbpml}))]
+        to_copy = nbpml
+        eqs += [Eq(function.subs({d: dim_l}), function.subs({d: to_copy}))]
         dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
                                    thickness=nbpml)
-        eqs += [Eq(function.subs({d: dim_r}), function.subs({d: s-nbpml-1}))]
+        to_copy = d.symbolic_max  - nbpml
+        eqs += [Eq(function.subs({d: dim_r}), function.subs({d: to_copy}))]
 
     # TODO: Figure out why yask doesn't like it with dse/dle
     Operator(eqs, name='padfunc', dse='noop', dle='noop')()
