@@ -458,10 +458,12 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         val = -val if mask else val
         eqs += [Inc(damp.subs({d: dim_r}), val/d.spacing)]
 
+    # TODO: Figure out why yask doesn't like it with dse/dle
     Operator(eqs, name='initdamp', dse='noop', dle='noop')()
 
 
-def initialize_function(function, data, nbpml, pad_mode='edge'):
+@switchconfig(log_level='ERROR')
+def initialize_function(function, data, nbpml):
     """
     Initialize a `Function` with the given ``data``. ``data``
     does *not* include the PML layers for the absorbing boundary conditions;
@@ -475,12 +477,20 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
         The data array used for initialisation.
     nbpml : int
         Number of PML layers for boundary damping.
-    pad_mode : str or callable, optional
-        A string or a suitable padding function as explained in :func:`numpy.pad`.
     """
-    pad_widths = [(nbpml + i.left, nbpml + i.right) for i in function._size_halo]
-    data = np.pad(data, pad_widths, pad_mode)
-    function.data_with_halo[:] = data
+    slices = tuple([slice(nbpml, -nbpml, 1) for _ in range(function.grid.dim)])
+    function.data[slices] = data
+    eqs = []
+    for d, s in zip(function.dimensions, function.shape_global):
+        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
+                                  thickness=nbpml)
+        eqs += [Eq(function.subs({d: dim_l}), function.subs({d: nbpml}))]
+        dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
+                                   thickness=nbpml)
+        eqs += [Eq(function.subs({d: dim_r}), function.subs({d: s-nbpml-1}))]
+
+    # TODO: Figure out why yask doesn't like it with dse/dle
+    Operator(eqs, name='padfunc', dse='noop', dle='noop')()
 
 
 class PhysicalDomain(SubDomain):
