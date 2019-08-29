@@ -46,6 +46,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     return (summary.gflopss, summary.oi, summary.timings,
             [rec1, rec2, vx, vz, txx, tzz, txz])
 
+
 def test_viscoelastic():
     _, _, _, [rec1, rec2, vx, vz, txx, tzz, txz] = run()
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))

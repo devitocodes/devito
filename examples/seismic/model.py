@@ -3,7 +3,7 @@ import os
 import numpy as np
 
 from examples.seismic.utils import scipy_smooth
-from devito import Grid, SubDomain, Function, Constant, warning, mmin, mmax
+from devito import Grid, SubDomain, Function, Constant, warning, mmax
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
@@ -686,7 +686,7 @@ class Model(GenericModel):
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
-        dt = self.dtype(coeff * mmin(self.spacing) / (self.scale*self._max_vp))
+        dt = self.dtype(coeff * np.min(self.spacing) / (self.scale*self._max_vp))
         return self.dtype("%.3f" % dt)
 
     @property
@@ -801,7 +801,7 @@ class ModelElastic(GenericModel):
         # The CFL condtion is then given by
         # dt < h / (sqrt(2) * max(vp)))
         # FIXME: Fix 'Constant' so that that mmax(self.vp) returns the data value
-        return self.dtype(.5*mmin(self.spacing) / (np.sqrt(2)*mmax(self.vp)))
+        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*mmax(self.vp)))
 
 
 class ModelViscoelastic(ModelElastic):
@@ -863,5 +863,5 @@ class ModelViscoelastic(ModelElastic):
         # imaging, and inversion: methodology, computational aspects and sensitivity"
         # for further details:
         # FIXME: Fix 'Constant' so that that mmax(self.vp) returns the data value
-        return self.dtype(6.*mmin(self.spacing) /
+        return self.dtype(6.*np.min(self.spacing) /
                           (7.*np.sqrt(self.grid.dim)*mmax(self.vp)))
