@@ -1,17 +1,17 @@
 import numpy as np
 import itertools
 
-from sympy import sympify
+from sympy import sympify, Mod
 from sympy.core.numbers import Zero
 
-from devito import Eq, TimeFunction
+from devito import Eq
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Call, Callable, Expression, IterationTree
 from devito.ir.iet.visitors import FindNodes
 from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil, OpsAccess
+from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
 from devito.ops.utils import namespace
-from devito.symbolics import Add, Byref, ListInitializer, Literal, split_affine
+from devito.symbolics import Add, Byref, ListInitializer, Literal
 from devito.tools import dtype_to_cstr
 from devito.types import Constant, DefaultDimension, Indexed, Symbol
 
@@ -207,14 +207,16 @@ def create_ops_dat(f, name_to_ops_dat, block):
     return res
 
 
-def create_ops_fetch(f, name_to_ops_dat):
+def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
 
     if f.is_TimeFunction:
         ops_fetch = [namespace['ops_dat_fetch_data'](
             Indexed(name_to_ops_dat['%s%s%s' %
-                                    (f.name, f.indices[f._time_position], i)].base, Add(Symbol('time_M'), -i)),
-            Byref(f.indexify([i])))
-            for i in range(f.shape[f._time_position])]
+                                    (f.name,
+                                     f.indices[f._time_position],
+                                     i)].base, Mod(Add(time_upper_bound, -i), f._time_size)),
+            Byref(f.indexify([Add(time_upper_bound, -i)])))
+            for i in range(f._time_size)]
     else:
         ops_fetch = [namespace['ops_dat_fetch_data'](
             name_to_ops_dat[f.name], Byref(f.indexify([0])))]
