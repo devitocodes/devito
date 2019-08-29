@@ -1,4 +1,5 @@
 import os
+# Import subprocess
 
 from devito.parameters import configuration
 
@@ -21,3 +22,6 @@ class CompilerOPS(configuration['compiler'].__class__):
 
         h_file.write(hcode)
         c_file.write(ccode)
+        # Call from directory off the file with
+        # run = self._ops_install_path +'/../ops_translator/c/ops.py'
+        # subprocess.run(['python2',run,str(c_file)])
