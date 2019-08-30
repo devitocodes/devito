@@ -4,7 +4,7 @@ import numpy as np
 
 from conftest import skipif
 from sympy import Integer
-from sympy.core.numbers import Zero, One # noqa
+from sympy.core.numbers import Zero, One  # noqa
 
 pytestmark = skipif('noops', whole_module=True)
 
@@ -14,13 +14,13 @@ pytestmark = skipif('noops', whole_module=True)
 # `pytestmark` above
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
-from devito.ops.operator import OperatorOPS # noqa
-from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil # noqa
-from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock # noqa
-from devito.ops.utils import namespace # noqa
-from devito.symbolics import Byref, Literal, indexify # noqa
-from devito.tools import dtype_to_cstr # noqa
-from devito.types import Constant, Symbol # noqa
+from devito.ops.operator import OperatorOPS  # noqa
+from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil  # noqa
+from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock  # noqa
+from devito.ops.utils import namespace  # noqa
+from devito.symbolics import Byref, Literal, indexify  # noqa
+from devito.tools import dtype_to_cstr  # noqa
+from devito.types import Constant, Symbol  # noqa
 
 
 class TestOPSExpression(object):
@@ -256,3 +256,25 @@ class TestOPSExpression(object):
                 Literal('"%s"' % dtype_to_cstr(u.dtype)),
                 namespace['ops_read'] if read else namespace['ops_write']
             ]
+
+    @pytest.mark.parametrize('equation,expected', [
+        ('Eq(u.forward, u + 1)',
+         '[\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2))]));\','
+         '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2))]));\']'),
+        ('Eq(v, v.dx + u)',
+         '[\'ops_dat_fetch_data(v_dat[(time_M) % (2)], 0, & (v[(time_M)%(2)]))\''
+         '\'ops_dat_fetch_data(v_dat[(time_M + 1) % (2)], 0, & (v[(time_M + 1)%(2)]))\''
+         '\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\''
+         '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]))\']'),
+    ])
+    def test_create_ops_dat_fetch_data(self, equation, expected):
+
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+
+        op = Operator(eval(equation))
+
+        for i in eval(expected):
+            assert i in str(op)
