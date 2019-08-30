@@ -18,7 +18,7 @@ def menu():
 @click.option('-mem', default=120, help='Requested DRAM *per node*')
 @click.option('-np', default=1, help='Number of MPI processes *per node*')
 @click.option('-nt', default=1, help='Number of OpenMP threads *per MPI process*')
-@click.option('--mpi', default='basic', help='Devito MPI mode')
+@click.option('--mpi', multiple=True, default=['basic'], help='Devito MPI mode(s)')
 @click.option('--arch', default='unknown', help='Test-bed architecture')
 @click.option('-r', '--resultsdir', default='results', help='Results directory')
 @click.option('--load', multiple=True, default=[], help='Modules to be loaded')
@@ -32,7 +32,7 @@ def generate(**kwargs):
 
     args['load'] = '\n'.join('module load %s' % i for i in args['load'])
 
-    template = """\
+    template_header = """\
 #!/bin/bash
 
 #PBS -lselect=%(nn)s:ncpus=%(ncpus)s:mem=120gb:mpiprocs=%(np)s:ompthreads=%(nt)s
@@ -49,20 +49,28 @@ source activate devito
 export DEVITO_HOME=%(home)s
 export DEVITO_ARCH=intel
 export DEVITO_OPENMP=1
-export DEVITO_MPI=%(mpi)s
 export DEVITO_LOGGING=DEBUG
 
 cd benchmarks/user
-
-mpiexec python benchmark.py bench -P %(problem)s -bm O2 -d %(shape)s -so %(space_order)s --tn %(tn)s -x 1 --arch %(arch)s -r %(resultsdir)s
+"""  # noqa
+    template_cmd = """\
+DEVITO_MPI=%(mpi)s mpiexec python benchmark.py bench -P %(problem)s -bm O2 -d %(shape)s -so %(space_order)s --tn %(tn)s -x 1 --arch %(arch)s -r %(resultsdir)s\
 """  # noqa
 
     # Generate one PBS file for each `np` value
     for nn in kwargs['nn']:
         args['nn'] = nn
 
+        cmds = []
+        for i in kwargs['mpi']:
+            args['mpi'] = i
+            cmds.append(template_cmd % args)
+        cmds = ' \n'.join(cmds)
+
+        body = ' \n'.join([template_header % args, cmds])
+
         with open('pbs_nn%d.gen.sh' % int(nn), 'w') as f:
-            f.write(template % args)
+            f.write(body)
 
 
 @menu.command(name='cleanup')
