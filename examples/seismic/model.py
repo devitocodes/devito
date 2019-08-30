@@ -639,7 +639,7 @@ class Model(GenericModel):
         physical_parameters = []
 
         # Create square slowness of the wave as symbol `m`
-        self.vp = self._gen_phys_param(vp, 'vp', space_order)
+        self._vp = self._gen_phys_param(vp, 'vp', space_order)
         physical_parameters.append('vp')
         self._max_vp = np.max(vp)
 
