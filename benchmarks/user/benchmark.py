@@ -431,9 +431,9 @@ def get_ob_exec(func):
             gflopss, oi, timings, _ = self.func(*args, **kwargs)
 
             for key in timings.keys():
-                self.register(gflopss[key], measure="gflopss", event=key)
-                self.register(oi[key], measure="oi", event=key)
-                self.register(timings[key], measure="timings", event=key)
+                self.register(gflopss[key], measure="gflopss", event=key.name)
+                self.register(oi[key], measure="oi", event=key.name)
+                self.register(timings[key], measure="timings", event=key.name)
 
     return DevitoExecutor(func)
 
