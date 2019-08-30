@@ -215,7 +215,7 @@ def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
                                     (f.name,
                                      f.indices[f._time_position],
                                      i)].base, Mod(Add(time_upper_bound, -i), f._time_size)),
-            Byref(f.indexify([Add(time_upper_bound, -i)])))
+            Byref(f.indexify([Mod(Add(time_upper_bound, -i), f._time_size)])))
             for i in range(f._time_size)]
     else:
         ops_fetch = [namespace['ops_dat_fetch_data'](
