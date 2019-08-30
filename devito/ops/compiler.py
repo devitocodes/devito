@@ -16,16 +16,17 @@ class CompilerOPS(configuration['compiler'].__class__):
         super(CompilerOPS, self).__init__(*args, **kwargs)
 
     def prepare_ops(self, soname, ccode, hcode):
-        #Creating files
+        # Creating files
         file_name = str(self.get_jit_dir().joinpath(soname))
         h_file = open("%s.h" % (file_name), "w")
         c_file = open("%s.c" % (file_name), "w")
-        
+
         c_file.write(ccode)
         h_file.write(hcode)
-        
+
         c_file.close()
         h_file.close()
 
-        translator = '%s/../ops_translator/c/ops.py'%(self._ops_install_path)
-        subprocess.run([translator,c_file.name])
+        # Calling OPS Translator
+        translator = '%s/../ops_translator/c/ops.py' % (self._ops_install_path)
+        subprocess.run([translator, c_file.name], cwd=self.get_jit_dir())
