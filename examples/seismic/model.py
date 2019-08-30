@@ -4,7 +4,7 @@ import numpy as np
 from sympy import sin, Abs
 
 from examples.seismic.utils import scipy_smooth
-from devito import (Grid, SubDomain, Function, Constant, warning, mmin, mmax,
+from devito import (Grid, SubDomain, Function, Constant, mmax,
                     SubDimension, Eq, Inc, Operator, switchconfig)
 from devito.tools import as_tuple
 
@@ -66,11 +66,11 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         nbpml = kwargs.pop('nbpml', 10)
         dtype = kwargs.pop('dtype', np.float32)
-        vp = kwargs.pop('vp', 2.2)
-        qp = kwargs.pop('qp', 100.)
-        vs = kwargs.pop('vs', 1.2)
-        qs = kwargs.pop('qs', 70.)
-        rho = 2.0
+        vp = kwargs.pop('vp', 1.5)
+        qp = kwargs.pop('qp', 10000.)
+        vs = kwargs.pop('vs', 0.5 * vp)
+        qs = kwargs.pop('qs', 7000.)
+        rho = 1.0
 
         return ModelViscoelastic(space_order=space_order, vp=vp, qp=qp, vs=vs,
                                  qs=qs, rho=rho, origin=origin, shape=shape,
@@ -173,16 +173,16 @@ def demo_model(preset, **kwargs):
         dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
-        vp_top = kwargs.pop('vp_top', 1.6)
-        qp_top = kwargs.pop('qp_top', 40.)
-        vs_top = kwargs.pop('vs_top', 0.4)
-        qs_top = kwargs.pop('qs_top', 30.)
-        rho_top = kwargs.pop('rho_top', 1.3)
-        vp_bottom = kwargs.pop('vp_bottom', 2.2)
-        qp_bottom = kwargs.pop('qp_bottom', 100.)
-        vs_bottom = kwargs.pop('vs_bottom', 1.2)
-        qs_bottom = kwargs.pop('qs_bottom', 70.)
-        rho_bottom = kwargs.pop('qs_bottom', 2.0)
+        vp_top = kwargs.pop('vp_top', 1.5)
+        qp_top = kwargs.pop('qp_top', 10000.)
+        vs_top = kwargs.pop('vs_top', 0. * vp_top)
+        qs_top = kwargs.pop('qs_top', 0.)
+        rho_top = kwargs.pop('rho_top', 1.)
+        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+        qp_bottom = kwargs.pop('qp_bottom', 10000.)
+        vs_bottom = kwargs.pop('vs_bottom', 0. * vp_bottom)
+        qs_bottom = kwargs.pop('qs_bottom', 0.)
+        rho_bottom = kwargs.pop('qs_bottom', 2.5/1.5)
 
         # Define a velocity profile in km/s
         vp = np.empty(shape, dtype=dtype)
@@ -489,7 +489,7 @@ def initialize_function(function, data, nbpml):
         eqs += [Eq(function.subs({d: dim_l}), function.subs({d: to_copy}))]
         dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
                                    thickness=nbpml)
-        to_copy = d.symbolic_max  - nbpml
+        to_copy = d.symbolic_max - nbpml
         eqs += [Eq(function.subs({d: dim_r}), function.subs({d: to_copy}))]
 
     # TODO: Figure out why yask doesn't like it with dse/dle
@@ -513,7 +513,7 @@ class GenericModel(object):
     General model class with common properties
     """
     def __init__(self, origin, spacing, shape, space_order, nbpml=20,
-                 dtype=np.float32, subdomains=()):
+                 dtype=np.float32, subdomains=(), damp_mask=False):
         self.shape = shape
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
@@ -528,6 +528,10 @@ class GenericModel(object):
         extent = tuple(np.array(spacing) * (shape_pml - 1))
         self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml, dtype=dtype,
                          subdomains=subdomains)
+
+        # Create dampening field as symbol `damp`
+        self.damp = Function(name="damp", grid=self.grid)
+        initialize_damp(self.damp, self.nbpml, self.spacing, mask=damp_mask)
 
     def physical_params(self, **kwargs):
         """
@@ -578,6 +582,16 @@ class GenericModel(object):
         """
         return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 
+    def _gen_phys_param(self, field, name, space_order, default_value=0):
+        if field is None:
+            return default_value
+        if isinstance(field, np.ndarray):
+            function = Function(name=name, grid=self.grid, space_order=space_order)
+            initialize_function(function, field, self.nbpml)
+        else:
+            function = Constant(name=name, value=field)
+        return function
+
 
 class Model(GenericModel):
     """
@@ -625,68 +639,29 @@ class Model(GenericModel):
         physical_parameters = []
 
         # Create square slowness of the wave as symbol `m`
-        if isinstance(vp, np.ndarray):
-            self._vp = Function(name="vp", grid=self.grid, space_order=space_order)
-            initialize_function(self._vp, vp, self.nbpml)
-        else:
-            self._vp = Constant(name="vp", value=vp)
-        self._physical_parameters = ('vp',)
+        self.vp = self._gen_phys_param(vp, 'vp', space_order)
+        physical_parameters.append('vp')
         self._max_vp = np.max(vp)
 
-        # Create dampening field as symbol `damp`
-        self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbpml, self.spacing)
-
         # Additional parameter fields for TTI operators
-        self.scale = 1.
-
-        if epsilon is not None:
-            if isinstance(epsilon, np.ndarray):
-                physical_parameters.append('epsilon')
-                self.epsilon = Function(name="epsilon", grid=self.grid)
-                initialize_function(self.epsilon, 1 + 2 * epsilon, self.nbpml)
-                # Maximum velocity is scale*max(vp) if epsilon > 0
-                if mmax(self.epsilon) > 0:
-                    self.scale = np.sqrt(mmax(self.epsilon))
-            else:
-                self.epsilon = 1 + 2 * epsilon
-                self.scale = epsilon
+        self.epsilon = self._gen_phys_param(epsilon, 'epsilon', space_order)
+        if self.epsilon != 0:
+            physical_parameters.append('epsilon')
+            self.scale = np.sqrt(1 + 2 * mmax(epsilon))
         else:
-            self.epsilon = 1
+            self.scale = 1
 
-        if delta is not None:
-            if isinstance(delta, np.ndarray):
-                physical_parameters.append('delta')
-                self.delta = Function(name="delta", grid=self.grid)
-                initialize_function(self.delta, np.sqrt(1 + 2 * delta), self.nbpml)
-            else:
-                self.delta = delta
-        else:
-            self.delta = 1
+        self.delta = self._gen_phys_param(delta, 'delta', space_order)
+        if self.delta != 0:
+            physical_parameters.append('delta')
 
-        if theta is not None:
-            if isinstance(theta, np.ndarray):
-                physical_parameters.append('theta')
-                self.theta = Function(name="theta", grid=self.grid,
-                                      space_order=space_order)
-                initialize_function(self.theta, theta, self.nbpml)
-            else:
-                self.theta = theta
-        else:
-            self.theta = 0
+        self.theta = self._gen_phys_param(theta, 'theta', space_order)
+        if self.theta != 0:
+            physical_parameters.append('theta')
 
-        if phi is not None:
-            if self.grid.dim < 3:
-                warning("2D TTI does not use an azimuth angle Phi, ignoring input")
-                self.phi = 0
-            elif isinstance(phi, np.ndarray):
-                physical_parameters.append('phi')
-                self.phi = Function(name="phi", grid=self.grid, space_order=space_order)
-                initialize_function(self.phi, phi, self.nbpml)
-            else:
-                self.phi = phi
-        else:
-            self.phi = 0
+        self.phi = self._gen_phys_param(epsilon, 'phi', space_order)
+        if self.phi != 0:
+            physical_parameters.append('phi')
 
         self._physical_parameters = as_tuple(physical_parameters)
 
@@ -700,7 +675,7 @@ class Model(GenericModel):
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
-        dt = self.dtype(coeff * mmin(self.spacing) / (self.scale*self._max_vp))
+        dt = self.dtype(coeff * np.min(self.spacing) / (self.scale*self._max_vp))
         return self.dtype("%.3f" % dt)
 
     @property
@@ -778,11 +753,8 @@ class ModelElastic(GenericModel):
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,
                  dtype=np.float32):
         super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
-                                           nbpml=nbpml, dtype=dtype)
-
-        # Create dampening field as symbol `damp`
-        self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbpml, self.spacing, mask=True)
+                                           nbpml=nbpml, dtype=dtype,
+                                           damp_mask=True)
 
         physical_parameters = []
 
@@ -797,14 +769,6 @@ class ModelElastic(GenericModel):
 
         self._physical_parameters = as_tuple(physical_parameters)
 
-    def _gen_phys_param(self, field, name, space_order):
-        if isinstance(field, np.ndarray):
-            function = Function(name=name, grid=self.grid, space_order=space_order)
-            initialize_function(function, field, self.nbpml)
-        else:
-            function = Constant(name=name, value=field)
-        return function
-
     @property
     def critical_dt(self):
         """
@@ -815,7 +779,7 @@ class ModelElastic(GenericModel):
         # The CFL condtion is then given by
         # dt < h / (sqrt(2) * max(vp)))
         # FIXME: Fix 'Constant' so that that mmax(self.vp) returns the data value
-        return self.dtype(.5*mmin(self.spacing) / (np.sqrt(2)*mmax(self.vp.data)))
+        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*mmax(self.vp)))
 
 
 class ModelViscoelastic(ModelElastic):
@@ -877,5 +841,5 @@ class ModelViscoelastic(ModelElastic):
         # imaging, and inversion: methodology, computational aspects and sensitivity"
         # for further details:
         # FIXME: Fix 'Constant' so that that mmax(self.vp) returns the data value
-        return self.dtype(6.*mmin(self.spacing) /
-                          (7.*np.sqrt(self.grid.dim)*mmax(self.vp.data)))
+        return self.dtype(6.*np.min(self.spacing) /
+                          (7.*np.sqrt(self.grid.dim)*mmax(self.vp)))
