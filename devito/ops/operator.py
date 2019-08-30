@@ -95,4 +95,4 @@ class OperatorOPS(Operator):
 
     def _compile(self):
         if self._lib is None:
-            self._compiler.create_files(self._soname, str(self.ccode), str(self.hcode))
+            self._compiler.prepare_ops(self._soname,str(self.ccode),str(self.hcode))

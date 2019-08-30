@@ -1,5 +1,5 @@
 import os
-# Import subprocess
+import subprocess
 
 from devito.parameters import configuration
 
@@ -15,13 +15,17 @@ class CompilerOPS(configuration['compiler'].__class__):
                 environment variable, please check your OPS installation")
         super(CompilerOPS, self).__init__(*args, **kwargs)
 
-    def create_files(self, soname, ccode, hcode):
+    def prepare_ops(self, soname, ccode, hcode):
+        #Creating files
         file_name = str(self.get_jit_dir().joinpath(soname))
         h_file = open("%s.h" % (file_name), "w")
         c_file = open("%s.c" % (file_name), "w")
-
-        h_file.write(hcode)
+        
         c_file.write(ccode)
-        # Call from directory off the file with
-        # run = self._ops_install_path +'/../ops_translator/c/ops.py'
-        # subprocess.run(['python2',run,str(c_file)])
+        h_file.write(hcode)
+        
+        c_file.close()
+        h_file.close()
+
+        translator = '%s/../ops_translator/c/ops.py'%(self._ops_install_path)
+        subprocess.run([translator,c_file.name])
