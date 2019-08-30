@@ -647,7 +647,7 @@ class Model(GenericModel):
         self.epsilon = self._gen_phys_param(epsilon, 'epsilon', space_order)
         if self.epsilon != 0:
             physical_parameters.append('epsilon')
-            self.scale = np.sqrt(1 + 2 * mmax(epsilon))
+            self.scale = np.sqrt(1 + 2 * np.max(epsilon))
         else:
             self.scale = 1
 
@@ -659,8 +659,8 @@ class Model(GenericModel):
         if self.theta != 0:
             physical_parameters.append('theta')
 
-        self.phi = self._gen_phys_param(epsilon, 'phi', space_order)
-        if self.phi != 0:
+        self.phi = self._gen_phys_param(phi, 'phi', space_order)
+        if self.phi != 0 and self.grid.dim == 3:
             physical_parameters.append('phi')
 
         self._physical_parameters = as_tuple(physical_parameters)
