@@ -204,12 +204,14 @@ def mmin(f):
     f : array_like or Function
         Input operand.
     """
-    if not isinstance(f, dv.Function):
-        return np.min(f)
-
-    with MPIReduction(f, op=dv.mpi.MPI.MIN) as mr:
-        mr.n.data[0] = np.min(f.data_ro_domain).item()
-    return mr.v.item()
+    if isinstance(f, dv.Constant):
+        return f.data
+    elif isinstance(f, dv.Function):
+        with MPIReduction(f, op=dv.mpi.MPI.MIN) as mr:
+            mr.n.data[0] = np.min(f.data_ro_domain).item()
+        return mr.v.item()
+    else:
+        raise ValueError("Expected Function, not `%s`" % type(f))
 
 
 def mmax(f):
@@ -221,9 +223,11 @@ def mmax(f):
     f : array_like or Function
         Input operand.
     """
-    if not isinstance(f, dv.Function):
-        return np.max(f)
-
-    with MPIReduction(f, op=dv.mpi.MPI.MAX) as mr:
-        mr.n.data[0] = np.max(f.data_ro_domain).item()
-    return mr.v.item()
+    if isinstance(f, dv.Constant):
+        return f.data
+    elif isinstance(f, dv.Function):
+        with MPIReduction(f, op=dv.mpi.MPI.MAX) as mr:
+            mr.n.data[0] = np.max(f.data_ro_domain).item()
+        return mr.v.item()
+    else:
+        raise ValueError("Expected Function, not `%s`" % type(f))

@@ -1,14 +1,14 @@
 import numpy as np
 from argparse import ArgumentParser
 
+from devito import configuration
 from devito.logger import info
 from examples.seismic.viscoelastic import ViscoelasticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 
 
-def viscoelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
-                       space_order=4, nbpml=10,
-                       constant=True, **kwargs):
+def viscoelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4,
+                       nbpml=10, constant=True, **kwargs):
 
     nrec = 2*shape[0]
     preset = 'constant-viscoelastic' if constant else 'layers-viscoelastic'
@@ -27,7 +27,7 @@ def viscoelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
         rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
         rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
     geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.12)
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
 
     # Create solver object to provide relevant operators
     solver = ViscoelasticWaveSolver(model, geometry, space_order=space_order, **kwargs)
@@ -43,7 +43,15 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     # Define receiver geometry (spread across x, just below surface)
     rec1, rec2, vx, vz, txx, tzz, txz, summary = solver.forward(autotune=autotune)
 
-    return rec1, rec2, vx, vz, txx, tzz, txz, summary
+    return (summary.gflopss, summary.oi, summary.timings,
+            [rec1, rec2, vx, vz, txx, tzz, txz])
+
+
+def test_viscoelastic():
+    _, _, _, [rec1, rec2, vx, vz, txx, tzz, txz] = run()
+    norm = lambda x: np.linalg.norm(x.data.reshape(-1))
+    assert np.isclose(norm(rec1), 15.962572, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec2), 1.3817718, atol=1e-3, rtol=0)
 
 
 if __name__ == "__main__":
@@ -51,8 +59,9 @@ if __name__ == "__main__":
     parser = ArgumentParser(description=description)
     parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
                         help="Preset to determine the physical problem setup")
-    parser.add_argument('-a', '--autotune', default=False, action='store_true',
-                        help="Enable autotuning for block sizes")
+    parser.add_argument('-a', '--autotune', default='off',
+                        choices=(configuration._accepted['autotuning']),
+                        help="Operator auto-tuning mode")
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,

@@ -71,6 +71,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     solver.born(dm, autotune=autotune)
     info("Applying Gradient")
     solver.gradient(rec, u, autotune=autotune, checkpointing=checkpointing)
+    return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
 
 if __name__ == "__main__":
