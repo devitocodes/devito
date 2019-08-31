@@ -196,11 +196,7 @@ class Distributor(AbstractDistributor):
             # However, `MPI.Compute_dims` is distro-dependent, so we have to enforce
             # some properties through our own wrapper (e.g., OpenMPI v3 does not
             # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
-            topology = compute_dims(self._input_comm.size, len(shape))
-            # At this point MPI's dimension 0 corresponds to the rightmost element
-            # in `topology`. This is in reverse to `shape`'s ordering. Hence, we
-            # now restore consistency
-            self._topology = tuple(reversed(topology))
+            self._topology = compute_dims(self._input_comm.size, len(shape))
 
             if self._input_comm is not input_comm:
                 # By default, Devito arranges processes into a cartesian topology.
@@ -532,7 +528,7 @@ def compute_dims(nprocs, ndim):
         v = int(ceil(v))
         if not v**ndim == nprocs:
             # Fallback
-            return MPI.Compute_dims(nprocs, ndim)
+            return tuple(MPI.Compute_dims(nprocs, ndim))
     else:
         v = int(v)
     return tuple(v for _ in range(ndim))
