@@ -1483,9 +1483,9 @@ class TestIsotropicAcoustic(object):
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
-        ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
-        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
+        ((60, ), 'OT2', 4, 10, False, 385.627, 12993.527, 63818503.321, 101159204.362),
+        ((60, 70), 'OT2', 8, 10, False, 342.925, 867.47, 405805.482, 239444.952),
+        ((60, 70, 80), 'OT2', 12, 10, False, 151.6396, 205.9027, 27484.635, 11736.917)
     ])
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag', True), (4, 'overlap', True),
                                 (4, 'overlap2', True), (4, 'full', True)])
@@ -1494,7 +1494,7 @@ class TestIsotropicAcoustic(object):
         self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
+        ((60, 70, 80), 'OT2', 12, 10, False, 151.6396, 205.9027, 27484.635, 11736.917)
     ])
     @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
     @switchconfig(openmp=False)

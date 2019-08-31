@@ -147,7 +147,7 @@ class Compiler(GCCToolchain):
         self.ldflags = ['-shared']
 
         self.include_dirs = []
-        self.libraries = []
+        self.libraries = ['m']
         self.library_dirs = []
         self.defines = []
         self.undefines = []
