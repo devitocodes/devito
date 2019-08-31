@@ -794,64 +794,72 @@ class TestDataDistributed(object):
         t.data[:] = b
 
         c = np.array(t.data[::-1, ::-1, ::-1])
-        if LEFT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
-            assert np.all(c[0, :, :] == [[63, 62],
-                                         [59, 58]])
-            assert np.all(c[3, :, :] == [[15, 14],
-                                         [11, 10]])
-        elif LEFT in glb_pos_map[y] and RIGHT in glb_pos_map[z]:
-            assert np.all(c[0, :, :] == [[61, 60],
-                                         [57, 56]])
-            assert np.all(c[3, :, :] == [[13, 12],
-                                         [9, 8]])
-        elif RIGHT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
-            assert np.all(c[0, :, :] == [[55, 54],
-                                         [51, 50]])
-            assert np.all(c[3, :, :] == [[7, 6],
-                                         [3, 2]])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(c[:, :, 0] == [[63, 59],
+                                         [47, 43]])
+            assert np.all(c[:, :, 3] == [[60, 56],
+                                         [44, 40]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(c[:, :, 0] == [[55, 51],
+                                         [39, 35]])
+            assert np.all(c[:, :, 3] == [[52, 48],
+                                         [36, 32]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(c[:, :, 0] == [[31, 27],
+                                         [15, 11]])
+            assert np.all(c[:, :, 3] == [[28, 24],
+                                         [12, 8]])
         else:
-            assert np.all(c[0, :, :] == [[53, 52],
-                                         [49, 48]])
-            assert np.all(c[3, :, :] == [[5, 4],
-                                         [1, 0]])
+            assert np.all(c[:, :, 0] == [[23, 19],
+                                         [7, 3]])
+            assert np.all(c[:, :, 3] == [[20, 16],
+                                         [4, 0]])
 
         d = np.array(t.data[::-1])
-        if LEFT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
-            assert np.all(d[1, :, :] == [[32, 33],
-                                         [36, 37]])
-            assert np.all(d[2, :, :] == [[16, 17],
-                                         [20, 21]])
-        elif LEFT in glb_pos_map[y] and RIGHT in glb_pos_map[z]:
-            assert np.all(d[1, :, :] == [[34, 35],
-                                         [38, 39]])
-            assert np.all(d[2, :, :] == [[18, 19],
-                                         [22, 23]])
-        elif RIGHT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
-            assert np.all(d[1, :, :] == [[40, 41],
-                                         [44, 45]])
-            assert np.all(d[2, :, :] == [[24, 25],
-                                         [28, 29]])
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(d[:, :, 1] == [[49, 53],
+                                         [33, 37]])
+            assert np.all(d[:, :, 2] == [[50, 54],
+                                         [34, 38]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(d[:, :, 1] == [[57, 61],
+                                         [41, 45]])
+            assert np.all(d[:, :, 2] == [[58, 62],
+                                         [42, 46]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(d[:, :, 1] == [[17, 21],
+                                         [1, 5]])
+            assert np.all(d[:, :, 2] == [[18, 22],
+                                         [2, 6]])
         else:
-            assert np.all(d[1, :, :] == [[42, 43],
-                                         [46, 47]])
-            assert np.all(d[2, :, :] == [[26, 27],
-                                         [30, 31]])
+            assert np.all(d[:, :, 1] == [[25, 29],
+                                         [9, 13]])
+            assert np.all(d[:, :, 2] == [[26, 30],
+                                         [10, 14]])
 
         e = np.array(t.data[:, 3:2:-1])
-        if LEFT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert e.size == 0
-        elif LEFT in glb_pos_map[y] and RIGHT in glb_pos_map[z]:
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(e[:, :, 0] == [[12],
+                                         [28]])
+            assert np.all(e[:, :, 1] == [[13],
+                                         [29]])
+            assert np.all(e[:, :, 2] == [[14],
+                                         [30]])
+            assert np.all(e[:, :, 3] == [[15],
+                                         [31]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert e.size == 0
-        elif RIGHT in glb_pos_map[y] and LEFT in glb_pos_map[z]:
-            assert np.all(e[0] == [[12, 13]])
-            assert np.all(e[1] == [[28, 29]])
-            assert np.all(e[2] == [[44, 45]])
-            assert np.all(e[3] == [[60, 61]])
         else:
-            assert np.all(e[0] == [[14, 15]])
-            assert np.all(e[1] == [[30, 31]])
-            assert np.all(e[2] == [[46, 47]])
-            assert np.all(e[3] == [[62, 63]])
+            assert np.all(e[:, :, 0] == [[44],
+                                         [60]])
+            assert np.all(e[:, :, 1] == [[45],
+                                         [61]])
+            assert np.all(e[:, :, 2] == [[46],
+                                         [62]])
+            assert np.all(e[:, :, 3] == [[47],
+                                         [63]])
 
     @pytest.mark.parallel(mode=4)
     def test_niche_slicing(self):
@@ -915,72 +923,72 @@ class TestDataDistributed(object):
                                                [0, 0, 0, 0, 0, 0]])
 
         f.data[:] = 0
-        f.data[::2, ::2] = t.data[0, :, :]
+        f.data[::2, ::2] = t.data[:, :, 0]
         if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
-            assert np.all(np.array(f.data) == [[0, 0, 1, 0],
+            assert np.all(np.array(f.data) == [[0, 0, 4, 0],
                                                [0, 0, 0, 0],
-                                               [4, 0, 5, 0],
+                                               [16, 0, 20, 0],
                                                [0, 0, 0, 0]])
         elif LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0]:
-            assert np.all(np.array(f.data) == [[2, 0, 3, 0],
+            assert np.all(np.array(f.data) == [[8, 0, 12, 0],
                                                [0, 0, 0, 0],
-                                               [6, 0, 7, 0],
+                                               [24, 0, 28, 0],
                                                [0, 0, 0, 0]])
         elif RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
-            assert np.all(np.array(f.data) == [[8, 0, 9, 0],
+            assert np.all(np.array(f.data) == [[32, 0, 36, 0],
                                                [0, 0, 0, 0],
-                                               [12, 0, 13, 0],
+                                               [48, 0, 52, 0],
                                                [0, 0, 0, 0]])
         else:
-            assert np.all(np.array(f.data) == [[10, 0, 11, 0],
+            assert np.all(np.array(f.data) == [[40, 0, 44, 0],
                                                [0, 0, 0, 0],
-                                               [14, 0, 15, 0],
+                                               [56, 0, 60, 0],
                                                [0, 0, 0, 0]])
 
         f.data[:] = 0
-        f.data[1::2, 1::2] = t.data[0, :, :]
+        f.data[1::2, 1::2] = t.data[:, :, 0]
         if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
             assert np.all(np.array(f.data) == [[0, 0, 0, 0],
-                                               [0, 0, 0, 1],
+                                               [0, 0, 0, 4],
                                                [0, 0, 0, 0],
-                                               [0, 4, 0, 5]])
+                                               [0, 16, 0, 20]])
         elif LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0]:
             assert np.all(np.array(f.data) == [[0, 0, 0, 0],
-                                               [0, 2, 0, 3],
+                                               [0, 8, 0, 12],
                                                [0, 0, 0, 0],
-                                               [0, 6, 0, 7]])
+                                               [0, 24, 0, 28]])
         elif RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
             assert np.all(np.array(f.data) == [[0, 0, 0, 0],
-                                               [0, 8, 0, 9],
+                                               [0, 32, 0, 36],
                                                [0, 0, 0, 0],
-                                               [0, 12, 0, 13]])
+                                               [0, 48, 0, 52]])
         else:
             assert np.all(np.array(f.data) == [[0, 0, 0, 0],
-                                               [0, 10, 0, 11],
+                                               [0, 40, 0, 44],
                                                [0, 0, 0, 0],
-                                               [0, 14, 0, 15]])
+                                               [0, 56, 0, 60]])
 
         f.data[:] = 0
-        f.data[6::-2, 6::-2] = t.data[0, :, :]
+        f.data[6::-2, 6::-2] = t.data[:, :, 0]
         if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
-            assert np.all(np.array(f.data) == [[15, 0, 14, 0],
+            assert np.all(np.array(f.data) == [[60, 0, 56, 0],
                                                [0, 0, 0, 0],
-                                               [11, 0, 10, 0],
+                                               [44, 0, 40, 0],
                                                [0, 0, 0, 0]])
         elif LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0]:
-            assert np.all(np.array(f.data) == [[13, 0, 12, 0],
+            assert np.all(np.array(f.data) == [[52, 0, 48, 0],
                                                [0, 0, 0, 0],
-                                               [9, 0, 8, 0],
+                                               [36, 0, 32, 0],
                                                [0, 0, 0, 0]])
         elif RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
-            assert np.all(np.array(f.data) == [[7, 0, 6, 0],
+            assert np.all(np.array(f.data) == [[28, 0, 24, 0],
                                                [0, 0, 0, 0],
-                                               [3, 0, 2, 0],
+                                               [12, 0, 8, 0],
                                                [0, 0, 0, 0]])
         else:
-            assert np.all(np.array(f.data) == [[5, 0, 4, 0],
+            assert np.all(np.array(f.data) == [[20, 0, 16, 0],
                                                [0, 0, 0, 0],
-                                               [1, 0, 0, 0],
+                                               [4, 0, 0, 0],
                                                [0, 0, 0, 0]])
 
     @pytest.mark.parallel(mode=4)

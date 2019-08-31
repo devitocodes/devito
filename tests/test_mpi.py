@@ -23,7 +23,7 @@ class TestDistributor(object):
 
         distributor = grid.distributor
         expected = {  # nprocs -> [(rank0 shape), (rank1 shape), ...]
-            2: [(15, 8), (15, 7)],
+            2: [(8, 15), (7, 15)],
             4: [(8, 8), (8, 7), (7, 8), (7, 7)]
         }
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
@@ -37,7 +37,7 @@ class TestDistributor(object):
         x, y = grid.dimensions
 
         # A function with fewer dimensions that in `grid`
-        f = Function(name='f', grid=grid, dimensions=(y,), shape=(size_y,))
+        f = Function(name='f', grid=grid, dimensions=(x,), shape=(size_x,))
 
         distributor = grid.distributor
         expected = {  # nprocs -> [(rank0 shape), (rank1 shape), ...]
@@ -116,8 +116,8 @@ class TestDistributor(object):
         PN = MPI.PROC_NULL
         attrs = ['ll', 'lc', 'lr', 'cl', 'cc', 'cr', 'rl', 'rc', 'rr']
         expected = {  # nprocs -> [(rank0 xleft xright ...), (rank1 xleft ...), ...]
-            2: [(PN, PN, PN, PN, 0, 1, PN, PN, PN),
-                (PN, PN, PN, 0, 1, PN, PN, PN, PN)],
+            2: [(PN, PN, PN, PN, 0, PN, PN, 1, PN),
+                (PN, 0, PN, PN, 1, PN, PN, PN, PN)],
             4: [(PN, PN, PN, PN, 0, 1, PN, 2, 3),
                 (PN, PN, PN, 0, 1, PN, 2, 3, PN),
                 (PN, 0, 1, PN, 2, 3, PN, PN, PN),
@@ -135,27 +135,26 @@ class TestFunction(object):
     @pytest.mark.parallel(mode=2)
     def test_halo_exchange_bilateral(self):
         """
-        Test halo exchange between two processes organised in a 1x2 cartesian grid.
+        Test halo exchange between two processes organised in a 2x1 cartesian grid.
 
-        The initial ``data_with_inhalo`` looks like:
+        On the left, the initial ``data_with_inhalo``; on the right, the situation
+        after the halo exchange.
 
-               rank0           rank1
-            0 0 0 0 0 0     0 0 0 0 0 0
-            0 1 1 1 1 0     0 2 2 2 2 0
-            0 1 1 1 1 0     0 2 2 2 2 0
-            0 1 1 1 1 0     0 2 2 2 2 0
-            0 1 1 1 1 0     0 2 2 2 2 0
-            0 0 0 0 0 0     0 0 0 0 0 0
-
-        After the halo exchange, the following is expected and tested for:
-
-               rank0           rank1
-            0 0 0 0 0 0     0 0 0 0 0 0
-            0 1 1 1 1 2     1 2 2 2 2 0
-            0 1 1 1 1 2     1 2 2 2 2 0
-            0 1 1 1 1 2     1 2 2 2 2 0
-            0 1 1 1 1 2     1 2 2 2 2 0
-            0 0 0 0 0 0     0 0 0 0 0 0
+               rank0               rank0
+            0 0 0 0 0 0         0 0 0 0 0 0
+            0 1 1 1 1 0         0 1 1 1 1 0
+            0 1 1 1 1 0         0 1 1 1 1 0
+            0 1 1 1 1 0         0 1 1 1 1 0
+            0 1 1 1 1 0         0 1 1 1 1 0
+            0 0 0 0 0 0         0 2 2 2 2 0
+                         ---->
+               rank1               rank1
+            0 0 0 0 0 0         0 1 1 1 1 0
+            0 2 2 2 2 0         0 2 2 2 2 0
+            0 2 2 2 2 0         0 2 2 2 2 0
+            0 2 2 2 2 0         0 2 2 2 2 0
+            0 2 2 2 2 0         0 2 2 2 2 0
+            0 0 0 0 0 0         0 0 0 0 0 0
         """
         grid = Grid(shape=(12, 12))
         x, y = grid.dimensions
@@ -167,62 +166,65 @@ class TestFunction(object):
         f.data_with_halo   # noqa
 
         glb_pos_map = grid.distributor.glb_pos_map
-        if LEFT in glb_pos_map[y]:
-            assert np.all(f._data_ro_with_inhalo[1:-1, -1] == 2.)
-            assert np.all(f._data_ro_with_inhalo[:, 0] == 0.)
+        if LEFT in glb_pos_map[x]:
+            assert np.all(f.data_ro_domain[:] == 1.)
+            assert np.all(f._data_ro_with_inhalo[-1, 1:-1] == 2.)
+            assert np.all(f._data_ro_with_inhalo[0, :] == 0.)
         else:
-            assert np.all(f._data_ro_with_inhalo[1:-1, 0] == 1.)
-            assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
-        assert np.all(f._data_ro_with_inhalo[0] == 0.)
-        assert np.all(f._data_ro_with_inhalo[-1] == 0.)
+            assert np.all(f.data_ro_domain[:] == 2.)
+            assert np.all(f._data_ro_with_inhalo[0, 1:-1] == 1.)
+            assert np.all(f._data_ro_with_inhalo[-1, :] == 0.)
+        assert np.all(f._data_ro_with_inhalo[:, 0] == 0.)
+        assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
 
     @pytest.mark.parallel(mode=2)
     def test_halo_exchange_bilateral_asymmetric(self):
         """
-        Test halo exchange between two processes organised in a 1x2 cartesian grid.
+        Test halo exchange between two processes organised in a 2x1 cartesian grid.
 
-        In this test, the size of left and right halo regions are different.
+        In this test, the size of left and right halo regions have different size.
 
-        The initial ``data_with_inhalo`` looks like:
+        On the left, the initial ``data_with_inhalo``; on the right, the situation
+        after the halo exchange.
 
-               rank0           rank1
-            0 0 0 0 0 0 0     0 0 0 0 0 0 0
-            0 0 0 0 0 0 0     0 0 0 0 0 0 0
-            0 0 1 1 1 1 0     0 0 2 2 2 2 0
-            0 0 1 1 1 1 0     0 0 2 2 2 2 0
-            0 0 1 1 1 1 0     0 0 2 2 2 2 0
-            0 0 1 1 1 1 0     0 0 2 2 2 2 0
-            0 0 0 0 0 0 0     0 0 0 0 0 0 0
-
-        After the halo exchange, the following is expected and tested for:
-
-               rank0           rank1
-            0 0 0 0 0 0 0     0 0 0 0 0 0 0
-            0 0 0 0 0 0 0     0 0 0 0 0 0 0
-            0 0 1 1 1 1 2     1 1 2 2 2 2 0
-            0 0 1 1 1 1 2     1 1 2 2 2 2 0
-            0 0 1 1 1 1 2     1 1 2 2 2 2 0
-            0 0 1 1 1 1 2     1 1 2 2 2 2 0
-            0 0 0 0 0 0 0     0 0 0 0 0 0 0
+                rank0                 rank0
+            0 0 0 0 0 0 0         0 0 0 0 0 0 0
+            0 1 1 1 1 0 0         0 1 1 1 1 0 0
+            0 1 1 1 1 0 0         0 1 1 1 1 0 0
+            0 1 1 1 1 0 0         0 1 1 1 1 0 0
+            0 1 1 1 1 0 0         0 1 1 1 1 0 0
+            0 0 0 0 0 0 0         0 2 2 2 2 0 0
+            0 0 0 0 0 0 0         0 2 2 2 2 0 0
+                           ---->
+                rank1                 rank1
+            0 0 0 0 0 0 0         0 1 1 1 1 0 0
+            0 2 2 2 2 0 0         0 2 2 2 2 0 0
+            0 2 2 2 2 0 0         0 2 2 2 2 0 0
+            0 2 2 2 2 0 0         0 2 2 2 2 0 0
+            0 2 2 2 2 0 0         0 2 2 2 2 0 0
+            0 0 0 0 0 0 0         0 0 0 0 0 0 0
+            0 0 0 0 0 0 0         0 0 0 0 0 0 0
         """
         grid = Grid(shape=(12, 12))
         x, y = grid.dimensions
 
-        f = Function(name='f', grid=grid, space_order=(1, 2, 1))
+        f = Function(name='f', grid=grid, space_order=(1, 1, 2))
         f.data[:] = grid.distributor.myrank + 1
 
         # Now trigger a halo exchange...
         f.data_with_halo   # noqa
 
         glb_pos_map = grid.distributor.glb_pos_map
-        if LEFT in glb_pos_map[y]:
-            assert np.all(f._data_ro_with_inhalo[2:-1, -1] == 2.)
-            assert np.all(f._data_ro_with_inhalo[:, 0:2] == 0.)
+        if LEFT in glb_pos_map[x]:
+            assert np.all(f.data_ro_domain[:] == 1.)
+            assert np.all(f._data_ro_with_inhalo[-2:, 1:-2] == 2.)
+            assert np.all(f._data_ro_with_inhalo[0:1, :] == 0.)
         else:
-            assert np.all(f._data_ro_with_inhalo[2:-1, 0:2] == 1.)
-            assert np.all(f._data_ro_with_inhalo[:, -1] == 0.)
-        assert np.all(f._data_ro_with_inhalo[0:2] == 0.)
-        assert np.all(f._data_ro_with_inhalo[-1] == 0.)
+            assert np.all(f.data_ro_domain[:] == 2.)
+            assert np.all(f._data_ro_with_inhalo[:1, 1:-2] == 1.)
+            assert np.all(f._data_ro_with_inhalo[-2:, :] == 0.)
+        assert np.all(f._data_ro_with_inhalo[:, :1] == 0.)
+        assert np.all(f._data_ro_with_inhalo[:, -2:] == 0.)
 
     @pytest.mark.parallel(mode=4)
     def test_halo_exchange_quadrilateral(self):
@@ -1481,9 +1483,9 @@ class TestIsotropicAcoustic(object):
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, ), 'OT2', 4, 10, False, 385.853, 12937.250, 63818503.321, 101159204.362),
-        ((60, 70), 'OT2', 8, 10, False, 351.217, 867.420, 405805.482, 239444.952),
-        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
+        ((60, ), 'OT2', 4, 10, False, 385.627, 12993.527, 63818503.321, 101159204.362),
+        ((60, 70), 'OT2', 8, 10, False, 342.925, 867.47, 405805.482, 239444.952),
+        ((60, 70, 80), 'OT2', 12, 10, False, 151.6396, 205.9027, 27484.635, 11736.917)
     ])
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag', True), (4, 'overlap', True),
                                 (4, 'overlap2', True), (4, 'full', True)])
@@ -1492,7 +1494,7 @@ class TestIsotropicAcoustic(object):
         self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, 70, 80), 'OT2', 12, 10, False, 153.122, 205.902, 27484.635, 11736.917)
+        ((60, 70, 80), 'OT2', 12, 10, False, 151.6396, 205.9027, 27484.635, 11736.917)
     ])
     @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
     @switchconfig(openmp=False)

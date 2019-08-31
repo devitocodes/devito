@@ -1,9 +1,11 @@
 import os
 
 import numpy as np
+from sympy import sin, Abs
 
 from examples.seismic.utils import scipy_smooth
-from devito import Grid, SubDomain, Function, Constant, warning, mmax
+from devito import (Grid, SubDomain, Function, Constant, mmax,
+                    SubDimension, Eq, Inc, Operator, switchconfig)
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
@@ -419,6 +421,7 @@ def demo_model(preset, **kwargs):
         raise ValueError("Unknown model preset name")
 
 
+@switchconfig(log_level='ERROR')
 def initialize_damp(damp, nbpml, spacing, mask=False):
     """
     Initialise damping field with an absorbing PML layer.
@@ -436,31 +439,31 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
-    shape = tuple(i + 2*nbpml for i in damp.grid.subdomains['phydomain'].shape)
-    data = np.ones(shape) if mask else np.zeros(shape)
+    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40)
 
-    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
+    eqs = [Eq(damp, 1.0)] if mask else []
+    for d in damp.dimensions:
+        # left
+        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
+                                  thickness=nbpml)
+        pos = Abs((nbpml - (dim_l - d.symbolic_min) + 1) / float(nbpml))
+        val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
+        val = -val if mask else val
+        eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
+        # right
+        dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
+                                   thickness=nbpml)
+        pos = Abs((nbpml - (d.symbolic_max - dim_r) + 1) / float(nbpml))
+        val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
+        val = -val if mask else val
+        eqs += [Inc(damp.subs({d: dim_r}), val/d.spacing)]
 
-    for i in range(damp.ndim):
-        for j in range(nbpml):
-            # Dampening coefficient
-            pos = np.abs((nbpml - j + 1) / float(nbpml))
-            val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-            if mask:
-                val = -val
-            # : slices
-            all_ind = [slice(0, d) for d in data.shape]
-            # Left slice for dampening for dimension i
-            all_ind[i] = slice(j, j+1)
-            data[tuple(all_ind)] += val/spacing[i]
-            # right slice for dampening for dimension i
-            all_ind[i] = slice(data.shape[i]-j, data.shape[i]-j+1)
-            data[tuple(all_ind)] += val/spacing[i]
-
-    damp.data[:] = data
+    # TODO: Figure out why yask doesn't like it with dse/dle
+    Operator(eqs, name='initdamp', dse='noop', dle='noop')()
 
 
-def initialize_function(function, data, nbpml, pad_mode='edge'):
+@switchconfig(log_level='ERROR')
+def initialize_function(function, data, nbpml):
     """
     Initialize a `Function` with the given ``data``. ``data``
     does *not* include the PML layers for the absorbing boundary conditions;
@@ -474,12 +477,23 @@ def initialize_function(function, data, nbpml, pad_mode='edge'):
         The data array used for initialisation.
     nbpml : int
         Number of PML layers for boundary damping.
-    pad_mode : str or callable, optional
-        A string or a suitable padding function as explained in :func:`numpy.pad`.
     """
-    pad_widths = [(nbpml + i.left, nbpml + i.right) for i in function._size_halo]
-    data = np.pad(data, pad_widths, pad_mode)
-    function.data_with_halo[:] = data
+    slices = tuple([slice(nbpml, -nbpml) for _ in range(function.grid.dim)])
+    function.data[slices] = data
+    eqs = []
+
+    for d in function.dimensions:
+        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
+                                  thickness=nbpml)
+        to_copy = nbpml
+        eqs += [Eq(function.subs({d: dim_l}), function.subs({d: to_copy}))]
+        dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
+                                   thickness=nbpml)
+        to_copy = d.symbolic_max - nbpml
+        eqs += [Eq(function.subs({d: dim_r}), function.subs({d: to_copy}))]
+
+    # TODO: Figure out why yask doesn't like it with dse/dle
+    Operator(eqs, name='padfunc', dse='noop', dle='noop')()
 
 
 class PhysicalDomain(SubDomain):
@@ -499,7 +513,7 @@ class GenericModel(object):
     General model class with common properties
     """
     def __init__(self, origin, spacing, shape, space_order, nbpml=20,
-                 dtype=np.float32, subdomains=()):
+                 dtype=np.float32, subdomains=(), damp_mask=False):
         self.shape = shape
         self.nbpml = int(nbpml)
         self.origin = tuple([dtype(o) for o in origin])
@@ -514,6 +528,10 @@ class GenericModel(object):
         extent = tuple(np.array(spacing) * (shape_pml - 1))
         self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml, dtype=dtype,
                          subdomains=subdomains)
+
+        # Create dampening field as symbol `damp`
+        self.damp = Function(name="damp", grid=self.grid)
+        initialize_damp(self.damp, self.nbpml, self.spacing, mask=damp_mask)
 
     def physical_params(self, **kwargs):
         """
@@ -564,6 +582,16 @@ class GenericModel(object):
         """
         return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 
+    def _gen_phys_param(self, field, name, space_order, default_value=0):
+        if field is None:
+            return default_value
+        if isinstance(field, np.ndarray):
+            function = Function(name=name, grid=self.grid, space_order=space_order)
+            initialize_function(function, field, self.nbpml)
+        else:
+            function = Constant(name=name, value=field)
+        return function
+
 
 class Model(GenericModel):
     """
@@ -611,68 +639,29 @@ class Model(GenericModel):
         physical_parameters = []
 
         # Create square slowness of the wave as symbol `m`
-        if isinstance(vp, np.ndarray):
-            self._vp = Function(name="vp", grid=self.grid, space_order=space_order)
-            initialize_function(self._vp, vp, self.nbpml)
-        else:
-            self._vp = Constant(name="vp", value=vp)
-        self._physical_parameters = ('vp',)
+        self._vp = self._gen_phys_param(vp, 'vp', space_order)
+        physical_parameters.append('vp')
         self._max_vp = np.max(vp)
 
-        # Create dampening field as symbol `damp`
-        self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbpml, self.spacing)
-
         # Additional parameter fields for TTI operators
-        self.scale = 1.
-
-        if epsilon is not None:
-            if isinstance(epsilon, np.ndarray):
-                physical_parameters.append('epsilon')
-                self.epsilon = Function(name="epsilon", grid=self.grid)
-                initialize_function(self.epsilon, 1 + 2 * epsilon, self.nbpml)
-                # Maximum velocity is scale*max(vp) if epsilon > 0
-                if mmax(self.epsilon) > 0:
-                    self.scale = np.sqrt(mmax(self.epsilon))
-            else:
-                self.epsilon = 1 + 2 * epsilon
-                self.scale = epsilon
+        self.epsilon = self._gen_phys_param(epsilon, 'epsilon', space_order)
+        if self.epsilon != 0:
+            physical_parameters.append('epsilon')
+            self.scale = np.sqrt(1 + 2 * np.max(epsilon))
         else:
-            self.epsilon = 1
+            self.scale = 1
 
-        if delta is not None:
-            if isinstance(delta, np.ndarray):
-                physical_parameters.append('delta')
-                self.delta = Function(name="delta", grid=self.grid)
-                initialize_function(self.delta, np.sqrt(1 + 2 * delta), self.nbpml)
-            else:
-                self.delta = delta
-        else:
-            self.delta = 1
+        self.delta = self._gen_phys_param(delta, 'delta', space_order)
+        if self.delta != 0:
+            physical_parameters.append('delta')
 
-        if theta is not None:
-            if isinstance(theta, np.ndarray):
-                physical_parameters.append('theta')
-                self.theta = Function(name="theta", grid=self.grid,
-                                      space_order=space_order)
-                initialize_function(self.theta, theta, self.nbpml)
-            else:
-                self.theta = theta
-        else:
-            self.theta = 0
+        self.theta = self._gen_phys_param(theta, 'theta', space_order)
+        if self.theta != 0:
+            physical_parameters.append('theta')
 
-        if phi is not None:
-            if self.grid.dim < 3:
-                warning("2D TTI does not use an azimuth angle Phi, ignoring input")
-                self.phi = 0
-            elif isinstance(phi, np.ndarray):
-                physical_parameters.append('phi')
-                self.phi = Function(name="phi", grid=self.grid, space_order=space_order)
-                initialize_function(self.phi, phi, self.nbpml)
-            else:
-                self.phi = phi
-        else:
-            self.phi = 0
+        self.phi = self._gen_phys_param(phi, 'phi', space_order)
+        if self.phi != 0 and self.grid.dim == 3:
+            physical_parameters.append('phi')
 
         self._physical_parameters = as_tuple(physical_parameters)
 
@@ -764,11 +753,8 @@ class ModelElastic(GenericModel):
     def __init__(self, origin, spacing, shape, space_order, vp, vs, rho, nbpml=20,
                  dtype=np.float32):
         super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
-                                           nbpml=nbpml, dtype=dtype)
-
-        # Create dampening field as symbol `damp`
-        self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbpml, self.spacing, mask=True)
+                                           nbpml=nbpml, dtype=dtype,
+                                           damp_mask=True)
 
         physical_parameters = []
 
@@ -782,14 +768,6 @@ class ModelElastic(GenericModel):
         physical_parameters.append('rho')
 
         self._physical_parameters = as_tuple(physical_parameters)
-
-    def _gen_phys_param(self, field, name, space_order):
-        if isinstance(field, np.ndarray):
-            function = Function(name=name, grid=self.grid, space_order=space_order)
-            initialize_function(function, field, self.nbpml)
-        else:
-            function = Constant(name=name, value=field)
-        return function
 
     @property
     def critical_dt(self):

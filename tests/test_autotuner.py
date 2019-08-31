@@ -219,7 +219,7 @@ def test_at_w_mpi():
     f = TimeFunction(name='f', grid=grid, time_order=1)
     f.data_with_halo[:] = 1.
 
-    eq = Eq(f.forward, f[t, x, y-1] + f[t, x, y+1])
+    eq = Eq(f.forward, f[t, x-1, y] + f[t, x+1, y])
     op = Operator(eq, dle=('advanced', {'openmp': False, 'blockinner': True}))
 
     op.apply(time=-1, autotune=('basic', 'runtime'))
@@ -235,22 +235,22 @@ def test_at_w_mpi():
 
     # Check the halo hasn't been touched during AT
     glb_pos_map = grid.distributor.glb_pos_map
-    if LEFT in glb_pos_map[y]:
-        assert np.all(f._data_ro_with_inhalo[:, :, -1] == 1)
+    if LEFT in glb_pos_map[x]:
+        assert np.all(f._data_ro_with_inhalo[:, -1] == 1)
     else:
-        assert np.all(f._data_ro_with_inhalo[:, :, 0] == 1)
+        assert np.all(f._data_ro_with_inhalo[:, 0] == 1)
 
     # Finally, try running w/o AT, just to be sure nothing was broken
     f.data_with_halo[:] = 1.
     op.apply(time=2)
-    if LEFT in glb_pos_map[y]:
-        assert np.all(f.data_ro_domain[1, :, 0] == 5.)
-        assert np.all(f.data_ro_domain[1, :, 1] == 7.)
-        assert np.all(f.data_ro_domain[1, :, 2:4] == 8.)
+    if LEFT in glb_pos_map[x]:
+        assert np.all(f.data_ro_domain[1, 0] == 5.)
+        assert np.all(f.data_ro_domain[1, 1] == 7.)
+        assert np.all(f.data_ro_domain[1, 2:4] == 8.)
     else:
-        assert np.all(f.data_ro_domain[1, :, 4:6] == 8)
-        assert np.all(f.data_ro_domain[1, :, 6] == 7)
-        assert np.all(f.data_ro_domain[1, :, 7] == 5)
+        assert np.all(f.data_ro_domain[1, 4:6] == 8)
+        assert np.all(f.data_ro_domain[1, 6] == 7)
+        assert np.all(f.data_ro_domain[1, 7] == 5)
 
 
 def test_multiple_blocking():

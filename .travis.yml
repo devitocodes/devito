@@ -112,10 +112,8 @@ before_script:
 
 script:
   - flake8 --builtins=ArgumentError .
-  # Run tests with pip
-  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py test; fi
   # Run test with py.tests
-  - if [[ $INSTALL_TYPE == 'conda' ]]; then py.test --durations=20 --cov devito tests/; fi
+  - py.test --durations=20 --cov --maxfail=5 --cov devito tests/
   # Run remaining specialized examples and tests
   # Additional seismic operator tests
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py test -P tti -so 4 -d 20 20 20 -n 5; fi
