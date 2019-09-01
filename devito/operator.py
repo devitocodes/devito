@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from functools import reduce
 from operator import mul
+from math import ceil
 
 from cached_property import cached_property
 import ctypes
@@ -15,6 +16,7 @@ from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, MetaCall, iet_build, iet_insert_decls,
                            iet_insert_casts, derive_parameters)
 from devito.ir.stree import st_build
+from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify
@@ -194,6 +196,9 @@ class Operator(Callable):
 
     # Read-only fields exposed to the outside world
 
+    def __call__(self, **kwargs):
+        self.apply(**kwargs)
+
     @cached_property
     def output(self):
         return tuple(self._output)
@@ -211,11 +216,11 @@ class Operator(Callable):
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
 
+    # Compilation
+
     def _initialize_state(self, **kwargs):
         return {'optimizations': {k: kwargs.get(k, configuration[k])
                                   for k in ('dse', 'dle')}}
-
-    # Compilation
 
     def _add_implicit(self, expressions):
         """
@@ -335,7 +340,7 @@ class Operator(Callable):
         args = args.reduce_all()
 
         # All DiscreteFunctions should be defined on the same Grid
-        grids = {getattr(p, 'grid', None) for p in self.input} - {None}
+        grids = {getattr(p, 'grid', None) for p in overrides + defaults} - {None}
         if len(grids) > 1 and configuration['mpi']:
             raise ValueError("Multiple Grids found")
         try:
@@ -387,6 +392,9 @@ class Operator(Callable):
             for k, v in kwargs.items():
                 if k not in self._known_arguments:
                     raise ValueError("Unrecognized argument %s=%s" % (k, v))
+
+        # Attach `grid` to the arguments map
+        args = ArgumentsMap(grid, **args)
 
         return args
 
@@ -516,7 +524,9 @@ class Operator(Callable):
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
         try:
-            self.cfunction(*arg_values)
+            cfunction = self.cfunction
+            with self._profiler.timer_on('apply', comm=args.comm):
+                cfunction(*arg_values)
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
@@ -536,24 +546,56 @@ class Operator(Callable):
 
     def _profile_output(self, args):
         """Produce a performance summary of the profiled sections."""
-        summary = self._profiler.summary(args, self._dtype)
-        info("Operator `%s` run in %.2f s" % (self.name, sum(summary.timings.values())))
+        # Rounder to 2 decimal places
+        fround = lambda i: ceil(i * 100) / 100
+
+        info("Operator `%s` run in %.2f s" % (self.name,
+                                              fround(self._profiler.py_timers['apply'])))
+
+        summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
+
+        # With MPI enabled, emit global, i.e. "cross-rank" performance.
+        v = summary.reduced
+        if v is not None:
+            perf("Global \"cross-rank\" performance")
+            indent = " "*2
+            gflopss = "%.2f GFlops/s" % fround(v.gflopss)
+            gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
+            metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
+            perf("%s* Operator `%s` with OI=%.2f computed in %.2f s [%s]" %
+                 (indent, self.name, fround(v.oi), fround(v.time), metrics))
+
+            perf("Local \"per-rank\" and \"by-section\" performance")
+        else:
+            indent = ""
+
+        # Emit local, i.e. "per-rank" performance. Without MPI, this is the only
+        # thing that will be emitted
         for k, v in summary.items():
+            rank = "[rank%d]" % k.rank if k.rank is not None else ""
+            gflopss = "%.2f GFlops/s" % fround(v.gflopss)
+            gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
+            metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
-                name = "%s<%s>" % (k, ",".join("<%s>" % i for i in itershapes))
+                name = "%s%s<%s>" % (k.name, rank,
+                                     ",".join("<%s>" % i for i in itershapes))
+                perf("%s* %s with OI=%.2f computed in %.2f s [%s]" %
+                     (indent, name, fround(v.oi), fround(v.time), metrics))
             elif len(itershapes) == 1:
-                name = "%s<%s>" % (k, itershapes[0])
+                name = "%s%s<%s>" % (k.name, rank, itershapes[0])
+                perf("%s* %s with OI=%.2f computed in %.2f s [%s]" %
+                     (indent, name, fround(v.oi), fround(v.time), metrics))
             else:
-                name = None
-            gpointss = ", %.2f GPts/s" % v.gpointss if v.gpointss else ''
-            perf("* %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
-                 (name, v.oi, v.time, v.gflopss, gpointss))
+                name = k.name
+                perf("%s* %s%s computed in %.2f s"
+                     % (indent, name, rank, fround(v.time)))
 
-        perf("* %s configuration:  %s " %
-             (self.name, self._state['optimizations']))
+        perf("Configuration:  %s" % self._state['optimizations'])
 
         return summary
+
+    # Misc properties
 
     @cached_property
     def _mem_summary(self):
@@ -582,9 +624,6 @@ class Operator(Callable):
         summary['total'] = external + heap + stack
 
         return summary
-
-    def __call__(self, **kwargs):
-        self.apply(**kwargs)
 
     # Pickling support
 
@@ -636,6 +675,18 @@ class Operator(Callable):
 
 
 # Misc helpers
+
+
+class ArgumentsMap(dict):
+
+    def __init__(self, grid, *args, **kwargs):
+        super(ArgumentsMap, self).__init__(*args, **kwargs)
+        self.grid = grid
+
+    @property
+    def comm(self):
+        """The MPI communicator the arguments are collective over."""
+        return self.grid.comm if self.grid is not None else MPI.COMM_NULL
 
 
 def set_dse_mode(mode):

@@ -149,8 +149,12 @@ class OperatorYASK(Operator):
 
         for i in self.yk_solns.values():
             i.pre_apply(toshare)
+
         arg_values = [args[p.name] for p in self.parameters]
-        self.cfunction(*arg_values)
+        cfunction = self.cfunction
+        with self._profiler.timer_on('apply', comm=args.comm):
+            cfunction(*arg_values)
+
         for i in self.yk_solns.values():
             i.post_apply()
 

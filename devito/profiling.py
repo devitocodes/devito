@@ -1,8 +1,10 @@
 from collections import OrderedDict, namedtuple
+from contextlib import contextmanager
 from ctypes import c_double
 from functools import reduce
 from operator import mul
 from pathlib import Path
+from time import time as seq_time
 import os
 
 from cached_property import cached_property
@@ -11,6 +13,7 @@ from devito.ir.iet import (Call, ExpressionBundle, List, TimedList, Section,
                            FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
 from devito.logger import warning
+from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import estimate_cost
 from devito.tools import flatten
@@ -25,9 +28,17 @@ class Profiler(object):
     _default_libs = []
     _ext_calls = []
 
+    SectionData = namedtuple('SectionData', 'ops sops points traffic itermaps')
+    """Metadata for a profiled code section."""
+
     def __init__(self, name):
         self.name = name
+
+        # C-level code sections
         self._sections = OrderedDict()
+
+        # Python-level timers
+        self.py_timers = OrderedDict()
 
         self.initialized = True
 
@@ -56,7 +67,7 @@ class Profiler(object):
             traffic = sum(i.size for i in traffic)
 
             # Each ExpressionBundle lives in its own iteration space
-            itershapes = [i.shape for i in bundles]
+            itermaps = [i.ispace.dimension_map for i in bundles]
 
             # Track how many grid points are written within `section`
             points = []
@@ -66,7 +77,8 @@ class Profiler(object):
                 points.append(reduce(mul, i.shape)*len(writes))
             points = sum(points)
 
-            self._sections[section] = SectionData(ops, sops, points, traffic, itershapes)
+            self._sections[section] = self.SectionData(ops, sops, points,
+                                                       traffic, itermaps)
 
         # Transform the Iteration/Expression tree introducing the C-level timers
         mapper = {i: TimedList(timer=self.timer, lname=i.name, body=i) for i in sections}
@@ -74,7 +86,32 @@ class Profiler(object):
 
         return iet
 
-    def summary(self, arguments, dtype):
+    @contextmanager
+    def timer_on(self, name, comm=None):
+        """
+        Measure the execution time of a Python-level code region.
+
+        Parameters
+        ----------
+        name : str
+            A representative string for the timed region.
+        comm : MPI communicator, optional
+            If provided, the global execution time is derived by a single MPI
+            rank, with timers started and stopped right after an MPI barrier.
+        """
+        if comm is not MPI.COMM_NULL:
+            comm.Barrier()
+            tic = MPI.Wtime()
+            yield
+            comm.Barrier()
+            toc = MPI.Wtime()
+        else:
+            tic = seq_time()
+            yield
+            toc = seq_time()
+        self.py_timers[name] = toc - tic
+
+    def summary(self, arguments, dtype, reduce_over=None):
         """
         Return a PerformanceSummary of the profiled sections.
 
@@ -83,18 +120,28 @@ class Profiler(object):
         arguments : dict
             A mapper from argument names to run-time values from which the Profiler
             infers iteration space and execution times of a run.
-        dtype : data-type, optional
+        dtype : data-type
             The data type of the objects in the profiled sections. Used to compute
             the operational intensity.
         """
+        comm = arguments.comm
+
         summary = PerformanceSummary()
         for section, data in self._sections.items():
-            # Time to run the section
-            time = max(getattr(arguments[self.name]._obj, section.name), 10e-7)
+            name = section.name
 
-            # In basic mode only return runtime. Other arguments are filled with
-            # dummy values.
-            summary.add(section.name, time, float(), float(), float(), int(), [])
+            # Time to run the section
+            time = max(getattr(arguments[self.name]._obj, name), 10e-7)
+
+            # Add performance data
+            if comm is not MPI.COMM_NULL:
+                # With MPI enabled, we add one entry per section per rank
+                times = comm.allgather(time)
+                assert comm.size == len(times)
+                for rank in range(comm.size):
+                    summary.add(name, rank, times[rank])
+            else:
+                summary.add(name, None, time)
 
         return summary
 
@@ -106,12 +153,15 @@ class Profiler(object):
 class AdvancedProfiler(Profiler):
 
     # Override basic summary so that arguments other than runtime are computed.
-    def summary(self, arguments, dtype):
+    def summary(self, arguments, dtype, reduce_over=None):
+        comm = arguments.comm
 
         summary = PerformanceSummary()
         for section, data in self._sections.items():
+            name = section.name
+
             # Time to run the section
-            time = max(getattr(arguments[self.name]._obj, section.name), 10e-7)
+            time = max(getattr(arguments[self.name]._obj, name), 10e-7)
 
             # Number of FLOPs performed
             ops = data.ops.subs(arguments)
@@ -122,23 +172,29 @@ class AdvancedProfiler(Profiler):
             # Compulsory traffic
             traffic = float(data.traffic.subs(arguments)*dtype().itemsize)
 
-            # Runtime itershapes
-            itershapes = [tuple(i.subs(arguments) for i in j) for j in data.itershapes]
+            # Runtime itermaps/itershapes
+            itermaps = [OrderedDict([(k, v.subs(arguments)) for k, v in i.items()])
+                        for i in data.itermaps]
+            itershapes = tuple(tuple(i.values()) for i in itermaps)
 
-            # Do not show unexecuted Sections (i.e., because the loop trip count was 0)
-            if ops == 0 or traffic == 0:
-                continue
+            # Add performance data
+            if comm is not MPI.COMM_NULL:
+                # With MPI enabled, we add one entry per section per rank
+                times = comm.allgather(time)
+                assert comm.size == len(times)
+                opss = comm.allgather(ops)
+                pointss = comm.allgather(points)
+                traffics = comm.allgather(traffic)
+                sops = [data.sops]*comm.size
+                itershapess = comm.allgather(itershapes)
+                items = list(zip(times, opss, pointss, traffics, sops, itershapess))
+                for rank in range(comm.size):
+                    summary.add(name, rank, *items[rank])
+            else:
+                summary.add(name, None, time, ops, points, traffic, data.sops, itershapes)
 
-            # Derived metrics
-            # Note: some casts to `float` are simply to turn `sympy.Float` into `float`
-            gflops = float(ops)/10**9
-            gpoints = float(points)/10**9
-            gflopss = gflops/time
-            gpointss = gpoints/time
-            oi = float(ops/traffic)
-
-            # Keep track of performance achieved
-            summary.add(section.name, time, gflopss, gpointss, oi, data.sops, itershapes)
+        if comm is not MPI.COMM_NULL and reduce_over is not None:
+            summary.reduce(self.py_timers[reduce_over])
 
         return summary
 
@@ -206,12 +262,63 @@ class Timer(CompositeObject):
 
 class PerformanceSummary(OrderedDict):
 
-    """
-    A special dictionary to track and quickly access performance data.
-    """
+    PerfKey = namedtuple('PerfKey', 'name rank')
+    PerfInput = namedtuple('PerfInput', 'time ops points traffic sops itershapes')
+    PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
 
-    def add(self, key, time, gflopss, gpointss, oi, ops, itershapes):
-        self[key] = PerfEntry(time, gflopss, gpointss, oi, ops, itershapes)
+    def __init__(self, *args, **kwargs):
+        super(PerformanceSummary, self).__init__(*args, **kwargs)
+        self.input = OrderedDict()
+        self.reduced = None
+
+    def add(self, name, rank, time,
+            ops=None, points=None, traffic=None, sops=None, itershapes=None):
+        """
+        Add performance data for a given code section. With MPI enabled, the
+        performance data is local, that is "per-rank".
+        """
+        # Do not show unexecuted Sections (i.e., loop trip count was 0)
+        if ops == 0 or traffic == 0:
+            return
+
+        k = self.PerfKey(name, rank)
+
+        if ops is None:
+            self[k] = self.PerfEntry(time, 0.0, 0.0, 0.0, 0, [])
+        else:
+            gflops = float(ops)/10**9
+            gpoints = float(points)/10**9
+            gflopss = gflops/time
+            gpointss = gpoints/time
+            oi = float(ops/traffic)
+            self[k] = self.PerfEntry(time, gflopss, gpointss, oi, sops, itershapes)
+
+        self.input[k] = self.PerfInput(time, ops, points, traffic, sops, itershapes)
+
+    def reduce(self, time):
+        """
+        Reduce the following performance data:
+
+            * ops
+            * points
+            * traffic
+
+        over a global "wrapping" timer.
+        """
+        if not self.input:
+            return
+
+        ops = sum(v.ops for v in self.input.values())
+        points = sum(v.points for v in self.input.values())
+        traffic = sum(v.traffic for v in self.input.values())
+
+        gflops = float(ops)/10**9
+        gpoints = float(points)/10**9
+        gflopss = gflops/time
+        gpointss = gpoints/time
+        oi = float(ops/traffic)
+
+        self.reduced = self.PerfEntry(time, gflopss, gpointss, oi, None, None)
 
     @property
     def gflopss(self):
@@ -224,14 +331,6 @@ class PerformanceSummary(OrderedDict):
     @property
     def timings(self):
         return OrderedDict([(k, v.time) for k, v in self.items()])
-
-
-SectionData = namedtuple('SectionData', 'ops sops points traffic itershapes')
-"""Metadata for a profiled code section."""
-
-
-PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
-"""Runtime profiling data for a Section."""
 
 
 def create_profile(name):

@@ -76,10 +76,6 @@ class Cluster(object):
         return self.ispace.itintervals
 
     @property
-    def shape(self):
-        return self.ispace.shape
-
-    @property
     def dspace(self):
         return self._dspace
 

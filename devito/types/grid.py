@@ -240,6 +240,11 @@ class Grid(ArgProvider):
         """The Distributor used for domain decomposition."""
         return self._distributor
 
+    @property
+    def comm(self):
+        """The MPI communicator used for domain decomposition."""
+        return self._distributor.comm
+
     def is_distributed(self, dim):
         """True if ``dim`` is a distributed Dimension, False otherwise."""
         return any(dim is d for d in self.distributor.dimensions)
