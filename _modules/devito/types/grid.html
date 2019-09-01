@@ -395,6 +395,11 @@
         <span class="sd">&quot;&quot;&quot;The Distributor used for domain decomposition.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">comm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The MPI communicator used for domain decomposition.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">comm</span>
+
 <div class="viewcode-block" id="Grid.is_distributed"><a class="viewcode-back" href="../../../grid.html#devito.types.Grid.is_distributed">[docs]</a>    <span class="k">def</span> <span class="nf">is_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;True if ``dim`` is a distributed Dimension, False otherwise.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">dim</span> <span class="ow">is</span> <span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span></div>

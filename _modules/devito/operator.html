@@ -156,6 +156,7 @@
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="k">import</span> <span class="n">ceil</span>
 
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 <span class="kn">import</span> <span class="nn">ctypes</span>
@@ -170,6 +171,7 @@
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Callable</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">,</span> <span class="n">iet_insert_decls</span><span class="p">,</span>
                            <span class="n">iet_insert_casts</span><span class="p">,</span> <span class="n">derive_parameters</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.ir.stree</span> <span class="k">import</span> <span class="n">st_build</span>
+<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">MPI</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">indexify</span>
@@ -349,6 +351,9 @@
 
     <span class="c1"># Read-only fields exposed to the outside world</span>
 
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">output</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_output</span><span class="p">)</span>
@@ -366,11 +371,11 @@
     <span class="k">def</span> <span class="nf">objects</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Object</span><span class="p">)</span>
 
+    <span class="c1"># Compilation</span>
+
     <span class="k">def</span> <span class="nf">_initialize_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;optimizations&#39;</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
                                   <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;dse&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">)}}</span>
-
-    <span class="c1"># Compilation</span>
 
     <span class="k">def</span> <span class="nf">_add_implicit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expressions</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -490,7 +495,7 @@
         <span class="n">args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">reduce_all</span><span class="p">()</span>
 
         <span class="c1"># All DiscreteFunctions should be defined on the same Grid</span>
-        <span class="n">grids</span> <span class="o">=</span> <span class="p">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span><span class="p">}</span> <span class="o">-</span> <span class="p">{</span><span class="kc">None</span><span class="p">}</span>
+        <span class="n">grids</span> <span class="o">=</span> <span class="p">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">overrides</span> <span class="o">+</span> <span class="n">defaults</span><span class="p">}</span> <span class="o">-</span> <span class="p">{</span><span class="kc">None</span><span class="p">}</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">grids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Multiple Grids found&quot;</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
@@ -542,6 +547,9 @@
             <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_known_arguments</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unrecognized argument </span><span class="si">%s</span><span class="s2">=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+
+        <span class="c1"># Attach `grid` to the arguments map</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">ArgumentsMap</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">args</span>
 
@@ -671,7 +679,9 @@
         <span class="c1"># Invoke kernel function with args</span>
         <span class="n">arg_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">args</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">]</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="n">arg_values</span><span class="p">)</span>
+            <span class="n">cfunction</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">timer_on</span><span class="p">(</span><span class="s1">&#39;apply&#39;</span><span class="p">,</span> <span class="n">comm</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">comm</span><span class="p">):</span>
+                <span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="n">arg_values</span><span class="p">)</span>
         <span class="k">except</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">ArgumentError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;argument &quot;</span><span class="p">):</span>
                 <span class="n">argnum</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">9</span><span class="p">:]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span>
@@ -691,24 +701,56 @@
 
     <span class="k">def</span> <span class="nf">_profile_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Produce a performance summary of the profiled sections.&quot;&quot;&quot;</span>
-        <span class="n">summary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">)</span>
-        <span class="n">info</span><span class="p">(</span><span class="s2">&quot;Operator `</span><span class="si">%s</span><span class="s2">` run in </span><span class="si">%.2f</span><span class="s2"> s&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">sum</span><span class="p">(</span><span class="n">summary</span><span class="o">.</span><span class="n">timings</span><span class="o">.</span><span class="n">values</span><span class="p">())))</span>
+        <span class="c1"># Rounder to 2 decimal places</span>
+        <span class="n">fround</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">ceil</span><span class="p">(</span><span class="n">i</span> <span class="o">*</span> <span class="mi">100</span><span class="p">)</span> <span class="o">/</span> <span class="mi">100</span>
+
+        <span class="n">info</span><span class="p">(</span><span class="s2">&quot;Operator `</span><span class="si">%s</span><span class="s2">` run in </span><span class="si">%.2f</span><span class="s2"> s&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                              <span class="n">fround</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">py_timers</span><span class="p">[</span><span class="s1">&#39;apply&#39;</span><span class="p">])))</span>
+
+        <span class="n">summary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">,</span> <span class="n">reduce_over</span><span class="o">=</span><span class="s1">&#39;apply&#39;</span><span class="p">)</span>
+
+        <span class="c1"># With MPI enabled, emit global, i.e. &quot;cross-rank&quot; performance.</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">reduced</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;Global </span><span class="se">\&quot;</span><span class="s2">cross-rank</span><span class="se">\&quot;</span><span class="s2"> performance&quot;</span><span class="p">)</span>
+            <span class="n">indent</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">*</span><span class="mi">2</span>
+            <span class="n">gflopss</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%.2f</span><span class="s2"> GFlops/s&quot;</span> <span class="o">%</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">gflopss</span><span class="p">)</span>
+            <span class="n">gpointss</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%.2f</span><span class="s2"> GPts/s&quot;</span> <span class="o">%</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">gpointss</span><span class="p">)</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">metrics</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* Operator `</span><span class="si">%s</span><span class="s2">` with OI=</span><span class="si">%.2f</span><span class="s2"> computed in </span><span class="si">%.2f</span><span class="s2"> s [</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span>
+                 <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">oi</span><span class="p">),</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">),</span> <span class="n">metrics</span><span class="p">))</span>
+
+            <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;Local </span><span class="se">\&quot;</span><span class="s2">per-rank</span><span class="se">\&quot;</span><span class="s2"> and </span><span class="se">\&quot;</span><span class="s2">by-section</span><span class="se">\&quot;</span><span class="s2"> performance&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indent</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+        <span class="c1"># Emit local, i.e. &quot;per-rank&quot; performance. Without MPI, this is the only</span>
+        <span class="c1"># thing that will be emitted</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">summary</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">rank</span> <span class="o">=</span> <span class="s2">&quot;[rank</span><span class="si">%d</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">k</span><span class="o">.</span><span class="n">rank</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">rank</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+            <span class="n">gflopss</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%.2f</span><span class="s2"> GFlops/s&quot;</span> <span class="o">%</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">gflopss</span><span class="p">)</span>
+            <span class="n">gpointss</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%.2f</span><span class="s2"> GPts/s&quot;</span> <span class="o">%</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">gpointss</span><span class="p">)</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">metrics</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
             <span class="n">itershapes</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">its</span><span class="p">)</span> <span class="k">for</span> <span class="n">its</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">itershapes</span><span class="p">]</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">itershapes</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&lt;</span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itershapes</span><span class="p">))</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&lt;</span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span>
+                                     <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itershapes</span><span class="p">))</span>
+                <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* </span><span class="si">%s</span><span class="s2"> with OI=</span><span class="si">%.2f</span><span class="s2"> computed in </span><span class="si">%.2f</span><span class="s2"> s [</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span>
+                     <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">oi</span><span class="p">),</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">),</span> <span class="n">metrics</span><span class="p">))</span>
             <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">itershapes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&lt;</span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">itershapes</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&lt;</span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="n">itershapes</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* </span><span class="si">%s</span><span class="s2"> with OI=</span><span class="si">%.2f</span><span class="s2"> computed in </span><span class="si">%.2f</span><span class="s2"> s [</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span>
+                     <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">oi</span><span class="p">),</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">),</span> <span class="n">metrics</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">name</span> <span class="o">=</span> <span class="kc">None</span>
-            <span class="n">gpointss</span> <span class="o">=</span> <span class="s2">&quot;, </span><span class="si">%.2f</span><span class="s2"> GPts/s&quot;</span> <span class="o">%</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">gpointss</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
-            <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;* </span><span class="si">%s</span><span class="s2"> with OI=</span><span class="si">%.2f</span><span class="s2"> computed in </span><span class="si">%.3f</span><span class="s2"> s [</span><span class="si">%.2f</span><span class="s2"> GFlops/s</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span>
-                 <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">oi</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">))</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">name</span>
+                <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* </span><span class="si">%s%s</span><span class="s2"> computed in </span><span class="si">%.2f</span><span class="s2"> s&quot;</span>
+                     <span class="o">%</span> <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">)))</span>
 
-        <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;* </span><span class="si">%s</span><span class="s2"> configuration:  </span><span class="si">%s</span><span class="s2"> &quot;</span> <span class="o">%</span>
-             <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state</span><span class="p">[</span><span class="s1">&#39;optimizations&#39;</span><span class="p">]))</span>
+        <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;Configuration:  </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state</span><span class="p">[</span><span class="s1">&#39;optimizations&#39;</span><span class="p">])</span>
 
         <span class="k">return</span> <span class="n">summary</span>
+
+    <span class="c1"># Misc properties</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_mem_summary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -737,9 +779,6 @@
         <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;total&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">external</span> <span class="o">+</span> <span class="n">heap</span> <span class="o">+</span> <span class="n">stack</span>
 
         <span class="k">return</span> <span class="n">summary</span>
-
-    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="c1"># Pickling support</span>
 
@@ -791,6 +830,18 @@
 
 
 <span class="c1"># Misc helpers</span>
+
+
+<span class="k">class</span> <span class="nc">ArgumentsMap</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ArgumentsMap</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="o">=</span> <span class="n">grid</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">comm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The MPI communicator the arguments are collective over.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">comm</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_NULL</span>
 
 
 <span class="k">def</span> <span class="nf">set_dse_mode</span><span class="p">(</span><span class="n">mode</span><span class="p">):</span>
