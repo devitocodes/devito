@@ -1,5 +1,5 @@
-import numpy as np
 import itertools
+import numpy as np
 
 from sympy import sympify, Mod
 from sympy.core.numbers import Zero
@@ -210,13 +210,21 @@ def create_ops_dat(f, name_to_ops_dat, block):
 def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
 
     if f.is_TimeFunction:
-        ops_fetch = [namespace['ops_dat_fetch_data'](
-            Indexed(name_to_ops_dat['%s%s%s' %
-                                    (f.name,
-                                     f.indices[f._time_position],
-                                     i)].base, Mod(Add(time_upper_bound, -i), f._time_size)),
-            Byref(f.indexify([Mod(Add(time_upper_bound, -i), f._time_size)])))
-            for i in range(f._time_size)]
+
+        ops_fetch = []
+        for i in range(f._time_size):
+            dim = Mod(Add(time_upper_bound, -i), f._time_size)
+            dim_symbol = Symbol(name="time_%s%s" % (f.name, str(i)), dtype=np.int32)
+
+            ops_fetch.append(Expression(ClusterizedEq(Eq(dim_symbol, dim))))
+
+            ops_fetch.append(namespace['ops_dat_fetch_data'](
+                Indexed(name_to_ops_dat['%s%s%s' %
+                                        (f.name,
+                                         f.indices[f._time_position],
+                                         i)].
+                        base, dim_symbol),
+                Byref(f.indexify([dim_symbol]))))
     else:
         ops_fetch = [namespace['ops_dat_fetch_data'](
             name_to_ops_dat[f.name], Byref(f.indexify([0])))]
