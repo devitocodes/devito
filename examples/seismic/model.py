@@ -62,15 +62,15 @@ def demo_model(preset, **kwargs):
         # A constant single-layer model in a 2D or 3D domain
         # with velocity 2.2 km/s.
         shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([1. for _ in shape]))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         nbpml = kwargs.pop('nbpml', 10)
         dtype = kwargs.pop('dtype', np.float32)
-        vp = kwargs.pop('vp', 1.6)
-        qp = kwargs.pop('qp', 40.)
-        vs = kwargs.pop('vs', 0.4)
-        qs = kwargs.pop('qs', 30.)
-        rho = 1.3
+        vp = kwargs.pop('vp', 2.2)
+        qp = kwargs.pop('qp', 100.)
+        vs = kwargs.pop('vs', 1.2)
+        qs = kwargs.pop('qs', 70.)
+        rho = 2.
 
         return ModelViscoelastic(space_order=space_order, vp=vp, qp=qp, vs=vs,
                                  qs=qs, rho=rho, origin=origin, shape=shape,
@@ -165,10 +165,10 @@ def demo_model(preset, **kwargs):
                             '2layer-viscoelastic']:
         # A two-layer model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
-        # By default, the top part of the domain has 1.5 km/s,
-        # and the bottom part of the domain has 2.5 km/s.
+        # By default, the top part of the domain has 1.6 km/s,
+        # and the bottom part of the domain has 2.2 km/s.
         shape = kwargs.pop('shape', (101, 101))
-        spacing = kwargs.pop('spacing', tuple([1. for _ in shape]))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbpml = kwargs.pop('nbpml', 10)
