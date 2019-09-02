@@ -22,6 +22,7 @@ def menu():
 @click.option('--arch', default='unknown', help='Test-bed architecture')
 @click.option('-r', '--resultsdir', default='results', help='Results directory')
 @click.option('--load', multiple=True, default=[], help='Modules to be loaded')
+@click.option('--export', multiple=True, default=[], help='Env vars to be exported')
 def generate(**kwargs):
     join = lambda l: ' '.join('%d' % i for i in l)
     args = dict(kwargs)
@@ -31,6 +32,7 @@ def generate(**kwargs):
     args['home'] = os.path.dirname(os.path.dirname(devito.__file__))
 
     args['load'] = '\n'.join('module load %s' % i for i in args['load'])
+    args['export'] = '\n'.join('export %s' % i for i in args['export'])
 
     template_header = """\
 #!/bin/bash
@@ -50,6 +52,8 @@ export DEVITO_HOME=%(home)s
 export DEVITO_ARCH=intel
 export DEVITO_OPENMP=1
 export DEVITO_LOGGING=DEBUG
+
+%(export)s
 
 cd benchmarks/user
 """  # noqa
