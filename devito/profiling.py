@@ -111,27 +111,27 @@ class Profiler(object):
             toc = seq_time()
         self.py_timers[name] = toc - tic
 
-    def summary(self, arguments, dtype, reduce_over=None):
+    def summary(self, args, dtype, reduce_over=None):
         """
         Return a PerformanceSummary of the profiled sections.
 
         Parameters
         ----------
-        arguments : dict
+        args : dict
             A mapper from argument names to run-time values from which the Profiler
             infers iteration space and execution times of a run.
         dtype : data-type
             The data type of the objects in the profiled sections. Used to compute
             the operational intensity.
         """
-        comm = arguments.comm
+        comm = args.comm
 
         summary = PerformanceSummary()
         for section, data in self._sections.items():
             name = section.name
 
             # Time to run the section
-            time = max(getattr(arguments[self.name]._obj, name), 10e-7)
+            time = max(getattr(args[self.name]._obj, name), 10e-7)
 
             # Add performance data
             if comm is not MPI.COMM_NULL:
@@ -153,31 +153,32 @@ class Profiler(object):
 class AdvancedProfiler(Profiler):
 
     # Override basic summary so that arguments other than runtime are computed.
-    def summary(self, arguments, dtype, reduce_over=None):
-        comm = arguments.comm
+    def summary(self, args, dtype, reduce_over=None):
+        grid = args.grid
+        comm = args.comm
 
         summary = PerformanceSummary()
         for section, data in self._sections.items():
             name = section.name
 
             # Time to run the section
-            time = max(getattr(arguments[self.name]._obj, name), 10e-7)
+            time = max(getattr(args[self.name]._obj, name), 10e-7)
 
             # Number of FLOPs performed
-            ops = data.ops.subs(arguments)
+            ops = data.ops.subs(args)
 
             # Number of grid points computed
-            points = data.points.subs(arguments)
+            points = data.points.subs(args)
 
             # Compulsory traffic
-            traffic = float(data.traffic.subs(arguments)*dtype().itemsize)
+            traffic = float(data.traffic.subs(args)*dtype().itemsize)
 
             # Runtime itermaps/itershapes
-            itermaps = [OrderedDict([(k, v.subs(arguments)) for k, v in i.items()])
+            itermaps = [OrderedDict([(k, v.subs(args)) for k, v in i.items()])
                         for i in data.itermaps]
             itershapes = tuple(tuple(i.values()) for i in itermaps)
 
-            # Add performance data
+            # Add local performance data
             if comm is not MPI.COMM_NULL:
                 # With MPI enabled, we add one entry per section per rank
                 times = comm.allgather(time)
@@ -193,8 +194,19 @@ class AdvancedProfiler(Profiler):
             else:
                 summary.add(name, None, time, ops, points, traffic, data.sops, itershapes)
 
-        if comm is not MPI.COMM_NULL and reduce_over is not None:
-            summary.reduce(self.py_timers[reduce_over])
+        # Add global performance data
+        if reduce_over is not None:
+            # Vanilla metrics
+            if comm is not MPI.COMM_NULL:
+                summary.add_glb_vanilla(self.py_timers[reduce_over])
+
+            # Typical finite difference benchmark metrics
+            if grid is not None:
+                dimensions = (grid.time_dim,) + grid.dimensions
+                if all(d.max_name in args for d in dimensions):
+                    nt = args[grid.time_dim.max_name] - args[grid.time_dim.min_name] + 1
+                    points = reduce(mul, (nt,) + grid.shape)
+                    summary.add_glb_fdlike(points, self.py_timers[reduce_over])
 
         return summary
 
@@ -269,7 +281,7 @@ class PerformanceSummary(OrderedDict):
     def __init__(self, *args, **kwargs):
         super(PerformanceSummary, self).__init__(*args, **kwargs)
         self.input = OrderedDict()
-        self.reduced = None
+        self.globals = {}
 
     def add(self, name, rank, time,
             ops=None, points=None, traffic=None, sops=None, itershapes=None):
@@ -291,11 +303,12 @@ class PerformanceSummary(OrderedDict):
             gflopss = gflops/time
             gpointss = gpoints/time
             oi = float(ops/traffic)
+
             self[k] = self.PerfEntry(time, gflopss, gpointss, oi, sops, itershapes)
 
         self.input[k] = self.PerfInput(time, ops, points, traffic, sops, itershapes)
 
-    def reduce(self, time):
+    def add_glb_vanilla(self, time):
         """
         Reduce the following performance data:
 
@@ -318,7 +331,24 @@ class PerformanceSummary(OrderedDict):
         gpointss = gpoints/time
         oi = float(ops/traffic)
 
-        self.reduced = self.PerfEntry(time, gflopss, gpointss, oi, None, None)
+        self.globals['vanilla'] = self.PerfEntry(time, gflopss, gpointss, oi, None, None)
+
+    def add_glb_fdlike(self, points, time):
+        """
+        Add "finite-difference-like" performance metrics, that is GPoints/s and
+        GFlops/s as if the code looked like a trivial n-D jacobi update
+
+            .. code-block:: c
+
+              for t = t_m to t_M
+                for x = 0 to x_size
+                  for y = 0 to y_size
+                    u[t+1, x, y] = f(...)
+        """
+        gpoints = float(points)/10**9
+        gpointss = gpoints/time
+
+        self.globals['fdlike'] = self.PerfEntry(time, None, gpointss, None, None, None)
 
     @property
     def gflopss(self):
