@@ -44,7 +44,9 @@ class OPSNodeFactory(object):
             symbol_to_access = OpsAccessible(
                 ops_arg_id,
                 indexed.dtype,
-                not is_write
+                not is_write,
+                indexed.function,
+                time_index.var
             )
 
             accessible_info = AccessibleInfo(

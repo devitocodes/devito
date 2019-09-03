@@ -13,7 +13,7 @@ from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
 from devito.ops.utils import namespace
 from devito.symbolics import Add, Byref, ListInitializer, Literal
 from devito.tools import dtype_to_cstr
-from devito.types import Constant, DefaultDimension, Indexed, Symbol
+from devito.types import Constant, DefaultDimension, Symbol
 
 
 def opsit(trees, count, name_to_ops_dat, block, dims):
