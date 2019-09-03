@@ -31,13 +31,15 @@ class OpsAccessible(basic.Symbol):
     """
     is_Scalar = True
 
-    def __new__(cls, name, dtype, read_only, *args, **kwargs):
+    def __new__(cls, name, dtype, read_only, origin, time_index, * args, **kwargs):
         obj = basic.Symbol.__new__(cls, name, dtype, *args, **kwargs)
-        obj.__init__(name, dtype, read_only, *args, **kwargs)
+        obj.__init__(name, dtype, read_only, origin, time_index, *args, **kwargs)
         return obj
 
-    def __init__(self, name, dtype, read_only, *args, **kwargs):
+    def __init__(self, name, dtype, read_only, origin, time_index, * args, **kwargs):
         self.read_only = read_only
+        self.origin = origin
+        self.time_index = time_index
         super().__init__(name, dtype, *args, **kwargs)
 
     @property
