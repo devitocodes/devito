@@ -27,7 +27,7 @@ def viscoelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_orde
         rec_coordinates[:, 1] = np.array(model.domain_size)[1] * .5
         rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
     geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.010)
+                                   t0=0.0, tn=tn, src_type='Ricker', f0=0.12)
 
     # Create solver object to provide relevant operators
     solver = ViscoelasticWaveSolver(model, geometry, space_order=space_order, **kwargs)
@@ -50,8 +50,8 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 def test_viscoelastic():
     _, _, _, [rec1, rec2, vx, vz, txx, tzz, txz] = run()
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
-    assert np.isclose(norm(rec1), 15.962572, atol=1e-3, rtol=0)
-    assert np.isclose(norm(rec2), 1.3817718, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec1), 5.6222677, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec2), 0.26486522, atol=1e-3, rtol=0)
 
 
 if __name__ == "__main__":

@@ -43,7 +43,7 @@ def viscoelastic_2d(model, space_order, save, geometry):
                + damp*s*rxz.forward)
 
     u_rxx = Eq(rxx.forward, damp*rxx
-               - damp*s*1./t_s*(rxx+pi*(t_ep/t_s-1)*(vx.forward+vz.forward.dy)
+               - damp*s*1./t_s*(rxx+pi*(t_ep/t_s-1)*(vx.forward.dx+vz.forward.dy)
                                 - 2*mu*(t_es/t_s-1)*vz.forward.dy))
 
     u_rzz = Eq(rzz.forward, damp*rzz
