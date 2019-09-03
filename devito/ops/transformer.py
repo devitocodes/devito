@@ -13,7 +13,7 @@ from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
 from devito.ops.utils import namespace
 from devito.symbolics import Add, Byref, ListInitializer, Literal
 from devito.tools import dtype_to_cstr
-from devito.types import Constant, DefaultDimension, Indexed, Symbol
+from devito.types import Constant, DefaultDimension, Symbol
 
 
 def opsit(trees, count, name_to_ops_dat, block, dims):
@@ -154,9 +154,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
         dat_decls = []
         for i in range(time_dims):
             name = '%s%s%s' % (f.name, time_index, i)
-            name_to_ops_dat[name] = ops_dat_array.indexify(
-                [Symbol('%s%s' % (time_index, i))]
-            )
+
             dat_decls.append(namespace['ops_decl_dat'](
                 block,
                 1,
@@ -173,6 +171,10 @@ def create_ops_dat(f, name_to_ops_dat, block):
             ops_dat_array,
             ListInitializer(dat_decls)
         )))
+
+        # Insering the ops_dat array in case of TimeFunction.
+        name_to_ops_dat[f.name] = ops_dat_array
+
     else:
         ops_dat = OpsDat("%s_dat" % f.name)
         name_to_ops_dat[f.name] = ops_dat
@@ -211,12 +213,9 @@ def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
 
     if f.is_TimeFunction:
         ops_fetch = [namespace['ops_dat_fetch_data'](
-            Indexed(name_to_ops_dat['%s%s%s' %
-                                    (f.name,
-                                     f.indices[f._time_position],
-                                     i)].base, Mod(Add(time_upper_bound, -i),
-                                                   f._time_size)),
-            Indexed(f.indexed, Mod(Add(time_upper_bound, -i), f._time_size)))
+            name_to_ops_dat[f.name].indexify(
+                [Mod(Add(time_upper_bound, -i), f._time_size)]),
+            Byref(f.indexify([Mod(Add(time_upper_bound, -i), f._time_size)])))
             for i in range(f._time_size)]
 
     else:
@@ -270,13 +269,21 @@ def create_ops_arg(p, name_to_ops_dat, par_to_ops_stencil):
             namespace['ops_read']
         )
     else:
-        return namespace['ops_arg_dat'](
-            name_to_ops_dat[p.name],
-            1,
-            par_to_ops_stencil[p],
-            Literal('"%s"' % dtype_to_cstr(p.dtype)),
-            namespace['ops_read'] if p.read_only else namespace['ops_write']
-        )
+        if p.origin.is_TimeFunction:
+            # This is a parameter generated from TimeFunction
+            return namespace['ops_arg_dat'](
+                name_to_ops_dat[p.origin.name].indexify([p.time_index]),
+                1,
+                par_to_ops_stencil[p],
+                Literal('"%s"' % dtype_to_cstr(p.dtype)),
+                namespace['ops_read'] if p.read_only else namespace['ops_write'])
+        else:
+            return namespace['ops_arg_dat'](
+                name_to_ops_dat[p.name],
+                1,
+                par_to_ops_stencil[p],
+                Literal('"%s"' % dtype_to_cstr(p.dtype)),
+                namespace['ops_read'] if p.read_only else namespace['ops_write'])
 
 
 def make_ops_ast(expr, nfops, is_write=False):

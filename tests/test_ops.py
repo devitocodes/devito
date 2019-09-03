@@ -130,60 +130,22 @@ class TestOPSExpression(object):
             Literal('"%s"' % stencil_name.upper())
         )
 
-    def test_create_ops_dat_time_function(self):
+    @pytest.mark.parametrize('equation,expected', [
+        ('Eq(u.forward, u + 1)',
+         '[\'ops_dat u_dat[2] = {ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
+         '&(u[0]), "float", "ut0"), ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
+         '&(u[1]), "float", "ut1")}\']')
+    ])
+    def test_create_ops_dat(self, equation, expected):
         grid = Grid(shape=(4))
 
-        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u = TimeFunction(name='u', grid=grid, space_order=2)  # noqa
+        v = Function(name='u', grid=grid, space_order=2)  # noqa
 
-        block = OpsBlock('block')
+        op = Operator(eval(equation))
 
-        name_to_ops_dat = {}
-
-        result = create_ops_dat(u, name_to_ops_dat, block)
-
-        assert name_to_ops_dat['ut0'].base.name == namespace['ops_dat_name'](u.name)
-        assert name_to_ops_dat['ut0'].indices == (Symbol('t0'),)
-        assert name_to_ops_dat['ut1'].base.name == namespace['ops_dat_name'](u.name)
-        assert name_to_ops_dat['ut1'].indices == (Symbol('t1'),)
-
-        assert result[0].expr.lhs.name == namespace['ops_dat_dim'](u.name)
-        assert result[0].expr.rhs.params == (Integer(4),)
-
-        assert result[1].expr.lhs.name == namespace['ops_dat_base'](u.name)
-        assert result[1].expr.rhs.params == (Zero(),)
-
-        assert result[2].expr.lhs.name == namespace['ops_dat_d_p'](u.name)
-        assert result[2].expr.rhs.params == (Integer(2),)
-
-        assert result[3].expr.lhs.name == namespace['ops_dat_d_m'](u.name)
-        assert result[3].expr.rhs.params == (Integer(-2),)
-
-        assert result[4].expr.lhs.name == namespace['ops_dat_name'](u.name)
-        assert len(result[4].expr.rhs.params) == 2
-        assert type(result[4].expr.rhs.params[0]) == namespace['ops_decl_dat']
-        assert result[4].expr.rhs.params[0].args == (
-            block,
-            1,
-            Symbol(namespace['ops_dat_dim'](u.name)),
-            Symbol(namespace['ops_dat_base'](u.name)),
-            Symbol(namespace['ops_dat_d_m'](u.name)),
-            Symbol(namespace['ops_dat_d_p'](u.name)),
-            Byref(u.indexify((0,))),
-            Literal('"%s"' % u._C_typedata),
-            Literal('"ut0"')
-        )
-        assert type(result[4].expr.rhs.params[1]) == namespace['ops_decl_dat']
-        assert result[4].expr.rhs.params[1].args == (
-            block,
-            1,
-            Symbol(namespace['ops_dat_dim'](u.name)),
-            Symbol(namespace['ops_dat_base'](u.name)),
-            Symbol(namespace['ops_dat_d_m'](u.name)),
-            Symbol(namespace['ops_dat_d_p'](u.name)),
-            Byref(u.indexify((1,))),
-            Literal('"%s"' % u._C_typedata),
-            Literal('"ut1"')
-        )
+        for i in eval(expected):
+            assert i in str(op)
 
     def test_create_ops_dat_function(self):
         grid = Grid(shape=(4))
@@ -269,3 +231,24 @@ class TestOPSExpression(object):
         operator = Operator(eval(equation))
 
         assert expected in str(operator.ccode)
+
+    @pytest.mark.parametrize('equation,expected', [
+        ('Eq(u.forward, u + 1)',
+         '[\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
+         '\'ops_dat_fetch_data(u_dat[(time_M - 1)%(2)],0,&(u[(time_M - 1)%(2)]));\']'),
+        ('Eq(v, v.dx + u)',
+         '[\'ops_dat_fetch_data(v_dat[(time_M)%(2)],0,&(v[(time_M)%(2)]));\','
+         '\'ops_dat_fetch_data(v_dat[(time_M - 1)%(2)],0,&(v[(time_M - 1)%(2)]));\','
+         '\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
+         '\'ops_dat_fetch_data(u_dat[(time_M - 1)%(2)],0,&(u[(time_M - 1)%(2)]));\']'),
+    ])
+    def test_create_ops_dat_fetch_data(self, equation, expected):
+
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+
+        op = Operator(eval(equation))
+        for i in eval(expected):
+            assert i in str(op)
