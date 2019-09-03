@@ -5,7 +5,7 @@ from sympy import sin, Abs
 
 from examples.seismic.utils import scipy_smooth
 from devito import (Grid, SubDomain, Function, Constant, mmax,
-                    SubDimension, Eq, Inc, Operator, switchconfig)
+                    SubDimension, Eq, Inc, Operator)
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
@@ -421,7 +421,6 @@ def demo_model(preset, **kwargs):
         raise ValueError("Unknown model preset name")
 
 
-@switchconfig(log_level='ERROR')
 def initialize_damp(damp, nbpml, spacing, mask=False):
     """
     Initialise damping field with an absorbing PML layer.
@@ -462,7 +461,6 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
     Operator(eqs, name='initdamp', dse='noop', dle='noop')()
 
 
-@switchconfig(log_level='ERROR')
 def initialize_function(function, data, nbpml):
     """
     Initialize a `Function` with the given ``data``. ``data``
