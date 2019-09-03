@@ -43,7 +43,9 @@ class OPSNodeFactory(object):
             symbol_to_access = OpsAccessible(
                 ops_arg_id,
                 indexed.dtype,
-                not is_write
+                not is_write,
+                indexed.function,
+                time_index.var
             )
             self.ops_args[ops_arg_id] = symbol_to_access
             self.ops_params.append(symbol_to_access)

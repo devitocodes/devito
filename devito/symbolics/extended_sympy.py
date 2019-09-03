@@ -8,6 +8,7 @@ from sympy import Expr, Integer, Float, Function, Symbol
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
+from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
@@ -303,9 +304,9 @@ class Byref(sympy.Expr, Pickable):
 
     def __str__(self):
         if self.base.is_Symbol:
-            return "&%s" % self.base
+            return "&%s" % ccode(self.base)
         else:
-            return "&(%s)" % self.base
+            return "&(%s)" % ccode(self.base)
 
     __repr__ = __str__
 
