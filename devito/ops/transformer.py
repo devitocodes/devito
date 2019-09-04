@@ -162,7 +162,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                Byref(f.indexify([i])),
+                f.indexify([i]),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % name)
             ))
@@ -194,7 +194,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                Byref(f.indexify([0])),
+                f.indexify([0]),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % f.name)
             )
@@ -269,10 +269,14 @@ def create_ops_arg(p, name_to_ops_dat, par_to_ops_stencil):
             namespace['ops_read']
         )
     else:
-        if p.origin.is_TimeFunction:
+        if p._origin.is_TimeFunction:
+            from devito.types.basic import AbstractCachedFunction  # noqa
+
+            print(name_to_ops_dat[p._origin.name], type(name_to_ops_dat[p._origin.name]))
+            print(isinstance(name_to_ops_dat[p._origin.name], AbstractCachedFunction))
             # This is a parameter generated from TimeFunction
             return namespace['ops_arg_dat'](
-                name_to_ops_dat[p.origin.name].indexify([p.time_index]),
+                name_to_ops_dat[p._origin.name].indexify([p._origin_time_index]),
                 1,
                 par_to_ops_stencil[p],
                 Literal('"%s"' % dtype_to_cstr(p.dtype)),
