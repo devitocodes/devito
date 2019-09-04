@@ -189,7 +189,7 @@ class TestOPSExpression(object):
             Symbol(namespace['ops_dat_base'](u.name)),
             Symbol(namespace['ops_dat_d_m'](u.name)),
             Symbol(namespace['ops_dat_d_p'](u.name)),
-            Byref(u.indexify((0,))),
+            u.indexify((0,)),
             Literal('"%s"' % u._C_typedata),
             Literal('"u"')
         )
@@ -236,7 +236,26 @@ class TestOPSExpression(object):
         grid_2d = Grid(shape=(4, 4))
         u = TimeFunction(name='u', grid=grid_2d, time_order=2, save=Buffer(10))  # noqa
         operator = Operator(eval(equation))
+        assert expected in str(operator.ccode)
 
+    @pytest.mark.parametrize('equation,expected', [
+        ('Eq(u.forward, u + 1)',
+         '[\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
+         '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]));\']'),
+        ('Eq(v, v.dx + u)',
+         '[\'ops_dat_fetch_data(v_dat[(time_M)%(2)],0,&(v[(time_M)%(2)]));\','
+         '\'ops_dat_fetch_data(v_dat[(time_M + 1)%(2)],0,&(v[(time_M + 1)%(2)]));\','
+         '\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
+         '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]));\']'),
+    ])
+    def test_create_fetch_data(self, equation, expected):
+
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+
+        operator = Operator(eval(equation))
         assert expected in str(operator.ccode)
 
     @pytest.mark.parametrize('equation,expected', [
