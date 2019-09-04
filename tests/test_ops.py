@@ -133,14 +133,21 @@ class TestOPSExpression(object):
     @pytest.mark.parametrize('equation,expected', [
         ('Eq(u.forward, u + 1)',
          '[\'ops_dat u_dat[2] = {ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
-         '&(u[0]), "float", "ut0"), ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
-         '&(u[1]), "float", "ut1")}\']')
+         'u[0], "float", "ut0"), ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
+         'u[1], "float", "ut1")}\']'),
+        ('Eq(u.forward, u + v.dx)',
+         '[\'ops_dat u_dat[2] = {ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
+         'u[0], "float", "ut0"), ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
+         'u[1], "float", "ut1")}\','
+         '\'ops_dat v_dat;\','
+         '\'v_dat = ops_decl_dat(block, 1, v_dim, v_base, v_d_m, v_d_p, '
+         'v[0], "float", "v")\']')
     ])
     def test_create_ops_dat(self, equation, expected):
-        grid = Grid(shape=(4))
+        grid = Grid(shape=(4, 4))
 
         u = TimeFunction(name='u', grid=grid, space_order=2)  # noqa
-        v = Function(name='u', grid=grid, space_order=2)  # noqa
+        v = Function(name='v', grid=grid, space_order=2)  # noqa
 
         op = Operator(eval(equation))
 
@@ -182,7 +189,7 @@ class TestOPSExpression(object):
             Symbol(namespace['ops_dat_base'](u.name)),
             Symbol(namespace['ops_dat_d_m'](u.name)),
             Symbol(namespace['ops_dat_d_p'](u.name)),
-            Byref(u.indexify((0,))),
+            u.indexify((0,)),
             Literal('"%s"' % u._C_typedata),
             Literal('"u"')
         )
@@ -235,14 +242,14 @@ class TestOPSExpression(object):
     @pytest.mark.parametrize('equation,expected', [
         ('Eq(u.forward, u + 1)',
          '[\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
-         '\'ops_dat_fetch_data(u_dat[(time_M - 1)%(2)],0,&(u[(time_M - 1)%(2)]));\']'),
+         '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]));\']'),
         ('Eq(v, v.dx + u)',
          '[\'ops_dat_fetch_data(v_dat[(time_M)%(2)],0,&(v[(time_M)%(2)]));\','
-         '\'ops_dat_fetch_data(v_dat[(time_M - 1)%(2)],0,&(v[(time_M - 1)%(2)]));\','
+         '\'ops_dat_fetch_data(v_dat[(time_M + 1)%(2)],0,&(v[(time_M + 1)%(2)]));\','
          '\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
-         '\'ops_dat_fetch_data(u_dat[(time_M - 1)%(2)],0,&(u[(time_M - 1)%(2)]));\']'),
+         '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]));\']'),
     ])
-    def test_create_ops_dat_fetch_data(self, equation, expected):
+    def test_create_fetch_data(self, equation, expected):
 
         grid = Grid(shape=(4, 4))
 
