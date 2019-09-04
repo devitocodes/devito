@@ -144,6 +144,15 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         return self._dist_scatter_mask[self._sparse_position]
 
     @property
+    def _dist_subfunc_gather_mask(self):
+        """
+        This method is analogous to :meth:`_dist_scatter_mask`, although
+        the mask is now suitable to index into self's SubFunctions, rather
+        than into ``self.data``.
+        """
+        return self._dist_gather_mask[self._sparse_position]
+
+    @property
     def _dist_gather_mask(self):
         """
         A mask to index into the ``data`` received upon returning from
@@ -288,11 +297,12 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
         return values
 
-    def _arg_apply(self, dataobj, alias=None):
+    def _arg_apply(self, dataobj, coordsobj, alias=None):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
-            key._dist_gather(self._C_as_ndarray(dataobj))
+            key._dist_gather(self._C_as_ndarray(dataobj),
+                             self.coordinates._C_as_ndarray(coordsobj))
         elif self.grid.distributor.nprocs > 1:
             raise NotImplementedError("Don't know how to gather data from an "
                                       "object of type `%s`" % type(key))
@@ -813,15 +823,13 @@ class SparseFunction(AbstractSparseFunction):
 
         return {self: data, self.coordinates: coords}
 
-    def _dist_gather(self, data):
+    def _dist_gather(self, data, coords):
         distributor = self.grid.distributor
-
         # If not using MPI, don't waste time
         if distributor.nprocs == 1:
             return
 
         comm = distributor.comm
-
         # Pack sparse data values so that they can be sent out via an Alltoallv
         data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
         # Send back the sparse point values
@@ -830,10 +838,20 @@ class SparseFunction(AbstractSparseFunction):
         mpitype = MPI._typedict[np.dtype(self.dtype).char]
         comm.Alltoallv([data, rcount, rdisp, mpitype],
                        [gathered, scount, sdisp, mpitype])
-        data = gathered
         # Unpack data values so that they follow the expected storage layout
-        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
-        self._data[:] = data[self._dist_gather_mask]
+        gathered = np.ascontiguousarray(np.transpose(gathered, self._dist_reorder_mask))
+        self._data[:] = gathered[self._dist_gather_mask]
+
+        # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
+        coords = coords + np.array(self.grid.origin_offset, dtype=self.dtype)
+        # Send out the sparse point coordinates
+        sshape, scount, sdisp, _, rcount, rdisp = self._dist_subfunc_alltoall
+        gathered = np.empty(shape=sshape, dtype=self.coordinates.dtype)
+        mpitype = MPI._typedict[np.dtype(self.coordinates.dtype).char]
+        comm.Alltoallv([coords, rcount, rdisp, mpitype],
+                       [gathered, scount, sdisp, mpitype])
+
+        self._coordinates.data._local[:] = gathered[self._dist_subfunc_gather_mask]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
         # in `_dist_scatter` is here received; a sparse point that is received in
