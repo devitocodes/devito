@@ -201,6 +201,8 @@ def cli_test(problem, **kwargs):
     """
     Test numerical correctness with different parameters.
     """
+    set_log_level('ERROR')
+
     test(problem, **kwargs)
 
 
