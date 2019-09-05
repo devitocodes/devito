@@ -1283,6 +1283,20 @@ class TestLoopScheduling(object):
           'Eq(tv[t-1,z,z,z], tv[t-1,z,z,z] + 1)',
           'Eq(f[x,y,z], tu[t-1,x,y,z] + tu[t,x,y,z] + tu[t+1,x,y,z] + tv[t,x,y,z])'),
          '-++++', ['txyz', 'tz'], 'txyzz'),
+        # WAR 2->3, 2->4; expected=4
+        (('Eq(tu[t+1,x,y,z], tu[t,x,y,z] + 1.)',
+          'Eq(tu[t+1,y,y,y], tu[t+1,y,y,y] + tw[t+1,y,y,y])',
+          'Eq(tw[t+1,z,z,z], tw[t+1,z,z,z] + 1.)',
+          'Eq(tv[t+1,x,y,z], tu[t+1,x,y,z] + 1.)'),
+         '+++++++++', ['txyz', 'ty', 'tz', 'txyz'], 'txyzyzxyz'),
+        # WAR 1->3; expected=2
+        # 5 is expected to be moved before 4 but after 3, to be merged with 3
+        (('Eq(tu[t+1,x,y,z], tv[t,x,y,z] + 1.)',
+          'Eq(tv[t+1,x,y,z], tu[t,x,y,z] + 1.)',
+          'Eq(tw[t+1,x,y,z], tu[t+1,x+1,y,z] + tu[t+1,x-1,y,z])',
+          'Eq(f[x,x,z], tu[t,x,x,z] + tw[t,x,x,z])',
+          'Eq(ti0[x,y,z], tw[t+1,x,y,z] + 1.)'),
+         '++++++++', ['txyz', 'txyz', 'txz'], 'txyzxyzz'),
     ])
     def test_consistency_anti_dependences(self, exprs, directions, expected, visit):
         """

@@ -469,6 +469,11 @@ class Dependence(object):
         return self.source.is_write and self.sink.is_write
 
     @cached_property
+    def is_iaw(self):
+        """Is it an increment-after-write dependence ?"""
+        return self.source.is_write and self.sink.is_increment
+
+    @cached_property
     def is_increment(self):
         return self.source.is_increment and self.sink.is_increment
 
