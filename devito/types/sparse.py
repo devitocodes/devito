@@ -302,7 +302,9 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
             # Coords maye be empty if there is more ranks than coordinates
-            if np.sum([coordsobj._obj.size[i] for i in range(self.ndim)]) > 0:
+            if coordsobj is None:
+                pass
+            elif np.sum([coordsobj._obj.size[i] for i in range(self.ndim)]) > 0:
                 coordsobj = self.coordinates._C_as_ndarray(coordsobj)
             key._dist_gather(self._C_as_ndarray(dataobj), coordsobj)
         elif self.grid.distributor.nprocs > 1:
@@ -844,16 +846,17 @@ class SparseFunction(AbstractSparseFunction):
         gathered = np.ascontiguousarray(np.transpose(gathered, self._dist_reorder_mask))
         self._data[:] = gathered[self._dist_gather_mask]
 
-        # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
-        coords = coords + np.array(self.grid.origin_offset, dtype=self.dtype)
-        # Send out the sparse point coordinates
-        sshape, scount, sdisp, _, rcount, rdisp = self._dist_subfunc_alltoall
-        gathered = np.empty(shape=sshape, dtype=self.coordinates.dtype)
-        mpitype = MPI._typedict[np.dtype(self.coordinates.dtype).char]
-        comm.Alltoallv([coords, rcount, rdisp, mpitype],
-                       [gathered, scount, sdisp, mpitype])
+        if coords is not None:
+            # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
+            coords = coords + np.array(self.grid.origin_offset, dtype=self.dtype)
+            # Send out the sparse point coordinates
+            sshape, scount, sdisp, _, rcount, rdisp = self._dist_subfunc_alltoall
+            gathered = np.empty(shape=sshape, dtype=self.coordinates.dtype)
+            mpitype = MPI._typedict[np.dtype(self.coordinates.dtype).char]
+            comm.Alltoallv([coords, rcount, rdisp, mpitype],
+                           [gathered, scount, sdisp, mpitype])
 
-        self._coordinates.data._local[:] = gathered[self._dist_subfunc_gather_mask]
+            self._coordinates.data._local[:] = gathered[self._dist_subfunc_gather_mask]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
         # in `_dist_scatter` is here received; a sparse point that is received in
