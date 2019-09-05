@@ -1227,8 +1227,8 @@ def test_numpy_c_contiguous():
     Test that devito.Data is correctly reported by NumPy as being C-contiguous
     """
     grid = Grid(shape=(4, 4))
-    u = Function(name='u', grid=grid, space_order=0)
-    assert(u.data.flags.c_contiguous)
+    u = Function(name='u', grid=grid, space_order=2)
+    assert(u._data_allocated.flags.c_contiguous)
 
 
 if __name__ == "__main__":
