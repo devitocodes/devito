@@ -302,7 +302,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
             # Coords maye be empty if there is more ranks than coordinates
-            if coordsobj.size > 0:
+            if np.sum([coordsobj._obj.size[i] for i in range(self.ndim)]) > 0:
                 coordsobj = self.coordinates._C_as_ndarray(coordsobj)
             key._dist_gather(self._C_as_ndarray(dataobj), coordsobj)
         elif self.grid.distributor.nprocs > 1:
