@@ -506,7 +506,6 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         if not self._cached():
             # Setup halo and padding regions
             self._is_halo_dirty = False
-            self._in_flight = []
             self._halo = self.__halo_setup__(**kwargs)
             self._padding = self.__padding_setup__(**kwargs)
 

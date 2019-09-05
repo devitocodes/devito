@@ -65,6 +65,10 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
             shape = (glb_npoint[grid.distributor.myrank],)
         return shape
 
+    def _halo_exchange(self):
+        # no-op for SparseFunctions
+        return
+
     @property
     def npoint(self):
         return self.shape[self._sparse_position]
