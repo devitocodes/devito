@@ -220,6 +220,10 @@
             <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">glb_npoint</span><span class="p">[</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">myrank</span><span class="p">],)</span>
         <span class="k">return</span> <span class="n">shape</span>
 
+    <span class="k">def</span> <span class="nf">_halo_exchange</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># no-op for SparseFunctions</span>
+        <span class="k">return</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">npoint</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
