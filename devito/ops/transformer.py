@@ -172,7 +172,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
             ListInitializer(dat_decls)
         )))
 
-        # Insering the ops_dat array in case of TimeFunction.
+        # Inserting the ops_dat array in case of TimeFunction.
         name_to_ops_dat[f.name] = ops_dat_array
 
     else:
@@ -270,10 +270,6 @@ def create_ops_arg(p, name_to_ops_dat, par_to_ops_stencil):
         )
     else:
         if p._origin.is_TimeFunction:
-            from devito.types.basic import AbstractCachedFunction  # noqa
-
-            print(name_to_ops_dat[p._origin.name], type(name_to_ops_dat[p._origin.name]))
-            print(isinstance(name_to_ops_dat[p._origin.name], AbstractCachedFunction))
             # This is a parameter generated from TimeFunction
             return namespace['ops_arg_dat'](
                 name_to_ops_dat[p._origin.name].indexify([p._origin_time_index]),
