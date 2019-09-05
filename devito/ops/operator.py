@@ -58,8 +58,9 @@ class OperatorOPS(Operator):
         to_dat = filter_sorted(to_dat)
 
         iteration_tree = retrieve_iteration_tree(iet, mode='normal')[0]
-        time_upper_bound = iteration_tree.dimensions[TimeFunction._time_position]\
-            .extreme_max
+        if iteration_tree:
+            time_upper_bound = iteration_tree.dimensions[TimeFunction._time_position]\
+                .extreme_max
 
         name_to_ops_dat = {}
         pre_time_loop = []
