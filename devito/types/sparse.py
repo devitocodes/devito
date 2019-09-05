@@ -301,8 +301,10 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
-            key._dist_gather(self._C_as_ndarray(dataobj),
-                             self.coordinates._C_as_ndarray(coordsobj))
+            # Coords maye be empty if there is more ranks than coordinates
+            if coordsobj.size > 0:
+                coordsobj = self.coordinates._C_as_ndarray(coordsobj)
+            key._dist_gather(self._C_as_ndarray(dataobj), coordsobj)
         elif self.grid.distributor.nprocs > 1:
             raise NotImplementedError("Don't know how to gather data from an "
                                       "object of type `%s`" % type(key))
@@ -1176,6 +1178,15 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         raise NotImplementedError
 
     def _dist_gather(self, data):
+        distributor = self.grid.distributor
+
+        # If not using MPI, don't waste time
+        if distributor.nprocs == 1:
+            return
+
+        raise NotImplementedError
+
+    def _arg_apply(self, *args, **kwargs):
         distributor = self.grid.distributor
 
         # If not using MPI, don't waste time

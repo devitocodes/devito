@@ -391,14 +391,14 @@ class TestSparseFunction(object):
 
         # Scatter
         loc_data = sf._dist_scatter()[sf]
+        loc_coords = sf._dist_scatter()[sf.coordinates]
         assert len(loc_data) == 1
         assert loc_data[0] == grid.distributor.myrank
-
         # Do some local computation
         loc_data = loc_data*2
 
         # Gather
-        sf._dist_gather(loc_data)
+        sf._dist_gather(loc_data, loc_coords)
         assert len(sf.data) == 1
         assert np.all(sf.data == data[sf.local_indices]*2)
 
