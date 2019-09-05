@@ -36,7 +36,8 @@ class OpsAccessible(basic.Symbol):
         obj.__init__(name, dtype, read_only, origin, origin_time_index, *args, **kwargs)
         return obj
 
-    def __init__(self, name, dtype, read_only, origin, origin_time_index, * args, **kwargs):
+    def __init__(self, name, dtype, read_only, origin, origin_time_index, *args,
+                 **kwargs):
         self.read_only = read_only
         self._origin = origin
         self._origin_time_index = origin_time_index
