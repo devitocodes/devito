@@ -324,6 +324,15 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
 
         return EnrichedTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
+    @property
+    def size_allocated(self):
+        """
+        The number of elements this object is expected to store in memory.
+        Note that this would need to be combined with self.dtype to give the actual
+        size in bytes.
+        """
+        return reduce(mul, self.shape_allocated)
+
     @cached_property
     def _mask_modulo(self):
         """Boolean mask telling which Dimensions support modulo-indexing."""
