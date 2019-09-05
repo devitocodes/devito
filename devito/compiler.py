@@ -466,10 +466,10 @@ class CustomCompiler(Compiler):
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
 
     def __lookup_cmds__(self):
-        self.CC = 'gcc'
-        self.CXX = 'g++'
-        self.MPICC = 'mpicc'
-        self.MPICXX = 'mpicxx'
+        self.CC = environ.get('CC', 'gcc')
+        self.CXX = environ.get('CXX', 'g++')
+        self.MPICC = environ.get('MPICC', 'mpicc')
+        self.MPICXX = environ.get('MPICXX', 'mpicxx')
 
 
 compiler_registry = {
