@@ -1,7 +1,7 @@
-import numpy as np
 import itertools
+import numpy as np
 
-from sympy import sympify
+from sympy import sympify, Mod
 from sympy.core.numbers import Zero
 
 from devito import Eq
@@ -11,7 +11,7 @@ from devito.ir.iet.visitors import FindNodes
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
 from devito.ops.utils import namespace
-from devito.symbolics import Byref, ListInitializer, Literal
+from devito.symbolics import Add, Byref, ListInitializer, Literal
 from devito.tools import dtype_to_cstr
 from devito.types import Constant, DefaultDimension, Symbol
 
@@ -35,16 +35,19 @@ def opsit(trees, count, name_to_ops_dat, block, dims):
         expressions.extend(FindNodes(Expression).visit(tree.inner))
 
     for expr in expressions:
-        ops_expressions.append(Expression(make_ops_ast(expr.expr, node_factory)))
+        ops_expressions.append(Expression(
+            make_ops_ast(expr.expr, node_factory)))
 
-    parameters = sorted(node_factory.ops_params, key=lambda i: (i.is_Constant, i.name))
+    parameters = sorted(node_factory.ops_params,
+                        key=lambda i: (i.is_Constant, i.name))
 
     stencil_arrays_initializations = []
     par_to_ops_stencil = {}
 
     for p in parameters:
         if isinstance(p, OpsAccessible):
-            stencil, initialization = to_ops_stencil(p, node_factory.ops_args_accesses[p])
+            stencil, initialization = to_ops_stencil(
+                p, node_factory.ops_args_accesses[p])
 
             par_to_ops_stencil[p] = stencil
             stencil_arrays_initializations.append(initialization)
@@ -138,11 +141,13 @@ def create_ops_dat(f, name_to_ops_dat, block):
         padding = f.padding[:time_pos] + f.padding[time_pos + 1:]
         halo = f.halo[:time_pos] + f.halo[time_pos + 1:]
         d_p_val = tuple(sympify([p[0] + h[0] for p, h in zip(padding, halo)]))
-        d_m_val = tuple(sympify([-(p[1] + h[1]) for p, h in zip(padding, halo)]))
+        d_m_val = tuple(sympify([-(p[1] + h[1])
+                                 for p, h in zip(padding, halo)]))
 
         ops_dat_array = Array(
             name=namespace['ops_dat_name'](f.name),
-            dimensions=(DefaultDimension(name='dat', default_value=time_dims),),
+            dimensions=(DefaultDimension(
+                name='dat', default_value=time_dims),),
             dtype='ops_dat',
             scope='stack'
         )
@@ -150,9 +155,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
         dat_decls = []
         for i in range(time_dims):
             name = '%s%s%s' % (f.name, time_index, i)
-            name_to_ops_dat[name] = ops_dat_array.indexify(
-                [Symbol('%s%s' % (time_index, i))]
-            )
+
             dat_decls.append(namespace['ops_decl_dat'](
                 block,
                 1,
@@ -160,7 +163,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                Byref(f.indexify([i])),
+                f.indexify([i]),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % name)
             ))
@@ -169,12 +172,18 @@ def create_ops_dat(f, name_to_ops_dat, block):
             ops_dat_array,
             ListInitializer(dat_decls)
         )))
+
+        # Insering the ops_dat array in case of TimeFunction.
+        name_to_ops_dat[f.name] = ops_dat_array
+
     else:
         ops_dat = OpsDat("%s_dat" % f.name)
         name_to_ops_dat[f.name] = ops_dat
 
-        d_p_val = tuple(sympify([p[0] + h[0] for p, h in zip(f.padding, f.halo)]))
-        d_m_val = tuple(sympify([-(p[1] + h[1]) for p, h in zip(f.padding, f.halo)]))
+        d_p_val = tuple(sympify([p[0] + h[0]
+                                 for p, h in zip(f.padding, f.halo)]))
+        d_m_val = tuple(sympify([-(p[1] + h[1])
+                                 for p, h in zip(f.padding, f.halo)]))
         dim_shape = sympify(f.shape)
 
         ops_decl_dat = Expression(ClusterizedEq(Eq(
@@ -186,7 +195,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                Byref(f.indexify([0])),
+                f.indexify([0]),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % f.name)
             )
@@ -201,6 +210,22 @@ def create_ops_dat(f, name_to_ops_dat, block):
     return res
 
 
+def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
+
+    if f.is_TimeFunction:
+        ops_fetch = [namespace['ops_dat_fetch_data'](
+            name_to_ops_dat[f.name].indexify(
+                [Mod(Add(time_upper_bound, -i), f._time_size)]),
+            Byref(f.indexify([Mod(Add(time_upper_bound, -i), f._time_size)])))
+            for i in range(f._time_size)]
+
+    else:
+        ops_fetch = [namespace['ops_dat_fetch_data'](
+            name_to_ops_dat[f.name], Byref(f.indexify([0])))]
+
+    return ops_fetch
+
+
 def create_ops_par_loop(
         trees, ops_kernel, parameters, block, name_to_ops_dat, par_to_ops_stencil, dims):
     it_range = []
@@ -211,7 +236,8 @@ def create_ops_par_loop(
 
     range_array = Array(
         name='%s_range' % ops_kernel.name,
-        dimensions=(DefaultDimension(name='range', default_value=len(it_range)),),
+        dimensions=(DefaultDimension(
+            name='range', default_value=len(it_range)),),
         dtype=np.int32,
         scope='stack'
     )
@@ -244,13 +270,25 @@ def create_ops_arg(p, name_to_ops_dat, par_to_ops_stencil):
             namespace['ops_read']
         )
     else:
-        return namespace['ops_arg_dat'](
-            name_to_ops_dat[p.name],
-            1,
-            par_to_ops_stencil[p],
-            Literal('"%s"' % dtype_to_cstr(p.dtype)),
-            namespace['ops_read'] if p.read_only else namespace['ops_write']
-        )
+        if p._origin.is_TimeFunction:
+            from devito.types.basic import AbstractCachedFunction  # noqa
+
+            print(name_to_ops_dat[p._origin.name], type(name_to_ops_dat[p._origin.name]))
+            print(isinstance(name_to_ops_dat[p._origin.name], AbstractCachedFunction))
+            # This is a parameter generated from TimeFunction
+            return namespace['ops_arg_dat'](
+                name_to_ops_dat[p._origin.name].indexify([p._origin_time_index]),
+                1,
+                par_to_ops_stencil[p],
+                Literal('"%s"' % dtype_to_cstr(p.dtype)),
+                namespace['ops_read'] if p.read_only else namespace['ops_write'])
+        else:
+            return namespace['ops_arg_dat'](
+                name_to_ops_dat[p.name],
+                1,
+                par_to_ops_stencil[p],
+                Literal('"%s"' % dtype_to_cstr(p.dtype)),
+                namespace['ops_read'] if p.read_only else namespace['ops_write'])
 
 
 def make_ops_ast(expr, nfops, is_write=False):
