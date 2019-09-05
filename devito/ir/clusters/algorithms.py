@@ -185,6 +185,12 @@ class Toposort(Queue):
                     dag.add_edge(cg0, cg1)
                     break
 
+                # Handle increment/write dependences
+                local_deps = cg0.scope.d_output + cg1.scope.d_output
+                if scope.d_output - local_deps:
+                    dag.add_edge(cg0, cg1)
+                    break
+
         return dag
 
 
