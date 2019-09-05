@@ -554,18 +554,25 @@ class Operator(Callable):
 
         summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
 
-        # With MPI enabled, emit global, i.e. "cross-rank" performance.
-        v = summary.reduced
-        if v is not None:
-            perf("Global \"cross-rank\" performance")
+        if summary.globals:
             indent = " "*2
-            gflopss = "%.2f GFlops/s" % fround(v.gflopss)
-            gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
-            metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
-            perf("%s* Operator `%s` with OI=%.2f computed in %.2f s [%s]" %
-                 (indent, self.name, fround(v.oi), fround(v.time), metrics))
 
-            perf("Local \"per-rank\" and \"by-section\" performance")
+            perf("Global performance indicators")
+
+            # With MPI enabled, the 'vanilla' entry contains "cross-rank" performance data
+            v = summary.globals.get('vanilla')
+            if v is not None:
+                gflopss = "%.2f GFlops/s" % fround(v.gflopss)
+                gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
+                metrics = ", ".join(i for i in [gflopss, gpointss] if i is not None)
+                perf("%s* Operator `%s` with OI=%.2f computed in %.2f s [%s]" %
+                     (indent, self.name, fround(v.oi), fround(v.time), metrics))
+
+            v = summary.globals.get('fdlike')
+            if v is not None:
+                perf("%s* Achieved %.2f FD-GPts/s" % (indent, v.gpointss))
+
+            perf("Local performance indicators")
         else:
             indent = ""
 
