@@ -66,7 +66,7 @@ working set). There are multiple scenarios that are worth considering:
   parallel region.  Pinning is typically enforced via environment variables.
 
 Some more information about pinning is available
-[here](https://perf.readthedocs.io/en/latest/system.html).
+[here](https://hpc-wiki.info/hpc/Binding/Pinning).
 
 There are many ways one can check that pinning is working as expected. A
 recommended tool for rapid visual inspection is [htop](http://hisham.hm/htop/).
