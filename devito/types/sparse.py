@@ -144,15 +144,6 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         return self._dist_scatter_mask[self._sparse_position]
 
     @property
-    def _dist_subfunc_gather_mask(self):
-        """
-        This method is analogous to :meth:`_dist_scatter_mask`, although
-        the mask is now suitable to index into self's SubFunctions, rather
-        than into ``self.data``.
-        """
-        return self._dist_gather_mask[self._sparse_position]
-
-    @property
     def _dist_gather_mask(self):
         """
         A mask to index into the ``data`` received upon returning from
@@ -165,6 +156,15 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         ret[self._sparse_position] = [mask.tolist().index(i)
                                       for i in filter_ordered(mask)]
         return tuple(ret)
+
+    @property
+    def _dist_subfunc_gather_mask(self):
+        """
+        This method is analogous to :meth:`_dist_subfunc_scatter_mask`, although
+        the mask is now suitable to index into self's SubFunctions, rather
+        than into ``self.data``.
+        """
+        return self._dist_gather_mask[self._sparse_position]
 
     @property
     def _dist_count(self):
@@ -301,7 +301,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
-            # Coords maye be empty if there is more ranks than coordinates
+            # Coords may be None if the coordinates are not used in the Operator
             if coordsobj is None:
                 pass
             elif np.sum([coordsobj._obj.size[i] for i in range(self.ndim)]) > 0:
@@ -829,11 +829,13 @@ class SparseFunction(AbstractSparseFunction):
 
     def _dist_gather(self, data, coords):
         distributor = self.grid.distributor
+
         # If not using MPI, don't waste time
         if distributor.nprocs == 1:
             return
 
         comm = distributor.comm
+
         # Pack sparse data values so that they can be sent out via an Alltoallv
         data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
         # Send back the sparse point values
@@ -855,13 +857,11 @@ class SparseFunction(AbstractSparseFunction):
             mpitype = MPI._typedict[np.dtype(self.coordinates.dtype).char]
             comm.Alltoallv([coords, rcount, rdisp, mpitype],
                            [gathered, scount, sdisp, mpitype])
-
             self._coordinates.data._local[:] = gathered[self._dist_subfunc_gather_mask]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
         # in `_dist_scatter` is here received; a sparse point that is received in
-        # `_dist_scatter` is here sent. However, the `coordinates` SubFunction
-        # values are not distributed, as this is a read-only field.
+        # `_dist_scatter` is here sent.
 
     # Pickling support
     _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates_data']
