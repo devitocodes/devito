@@ -467,7 +467,8 @@ if __name__ == "__main__":
 
         if MPI.COMM_WORLD.size > 1 and not configuration['mpi']:
             warning("It seems that you're running over MPI with %d processes, but "
-                    "DEVITO_MPI is unset. Setting `DEVITO_MPI=basic`...")
+                    "DEVITO_MPI is unset. Setting `DEVITO_MPI=basic`..."
+                    % MPI.COMM_WORLD.size)
             configuration['mpi'] = 'basic'
     except TypeError:
         # MPI not available

@@ -702,39 +702,32 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         if MPI.COMM_WORLD.size > 1 and self._distributor is None:
             raise RuntimeError("`%s` cannot perform a halo exchange as it has "
                                "no Grid attached" % self.name)
-        if self._in_flight:
-            raise RuntimeError("`%s` cannot initiate a halo exchange as previous "
-                               "exchanges are still in flight" % self.name)
-        for i in self.space_dimensions:
-            self.__halo_begin_exchange(i)
-            self.__halo_end_exchange(i)
-        self._is_halo_dirty = False
-        assert not self._in_flight
 
-    def __halo_begin_exchange(self, dim):
-        """Begin a halo exchange along a given Dimension."""
         neighborhood = self._distributor.neighborhood
         comm = self._distributor.comm
-        for i in [LEFT, RIGHT]:
-            neighbor = neighborhood[dim][i]
-            owned_region = self._data_in_region(OWNED, dim, i)
-            halo_region = self._data_in_region(HALO, dim, i)
-            sendbuf = np.ascontiguousarray(owned_region)
-            recvbuf = np.ndarray(shape=halo_region.shape, dtype=self.dtype)
-            self._in_flight.append((dim, i, recvbuf, comm.Irecv(recvbuf, neighbor)))
-            self._in_flight.append((dim, i, None, comm.Isend(sendbuf, neighbor)))
 
-    def __halo_end_exchange(self, dim):
-        """End a halo exchange along a given Dimension."""
-        for d, i, payload, req in list(self._in_flight):
-            if d == dim:
-                status = MPI.Status()
-                req.Wait(status=status)
-                if payload is not None and status.source != MPI.PROC_NULL:
-                    # The MPI.Request `req` originated from a `comm.Irecv`
-                    # Now need to scatter the data to the right place
-                    self._data_in_region(HALO, d, i)[:] = payload
-            self._in_flight.remove((d, i, payload, req))
+        for d in self._dist_dimensions:
+            for i in [LEFT, RIGHT]:
+                # Get involved peers
+                dest = neighborhood[d][i]
+                source = neighborhood[d][i.flip()]
+
+                # Gather send data
+                data = self._data_in_region(OWNED, d, i)
+                sendbuf = np.ascontiguousarray(data)
+
+                # Setup recv buffer
+                shape = self._data_in_region(HALO, d, i.flip()).shape
+                recvbuf = np.ndarray(shape=shape, dtype=self.dtype)
+
+                # Communication
+                comm.Sendrecv(sendbuf, dest=dest, recvbuf=recvbuf, source=source)
+
+                # Scatter received data
+                if recvbuf is not None and source != MPI.PROC_NULL:
+                    self._data_in_region(HALO, d, i.flip())[:] = recvbuf
+
+        self._is_halo_dirty = False
 
     @property
     def _arg_names(self):
