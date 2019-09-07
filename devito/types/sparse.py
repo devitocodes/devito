@@ -158,6 +158,15 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         return tuple(ret)
 
     @property
+    def _dist_subfunc_gather_mask(self):
+        """
+        This method is analogous to :meth:`_dist_subfunc_scatter_mask`, although
+        the mask is now suitable to index into self's SubFunctions, rather
+        than into ``self.data``.
+        """
+        return self._dist_gather_mask[self._sparse_position]
+
+    @property
     def _dist_count(self):
         """
         A 2-tuple of comm-sized iterables, which tells how many sparse points
@@ -288,11 +297,16 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
         return values
 
-    def _arg_apply(self, dataobj, alias=None):
+    def _arg_apply(self, dataobj, coordsobj, alias=None):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
-            key._dist_gather(self._C_as_ndarray(dataobj))
+            # Coords may be None if the coordinates are not used in the Operator
+            if coordsobj is None:
+                pass
+            elif np.sum([coordsobj._obj.size[i] for i in range(self.ndim)]) > 0:
+                coordsobj = self.coordinates._C_as_ndarray(coordsobj)
+            key._dist_gather(self._C_as_ndarray(dataobj), coordsobj)
         elif self.grid.distributor.nprocs > 1:
             raise NotImplementedError("Don't know how to gather data from an "
                                       "object of type `%s`" % type(key))
@@ -813,7 +827,7 @@ class SparseFunction(AbstractSparseFunction):
 
         return {self: data, self.coordinates: coords}
 
-    def _dist_gather(self, data):
+    def _dist_gather(self, data, coords):
         distributor = self.grid.distributor
 
         # If not using MPI, don't waste time
@@ -830,15 +844,24 @@ class SparseFunction(AbstractSparseFunction):
         mpitype = MPI._typedict[np.dtype(self.dtype).char]
         comm.Alltoallv([data, rcount, rdisp, mpitype],
                        [gathered, scount, sdisp, mpitype])
-        data = gathered
         # Unpack data values so that they follow the expected storage layout
-        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
-        self._data[:] = data[self._dist_gather_mask]
+        gathered = np.ascontiguousarray(np.transpose(gathered, self._dist_reorder_mask))
+        self._data[:] = gathered[self._dist_gather_mask]
+
+        if coords is not None:
+            # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
+            coords = coords + np.array(self.grid.origin_offset, dtype=self.dtype)
+            # Send out the sparse point coordinates
+            sshape, scount, sdisp, _, rcount, rdisp = self._dist_subfunc_alltoall
+            gathered = np.empty(shape=sshape, dtype=self.coordinates.dtype)
+            mpitype = MPI._typedict[np.dtype(self.coordinates.dtype).char]
+            comm.Alltoallv([coords, rcount, rdisp, mpitype],
+                           [gathered, scount, sdisp, mpitype])
+            self._coordinates.data._local[:] = gathered[self._dist_subfunc_gather_mask]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
         # in `_dist_scatter` is here received; a sparse point that is received in
-        # `_dist_scatter` is here sent. However, the `coordinates` SubFunction
-        # values are not distributed, as this is a read-only field.
+        # `_dist_scatter` is here sent.
 
     # Pickling support
     _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates_data']
@@ -1158,6 +1181,15 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         raise NotImplementedError
 
     def _dist_gather(self, data):
+        distributor = self.grid.distributor
+
+        # If not using MPI, don't waste time
+        if distributor.nprocs == 1:
+            return
+
+        raise NotImplementedError
+
+    def _arg_apply(self, *args, **kwargs):
         distributor = self.grid.distributor
 
         # If not using MPI, don't waste time
