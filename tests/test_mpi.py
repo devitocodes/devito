@@ -391,16 +391,39 @@ class TestSparseFunction(object):
 
         # Scatter
         loc_data = sf._dist_scatter()[sf]
+        loc_coords = sf._dist_scatter()[sf.coordinates]
         assert len(loc_data) == 1
         assert loc_data[0] == grid.distributor.myrank
-
         # Do some local computation
         loc_data = loc_data*2
 
         # Gather
-        sf._dist_gather(loc_data)
+        sf._dist_gather(loc_data, loc_coords)
         assert len(sf.data) == 1
         assert np.all(sf.data == data[sf.local_indices]*2)
+
+    @pytest.mark.parallel(mode=4)
+    def test_sparse_coords(self):
+        grid = Grid(shape=(21, 31, 21), extent=(20, 30, 20))
+        x, y, z = grid.dimensions
+
+        coords = np.zeros((21*31, 3))
+        coords[:, 0] = np.asarray([i for i in range(21) for j in range(31)])
+        coords[:, 1] = np.asarray([j for i in range(21) for j in range(31)])
+        sf = SparseFunction(name="s", grid=grid, coordinates=coords, npoint=21*31)
+
+        u = Function(name="u", grid=grid, space_order=1)
+        u.data[:, :, 0] = np.reshape(np.asarray([i+j for i in range(21)
+                                                 for j in range(31)]), (21, 31))
+
+        op = Operator(sf.interpolate(u))
+        op.apply()
+
+        for i in range(21*31):
+            coords_loc = sf.coordinates.data[i, 1]
+            if coords_loc is not None:
+                coords_loc += sf.coordinates.data[i, 0]
+            assert sf.data[i] == coords_loc
 
 
 class TestOperatorSimple(object):
