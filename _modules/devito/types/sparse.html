@@ -313,6 +313,15 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_dist_subfunc_gather_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method is analogous to :meth:`_dist_subfunc_scatter_mask`, although</span>
+<span class="sd">        the mask is now suitable to index into self&#39;s SubFunctions, rather</span>
+<span class="sd">        than into ``self.data``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_gather_mask</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_count</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A 2-tuple of comm-sized iterables, which tells how many sparse points</span>
@@ -443,11 +452,16 @@
 
         <span class="k">return</span> <span class="n">values</span>
 
-    <span class="k">def</span> <span class="nf">_arg_apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataobj</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataobj</span><span class="p">,</span> <span class="n">coordsobj</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="k">if</span> <span class="n">alias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">AbstractSparseFunction</span><span class="p">):</span>
             <span class="c1"># Gather into `self.data`</span>
-            <span class="n">key</span><span class="o">.</span><span class="n">_dist_gather</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_as_ndarray</span><span class="p">(</span><span class="n">dataobj</span><span class="p">))</span>
+            <span class="c1"># Coords may be None if the coordinates are not used in the Operator</span>
+            <span class="k">if</span> <span class="n">coordsobj</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">([</span><span class="n">coordsobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">coordsobj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">_C_as_ndarray</span><span class="p">(</span><span class="n">coordsobj</span><span class="p">)</span>
+            <span class="n">key</span><span class="o">.</span><span class="n">_dist_gather</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_as_ndarray</span><span class="p">(</span><span class="n">dataobj</span><span class="p">),</span> <span class="n">coordsobj</span><span class="p">)</span>
         <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">nprocs</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Don&#39;t know how to gather data from an &quot;</span>
                                       <span class="s2">&quot;object of type `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
@@ -968,7 +982,7 @@
 
         <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="p">:</span> <span class="n">coords</span><span class="p">}</span>
 
-    <span class="k">def</span> <span class="nf">_dist_gather</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_dist_gather</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">coords</span><span class="p">):</span>
         <span class="n">distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span>
 
         <span class="c1"># If not using MPI, don&#39;t waste time</span>
@@ -985,15 +999,24 @@
         <span class="n">mpitype</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_typedict</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">char</span><span class="p">]</span>
         <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">data</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
                        <span class="p">[</span><span class="n">gathered</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="n">gathered</span>
         <span class="c1"># Unpack data values so that they follow the expected storage layout</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_gather_mask</span><span class="p">]</span>
+        <span class="n">gathered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">gathered</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_reorder_mask</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">gathered</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_gather_mask</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">coords</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Pack (reordered) coordinates so that they can be sent out via an Alltoallv</span>
+            <span class="n">coords</span> <span class="o">=</span> <span class="n">coords</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin_offset</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="c1"># Send out the sparse point coordinates</span>
+            <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_alltoall</span>
+            <span class="n">gathered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">sshape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="n">mpitype</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">_typedict</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">char</span><span class="p">]</span>
+            <span class="n">comm</span><span class="o">.</span><span class="n">Alltoallv</span><span class="p">([</span><span class="n">coords</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">],</span>
+                           <span class="p">[</span><span class="n">gathered</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_local</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">gathered</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_dist_subfunc_gather_mask</span><span class="p">]</span>
 
         <span class="c1"># Note: this method &quot;mirrors&quot; `_dist_scatter`: a sparse point that is sent</span>
         <span class="c1"># in `_dist_scatter` is here received; a sparse point that is received in</span>
-        <span class="c1"># `_dist_scatter` is here sent. However, the `coordinates` SubFunction</span>
-        <span class="c1"># values are not distributed, as this is a read-only field.</span>
+        <span class="c1"># `_dist_scatter` is here sent.</span>
 
     <span class="c1"># Pickling support</span>
     <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">AbstractSparseFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;coordinates_data&#39;</span><span class="p">]</span></div>
@@ -1313,6 +1336,15 @@
         <span class="k">raise</span> <span class="ne">NotImplementedError</span>
 
     <span class="k">def</span> <span class="nf">_dist_gather</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span>
+
+        <span class="c1"># If not using MPI, don&#39;t waste time</span>
+        <span class="k">if</span> <span class="n">distributor</span><span class="o">.</span><span class="n">nprocs</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="k">def</span> <span class="nf">_arg_apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span>
 
         <span class="c1"># If not using MPI, don&#39;t waste time</span>
