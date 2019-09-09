@@ -483,6 +483,46 @@ class TestConditionalDimension(object):
         assert np.all([np.allclose(usave.data[i], i*factor)
                       for i in range((nt+factor-1)//factor)])
 
+    def test_basic_shuffles(self):
+        """
+        Like ``test_basic``, but with different equation orderings. Nevertheless,
+        we assert against the same exact values as in ``test_basic``, since we
+        save `u`, not `u.forward`.
+        """
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid)
+
+        u2 = TimeFunction(name='u2', grid=grid, save=nt)
+
+        factor = 4
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+        usave = TimeFunction(name='usave', grid=grid, save=(nt+factor-1)//factor,
+                             time_dim=time_subsampled)
+
+        # Shuffle 1
+        eqns = [Eq(usave, u), Eq(u.forward, u + 1.), Eq(u2.forward, u2 + 1.)]
+        op = Operator(eqns)
+        op.apply(t_M=nt-2)
+        assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
+        assert np.all([np.allclose(u2.data[i], i) for i in range(nt)])
+        assert np.all([np.allclose(usave.data[i], i*factor)
+                      for i in range((nt+factor-1)//factor)])
+
+        # Shuffle 2
+        usave.data[:] = 0.
+        u.data[:] = 0.
+        u2.data[:] = 0.
+        eqns = [Eq(u.forward, u + 1.), Eq(usave, u), Eq(u2.forward, u2 + 1.)]
+        op = Operator(eqns)
+        op.apply(t_M=nt-2)
+        assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
+        assert np.all([np.allclose(u2.data[i], i) for i in range(nt)])
+        assert np.all([np.allclose(usave.data[i], i*factor)
+                      for i in range((nt+factor-1)//factor)])
+
     def test_spacial_subsampling(self):
         """
         Test conditional dimension for the spatial ones.
