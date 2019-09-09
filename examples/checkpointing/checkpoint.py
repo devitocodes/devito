@@ -73,7 +73,7 @@ class DevitoCheckpoint(Checkpoint):
     @property
     def size(self):
         """The memory consumption of the data contained in a checkpoint."""
-        return sum([o.size*o.time_order for o in self.objects])
+        return sum([o.size_allocated*o.time_order for o in self.objects])
 
     def save(*args):
         raise RuntimeError("Invalid method called. Did you check your version" +
@@ -88,6 +88,6 @@ def get_symbol_data(symbol, timestep):
     timestep += symbol.time_order - 1
     ptrs = []
     for i in range(symbol.time_order):
-        ptr = symbol.data[timestep - i, :, :]
+        ptr = symbol._data[timestep - i, :, :]
         ptrs.append(ptr)
     return ptrs
