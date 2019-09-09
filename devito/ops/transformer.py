@@ -61,7 +61,7 @@ def opsit(trees, count, name_to_ops_dat, block, dims):
 
     ops_par_loop_init, ops_par_loop_call = create_ops_par_loop(
         trees, ops_kernel, parameters, block,
-        name_to_ops_dat, par_to_ops_stencil, dims
+        name_to_ops_dat, node_factory.ops_args, par_to_ops_stencil, dims
     )
 
     pre_time_loop = stencil_arrays_initializations + ops_par_loop_init
@@ -138,11 +138,8 @@ def create_ops_dat(f, name_to_ops_dat, block):
         time_dims = f.shape[time_pos]
 
         dim_shape = sympify(f.shape[:time_pos] + f.shape[time_pos + 1:])
-        padding = f.padding[:time_pos] + f.padding[time_pos + 1:]
-        halo = f.halo[:time_pos] + f.halo[time_pos + 1:]
-        d_p_val = tuple(sympify([p[0] + h[0] for p, h in zip(padding, halo)]))
-        d_m_val = tuple(sympify([-(p[1] + h[1])
-                                 for p, h in zip(padding, halo)]))
+        d_p_val = sympify(f._size_halo.left[time_pos+1:])
+        d_m_val = tuple(sympify([-i for i in f._size_halo.right[time_pos+1:]]))
 
         ops_dat_array = Array(
             name=namespace['ops_dat_name'](f.name),
@@ -162,7 +159,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                f.indexify([i]),
+                Byref(f.indexify([i])),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % name)
             ))
@@ -194,7 +191,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                f.indexify([0]),
+                Byref(f.indexify([0])),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % f.name)
             )
@@ -225,8 +222,8 @@ def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
     return ops_fetch
 
 
-def create_ops_par_loop(
-        trees, ops_kernel, parameters, block, name_to_ops_dat, par_to_ops_stencil, dims):
+def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
+                        accessible_origin, par_to_ops_stencil, dims):
     it_range = []
     for tree in trees:
         if isinstance(tree, IterationTree):
@@ -253,7 +250,8 @@ def create_ops_par_loop(
             block,
             dims,
             range_array,
-            *[create_ops_arg(p, name_to_ops_dat, par_to_ops_stencil) for p in parameters]
+            *[create_ops_arg(p, name_to_ops_dat, par_to_ops_stencil)
+              for p in parameters]
         ]
     )
 
@@ -269,10 +267,9 @@ def create_ops_arg(p, name_to_ops_dat, par_to_ops_stencil):
             namespace['ops_read']
         )
     else:
-        if p._origin.is_TimeFunction:
-            # This is a parameter generated from TimeFunction
+        if p.time_access:
             return namespace['ops_arg_dat'](
-                name_to_ops_dat[p._origin.name].indexify([p._origin_time_index]),
+                name_to_ops_dat[p.origin_name].indexify([p.time_access]),
                 1,
                 par_to_ops_stencil[p],
                 Literal('"%s"' % dtype_to_cstr(p.dtype)),

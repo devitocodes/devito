@@ -31,16 +31,15 @@ class OpsAccessible(basic.Symbol):
     """
     is_Scalar = True
 
-    def __new__(cls, name, dtype, read_only, origin, origin_time_index, * args, **kwargs):
+    def __new__(cls, name, dtype, read_only, * args, **kwargs):
         obj = basic.Symbol.__new__(cls, name, dtype, *args, **kwargs)
-        obj.__init__(name, dtype, read_only, origin, origin_time_index, *args, **kwargs)
+        obj.__init__(name, dtype, read_only, *args, **kwargs)
         return obj
 
-    def __init__(self, name, dtype, read_only, origin, origin_time_index, *args,
-                 **kwargs):
+    def __init__(self, name, dtype, read_only, *args, **kwargs):
         self.read_only = read_only
-        self._origin = origin
-        self._origin_time_index = origin_time_index
+        self._time_access = None
+        self._origin_name = None
         super().__init__(name, dtype, *args, **kwargs)
 
     @property
@@ -58,8 +57,13 @@ class OpsAccessible(basic.Symbol):
     def _C_typedata(self):
         return 'ACC<%s>' % dtype_to_cstr(self.dtype)
 
-    def ops_id(self):
-        return '%s%s' % (self._origin.name, self._origin_time_index)
+    @property
+    def time_access(self):
+        return self._time_access
+
+    @property
+    def origin_name(self):
+        return self._origin_name
 
 
 class OpsAccess(basic.Basic, sympy.Basic):
