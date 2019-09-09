@@ -157,7 +157,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                f.indexify([i]),
+                Byref(f.indexify([i])),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % name)
             ))
@@ -189,7 +189,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                f.indexify([0]),
+                Byref(f.indexify([0])),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % f.name)
             )
