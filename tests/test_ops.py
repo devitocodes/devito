@@ -133,15 +133,15 @@ class TestOPSExpression(object):
     @pytest.mark.parametrize('equation,expected', [
         ('Eq(u.forward, u + 1)',
          '[\'ops_dat u_dat[2] = {ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
-         'u[0], "float", "ut0"), ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
-         'u[1], "float", "ut1")}\']'),
+         '&(u[0]), "float", "ut0"), ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
+         '&(u[1]), "float", "ut1")}\']'),
         ('Eq(u.forward, u + v.dx)',
          '[\'ops_dat u_dat[2] = {ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
-         'u[0], "float", "ut0"), ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
-         'u[1], "float", "ut1")}\','
+         '&(u[0]), "float", "ut0"), ops_decl_dat(block, 1, u_dim, u_base, u_d_m, u_d_p, '
+         '&(u[1]), "float", "ut1")}\','
          '\'ops_dat v_dat;\','
          '\'v_dat = ops_decl_dat(block, 1, v_dim, v_base, v_d_m, v_d_p, '
-         'v[0], "float", "v")\']')
+         '&(v[0]), "float", "v")\']')
     ])
     def test_create_ops_dat(self, equation, expected):
         grid = Grid(shape=(4, 4))
@@ -189,7 +189,7 @@ class TestOPSExpression(object):
             Symbol(namespace['ops_dat_base'](u.name)),
             Symbol(namespace['ops_dat_d_m'](u.name)),
             Symbol(namespace['ops_dat_d_p'](u.name)),
-            u.indexify((0,)),
+            Byref(u.indexify((0,))),
             Literal('"%s"' % u._C_typedata),
             Literal('"u"')
         )
@@ -240,21 +240,42 @@ class TestOPSExpression(object):
         assert expected in str(operator.ccode)
 
     @pytest.mark.parametrize('equation,expected', [
-        ('Eq(u.forward, u + 1)',
+        ('Eq(u_2d.forward, u_2d + 1)',
          '[\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
          '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]));\']'),
-        ('Eq(v, v.dx + u)',
-         '[\'ops_dat_fetch_data(v_dat[(time_M)%(2)],0,&(v[(time_M)%(2)]));\','
-         '\'ops_dat_fetch_data(v_dat[(time_M + 1)%(2)],0,&(v[(time_M + 1)%(2)]));\','
+        ('Eq(v_2d, v_2d.dt.dx + u_2d.dt)',
+         '[\'ops_dat_fetch_data(v_dat[(time_M)%(3)],0,&(v[(time_M)%(3)]));\','
+         '\'ops_dat_fetch_data(v_dat[(time_M + 1)%(3)],0,&(v[(time_M + 1)%(3)]));\','
+         '\'ops_dat_fetch_data(v_dat[(time_M + 2)%(3)],0,&(v[(time_M + 2)%(3)]));\','
          '\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
          '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]));\']'),
+        ('Eq(v_3d.forward, v_3d + 1)',
+         '[\'ops_dat_fetch_data(v_dat[(time_M)%(3)],0,&(v[(time_M)%(3)]));\','
+         '\'ops_dat_fetch_data(v_dat[(time_M + 2)%(3)],0,&(v[(time_M + 2)%(3)]));\','
+         '\'ops_dat_fetch_data(v_dat[(time_M + 1)%(3)],0,&(v[(time_M + 1)%(3)]));\']'),
+        ('Eq(x_3d, x_3d.dt2 + v_3d.dt.dx + u_3d.dxr - u_3d.dxl)',
+         '[\'ops_dat_fetch_data(x_dat[(time_M)%(4)],0,&(x[(time_M)%(4)]));\','
+         '\'ops_dat_fetch_data(x_dat[(time_M + 3)%(4)],0,&(x[(time_M + 3)%(4)]));\','
+         '\'ops_dat_fetch_data(x_dat[(time_M + 2)%(4)],0,&(x[(time_M + 2)%(4)]));\','
+         '\'ops_dat_fetch_data(x_dat[(time_M + 1)%(4)],0,&(x[(time_M + 1)%(4)]));\','
+         '\'ops_dat_fetch_data(v_dat[(time_M)%(3)],0,&(v[(time_M)%(3)]));\','
+         '\'ops_dat_fetch_data(v_dat[(time_M + 2)%(3)],0,&(v[(time_M + 2)%(3)]));\','
+         '\'ops_dat_fetch_data(v_dat[(time_M + 1)%(3)],0,&(v[(time_M + 1)%(3)]));\','
+         '\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
+         '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]));\']')
     ])
     def test_create_fetch_data(self, equation, expected):
 
-        grid = Grid(shape=(4, 4))
+        grid_2d = Grid(shape=(4, 4))
+        grid_3d = Grid(shape=(4, 4, 4))
 
-        u = TimeFunction(name='u', grid=grid)  # noqa
-        v = TimeFunction(name='v', grid=grid)  # noqa
+        u_2d = TimeFunction(name='u', grid=grid_2d, time_order=1)  # noqa
+        v_2d = TimeFunction(name='v', grid=grid_2d, time_order=2)  # noqa
+        x_2d = TimeFunction(name='x', grid=grid_2d, time_order=3)  # noqa
+
+        u_3d = TimeFunction(name='u', grid=grid_3d, time_order=1)  # noqa
+        v_3d = TimeFunction(name='v', grid=grid_3d, time_order=2)  # noqa
+        x_3d = TimeFunction(name='x', grid=grid_3d, time_order=3)  # noqa
 
         op = Operator(eval(equation))
         for i in eval(expected):
