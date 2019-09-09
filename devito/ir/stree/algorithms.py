@@ -66,11 +66,16 @@ def st_schedule(clusters):
         NodeExprs(c.exprs, c.ispace, c.dspace, c.ops, c.traffic, root)
 
         # Add in Conditionals
-        for k, v in mapper.items():
+        drop_guarded = None
+        for k, v in list(mapper.items()):
+            if drop_guarded:
+                mapper.pop(k)
             if k.dim in c.guards:
                 node = NodeConditional(c.guards[k.dim])
                 v.last.parent = node
                 node.parent = v
+                # Drop nested guarded sub-trees
+                drop_guarded = True
 
     return stree
 
