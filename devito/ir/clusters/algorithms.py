@@ -137,32 +137,31 @@ class Toposort(Queue):
 
     def _build_dag(self, cgroups, prefix):
         """
-        A DAG capturing data dependences between ClusterGroups up to a given
-        iteration space depth.
+        A DAG captures data dependences between ClusterGroups up to the iteration
+        space depth dictated by ``prefix``.
 
         Examples
         --------
-        Consider two ClusterGroups `c0` and `c1`, within the iteration space `i`.
+        Consider two ClusterGroups `c0` and `c1`, and ``prefix=[i]``.
 
         1) cg0 := b[i, j] = ...
            cg1 := ... = ... b[i, j] ...
-           Non-carried flow-dependence, so `cg1` must go after `cg0`
+           Non-carried flow-dependence, so `cg1` must go after `cg0`.
 
         2) cg0 := b[i, j] = ...
            cg1 := ... = ... b[i, j+1] ...
-           Anti-dependence in `j`, so `cg1` must go after `cg0`
+           Carried anti-dependence in `j`, so `cg1` must go after `cg0`.
 
         3) cg0 := b[i, j] = ...
            cg1 := ... = ... b[i-1, j+1] ...
-           Flow-dependence in `i`, so `cg1` can safely go before or after `cg0`
-           (but clearly still within the `i` iteration space).
-           Note: the `j+1` in `cg1` has no impact -- the dependence is in `i`.
+           Carried flow-dependence in `i`, so `cg1` can safely go before or after
+           `cg0`. Note: the `j+1` in `cg1` has no impact -- the dependence is in `i`.
 
         4) cg0 := b[i, j] = ...
            cg1 := ... = ... b[i, j-1] ...
-           Flow-dependence in `j`, so `cg1` must go after `cg0`.
-           Unlike case 3), the flow-dependence is along an inner Dimension, so
-           `cg0` and `cg1 are sequentialized.
+           Carried flow-dependence in `j`, so `cg1` must go after `cg0`. Unlike
+           case 3), the flow-dependence is along a Dimension that doesn't appear in
+           `prefix`, so `cg0` and `cg1 are sequentialized.
         """
         prefix = {i.dim for i in as_tuple(prefix)}
 
@@ -172,18 +171,31 @@ class Toposort(Queue):
                 scope = Scope(exprs=cg0.exprs + cg1.exprs)
 
                 # Handle anti-dependences
-                local_deps = cg0.scope.d_anti + cg1.scope.d_anti
-                if scope.d_anti - local_deps:
-                    dag.add_edge(cg0, cg1)
+                deps = scope.d_anti - (cg0.scope.d_anti + cg1.scope.d_anti)
+                if any(i.cause & prefix for i in deps):
+                    # Anti-dependences break the execution flow
+                    # i) ClusterGroups between `cg0` and `cg1` must precede `cg1`
+                    for cg2 in cgroups[n:cgroups.index(cg1)]:
+                        dag.add_edge(cg2, cg1)
+                    # ii) ClusterGroups after `cg1` cannot precede `cg1`
+                    for cg2 in cgroups[cgroups.index(cg1)+1:]:
+                        dag.add_edge(cg1, cg2)
                     break
+                elif deps:
+                    dag.add_edge(cg0, cg1)
 
                 # Flow-dependences along one of the `prefix` Dimensions can
                 # be ignored; all others require sequentialization
-                local_deps = cg0.scope.d_flow + cg1.scope.d_flow
-                if any(not i.cause or not (i.cause & prefix)
-                       for i in scope.d_flow - local_deps):
+                deps = scope.d_flow - (cg0.scope.d_flow + cg1.scope.d_flow)
+                if any(not (i.cause and i.cause & prefix) for i in deps):
                     dag.add_edge(cg0, cg1)
-                    break
+                    continue
+
+                # Handle increment-after-write dependences
+                deps = scope.d_output - (cg0.scope.d_output + cg1.scope.d_output)
+                if any(i.is_iaw for i in deps):
+                    dag.add_edge(cg0, cg1)
+                    continue
 
         return dag
 
