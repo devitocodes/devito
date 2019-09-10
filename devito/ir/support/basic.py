@@ -722,16 +722,17 @@ class Scope(object):
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
+                    dependence = Dependence(w, r)
+                    distance = dependence.distance
                     try:
-                        distance = r.distance(w)
-                        is_flow = distance < 0 or (r.lex_ge(w) and distance == 0)
+                        is_flow = distance > 0 or (r.lex_ge(w) and distance == 0)
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-increment
                         is_flow = not r.is_read_increment
                     if is_flow:
-                        found.append(Dependence(w, r))
+                        found.append(dependence)
         return found
 
     @cached_property
@@ -741,8 +742,9 @@ class Scope(object):
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
+                    dependence = Dependence(r, w)
+                    distance = dependence.distance
                     try:
-                        distance = r.distance(w)
                         is_anti = distance > 0 or (r.lex_lt(w) and distance == 0)
                     except TypeError:
                         # Non-integer vectors are not comparable.
@@ -750,7 +752,7 @@ class Scope(object):
                         # it's a read-for-increment
                         is_anti = not r.is_read_increment
                     if is_anti:
-                        found.append(Dependence(r, w))
+                        found.append(dependence)
         return found
 
     @cached_property
@@ -760,15 +762,16 @@ class Scope(object):
         for k, v in self.writes.items():
             for w1 in v:
                 for w2 in self.writes.get(k, []):
+                    dependence = Dependence(w2, w1)
+                    distance = dependence.distance
                     try:
-                        distance = w2.distance(w1)
                         is_output = distance > 0 or (w2.lex_gt(w1) and distance == 0)
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence
                         is_output = True
                     if is_output:
-                        found.append(Dependence(w2, w1))
+                        found.append(dependence)
         return found
 
     @cached_property
