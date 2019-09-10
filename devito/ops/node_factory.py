@@ -4,6 +4,7 @@ from devito import Constant, TimeFunction
 from devito.types.dimension import SpaceDimension
 from devito.symbolics import split_affine
 from devito.ops.types import OpsAccess, OpsAccessible
+from devito.ops.utils import AccessibleInfo
 
 
 class OPSNodeFactory(object):
@@ -46,13 +47,15 @@ class OPSNodeFactory(object):
                 not is_write
             )
 
-            symbol_to_access._origin_name = indexed.function.name
-            symbol_to_access._time_access = time_index.var \
-                if indexed.function.is_TimeFunction else None
-            self.ops_args[ops_arg_id] = symbol_to_access
+            accessible_info = AccessibleInfo(
+                symbol_to_access,
+                time_index.var if indexed.function.is_TimeFunction else None,
+                indexed.function.name)
+
+            self.ops_args[ops_arg_id] = accessible_info
             self.ops_params.append(symbol_to_access)
         else:
-            symbol_to_access = self.ops_args[ops_arg_id]
+            symbol_to_access = self.ops_args[ops_arg_id].accessible
 
         # Get the space indices
         space_indices = [
@@ -67,10 +70,12 @@ class OPSNodeFactory(object):
 
     def new_ops_gbl(self, c):
         if c in self.ops_args:
-            return self.ops_args[c]
+            return self.ops_args[c].accessible
 
-        new_c = Constant(name='*%s' % c.name, dtype=c.dtype)
+        new_c = AccessibleInfo(Constant(name='*%s' % c.name, dtype=c.dtype),
+                               None,
+                               None)
         self.ops_args[c] = new_c
-        self.ops_params.append(new_c)
+        self.ops_params.append(new_c.accessible)
 
-        return new_c
+        return new_c.accessible
