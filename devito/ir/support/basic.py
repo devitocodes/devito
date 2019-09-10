@@ -151,7 +151,7 @@ class IterationInstance(LabeledVector):
     def is_scalar(self):
         return self.rank == 0
 
-    def distance(self, other, findex=None):
+    def distance(self, other):
         """
         Compute the distance from ``self`` to ``other``.
 
@@ -159,21 +159,12 @@ class IterationInstance(LabeledVector):
         ----------
         other : IterationInstance
             The IterationInstance from which the distance is computed.
-        findex : Dimension, optional
-            If supplied, compute the distance only up to and including ``findex``.
         """
-        if not isinstance(other, IterationInstance):
-            raise TypeError("Cannot compute distance from obj of type %s", type(other))
+        assert isinstance(other, IterationInstance)
         if self.findices != other.findices:
             raise TypeError("Cannot compute distance due to mismatching `findices`")
-        if findex is not None:
-            try:
-                limit = self._cached_findices_index[findex] + 1
-            except KeyError:
-                raise TypeError("Cannot compute distance as `findex` not in `findices`")
-        else:
-            limit = self.rank
-        return super(IterationInstance, self).distance(other)[:limit]
+
+        return super(IterationInstance, self).distance(other)
 
 
 class TimedAccess(IterationInstance):
@@ -288,21 +279,43 @@ class TimedAccess(IterationInstance):
         return self.timestamp < other.timestamp
 
     def distance(self, other, findex=None):
+        """
+        Compute the distance from ``self`` to ``other``.
+
+        Parameters
+        ----------
+        other : TimedAccess
+            The TimedAccess from which the distance is computed.
+        findex : Dimension, optional
+            If supplied, compute the distance only up to and including ``findex``.
+        """
+        assert isinstance(other, TimedAccess)
+
         if not self.rank:
             return Vector()
-        findex = findex or self.findices[-1]
+
+        # Compute distance up to `limit`, ignoring `directions` for the moment
+        if findex is None:
+            findex = self.findices[-1]
+            limit = self.rank + 1
+        else:
+            try:
+                limit = self._cached_findices_index[findex] + 1
+            except KeyError:
+                raise TypeError("Cannot compute distance as `findex` not in `findices`")
+        distance = list(super(TimedAccess, self).distance(other)[:limit])
+
+        # * If mismatching `directions`, set the distance to infinity
+        # * If direction is Backward, flip the sign
         ret = []
-        for i, sd, od in zip(self.findices, self.directions, other.directions):
-            if sd is od:
-                ret = list(super(TimedAccess, self).distance(other, i))
-                if i is findex:
-                    break
+        for i, d0, d1 in zip(distance, self.directions, other.directions):
+            if d0 is d1:
+                ret.append(-i if d0 is Backward else i)
             else:
                 ret.append(S.Infinity)
                 break
-        directions = self.directions[:self._cached_findices_index[i] + 1]
-        assert len(directions) == len(ret)
-        return Vector(*[(-i) if d is Backward else i for i, d in zip(ret, directions)])
+
+        return Vector(*ret)
 
     def touched_halo(self, findex):
         """
