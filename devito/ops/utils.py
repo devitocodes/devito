@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from sympy import Function
 
 from devito.ir.iet.nodes import Call
@@ -7,6 +7,7 @@ from devito.symbolics import Macro
 
 # OPS Conventions
 namespace = OrderedDict()
+AccessibleInfo = namedtuple('AccessibleInfo', ['accessible', 'time', 'origin_name'])
 
 # OPS API
 namespace['ops_init'] = 'ops_init'

@@ -38,8 +38,6 @@ class OpsAccessible(basic.Symbol):
 
     def __init__(self, name, dtype, read_only, *args, **kwargs):
         self.read_only = read_only
-        self._time_access = None
-        self._origin_name = None
         super().__init__(name, dtype, *args, **kwargs)
 
     @property
@@ -56,14 +54,6 @@ class OpsAccessible(basic.Symbol):
     @property
     def _C_typedata(self):
         return 'ACC<%s>' % dtype_to_cstr(self.dtype)
-
-    @property
-    def time_access(self):
-        return self._time_access
-
-    @property
-    def origin_name(self):
-        return self._origin_name
 
 
 class OpsAccess(basic.Basic, sympy.Basic):
