@@ -151,7 +151,7 @@ class IterationInstance(LabeledVector):
     def is_scalar(self):
         return self.rank == 0
 
-    def distance(self, other, findex=None, view=None):
+    def distance(self, other, findex=None):
         """
         Compute the distance from ``self`` to ``other``.
 
@@ -161,8 +161,6 @@ class IterationInstance(LabeledVector):
             The IterationInstance from which the distance is computed.
         findex : Dimension, optional
             If supplied, compute the distance only up to and including ``findex``.
-        view : list of Dimension, optional
-            If supplied, project the distance along these Dimensions.
         """
         if not isinstance(other, IterationInstance):
             raise TypeError("Cannot compute distance from obj of type %s", type(other))
@@ -175,20 +173,7 @@ class IterationInstance(LabeledVector):
                 raise TypeError("Cannot compute distance as `findex` not in `findices`")
         else:
             limit = self.rank
-        distance = super(IterationInstance, self).distance(other)[:limit]
-        if view is None:
-            return distance
-        else:
-            proj = [d for d, i in zip(distance, self.findices) if i in as_tuple(view)]
-            return Vector(*proj)
-
-    def section(self, findices):
-        """
-        Return a view of ``self`` in which the slots corresponding to the
-        provided ``findices`` have been zeroed.
-        """
-        return Vector(*[d if i not in as_tuple(findices) else 0
-                        for d, i in zip(self, self.findices)])
+        return super(IterationInstance, self).distance(other)[:limit]
 
 
 class TimedAccess(IterationInstance):
