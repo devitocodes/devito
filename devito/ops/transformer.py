@@ -56,13 +56,11 @@ def opsit(trees, count, name_to_ops_dat, block, dims):
         namespace['ops_kernel'](count),
         ops_expressions,
         "void",
-        parameters
-    )
+        parameters)
 
     ops_par_loop_init, ops_par_loop_call = create_ops_par_loop(
         trees, ops_kernel, parameters, block,
-        name_to_ops_dat, node_factory.ops_args, par_to_ops_stencil, dims
-    )
+        name_to_ops_dat, node_factory.ops_args, par_to_ops_stencil, dims)
 
     pre_time_loop = stencil_arrays_initializations + ops_par_loop_init
 
@@ -216,6 +214,8 @@ def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
             for i in range(f._time_size)]
 
     else:
+        # The second parameter is the beginning of the array. But I didn't manage
+        # to generate a C code like: `v`. Instead, I am generating `&(v[0])`.
         ops_fetch = [namespace['ops_dat_fetch_data'](
             name_to_ops_dat[f.name], Byref(f.indexify([0])))]
 
@@ -250,7 +250,7 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
             block,
             dims,
             range_array,
-            *[create_ops_arg(p, name_to_ops_dat, par_to_ops_stencil)
+            *[create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil)
               for p in parameters]
         ]
     )
@@ -258,7 +258,7 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
     return [range_array_init], ops_par_loop_call
 
 
-def create_ops_arg(p, name_to_ops_dat, par_to_ops_stencil):
+def create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil):
     if p.is_Constant:
         return namespace['ops_arg_gbl'](
             Byref(Constant(name=p.name[1:])),
@@ -267,9 +267,12 @@ def create_ops_arg(p, name_to_ops_dat, par_to_ops_stencil):
             namespace['ops_read']
         )
     else:
-        if p.time_access:
+        accessible_info = accessible_origin[p.name]
+
+        if accessible_info.time:
             return namespace['ops_arg_dat'](
-                name_to_ops_dat[p.origin_name].indexify([p.time_access]),
+                name_to_ops_dat[accessible_info.origin_name].indexify(
+                    [accessible_info.time]),
                 1,
                 par_to_ops_stencil[p],
                 Literal('"%s"' % dtype_to_cstr(p.dtype)),
