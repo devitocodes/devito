@@ -149,16 +149,16 @@ def q_affine(expr, vars):
         # The vast majority of calls here are incredibly simple tests
         # like q_affine(x+1, [x]).  Catch these quickly and
         # explicitly, instead of calling the very slow function `diff`.
-        if expr == x:
+        if expr is x:
             continue
         if expr.is_Add and len(expr.args) == 2:
-            if expr.args[0] == x and expr.args[1].is_Number:
+            if expr.args[1] is x and expr.args[0].is_Number:
                 continue
-            if expr.args[1] == x and expr.args[0].is_Number:
+            if expr.args[0] is x and expr.args[1].is_Number:
                 continue
 
         try:
-            if diff(expr, x) == nan or not Eq(diff(expr, x, x), 0):
+            if diff(expr, x) is nan or not Eq(diff(expr, x, x), 0):
                 return False
         except TypeError:
             return False
