@@ -20,7 +20,8 @@ from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock # noqa
 from devito.ops.utils import namespace # noqa
 from devito.symbolics import Byref, Literal, indexify # noqa
 from devito.tools import dtype_to_cstr # noqa
-from devito.types import Constant, Symbol # noqa
+from devito.types import Constant, Symbol, Buffer # noqa
+
 
 
 class TestOPSExpression(object):
@@ -226,7 +227,7 @@ class TestOPSExpression(object):
             Literal('"u"')
         )
 
-        def test_create_ops_arg_constant(self):
+    def test_create_ops_arg_constant(self):
             a = Constant(name='*a')
 
             res = create_ops_arg(a, {}, {})
@@ -239,20 +240,36 @@ class TestOPSExpression(object):
                 namespace['ops_read']
             ]
 
-        @pytest.mark.parametrize('read', [True, False])
-        def test_create_ops_arg_function(self, read):
-            u = OpsAccessible('u', np.float32, read)
+    @pytest.mark.parametrize('read', [True, False])
+    def test_create_ops_arg_function(self, read):
+        u = OpsAccessible('u', np.float32, read)
 
-            dat = OpsDat('u_dat')
-            stencil = OpsStencil('stencil')
+        dat = OpsDat('u_dat')
+        stencil = OpsStencil('stencil')
 
-            res = create_ops_arg(u, {'u': dat}, {u: stencil})
+        res = create_ops_arg(u, {'u': dat}, {u: stencil})
 
-            assert res.name == namespace['ops_arg_dat'].name
-            assert res.args == [
-                dat,
-                1,
-                stencil,
-                Literal('"%s"' % dtype_to_cstr(u.dtype)),
-                namespace['ops_read'] if read else namespace['ops_write']
-            ]
+        assert res.name == namespace['ops_arg_dat'].name
+        assert res.args == [
+            dat,
+            1,
+            stencil,
+            Literal('"%s"' % dtype_to_cstr(u.dtype)),
+            namespace['ops_read'] if read else namespace['ops_write']
+        ]
+
+    @pytest.mark.parametrize('equation, expected', [
+        ('Eq(u.forward, u.dt2 + u.dxr - u.dyr - u.dyl)', 
+            'ops_block block = ops_decl_block(2, "block");'),
+        ('Eq(u.forward,u+1)', 
+            'ops_block block = ops_decl_block(2, "block");')
+    ])
+    def test_create_ops_block(self, equation, expected):
+        """
+        Test if ops_block has been successfully generated
+        """
+        grid_2d = Grid(shape=(4, 4))
+        u = TimeFunction(name='u', grid=grid_2d, time_order=2, save=Buffer(10))  # noqa
+        op = OperatorOPS(eval(equation))
+    
+        assert expected in str(op.ccode)
