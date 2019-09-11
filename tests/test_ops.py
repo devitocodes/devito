@@ -23,7 +23,6 @@ from devito.tools import dtype_to_cstr # noqa
 from devito.types import Constant, Symbol, Buffer # noqa
 
 
-
 class TestOPSExpression(object):
 
     @pytest.mark.parametrize('equation, expected', [
@@ -228,17 +227,17 @@ class TestOPSExpression(object):
         )
 
     def test_create_ops_arg_constant(self):
-            a = Constant(name='*a')
+        a = Constant(name='*a')
 
-            res = create_ops_arg(a, {}, {})
+        res = create_ops_arg(a, {}, {})
 
-            assert res.name == namespace['ops_arg_gbl'].name
-            assert res.args == [
-                Byref(Constant(name='a')),
-                1,
-                Literal('"%s"' % dtype_to_cstr(a.dtype)),
-                namespace['ops_read']
-            ]
+        assert res.name == namespace['ops_arg_gbl'].name
+        assert res.args == [
+            Byref(Constant(name='a')),
+            1,
+            Literal('"%s"' % dtype_to_cstr(a.dtype)),
+            namespace['ops_read']
+        ]
 
     @pytest.mark.parametrize('read', [True, False])
     def test_create_ops_arg_function(self, read):
@@ -259,9 +258,9 @@ class TestOPSExpression(object):
         ]
 
     @pytest.mark.parametrize('equation, expected', [
-        ('Eq(u.forward, u.dt2 + u.dxr - u.dyr - u.dyl)', 
+        ('Eq(u.forward, u.dt2 + u.dxr - u.dyr - u.dyl)',
             'ops_block block = ops_decl_block(2, "block");'),
-        ('Eq(u.forward,u+1)', 
+        ('Eq(u.forward,u+1)',
             'ops_block block = ops_decl_block(2, "block");')
     ])
     def test_create_ops_block(self, equation, expected):
@@ -271,5 +270,5 @@ class TestOPSExpression(object):
         grid_2d = Grid(shape=(4, 4))
         u = TimeFunction(name='u', grid=grid_2d, time_order=2, save=Buffer(10))  # noqa
         op = OperatorOPS(eval(equation))
-    
+
         assert expected in str(op.ccode)
