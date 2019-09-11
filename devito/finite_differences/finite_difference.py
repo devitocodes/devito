@@ -242,9 +242,9 @@ def from_ind_w(expr, dim, inds, weights, matvec=1):
     diff = dim.spacing
     deriv = 0
     all_dims = tuple(set((expr.index(dim),) +
-                     tuple(expr.index(i) for i in expr.dimensions if i.root == dim)))
+                     tuple(expr.index(i) for i in expr.dimensions if i.root is dim)))
 
-    d0 = ([d for d in expr.dimensions if d.root == dim] or [dim])[0]
+    d0 = ([d for d in expr.dimensions if d.root is dim] or [dim])[0]
     # Loop through weights
     for i, c in zip(inds, weights):
         subs = dict((d, i.subs({dim: d0, diff: matvec*diff})) for d in all_dims)

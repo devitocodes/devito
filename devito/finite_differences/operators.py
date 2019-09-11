@@ -59,7 +59,7 @@ def Laplacian(func):
 
 def diag(func, size=None):
     """
-    Creates the diagonal Tensor with func on its diagonal.
+    Creates the diagonal tensor with func on its diagonal.
 
     Parameters
     ----------

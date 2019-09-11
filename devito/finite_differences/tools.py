@@ -26,14 +26,14 @@ class Side(Tag):
     """
 
     def adjoint(self, matvec):
-        if matvec == direct:
+        if matvec is direct:
             return self
         else:
-            if self == centered:
+            if self is centered:
                 return centered
-            elif self == right:
+            elif self is right:
                 return left
-            elif self == left:
+            elif self is left:
                 return right
             else:
                 raise ValueError("Unsupported side value")
@@ -170,7 +170,7 @@ def generate_indices(func, dim, order, side=None, x0={}):
 def indices_cartesian(dim, order, side):
     shift = 0
     diff = dim.spacing
-    if side == left:
+    if side is left:
         diff = -diff
     if side in [left, right]:
         shift = 1
@@ -196,6 +196,6 @@ def indices_staggered(func, dim, order, side=None, x0={}):
     else:
         ind = [start + i * diff for i in range(-order//2, order//2+1)]
         if order < 2:
-            ind = [start, start + diff]
+            ind = [start, start - diff]
 
     return start, ind

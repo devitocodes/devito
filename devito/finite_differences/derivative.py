@@ -40,7 +40,7 @@ class Derivative(sympy.Derivative, Differentiable):
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
         finite difference. Defaults to ``direct``.
     x0 : Dict, optional
-        Dictionary of origins for the FD, i.e. {x: x, y: y + h_y/2}.
+        Dictionary of scheme origin for the finite-difference, i.e. {x: x, y: y + h_y/2}.
 
     Examples
     --------
@@ -201,7 +201,7 @@ class Derivative(sympy.Derivative, Differentiable):
     def eval_at(self, var):
         """
         Evaluates the derivative at the location of var. This is necessary for staggered
-        setup where one could have Eq(u(x + h_x/2, v(x).dx)) in which case v(x).dx
+        setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
         has to be computed at x=x + h_x/2.
         """
         x0 = {d1: d2 for d1, d2 in zip(var.dimensions, var.index_ref)}
@@ -211,14 +211,13 @@ class Derivative(sympy.Derivative, Differentiable):
 
     @property
     def evaluate(self):
-        expr = getattr(self.expr, 'evaluate', self.expr)
         # If the expression is an addition, for example if expr was a derivative that
         # was evaluated, split it and rebuild it as each term may have a different
         # staggering and needs a separate FD computation
-        if expr.is_Add:
-            return expr.func(*[self._eval_fd(e) for e in expr.args])
+        if self.expr.is_Add:
+            return self.expr.func(*[self._eval_fd(e) for e in self.expr.args])
 
-        return self._eval_fd(expr)
+        return self._eval_fd(self.expr)
 
     def _eval_fd(self, expr):
         expr = getattr(expr, 'evaluate', expr)

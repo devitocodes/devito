@@ -1,14 +1,13 @@
 from collections import ChainMap
 
 import sympy
-
 from sympy.functions.elementary.integers import floor
 from sympy.core.evalf import evalf_table
 
 from cached_property import cached_property
 
-from devito.tools import Evaluable, filter_ordered, flatten
 from devito.logger import warning
+from devito.tools import Evaluable, filter_ordered, flatten
 
 __all__ = ['Differentiable']
 
@@ -62,17 +61,17 @@ class Differentiable(sympy.Expr, Evaluable):
 
     @cached_property
     def is_VectorValued(self):
-        # Default False, True if anything is time dependant in the expression
+        # Default False, True if is a vector valued expression
         return any(getattr(i, 'is_VectorValued', False) for i in self._args_diff)
 
     @cached_property
     def is_TensorValued(self):
-        # Default False, True if anything is time dependant in the expression
+        # Default False, True if is a tensor valued expression
         return any(getattr(i, 'is_TensorValued', False) for i in self._args_diff)
 
     @cached_property
     def is_Function(self):
-        # Default False, True if anything is time dependant in the expression
+        # Default False, True if is a Function
         return any(getattr(i, 'is_Function', False) for i in self._args_diff)
 
     @cached_property
@@ -199,8 +198,10 @@ class Differentiable(sympy.Expr, Evaluable):
             all(getattr(self, i, None) == getattr(other, i, None) for i in self._state)
 
     def index(self, dim):
-        inds = [self.dimensions[i] for i, d in enumerate(self.dimensions) if d == dim]
-        return inds[0]
+        for d in self.dimensions:
+            if d is dim:
+                return d
+        return []
 
     @property
     def name(self):
@@ -218,7 +219,7 @@ class Differentiable(sympy.Expr, Evaluable):
 
     @property
     def div(self):
-        space_dims = [d for d in self.indices if d.is_Space]
+        space_dims = [d for d in self.dimensions if d.is_Space]
         derivs = tuple('d%s' % d.name for d in space_dims)
         return Add(*[getattr(self, d) for d in derivs])
 

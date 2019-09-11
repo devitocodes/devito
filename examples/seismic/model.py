@@ -541,25 +541,31 @@ class GenericModel(object):
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
         initialize_damp(self.damp, self.nbpml, self.spacing, mask=damp_mask)
+        self._physical_parameters = ['damp']
 
     def physical_params(self, **kwargs):
         """
         Return all set physical parameters and update to input values if provided
         """
-        known = [getattr(self, i) for i in self._physical_parameters]
+        known = [getattr(self, i) for i in self.physical_parameters]
         return {i.name: kwargs.get(i.name, i) or i for i in known}
 
     def _gen_phys_param(self, field, name, space_order, is_param=False,
-                        default_val=0):
+                        default_value=0):
         if field is None:
-            return default_val
+            return default_value
         if isinstance(field, np.ndarray):
             function = Function(name=name, grid=self.grid, space_order=space_order,
                                 parameter=is_param)
             initialize_function(function, field, self.nbpml)
         else:
             function = Constant(name=name, value=field)
+        self._physical_parameters.append(name)
         return function
+
+    @property
+    def physical_parameters(self):
+        return as_tuple(self._physical_parameters)
 
     @property
     def dim(self):
@@ -651,30 +657,16 @@ class Model(GenericModel):
 
         # Create square slowness of the wave as symbol `m`
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
-        physical_parameters.append('vp')
         self._max_vp = np.max(vp)
 
         # Additional parameter fields for TTI operators
         self.epsilon = self._gen_phys_param(epsilon, 'epsilon', space_order)
-        if self.epsilon != 0:
-            physical_parameters.append('epsilon')
-            self.scale = np.sqrt(1 + 2 * np.max(epsilon))
-        else:
-            self.scale = 1
+        self.scale = 1 if epsilon is None else np.sqrt(1 + 2 * np.max(epsilon))
 
         self.delta = self._gen_phys_param(delta, 'delta', space_order)
-        if self.delta != 0:
-            physical_parameters.append('delta')
-
         self.theta = self._gen_phys_param(theta, 'theta', space_order)
-        if self.theta != 0:
-            physical_parameters.append('theta')
+        self.phi = self._gen_phys_param(phi, 'delta', space_order)
 
-        self.phi = self._gen_phys_param(phi, 'phi', space_order)
-        if self.phi != 0 and self.grid.dim == 3:
-            physical_parameters.append('phi')
-
-        self._physical_parameters = as_tuple(physical_parameters)
 
     @property
     def critical_dt(self):
@@ -764,22 +756,16 @@ class ModelElastic(GenericModel):
                  dtype=np.float32):
         super(ModelElastic, self).__init__(origin, spacing, shape, space_order,
                                            nbpml=nbpml, dtype=dtype,
-                                           mask_is_damp=True)
-        self.maxvp = np.max(vp)
+                                           damp_mask=True)
 
         physical_parameters = []
-
+        self.maxvp = np.max(vp)
         self.lam = self._gen_phys_param((vp**2 - 2 * vs**2)*rho, 'lam', space_order,
                                         is_param=True)
-        physical_parameters.append('lam')
 
         self.mu = self._gen_phys_param(vs**2 * rho, 'mu', space_order, is_param=True)
-        physical_parameters.append('mu')
 
         self.irho = self._gen_phys_param(1/rho, 'irho', space_order, is_param=True)
-        physical_parameters.append('irho')
-
-        self._physical_parameters = as_tuple(physical_parameters)
 
     @property
     def critical_dt(self):
@@ -791,7 +777,7 @@ class ModelElastic(GenericModel):
         # The CFL condtion is then given by
         # dt < h / (sqrt(2) * max(vp)))
         coeff = np.sqrt(3) if len(self.shape) == 3 else np.sqrt(3)
-        return self.dtype(.95*mmin(self.spacing) / (coeff*self.maxvp))
+        return self.dtype(.95*np.min(self.spacing) / (coeff*self.maxvp))
 
 
 class ModelViscoelastic(ModelElastic):
@@ -833,15 +819,9 @@ class ModelViscoelastic(ModelElastic):
                                                 space_order, vp, vs, rho,
                                                 nbpml=nbpml, dtype=dtype)
 
-        physical_parameters = list(self._physical_parameters)
+        self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
 
-        self.qp = self._gen_phys_param(qp, 'qp', space_order)
-        physical_parameters.append('qp')
-
-        self.qs = self._gen_phys_param(qs, 'qs', space_order)
-        physical_parameters.append('qs')
-
-        self._physical_parameters = as_tuple(physical_parameters)
+        self.qs = self._gen_phys_param(qs, 'qs', space_order, is_param=True)
 
     @property
     def critical_dt(self):

@@ -80,9 +80,12 @@ class Basic(object):
     is_SparseFunction = False
     is_PrecomputedSparseFunction = False
     is_PrecomputedSparseTimeFunction = False
+    is_TimeDependent = False
+
+    # Tensor and Vector valued objects
     is_VectorValued = False
     is_TensorValued = False
-    is_TimeDependent = False
+
     # Basic symbolic object properties
     is_Scalar = False
     is_Tensor = False
@@ -255,7 +258,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
     @property
     def dimensions(self):
-        return ()
+        return self.indices
 
     @property
     def shape(self):
@@ -689,20 +692,18 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         # Average values if at a location not on the Function's grid
         weight = 1.0
         avg_list = [self]
-        avg = False
+        is_averaged = False
         for i, ir, d in zip(self.indices, self.index_ref, self.dimensions):
             off = (i - ir)/d.spacing
-            if not isinstance(off, sympy.Number):
-                pass
-            elif int(off) == off:
+            if not isinstance(off, sympy.Number) or int(off) == off:
                 pass
             else:
                 weight *= 1/2
-                avg = True
+                is_averaged = True
                 avg_list = [a.subs({i: i - d.spacing/2}) + a.subs({i: i + d.spacing/2})
                             for a in avg_list]
 
-        if not avg:
+        if not is_averaged:
             return self
         return weight * sum(avg_list)
 

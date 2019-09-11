@@ -19,11 +19,10 @@ def second_order_stencil(model, u, v, H0, Hz):
 
     stencilp = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
-         u.backward + 2.0 * s ** 2 * ((1 + 2 * epsilon) * H0 +
-                                      sqrt(1 + 2 * delta) * Hz))
+         u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
     stencilr = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * v + (s * damp - 2.0 * m) *
-         v.backward + 2.0 * s ** 2 * (sqrt(1 + 2 * delta) * H0 + Hz))
+         v.backward + 2.0 * s ** 2 * (delta * H0 + Hz))
     first_stencil = Eq(u.forward, stencilp)
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
@@ -292,10 +291,9 @@ def kernel_staggered_2d(model, u, v, space_order):
     dvz = sin(theta) * vz.forward.dx + cos(theta) * vz.forward.dy
 
     # u and v equations
-    pv_eq = Eq(v.forward, dampl * (v - s / m * (sqrt(1 + 2 * delta) * dvx + dvz)))
+    pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * dvx + dvz)))
 
-    ph_eq = Eq(u.forward, dampl * (u - s / m * ((1 + 2 * epsilon) * dvx +
-                                                sqrt(1 + 2 * delta) * dvz)))
+    ph_eq = Eq(u.forward, dampl * (u - s / m * (epsilon * dvx + delta * dvz)))
 
     return [u_vx, u_vz] + [pv_eq, ph_eq]
 
@@ -340,10 +338,10 @@ def kernel_staggered_3d(model, u, v, space_order):
            sin(theta) * sin(phi) * vz.forward.dyc +
            cos(theta) * vz.forward.dz)
     # u and v equations
-    pv_eq = Eq(v.forward, dampl * (v - s / m * (sqrt(1 + 2 * delta) * (dvx + dvy) + dvz)))
+    pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * (dvx + dvy) + dvz)))
 
-    ph_eq = Eq(u.forward, dampl * (u - s / m * ((1 + 2 * epsilon) * (dvx + dvy) +
-                                                sqrt(1 + 2 * delta) * dvz)))
+    ph_eq = Eq(u.forward, dampl * (u - s / m * (epsilon * (dvx + dvy) +
+                                                delta * dvz)))
 
     return [u_vx, u_vy, u_vz] + [pv_eq, ph_eq]
 

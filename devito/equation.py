@@ -77,8 +77,8 @@ class Eq(sympy.Eq, Evaluable):
     @cached_property
     def evaluate(self):
         """
-        Evaluate the equation or system of equation.
-        The rhs of the equation is evaluated at the indices of the lhs if required.
+        Evaluate the Equation or system of Equations.
+        The rhs of the Equation is evaluated at the indices of the lhs if required.
         """
         try:
             lhs, rhs = self.lhs.evaluate, self.rhs.eval_at(self.lhs).evaluate
@@ -101,13 +101,16 @@ class Eq(sympy.Eq, Evaluable):
     @property
     def _flatten(self):
         """
-        Flatten vectorial/tensorial Equation into list of scalar Equations
+        Flatten vectorial/tensorial Equation into list of scalar Equations.
         """
         try:
             lhss = self.lhs.values()
             rhss = self.rhs.values(symmetric=self.lhs.is_symmetric)
-            return [self.func(l, r) for l, r in zip(lhss, rhss)]
-        except AttributeError:
+            return [self.func(l, r, subdomain=self.subdomain,
+                              coefficients=self.substitutions,
+                              implicit_dims=self._implicit_dims)
+                    for l, r in zip(lhss, rhss)]
+        except:
             return [self]
 
     @property
@@ -232,6 +235,6 @@ def solve(eq, target, **kwargs):
     from devito.finite_differences.differentiable import to_differentiable
     if isinstance(target, TensorFunction):
         sol = [to_differentiable(s) for s in sol]
-        return target.new_from_mat(list(sol))
+        return target.new_from_mat(sol)
     else:
         return to_differentiable(sol)

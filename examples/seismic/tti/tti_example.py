@@ -36,7 +36,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     solver = tti_setup(shape, spacing, tn, space_order, nbpml, **kwargs)
 
     rec, u, v, summary = solver.forward(autotune=autotune, kernel=kernel)
-    from IPython import embed; embed()
+
     return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 
 
