@@ -19,7 +19,7 @@ class CompilerOPS(configuration['compiler'].__class__):
         # Creating files
         file_name = str(self.get_jit_dir().joinpath(soname))
         h_file = open("%s.h" % (file_name), "w")
-        c_file = open("%s.c" % (file_name), "w")
+        c_file = open("%s.cpp" % (file_name), "w")
 
         c_file.write(ccode)
         h_file.write(hcode)
