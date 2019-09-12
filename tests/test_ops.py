@@ -14,13 +14,12 @@ pytestmark = skipif('noops', whole_module=True)
 # `pytestmark` above
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
-from devito.ops.operator import OperatorOPS # noqa
 from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil # noqa
 from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock # noqa
 from devito.ops.utils import namespace # noqa
-from devito.symbolics import Byref, Literal, indexify # noqa
+from devito.symbolics import Byref, indexify, Literal # noqa
 from devito.tools import dtype_to_cstr # noqa
-from devito.types import Constant, Symbol, Buffer # noqa
+from devito.types import Buffer, Constant, Symbol # noqa
 
 
 class TestOPSExpression(object):
@@ -76,7 +75,7 @@ class TestOPSExpression(object):
         v = TimeFunction(name='v', grid=grid_2d, space_order=2)  # noqa
         w = TimeFunction(name='w', grid=grid_3d, space_order=2)  # noqa
 
-        operator = OperatorOPS(eval(equation))
+        operator = Operator(eval(equation))
 
         assert str(operator._ops_kernels[0]) == expected
 
@@ -268,6 +267,6 @@ class TestOPSExpression(object):
         """
         grid_2d = Grid(shape=(4, 4))
         u = TimeFunction(name='u', grid=grid_2d, time_order=2, save=Buffer(10))  # noqa
-        op = OperatorOPS(eval(equation))
+        operator = Operator(eval(equation))
 
-        assert expected in str(op.ccode)
+        assert expected in str(operator.ccode)
