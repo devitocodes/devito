@@ -117,7 +117,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
                 error("Incompatible sizes")
             # Inner product
             elif self.is_transposed and not other.is_transposed:
-                return sympy.prod(s1*s2 for s1, s2 in zip(self, other))
+                return sum(s1*s2 for s1, s2 in zip(self, other))
             # Outer product
             else:
                 # Only option left but double check

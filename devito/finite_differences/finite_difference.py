@@ -223,6 +223,10 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     expr-like
         ``deriv-order`` derivative of ``expr``.
     """
+    # First order derivative with 2nd order FD is highly non-recommended so taking
+    # first order fd that is a lot better
+    if deriv_order == 1 and fd_order == 2:
+        fd_order = 1
     # Stencil positions
     indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
 

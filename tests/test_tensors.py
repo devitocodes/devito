@@ -5,7 +5,7 @@ import pytest
 from devito import VectorFunction, TensorFunction, VectorTimeFunction, TensorTimeFunction
 from devito import Grid, Function, TimeFunction, Dimension
 from devito.types import NODE
-from devito.finite_differences.differentiable import Mul
+from devito.finite_differences.differentiable import Add
 
 
 def dimify(dimensions):
@@ -105,8 +105,8 @@ def test_tensor_matmul(func1, func2, out_type):
     (VectorTimeFunction, TensorFunction, VectorTimeFunction),
     (VectorFunction, TensorTimeFunction, VectorTimeFunction),
     (VectorTimeFunction, TensorTimeFunction, VectorTimeFunction),
-    (VectorFunction, VectorFunction, Mul),
-    (VectorTimeFunction, VectorTimeFunction, Mul)])
+    (VectorFunction, VectorFunction, Add),
+    (VectorTimeFunction, VectorTimeFunction, Add)])
 def test_tensor_matmul_T(func1, func2, out_type):
     grid = Grid(tuple([5]*3))
     f1 = func1(name="f1", grid=grid)

@@ -175,7 +175,7 @@ class TestFD(object):
         expr = getattr(u, derivative).evaluate
         # Establish native sympy derivative expression
         width = int(order / 2)
-        if order == 1:
+        if order <= 2:
             indices = [dim, dim + dim.spacing]
         else:
             indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
@@ -358,12 +358,12 @@ class TestFD(object):
 
     @pytest.mark.parametrize('so', [2, 4, 8, 12])
     @pytest.mark.parametrize('ndim', [1, 2])
-    @pytest.mark.parametrize('derivative, adjoint_name, adjoint_coeff', [
-        ('dx', 'dx', -1),
-        ('dx2', 'dx2', 1),
-        ('dxl', 'dxr', -1),
-        ('dxr', 'dxl', -1)])
-    def test_fd_adjoint(self, so, ndim, derivative, adjoint_name, adjoint_coeff):
+    @pytest.mark.parametrize('derivative, adjoint_name', [
+        ('dx', 'dx'),
+        ('dx2', 'dx2'),
+        ('dxl', 'dxr'),
+        ('dxr', 'dxl')])
+    def test_fd_adjoint(self, so, ndim, derivative, adjoint_name):
         clear_cache()
         grid = Grid(shape=tuple([51]*ndim), extent=tuple([25]*ndim))
         x = grid.dimensions[0]
@@ -376,7 +376,8 @@ class TestFD(object):
         Operator([Eq(g, x*cos(2*np.pi*x/5)), Eq(f, sin(2*np.pi*x/8))]).apply()
         # Check symbolic expression are expected ones for the adjoint .T
         deriv = getattr(f, derivative)
-        expected = adjoint_coeff * getattr(f, adjoint_name).evaluate
+        coeff = 1 if derivative is 'dx2' else -1
+        expected = coeff * getattr(f, derivative).evaluate.subs({x.spacing: -x.spacing})
         assert deriv.T.evaluate == expected
 
         # Compute numerical derivatives and verify dot test
