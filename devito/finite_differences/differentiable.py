@@ -171,6 +171,20 @@ class Differentiable(sympy.Expr, Evaluable):
         from devito.finite_differences.derivative import Derivative
         return Derivative(self, *symbols, **assumptions)
 
+    def _has(self, pattern):
+        """
+        Unlike generic SymPy use cases, in Devito the majority of calls to `_has`
+        occur through the finite difference routines passing `sympy.core.symbol.Symbol`
+        as `pattern`. Since the generic `_has` can be prohibitively expensive,
+        we here quickly handle this special case, while using the superclass' `_has`
+        as fallback.
+        """
+        if isinstance(pattern, type) and issubclass(pattern, sympy.Symbol):
+            # Symbols (and subclasses) are the leaves of an expression, and they
+            # are promptly available via `free_symbols`. So this is super quick
+            return any(isinstance(i, pattern) for i in self.free_symbols)
+        return super(Differentiable, self)._has(pattern)
+
 
 class Add(sympy.Add, Differentiable):
 
