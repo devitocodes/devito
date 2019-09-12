@@ -123,7 +123,7 @@ class TestOPSExpression(object):
         assert result[0].expr.rhs.params == tuple(itertools.chain(*accesses))
 
         assert result[1].expr.lhs == stencil
-        assert result[1].expr.rhs.name == namespace['ops_decl_stencil'].name
+        assert type(result[1].expr.rhs) == namespace['ops_decl_stencil']
         assert result[1].expr.rhs.args == (
             2,
             len(accesses),
@@ -161,7 +161,7 @@ class TestOPSExpression(object):
 
         assert result[4].expr.lhs.name == namespace['ops_dat_name'](u.name)
         assert len(result[4].expr.rhs.params) == 2
-        assert result[4].expr.rhs.params[0].name == namespace['ops_decl_dat'].name
+        assert type(result[4].expr.rhs.params[0]) == namespace['ops_decl_dat']
         assert result[4].expr.rhs.params[0].args == (
             block,
             1,
@@ -173,7 +173,7 @@ class TestOPSExpression(object):
             Literal('"%s"' % u._C_typedata),
             Literal('"ut0"')
         )
-        assert result[4].expr.rhs.params[1].name == namespace['ops_decl_dat'].name
+        assert type(result[4].expr.rhs.params[1]) == namespace['ops_decl_dat']
         assert result[4].expr.rhs.params[1].args == (
             block,
             1,
@@ -213,7 +213,7 @@ class TestOPSExpression(object):
         assert result[3].expr.rhs.params == (Integer(-2),)
 
         assert result[4].expr.lhs == name_to_ops_dat['u']
-        assert result[4].expr.rhs.name == namespace['ops_decl_dat'].name
+        assert type(result[4].expr.rhs) == namespace['ops_decl_dat']
         assert result[4].expr.rhs.args == (
             block,
             1,
@@ -231,13 +231,12 @@ class TestOPSExpression(object):
 
         res = create_ops_arg(a, {}, {})
 
-        assert res.name == namespace['ops_arg_gbl'].name
-        assert res.args == [
-            Byref(Constant(name='a')),
-            1,
-            Literal('"%s"' % dtype_to_cstr(a.dtype)),
-            namespace['ops_read']
-        ]
+        assert type(res) == namespace['ops_arg_gbl']
+        assert str(res.args[0]) == str(Byref(Constant(name='a')))
+        assert res.args[1] == 1
+        assert res.args[2] == Literal('"%s"' % dtype_to_cstr(a.dtype))
+        assert res.args[3] == namespace['ops_read']
+            
 
     @pytest.mark.parametrize('read', [True, False])
     def test_create_ops_arg_function(self, read):
@@ -248,14 +247,14 @@ class TestOPSExpression(object):
 
         res = create_ops_arg(u, {'u': dat}, {u: stencil})
 
-        assert res.name == namespace['ops_arg_dat'].name
-        assert res.args == [
+        assert type(res) == namespace['ops_arg_dat']
+        assert res.args == (
             dat,
             1,
             stencil,
             Literal('"%s"' % dtype_to_cstr(u.dtype)),
             namespace['ops_read'] if read else namespace['ops_write']
-        ]
+        )
 
     @pytest.mark.parametrize('equation, expected', [
         ('Eq(u.forward, u.dt2 + u.dxr - u.dyr - u.dyl)',
