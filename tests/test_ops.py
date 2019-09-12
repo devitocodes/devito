@@ -235,7 +235,6 @@ class TestOPSExpression(object):
         assert res.args[1] == 1
         assert res.args[2] == Literal('"%s"' % dtype_to_cstr(a.dtype))
         assert res.args[3] == namespace['ops_read']
-            
 
     @pytest.mark.parametrize('read', [True, False])
     def test_create_ops_arg_function(self, read):
