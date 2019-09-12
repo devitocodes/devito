@@ -4,7 +4,7 @@ import numpy as np
 from sympy import sin, Abs
 
 from examples.seismic.utils import scipy_smooth
-from devito import (Grid, SubDomain, Function, Constant, mmax,
+from devito import (Grid, SubDomain, Function, Constant,
                     SubDimension, Eq, Inc, Operator)
 from devito.tools import as_tuple
 
@@ -667,7 +667,6 @@ class Model(GenericModel):
         self.theta = self._gen_phys_param(theta, 'theta', space_order)
         self.phi = self._gen_phys_param(phi, 'delta', space_order)
 
-
     @property
     def critical_dt(self):
         """
@@ -758,7 +757,6 @@ class ModelElastic(GenericModel):
                                            nbpml=nbpml, dtype=dtype,
                                            damp_mask=True)
 
-        physical_parameters = []
         self.maxvp = np.max(vp)
         self.lam = self._gen_phys_param((vp**2 - 2 * vs**2)*rho, 'lam', space_order,
                                         is_param=True)

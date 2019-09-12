@@ -1455,6 +1455,33 @@ class TestIsotropicAcoustic(object):
     """
     Test the isotropic acoustic wave equation with MPI.
     """
+    _shapes = {1: (60,), 2: (60, 70), 3: (60, 70, 80)}
+    _so = {1: 12, 2: 8, 3: 4}
+
+    def gen_serial_norms(self, nd):
+        """
+        Computes the norms of the outputs in serial mode to compare with
+        """
+        shape = self._shapes[nd]
+        so = self._so[nd]
+        tn = 500.  # Final time
+        nrec = 130  # Number of receivers
+
+        # Create solver from preset
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape],
+                                tn=tn, space_order=so, nrec=nrec,
+                                preset='layers-isotropic', dtype=np.float64)
+        # Run forward operator
+        rec, u, _ = solver.forward()
+        Eu = norm(u)
+        Erec = norm(rec)
+
+        # Run adjoint operator
+        srca, v, _ = solver.adjoint(rec=rec)
+        Ev = norm(v)
+        Esrca = norm(srca)
+
+        return Eu, Erec, Ev, Esrca
 
     @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save', [
         ((60, ), 'OT2', 4, 10, False),
@@ -1474,22 +1501,24 @@ class TestIsotropicAcoustic(object):
         assert len(fwd_calls) == 1
         assert len(adj_calls) == 1
 
-    def run_adjoint_F(self, shape, kernel, space_order, nbpml, save,
-                      Eu, Erec, Ev, Esrca):
+    def run_adjoint_F(self, nd):
         """
         Unlike `test_adjoint_F` in test_adjoint.py, here we explicitly check the norms
         of all Operator-evaluated Functions. The numbers we check against are derived
         "manually" from sequential runs of test_adjoint::test_adjoint_F
         """
+        Eu, Erec, Ev, Esrca = self.gen_serial_norms(nd)
+        shape = self._shapes[nd]
+        so = self._so[nd]
         tn = 500.  # Final time
         nrec = 130  # Number of receivers
 
         # Create solver from preset
-        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
-                                nbpml=nbpml, tn=tn, space_order=space_order, nrec=nrec,
+        solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape],
+                                tn=tn, space_order=so, nrec=nrec,
                                 preset='layers-isotropic', dtype=np.float64)
         # Run forward operator
-        rec, u, _ = solver.forward(save=save)
+        rec, u, _ = solver.forward()
 
         assert np.isclose(norm(u) / Eu, 1.0)
         assert np.isclose(norm(rec) / Erec, 1.0)
@@ -1505,29 +1534,20 @@ class TestIsotropicAcoustic(object):
         term2 = norm(rec)**2
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, ), 'OT2', 4, 10, False, 514.951, 17422.67, 85646599.436, 155482859.110),
-        ((60, 70), 'OT2', 8, 10, False, 414.960, 1025.991, 406469.145, 283181.721),
-        ((60, 70, 80), 'OT2', 12, 10, False, 156.135, 243.575, 27437.429, 13883.473)
-    ])
+    @pytest.mark.parametrize('nd', [1, 2, 3])
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag', True), (4, 'overlap', True),
                                 (4, 'overlap2', True), (4, 'full', True)])
-    def test_adjoint_F(self, shape, kernel, space_order, nbpml, save,
-                       Eu, Erec, Ev, Esrca):
-        self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
+    def test_adjoint_F(self, nd):
+        self.run_adjoint_F(nd)
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save,Eu,Erec,Ev,Esrca', [
-        ((60, 70, 80), 'OT2', 12, 10, False, 156.135, 243.575, 27437.429, 13883.473)
-    ])
     @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
     @switchconfig(openmp=False)
-    def test_adjoint_F_no_omp(self, shape, kernel, space_order, nbpml, save,
-                              Eu, Erec, Ev, Esrca):
+    def test_adjoint_F_no_omp(self, nd):
         """
         ``run_adjoint_F`` with OpenMP disabled. By disabling OpenMP, we can
         practically scale up to higher process counts.
         """
-        self.run_adjoint_F(shape, kernel, space_order, nbpml, save, Eu, Erec, Ev, Esrca)
+        self.run_adjoint_F(3)
 
 
 if __name__ == "__main__":

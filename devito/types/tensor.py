@@ -583,6 +583,7 @@ class VectorTimeFunction(VectorFunction, TensorTimeFunction):
     def func(self):
         return VectorTimeFunction
 
+
 def vec_func(func1, func2):
     f1 = getattr(func1, 'is_TimeDependent', False)
     f2 = getattr(func2, 'is_TimeDependent', False)
