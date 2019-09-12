@@ -16,7 +16,7 @@ from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # 
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil  # noqa
 from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock  # noqa
-from devito.ops.utils import namespace  # noqa
+from devito.ops.utils import namespace, AccessibleInfo  # noqa
 from devito.symbolics import Byref, Literal, indexify  # noqa
 from devito.tools import dtype_to_cstr  # noqa
 from devito.types import Buffer, Constant, Symbol  # noqa
@@ -194,25 +194,26 @@ class TestOPSExpression(object):
             Literal('"u"')
         )
 
-    def test_create_ops_arg_constant(self):
-        a = Constant(name='*a')
+        def test_create_ops_arg_constant(self):
+            a = Constant(name='*a')
 
-        res = create_ops_arg(a, {}, {})
+            res = create_ops_arg(a, {}, {})
 
-        assert type(res) == namespace['ops_arg_gbl']
-        assert str(res.args[0]) == str(Byref(Constant(name='a')))
-        assert res.args[1] == 1
-        assert res.args[2] == Literal('"%s"' % dtype_to_cstr(a.dtype))
-        assert res.args[3] == namespace['ops_read']
+            assert type(res) == namespace['ops_arg_gbl']
+            assert str(res.args[0]) == str(Byref(Constant(name='a')))
+            assert res.args[1] == 1
+            assert res.args[2] == Literal('"%s"' % dtype_to_cstr(a.dtype))
+            assert res.args[3] == namespace['ops_read']
 
     @pytest.mark.parametrize('read', [True, False])
     def test_create_ops_arg_function(self, read):
-        u = OpsAccessible('u', np.float32, read)
 
+        u = OpsAccessible('u', np.float32, read)
         dat = OpsDat('u_dat')
         stencil = OpsStencil('stencil')
+        info = AccessibleInfo(u, None, None)
 
-        res = create_ops_arg(u, {'u': dat}, {u: stencil})
+        res = create_ops_arg(u, {'u': info}, {'u': dat}, {u: stencil})
 
         assert type(res) == namespace['ops_arg_dat']
         assert res.args == (
@@ -276,5 +277,7 @@ class TestOPSExpression(object):
         v_3d = TimeFunction(name='v', grid=grid_3d, time_order=2)  # noqa
         x_3d = TimeFunction(name='x', grid=grid_3d, time_order=3)  # noqa
 
-        operator = Operator(eval(equation))
-        assert expected in str(operator.ccode)
+        op = Operator(eval(equation))
+
+        for i in eval(expected):
+            assert i in str(op)
