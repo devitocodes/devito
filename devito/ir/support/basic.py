@@ -151,7 +151,7 @@ class IterationInstance(LabeledVector):
     def is_scalar(self):
         return self.rank == 0
 
-    def distance(self, other, findex=None, view=None):
+    def distance(self, other):
         """
         Compute the distance from ``self`` to ``other``.
 
@@ -159,36 +159,12 @@ class IterationInstance(LabeledVector):
         ----------
         other : IterationInstance
             The IterationInstance from which the distance is computed.
-        findex : Dimension, optional
-            If supplied, compute the distance only up to and including ``findex``.
-        view : list of Dimension, optional
-            If supplied, project the distance along these Dimensions.
         """
-        if not isinstance(other, IterationInstance):
-            raise TypeError("Cannot compute distance from obj of type %s", type(other))
+        assert isinstance(other, IterationInstance)
         if self.findices != other.findices:
             raise TypeError("Cannot compute distance due to mismatching `findices`")
-        if findex is not None:
-            try:
-                limit = self._cached_findices_index[findex] + 1
-            except KeyError:
-                raise TypeError("Cannot compute distance as `findex` not in `findices`")
-        else:
-            limit = self.rank
-        distance = super(IterationInstance, self).distance(other)[:limit]
-        if view is None:
-            return distance
-        else:
-            proj = [d for d, i in zip(distance, self.findices) if i in as_tuple(view)]
-            return Vector(*proj)
 
-    def section(self, findices):
-        """
-        Return a view of ``self`` in which the slots corresponding to the
-        provided ``findices`` have been zeroed.
-        """
-        return Vector(*[d if i not in as_tuple(findices) else 0
-                        for d, i in zip(self, self.findices)])
+        return super(IterationInstance, self).distance(other)
 
 
 class TimedAccess(IterationInstance):
@@ -303,21 +279,43 @@ class TimedAccess(IterationInstance):
         return self.timestamp < other.timestamp
 
     def distance(self, other, findex=None):
+        """
+        Compute the distance from ``self`` to ``other``.
+
+        Parameters
+        ----------
+        other : TimedAccess
+            The TimedAccess from which the distance is computed.
+        findex : Dimension, optional
+            If supplied, compute the distance only up to and including ``findex``.
+        """
+        assert isinstance(other, TimedAccess)
+
         if not self.rank:
             return Vector()
-        findex = findex or self.findices[-1]
+
+        # Compute distance up to `limit`, ignoring `directions` for the moment
+        if findex is None:
+            findex = self.findices[-1]
+            limit = self.rank + 1
+        else:
+            try:
+                limit = self._cached_findices_index[findex] + 1
+            except KeyError:
+                raise TypeError("Cannot compute distance as `findex` not in `findices`")
+        distance = list(super(TimedAccess, self).distance(other)[:limit])
+
+        # * If mismatching `directions`, set the distance to infinity
+        # * If direction is Backward, flip the sign
         ret = []
-        for i, sd, od in zip(self.findices, self.directions, other.directions):
-            if sd is od:
-                ret = list(super(TimedAccess, self).distance(other, i))
-                if i is findex:
-                    break
+        for i, d0, d1 in zip(distance, self.directions, other.directions):
+            if d0 is d1:
+                ret.append(-i if d0 is Backward else i)
             else:
                 ret.append(S.Infinity)
                 break
-        directions = self.directions[:self._cached_findices_index[i] + 1]
-        assert len(directions) == len(ret)
-        return Vector(*[(-i) if d is Backward else i for i, d in zip(ret, directions)])
+
+        return Vector(*ret)
 
     def touched_halo(self, findex):
         """
@@ -722,16 +720,17 @@ class Scope(object):
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
+                    dependence = Dependence(w, r)
+                    distance = dependence.distance
                     try:
-                        distance = r.distance(w)
-                        is_flow = distance < 0 or (distance == 0 and r.lex_ge(w))
+                        is_flow = distance > 0 or (r.lex_ge(w) and distance == 0)
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-increment
                         is_flow = not r.is_read_increment
                     if is_flow:
-                        found.append(Dependence(w, r))
+                        found.append(dependence)
         return found
 
     @cached_property
@@ -741,16 +740,17 @@ class Scope(object):
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
+                    dependence = Dependence(r, w)
+                    distance = dependence.distance
                     try:
-                        distance = r.distance(w)
-                        is_anti = distance > 0 or (distance == 0 and r.lex_lt(w))
+                        is_anti = distance > 0 or (r.lex_lt(w) and distance == 0)
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-increment
                         is_anti = not r.is_read_increment
                     if is_anti:
-                        found.append(Dependence(r, w))
+                        found.append(dependence)
         return found
 
     @cached_property
@@ -760,15 +760,16 @@ class Scope(object):
         for k, v in self.writes.items():
             for w1 in v:
                 for w2 in self.writes.get(k, []):
+                    dependence = Dependence(w2, w1)
+                    distance = dependence.distance
                     try:
-                        distance = w2.distance(w1)
-                        is_output = distance > 0 or (distance == 0 and w2.lex_gt(w1))
+                        is_output = distance > 0 or (w2.lex_gt(w1) and distance == 0)
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence
                         is_output = True
                     if is_output:
-                        found.append(Dependence(w2, w1))
+                        found.append(dependence)
         return found
 
     @cached_property
@@ -779,6 +780,10 @@ class Scope(object):
     @memoized_meth
     def d_from_access(self, accesses):
         """Generate all dependences involving a given TimedAccess."""
-        return DependenceGroup(d for d in self.d_all
-                               if (d.source in as_tuple(accesses) or
-                                   d.sink in as_tuple(accesses)))
+        accesses = as_tuple(accesses)
+        found = DependenceGroup()
+        for d in self.d_all:
+            for i in accesses:
+                if d.source is i or d.sink is i:
+                    found.append(d)
+        return found

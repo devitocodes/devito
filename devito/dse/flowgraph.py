@@ -2,7 +2,7 @@ from collections import OrderedDict
 from itertools import islice
 
 from devito.ir.equations import ClusterizedEq
-from devito.symbolics import (as_symbol, retrieve_terminals, q_timedimension)
+from devito.symbolics import retrieve_terminals, q_timedimension
 from devito.tools import DefaultOrderedDict, flatten
 from devito.types import Dimension, Symbol
 
@@ -79,13 +79,12 @@ class FlowGraph(OrderedDict):
         # Construct the Nodes, tracking reads and readby
         tensor_map = DefaultOrderedDict(list)
         for i in mapper:
-            tensor_map[as_symbol(i)].append(i)
+            tensor_map[i].append(i)
         reads = DefaultOrderedDict(set)
         readby = DefaultOrderedDict(set)
         for k, v in mapper.items():
             handle = retrieve_terminals(v.rhs, deep=True)
-            reads[k].update(set(flatten([tensor_map.get(as_symbol(i), [])
-                                         for i in handle])))
+            reads[k].update(set(flatten(tensor_map.get(i, []) for i in handle)))
             for i in reads[k]:
                 readby[i].add(k)
 

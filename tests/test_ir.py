@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+from sympy import S
 
 from conftest import EVAL, time, x, y, z, skipif  # noqa
 from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
@@ -141,6 +142,31 @@ class TestVectorHierarchy(object):
             except:
                 assert False
 
+    def test_iteration_instance_distance(self, dims, ii_num, ii_literal):
+        """
+        Tests calculation of vector distance between objects of type IterationInstance.
+        """
+        _, fc00, fc11, fc23 = ii_num
+        fax, fcxy, fcx1y = ii_literal
+
+        # Distance with numbers
+        assert fc11.distance(fc00) == (1, 1)
+        assert fc23.distance(fc11) == (1, 2)
+        assert fc11.distance(fc23) == (-1, -2)
+
+        # Distance with matching literals
+        assert fcxy.distance(fcx1y) == (-1, 0)
+        assert fcx1y.distance(fcxy) == (1, 0)
+
+        # Should fail due mismatching indices
+        try:
+            fcxy.distance(fax)
+            assert False
+        except TypeError:
+            pass
+        except:
+            assert False
+
     def test_iteration_instance_cmp(self, ii_num, ii_literal):
         """
         Tests comparison of objects of type IterationInstance.
@@ -170,34 +196,29 @@ class TestVectorHierarchy(object):
         assert fcxy <= fcxy
         assert fcxy < fcx1y
 
-    def test_iteration_instance_distance(self, dims, ii_num, ii_literal):
+    def test_timed_access_distance(self, ta_literal):
         """
-        Tests calculation of vector distance between objects of type IterationInstance.
+        Tests comparison of objects of type TimedAccess.
         """
-        _, fc00, fc11, fc23 = ii_num
-        fax, fcxy, fcx1y = ii_literal
+        tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1 = ta_literal
 
-        # Distance with numbers
-        assert fc11.distance(fc00) == (1, 1)
-        assert fc23.distance(fc11) == (1, 2)
-        assert fc11.distance(fc23) == (-1, -2)
+        # Simple distance calculations
+        assert tcxy_w0.distance(tcxy_r0) == (0, 0)
+        assert tcx1y1_r1.distance(tcxy_r0) == (1, 1)
+        assert tcxy_r0.distance(tcx1y1_r1) == (-1, -1)
+        assert tcx1y1_r1.distance(tcx1y_r1) == (0, 1)
 
-        # Distance with matching literals
-        assert fcxy.distance(fcx1y) == (-1, 0)
-        assert fcx1y.distance(fcxy) == (1, 0)
+        # Distance should go to infinity due to mismatching directions
+        assert rev_tcxy_w0.distance(tcx1y_r1) == (S.Infinity,)
+        assert tcx1y_r1.distance(rev_tcxy_w0) == (S.Infinity,)
 
-        # Should faxl due non matching indices
-        try:
-            fcxy.distance(fax)
-            assert False
-        except TypeError:
-            pass
-        except:
-            assert False
+        # Distance when both source and since go backwards along the x Dimension
+        assert rev_tcxy_w0.distance(rev_tcx1y1_r1) == (1, -1)
+        assert rev_tcx1y1_r1.distance(rev_tcxy_w0) == (-1, 1)
 
         # Distance up to provided dimension
-        assert fcxy.distance(fcx1y, x) == (-1,)
-        assert fcxy.distance(fcx1y, y) == (-1, 0)
+        assert tcx1y1_r1.distance(tcxy_r0, x) == (1,)
+        assert tcx1y1_r1.distance(tcxy_r0, y) == (1, 1)
 
     def test_timed_access_cmp(self, ta_literal):
         """
