@@ -22,7 +22,7 @@ from devito.tools import (EnrichedTuple, Evaluable, Pickable,
 from devito.types.args import ArgProvider
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
-           'LocalObject', 'CompositeObject']
+           'LocalObject', 'CompositeObject', 'CacheManager']
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
