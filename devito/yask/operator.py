@@ -17,7 +17,7 @@ from devito.yask.utils import (Offloaded, make_var_accesses, make_sharedptr_func
                                namespace)
 from devito.yask.wrappers import contexts
 from devito.yask.transformer import yaskit
-from devito.yask.types import YaskVarObject, YaskSolnObject
+from devito.yask.types import YaskVarObject, YaskSolnObject, CacheManager
 
 __all__ = ['Operator']
 
@@ -158,6 +158,10 @@ class OperatorYASK(Operator):
         for i in self.yk_solns.values():
             i.post_apply()
 
+        # Free memory carried by stale symbolic objects
+        # TODO: see issue #944
+        # clear_cache(dump_contexts=False)
+
         # Output summary of performance achieved
         return self._profile_output(args)
 
@@ -207,3 +211,6 @@ class OperatorYASK(Operator):
             local_vars = [i for i in self.parameters if i.name in local_vars]
             yk_soln = context.make_yk_solution(name, None, local_vars)
             self.yk_solns[(dimensions, yk_soln_obj)] = yk_soln
+
+
+clear_cache = CacheManager().clear
