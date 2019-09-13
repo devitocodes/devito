@@ -194,16 +194,16 @@ class TestOPSExpression(object):
             Literal('"u"')
         )
 
-        def test_create_ops_arg_constant(self):
-            a = Constant(name='*a')
+    def test_create_ops_arg_constant(self):
+        a = Constant(name='*a')
 
-            res = create_ops_arg(a, {}, {})
+        res = create_ops_arg(a, {}, {}, {})
 
-            assert type(res) == namespace['ops_arg_gbl']
-            assert str(res.args[0]) == str(Byref(Constant(name='a')))
-            assert res.args[1] == 1
-            assert res.args[2] == Literal('"%s"' % dtype_to_cstr(a.dtype))
-            assert res.args[3] == namespace['ops_read']
+        assert type(res) == namespace['ops_arg_gbl']
+        assert str(res.args[0]) == str(Byref(Constant(name='a')))
+        assert res.args[1] == 1
+        assert res.args[2] == Literal('"%s"' % dtype_to_cstr(a.dtype))
+        assert res.args[3] == namespace['ops_read']
 
     @pytest.mark.parametrize('read', [True, False])
     def test_create_ops_arg_function(self, read):
