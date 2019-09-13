@@ -287,7 +287,8 @@ class YaskSolnObject(basic.Object):
 class CacheManager(basic.CacheManager):
 
     @classmethod
-    def clear(cls):
+    def clear(cls, dump_contexts=True):
         log("Dumping contexts and symbol caches")
-        contexts.dump()
+        if dump_contexts:
+            contexts.dump()
         super(CacheManager, cls).clear()
