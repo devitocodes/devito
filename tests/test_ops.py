@@ -14,13 +14,12 @@ pytestmark = skipif('noops', whole_module=True)
 # `pytestmark` above
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
-from devito.ops.operator import OperatorOPS # noqa
 from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil # noqa
 from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock # noqa
 from devito.ops.utils import namespace # noqa
-from devito.symbolics import Byref, Literal, indexify # noqa
+from devito.symbolics import Byref, indexify, Literal # noqa
 from devito.tools import dtype_to_cstr # noqa
-from devito.types import Constant, Symbol # noqa
+from devito.types import Buffer, Constant, Symbol # noqa
 
 
 class TestOPSExpression(object):
@@ -76,7 +75,7 @@ class TestOPSExpression(object):
         v = TimeFunction(name='v', grid=grid_2d, space_order=2)  # noqa
         w = TimeFunction(name='w', grid=grid_3d, space_order=2)  # noqa
 
-        operator = OperatorOPS(eval(equation))
+        operator = Operator(eval(equation))
 
         assert str(operator._ops_kernels[0]) == expected
 
@@ -123,7 +122,7 @@ class TestOPSExpression(object):
         assert result[0].expr.rhs.params == tuple(itertools.chain(*accesses))
 
         assert result[1].expr.lhs == stencil
-        assert result[1].expr.rhs.name == namespace['ops_decl_stencil'].name
+        assert type(result[1].expr.rhs) == namespace['ops_decl_stencil']
         assert result[1].expr.rhs.args == (
             2,
             len(accesses),
@@ -161,7 +160,7 @@ class TestOPSExpression(object):
 
         assert result[4].expr.lhs.name == namespace['ops_dat_name'](u.name)
         assert len(result[4].expr.rhs.params) == 2
-        assert result[4].expr.rhs.params[0].name == namespace['ops_decl_dat'].name
+        assert type(result[4].expr.rhs.params[0]) == namespace['ops_decl_dat']
         assert result[4].expr.rhs.params[0].args == (
             block,
             1,
@@ -173,7 +172,7 @@ class TestOPSExpression(object):
             Literal('"%s"' % u._C_typedata),
             Literal('"ut0"')
         )
-        assert result[4].expr.rhs.params[1].name == namespace['ops_decl_dat'].name
+        assert type(result[4].expr.rhs.params[1]) == namespace['ops_decl_dat']
         assert result[4].expr.rhs.params[1].args == (
             block,
             1,
@@ -213,7 +212,7 @@ class TestOPSExpression(object):
         assert result[3].expr.rhs.params == (Integer(-2),)
 
         assert result[4].expr.lhs == name_to_ops_dat['u']
-        assert result[4].expr.rhs.name == namespace['ops_decl_dat'].name
+        assert type(result[4].expr.rhs) == namespace['ops_decl_dat']
         assert result[4].expr.rhs.args == (
             block,
             1,
@@ -226,33 +225,47 @@ class TestOPSExpression(object):
             Literal('"u"')
         )
 
-        def test_create_ops_arg_constant(self):
-            a = Constant(name='*a')
+    def test_create_ops_arg_constant(self):
+        a = Constant(name='*a')
 
-            res = create_ops_arg(a, {}, {})
+        res = create_ops_arg(a, {}, {})
 
-            assert res.name == namespace['ops_arg_gbl'].name
-            assert res.args == [
-                Byref(Constant(name='a')),
-                1,
-                Literal('"%s"' % dtype_to_cstr(a.dtype)),
-                namespace['ops_read']
-            ]
+        assert type(res) == namespace['ops_arg_gbl']
+        assert str(res.args[0]) == str(Byref(Constant(name='a')))
+        assert res.args[1] == 1
+        assert res.args[2] == Literal('"%s"' % dtype_to_cstr(a.dtype))
+        assert res.args[3] == namespace['ops_read']
 
-        @pytest.mark.parametrize('read', [True, False])
-        def test_create_ops_arg_function(self, read):
-            u = OpsAccessible('u', np.float32, read)
+    @pytest.mark.parametrize('read', [True, False])
+    def test_create_ops_arg_function(self, read):
+        u = OpsAccessible('u', np.float32, read)
 
-            dat = OpsDat('u_dat')
-            stencil = OpsStencil('stencil')
+        dat = OpsDat('u_dat')
+        stencil = OpsStencil('stencil')
 
-            res = create_ops_arg(u, {'u': dat}, {u: stencil})
+        res = create_ops_arg(u, {'u': dat}, {u: stencil})
 
-            assert res.name == namespace['ops_arg_dat'].name
-            assert res.args == [
-                dat,
-                1,
-                stencil,
-                Literal('"%s"' % dtype_to_cstr(u.dtype)),
-                namespace['ops_read'] if read else namespace['ops_write']
-            ]
+        assert type(res) == namespace['ops_arg_dat']
+        assert res.args == (
+            dat,
+            1,
+            stencil,
+            Literal('"%s"' % dtype_to_cstr(u.dtype)),
+            namespace['ops_read'] if read else namespace['ops_write']
+        )
+
+    @pytest.mark.parametrize('equation, expected', [
+        ('Eq(u.forward, u.dt2 + u.dxr - u.dyr - u.dyl)',
+            'ops_block block = ops_decl_block(2, "block");'),
+        ('Eq(u.forward,u+1)',
+            'ops_block block = ops_decl_block(2, "block");')
+    ])
+    def test_create_ops_block(self, equation, expected):
+        """
+        Test if ops_block has been successfully generated
+        """
+        grid_2d = Grid(shape=(4, 4))
+        u = TimeFunction(name='u', grid=grid_2d, time_order=2, save=Buffer(10))  # noqa
+        operator = Operator(eval(equation))
+
+        assert expected in str(operator.ccode)

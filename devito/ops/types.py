@@ -135,7 +135,7 @@ class OpsBlock(basic.Symbol):
         super().__init__(name, np.void, *args, **kwargs)
 
     @property
-    def _C_typename(self):
+    def _C_typedata(self):
         return namespace['ops_block_type']
 
 

@@ -28,13 +28,20 @@ def get_cpu_info():
 
     # Extract CPU flags and branch
     if lines:
-        get = lambda k: [i for i in lines if i.startswith(k)][0].split(':')[1].strip()
-        cpu_info['flags'] = get('flags').split()
-        cpu_info['brand'] = get('model name')
-    else:
+        try:
+            get = lambda k: [i for i in lines if i.startswith(k)][0].split(':')[1].strip()
+            cpu_info['flags'] = get('flags').split()
+            cpu_info['brand'] = get('model name')
+        except IndexError:
+            # The /proc/cpuinfo format doesn't follow a standard, and on some
+            # more or less exotic combinations of OS and platform it might not
+            # be what we expect, hence ending up here
+            pass
+    if not all(i in cpu_info for i in ('flags', 'brand')):
+        # Fallback
         ci = cpuinfo.get_cpu_info()
-        cpu_info['flags'] = ci['flags']
-        cpu_info['brand'] = ci['brand']
+        cpu_info['flags'] = ci.get('flags')
+        cpu_info['brand'] = ci.get('brand')
 
     # Detect number of logical cores
     logical = psutil.cpu_count(logical=True)

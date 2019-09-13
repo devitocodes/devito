@@ -113,7 +113,7 @@ before_script:
 script:
   - flake8 --builtins=ArgumentError .
   # Run test with py.tests
-  - py.test --durations=20 --cov --maxfail=5 --cov devito tests/
+  - py.test --durations=20 --maxfail=5 devito tests/
   # Run remaining specialized examples and tests
   # Additional seismic operator tests
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py test -P tti -so 4 -d 20 20 20 -n 5; fi
