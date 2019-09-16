@@ -10,9 +10,6 @@ __all__ = ['CompilerOPS']
 class CompilerOPS(configuration['compiler'].__class__):
     def __init__(self, *args, **kwargs):
         self._ops_install_path = os.environ.get('OPS_INSTALL_PATH')
-        if not self._ops_install_path:
-            warning("Couldn't find OPS_INSTALL_PATH \
-                environment variable, please check your OPS installation")
         super(CompilerOPS, self).__init__(*args, **kwargs)
 
     def prepare_ops(self, soname, ccode, hcode):
@@ -26,7 +23,10 @@ class CompilerOPS(configuration['compiler'].__class__):
 
         c_file.close()
         h_file.close()
-
-        # Calling OPS Translator
-        translator = '%s/../ops_translator/c/ops.py' % (self._ops_install_path)
-        subprocess.run([translator, c_file.name], cwd=self.get_jit_dir())
+        if self._ops_install_path:
+            # Calling OPS Translator
+            translator = '%s/../ops_translator/c/ops.py' % (self._ops_install_path)
+            subprocess.run([translator, c_file.name], cwd=self.get_jit_dir())
+        else:
+            warning("Couldn't find OPS_INSTALL_PATH \
+                environment variable, please check your OPS installation")
