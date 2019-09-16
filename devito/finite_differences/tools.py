@@ -183,9 +183,9 @@ def indices_cartesian(dim, order, side):
 
 def indices_staggered(func, dim, order, side=None, x0={}):
     diff = dim.spacing
-    start = x0.get(dim) or func.ind_map[dim]
+    start = x0.get(dim) or func._indices_map[dim]
     try:
-        ind0 = func.ind_map[dim]
+        ind0 = func._indices_map[dim]
     except AttributeError:
         ind0 = start
     if start != ind0:

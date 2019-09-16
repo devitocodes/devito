@@ -50,7 +50,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 def test_viscoelastic():
     _, _, _, [rec1, rec2, vx, vz, txx, tzz, txz] = run()
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
-    assert np.isclose(norm(rec1), 5.6222677, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec1), 5.6190777, atol=1e-3, rtol=0)
     assert np.isclose(norm(rec2), 0.26486522, atol=1e-3, rtol=0)
 
 

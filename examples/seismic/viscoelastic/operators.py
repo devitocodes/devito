@@ -1,7 +1,39 @@
 import sympy as sp
 
 from devito import Eq, Operator, TimeFunction, NODE
-from examples.seismic.elastic import src_rec
+from examples.seismic import PointSource, Receiver
+
+
+def src_rec(vx, vy, vz, txx, tyy, tzz, model, geometry):
+    """
+    Source injection and receiver interpolation
+    """
+    s = model.grid.time_dim.spacing
+    # Source symbol with input wavelet
+    src = PointSource(name='src', grid=model.grid, time_range=geometry.time_axis,
+                      npoint=geometry.nsrc)
+    rec1 = Receiver(name='rec1', grid=model.grid, time_range=geometry.time_axis,
+                    npoint=geometry.nrec)
+    rec2 = Receiver(name='rec2', grid=model.grid, time_range=geometry.time_axis,
+                    npoint=geometry.nrec)
+
+    # The source injection term
+    src_xx = src.inject(field=txx.forward, expr=src * s)
+    src_zz = src.inject(field=tzz.forward, expr=src * s)
+    src_expr = src_xx + src_zz
+    if model.grid.dim == 3:
+        src_yy = src.inject(field=tyy.forward, expr=src * s)
+        src_expr += src_yy
+
+    # Create interpolation expression for receivers
+    rec_term1 = rec1.interpolate(expr=tzz)
+    if vy is not None:
+        divv = vx.dx + vy.dy + vz.dz
+    else:
+        divv = vx.dx + vz.dy
+    rec_term2 = rec2.interpolate(expr=divv)
+
+    return src_expr + rec_term1 + rec_term2
 
 
 def vector_function(name, model, save, space_order):

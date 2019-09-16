@@ -566,14 +566,14 @@ class TestConditionalDimension(object):
         op.apply(time_M=0, x_M=11, y_M=11)
         # Verify that u2 contains subsampled fd values
         assert np.all(u2.data[0, :, :] == 2.)
-        assert np.all(u2.data[1, 0, 0] == 20.)
-        assert np.all(u2.data[1, -1, -1] == -20.)
-        assert np.all(u2.data[1, 0, -1] == 0.)
-        assert np.all(u2.data[1, -1, 0] == -0.)
-        assert np.all(u2.data[1, 1:-1, 0] == 10.)
-        assert np.all(u2.data[1, 0, 1:-1] == 10.)
-        assert np.all(u2.data[1, 1:-1, -1] == -10.)
-        assert np.all(u2.data[1, -1, 1:-1] == -10.)
+        assert np.all(u2.data[1, 0, 0] == 0.)
+        assert np.all(u2.data[1, -1, -1] == -40.)
+        assert np.all(u2.data[1, 0, -1] == -20.)
+        assert np.all(u2.data[1, -1, 0] == -20.)
+        assert np.all(u2.data[1, 1:-1, 0] == 0.)
+        assert np.all(u2.data[1, 0, 1:-1] == 0.)
+        assert np.all(u2.data[1, 1:-1, -1] == -20.)
+        assert np.all(u2.data[1, -1, 1:-1] == -20.)
         assert np.all(u2.data[1, 1:4, 1:4] == 0.)
 
     # This test generates an openmp loop form which makes older gccs upset

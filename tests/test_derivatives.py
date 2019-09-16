@@ -376,7 +376,7 @@ class TestFD(object):
         Operator([Eq(g, x*cos(2*np.pi*x/5)), Eq(f, sin(2*np.pi*x/8))]).apply()
         # Check symbolic expression are expected ones for the adjoint .T
         deriv = getattr(f, derivative)
-        coeff = 1 if derivative is 'dx2' else -1
+        coeff = 1 if derivative == 'dx2' else -1
         expected = coeff * getattr(f, derivative).evaluate.subs({x.spacing: -x.spacing})
         assert deriv.T.evaluate == expected
 

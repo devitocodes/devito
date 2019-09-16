@@ -577,7 +577,7 @@ class TestIsotropicAcoustic(object):
         # The expected norms have been computed "by hand" looking at the output
         # of test_adjointA's forward operator w/o using the YASK backend.
         exp_u = 154.05
-        exp_rec = 212.15
+        exp_rec = 251.02
 
         assert np.isclose(np.linalg.norm(self.u.data[:]), exp_u, atol=exp_u*1.e-2)
         assert np.isclose(np.linalg.norm(self.rec.data.reshape(-1)), exp_rec,

@@ -45,7 +45,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
             self._space_order = kwargs.get('space_order', 1)
 
     @classmethod
-    def __setup_subfunc__(cls, *args, **kwargs):
+    def __subfunc_setup__(cls, *args, **kwargs):
         """
         Creates the components of the TensorFunction
         either from input or from input Dimensions.
@@ -437,7 +437,7 @@ class VectorFunction(TensorFunction):
             return super(VectorFunction, self).shape
 
     @classmethod
-    def __setup_subfunc__(cls, *args, **kwargs):
+    def __subfunc_setup__(cls, *args, **kwargs):
         """
         Creates the components of the VectorFunction
         either from input or from input dimensions.

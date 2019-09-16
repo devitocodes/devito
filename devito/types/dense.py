@@ -935,7 +935,7 @@ class Function(DiscreteFunction, Differentiable):
         if not self.is_parameter or self.staggered == var.staggered:
             return self
 
-        return self.subs({d1: var.ind_map[d1] for d1 in self.index_ref})
+        return self.subs({d1: var._indices_map[d1] for d1 in self.index_ref})
 
     @classmethod
     def staggered_indices(cls, *dimensions, **kwargs):

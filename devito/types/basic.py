@@ -80,6 +80,8 @@ class Basic(object):
     is_SparseFunction = False
     is_PrecomputedSparseFunction = False
     is_PrecomputedSparseTimeFunction = False
+
+    # Time dependence
     is_TimeDependent = False
 
     # Tensor and Vector valued objects
@@ -477,7 +479,7 @@ class AbstractCachedTensor(AbstractTensor, Cached, Evaluable):
             indices, _ = cls.__indices_setup__(**kwargs)
 
             # Create the new Function object and invoke __init__
-            comps = cls.__setup_subfunc__(*args, **kwargs)
+            comps = cls.__subfunc_setup__(*args, **kwargs)
             newcls = cls._symbol_type(name)
             newobj = sympy.ImmutableDenseMatrix.__new__(newcls, comps)
             # Initialization. The following attributes must be available
@@ -502,7 +504,7 @@ class AbstractCachedTensor(AbstractTensor, Cached, Evaluable):
         return None
 
     @classmethod
-    def __setup_subfunc__(cls, *args, **kwargs):
+    def __subfunc_setup__(cls, *args, **kwargs):
         """
         Setup each component as a Devito type
         """
@@ -511,7 +513,7 @@ class AbstractCachedTensor(AbstractTensor, Cached, Evaluable):
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
         """
-        Setup each component as a Devito type
+        Setup each component as a Devito type.
         """
         return (), ()
 
@@ -525,12 +527,13 @@ class AbstractCachedTensor(AbstractTensor, Cached, Evaluable):
 
     @classmethod
     def _new2(cls, *args, **kwargs):
-        new_obj = cls.__new__(cls, *args, **kwargs)
-        return new_obj
+        """
+        Bypass sympy `_new` that hard codes `Matrix.__new__` to call out own
+        """
+        return cls.__new__(cls, *args, **kwargs)
 
     def applyfunc(self, f):
-        comps = [f(x) for x in self]
-        return self._new2(self.rows, self.cols, comps)
+        return self._new2(self.rows, self.cols, [f(x) for x in self])
 
 
 class AbstractFunction(sympy.Function, Basic, Pickable):
@@ -671,11 +674,11 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
 
     @property
     def index_ref(self):
-        """The indices (aka dimensions) of the object."""
+        """The reference indices of the object (indices at first creation)."""
         return self._index_ref
 
     @property
-    def ind_map(self):
+    def _indices_map(self):
         return {d1: d2 for d1, d2 in zip(self.dimensions, self.index_ref)}
 
     @property
@@ -708,7 +711,7 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         return weight * sum(avg_list)
 
     def index(self, dim):
-        inds = [self.indices[i] for i, d in enumerate(self.dimensions) if d == dim]
+        inds = [self.indices[i] for i, d in enumerate(self.dimensions) if d is dim]
         return inds[0]
 
     @property

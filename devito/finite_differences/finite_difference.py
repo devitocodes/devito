@@ -85,7 +85,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     else:
         c = finite_diff_weights(1, ind, dim)[-1][-1]
 
-    return from_ind_w(expr, dim, ind, c, matvec=matvec.val)
+    return indices_weights_to_fd(expr, dim, ind, c, matvec=matvec.val)
 
 
 @check_input
@@ -171,10 +171,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
     >>> f = Function(name='f', grid=grid, space_order=2)
     >>> g = Function(name='g', grid=grid, space_order=2)
     >>> cross_derivative(f*g, dims=(x, y), fd_order=(2, 2), deriv_order=(1, 1))
-    -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
- 0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
- 0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
- 0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
+    -(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y +\
+ (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
 
     Semantically, this is equivalent to
 
@@ -185,10 +183,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
     The expanded form is obtained via ``evaluate``
 
     >>> (f*g).dxdy.evaluate
-    -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
- 0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
- 0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
- 0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
+    -(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y +\
+ (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
     """
     x0 = kwargs.get('x0', {})
     for d, fd, dim in zip(deriv_order, fd_order, dims):
@@ -225,7 +221,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     """
     # First order derivative with 2nd order FD is highly non-recommended so taking
     # first order fd that is a lot better
-    if deriv_order == 1 and fd_order == 2:
+    if deriv_order == 1 and fd_order == 2 and not symbolic:
         fd_order = 1
     # Stencil positions
     indices, x0 = generate_indices(expr, dim, fd_order, x0=x0)
@@ -236,10 +232,10 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     else:
         c = finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
-    return from_ind_w(expr, dim, indices, c, matvec=matvec.val)
+    return indices_weights_to_fd(expr, dim, indices, c, matvec=matvec.val)
 
 
-def from_ind_w(expr, dim, inds, weights, matvec=1):
+def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
     """
     Expression from list of indices and weights
     """

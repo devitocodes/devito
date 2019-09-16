@@ -63,6 +63,6 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
              model.damp * dt * mu * (grad(v.forward) + grad(v.forward).T))
 
     srcrec = src_rec(v, tau, model, geometry)
-    op = Operator([u_v] + srcrec + [u_t], subs=model.spacing_map, name="ForwardElastic")
+    op = Operator([u_v] + [u_t] + srcrec, subs=model.spacing_map, name="ForwardElastic")
     # Substitute spacing terms to reduce flops
     return op

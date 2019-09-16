@@ -1542,7 +1542,7 @@ class TestIsotropicAcoustic(object):
 
     @pytest.mark.parallel(mode=[(8, 'diag', True), (8, 'full', True)])
     @switchconfig(openmp=False)
-    def test_adjoint_F_no_omp(self, nd):
+    def test_adjoint_F_no_omp(self):
         """
         ``run_adjoint_F`` with OpenMP disabled. By disabling OpenMP, we can
         practically scale up to higher process counts.
