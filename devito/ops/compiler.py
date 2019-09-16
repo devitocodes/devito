@@ -1,6 +1,6 @@
 import os
 import subprocess
-
+from devito.logger import warning
 from devito.parameters import configuration
 
 
@@ -11,7 +11,7 @@ class CompilerOPS(configuration['compiler'].__class__):
     def __init__(self, *args, **kwargs):
         self._ops_install_path = os.environ.get('OPS_INSTALL_PATH')
         if not self._ops_install_path:
-            raise ValueError("Couldn't find OPS_INSTALL_PATH \
+            warning("Couldn't find OPS_INSTALL_PATH \
                 environment variable, please check your OPS installation")
         super(CompilerOPS, self).__init__(*args, **kwargs)
 
