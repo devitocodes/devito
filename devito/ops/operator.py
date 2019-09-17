@@ -22,6 +22,8 @@ class OperatorOPS(Operator):
     A special Operator generating and executing OPS code.
     """
 
+    _default_headers = Operator._default_headers + ['#define restrict __restrict']
+
     def __init__(self, *args, **kwargs):
         self._ops_kernels = []
         super(OperatorOPS, self).__init__(*args, **kwargs)
@@ -95,7 +97,7 @@ class OperatorOPS(Operator):
             have the same number of dimensions"
 
         self._headers.append(namespace['ops_define_dimension'](dims[0]))
-        self._includes.append('stdio.h')
+        self._includes += ['stdio.h', 'ops_seq.h']
 
         body = [ops_init, ops_block_init, *pre_time_loop,
                 ops_partition, iet, *after_time_loop, ops_exit]
@@ -107,5 +109,7 @@ class OperatorOPS(Operator):
         return ''.join(str(kernel) for kernel in self._ops_kernels)
 
     def _compile(self):
+        self._includes.append('%s.h' % self._soname)
         if self._lib is None:
             self._compiler.prepare_ops(self._soname, str(self.ccode), str(self.hcode))
+            self._compiler.jit_compile(self._soname)
