@@ -678,3 +678,7 @@ def test_tti_v2_rewrite_aggressive_opcounts(space_order, expected):
     assert len(sections) == 2
     assert sections[0].sops == 4
     assert sections[1].sops == expected
+
+
+if __name__ == "__main__":
+    test_tti_rewrite_aggressive_opcounts(16, 270)

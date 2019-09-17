@@ -19,7 +19,7 @@ if os.environ.get('testWithPip') == 'true':
 
 if os.environ.get('testWithPip') != 'true':
     runStep("flake8 --exclude .conda,.git,.ipython --builtins=ArgumentError .")
-    runStep("py.test --durations=20 --maxfail=5 --cov devito tests/")
+    runStep("py.test --durations=20 --maxfail=5 devito tests/")
     if os.environ.get('RUN_EXAMPLES') == 'true':
         runStep(("python benchmarks/user/benchmark.py test " +
                  "-P tti -so 4 -d 20 20 20 -n 5"))
@@ -31,11 +31,10 @@ if os.environ.get('testWithPip') != 'true':
         runStep("python examples/misc/linalg.py mat-vec mat-mat-sum transpose-mat-vec")
         runStep("python examples/seismic/tti/tti_example.py -a basic")
         runStep("python examples/seismic/tti/tti_example.py -a basic --noazimuth")
-        runStep("python examples/seismic/elastic/elastic_example.py")
-        runStep("python examples/seismic/viscoelastic/viscoelastic_example.py")
         runStep("python examples/cfd/example_diffusion.py")
         runStep("py.test examples/cfd/example_diffusion.py")
         runStep("py.test examples/seismic/elastic/elastic_example.py")
+        runStep("py.test examples/seismic/viscoelastic/viscoelastic_example.py")
         runStep("ipcluster start --profile=mpi -n 4 --daemon")  # Needed by MPI notebooks
         runStep("py.test --nbval examples/cfd")
         runStep("py.test --nbval examples/seismic/tutorials")

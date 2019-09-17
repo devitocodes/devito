@@ -246,6 +246,15 @@ def split_affine(expr):
     """
     if expr.is_Number:
         return AffineFunction(None, None, expr)
+
+    # Handle super-quickly the calls like `split_affine(x+1)`, which are
+    # the majority.
+    if expr.is_Add and len(expr.args) == 2:
+        if expr.args[0].is_Number and expr.args[1].is_Symbol:
+            # SymPy deterministically orders arguments -- first numbers, then symbols
+            return AffineFunction(expr.args[1], 1, expr.args[0])
+
+    # Fallback
     poly = expr.as_poly()
     if not (poly.is_univariate and poly.is_linear) or not LM(poly).is_Symbol:
         raise ValueError

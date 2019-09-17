@@ -1119,8 +1119,6 @@ class TestLoopScheduling(object):
     @pytest.mark.parametrize('exprs', [
         ('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])', 'Eq(ti1[x,y,z], ti3[x,y,z])',
          'Eq(ti3[x,y,z], ti1[x,y,z] + 1.)'),
-        ('Eq(ti0[x,y,z], ti0[x,y,z-1] + ti1[x,y,z-1])', 'Eq(ti1[x,y,z], ti3[x,y,z-1])',
-         'Eq(ti3[x,y,z], ti3[x,y,z-1] + ti0[x,y,z])'),
         ('Eq(ti0[x,y,z+2], ti0[x,y,z-1] + ti1[x,y,z+1])',
          'Eq(ti1[x,y,z+3], ti3[x,y,z+1])',
          'Eq(ti3[x,y,z+2], ti0[x,y,z+1]*ti3[x,y,z-1])'),
