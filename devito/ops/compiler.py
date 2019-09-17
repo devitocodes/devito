@@ -78,7 +78,7 @@ class CompilerOPS(configuration['compiler'].__class__):
                 cuda_device_compiler, cuda_target,
                 cuda_code, cuda_src,
                 cache_dir=self.cache_dir,
-                debug=True,
+                debug=configuration['debug-compiler'],
                 sleep_delay=sleep_delay,
                 object=True
             )
@@ -86,14 +86,14 @@ class CompilerOPS(configuration['compiler'].__class__):
                 cuda_host_compiler, self.target,
                 self.code, self.ops_src,
                 cache_dir=self.cache_dir,
-                debug=True,
+                debug=configuration['debug-compiler'],
                 sleep_delay=sleep_delay,
                 object=True
             )
             cuda_host_compiler.link_extension(
                 '%s%s' % (self.target, cuda_host_compiler.so_ext),
                 [src_o, cuda_o],
-                debug=True
+                debug=configuration['debug-compiler']
             )
 
     def jit_compile(self, soname):
