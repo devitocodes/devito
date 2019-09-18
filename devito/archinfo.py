@@ -204,7 +204,13 @@ class Intel64(Cpu64):
 
 
 class Arm(Cpu64):
-    pass
+    def _detect_isa(self):
+        known_isas = ['fp', 'asimd', 'asimdrdm']
+        for i in reversed(known_isas):
+            if any(j.startswith(i) for j in get_cpu_info()['flags']):                
+                return i
+        return 'fp'
+
 
 
 class Power(Cpu64):
@@ -268,6 +274,9 @@ isa_registry = {
     'avx': 32,
     'avx2': 32,
     'avx512': 64,
-    'altivec': 16
+    'altivec': 16,
+    'fp': 8,
+    'asimd': 16,
+    'asimdrdm': 16
 }
 """Size in bytes of a SIMD register in known ISAs."""
