@@ -187,34 +187,11 @@ class Differentiable(sympy.Expr, Evaluable):
 
 
 class Add(sympy.Add, Differentiable):
-
-    def __new__(cls, *args, **kwargs):
-        obj = sympy.Add.__new__(cls, *args, **kwargs)
-
-        # `(f + f)` is evaluated as `2*f`, with `*` being a sympy.Mul.
-        # Here we make sure to return our own Mul.
-        if obj.is_Mul:
-            obj = Mul(*obj.args)
-
-        return obj
+    pass
 
 
 class Mul(sympy.Mul, Differentiable):
-
-    def __new__(cls, *args, **kwargs):
-        obj = sympy.Mul.__new__(cls, *args, **kwargs)
-
-        # `(f + g)*2` is evaluated as `2*f + 2*g`, with `+` being a sympy.Add.
-        # Here we make sure to return our own Add.
-        if obj.is_Add:
-            obj = Add(*obj.args)
-
-        # `(f * f)` is evaluated as `f**2`, with `**` being a sympy.Pow.
-        # Here we make sure to return our own Pow.
-        if obj.is_Pow:
-            obj = Pow(*obj.args)
-
-        return obj
+    pass
 
 
 class Pow(sympy.Pow, Differentiable):
@@ -233,3 +210,16 @@ class Mod(sympy.Mod, Differentiable):
 evalf_table[Add] = evalf_table[sympy.Add]
 evalf_table[Mul] = evalf_table[sympy.Mul]
 evalf_table[Pow] = evalf_table[sympy.Pow]
+
+
+# Monkey-patch sympy.Mul/sympy.Add/sympy.Pow/...'s __new__ so that we can
+# return a devito.Mul/devito.Add/devito.Pow if any of the arguments is
+# of type Differentiable
+def __new__(cls, *args, **options):
+    if cls in __new__.table and any(isinstance(i, Differentiable) for i in args):
+        return __new__.__real_new__(__new__.table[cls], *args, **options)
+    else:
+        return __new__.__real_new__(cls, *args, **options)
+__new__.table = {getattr(sympy, i.__name__): i for i in [Add, Mul, Pow, Mod]}  # noqa
+__new__.__real_new__ = sympy.Basic.__new__
+sympy.Basic.__new__ = __new__
