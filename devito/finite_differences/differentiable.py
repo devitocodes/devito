@@ -25,13 +25,6 @@ class Differentiable(sympy.Expr, Evaluable):
 
     _state = ('space_order', 'time_order', 'indices')
 
-    @classmethod
-    def _rebuild(cls, seq):
-        if not seq:
-            return []
-        seq = [to_differentiable(a) for a in seq]
-        return seq
-
     @cached_property
     def _functions(self):
         return frozenset().union(*[i._functions for i in self._args_diff])
@@ -272,15 +265,11 @@ class Mul(sympy.Mul, Differentiable):
 
 
 class Pow(sympy.Pow, Differentiable):
-    def __new__(cls, *args, **kwargs):
-        obj = sympy.Pow.__new__(cls, *args, **kwargs)
-        return obj
+    pass
 
 
 class Mod(sympy.Mod, Differentiable):
-    def __new__(cls, *args, **kwargs):
-        obj = sympy.Mod.__new__(cls, *args, **kwargs)
-        return obj
+    pass
 
 
 # Make sure `sympy.evalf` knows how to evaluate the inherited classes

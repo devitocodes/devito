@@ -204,7 +204,9 @@ class AdvancedProfiler(Profiler):
             if grid is not None:
                 dimensions = (grid.time_dim,) + grid.dimensions
                 if all(d.max_name in args for d in dimensions):
-                    nt = args[grid.time_dim.max_name] - args[grid.time_dim.min_name] + 1
+                    max_t = args[grid.time_dim.max_name] or 0
+                    min_t = args[grid.time_dim.min_name] or 0
+                    nt = max_t - min_t + 1
                     points = reduce(mul, (nt,) + grid.shape)
                     summary.add_glb_fdlike(points, self.py_timers[reduce_over])
 

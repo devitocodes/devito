@@ -232,9 +232,7 @@ def solve(eq, target, **kwargs):
     # We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions
     # Also need to rebuild the expressions that are turned into sympy core types
     from devito.types import TensorFunction
-    from devito.finite_differences.differentiable import to_differentiable
     if isinstance(target, TensorFunction):
-        sol = [to_differentiable(s) for s in sol]
         return target.new_from_mat(sol)
     else:
-        return to_differentiable(sol)
+        return sol

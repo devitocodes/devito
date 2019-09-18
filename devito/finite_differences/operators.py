@@ -35,7 +35,7 @@ def curl(f):
 
     Parameters
     ----------
-    func: Function, VectorFunction
+    func: VectorFunction
     """
     try:
         return f.curl

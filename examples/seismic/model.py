@@ -653,8 +653,6 @@ class Model(GenericModel):
         super(Model, self).__init__(origin, spacing, shape, space_order, nbpml, dtype,
                                     subdomains)
 
-        physical_parameters = []
-
         # Create square slowness of the wave as symbol `m`
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
         self._max_vp = np.max(vp)
@@ -831,4 +829,4 @@ class ModelViscoelastic(ModelElastic):
         # imaging, and inversion: methodology, computational aspects and sensitivity"
         # for further details:
         return self.dtype(6.*np.min(self.spacing) /
-                          (7.*np.sqrt(self.grid.dim)*mmax(self.vp)))
+                          (7.*np.sqrt(self.grid.dim)*self.maxvp))

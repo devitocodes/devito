@@ -613,7 +613,7 @@ class SparseFunction(AbstractSparseFunction):
 
         return index_matrix, points
 
-    def _interpolation_indices(self, variables, offset=0, off_f=0):
+    def _interpolation_indices(self, variables, offset=0, field_offset=0):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
@@ -639,7 +639,7 @@ class SparseFunction(AbstractSparseFunction):
         # Temporaries for the coefficients
         temps.extend([Eq(p, c, implicit_dims=self.dimensions)
                       for p, c in zip(self._point_symbols,
-                                      self._coordinate_bases(off_f))])
+                                      self._coordinate_bases(field_offset))])
 
         return idx_subs, temps
 
@@ -679,7 +679,7 @@ class SparseFunction(AbstractSparseFunction):
         field_offset = variables[0].origin
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interpolation_indices(variables, offset,
-                                                      off_f=field_offset)
+                                                      field_offset=field_offset)
 
         # Substitute coordinate base symbols into the interpolation coefficients
         args = [expr.xreplace(v_sub) * b.xreplace(v_sub)
@@ -722,7 +722,7 @@ class SparseFunction(AbstractSparseFunction):
         field_offset = field.origin
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interpolation_indices(variables, offset,
-                                                      off_f=field_offset)
+                                                      field_offset=field_offset)
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(field.xreplace(vsub), expr.xreplace(vsub) * b,

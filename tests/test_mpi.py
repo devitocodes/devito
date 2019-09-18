@@ -1445,9 +1445,9 @@ class TestOperatorAdvanced(object):
         op(time_M=2)
 
         # Expected norms computed "manually" from sequential runs
-        assert np.isclose(norm(ux), 6148.0819, rtol=1.e-4)
-        assert np.isclose(norm(uxx), 31925.259, rtol=1.e-4)
-        assert np.isclose(norm(uxy), 61405.077, rtol=1.e-4)
+        assert np.isclose(norm(ux), 6253.4349, rtol=1.e-4)
+        assert np.isclose(norm(uxx), 80001.0304, rtol=1.e-4)
+        assert np.isclose(norm(uxy), 61427.853, rtol=1.e-4)
 
 
 class TestIsotropicAcoustic(object):
