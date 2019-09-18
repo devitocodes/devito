@@ -117,7 +117,6 @@ class CompilerOPS(configuration['compiler'].__class__):
 
 
 class CUDADeviceCompiler(CompilerOPS):
-    CXX = os.environ.get('CC', 'nvcc')
 
     def __init__(self, *args, **kwargs):
         super(CUDADeviceCompiler, self).__init__(*args, **kwargs)
@@ -146,14 +145,11 @@ class CUDADeviceCompiler(CompilerOPS):
         self.include_dirs = include_dirs.split(' ')
 
     def __lookup_cmds__(self):
-        self.CC = 'nvcc'
+        self.CC = os.environ.get('CC', 'nvcc')
+        self.CXX = os.environ.get('CXX', 'nvcc')
 
 
 class CudaHostCompiler(CompilerOPS):
-    CC = os.environ.get('CC', 'gcc')
-    CXX = os.environ.get('CXX', 'g++')
-    MPICC = os.environ.get('MPICC', 'mpicc')
-    MPICXX = os.environ.get('MPICXX', 'mpicxx')
 
     def __init__(self, *args, **kwargs):
         super(CudaHostCompiler, self).__init__(*args, **kwargs)
@@ -172,11 +168,10 @@ class CudaHostCompiler(CompilerOPS):
         self.library_dirs.append(os.path.join(self._cuda_install_path, 'lib64'))
         self.library_dirs.append(os.path.join(self._ops_install_path, 'c', 'lib'))
 
-        self.libraries.append('cudart')
-        self.libraries.append('ops_cuda')
+        self.libraries.extend(['cudart', 'ops_cuda'])
 
     def __lookup_cmds__(self):
-        self.CC = 'gcc'
-        self.CXX = 'g++'
-        self.MPICC = 'mpicc'
-        self.MPICXX = 'mpicxx'
+        self.CC = os.environ.get('CC', 'gcc')
+        self.CXX = os.environ.get('CXX', 'g++')
+        self.MPICC = os.environ.get('MPICC', 'mpicc')
+        self.MPICXX = os.environ.get('MPICXX', 'mpicxx')
