@@ -97,9 +97,6 @@ class CompilerOPS(configuration['compiler'].__class__):
             )
 
     def jit_compile(self, soname):
-        from devito import clear_cache
-        clear_cache()
-
         self.target = str(self.get_jit_dir().joinpath(soname))
         self.ops_src = '%s/%s_ops.cpp' % (self.get_jit_dir(), soname)
         self.cache_dir = self.get_codepy_dir().joinpath(soname[:7])
