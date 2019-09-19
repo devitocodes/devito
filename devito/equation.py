@@ -81,7 +81,7 @@ class Eq(sympy.Eq, Evaluable):
         The rhs of the Equation is evaluated at the indices of the lhs if required.
         """
         try:
-            lhs, rhs = self.lhs.evaluate, self.rhs.eval_at(self.lhs).evaluate
+            lhs, rhs = self.lhs.evaluate, self.rhs._eval_at(self.lhs).evaluate
         except AttributeError:
             lhs, rhs = self._evaluate_args()
         eq = self.func(lhs, rhs, subdomain=self.subdomain,

@@ -931,28 +931,11 @@ class Function(DiscreteFunction, Differentiable):
     def is_parameter(self):
         return self._is_parameter
 
-    def eval_at(self, var):
+    def _eval_at(self, var):
         if not self.is_parameter or self.staggered == var.staggered:
             return self
 
         return self.subs({d1: var._indices_map[d1] for d1 in self.index_ref})
-
-    @classmethod
-    def staggered_indices(cls, *dimensions, **kwargs):
-
-        staggered = kwargs.get("staggered", None)
-        if staggered == CELL:
-            staggered = dimensions
-
-        if staggered == NODE:
-            return dimensions
-
-        as_dict = {d: d for d in dimensions}
-        for s in as_tuple(staggered):
-            c, s = s.as_coeff_Mul()
-            as_dict.update({s: s + c * s.spacing/2})
-
-        return tuple(as_dict.values())
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -963,7 +946,21 @@ class Function(DiscreteFunction, Differentiable):
                 raise TypeError("Need either `grid` or `dimensions`")
         elif dimensions is None:
             dimensions = grid.dimensions
-        return dimensions, cls.staggered_indices(*dimensions, **kwargs)
+
+        # Staggered indices
+        staggered = kwargs.get("staggered", None)
+        if staggered is CELL:
+            staggered_indices = dimensions
+        elif staggered is NODE:
+            staggered_indices = dimensions
+        else:
+            as_dict = {d: d for d in dimensions}
+            for s in as_tuple(staggered):
+                c, s = s.as_coeff_Mul()
+                as_dict.update({s: s + c * s.spacing/2})
+
+            staggered_indices = tuple(as_dict.values())
+        return tuple(dimensions), staggered_indices
 
     @property
     def is_Staggered(self):
@@ -1239,6 +1236,7 @@ class TimeFunction(Function):
     @classmethod
     def __indices_setup__(cls, **kwargs):
         dimensions = kwargs.get('dimensions')
+        staggered = kwargs.get('staggered')
         if dimensions is None:
             save = kwargs.get('save')
             grid = kwargs.get('grid')
@@ -1248,11 +1246,9 @@ class TimeFunction(Function):
                 time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
             elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
                 raise TypeError("`time_dim` must be a time dimension")
-
             dimensions = list(Function.__indices_setup__(**kwargs)[0])
             dimensions.insert(cls._time_position, time_dim)
-
-        return tuple(dimensions), cls.staggered_indices(*dimensions, **kwargs)
+        return Function.__indices_setup__(dimensions=dimensions, staggered=staggered)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

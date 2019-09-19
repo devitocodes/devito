@@ -81,7 +81,6 @@ class TestAdjoint(object):
         dot test:
         < Jx, y> = <x ,J^T y>
         """
-        clear_cache()
         tn = 500.  # Final time
         nbpml = 10 + space_order / 2
         spacing = tuple([10.]*len(shape))
@@ -122,7 +121,6 @@ class TestAdjoint(object):
         Verify that p.inject is the adjoint of p.interpolate for a
         devito SparseFunction p
         """
-        clear_cache()
         a = unit_box(shape=shape)
         a.data[:] = 0.
         c = unit_box(shape=shape, name='c', grid=a.grid)

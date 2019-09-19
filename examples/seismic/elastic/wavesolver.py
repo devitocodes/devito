@@ -45,10 +45,12 @@ class ElasticWaveSolver(object):
 
         Parameters
         ----------
-        geometry : AcquisitionGeometry
-            Geometry object that contains the source (src : SparseTimeFunction) and
-            receivers (rec1(txx) : SparseTimeFunction, rec2(tzz) : SparseTimeFunction)
-            and their position.
+        src : SparseTimeFunction or array_like, optional
+            Time series data for the injected source term.
+        rec1 : SparseTimeFunction or array_like, optional
+            The interpolated receiver data of the pressure (tzz).
+        rec2 : SparseTimeFunction or array_like, optional
+            The interpolated receiver data of the particle velocities.
         v : VectorTimeFunction, optional
             The computed  particle velocity.
         tau : TensorTimeFunction, optional
@@ -64,7 +66,7 @@ class ElasticWaveSolver(object):
 
         Returns
         -------
-        Rec1 (txx), Rec2 (tzz), particle velocities v, stress t and performance summary.
+        Rec1(tzz), Rec2(div(v)), particle velocities v, stress t and performance summary.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src

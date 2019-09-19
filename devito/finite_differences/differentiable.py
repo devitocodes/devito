@@ -69,13 +69,10 @@ class Differentiable(sympy.Expr, Evaluable):
 
     @cached_property
     def grid(self):
-        # Default False, True if anything is time dependant in the expression
-        grids = [getattr(i, 'grid', None) for i in self._args_diff]
-        grid = set(grids)
-        grid.discard(None)
-        if len(grid) > 1:
+        grids = {getattr(i, 'grid', None) for i in self._args_diff} - {None}
+        if len(grids) > 1:
             warning("Expression contains multiple grids, returning first found")
-        return list(grid)[0]
+        return list(grids)[0]
 
     @cached_property
     def indices(self):
@@ -108,10 +105,10 @@ class Differentiable(sympy.Expr, Evaluable):
     def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)
 
-    def eval_at(self, var):
+    def _eval_at(self, var):
         if not var.is_Staggered:
             return self
-        return self.func(*[getattr(a, 'eval_at', lambda x: a)(var) for a in self.args])
+        return self.func(*[getattr(a, '_eval_at', lambda x: a)(var) for a in self.args])
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()

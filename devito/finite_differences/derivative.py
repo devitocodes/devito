@@ -74,7 +74,7 @@ class Derivative(sympy.Derivative, Differentiable):
     Derivative(u(x, y), (x, 2))
     """
 
-    _state = ('expr', 'dims', 'side', 'fd_order', 'transpose', '_eval_at', 'x0')
+    _state = ('expr', 'dims', 'side', 'fd_order', 'transpose', '_subs', 'x0')
 
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) == sympy.Derivative:
@@ -136,22 +136,22 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._deriv_order = orders
         obj._side = kwargs.get("side", centered)
         obj._transpose = kwargs.get("transpose", direct)
-        obj._eval_at = as_tuple(kwargs.get("eval_at"))
+        obj._subs = as_tuple(kwargs.get("subs"))
         obj._x0 = kwargs.get('x0', {d: d for d in obj._dims})
         return obj
 
     def subs(self, *args, **kwargs):
         return self.xreplace(dict(*args), **kwargs)
 
-    def _xreplace(self, eval_at):
+    def _xreplace(self, subs):
         """
         This is a helper method used internally by SymPy. We exploit it to postpone
         substitutions until evaluation.
         """
-        eval_at = self._eval_at + (eval_at,)  # Postponed substitutions
+        subs = self._subs + (subs,)  # Postponed substitutions
         return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
                           fd_order=self.fd_order, side=self.side,
-                          transpose=self.transpose, eval_at=eval_at, x0=self.x0), True
+                          transpose=self.transpose, subs=subs, x0=self.x0), True
 
     @property
     def dims(self):
@@ -196,9 +196,9 @@ class Derivative(sympy.Derivative, Differentiable):
 
         return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
                           fd_order=self.fd_order, side=self.side, transpose=adjoint,
-                          x0=self.x0)
+                          x0=self.x0, subs=self._subs)
 
-    def eval_at(self, var):
+    def _eval_at(self, var):
         """
         Evaluates the derivative at the location of var. This is necessary for staggered
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
@@ -207,7 +207,7 @@ class Derivative(sympy.Derivative, Differentiable):
         x0 = {d1: d2 for d1, d2 in zip(var.dimensions, var.index_ref)}
         return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
                           fd_order=self.fd_order, side=self.side,
-                          transpose=self.transpose, eval_at=self._eval_at, x0=x0)
+                          transpose=self.transpose, subs=self._subs, x0=x0)
 
     @property
     def evaluate(self):
@@ -231,6 +231,6 @@ class Derivative(sympy.Derivative, Differentiable):
         else:
             res = generic_derivative(expr, *self.dims, self.fd_order, self.deriv_order,
                                      matvec=self.transpose, x0=self.x0)
-        for e in self._eval_at:
+        for e in self._subs:
             res = res.xreplace(e)
         return res.evaluate

@@ -3,7 +3,7 @@ from devito.logger import error
 
 def div(f):
     """
-    Divergence of the input func.
+    Divergence of the input Function.
 
     Parameters
     ----------

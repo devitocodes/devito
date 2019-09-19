@@ -298,7 +298,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
         return values
 
-    def eval_at(self, var):
+    def _eval_at(self, var):
         return self
 
     def _arg_apply(self, dataobj, coordsobj, alias=None):
@@ -676,6 +676,7 @@ class SparseFunction(AbstractSparseFunction):
         variables = list(retrieve_function_carriers(expr))
 
         # Need to get origin of the field in case it is staggered
+        # TODO: handle each variable staggereing spearately
         field_offset = variables[0].origin
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interpolation_indices(variables, offset,

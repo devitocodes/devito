@@ -602,7 +602,6 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
             # when executing __init__
             newobj._name = name
             newobj._dimensions = dimensions
-            newobj._index_ref = indices
             newobj._shape = cls.__shape_setup__(**kwargs)
             newobj._dtype = cls.__dtype_setup__(**kwargs)
             newobj.__init__(*args, **kwargs)
@@ -669,7 +668,7 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
     @property
     def index_ref(self):
         """The reference indices of the object (indices at first creation)."""
-        return self._index_ref
+        return self.function.indices
 
     @property
     def _indices_map(self):
@@ -677,7 +676,7 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
 
     @property
     def origin(self):
-        return tuple(r - d for r, d in zip(self.index_ref, self.dimensions))
+        return tuple(r - d for d, r in zip(self.dimensions, self.index_ref))
 
     @property
     def dimensions(self):

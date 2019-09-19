@@ -177,7 +177,7 @@ class Evaluable(object):
     def _evaluate_args(self):
         return [Evaluable._evaluate_maybe_nested(i) for i in self.args]
 
-    def eval_at(self, var):
+    def _eval_at(self, var):
         return self.evaluate
 
     @property

@@ -184,12 +184,12 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
         except AttributeError:
             return super(TensorFunction, self).__mul__(other)
 
-    def eval_at(self, var):
+    def _eval_at(self, var):
         """
         Evaluate tensor at var location
         """
         def entry(i, j):
-            return self[i, j].eval_at(var[i, j])
+            return self[i, j]._eval_at(var[i, j])
         comps = [[entry(i, j) for i in range(self.cols)] for j in range(self.rows)]
         to = getattr(self, 'time_order', 0)
         func = tens_func(self, self)
@@ -470,10 +470,10 @@ class VectorFunction(TensorFunction):
     __repr__ = __str__
 
     # Eval matrices functions for add/mull/evaluate
-    def eval_at(self, var):
+    def _eval_at(self, var):
 
         def entry(i):
-            return self[i].eval_at(var[i])
+            return self[i]._eval_at(var[i])
 
         comps = [entry(i) for i in range(np.max(self.shape))]
         to = getattr(self, 'time_order', 0)
