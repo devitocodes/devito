@@ -204,13 +204,13 @@ class Intel64(Cpu64):
 
 
 class Arm(Cpu64):
+
     def _detect_isa(self):
         known_isas = ['fp', 'asimd', 'asimdrdm']
         for i in reversed(known_isas):
-            if any(j.startswith(i) for j in get_cpu_info()['flags']):                
+            if any(j.startswith(i) for j in get_cpu_info()['flags']):
                 return i
         return 'fp'
-
 
 
 class Power(Cpu64):
