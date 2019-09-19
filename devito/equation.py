@@ -230,7 +230,6 @@ def solve(eq, target, **kwargs):
     sol = sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
 
     # We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions
-    # Also need to rebuild the expressions that are turned into sympy core types
     from devito.types import TensorFunction
     if isinstance(target, TensorFunction):
         return target.new_from_mat(sol)

@@ -47,7 +47,6 @@ class TestAdjoint(object):
         location from data. This test uses the conventional dot test:
         < Fx, y> = <x, F^T y>
         """
-        clear_cache()
         tn = 500.  # Final time
 
         # Create solver from preset

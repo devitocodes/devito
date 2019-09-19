@@ -69,13 +69,13 @@ class ViscoelasticWaveSolver(object):
         rxz: TimeFunction, optional
             The computed diagonal memory variable.
         lambda : Function, optional
-            The time-constant first Lame parameter (rho * vp**2 - rho * vs **2)
+            The time-constant first Lame parameter (rho * vp**2 - rho * vs **2).
         qp : Function, optional
             The P-wave quality factor (dimensionless).
         mu : Function, optional
-            The Shear modulus (rho * vs*2)
+            The Shear modulus (rho * vs*2).
         qs : Function, optional
-            The S-wave quality factor (dimensionless)
+            The S-wave quality factor (dimensionless).
         irho : Function, optional
             The time-constant inverse density (1/rho=1 for water).
         save : int or Buffer, optional

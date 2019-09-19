@@ -149,7 +149,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
             * 1 to staggered dimensions.
         """
         staggered = kwargs.get('staggered', None)
-        if staggered == CELL:
+        if staggered is CELL:
             staggered = self.dimensions
         return staggered
 

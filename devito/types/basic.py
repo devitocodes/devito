@@ -430,7 +430,7 @@ class Scalar(Symbol, ArgProvider):
 class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable):
     """
     Base class for vector and tensor valued functions. It inherits from and
-    mimicks the behavior of a sympy.ImmutableDenseMatrix
+    mimicks the behavior of a sympy.ImmutableDenseMatrix.
 
     The sub-hierachy is as follows
 
@@ -446,7 +446,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable):
                         \-------\                |
                                  \------- VectorimeFunction
 
-    There are four relevant AbstractFunction sub-types: ::
+    There are four relevant AbstractTensor sub-types: ::
 
         * TensorFunction: A space-varying vector valued function
         * VectorFunction: A space-varying tensor valued function
@@ -505,16 +505,12 @@ class AbstractCachedTensor(AbstractTensor, Cached, Evaluable):
 
     @classmethod
     def __subfunc_setup__(cls, *args, **kwargs):
-        """
-        Setup each component as a Devito type
-        """
+        """Setup each component of the tensor as a Devito type."""
         return []
 
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
-        """
-        Setup each component as a Devito type.
-        """
+        """Extract the object indices from ``kwargs``."""
         return (), ()
 
     @property
@@ -527,9 +523,7 @@ class AbstractCachedTensor(AbstractTensor, Cached, Evaluable):
 
     @classmethod
     def _new2(cls, *args, **kwargs):
-        """
-        Bypass sympy `_new` that hard codes `Matrix.__new__` to call out own
-        """
+        """Bypass sympy `_new` that hard codes `Matrix.__new__` to call our own."""
         return cls.__new__(cls, *args, **kwargs)
 
     def applyfunc(self, f):
@@ -711,8 +705,9 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         return weight * sum(avg_list)
 
     def index(self, dim):
-        inds = [self.indices[i] for i, d in enumerate(self.dimensions) if d is dim]
-        return inds[0]
+        for i, d in zip(self.indices, self.dimensions):
+            if d is dim:
+                return i
 
     @property
     def shape(self):

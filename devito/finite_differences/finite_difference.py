@@ -236,9 +236,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
 
 
 def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
-    """
-    Expression from list of indices and weights
-    """
+    """Expression from lists of indices and weights."""
     diff = dim.spacing
     deriv = 0
     all_dims = tuple(set((expr.index(dim),) +

@@ -7,7 +7,7 @@ def div(f):
 
     Parameters
     ----------
-    func: Function, VectorFunction or TensorFunction
+    f : Function or TensorFunction
     """
     try:
         return f.div
@@ -17,11 +17,11 @@ def div(f):
 
 def grad(f):
     """
-    Gradient of the input func.
+    Gradient of the input Function.
 
     Parameters
     ----------
-    func: Function, VectorFunction
+    f : Function or VectorFunction
     """
     try:
         return f.grad
@@ -35,7 +35,7 @@ def curl(f):
 
     Parameters
     ----------
-    func: VectorFunction
+    f : VectorFunction
     """
     try:
         return f.curl
@@ -49,7 +49,7 @@ def laplace(f):
 
     Parameters
     ----------
-    func: Function, VectorFunction or TensorFunction
+    f : Function or TensorFunction
     """
     try:
         return f.laplace
@@ -59,11 +59,11 @@ def laplace(f):
 
 def diag(f, size=None):
     """
-    Creates the diagonal tensor with func on its diagonal.
+    Creates the diagonal tensor with f on its diagonal.
 
     Parameters
     ----------
-    func: Differentiable or scalar
+    f : Differentiable or scalar
     """
     dim = size or len(f.dimensions)
     dim = dim-1 if f.is_TimeDependent else dim

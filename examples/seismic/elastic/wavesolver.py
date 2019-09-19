@@ -20,11 +20,6 @@ class ElasticWaveSolver(object):
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
-
-    Notes
-    -----
-    This is an experimental staggered grid elastic modeling kernel.
-    Only 2D supported.
     """
     def __init__(self, model, geometry, space_order=4, **kwargs):
         self.model = model
@@ -57,20 +52,19 @@ class ElasticWaveSolver(object):
         v : VectorTimeFunction, optional
             The computed  particle velocity.
         tau : TensorTimeFunction, optional
-            The computed symmetric stress tensor
+            The computed symmetric stress tensor.
         lam : Function, optional
-            The time-constant first Lame parameter lambda
+            The time-constant first Lame parameter lambda.
         mu : Function, optional
-            The time-constant second Lame parameter mu
+            The time-constant second Lame parameter mu.
         irho : Function, optional
-            The time-constant inverse density (rho=1 for water).
+            The time-constant inverse density (irho=1 for water).
         save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield.
 
         Returns
         -------
-        Rec1 (txx), Rec2 (tzz), particle velocities vx and vz, stress txx,
-        tzz and txz and performance summary.
+        Rec1 (txx), Rec2 (tzz), particle velocities v, stress t and performance summary.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
