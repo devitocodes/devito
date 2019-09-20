@@ -84,8 +84,7 @@ class OperatorOPS(Operator):
             pre_time_loop.extend(pre_loop)
             self._ops_kernels.append(ops_kernel)
             mapper[trees[0].root] = ops_par_loop_call
-            mapper.update({i.root: mapper.get(i.root)
-                           for i in trees})  # Drop trees
+            mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
 
         iet = Transformer(mapper).visit(iet)
 

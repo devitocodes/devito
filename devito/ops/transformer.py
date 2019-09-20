@@ -265,21 +265,17 @@ def create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil):
     else:
         accessible_info = accessible_origin[p.name]
 
-        if accessible_info.time:
-            return namespace['ops_arg_dat'](
-                name_to_ops_dat[accessible_info.origin_name].indexify(
-                    [accessible_info.time]),
-                1,
-                par_to_ops_stencil[p],
-                Literal('"%s"' % dtype_to_cstr(p.dtype)),
-                namespace['ops_read'] if p.read_only else namespace['ops_write'])
-        else:
-            return namespace['ops_arg_dat'](
-                name_to_ops_dat[p.name],
-                1,
-                par_to_ops_stencil[p],
-                Literal('"%s"' % dtype_to_cstr(p.dtype)),
-                namespace['ops_read'] if p.read_only else namespace['ops_write'])
+        dat_name = name_to_ops_dat[p.name] \
+            if accessible_info.time is None \
+            else name_to_ops_dat[accessible_info.origin_name].\
+            indexify([accessible_info.time])
+
+        return namespace['ops_arg_dat'](
+            dat_name,
+            1,
+            par_to_ops_stencil[p],
+            Literal('"%s"' % dtype_to_cstr(p.dtype)),
+            namespace['ops_read'] if p.read_only else namespace['ops_write'])
 
 
 def make_ops_ast(expr, nfops, is_write=False):
