@@ -9,7 +9,7 @@ from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
 from devito.symbolics.printer import ccode
-from devito.tools import Pickable, as_tuple
+from devito.tools import Pickable, as_tuple, is_integer
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
@@ -263,7 +263,7 @@ class ListInitializer(sympy.Expr, Pickable):
         for p in as_tuple(params):
             if isinstance(p, str):
                 args.append(Symbol(p))
-            elif isinstance(p, (int, np.integer)):
+            elif is_integer(p):
                 args.append(Integer(p))
             elif not isinstance(p, Expr):
                 raise ValueError("`params` must be an iterable of Expr or str")

@@ -30,6 +30,13 @@ class OperatorOPS(Operator):
     def _specialize_iet(self, iet, **kwargs):
         warning("The OPS backend is still work-in-progress")
 
+        # If there is no iteration tree, then there is no loop to be optimized using OPS.
+        iteration_tree = retrieve_iteration_tree(iet, mode='normal')
+        if not len(iteration_tree):
+            return iet
+        time_upper_bound = iteration_tree[0].dimensions[TimeFunction._time_position]\
+            .extreme_max
+
         ops_init = Call(namespace['ops_init'], [0, 0, 2])
         ops_partition = Call(namespace['ops_partition'], Literal('""'))
         ops_exit = Call(namespace['ops_exit'])
@@ -56,11 +63,6 @@ class OperatorOPS(Operator):
         # To ensure deterministic code generation we order the datasets to
         # be generated (since a set is an unordered collection)
         to_dat = filter_sorted(to_dat)
-
-        iteration_tree = retrieve_iteration_tree(iet, mode='normal')[0]
-        if iteration_tree:
-            time_upper_bound = iteration_tree.dimensions[TimeFunction._time_position]\
-                .extreme_max
 
         name_to_ops_dat = {}
         pre_time_loop = []
