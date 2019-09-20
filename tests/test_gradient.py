@@ -3,7 +3,7 @@ import pytest
 from numpy import linalg
 
 from conftest import skipif
-from devito import Function, info, clear_cache
+from devito import Function, info
 from examples.seismic.acoustic.acoustic_example import smooth, acoustic_setup as setup
 from examples.seismic import Receiver
 
@@ -11,13 +11,6 @@ pytestmark = skipif(['yask', 'ops'])
 
 
 class TestGradient(object):
-
-    def setup_method(self, method):
-        # Some of these tests are memory intensive as it requires to store the entire
-        # forward wavefield to compute the gradient (nx.ny.nz.nt). We therefore call
-        # 'clear_cache()' to release any remaining memory from the previous tests or
-        # previous instances (different parametrizations) of these tests
-        clear_cache()
 
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('kernel', ['OT2'])
