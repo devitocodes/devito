@@ -1,7 +1,7 @@
 import itertools
 import numpy as np
 
-from sympy import sympify, Mod
+from sympy import Mod
 from sympy.core.numbers import Zero
 
 from devito import Eq
@@ -29,14 +29,12 @@ def opsit(trees, count, name_to_ops_dat, block, dims):
     """
     node_factory = OPSNodeFactory()
     expressions = []
-    ops_expressions = []
 
-    for tree in trees:
-        expressions.extend(FindNodes(Expression).visit(tree.inner))
+    expressions.extend(*[FindNodes(Expression).visit(tree.inner)
+                         for tree in trees])
 
-    for expr in expressions:
-        ops_expressions.append(Expression(
-            make_ops_ast(expr.expr, node_factory)))
+    ops_expressions = [Expression(make_ops_ast(expr.expr, node_factory))
+                       for expr in expressions]
 
     parameters = sorted(node_factory.ops_params,
                         key=lambda i: (i.is_Constant, i.name))
@@ -135,14 +133,14 @@ def create_ops_dat(f, name_to_ops_dat, block):
         time_index = f.indices[time_pos]
         time_dims = f.shape[time_pos]
 
-        dim_shape = sympify(f.shape[:time_pos] + f.shape[time_pos + 1:])
-        d_p_val = sympify(f._size_halo.left[time_pos+1:])
-        d_m_val = tuple(sympify([-i for i in f._size_halo.right[time_pos+1:]]))
+        dim_shape = f.shape[:time_pos] + f.shape[time_pos + 1:]
+        d_p_val = f._size_nodomain.left[time_pos+1:]
+        d_m_val = [-i for i in f._size_nodomain.right[time_pos+1:]]
 
         ops_dat_array = Array(
             name=namespace['ops_dat_name'](f.name),
             dimensions=(DefaultDimension(name='dat', default_value=time_dims),),
-            dtype=namespace['ops_dat_type'],            
+            dtype=namespace['ops_dat_type'],
             scope='stack'
         )
 
@@ -174,11 +172,9 @@ def create_ops_dat(f, name_to_ops_dat, block):
         ops_dat = OpsDat("%s_dat" % f.name)
         name_to_ops_dat[f.name] = ops_dat
 
-        d_p_val = tuple(sympify([p[0] + h[0]
-                                 for p, h in zip(f.padding, f.halo)]))
-        d_m_val = tuple(sympify([-(p[1] + h[1])
-                                 for p, h in zip(f.padding, f.halo)]))
-        dim_shape = sympify(f.shape)
+        dim_shape = f.shape
+        d_p_val = f._size_nodomain.left
+        d_m_val = [-i for i in f._size_nodomain.right]
 
         ops_decl_dat = Expression(ClusterizedEq(Eq(
             ops_dat,

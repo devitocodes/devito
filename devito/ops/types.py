@@ -31,7 +31,7 @@ class OpsAccessible(basic.Symbol):
     """
     is_Scalar = True
 
-    def __new__(cls, name, dtype, read_only, * args, **kwargs):
+    def __new__(cls, name, dtype, read_only, *args, **kwargs):
         obj = basic.Symbol.__new__(cls, name, dtype, *args, **kwargs)
         obj.__init__(name, dtype, read_only, *args, **kwargs)
         return obj
