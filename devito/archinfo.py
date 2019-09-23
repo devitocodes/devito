@@ -151,6 +151,7 @@ class Platform(object):
 
     def __init__(self, name, **kwargs):
         self.name = name
+        self.known_isas = []
 
         cpu_info = get_cpu_info()
 
@@ -188,14 +189,7 @@ class Platform(object):
 class Cpu64(Platform):
 
     def _detect_isa(self):
-        return 'cpp'
-
-
-class Intel64(Cpu64):
-
-    def _detect_isa(self):
-        known_isas = ['cpp', 'sse', 'avx', 'avx2', 'avx512']
-        for i in reversed(known_isas):
+        for i in reversed(self.known_isas):
             if any(j.startswith(i) for j in get_cpu_info()['flags']):
                 # Using `startswith`, rather than `==`, as a flag such as 'avx512'
                 # appears as 'avx512f, avx512cd, ...'
@@ -203,14 +197,18 @@ class Intel64(Cpu64):
         return 'cpp'
 
 
+class Intel64(Cpu64):
+
+    def _detect_isa(self):
+        self.known_isas = ['cpp', 'sse', 'avx', 'avx2', 'avx512']
+        return super(Intel64, self)._detect_isa()
+
+
 class Arm(Cpu64):
 
     def _detect_isa(self):
-        known_isas = ['fp', 'asimd', 'asimdrdm']
-        for i in reversed(known_isas):
-            if any(j.startswith(i) for j in get_cpu_info()['flags']):
-                return i
-        return 'fp'
+        self.known_isas = ['fp', 'asimd', 'asimdrdm']
+        return super(Arm, self)._detect_isa()
 
 
 class Power(Cpu64):
