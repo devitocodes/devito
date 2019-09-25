@@ -151,7 +151,6 @@ class Platform(object):
 
     def __init__(self, name, **kwargs):
         self.name = name
-        self.known_isas = []
 
         cpu_info = get_cpu_info()
 
@@ -188,6 +187,9 @@ class Platform(object):
 
 class Cpu64(Platform):
 
+    # The known isas ​​will be overwritten in the specialized classes
+    known_isas = tuple()
+
     def _detect_isa(self):
         for i in reversed(self.known_isas):
             if any(j.startswith(i) for j in get_cpu_info()['flags']):
@@ -199,15 +201,17 @@ class Cpu64(Platform):
 
 class Intel64(Cpu64):
 
+    known_isas = ('cpp', 'sse', 'avx', 'avx2', 'avx512')
+
     def _detect_isa(self):
-        self.known_isas = ['cpp', 'sse', 'avx', 'avx2', 'avx512']
         return super(Intel64, self)._detect_isa()
 
 
 class Arm(Cpu64):
 
+    known_isas = ('fp', 'asimd', 'asimdrdm')
+
     def _detect_isa(self):
-        self.known_isas = ['fp', 'asimd', 'asimdrdm']
         return super(Arm, self)._detect_isa()
 
 
