@@ -388,19 +388,33 @@ class AggressiveRewriter(AdvancedRewriter):
         skew_dim, mapper, intervals = None, {}, []
 
         # Check if time dim exists
-        for i in cluster.ispace.intervals:
-            if i.dim.is_Time:
-                skew_dim = i.dim
+        #for i in cluster.ispace.intervals:
+        #    if i.dim.is_Time:
+        #        skew_dim = i.dim
 
+        skew_dims = {i.dim for i in cluster.ispace.intervals if i.dim.is_Time}
+        try:
+            skew_dim = skew_dims.pop()
+        except KeyError:
+            # No time dimensions -> nothing to do
+            return cluster
+        if len(skew_dims) > 0:
+            raise ValueError("More than 1 time dimensions. Aborting tt...")
+
+        # Initializing a default time_dim index position in loop
+        index = 0
         if skew_dim is not None:
             for i in cluster.ispace.intervals:
                 if i.dim.is_Time:
                     intervals.append(Interval(i.dim, 0, 0))
                     skew_dim = i.dim
-                else:
+                    index = intervals.index(Interval(i.dim, 0, 0))
+                elif index < cluster.ispace.intervals.index(i):
                     mapper[i.dim] = i.dim + skew_factor*skew_dim
                     intervals.append(Interval(i.dim, -skew_factor*skew_dim,
                                               -skew_factor*skew_dim))
+                else:
+                    intervals.append(i)
 
             processed = xreplace_indices(cluster.exprs, mapper)
             ispace = IterationSpace(intervals, sub_iterators, directions)
