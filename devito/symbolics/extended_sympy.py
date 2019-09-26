@@ -8,7 +8,8 @@ from sympy import Expr, Integer, Float, Function, Symbol
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
-from devito.tools import Pickable, as_tuple
+from devito.symbolics.printer import ccode
+from devito.tools import Pickable, as_tuple, is_integer
 
 __all__ = ['FrozenExpr', 'Eq', 'CondEq', 'CondNe', 'Mul', 'Add', 'Pow', 'IntDiv',
            'FunctionFromPointer', 'FieldFromPointer', 'FieldFromComposite',
@@ -262,8 +263,8 @@ class ListInitializer(sympy.Expr, Pickable):
         for p in as_tuple(params):
             if isinstance(p, str):
                 args.append(Symbol(p))
-            elif isinstance(p, int):
-                args.append(p)
+            elif is_integer(p):
+                args.append(Integer(p))
             elif not isinstance(p, Expr):
                 raise ValueError("`params` must be an iterable of Expr or str")
             else:
@@ -303,9 +304,9 @@ class Byref(sympy.Expr, Pickable):
 
     def __str__(self):
         if self.base.is_Symbol:
-            return "&%s" % self.base
+            return "&%s" % ccode(self.base)
         else:
-            return "&(%s)" % self.base
+            return "&(%s)" % ccode(self.base)
 
     __repr__ = __str__
 

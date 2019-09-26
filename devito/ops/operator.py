@@ -1,6 +1,7 @@
-from devito import Eq
+from devito import Eq, TimeFunction
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import Call, List, Expression, find_affine_trees
+from devito.ir.iet import (Call, Expression, find_affine_trees,
+                           List, retrieve_iteration_tree)
 from devito.ir.iet.visitors import FindSymbols, Transformer
 from devito.logger import warning
 from devito.operator import Operator
@@ -8,7 +9,7 @@ from devito.symbolics import Literal
 from devito.tools import filter_sorted
 
 from devito.ops import ops_configuration
-from devito.ops.transformer import create_ops_dat, opsit
+from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.types import OpsBlock
 from devito.ops.utils import namespace
 
@@ -28,6 +29,13 @@ class OperatorOPS(Operator):
 
     def _specialize_iet(self, iet, **kwargs):
         warning("The OPS backend is still work-in-progress")
+
+        # If there is no iteration tree, then there is no loop to be optimized using OPS.
+        iteration_tree = retrieve_iteration_tree(iet, mode='normal')
+        if not len(iteration_tree):
+            return iet
+        time_upper_bound = iteration_tree[0].dimensions[TimeFunction._time_position]\
+            .extreme_max
 
         ops_init = Call(namespace['ops_init'], [0, 0, 2])
         ops_partition = Call(namespace['ops_partition'], Literal('""'))
@@ -58,11 +66,15 @@ class OperatorOPS(Operator):
 
         name_to_ops_dat = {}
         pre_time_loop = []
+        after_time_loop = []
         for f in to_dat:
             if f.is_Constant:
                 continue
 
             pre_time_loop.extend(create_ops_dat(f, name_to_ops_dat, ops_block))
+            # To return the result to Devito, it is necessary to copy the data
+            # from the dat object back to the CPU memory.
+            after_time_loop.extend(create_ops_fetch(f, name_to_ops_dat, time_upper_bound))
 
         # Generate ops kernels for each offloadable iteration tree
         mapper = {}
@@ -85,7 +97,8 @@ class OperatorOPS(Operator):
         self._headers.append(namespace['ops_define_dimension'](dims[0]))
         self._includes.append('stdio.h')
 
-        body = [ops_init, ops_block_init, *pre_time_loop, ops_partition, iet, ops_exit]
+        body = [ops_init, ops_block_init, *pre_time_loop,
+                ops_partition, iet, *after_time_loop, ops_exit]
 
         return List(body=body)
 
