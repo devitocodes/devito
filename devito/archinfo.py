@@ -203,16 +203,10 @@ class Intel64(Cpu64):
 
     known_isas = ('cpp', 'sse', 'avx', 'avx2', 'avx512')
 
-    def _detect_isa(self):
-        return super(Intel64, self)._detect_isa()
-
 
 class Arm(Cpu64):
 
     known_isas = ('fp', 'asimd', 'asimdrdm')
-
-    def _detect_isa(self):
-        return super(Arm, self)._detect_isa()
 
 
 class Power(Cpu64):
