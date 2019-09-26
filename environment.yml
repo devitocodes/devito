@@ -25,7 +25,6 @@ dependencies:
   - multidict
   - frozendict
   - nb_conda_kernels
-  - intel-openmp==2019.5
   - pip
   - pip:
     - "git+https://github.com/inducer/codepy"
