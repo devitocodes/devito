@@ -306,6 +306,21 @@ class NumaAllocator(MemoryAllocator):
         return self._node == 'local'
 
 
+class NumpyAllocator(MemoryAllocator):
+    def __init__(self, numpy_array):
+        self.numpy_array = numpy_array
+
+    def alloc(self, shape, dtype):
+        assert shape == self.numpy_array.shape, \
+            "Provided array has shape %s. Expected %s" %\
+            (str(self.numpy_array.shape), str(shape))
+        assert dtype == self.numpy_array.dtype, \
+            "Provided array has dtype %s. Expected %s" %\
+            (str(self.numpy_array.dtype), str(dtype))
+
+        return (self.numpy_array, None)
+
+
 ALLOC_GUARD = GuardAllocator(1048576)
 ALLOC_FLAT = PosixAllocator()
 ALLOC_KNL_DRAM = NumaAllocator(0)
