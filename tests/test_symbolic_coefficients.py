@@ -2,8 +2,10 @@ import numpy as np
 import pytest
 
 from conftest import skipif
-from devito import Grid, Function, TimeFunction, Eq, Coefficient, Substitutions
+from devito import (Grid, Function, TimeFunction, Eq, Coefficient, Substitutions,
+                    Dimension, solve, Operator)
 from devito.finite_differences import Differentiable
+from devito.tools import as_tuple
 
 _PRECISION = 9
 
@@ -50,3 +52,45 @@ class TestSC(object):
         eq = Eq(eval(expr), coefficients=Substitutions(coeffs))
         assert isinstance(eq.lhs, Differentiable)
         assert expected == str(eq.evaluate.lhs)
+
+    def test_function_coefficients(self):
+        """Test that custom function coefficients return the expected result"""
+        so = 2
+        grid = Grid(shape=(4, 4))
+        f0 = TimeFunction(name='f0', grid=grid, space_order=so, coefficients='symbolic')
+        f1 = TimeFunction(name='f1', grid=grid, space_order=so)
+        x, y = grid.dimensions
+
+        s = Dimension(name='s')
+        ncoeffs = so+1
+
+        wshape = list(grid.shape)
+        wshape.append(ncoeffs)
+        wshape = as_tuple(wshape)
+
+        wdims = list(grid.dimensions)
+        wdims.append(s)
+        wdims = as_tuple(wdims)
+
+        w = Function(name='w', dimensions=wdims, shape=wshape)
+        w.data[:, :, 0] = -0.5/grid.spacing[0]
+        w.data[:, :, 1] = 0.0
+        w.data[:, :, 2] = 0.5/grid.spacing[0]
+
+        f_x_coeffs = Coefficient(1, f0, x, w)
+
+        subs = Substitutions(f_x_coeffs)
+
+        eq0 = Eq(f0.dt + f0.dx, 1, coefficients=subs)
+        eq1 = Eq(f1.dt + f1.dx, 1)
+
+        stencil0 = solve(eq0.evaluate, f0.forward)
+        stencil1 = solve(eq1.evaluate, f1.forward)
+
+        op0 = Operator(Eq(f0.forward, stencil0))
+        op1 = Operator(Eq(f1.forward, stencil1))
+
+        op0(time_m=0, time_M=5, dt=1.0)
+        op1(time_m=0, time_M=5, dt=1.0)
+
+        assert np.all(np.isclose(f0.data[:] - f1.data[:], 0.0, atol=1e-5, rtol=0))

@@ -51,13 +51,23 @@ class Coefficient(object):
 
         # Ensure the given set of weights is the correct length
         if dimension.is_Time:
-            if len(weights)-1 != function.time_order:
-                raise ValueError("Number FD weights provided does not "
-                                 "match the functions space_order")
+            if isinstance(weights, np.ndarray):
+                if len(weights)-1 != function.time_order:
+                    raise ValueError("Number FD weights provided does not "
+                                     "match the functions space_order")
+            else:
+                if weights.shape[-1]-1 != function.time_order:
+                    raise ValueError("Number FD weights provided does not "
+                                     "match the functions space_order")
         elif dimension.is_Space:
-            if len(weights)-1 != function.space_order:
-                raise ValueError("Number FD weights provided does not "
-                                 "match the functions space_order")
+            if isinstance(weights, np.ndarray):
+                if len(weights)-1 != function.space_order:
+                    raise ValueError("Number FD weights provided does not "
+                                     "match the functions space_order")
+            else:
+                if weights.shape[-1]-1 != function.space_order:
+                    raise ValueError("Number FD weights provided does not "
+                                     "match the functions space_order")
 
         self._deriv_order = deriv_order
         self._function = function
@@ -99,10 +109,12 @@ class Coefficient(object):
                 raise TypeError("Coefficients must be attached to a valid dimension")
         except AttributeError:
             raise TypeError("Coefficients must be attached to a valid dimension")
-        # Currently only numpy arrays are accepted here.
-        # Functionality will be expanded in the near future.
-        if not isinstance(weights, np.ndarray):
-            raise NotImplementedError
+        try:
+            # FIXME: Add necessary checks for Function weights here.
+            weights.is_Function is True
+        except AttributeError:
+            if not isinstance(weights, np.ndarray):
+                raise TypeError("Weights must be of type np.ndarray or Function")
         return
 
 
@@ -175,7 +187,10 @@ class Substitutions(object):
             dim = i.dimension
             weights = i.weights
 
-            fd_order = len(weights)-1
+            if isinstance(weights, np.ndarray):
+                fd_order = len(weights)-1
+            else:
+                fd_order = weights.shape[-1]-1
 
             side = form_side((dim,), function)
             stagger = side.get(dim)
@@ -185,9 +200,27 @@ class Substitutions(object):
             indices, x0 = generate_indices(function, dim, dim.spacing, fd_order,
                                            side=None, stagger=stagger)
 
-            for j in range(len(weights)):
-                subs.update({function._coeff_symbol
-                             (indices[j], deriv_order, function, dim): weights[j]})
+            if isinstance(weights, np.ndarray):
+                for j in range(len(weights)):
+                    subs.update({function._coeff_symbol
+                                 (indices[j], deriv_order, function, dim): weights[j]})
+            else:
+                shape = weights.shape
+                x = weights.dimensions
+                for j in range(shape[-1]):
+                    # FIXME: Simplify
+                    if len(shape)-1 == 1:
+                        subs.update({function._coeff_symbol
+                                     (indices[j], deriv_order, function, dim):
+                                         weights[x[0], j]})
+                    elif len(shape)-1 == 2:
+                        subs.update({function._coeff_symbol
+                                     (indices[j], deriv_order, function, dim):
+                                         weights[x[0], x[1], j]})
+                    elif len(shape)-1 == 3:
+                        subs.update({function._coeff_symbol
+                                     (indices[j], deriv_order, function, dim):
+                                         weights[x[0], x[1], x[2], j]})
 
             return subs
 
@@ -196,8 +229,7 @@ class Substitutions(object):
         # replacement rules
         rules = {}
         for i in self.coefficients:
-            if isinstance(i.weights, np.ndarray):
-                rules.update(generate_subs(i))
+            rules.update(generate_subs(i))
 
         return rules
 
