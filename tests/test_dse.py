@@ -71,17 +71,16 @@ def test_complex_skew_cases_I(nx, nt, ny, nz):
     nz = nz
     nt = nt
     grid = Grid(shape=(nx, ny, nz))
-    x, y, z = grid.dimensions
     t = grid.stepping_dim
 
     f_skew = TimeFunction(name='f', dimensions=(x, t, y, z), shape=(nx, nt, ny, nz))
     f = TimeFunction(name='f', dimensions=(x, t, y, z), shape=(nx, nt, ny, nz))
 
-    op = Operator(Eq(f_skew[x, t+1, y, z], f_skew[x, t, y, z] + 1), dse='skewing')
-    op2 = Operator(Eq(f[x, t+1, y, z], f[x, t, y, z] + 1))
+    op_skew = Operator(Eq(f_skew[x, t+1, y, z], f_skew[x, t, y, z] + 1), dse='skewing')
+    op = Operator(Eq(f[x, t+1, y, z], f[x, t, y, z] + 1))
 
-    op.apply(time=100)
-    op2.apply(time=100)
+    op_skew.apply(time=nt)
+    op.apply(time=nt)
     assert np.all(f_skew.data[0] == f.data[0])
 
 
@@ -465,8 +464,6 @@ def test_full_alias_shape_with_subdims():
     u.data_with_halo[:] = 0.
     op1(time_M=1)
     assert np.all(u.data == exp)
-
-
 
 
 def test_alias_composite():
