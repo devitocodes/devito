@@ -261,6 +261,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">print_function</span>
 
+<span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">import</span> <span class="nn">warnings</span>
 
@@ -277,6 +278,21 @@
 <span class="k">if</span> <span class="n">__NUMPY_SETUP__</span><span class="p">:</span>
     <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;Running from numpy source directory.</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
 <span class="k">else</span><span class="p">:</span>
+    <span class="c1"># Add MKL runtimes to the path</span>
+    <span class="sd">&quot;&quot;&quot;Set environment for additional binaries&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span> <span class="o">==</span> <span class="s1">&#39;win32&#39;</span><span class="p">:</span>
+        <span class="k">def</span> <span class="nf">extendkey</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">pathsep</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">value</span><span class="p">]</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">pathsep</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">redist</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;DLLs&#39;</span><span class="p">]:</span>
+            <span class="n">redist_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="p">,</span> <span class="n">redist</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">redist_dir</span><span class="p">):</span>
+                <span class="n">extendkey</span><span class="p">(</span><span class="s1">&#39;PATH&#39;</span><span class="p">,</span> <span class="n">redist_dir</span><span class="p">)</span>
+
     <span class="k">try</span><span class="p">:</span>
         <span class="kn">from</span> <span class="nn">numpy.__config__</span> <span class="k">import</span> <span class="n">show</span> <span class="k">as</span> <span class="n">show_config</span>
     <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
@@ -346,8 +362,9 @@
     <span class="n">test</span> <span class="o">=</span> <span class="n">PytestTester</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
     <span class="k">del</span> <span class="n">PytestTester</span>
 
+    <span class="kn">import</span> <span class="nn">mkl</span>
+    <span class="n">__mkl_version__</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{MajorVersion}</span><span class="s2">.</span><span class="si">{UpdateVersion}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="n">mkl</span><span class="o">.</span><span class="n">get_version</span><span class="p">())</span>
 
-    <span class="n">__mkl_version__</span> <span class="o">=</span> <span class="s2">&quot;__MKL_VERSION__&quot;</span>
 
     <span class="k">def</span> <span class="nf">_sanity_check</span><span class="p">():</span>
         <span class="sd">&quot;&quot;&quot;</span>
