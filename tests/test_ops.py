@@ -244,9 +244,8 @@ class TestOPSExpression(object):
          'int OPS_Kernel_0_range[4] = {x_m, x_M + 1, y_m, y_M + 1};')
     ])
     def test_upper_bound(self, equation, expected):
-        grid = Grid((5,5))
-        u = TimeFunction(name='u', grid=grid)
-        
+        grid = Grid((5, 5))
+        u = TimeFunction(name='u', grid=grid) # noqa
         op = Operator(eval(equation))
 
         assert expected in str(op.ccode)
@@ -293,4 +292,3 @@ class TestOPSExpression(object):
 
         for i in eval(expected):
             assert i in str(op)
-
