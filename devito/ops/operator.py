@@ -111,5 +111,4 @@ class OperatorOPS(Operator):
     def _compile(self):
         self._includes.append('%s.h' % self._soname)
         if self._lib is None:
-            self._compiler.prepare_ops(self._soname, str(self.ccode), str(self.hcode))
-            self._compiler.jit_compile(self._soname)
+            self._compiler.jit_compile(self._soname, str(self.ccode), str(self.hcode))

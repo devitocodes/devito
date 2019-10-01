@@ -35,7 +35,23 @@ class CompilerOPS(configuration['compiler'].__class__):
             + link
         )
 
-    def prepare_ops(self, soname, ccode, hcode):
+    def jit_compile(self, soname, ccode, hcode):
+        self.__translate_ops(soname, ccode, hcode)
+        self.target = str(self.get_jit_dir().joinpath(soname))
+        self.ops_src = '%s/%s_ops.cpp' % (self.get_jit_dir(), soname)
+        self.cache_dir = self.get_codepy_dir().joinpath(soname[:7])
+
+        # Make a suite of cache directories based on the soname
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.ops_src, 'r') as f:
+                self.code = f.read()
+        except FileNotFoundError:
+            warning("The file %s isn't present" % self.ops_src)
+        else:
+            self.__compile_cuda(soname)
+
+    def __translate_ops(self, soname, ccode, hcode):
         # Creating files
         file_name = str(self.get_jit_dir().joinpath(soname))
         h_file = open("%s.h" % (file_name), "w")
@@ -54,7 +70,7 @@ class CompilerOPS(configuration['compiler'].__class__):
             warning("Couldn't find OPS_INSTALL_PATH \
                 environment variable, please check your OPS installation")
 
-    def cuda_compiler(self, soname):
+    def __compile_cuda(self, soname):
         # CUDA kernel compilation
         cuda_src = '%s/CUDA/%s_kernels.cu' % (self.get_jit_dir(), soname)
         cuda_target = '%s/%s_kernels_cu' % (self.get_jit_dir(), soname)
@@ -95,22 +111,6 @@ class CompilerOPS(configuration['compiler'].__class__):
                 [src_o, cuda_o],
                 debug=configuration['debug-compiler']
             )
-
-    def jit_compile(self, soname):
-        self.target = str(self.get_jit_dir().joinpath(soname))
-        self.ops_src = '%s/%s_ops.cpp' % (self.get_jit_dir(), soname)
-        self.cache_dir = self.get_codepy_dir().joinpath(soname[:7])
-
-        # Typically we end up here
-        # Make a suite of cache directories based on the soname
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            with open(self.ops_src, 'r') as f:
-                self.code = f.read()
-        except FileNotFoundError:
-            warning("The file %s isn't present" % self.ops_src)
-        else:
-            self.cuda_compiler(soname)
 
 
 class CUDADeviceCompiler(CompilerOPS):
