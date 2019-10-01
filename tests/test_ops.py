@@ -239,6 +239,18 @@ class TestOPSExpression(object):
         operator = Operator(eval(equation))
         assert expected in str(operator.ccode)
 
+    @pytest.mark.parametrize('equation, expected', [
+        ('Eq(u.forward, u+1)',
+         'int OPS_Kernel_0_range[4] = {x_m, x_M + 1, y_m, y_M + 1};')
+    ])
+    def test_upper_bound(self, equation, expected):
+        grid = Grid((5,5))
+        u = TimeFunction(name='u', grid=grid)
+        
+        op = Operator(eval(equation))
+
+        assert expected in str(op.ccode)
+
     @pytest.mark.parametrize('equation,expected', [
         ('Eq(u_2d.forward, u_2d + 1)',
          '[\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
@@ -281,3 +293,4 @@ class TestOPSExpression(object):
 
         for i in eval(expected):
             assert i in str(op)
+

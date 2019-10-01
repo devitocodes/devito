@@ -224,6 +224,8 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
     for tree in trees:
         if isinstance(tree, IterationTree):
             for bounds in [it.bounds() for it in tree]:
+                # from IPython import embed
+                # embed()
                 it_range.extend(bounds[:-1]+(bounds[-1]+1,))
 
     range_array = Array(
