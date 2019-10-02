@@ -30,10 +30,12 @@ class OperatorOPS(Operator):
     def _specialize_iet(self, iet, **kwargs):
         warning("The OPS backend is still work-in-progress")
 
+        iteration_tree = retrieve_iteration_tree(iet, mode='normal')
+        affine_trees = find_affine_trees(iet).items()
+
         # If there is no iteration trees nor affine trees,
         # then there is no loop to be optimized using OPS.
-        iteration_tree = retrieve_iteration_tree(iet, mode='normal')
-        if not len(iteration_tree) or not find_affine_trees(iet):
+        if not len(iteration_tree) or not len(affine_trees):
             return iet
 
         time_upper_bound = iteration_tree[0].dimensions[TimeFunction._time_position]\
@@ -46,7 +48,7 @@ class OperatorOPS(Operator):
         # Extract all symbols that need to be converted to ops_dat
         dims = []
         to_dat = set()
-        for section, trees in find_affine_trees(iet).items():
+        for (_, trees) in affine_trees:
             dims.append(len(trees[0].dimensions))
             symbols = set(FindSymbols('symbolics').visit(trees[0].root))
             symbols -= set(FindSymbols('defines').visit(trees[0].root))
@@ -80,7 +82,7 @@ class OperatorOPS(Operator):
 
         # Generate ops kernels for each offloadable iteration tree
         mapper = {}
-        for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
+        for n, (_, trees) in enumerate(affine_trees):
             pre_loop, ops_kernel, ops_par_loop_call = opsit(
                 trees, n, name_to_ops_dat, ops_block, dims[0]
             )
