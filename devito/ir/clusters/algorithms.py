@@ -388,7 +388,10 @@ def guard(clusters):
                 guards = {}
                 for d in e.conditionals:
                     condition = guards.setdefault(d.parent, [])
-                    condition.append(d.condition or CondEq(d.parent % d.factor, 0))
+                    if d.condition is None:
+                        condition.append(CondEq(d.parent % d.factor, 0))
+                    else:
+                        condition.append(d.condition)
                 guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
                 processed.append(Cluster(e, c.ispace, c.dspace, guards))
             else:
