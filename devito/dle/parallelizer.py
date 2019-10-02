@@ -3,9 +3,9 @@ import os
 
 import numpy as np
 import cgen as c
-from sympy import Function, Or
+from sympy import Function, Or, Not
 
-from devito.ir import (Call, Conditional, Block, Expression, List, Prodder,
+from devito.ir import (Conditional, Block, Expression, List, Prodder, While,
                        FindSymbols, FindNodes, Return, COLLAPSED, Transformer,
                        IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq
@@ -50,13 +50,21 @@ class ParallelRegion(Block):
         return (self.nthreads,)
 
 
-class SingleThreadProdder(Conditional, Prodder):
+class ThreadedProdder(Conditional, Prodder):
 
     _traversable = []
 
     def __init__(self, prodder):
+        # Atomic-ize any single-thread Prodders in the parallel tree
         condition = CondEq(Function('omp_get_thread_num')(), 0)
-        then_body = Call(prodder.name, prodder.arguments)
+
+        # Prod within a while loop until all communications have completed
+        # In other words, the thread delegated to prodding is entrapped for as long
+        # as it's required
+        prod_until = Not(Function(prodder.name)(*[i.name for i in prodder.arguments]))
+        then_body = List(header=c.Comment('Entrap thread until comms have completed'),
+                         body=While(prod_until))
+
         Conditional.__init__(self, condition, then_body)
         Prodder.__init__(self, prodder.name, prodder.arguments, periodic=prodder.periodic)
 
@@ -118,9 +126,8 @@ class Ompizer(object):
         partree = Transformer(mapper).visit(partree)
         return partree
 
-    def _make_atomic_prodders(self, partree):
-        # Atomic-ize any single-thread Prodders in the parallel tree
-        mapper = {i: SingleThreadProdder(i) for i in FindNodes(Prodder).visit(partree)}
+    def _make_threaded_prodders(self, partree):
+        mapper = {i: ThreadedProdder(i) for i in FindNodes(Prodder).visit(partree)}
         partree = Transformer(mapper).visit(partree)
         return partree
 
@@ -258,8 +265,8 @@ class Ompizer(object):
             # Ensure increments are atomic
             partree = self._make_atomic_incs(partree)
 
-            # Ensure single-thread prodders are atomic
-            partree = self._make_atomic_prodders(partree)
+            # Atomicize and optimize single-thread prodders
+            partree = self._make_threaded_prodders(partree)
 
             # Wrap within a parallel region, declaring private and shared variables
             parregion = self._make_parregion(partree)

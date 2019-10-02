@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, NODE, Operator, norm, inner, switchconfig)
+                    SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
+                    Eq, Inc, NODE, Operator, norm, inner, configuration, switchconfig)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
 from devito.mpi import MPI
@@ -827,6 +827,14 @@ class TestCodeGeneration(object):
         call = tree.root.nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
+        try:
+            # W/ OpenMP, we prod until all comms have completed
+            assert call.then_body[0].body[0].is_While
+            assert configuration['openmp']
+        except AttributeError:
+            # W/o OpenMP, it's a different story
+            assert call._single_thread
+            assert not configuration['openmp']
 
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
@@ -840,6 +848,14 @@ class TestCodeGeneration(object):
         call = tree.root.nodes[0].nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
+        try:
+            # W/ OpenMP, we prod until all comms have completed
+            assert call.then_body[0].body[0].is_While
+            assert configuration['openmp']
+        except AttributeError:
+            # W/o OpenMP, it's a different story
+            assert call._single_thread
+            assert not configuration['openmp']
 
 
 class TestOperatorAdvanced(object):
@@ -1531,7 +1547,6 @@ class TestIsotropicAcoustic(object):
 
 
 if __name__ == "__main__":
-    from devito import configuration
     configuration['mpi'] = True
     # TestDecomposition().test_reshape_left_right()
     # TestOperatorSimple().test_trivial_eq_2d()
