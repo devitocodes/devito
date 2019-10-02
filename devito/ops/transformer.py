@@ -4,7 +4,7 @@ import numpy as np
 from sympy import Mod
 from sympy.core.numbers import Zero
 
-from devito import Eq
+from devito import Eq, TimeFunction
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Call, Callable, Expression, IterationTree
 from devito.ir.iet.visitors import FindNodes
@@ -221,10 +221,13 @@ def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
 def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
                         accessible_origin, par_to_ops_stencil, dims):
     it_range = []
+    devito_to_ops_indexer = 1
     for tree in trees:
         if isinstance(tree, IterationTree):
-            for bounds in [it.bounds() for it in tree]:
-                it_range.extend(bounds[:-1]+(bounds[-1]+1,))
+            for it in tree:
+                it_range.extend((it.dimensions[TimeFunction._time_position].extreme_min,
+                                it.dimensions[TimeFunction._time_position].extreme_max +
+                                devito_to_ops_indexer))
 
     range_array = Array(
         name='%s_range' % ops_kernel.name,
