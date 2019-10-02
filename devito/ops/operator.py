@@ -30,7 +30,7 @@ class OperatorOPS(Operator):
     def _specialize_iet(self, iet, **kwargs):
         warning("The OPS backend is still work-in-progress")
 
-        # If there is no iteration trees nor affine trees, 
+        # If there is no iteration trees nor affine trees,
         # then there is no loop to be optimized using OPS.
         iteration_tree = retrieve_iteration_tree(iet, mode='normal')
         if not len(iteration_tree) or not find_affine_trees(iet):
