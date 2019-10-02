@@ -820,11 +820,11 @@ class TestCodeGeneration(object):
 
         trees = retrieve_iteration_tree(op._func_table['compute0'].root)
         assert len(trees) == 2
-        tree = trees[1]
-        # Make sure `pokempi0` is within the outer Iteration
+        tree = trees[0]
+        # Make sure `pokempi0` is the last node within the outer Iteration
         assert len(tree) == 2
         assert len(tree.root.nodes) == 2
-        call = tree.root.nodes[0]
+        call = tree.root.nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
 
@@ -834,10 +834,10 @@ class TestCodeGeneration(object):
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
         tree = trees[1]
-        # Make sure `pokempi0` is within the inner Iteration over blocks
-        assert len(tree) == 4
+        # Make sure `pokempi0` is the last node within the inner Iteration over blocks
+        assert len(tree) == 2
         assert len(tree.root.nodes[0].nodes) == 2
-        call = tree.root.nodes[0].nodes[0]
+        call = tree.root.nodes[0].nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
 
