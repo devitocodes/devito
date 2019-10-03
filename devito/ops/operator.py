@@ -1,6 +1,6 @@
 from devito import Eq
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import (Call, Expression, find_affine_trees, List)
+from devito.ir.iet import Call, Expression, List, find_affine_trees
 from devito.ir.iet.visitors import FindSymbols, Transformer
 from devito.logger import warning
 from devito.operator import Operator
@@ -33,8 +33,7 @@ class OperatorOPS(Operator):
 
         affine_trees = find_affine_trees(iet).items()
 
-        # If there is no affine trees,
-        # then there is no loop to be optimized using OPS.
+        # If there is no affine trees, then there is no loop to be optimized using OPS.
         if not affine_trees:
             return iet
 
