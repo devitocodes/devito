@@ -1232,19 +1232,31 @@ def test_numpy_c_contiguous():
     assert(u._data_allocated.flags.c_contiguous)
 
 
-@skipif(['yask',  'ops'])
+@skipif(['yask', 'ops'])
 def test_numpy_allocator():
     shape = (2, 2)
     space_order = 0
     numpy_array = np.ones(shape, dtype=np.float32)
     g = Grid(shape)
-    f = Function(name='f', space_order=space_order, grid=g, allocator=NumpyAllocator(numpy_array))
-    f.data
-    print(id(f._data))
-    print(id(numpy_array))
-    from IPython import embed
-    embed()
-    assert(f._data is numpy_array)
+    f = Function(name='f', space_order=space_order, grid=g,
+                 allocator=NumpyAllocator(numpy_array), initializer=lambda x: None)
+
+    # Ensure the two arrays have the same value
+    assert(np.array_equal(f.data, numpy_array))
+
+    # Ensure the original numpy array is unchanged
+    assert(np.array_equal(numpy_array, np.ones(shape, dtype=np.float32)))
+
+    # Change the underlying numpy array
+    numpy_array[:] = 3.
+    # Ensure the function.data changes too
+    assert(np.array_equal(f.data, numpy_array))
+
+    # Change the function.data
+    f.data[:] = 4.
+    # Ensure the underlying numpy array changes too
+    assert(np.array_equal(f.data, numpy_array))
+
 
 if __name__ == "__main__":
     configuration['mpi'] = True
