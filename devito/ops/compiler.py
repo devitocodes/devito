@@ -14,6 +14,9 @@ class CompilerOPS(configuration['compiler'].__class__):
     def __init__(self, *args, **kwargs):
         kwargs['cpp'] = True
         self._ops_install_path = os.environ.get('OPS_INSTALL_PATH')
+        if not self._ops_install_path:
+            raise ValueError("Couldn't find OPS_INSTALL_PATH \
+                environment variable, please check your OPS installation")
         super(CompilerOPS, self).__init__(*args, **kwargs)
 
     def _cmdline(self, files, object=False):
@@ -36,7 +39,7 @@ class CompilerOPS(configuration['compiler'].__class__):
         )
 
     def jit_compile(self, soname, ccode, hcode):
-        self.__translate_ops(soname, ccode, hcode)
+        self._translate_ops(soname, ccode, hcode)
         self.target = str(self.get_jit_dir().joinpath(soname))
         self.ops_src = '%s/%s_ops.cpp' % (self.get_jit_dir(), soname)
         self.cache_dir = self.get_codepy_dir().joinpath(soname[:7])
@@ -47,11 +50,11 @@ class CompilerOPS(configuration['compiler'].__class__):
             with open(self.ops_src, 'r') as f:
                 self.code = f.read()
         except FileNotFoundError:
-            warning("The file %s isn't present" % self.ops_src)
+            warning("Coudn't find file: %s" % self.ops_src)
         else:
-            self.__compile_cuda(soname)
+            self._compile_cuda(soname)
 
-    def __translate_ops(self, soname, ccode, hcode):
+    def _translate_ops(self, soname, ccode, hcode):
         # Creating files
         file_name = str(self.get_jit_dir().joinpath(soname))
         h_file = open("%s.h" % (file_name), "w")
@@ -62,15 +65,11 @@ class CompilerOPS(configuration['compiler'].__class__):
 
         c_file.close()
         h_file.close()
-        if self._ops_install_path:
-            # Calling OPS Translator
-            translator = '%s/../ops_translator/c/ops.py' % (self._ops_install_path)
-            subprocess.run([translator, c_file.name], cwd=self.get_jit_dir())
-        else:
-            warning("Couldn't find OPS_INSTALL_PATH \
-                environment variable, please check your OPS installation")
 
-    def __compile_cuda(self, soname):
+        translator = '%s/../ops_translator/c/ops.py' % (self._ops_install_path)
+        subprocess.run([translator, c_file.name], cwd=self.get_jit_dir())
+
+    def _compile_cuda(self, soname):
         # CUDA kernel compilation
         cuda_src = '%s/CUDA/%s_kernels.cu' % (self.get_jit_dir(), soname)
         cuda_target = '%s/%s_kernels_cu' % (self.get_jit_dir(), soname)
@@ -80,7 +79,7 @@ class CompilerOPS(configuration['compiler'].__class__):
             with open(cuda_src, 'r') as f:
                 cuda_code = f.read()
         except FileNotFoundError:
-            raise ValueError("The file %s isn't present" % cuda_src)
+            raise ValueError("Coudn't find file: %s" % cuda_src)
 
         cuda_device_compiler = CUDADeviceCompiler()
         cuda_host_compiler = CudaHostCompiler()
@@ -122,7 +121,7 @@ class CUDADeviceCompiler(CompilerOPS):
         nv_arch = os.environ.get('NV_ARCH')
 
         if(nv_arch is None):
-            raise ValueError("select an NVIDIA device to compile in CUDA, e.g. \
+            raise ValueError("Select an NVIDIA device to compile in CUDA, e.g. \
                 NV_ARCH=Kepler")
         elif(nv_arch == 'Fermi'):
             self.cflags.append('arch=compute_20,code=sm_21')
