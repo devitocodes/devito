@@ -187,15 +187,11 @@ class Platform(object):
 
 class Cpu64(Platform):
 
-    def _detect_isa(self):
-        return 'cpp'
-
-
-class Intel64(Cpu64):
+    # The known isas ​​will be overwritten in the specialized classes
+    known_isas = tuple()
 
     def _detect_isa(self):
-        known_isas = ['cpp', 'sse', 'avx', 'avx2', 'avx512']
-        for i in reversed(known_isas):
+        for i in reversed(self.known_isas):
             if any(j.startswith(i) for j in get_cpu_info()['flags']):
                 # Using `startswith`, rather than `==`, as a flag such as 'avx512'
                 # appears as 'avx512f, avx512cd, ...'
@@ -203,8 +199,14 @@ class Intel64(Cpu64):
         return 'cpp'
 
 
+class Intel64(Cpu64):
+
+    known_isas = ('cpp', 'sse', 'avx', 'avx2', 'avx512')
+
+
 class Arm(Cpu64):
-    pass
+
+    known_isas = ('fp', 'asimd', 'asimdrdm')
 
 
 class Power(Cpu64):
@@ -268,6 +270,9 @@ isa_registry = {
     'avx': 32,
     'avx2': 32,
     'avx512': 64,
-    'altivec': 16
+    'altivec': 16,
+    'fp': 8,
+    'asimd': 16,
+    'asimdrdm': 16
 }
 """Size in bytes of a SIMD register in known ISAs."""
