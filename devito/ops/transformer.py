@@ -231,7 +231,7 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
         dimensions=(DefaultDimension(
             name='range', default_value=len(it_range)),),
         dtype=np.int32,
-        allocation='external'
+        scope='external'
     )
 
     range_array_init = Expression(ClusterizedEq(Eq(

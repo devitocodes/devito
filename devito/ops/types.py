@@ -9,14 +9,6 @@ from devito.ops.utils import namespace
 
 class Array(basic.Array):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._allocation = kwargs.get('allocation')
-
-    @property
-    def _mem_external(self):
-        return self._allocation == 'external'
-
     @property
     def _C_typedata(self):
         if isinstance(self.dtype, str):

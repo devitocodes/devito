@@ -816,7 +816,7 @@ class Array(AbstractCachedFunction):
             super(Array, self).__init__(*args, **kwargs)
 
             self._scope = kwargs.get('scope', 'heap')
-            assert self._scope in ['heap', 'stack']
+            assert self._scope in ['heap', 'stack', 'external']
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -876,6 +876,10 @@ class Array(AbstractCachedFunction):
         return self._scope == 'heap'
 
     @property
+    def _mem_external(self):
+        return self._scope == 'external'
+
+    @property
     def _C_typename(self):
         return ctypes_to_cstr(POINTER(dtype_to_ctype(self.dtype)))
 
@@ -890,7 +894,7 @@ class Array(AbstractCachedFunction):
         self._halo = kwargs.get('halo', self._halo)
         self._padding = kwargs.get('padding', self._padding)
         self._scope = kwargs.get('scope', self._scope)
-        assert self._scope in ['heap', 'stack']
+        assert self._scope in ['heap', 'stack', 'external']
 
     # Pickling support
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['dimensions', 'scope']
