@@ -830,6 +830,8 @@ class TestCodeGeneration(object):
         try:
             # W/ OpenMP, we prod until all comms have completed
             assert call.then_body[0].body[0].is_While
+            # W/ OpenMP, we expect dynamic thread scheduling
+            assert 'dynamic,1' in tree.root.pragmas[0].value
             assert configuration['openmp']
         except AttributeError:
             # W/o OpenMP, it's a different story
@@ -851,6 +853,8 @@ class TestCodeGeneration(object):
         try:
             # W/ OpenMP, we prod until all comms have completed
             assert call.then_body[0].body[0].is_While
+            # W/ OpenMP, we expect dynamic thread scheduling
+            assert 'dynamic,1' in tree.root.pragmas[0].value
             assert configuration['openmp']
         except AttributeError:
             # W/o OpenMP, it's a different story

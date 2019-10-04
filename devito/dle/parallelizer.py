@@ -93,6 +93,8 @@ class Ompizer(object):
     lang = {
         'for-static': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
         'for-static-1': lambda i: c.Pragma('omp for collapse(%d) schedule(static,1)' % i),
+        'for-dynamic-1': lambda i: c.Pragma('omp for collapse(%d) schedule(dynamic,1)'
+                                            % i),
         'par-for': lambda i, j: c.Pragma('omp parallel for collapse(%d) '
                                          'schedule(static,1) num_threads(%d)' % (i, j)),
         'simd-for': c.Pragma('omp simd'),
@@ -138,11 +140,15 @@ class Ompizer(object):
 
         # Pick up an omp-pragma template
         # Caller-provided -> stick to it
+        # Affine+Prodder -> ... schedule(dynamic,1) ...
         # Affine -> ... schedule(static,1) ...
-        # Non-affine -> ... schedule(static) ...
+        # Nonaffine -> ... schedule(static) ...
         if omp_pragma is None:
             if all(i.is_Affine for i in candidates):
-                omp_pragma = self.lang['for-static-1']
+                if FindNodes(Prodder).visit(root):
+                    omp_pragma = self.lang['for-dynamic-1']
+                else:
+                    omp_pragma = self.lang['for-static-1']
             else:
                 omp_pragma = self.lang['for-static']
 
