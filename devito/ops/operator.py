@@ -46,10 +46,10 @@ class OperatorOPS(Operator):
         # Extract all symbols that need to be converted to ops_dat
         dims = []
         to_dat = set()
-        for _, trees in affine_trees:
-            dims.append(len(trees[0].dimensions))
-            symbols = set(FindSymbols('symbolics').visit(trees[0].root))
-            symbols -= set(FindSymbols('defines').visit(trees[0].root))
+        for _, tree in affine_trees:
+            dims.append(len(tree[0].dimensions))
+            symbols = set(FindSymbols('symbolics').visit(tree[0].root))
+            symbols -= set(FindSymbols('defines').visit(tree[0].root))
             to_dat |= symbols
 
         # Create the OPS block for this problem
@@ -78,19 +78,19 @@ class OperatorOPS(Operator):
             # from the dat object back to the CPU memory.
             after_time_loop.extend(create_ops_fetch(f,
                                                     name_to_ops_dat,
-                                                    self.time_dimmension.extreme_max))
+                                                    self.time_dimension.extreme_max))
 
         # Generate ops kernels for each offloadable iteration tree
         mapper = {}
-        for n, (_, trees) in enumerate(affine_trees):
+        for n, (_, tree) in enumerate(affine_trees):
             pre_loop, ops_kernel, ops_par_loop_call = opsit(
-                trees, n, name_to_ops_dat, ops_block, dims[0]
+                tree, n, name_to_ops_dat, ops_block, dims[0]
             )
 
             pre_time_loop.extend(pre_loop)
             self._ops_kernels.append(ops_kernel)
-            mapper[trees[0].root] = ops_par_loop_call
-            mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
+            mapper[tree[0].root] = ops_par_loop_call
+            mapper.update({i.root: mapper.get(i.root) for i in tree})  # Drop trees
 
         iet = Transformer(mapper).visit(iet)
 
@@ -116,7 +116,7 @@ class OperatorOPS(Operator):
             self._compiler.jit_compile(self._soname, str(self.ccode), str(self.hcode))
 
     @cached_property
-    def time_dimmension(self):
+    def time_dimension(self):
         for d in self.dimensions:
             if d.is_Time:
                 return(d.root)
