@@ -82,7 +82,7 @@ class OperatorOPS(Operator):
 
         # Generate ops kernels for each offloadable iteration tree
         mapper = {}
-        for n, (_, trees) in enumerate(find_affine_trees(iet).items()):
+        for n, (_, trees) in enumerate(affine_trees):
             pre_loop, ops_kernel, ops_par_loop_call = opsit(
                 trees, n, name_to_ops_dat, ops_block, dims[0]
             )
