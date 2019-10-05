@@ -149,6 +149,7 @@ class PosixAllocator(MemoryAllocator):
 
 
 class GuardAllocator(PosixAllocator):
+
     """
     Memory allocator based on ``posix`` functions. The allocated memory is
     aligned to page boundaries.  Additionally, it allocates extra memory
@@ -306,7 +307,41 @@ class NumaAllocator(MemoryAllocator):
         return self._node == 'local'
 
 
-class NumpyAllocator(MemoryAllocator):
+class ExternalAllocator(MemoryAllocator):
+
+    """
+    External allocator for definig Function symbols with data loaded by the
+    user, without copying it to Devito's allocated memory.
+
+    Parameters
+    ----------
+    numpy_array : numpy.array
+        Array of data.
+
+    Returns
+    -------
+    pointer, None
+        The first element of the tuple is the reference that can be used to
+        access the data.
+
+    Notes
+    -------
+    * Use ExternalAllocator and pass a reference to the external memory when
+      creating a function. This Function will now use this memory as it's f.data.
+
+    * If the data present in this external memory is valuable, provide a noop
+      initialiser, or else Devito will reset it to 0.
+
+    Example
+    --------
+    >>> shape = (2, 2)
+    >>> space_order = 0
+    >>> numpy_array = np.ones(shape, dtype=np.float32)
+    >>> g = Grid(shape)
+    >>> f = Function(name='f', space_order=space_order, grid=g,
+    ...      allocator=ExternalAllocator(numpy_array), initializer=lambda x: None)
+    """
+
     def __init__(self, numpy_array):
         self.numpy_array = numpy_array
 
