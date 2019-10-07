@@ -47,7 +47,7 @@ class CompilerOPS(configuration['compiler'].__class__):
             with open(self.ops_src, 'r') as f:
                 self.code = f.read()
         except FileNotFoundError:
-            warning("Coudn't find file: %s" % self.ops_src)
+            warning("Couldn't find file: %s" % self.ops_src)
         else:
             self._compile_cuda(soname)
 
@@ -81,7 +81,7 @@ class CompilerOPS(configuration['compiler'].__class__):
             with open(cuda_src, 'r') as f:
                 cuda_code = f.read()
         except FileNotFoundError:
-            raise ValueError("Coudn't find file: %s" % cuda_src)
+            raise ValueError("Couldn't find file: %s" % cuda_src)
 
         cuda_device_compiler = CUDADeviceCompiler()
         cuda_host_compiler = CudaHostCompiler()
