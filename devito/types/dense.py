@@ -920,6 +920,10 @@ class Function(DiscreteFunction, Differentiable):
 
     is_Function = True
 
+    def _cache_meta(self):
+        # Attach additional metadata to self's cache entry
+        return {'nbytes': self.size}
+
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(Function, self).__init__(*args, **kwargs)

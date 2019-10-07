@@ -164,6 +164,13 @@ class Cached(object):
                     ... # Initialise object properties from kwargs
     """
 
+    class AugmentedWeakRef(weakref.ref):
+
+        def __new__(cls, obj, meta):
+            obj = super().__new__(cls, obj)
+            obj.nbytes = meta.get('nbytes', 0)
+            return obj
+
     @classmethod
     def _cached(cls):
         """Test if current class is already in the symbol cache."""
@@ -178,15 +185,19 @@ class Cached(object):
         obj : object
             Object to be cached.
         """
-        _SymbolCache[cls] = weakref.ref(obj)
+        _SymbolCache[cls] = cls.AugmentedWeakRef(obj, obj._cache_meta())
 
     @classmethod
     def _symbol_type(cls, name):
-        """Create new type instance from cls and inject symbol name"""
+        """Create new type instance from cls and inject symbol name."""
         return type(name, (cls, ), dict(cls.__dict__))
 
+    def _cache_meta(self):
+        """Additional attributes attached to a cached object."""
+        return {}
+
     def _cached_init(self):
-        """Initialise symbolic object with a cached object state"""
+        """Initialise symbolic object with a cached object state."""
         original = _SymbolCache[self.__class__]
         self.__dict__ = original().__dict__
 
@@ -1116,10 +1127,26 @@ class CacheManager(object):
     data is lost (and thus memory is freed).
     """
 
+    gc_threshold = 2*10**8
+    """
+    The `clear` function will trigger garbage collection if and only if at least
+    one weak reference points to an unreachable object whose size in bytes is
+    greated than the `gc_threshold` value. Garbage collection is an expensive
+    operation, so we do it judiciously.
+    """
+
     @classmethod
     def clear(cls):
+        # Start assuming we won't explicitly call the garbage collector
+        gc_trigger = False
+
         sympy.cache.clear_cache()
-        gc.collect()
-        for key, val in list(_SymbolCache.items()):
-            if val() is None:
+        for key, obj in list(_SymbolCache.items()):
+            if obj() is None:
                 del _SymbolCache[key]
+            else:
+                gc_trigger |= obj.nbytes > cls.gc_threshold
+
+        # Call garbage collection if there's a lot of unreachable data
+        if gc_trigger:
+            gc.collect()
