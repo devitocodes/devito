@@ -547,7 +547,7 @@ class Operator(Callable):
         # Clear up both SymPy and Devito caches. Any stale object carrying data
         # that is no longer in use within user code should now be dropped to free
         # up memory
-        clear_cache()
+        clear_cache(force=False)
 
         # Output summary of performance achieved
         return self._profile_output(args)

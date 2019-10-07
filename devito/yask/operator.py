@@ -160,7 +160,7 @@ class OperatorYASK(Operator):
 
         # Free memory carried by stale symbolic objects
         # TODO: see issue #944
-        # clear_cache(dump_contexts=False)
+        # clear_cache(dump_contexts=False, force=False)
 
         # Output summary of performance achieved
         return self._profile_output(args)
