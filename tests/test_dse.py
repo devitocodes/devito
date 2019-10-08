@@ -47,9 +47,7 @@ def test_scheduling_after_rewrite():
 @pytest.mark.parametrize("nx,ny", [(5, 6), (4, 16), (20, 20), (100, 100)])
 def test_skew_vs_advanced(nx, ny):
     """Trivial testing for DSE skewing"""
-    nx = nx
-    ny = ny
-    timesteps = 1
+    timesteps = 4
     grid = Grid(shape=(nx, ny))
     u_skew = TimeFunction(name='u_skew', grid=grid)
     u = TimeFunction(name='u', grid=grid)
@@ -66,10 +64,6 @@ def test_skew_vs_advanced(nx, ny):
                                             (20, 20, 20, 10), (100, 100, 100, 10)])
 def test_complex_skew_cases_I(nx, nt, ny, nz):
     """Trivial testing for DSE skewing"""
-    nx = nx
-    ny = ny
-    nz = nz
-    nt = nt
     grid = Grid(shape=(nx, ny, nz))
     t = grid.stepping_dim
 
