@@ -22,7 +22,7 @@ from devito.profiling import create_profile
 from devito.symbolics import indexify
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
-from devito.types import CacheManager, Dimension
+from devito.types import Dimension
 
 __all__ = ['Operator']
 
@@ -544,11 +544,6 @@ class Operator(Callable):
         # Post-process runtime arguments
         self._postprocess_arguments(args, **kwargs)
 
-        # Clear up both SymPy and Devito caches. Any stale object carrying data
-        # that is no longer in use within user code should now be dropped to free
-        # up memory
-        clear_cache(force=False)
-
         # Output summary of performance achieved
         return self._profile_output(args)
 
@@ -736,7 +731,3 @@ def set_dle_mode(mode):
 
 def is_threaded(mode):
     return set_dle_mode(mode)[1].get('openmp', configuration['openmp'])
-
-
-# Used to clear up the caches at each op.apply call
-clear_cache = CacheManager().clear

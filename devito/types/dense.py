@@ -23,7 +23,7 @@ from devito.tools import (EnrichedTuple, ReducerMap, as_tuple, flatten, is_integ
                           ctypes_to_cstr, memoized_meth, dtype_to_ctype)
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
-from devito.types.basic import AbstractCachedFunction
+from devito.types.basic import AbstractCachedFunction, CacheManager
 from devito.types.utils import Buffer, NODE, CELL
 
 __all__ = ['Function', 'TimeFunction']
@@ -111,9 +111,18 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         def wrapper(self):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
+
+                # Clear up both SymPy and Devito caches. Any stale object carrying data
+                # that is no longer in use within user code should now be dropped to free
+                # up memory
+                CacheManager.clear(force=False)
+
+                # Allocate the actual data object
                 self._data = Data(self.shape_allocated, self.dtype,
                                   modulo=self._mask_modulo, allocator=self._allocator,
                                   distributor=self._distributor)
+
+                # Initialize data
                 if self._first_touch:
                     assign(self, 0)
                 if callable(self._initializer):
@@ -127,6 +136,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
                         self._initializer(self.data)
                 else:
                     self.data_with_halo.fill(0)
+
             return func(self)
         return wrapper
 
