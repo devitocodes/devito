@@ -1,7 +1,6 @@
-from devito import Eq, TimeFunction
+from devito import Eq
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import (Call, Expression, find_affine_trees,
-                           List, retrieve_iteration_tree)
+from devito.ir.iet import Call, Expression, List, find_affine_trees
 from devito.ir.iet.visitors import FindSymbols, Transformer
 from devito.logger import warning
 from devito.operator import Operator
@@ -12,6 +11,8 @@ from devito.ops import ops_configuration
 from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.types import OpsBlock
 from devito.ops.utils import namespace
+
+from cached_property import cached_property
 
 __all__ = ['OperatorOPS']
 
@@ -32,12 +33,11 @@ class OperatorOPS(Operator):
     def _specialize_iet(self, iet, **kwargs):
         warning("The OPS backend is still work-in-progress")
 
-        # If there is no iteration tree, then there is no loop to be optimized using OPS.
-        iteration_tree = retrieve_iteration_tree(iet, mode='normal')
-        if not len(iteration_tree):
+        affine_trees = find_affine_trees(iet).items()
+
+        # If there is no affine trees, then there is no loop to be optimized using OPS.
+        if not affine_trees:
             return iet
-        time_upper_bound = iteration_tree[0].dimensions[TimeFunction._time_position]\
-            .extreme_max
 
         ops_init = Call(namespace['ops_init'], [0, 0, 2])
         ops_partition = Call(namespace['ops_partition'], Literal('""'))
@@ -46,10 +46,10 @@ class OperatorOPS(Operator):
         # Extract all symbols that need to be converted to ops_dat
         dims = []
         to_dat = set()
-        for section, trees in find_affine_trees(iet).items():
-            dims.append(len(trees[0].dimensions))
-            symbols = set(FindSymbols('symbolics').visit(trees[0].root))
-            symbols -= set(FindSymbols('defines').visit(trees[0].root))
+        for _, tree in affine_trees:
+            dims.append(len(tree[0].dimensions))
+            symbols = set(FindSymbols('symbolics').visit(tree[0].root))
+            symbols -= set(FindSymbols('defines').visit(tree[0].root))
             to_dat |= symbols
 
         # Create the OPS block for this problem
@@ -76,19 +76,21 @@ class OperatorOPS(Operator):
             pre_time_loop.extend(create_ops_dat(f, name_to_ops_dat, ops_block))
             # To return the result to Devito, it is necessary to copy the data
             # from the dat object back to the CPU memory.
-            after_time_loop.extend(create_ops_fetch(f, name_to_ops_dat, time_upper_bound))
+            after_time_loop.extend(create_ops_fetch(f,
+                                                    name_to_ops_dat,
+                                                    self.time_dimension.extreme_max))
 
         # Generate ops kernels for each offloadable iteration tree
         mapper = {}
-        for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
+        for n, (_, tree) in enumerate(affine_trees):
             pre_loop, ops_kernel, ops_par_loop_call = opsit(
-                trees, n, name_to_ops_dat, ops_block, dims[0]
+                tree, n, name_to_ops_dat, ops_block, dims[0]
             )
 
             pre_time_loop.extend(pre_loop)
             self._ops_kernels.append(ops_kernel)
-            mapper[trees[0].root] = ops_par_loop_call
-            mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
+            mapper[tree[0].root] = ops_par_loop_call
+            mapper.update({i.root: mapper.get(i.root) for i in tree})  # Drop trees
 
         iet = Transformer(mapper).visit(iet)
 
@@ -112,3 +114,10 @@ class OperatorOPS(Operator):
         self._includes.append('%s.h' % self._soname)
         if self._lib is None:
             self._compiler.jit_compile(self._soname, str(self.ccode), str(self.hcode))
+
+    @cached_property
+    def time_dimension(self):
+        for d in self.dimensions:
+            if d.is_Time:
+                return(d.root)
+        raise ValueError("Could not find a time dimension")
