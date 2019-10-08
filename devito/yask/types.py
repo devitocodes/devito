@@ -81,6 +81,10 @@ class Function(dense.Function, Signer):
             if self._data is None:
                 log("Allocating memory for %s%s" % (self.name, self.shape_allocated))
 
+                # Free memory carried by stale symbolic objects
+                # TODO: see issue #944
+                # CacheManager.clear(dump_contexts=False, force=False)
+
                 # Fetch the appropriate context
                 context = contexts.fetch(self.dimensions, self.dtype)
 
