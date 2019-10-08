@@ -221,10 +221,11 @@ def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
 def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
                         accessible_origin, par_to_ops_stencil, dims):
     it_range = []
+    devito_to_ops_indexer = 1
     for tree in trees:
         if isinstance(tree, IterationTree):
-            for bounds in [it.bounds() for it in tree]:
-                it_range.extend(bounds)
+            for i in tree:
+                it_range.extend([i.symbolic_min, i.symbolic_max + devito_to_ops_indexer])
 
     range_array = Array(
         name='%s_range' % ops_kernel.name,
