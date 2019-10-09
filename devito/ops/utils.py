@@ -17,6 +17,8 @@ namespace['ops_exit'] = 'ops_exit'
 namespace['ops_par_loop'] = 'ops_par_loop'
 namespace['ops_dat_fetch_data'] = lambda ops_dat, data: Call(
     name='ops_dat_fetch_data', arguments=[ops_dat, 0, data])
+namespace['ops_dat_set_data'] = lambda ops_dat, data: Call(
+    name='ops_dat_set_data', arguments=[ops_dat, 0, data])
 
 namespace['ops_decl_stencil'] = Function(name='ops_decl_stencil')
 namespace['ops_decl_block'] = Function(name='ops_decl_block')

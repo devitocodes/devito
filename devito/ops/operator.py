@@ -8,7 +8,7 @@ from devito.symbolics import Literal
 from devito.tools import filter_sorted
 
 from devito.ops import ops_configuration
-from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
+from devito.ops.transformer import create_ops_dat, create_ops_memory_call, opsit
 from devito.ops.types import OpsBlock
 from devito.ops.utils import namespace
 
@@ -68,7 +68,8 @@ class OperatorOPS(Operator):
 
         name_to_ops_dat = {}
         pre_time_loop = []
-        after_time_loop = []
+        pre_kernel_loop = []
+        after_kernel_loop = []
         for f in to_dat:
             if f.is_Constant:
                 continue
@@ -76,9 +77,10 @@ class OperatorOPS(Operator):
             pre_time_loop.extend(create_ops_dat(f, name_to_ops_dat, ops_block))
             # To return the result to Devito, it is necessary to copy the data
             # from the dat object back to the CPU memory.
-            after_time_loop.extend(create_ops_fetch(f,
-                                                    name_to_ops_dat,
-                                                    self.time_dimension.extreme_max))
+            pre_kernel_loop.extend(create_ops_memory_call(
+                f, name_to_ops_dat, self.time_dimension, namespace['ops_dat_set_data']))
+            after_kernel_loop.extend(create_ops_memory_call(
+                f, name_to_ops_dat, self.time_dimension, namespace['ops_dat_fetch_data']))
 
         # Generate ops kernels for each offloadable iteration tree
         mapper = {}
@@ -89,7 +91,9 @@ class OperatorOPS(Operator):
 
             pre_time_loop.extend(pre_loop)
             self._ops_kernels.append(ops_kernel)
-            mapper[tree[0].root] = ops_par_loop_call
+            mapper[tree[0].root] = List(body=[pre_kernel_loop,
+                                              ops_par_loop_call,
+                                              after_kernel_loop])
             mapper.update({i.root: mapper.get(i.root) for i in tree})  # Drop trees
 
         iet = Transformer(mapper).visit(iet)
@@ -102,7 +106,7 @@ class OperatorOPS(Operator):
         self._includes.extend(['stdio.h', 'ops_seq.h'])
 
         body = [ops_init, ops_block_init, *pre_time_loop,
-                ops_partition, iet, *after_time_loop, ops_exit]
+                ops_partition, iet, ops_exit]
 
         return List(body=body)
 

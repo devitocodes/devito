@@ -1,3 +1,4 @@
+import ctypes
 import itertools
 import numpy as np
 
@@ -9,7 +10,7 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Call, Callable, Expression, IterationTree
 from devito.ir.iet.visitors import FindNodes
 from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
+from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil, TypeCast
 from devito.ops.utils import namespace
 from devito.symbolics import Add, Byref, ListInitializer, Literal
 from devito.tools import dtype_to_cstr
@@ -200,20 +201,22 @@ def create_ops_dat(f, name_to_ops_dat, block):
     return res
 
 
-def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
+def create_ops_memory_call(f, name_to_ops_dat, time_iteration, func):
+
+    time_access = lambda x: Mod(Add(time_iteration, -x), f._time_size)
+
+    # The second parameter is the beginning of the array. But I didn't manage
+    # to generate a C code like: `v`. Instead, I am generating `&(v[0][0][0])`.
+    ops_indices = lambda x: [0 if i.is_Space else time_access(x) for i in f.indices]
+
+    casted_data = lambda x: TypeCast(Byref(f.indexify(ops_indices(x))), ctypes.c_char_p)
 
     if f.is_TimeFunction:
-        ops_fetch = [namespace['ops_dat_fetch_data'](
-            name_to_ops_dat[f.name].indexify(
-                [Mod(Add(time_upper_bound, -i), f._time_size)]),
-            Byref(f.indexify([Mod(Add(time_upper_bound, -i), f._time_size)])))
-            for i in range(f._time_size)]
-
+        ops_fetch = [func(name_to_ops_dat[f.name].indexify([time_access(i)]),
+                          casted_data(i))
+                     for i in range(f._time_order + 1)]
     else:
-        # The second parameter is the beginning of the array. But I didn't manage
-        # to generate a C code like: `v`. Instead, I am generating `&(v[0])`.
-        ops_fetch = [namespace['ops_dat_fetch_data'](
-            name_to_ops_dat[f.name], Byref(f.indexify([0])))]
+        ops_fetch = [func(name_to_ops_dat[f.name], casted_data(0))]
 
     return ops_fetch
 

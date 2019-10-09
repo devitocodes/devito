@@ -1,6 +1,7 @@
 import numpy as np
 import sympy
 
+from devito.symbolics.printer import ccode
 import devito.types.basic as basic
 
 from devito.tools import dtype_to_cstr
@@ -147,3 +148,19 @@ class OpsDat(basic.LocalObject):
     @property
     def _C_typename(self):
         return namespace['ops_dat_type']
+
+
+class TypeCast(basic.AbstractObject):
+    """
+        A node encapsulating a cast to a raw C type.
+    """
+    is_TypeCast = True
+
+    def __init__(self, expr, cast_to):
+        self.dtype = cast_to
+        self.expr = expr
+        self.name = ccode(expr)
+
+    @property
+    def _C_name(self):
+        return ccode(self.expr)
