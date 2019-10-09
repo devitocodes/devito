@@ -310,36 +310,37 @@ class NumaAllocator(MemoryAllocator):
 class ExternalAllocator(MemoryAllocator):
 
     """
-    External allocator for definig Function symbols with data loaded by the
-    user, without copying it to Devito's allocated memory.
+    An ExternalAllocator is used to assign pre-existing user data to Functions.
+    Thus, Devito does not allocate any memory.
 
     Parameters
     ----------
-    numpy_array : numpy.array
-        Array of data.
-
-    Returns
-    -------
-    pointer, None
-        The first element of the tuple is the reference that can be used to
-        access the data.
+    array : array-like
+        Any object exposing the buffer interface, such as a numpy.ndarray.
 
     Notes
     -------
     * Use ExternalAllocator and pass a reference to the external memory when
-      creating a function. This Function will now use this memory as it's f.data.
+      creating a Function. This Function will now use this memory as its f.data.
 
     * If the data present in this external memory is valuable, provide a noop
       initialiser, or else Devito will reset it to 0.
 
     Example
     --------
+    >>> from devito import Grid, Function
+    >>> from devito.data.allocators import ExternalAllocator
+    >>> import numpy as np
     >>> shape = (2, 2)
-    >>> space_order = 0
     >>> numpy_array = np.ones(shape, dtype=np.float32)
     >>> g = Grid(shape)
-    >>> f = Function(name='f', space_order=space_order, grid=g,
+    >>> space_order = 0
+    >>> f = Function(name='f', grid=g, space_order=space_order,
     ...      allocator=ExternalAllocator(numpy_array), initializer=lambda x: None)
+    >>> f.data[0, 1] = 2
+    >>> numpy_array
+    array([[1., 2.],
+           [1., 1.]], dtype=float32)
     """
 
     def __init__(self, numpy_array):
