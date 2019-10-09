@@ -149,6 +149,7 @@ class PosixAllocator(MemoryAllocator):
 
 
 class GuardAllocator(PosixAllocator):
+
     """
     Memory allocator based on ``posix`` functions. The allocated memory is
     aligned to page boundaries.  Additionally, it allocates extra memory
@@ -304,6 +305,56 @@ class NumaAllocator(MemoryAllocator):
     @property
     def put_local(self):
         return self._node == 'local'
+
+
+class ExternalAllocator(MemoryAllocator):
+
+    """
+    An ExternalAllocator is used to assign pre-existing user data to Functions.
+    Thus, Devito does not allocate any memory.
+
+    Parameters
+    ----------
+    array : array-like
+        Any object exposing the buffer interface, such as a numpy.ndarray.
+
+    Notes
+    -------
+    * Use ExternalAllocator and pass a reference to the external memory when
+      creating a Function. This Function will now use this memory as its f.data.
+
+    * If the data present in this external memory is valuable, provide a noop
+      initialiser, or else Devito will reset it to 0.
+
+    Example
+    --------
+    >>> from devito import Grid, Function
+    >>> from devito.data.allocators import ExternalAllocator
+    >>> import numpy as np
+    >>> shape = (2, 2)
+    >>> numpy_array = np.ones(shape, dtype=np.float32)
+    >>> g = Grid(shape)
+    >>> space_order = 0
+    >>> f = Function(name='f', grid=g, space_order=space_order,
+    ...      allocator=ExternalAllocator(numpy_array), initializer=lambda x: None)
+    >>> f.data[0, 1] = 2
+    >>> numpy_array
+    array([[1., 2.],
+           [1., 1.]], dtype=float32)
+    """
+
+    def __init__(self, numpy_array):
+        self.numpy_array = numpy_array
+
+    def alloc(self, shape, dtype):
+        assert shape == self.numpy_array.shape, \
+            "Provided array has shape %s. Expected %s" %\
+            (str(self.numpy_array.shape), str(shape))
+        assert dtype == self.numpy_array.dtype, \
+            "Provided array has dtype %s. Expected %s" %\
+            (str(self.numpy_array.dtype), str(dtype))
+
+        return (self.numpy_array, None)
 
 
 ALLOC_GUARD = GuardAllocator(1048576)
