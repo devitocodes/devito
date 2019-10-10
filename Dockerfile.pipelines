@@ -132,10 +132,10 @@ RUN if [ $installWithPip == "true" ] ; then \
       fi ; \
       if [ $RUN_EXAMPLES == "true" ] ; then \
         bash scripts/create_ipyparallel_mpi_profile.sh; \
+        git clone https://github.com/opesci/opescibench.git /tmp/opescibench ; \
+        pushd /tmp/opescibench ; \
+        pip install -e . ; \
       fi ; \
     fi
-RUN source activate devito ; \
-        git clone https://github.com/opesci/opescibench.git ; \
-        pip install -e opescibench
 
 ENTRYPOINT /home/devito/azure-pipelines.py
