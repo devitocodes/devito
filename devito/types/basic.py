@@ -27,7 +27,7 @@ __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
 class Basic(object):
 
     """
-    Three relevant types inherit from this class: ::
+    Three relevant types inherit from this class:
 
         * AbstractSymbol: represents a scalar; may carry data; may be used
                           to build equations.
@@ -42,13 +42,13 @@ class Basic(object):
                     |                     |                  |
              AbstractSymbol       AbstractFunction     AbstractObject
 
-    Subtypes must implement a number of methods/properties to enable code
-    generation via the Devito compiler. These methods/properties are easily
-    recognizable as their name starts with _C_.
+    All these subtypes must implement a number of methods/properties to enable
+    code generation via the Devito compiler. These methods/properties are
+    easily recognizable as their name starts with _C_.
 
     Notes
     -----
-    Part of the AbstractFunction sub-hierarchy is implemented in :mod:`function.py`.
+    The AbstractFunction sub-hierarchy is implemented in :mod:`dense.py`.
     """
 
     # Top hierarchy
@@ -144,6 +144,7 @@ class Basic(object):
 
 
 class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
+
     """
     Base class for scalar symbols.
 
@@ -153,25 +154,40 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
                                    |
                  -------------------------------------
                  |                                   |
-        AbstractCachedSymbol                --------------------
-                 |                          |                  |
-              Constant                    Symbol           Dimension
-                                            |
-                                          Scalar
+             DataSymbol                            Symbol
+                 |                                   |
+         ----------------                   -------------------
+         |              |                   |                 |
+      Constant   DefaultDimension         Scalar          Dimension
+                                                    <:mod:`dimension.py`>
 
-    There are three relevant AbstractSymbol sub-types: ::
+    All symbols can be used to build equations. However, while DataSymbol
+    carries data, Symbol is a pure symbolic object.
 
-        * Constant: A generic scalar symbol that can be used to build an equation.
-                    It carries data (a scalar value).
-        * Dimension: A problem dimension, used to create an iteration space. It
-                     may be used to index into Functions and to build equations.
-        * Symbol: A generic scalar symbol that can be used in an Operator, typically
-                  as temporary variable. It is created internally by Devito.
+    Constant, DefaultDimension, and Dimension (and most of its subclasses) are
+    part of the user API; Scalar, instead, is only used internally by Devito.
+
+    DefaultDimension and Dimension define a problem dimension (in other words,
+    an "iteration space"). They can be used to index into Functions. For more
+    information, refer to :mod:`dimension.py`.
     """
 
     is_AbstractSymbol = True
+    is_Symbol = True
+
+    @classmethod
+    def _filter_assumptions(cls, **kwargs):
+        """Extract sympy.Symbol-specific kwargs."""
+        assumptions = {}
+        for i in list(kwargs):
+            if i in _assume_rules.defined_facts:
+                assumptions[i] = kwargs.pop(i)
+        return assumptions, kwargs
 
     def __new__(cls, *args, **kwargs):
+        name = kwargs.get('name') or args[0]
+        assumptions, kwargs = cls._filter_assumptions(**kwargs)
+
         # Create the new Symbol
         # Note: use __xnew__ to bypass sympy caching
         newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
@@ -275,12 +291,11 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class AbstractCachedUniqueSymbol(AbstractSymbol, Cached):
+class Symbol(AbstractSymbol, Cached):
 
     """
-    Base class for scalar symbols, cached by both Devito and SymPy.
-
-    For more information, refer to the documentation of AbstractSymbol.
+    A scalar symbol, cached by both Devito and SymPy, which does not carry
+    any data.
 
     Notes
     -----
@@ -316,12 +331,7 @@ class AbstractCachedUniqueSymbol(AbstractSymbol, Cached):
             return _SymbolCache[key]()
         else:
             name = kwargs.get('name') or args[0]
-
-            # Extract sympy.Symbol-specific kwargs
-            assumptions = {}
-            for i in list(kwargs):
-                if i in _assume_rules.defined_facts:
-                    assumptions[i] = kwargs.pop(i)
+            assumptions, kwargs = cls._filter_assumptions(**kwargs)
 
             # Create the new Symbol
             # Note: use __xnew__ to bypass sympy caching
@@ -339,12 +349,10 @@ class AbstractCachedUniqueSymbol(AbstractSymbol, Cached):
     __hash__ = Cached.__hash__
 
 
-class AbstractCachedMultiSymbol(AbstractSymbol, Cached):
+class DataSymbol(AbstractSymbol, Cached):
 
     """
-    Base class for scalar symbols, cached by both Devito and SymPy.
-
-    For more information, refer to the documentation of AbstractSymbol.
+    A scalar symbol, cached by both Devito and SymPy, which carries data.
     """
 
     def __new__(cls, *args, **kwargs):
@@ -353,14 +361,8 @@ class AbstractCachedMultiSymbol(AbstractSymbol, Cached):
         if cls._cached(key):
             return _SymbolCache[key]()
         else:
-            options = dict(kwargs)
-            name = options.pop('name', None) or args[0]
-
-            # Extract sympy.Symbol-specific kwargs
-            assumptions = {}
-            for i in list(kwargs):
-                if i in _assume_rules.defined_facts:
-                    assumptions[i] = kwargs.pop(i)
+            name = kwargs.get('name') or args[0]
+            assumptions, kwargs = cls._filter_assumptions(**kwargs)
 
             # Create new, unique type instance from cls and the symbol name
             newcls = type(name, (cls,), dict(cls.__dict__))
@@ -386,16 +388,8 @@ class AbstractCachedMultiSymbol(AbstractSymbol, Cached):
         return self.__class__.__base__
 
 
-class Symbol(AbstractCachedUniqueSymbol):
-
-    """
-    Like a sympy.Symbol, but with an API mimicking that of a sympy.Indexed.
-    """
-
-    is_Symbol = True
-
-
 class Scalar(Symbol, ArgProvider):
+
     """
     Like a Symbol, but in addition it can pass runtime values to an Operator.
 
@@ -422,6 +416,7 @@ class Scalar(Symbol, ArgProvider):
 
 
 class AbstractFunction(sympy.Function, Basic, Pickable):
+
     """
     Base class for tensor symbols, only cached by SymPy. It inherits from and
     mimick the behaviour of a sympy.Function.

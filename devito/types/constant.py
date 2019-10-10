@@ -3,12 +3,12 @@ import numpy as np
 from devito.exceptions import InvalidArgument
 from devito.logger import warning
 from devito.types.args import ArgProvider
-from devito.types.basic import AbstractCachedMultiSymbol
+from devito.types.basic import DataSymbol
 
 __all__ = ['Constant']
 
 
-class Constant(AbstractCachedMultiSymbol, ArgProvider):
+class Constant(DataSymbol, ArgProvider):
 
     """
     Symbol representing a constant, scalar value in symbolic equations.
@@ -108,4 +108,4 @@ class Constant(AbstractCachedMultiSymbol, ArgProvider):
         except AttributeError:
             pass
 
-    _pickle_kwargs = AbstractCachedMultiSymbol._pickle_kwargs + ['_value']
+    _pickle_kwargs = DataSymbol._pickle_kwargs + ['_value']

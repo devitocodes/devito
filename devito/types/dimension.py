@@ -9,8 +9,7 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug
 from devito.tools import Pickable, dtype_to_cstr
 from devito.types.args import ArgProvider
-from devito.types.basic import (AbstractCachedUniqueSymbol, AbstractCachedMultiSymbol,
-                                Scalar)
+from devito.types.basic import Symbol, DataSymbol, Scalar
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
@@ -287,18 +286,18 @@ class Dimension(ArgProvider):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class BasicDimension(Dimension, AbstractCachedUniqueSymbol):
+class BasicDimension(Dimension, Symbol):
 
     __doc__ = Dimension.__doc__
 
     def __new__(cls, *args, **kwargs):
-        return AbstractCachedUniqueSymbol.__new__(cls, *args, **kwargs)
+        return Symbol.__new__(cls, *args, **kwargs)
 
     def __init_finalize__(self, name, spacing=None):
         self._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
 
 
-class DefaultDimension(Dimension, AbstractCachedMultiSymbol):
+class DefaultDimension(Dimension, DataSymbol):
 
     """
     Symbol defining an iteration space with statically-known size.
@@ -321,7 +320,7 @@ class DefaultDimension(Dimension, AbstractCachedMultiSymbol):
     is_Default = True
 
     def __new__(cls, *args, **kwargs):
-        return AbstractCachedMultiSymbol.__new__(cls, *args, **kwargs)
+        return DataSymbol.__new__(cls, *args, **kwargs)
 
     def __init_finalize__(self, name, spacing=None, default_value=None):
         self._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
