@@ -1,7 +1,6 @@
 from collections import namedtuple
 
 import sympy
-from sympy.core.cache import cacheit
 import numpy as np
 from cached_property import cached_property
 
@@ -10,14 +9,15 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug
 from devito.tools import Pickable, dtype_to_cstr
 from devito.types.args import ArgProvider
-from devito.types.basic import AbstractSymbol, Scalar
+from devito.types.basic import (AbstractCachedUniqueSymbol, AbstractCachedMultiSymbol,
+                                Scalar)
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions',
            'ModuloDimension', 'IncrDimension']
 
 
-class Dimension(AbstractSymbol, ArgProvider):
+class Dimension(ArgProvider):
 
     """
     Symbol defining an iteration space.
@@ -90,16 +90,19 @@ class Dimension(AbstractSymbol, ArgProvider):
     _C_typename = 'const %s' % dtype_to_cstr(dtype)
     _C_typedata = _C_typename
 
-    def __new__(cls, name, spacing=None):
-        return Dimension.__xnew_cached_(cls, name, spacing)
+    def __new__(cls, *args, **kwargs):
+        """
+        Equivalent to ``BasicDimension(*args, **kwargs)``.
 
-    def __new_stage2__(cls, name, spacing=None):
-        newobj = sympy.Symbol.__xnew__(cls, name)
-        newobj._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
-        return newobj
-
-    __xnew__ = staticmethod(__new_stage2__)
-    __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
+        Notes
+        -----
+        This is only necessary for backwards compatibility, as originally
+        there was no BasicDimension (i.e., Dimension was just the top class).
+        """
+        if cls is Dimension:
+            return BasicDimension(*args, **kwargs)
+        else:
+            return BasicDimension.__new__(cls, *args, **kwargs)
 
     def __str__(self):
         return self.name
@@ -156,13 +159,6 @@ class Dimension(AbstractSymbol, ArgProvider):
     @property
     def _C_name(self):
         return self.name
-
-    @property
-    def _properties(self):
-        return (self.spacing,)
-
-    def _hashable_content(self):
-        return super(Dimension, self)._hashable_content() + self._properties
 
     @cached_property
     def _defines(self):
@@ -273,7 +269,58 @@ class Dimension(AbstractSymbol, ArgProvider):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class SpaceDimension(Dimension):
+class BasicDimension(Dimension, AbstractCachedUniqueSymbol):
+
+    __doc__ = Dimension.__doc__
+
+    def __new__(cls, *args, **kwargs):
+        return AbstractCachedUniqueSymbol.__new__(cls, *args, **kwargs)
+
+    def __init_finalize__(self, name, spacing=None):
+        self._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
+
+
+class DefaultDimension(Dimension, AbstractCachedMultiSymbol):
+
+    """
+    Symbol defining an iteration space with statically-known size.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dimension.
+    spacing : Symbol, optional
+        A symbol to represent the physical spacing along this Dimension.
+    default_value : float, optional
+        Default value associated with the Dimension.
+
+    Notes
+    -----
+    A DefaultDimension carries a value, so it has a mutable state. Hence, it is
+    not cached.
+    """
+
+    is_Default = True
+
+    def __new__(cls, *args, **kwargs):
+        return AbstractCachedMultiSymbol.__new__(cls, *args, **kwargs)
+
+    def __init_finalize__(self, name, spacing=None, default_value=None):
+        self._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
+        self._default_value = default_value or 0
+
+    @cached_property
+    def symbolic_size(self):
+        return sympy.Number(self._default_value)
+
+    def _arg_defaults(self, _min=None, size=None, alias=None):
+        dim = alias or self
+        size = size or dim._default_value
+        return {dim.min_name: _min or 0, dim.size_name: size,
+                dim.max_name: size if size is None else size-1}
+
+
+class SpaceDimension(BasicDimension):
 
     """
     Symbol defining an iteration space.
@@ -295,7 +342,7 @@ class SpaceDimension(Dimension):
     is_Space = True
 
 
-class TimeDimension(Dimension):
+class TimeDimension(BasicDimension):
 
     """
     Symbol defining an iteration space.
@@ -316,45 +363,7 @@ class TimeDimension(Dimension):
     is_Time = True
 
 
-class DefaultDimension(Dimension):
-
-    """
-    Symbol defining an iteration space with statically-known size.
-
-    Parameters
-    ----------
-    name : str
-        Name of the dimension.
-    spacing : symbol, optional
-        A symbol to represent the physical spacing along this Dimension.
-    default_value : float, optional
-        Default value associated with the Dimension.
-
-    Notes
-    -----
-    A DefaultDimension carries a value, so it has a mutable state. Hence, it is
-    not cached.
-    """
-
-    is_Default = True
-
-    def __new__(cls, name, spacing=None, default_value=None):
-        newobj = Dimension.__xnew__(cls, name)
-        newobj._default_value = default_value or 0
-        return newobj
-
-    @cached_property
-    def symbolic_size(self):
-        return sympy.Number(self._default_value)
-
-    def _arg_defaults(self, _min=None, size=None, alias=None):
-        dim = alias or self
-        size = size or dim._default_value
-        return {dim.min_name: _min or 0, dim.size_name: size,
-                dim.max_name: size if size is None else size-1}
-
-
-class DerivedDimension(Dimension):
+class DerivedDimension(BasicDimension):
 
     """
     Symbol defining an iteration space derived from a ``parent`` Dimension.
@@ -370,23 +379,14 @@ class DerivedDimension(Dimension):
     is_Derived = True
 
     _keymap = {}
-    """Map all seen instance `_properties` to a unique number. This is used
-    to create unique Dimension names."""
+    """Used to create unique Dimension names based on seen kwargs."""
 
-    def __new__(cls, name, parent):
-        return DerivedDimension.__xnew_cached_(cls, name, parent)
-
-    def __new_stage2__(cls, name, parent):
+    def __init_finalize__(self, name, parent):
         assert isinstance(parent, Dimension)
-        newobj = sympy.Symbol.__xnew__(cls, name)
-        newobj._parent = parent
+        self._parent = parent
         # Inherit time/space identifiers
-        newobj.is_Time = parent.is_Time
-        newobj.is_Space = parent.is_Space
-        return newobj
-
-    __xnew__ = staticmethod(__new_stage2__)
-    __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
+        self.is_Time = parent.is_Time
+        self.is_Space = parent.is_Space
 
     @classmethod
     def _gensuffix(cls, key):
@@ -407,13 +407,6 @@ class DerivedDimension(Dimension):
     @property
     def spacing(self):
         return self.parent.spacing
-
-    @property
-    def _properties(self):
-        return ()
-
-    def _hashable_content(self):
-        return (self.name, self.parent._hashable_content()) + self._properties
 
     @cached_property
     def _defines(self):
@@ -482,18 +475,11 @@ class SubDimension(DerivedDimension):
 
     is_Sub = True
 
-    def __new__(cls, name, parent, left, right, thickness, local):
-        return SubDimension.__xnew_cached_(cls, name, parent, left, right,
-                                           thickness, local)
-
-    def __new_stage2__(cls, name, parent, left, right, thickness, local):
-        newobj = DerivedDimension.__xnew__(cls, name, parent)
-        newobj._interval = sympy.Interval(left, right)
-        newobj._thickness = cls._Thickness(*thickness)
-        newobj._local = local
-        return newobj
-
-    __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
+    def __init_finalize__(self, name, parent, left, right, thickness, local):
+        super().__init_finalize__(name, parent)
+        self._interval = sympy.Interval(left, right)
+        self._thickness = self._Thickness(*thickness)
+        self._local = local
 
     _Thickness = namedtuple('Thickness', 'left right')
     _SDO = namedtuple('SubDimensionOffset', 'value extreme thickness')
@@ -595,10 +581,6 @@ class SubDimension(DerivedDimension):
             val = symbolic_thickness.subs(self._thickness_map)
             return self._SDO(int(val), self.parent.symbolic_max, symbolic_thickness)
 
-    @property
-    def _properties(self):
-        return (self._interval, self.thickness, self.local)
-
     def _arg_defaults(self, grid=None, **kwargs):
         if grid is not None and grid.is_distributed(self.root):
             # Get local thickness
@@ -693,18 +675,12 @@ class ConditionalDimension(DerivedDimension):
     is_NonlinearDerived = True
     is_Conditional = True
 
-    def __new__(cls, name, parent, factor=None, condition=None, indirect=False):
-        return ConditionalDimension.__xnew_cached_(cls, name, parent, factor,
-                                                   condition, indirect)
-
-    def __new_stage2__(cls, name, parent, factor, condition, indirect):
-        newobj = DerivedDimension.__xnew__(cls, name, parent)
-        newobj._factor = factor
-        newobj._condition = condition
-        newobj._indirect = indirect
-        return newobj
-
-    __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
+    def __init_finalize__(self, name, parent, factor=None, condition=None,
+                          indirect=False):
+        super().__init_finalize__(name, parent)
+        self._factor = factor
+        self._condition = condition
+        self._indirect = indirect
 
     @property
     def spacing(self):
@@ -712,7 +688,6 @@ class ConditionalDimension(DerivedDimension):
 
     @property
     def factor(self):
-        """"""
         return self._factor if self._factor is not None else 1
 
     @property
@@ -726,10 +701,6 @@ class ConditionalDimension(DerivedDimension):
     @property
     def index(self):
         return self if self.indirect is True else self.parent
-
-    @property
-    def _properties(self):
-        return (self._factor, self._condition, self._indirect)
 
     # Pickling support
     _pickle_kwargs = DerivedDimension._pickle_kwargs + ['factor', 'condition', 'indirect']
@@ -832,17 +803,14 @@ class ModuloDimension(DerivedDimension):
     is_Modulo = True
 
     def __new__(cls, parent, offset, modulo, name=None):
-        return ModuloDimension.__xnew_cached_(cls, parent, offset, modulo, name)
-
-    def __new_stage2__(cls, parent, offset, modulo, name):
         if name is None:
             name = cls._genname(parent.name, (offset, modulo))
-        newobj = DerivedDimension.__xnew__(cls, name, parent)
-        newobj._offset = offset
-        newobj._modulo = modulo
-        return newobj
+        return super().__new__(cls, parent, offset, modulo, name=name)
 
-    __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
+    def __init_finalize__(self, parent, offset, modulo, name=None):
+        super().__init_finalize__(name, parent)
+        self._offset = offset
+        self._modulo = modulo
 
     @property
     def offset(self):
@@ -861,10 +829,6 @@ class ModuloDimension(DerivedDimension):
         return (self.root + self.offset) % self.modulo
 
     symbolic_incr = symbolic_min
-
-    @property
-    def _properties(self):
-        return (self._offset, self._modulo)
 
     def _arg_defaults(self, **kwargs):
         """
@@ -913,17 +877,14 @@ class IncrDimension(DerivedDimension):
     is_Incr = True
 
     def __new__(cls, parent, _min=None, step=None, name=None):
-        return IncrDimension.__xnew_cached_(cls, parent, _min, step, name)
-
-    def __new_stage2__(cls, parent, _min, step, name):
         if name is None:
             name = cls._genname(parent.name, (_min, step))
-        newobj = DerivedDimension.__xnew__(cls, name, parent)
-        newobj._min = _min
-        newobj._step = step
-        return newobj
+        return super().__new__(cls, parent, _min=_min, step=step, name=name)
 
-    __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
+    def __init_finalize__(self, parent, _min=None, step=None, name=None):
+        super().__init_finalize__(name, parent)
+        self._min = _min
+        self._step = step
 
     @cached_property
     def step(self):
@@ -948,10 +909,6 @@ class IncrDimension(DerivedDimension):
     @property
     def symbolic_incr(self):
         return self + self.step
-
-    @property
-    def _properties(self):
-        return (self._min, self._step)
 
     def _arg_defaults(self, **kwargs):
         """

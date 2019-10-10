@@ -50,49 +50,48 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     is_DiscreteFunction = True
     is_Tensor = True
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            # A `Distributor` to handle domain decomposition (only relevant for MPI)
-            self._distributor = self.__distributor_setup__(**kwargs)
+    def __init_finalize__(self, *args, **kwargs):
+        # A `Distributor` to handle domain decomposition (only relevant for MPI)
+        self._distributor = self.__distributor_setup__(**kwargs)
 
-            # Staggering metadata
-            self._staggered, self.is_Staggered = self.__staggered_setup__(**kwargs)
+        # Staggering metadata
+        self._staggered, self.is_Staggered = self.__staggered_setup__(**kwargs)
 
-            # Now that *all* __X_setup__ hooks have been called, we can let the
-            # superclass constructor do its job
-            super(DiscreteFunction, self).__init__(*args, **kwargs)
+        # Now that *all* __X_setup__ hooks have been called, we can let the
+        # superclass constructor do its job
+        super(DiscreteFunction, self).__init_finalize__(*args, **kwargs)
 
-            # There may or may not be a `Grid` attached to the DiscreteFunction
-            self._grid = kwargs.get('grid')
+        # There may or may not be a `Grid` attached to the DiscreteFunction
+        self._grid = kwargs.get('grid')
 
-            # Symbolic (finite difference) coefficients
-            self._coefficients = kwargs.get('coefficients', 'standard')
-            if self._coefficients not in ('standard', 'symbolic'):
-                raise ValueError("coefficients must be `standard` or `symbolic`")
+        # Symbolic (finite difference) coefficients
+        self._coefficients = kwargs.get('coefficients', 'standard')
+        if self._coefficients not in ('standard', 'symbolic'):
+            raise ValueError("coefficients must be `standard` or `symbolic`")
 
-            # Data-related properties and data initialization
-            self._data = None
-            self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
-            self._allocator = kwargs.get('allocator', default_allocator())
-            initializer = kwargs.get('initializer')
-            if initializer is None or callable(initializer):
-                # Initialization postponed until the first access to .data
-                self._initializer = initializer
-            elif isinstance(initializer, (np.ndarray, list, tuple)):
-                # Allocate memory and initialize it. Note that we do *not* hold
-                # a reference to the user-provided buffer
-                self._initializer = None
-                if len(initializer) > 0:
-                    self.data_with_halo[:] = initializer
-                else:
-                    # This is a corner case -- we might get here, for example, when
-                    # running with MPI and some processes get 0-size arrays after
-                    # domain decomposition. We touch the data anyway to avoid the
-                    # case ``self._data is None``
-                    self.data
+        # Data-related properties and data initialization
+        self._data = None
+        self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
+        self._allocator = kwargs.get('allocator', default_allocator())
+        initializer = kwargs.get('initializer')
+        if initializer is None or callable(initializer):
+            # Initialization postponed until the first access to .data
+            self._initializer = initializer
+        elif isinstance(initializer, (np.ndarray, list, tuple)):
+            # Allocate memory and initialize it. Note that we do *not* hold
+            # a reference to the user-provided buffer
+            self._initializer = None
+            if len(initializer) > 0:
+                self.data_with_halo[:] = initializer
             else:
-                raise ValueError("`initializer` must be callable or buffer, not %s"
-                                 % type(initializer))
+                # This is a corner case -- we might get here, for example, when
+                # running with MPI and some processes get 0-size arrays after
+                # domain decomposition. We touch the data anyway to avoid the
+                # case ``self._data is None``
+                self.data
+        else:
+            raise ValueError("`initializer` must be callable or buffer, not %s"
+                             % type(initializer))
 
     def __eq__(self, other):
         """Quick self == other comparison."""
@@ -113,9 +112,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
             if self._data is None:
                 debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
 
-                # Clear up both SymPy and Devito caches. Any stale object carrying data
-                # that is no longer in use within user code should now be dropped to free
-                # up memory
+                # Clear up both SymPy and Devito caches to drop unreachable data
                 CacheManager.clear(force=False)
 
                 # Allocate the actual data object
@@ -935,21 +932,20 @@ class Function(DiscreteFunction, Differentiable):
         # Attach additional metadata to self's cache entry
         return {'nbytes': self.size}
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(Function, self).__init__(*args, **kwargs)
+    def __init_finalize__(self, *args, **kwargs):
+        super(Function, self).__init_finalize__(*args, **kwargs)
 
-            # Space order
-            space_order = kwargs.get('space_order', 1)
-            if isinstance(space_order, int):
-                self._space_order = space_order
-            elif isinstance(space_order, tuple) and len(space_order) == 3:
-                self._space_order, _, _ = space_order
-            else:
-                raise TypeError("`space_order` must be int or 3-tuple of ints")
+        # Space order
+        space_order = kwargs.get('space_order', 1)
+        if isinstance(space_order, int):
+            self._space_order = space_order
+        elif isinstance(space_order, tuple) and len(space_order) == 3:
+            self._space_order, _, _ = space_order
+        else:
+            raise TypeError("`space_order` must be int or 3-tuple of ints")
 
-            # Dynamically add derivative short-cuts
-            self._fd = generate_fd_shortcuts(self)
+        # Dynamically add derivative short-cuts
+        self._fd = generate_fd_shortcuts(self)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1216,21 +1212,20 @@ class TimeFunction(Function):
     _time_position = 0
     """Position of time index among the function indices."""
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.time_dim = kwargs.get('time_dim', self.dimensions[self._time_position])
-            self._time_order = kwargs.get('time_order', 1)
-            super(TimeFunction, self).__init__(*args, **kwargs)
+    def __init_finalize__(self, *args, **kwargs):
+        self.time_dim = kwargs.get('time_dim', self.dimensions[self._time_position])
+        self._time_order = kwargs.get('time_order', 1)
+        super(TimeFunction, self).__init_finalize__(*args, **kwargs)
 
-            # Check we won't allocate too much memory for the system
-            available_mem = virtual_memory().available
-            if np.dtype(self.dtype).itemsize * self.size > available_mem:
-                warning("Trying to allocate more memory for symbol %s " % self.name +
-                        "than available on physical device, this will start swapping")
-            if not isinstance(self.time_order, int):
-                raise TypeError("`time_order` must be int")
+        # Check we won't allocate too much memory for the system
+        available_mem = virtual_memory().available
+        if np.dtype(self.dtype).itemsize * self.size > available_mem:
+            warning("Trying to allocate more memory for symbol %s " % self.name +
+                    "than available on physical device, this will start swapping")
+        if not isinstance(self.time_order, int):
+            raise TypeError("`time_order` must be int")
 
-            self.save = kwargs.get('save')
+        self.save = kwargs.get('save')
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -1328,10 +1323,9 @@ class SubFunction(Function):
     parent DiscreteFunction.
     """
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(SubFunction, self).__init__(*args, **kwargs)
-            self._parent = kwargs['parent']
+    def __init_finalize__(self, *args, **kwargs):
+        super(SubFunction, self).__init_finalize__(*args, **kwargs)
+        self._parent = kwargs['parent']
 
     def __padding_setup__(self, **kwargs):
         # SubFunctions aren't expected to be used in time-consuming loops

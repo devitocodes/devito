@@ -9,6 +9,7 @@ from devito.exceptions import InvalidArgument
 from devito.logger import yask as log, yask_warning as warning
 from devito.tools import Signer, memoized_meth, dtype_to_ctype
 import devito.types.basic as basic
+import devito.types.caching as caching
 import devito.types.constant as constant
 import devito.types.dense as dense
 import devito.types.grid as grid
@@ -25,9 +26,9 @@ class Constant(constant.Constant):
 
     from_YASK = True
 
-    def __init__(self, *args, **kwargs):
+    def __init_finalize__(self, *args, **kwargs):
         value = kwargs.pop('value', 0.)
-        super(Constant, self).__init__(*args, value=DataScalar(value), **kwargs)
+        super(Constant, self).__init_finalize__(*args, value=DataScalar(value), **kwargs)
 
     @property
     def data(self):
@@ -59,7 +60,7 @@ class Function(dense.Function, Signer):
     from_YASK = True
 
     def __new__(cls, *args, **kwargs):
-        if cls in basic._SymbolCache:
+        if cls._cached():
             newobj = sympy.Function.__new__(cls, *args, **kwargs.get('options', {}))
             newobj._cached_init()
         else:
@@ -288,7 +289,7 @@ class YaskSolnObject(basic.Object):
     _pickle_kwargs = []
 
 
-class CacheManager(basic.CacheManager):
+class CacheManager(caching.CacheManager):
 
     @classmethod
     def clear(cls, dump_contexts=True, force=True):
