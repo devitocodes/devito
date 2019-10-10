@@ -6,14 +6,39 @@ import pytest
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
                     ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
-                    clear_cache)
-from devito.types.basic import _SymbolCache, Scalar
+                    DefaultDimension, _SymbolCache, clear_cache)
+from devito.types.basic import Scalar, Symbol
 
 pytestmark = skipif(['yask', 'ops'])
 
 
+@pytest.fixture
+def operate_on_empty_cache():
+    """
+    To be used by tests that assert against the cache size. There are two
+    reasons this is required:
+
+        * Most symbolic objects embed further symbolic objects. For example,
+          Function embeds Dimension, DerivedDimension embed a parent Dimension,
+          and so on. The embedded objects require more than one call to
+          `clear_cache` to be evicted (typically two -- the first call
+          evicts the main object, then the children become unreferenced and so
+          they are evicted upon the second call). So, depending on what tests
+          were executed before, it is possible that one `clear_cache()` evicts
+          more than expected, making it impossible to assert against cache sizes.
+        * Due to some global symbols in `conftest.py`, it is possible that when
+          for example a SparseFunction is instantiated, fewer symbolic object than
+          expected are created, since some of them are available from the cache
+          already.
+    """
+    old_cache = _SymbolCache.copy()
+    _SymbolCache.clear()
+    yield
+    _SymbolCache.update(old_cache)
+
+
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
-def test_cache_function_new(FunctionType):
+def test_function_new(FunctionType):
     """Test that new u[x, y] instances don't cache"""
     grid = Grid(shape=(3, 4))
     u0 = FunctionType(name='u', grid=grid)
@@ -25,7 +50,7 @@ def test_cache_function_new(FunctionType):
 
 
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
-def test_cache_function_same_indices(FunctionType):
+def test_function_same_indices(FunctionType):
     """Test caching of derived u[x, y] instance from derivative"""
     grid = Grid(shape=(3, 4))
     u0 = FunctionType(name='u', grid=grid)
@@ -38,7 +63,7 @@ def test_cache_function_same_indices(FunctionType):
 
 
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
-def test_cache_function_different_indices(FunctionType):
+def test_function_different_indices(FunctionType):
     """Test caching of u[x + h, y] instance from derivative"""
     grid = Grid(shape=(3, 4))
     u0 = FunctionType(name='u', grid=grid)
@@ -48,7 +73,29 @@ def test_cache_function_different_indices(FunctionType):
     assert np.allclose(u.data, u0.data)
 
 
-def test_cache_constant_new():
+def test_abstract_symbols():
+    """
+    Test that ``Symbol(name='s') != Scalar(name='s') != Dimension(name='s')``.
+    They all:
+
+        * rely on the same caching mechanism
+        * boil down to creating a sympy.Symbol
+        * created with the same args/kwargs (``name='s'``)
+    """
+    sy = Symbol(name='s')
+    sc = Scalar(name='s')
+    d = Dimension(name='s')
+
+    assert sy is not sc
+    assert sc is not d
+    assert sy is not d
+
+    assert isinstance(sy, Symbol)
+    assert isinstance(sc, Scalar)
+    assert isinstance(d, Dimension)
+
+
+def test_constant_new():
     """Test that new u[x, y] instances don't cache"""
     u0 = Constant(name='u')
     u0.data = 6.
@@ -58,7 +105,28 @@ def test_cache_constant_new():
     assert u1.data == 2.
 
 
-def test_symbol_cache_aliasing():
+def test_grid_objs():
+    """
+    Test that two different Grids use different Symbols/Dimensions. This is
+    because objects such as spacing and origin are Constants carrying a value.
+    """
+    grid0 = Grid(shape=(4, 4))
+    x0, y0 = grid0.dimensions
+    ox0, oy0 = grid0.origin
+
+    grid1 = Grid(shape=(8, 8))
+    x1, y1 = grid1.dimensions
+    ox1, oy1 = grid1.origin
+
+    assert x0 is not x1
+    assert y0 is not y1
+    assert x0.spacing is not x1.spacing
+    assert y0.spacing is not y1.spacing
+    assert ox0 is not ox1
+    assert oy0 is not oy1
+
+
+def test_symbol_aliasing():
     """Test to assert that our aliasing cache isn't defeated by sympys
     non-aliasing symbol cache.
 
@@ -98,7 +166,7 @@ def test_symbol_cache_aliasing():
     assert u_ref() is None
 
 
-def test_symbol_cache_aliasing_reverse():
+def test_symbol_aliasing_reverse():
     """Test to assert that removing he original u[x, y] instance does
     not impede our alisaing cache or leaks memory.
     """
@@ -132,9 +200,8 @@ def test_symbol_cache_aliasing_reverse():
     assert u_ref() is None
 
 
-def test_clear_cache(nx=1000, ny=1000):
+def test_clear_cache(operate_on_empty_cache, nx=1000, ny=1000):
     grid = Grid(shape=(nx, ny), dtype=np.float64)
-    clear_cache()
     cache_size = len(_SymbolCache)
 
     for i in range(10):
@@ -147,8 +214,92 @@ def test_clear_cache(nx=1000, ny=1000):
         clear_cache()
 
 
-def test_cache_after_indexification():
-    """Test to assert that the SymPy cache retrieves the right Devito data object
+def test_clear_cache_with_alive_symbols(operate_on_empty_cache, nx=1000, ny=1000):
+    """
+    Test that `clear_cache` doesn't affect caching if an object is still alive.
+    """
+    grid = Grid(shape=(nx, ny), dtype=np.float64)
+
+    f0 = Function(name='f', grid=grid, space_order=2)
+    f1 = Function(name='f', grid=grid, space_order=2)
+
+    # Obviously:
+    assert f0 is not f1
+
+    # And clearly, both still alive after a `clear_cache`
+    clear_cache()
+    assert f0 is not f1
+    assert f0.grid.dimensions[0] is grid.dimensions[0]
+
+    # Now we try with symbols
+    s0 = Scalar(name='s')
+    s1 = Scalar(name='s')
+
+    # Clearly:
+    assert s1 is s0
+
+    clear_cache()
+    s2 = Scalar(name='s')
+
+    # s2 must still be s1/so, even after a clear_cache, as so/s1 are both alive!
+    assert s2 is s1
+
+    del s0
+    del s1
+    s3 = Scalar(name='s')
+
+    # And obviously, still:
+    assert s3 is s2
+
+    cache_size = len(_SymbolCache)
+    del s2
+    del s3
+    clear_cache()
+    assert len(_SymbolCache) == cache_size - 1
+
+
+def test_sparse_function(operate_on_empty_cache):
+    """Test caching of SparseFunctions and children objects."""
+    grid = Grid(shape=(3, 3))
+
+    init_cache_size = len(_SymbolCache)
+    cur_cache_size = len(_SymbolCache)
+
+    u = SparseFunction(name='u', grid=grid, npoint=1, nt=10)
+
+    # created: u, p_u, h_p_u, u_coords, d, h_d
+    ncreated = 6
+    assert len(_SymbolCache) == cur_cache_size + ncreated
+
+    cur_cache_size = len(_SymbolCache)
+
+    u.inject(expr=u, field=u)
+
+    # created: ii_u_0*2 (Symbol and ConditionalDimension), ii_u_1*2, ii_u_2*2, ii_u_3*2,
+    # px, py, u_coords (as indexified),
+    ncreated = 2+2+2+2+1+1+1
+    assert len(_SymbolCache) == cur_cache_size + ncreated
+
+    # No new symbolic obejcts are created
+    u.inject(expr=u, field=u)
+    assert len(_SymbolCache) == cur_cache_size + ncreated
+
+    # Let's look at clear_cache now
+    del u
+    clear_cache()
+    # At this point, not all children objects have been cleared. In particular, the
+    # ii_u_* Symbols are still alive, as well as p_u and h_p_u. This is because
+    # in the first clear_cache they were still referenced by their "parent" objects
+    # (e.g., ii_u_* by ConditionalDimensions, through `condition`)
+    assert len(_SymbolCache) == init_cache_size + 6
+    clear_cache()
+    # Now we should be back to the original state
+    assert len(_SymbolCache) == init_cache_size
+
+
+def test_after_indexification():
+    """
+    Test to assert that the SymPy cache retrieves the right Devito data object
     after indexification.
     """
     grid = Grid(shape=(4, 4, 4))
@@ -167,6 +318,69 @@ def test_constant_hash():
     c1 = Constant(name='c')
     assert c0 is not c1
     assert hash(c0) != hash(c1)
+
+
+def test_dimension_hash():
+    """Test that different Dimensions have different hash value."""
+    d0 = Dimension(name='d')
+    s0 = Scalar(name='s')
+    d1 = Dimension(name='d', spacing=s0)
+    assert hash(d0) != hash(d1)
+
+    s1 = Scalar(name='s', dtype=np.int32)
+    d2 = Dimension(name='d', spacing=s1)
+    assert hash(d1) != hash(d2)
+
+    d3 = Dimension(name='d', spacing=Constant(name='s1'))
+    assert hash(d3) != hash(d0)
+    assert hash(d3) != hash(d1)
+
+
+def test_sub_dimension_hash():
+    """Test that different SubDimensions have different hash value."""
+    d0 = Dimension(name='d')
+    d1 = Dimension(name='d', spacing=Scalar(name='s'))
+
+    di0 = SubDimension.middle('di', d0, 1, 1)
+    di1 = SubDimension.middle('di', d1, 1, 1)
+    assert hash(di0) != hash(d0)
+    assert hash(di0) != hash(di1)
+
+    dl0 = SubDimension.left('dl', d0, 2)
+    assert hash(dl0) != hash(di0)
+
+
+def test_conditional_dimension_hash():
+    """Test that different ConditionalDimensions have different hash value."""
+    d0 = Dimension(name='d')
+    s0 = Scalar(name='s')
+    d1 = Dimension(name='d', spacing=s0)
+
+    cd0 = ConditionalDimension(name='cd', parent=d0, factor=4)
+    cd1 = ConditionalDimension(name='cd', parent=d0, factor=5)
+    assert cd0 is not cd1
+    assert hash(cd0) != hash(cd1)
+
+    cd2 = ConditionalDimension(name='cd', parent=d0, factor=4, indirect=True)
+    assert hash(cd0) != hash(cd2)
+
+    cd3 = ConditionalDimension(name='cd', parent=d1, factor=4)
+    assert hash(cd0) != hash(cd3)
+
+    s1 = Scalar(name='s', dtype=np.int32)
+    cd4 = ConditionalDimension(name='cd', parent=d0, factor=4, condition=s0 > 3)
+    assert hash(cd0) != hash(cd4)
+
+    cd5 = ConditionalDimension(name='cd', parent=d0, factor=4, condition=s1 > 3)
+    assert hash(cd0) != hash(cd5)
+    assert hash(cd4) != hash(cd5)
+
+
+def test_default_dimension_hash():
+    """Test that different DefaultDimensions have different hash value."""
+    dd0 = DefaultDimension(name='dd')
+    dd1 = DefaultDimension(name='dd')
+    assert hash(dd0) != hash(dd1)
 
 
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
@@ -197,9 +411,17 @@ def test_sparse_function_hash(FunctionType):
     u2 = FunctionType(name='u', grid=grid0, npoint=1, nt=10)
     assert u0 is not u2
     assert hash(u0) != hash(u2)
+    # Now with different number of sparse points
+    u3 = FunctionType(name='u', grid=grid0, npoint=2, nt=10)
+    assert u0 is not u3
+    assert hash(u0) != hash(u3)
+    # Now with different number of timesteps stored
+    u4 = FunctionType(name='u', grid=grid0, npoint=1, nt=14)
+    assert u0 is not u4
+    assert hash(u0) != hash(u4)
 
 
-def test_scalar_cache():
+def test_scalar():
     """
     Test that Scalars with same name but different attributes do not alias to
     the same Scalar. Conversely, if the name and the attributes are the same,
@@ -216,7 +438,7 @@ def test_scalar_cache():
     assert s3 is not s1
 
 
-def test_dimension_cache():
+def test_dimension():
     """
     Test that Dimensions with same name but different attributes do not alias to
     the same Dimension. Conversely, if the name and the attributes are the same,
@@ -240,7 +462,22 @@ def test_dimension_cache():
     assert d2 is not d5
 
 
-def test_conditional_dimension_cache():
+def test_symbols_args_vs_kwargs():
+    """
+    Unlike Functions, Symbols don't require the use of a kwarg to specify the name.
+    This test basically checks that `Symbol('s') is Symbol(name='s')`, i.e. that we
+    don't make any silly mistakes when it gets to compute the cache key.
+    """
+    v_arg = Symbol('v')
+    v_kwarg = Symbol(name='v')
+    assert v_arg is v_kwarg
+
+    d_arg = Dimension('d100')
+    d_kwarg = Dimension(name='d100')
+    assert d_arg is d_kwarg
+
+
+def test_conditional_dimension():
     """
     Test that ConditionalDimensions with same name but different attributes do not
     alias to the same ConditionalDimension. Conversely, if the name and the attributes
@@ -264,7 +501,7 @@ def test_conditional_dimension_cache():
     assert ci5 is ci4
 
 
-def test_sub_dimension_cache():
+def test_sub_dimension():
     """
     Test that SubDimensions with same name but different attributes do not
     alias to the same SubDimension. Conversely, if the name and the attributes
@@ -285,6 +522,15 @@ def test_sub_dimension_cache():
     xr0 = SubDimension.right('xr', x, 1)
     xr1 = SubDimension.right('xr', x, 1)
     assert xr0 is xr1
+
+
+def test_default_dimension():
+    d = Dimension(name='d')
+    dd0 = DefaultDimension(name='d')
+    assert d is not dd0
+
+    dd1 = DefaultDimension(name='d')
+    assert dd0 is not dd1
 
 
 def test_operator_leakage_function():
