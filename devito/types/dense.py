@@ -23,7 +23,8 @@ from devito.tools import (EnrichedTuple, ReducerMap, as_tuple, flatten, is_integ
                           ctypes_to_cstr, memoized_meth, dtype_to_ctype)
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
-from devito.types.basic import AbstractCachedFunction, CacheManager
+from devito.types.caching import CacheManager
+from devito.types.basic import AbstractCachedFunction
 from devito.types.utils import Buffer, NODE, CELL
 
 __all__ = ['Function', 'TimeFunction']

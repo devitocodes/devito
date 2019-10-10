@@ -1,6 +1,4 @@
-import weakref
 import abc
-import gc
 from collections import namedtuple
 from ctypes import POINTER, Structure, byref
 from functools import reduce
@@ -9,8 +7,7 @@ from operator import mul
 
 import numpy as np
 import sympy
-
-from sympy.core.cache import cacheit
+from sympy.core.assumptions import _assume_rules
 from cached_property import cached_property
 from cgen import Struct, Value
 
@@ -20,17 +17,14 @@ from devito.symbolics import Add
 from devito.tools import (EnrichedTuple, Evaluable, Pickable,
                           ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
 from devito.types.args import ArgProvider
+from devito.types.caching import Cached, _SymbolCache
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
-           'LocalObject', 'CompositeObject', 'CacheManager']
-
-# This cache stores a reference to each created data object
-# so that we may re-create equivalent symbols during symbolic
-# manipulation with the correct shapes, pointers, etc.
-_SymbolCache = {}
+           'LocalObject', 'CompositeObject']
 
 
 class Basic(object):
+
     """
     Three relevant types inherit from this class: ::
 
@@ -146,65 +140,6 @@ class Basic(object):
             such as float or int.
         """
         return
-
-
-class Cached(object):
-    """
-    Base class for symbolic objects that cache on the class type.
-
-    In order to maintain meta information across the numerous
-    re-instantiation SymPy performs during symbolic manipulation, we inject
-    the symbol name as the class name and cache all created objects on that
-    name. This entails that a symbolic object inheriting from Cached should
-    implement `__init__` in the following way:
-
-        .. code-block::
-            def __init__(self, \*args, \*\*kwargs):
-                if not self._cached():
-                    ... # Initialise object properties from kwargs
-    """
-
-    class AugmentedWeakRef(weakref.ref):
-
-        def __new__(cls, obj, meta):
-            obj = super().__new__(cls, obj)
-            obj.nbytes = meta.get('nbytes', 0)
-            return obj
-
-    @classmethod
-    def _cached(cls):
-        """Test if current class is already in the symbol cache."""
-        return cls in _SymbolCache
-
-    @classmethod
-    def _cache_put(cls, obj):
-        """Store given object instance in symbol cache.
-
-        Parameters
-        ----------
-        obj : object
-            Object to be cached.
-        """
-        _SymbolCache[cls] = cls.AugmentedWeakRef(obj, obj._cache_meta())
-
-    @classmethod
-    def _symbol_type(cls, name):
-        """Create new type instance from cls and inject symbol name."""
-        return type(name, (cls, ), dict(cls.__dict__))
-
-    def _cache_meta(self):
-        """Additional attributes attached to a cached object."""
-        return {}
-
-    def _cached_init(self):
-        """Initialise symbolic object with a cached object state."""
-        original = _SymbolCache[self.__class__]
-        self.__dict__ = original().__dict__
-
-    def __hash__(self):
-        """The hash value of an object that caches on its type is the
-        hash value of the type itself."""
-        return hash(type(self))
 
 
 class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
@@ -1116,34 +1051,3 @@ class Indexed(sympy.Indexed):
     @property
     def name(self):
         return self.function.name
-
-# Utilities
-
-
-class CacheManager(object):
-
-    """
-    Drop unreferenced objects from the SymPy and Devito caches. The associated
-    data is lost (and thus memory is freed).
-    """
-
-    gc_ths = 3*10**8
-    """
-    The `clear` function will trigger garbage collection if at least one weak
-    reference points to an unreachable object whose size in bytes is greated
-    than the `gc_ths` value. Garbage collection is an expensive operation, so
-    we do it judiciously.
-    """
-
-    @classmethod
-    def clear(cls, force=True):
-        sympy.cache.clear_cache()
-
-        # Maybe trigger garbage collection
-        gc_trigger = force or any(i.nbytes > cls.gc_ths for i in _SymbolCache.values())
-        if gc_trigger:
-            gc.collect()
-
-        for key, obj in list(_SymbolCache.items()):
-            if obj() is None:
-                del _SymbolCache[key]

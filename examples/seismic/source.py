@@ -8,8 +8,7 @@ try:
 except:
     plt = None
 
-from devito.types import Dimension, SparseTimeFunction
-from devito.types.basic import _SymbolCache
+from devito.types import Dimension, SparseTimeFunction, _SymbolCache
 
 __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
            'RickerSource', 'GaborSource', 'DGaussSource', 'TimeAxis']
