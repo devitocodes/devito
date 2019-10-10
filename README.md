@@ -18,25 +18,9 @@ are facing issues or just trying it out, join the
 
 ## Quickstart
 
-The recommended way to install Devito uses the Conda package manager
-for installation of the necessary software dependencies. Please
-install either [Anaconda](https://www.continuum.io/downloads) or
-[Miniconda](https://conda.io/miniconda.html) using the instructions
-provided at the download links. You will need the Python 3.6 version.
-
-To install Devito, including examples, tests and tutorial notebooks,
-follow these simple passes:
-
-```sh
-git clone https://github.com/opesci/devito.git
-cd devito
-conda env create -f environment.yml
-source activate devito
-pip install -e .
-```
-
-Alternatively, you can also install and run Devito via
-[Docker](https://www.docker.com/):
+The recommended way to install Devito is with
+[Docker](https://www.docker.com/) and
+[docker-compose](https://docs.docker.com/compose/):
 
 ```sh
 # get the code
@@ -51,6 +35,27 @@ docker-compose up devito
 
 # start a bash shell with devito
 docker-compose run devito /bin/bash
+```
+
+The first docker-compose command you run will be slow as the container
+image is built. Subsequent calls to docker-compose will be much
+quicker.
+
+Alternatively you can use the Conda package manager for installation of
+the necessary software dependencies. Please install either
+[Anaconda](https://www.continuum.io/downloads) or
+[Miniconda](https://conda.io/miniconda.html) using the instructions
+provided at the download links. You will need the Python 3.6 version.
+
+To install Devito, including examples, tests and tutorial notebooks,
+follow these simple passes:
+
+```sh
+git clone https://github.com/opesci/devito.git
+cd devito
+conda env create -f environment.yml
+source activate devito
+pip install -e .
 ```
 
 ## Examples
