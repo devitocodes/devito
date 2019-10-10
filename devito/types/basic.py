@@ -147,7 +147,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     """
     Base class for scalar symbols.
 
-    The sub-hierarchy is structured as follows
+    The hierarchy is structured as follows
 
                              AbstractSymbol
                                    |
@@ -171,7 +171,28 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
     is_AbstractSymbol = True
 
-    _default_dtype = np.int32
+    def __new__(cls, *args, **kwargs):
+        # Create the new Symbol
+        # Note: use __xnew__ to bypass sympy caching
+        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
+
+        # Initialization
+        newobj._dtype = cls.__dtype_setup__(**kwargs)
+        newobj.__init_finalize__(*args, **kwargs)
+
+        return newobj
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        """Extract the object data type from ``kwargs``."""
+        return kwargs.get('dtype', np.int32)
+
+    def __init__(self, *args, **kwargs):
+        # no-op, the true init is performed by __init_finalize__
+        pass
+
+    def __init_finalize__(self, *args, **kwargs):
+        self._is_const = kwargs.get('is_const', False)
 
     @property
     def dtype(self):
@@ -209,27 +230,13 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def indexify(self):
         return self
 
-    def _subs(self, old, new, **hints):
-        """
-        This stub allows sympy.Basic.subs to operate on an expression
-        involving devito Scalars.  Ordinarily the comparisons between
-        devito subclasses of sympy types are quite strict.
-        """
-        try:
-            if old.name == self.name:
-                return new
-        except AttributeError:
-            pass
-
-        return self
-
     @property
     def is_const(self):
         """
         True if the symbol value cannot be modified within an Operator (and thus
         its value is provided by the user directly from Python-land), False otherwise.
         """
-        return False
+        return self._is_const
 
     @property
     def _C_name(self):
@@ -248,9 +255,23 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def _C_ctype(self):
         return dtype_to_ctype(self.dtype)
 
+    def _subs(self, old, new, **hints):
+        """
+        This stub allows sympy.Basic.subs to operate on an expression
+        involving devito Scalars.  Ordinarily the comparisons between
+        devito subclasses of sympy types are quite strict.
+        """
+        try:
+            if old.name == self.name:
+                return new
+        except AttributeError:
+            pass
+
+        return self
+
     # Pickling support
-    _pickle_args = ['name']
-    _pickle_kwargs = ['dtype']
+    _pickle_args = []
+    _pickle_kwargs = ['name', 'dtype', 'is_const']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -315,28 +336,7 @@ class AbstractCachedUniqueSymbol(AbstractSymbol, Cached):
 
             return newobj
 
-    def __init__(self, *args, **kwargs):
-        # no-op, the true init is performed by __init_finalize__
-        pass
-
-    def __init_finalize__(self, *args, **kwargs):
-        self._is_const = kwargs.get('is_const')
-
     __hash__ = Cached.__hash__
-
-    @classmethod
-    def __dtype_setup__(cls, **kwargs):
-        """Extract the object data type from ``kwargs``."""
-        return kwargs.get('dtype', cls._default_dtype)
-
-    @property
-    def is_const(self):
-        return self._is_const
-
-    # Pickling support
-    _pickle_args = []
-    _pickle_kwargs = ['name', 'dtype', 'is_const']
-    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class AbstractCachedMultiSymbol(AbstractSymbol, Cached):
@@ -377,28 +377,9 @@ class AbstractCachedMultiSymbol(AbstractSymbol, Cached):
 
             return newobj
 
-    def __init__(self, *args, **kwargs):
-        # no-op, the true init is performed by __init_finalize__
-        pass
-
-    def __init_finalize__(self, *args, **kwargs):
-        self._is_const = kwargs.get('is_const')
-
     __hash__ = Cached.__hash__
 
-    @classmethod
-    def __dtype_setup__(cls, **kwargs):
-        """Extract the object data type from ``kwargs``."""
-        return kwargs.get('dtype', cls._default_dtype)
-
-    @property
-    def is_const(self):
-        return self._is_const
-
     # Pickling support
-    _pickle_args = []
-    _pickle_kwargs = ['name', 'dtype', 'is_const']
-    __reduce_ex__ = Pickable.__reduce_ex__
 
     @property
     def _pickle_reconstruct(self):
@@ -435,7 +416,9 @@ class Scalar(Symbol, ArgProvider):
 
     is_Scalar = True
 
-    _default_dtype = np.float32
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return kwargs.get('dtype', np.float32)
 
 
 class AbstractFunction(sympy.Function, Basic, Pickable):
@@ -443,7 +426,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
     Base class for tensor symbols, only cached by SymPy. It inherits from and
     mimick the behaviour of a sympy.Function.
 
-    The sub-hierarchy is structured as follows
+    The hierarchy is structured as follows
 
                          AbstractFunction
                                 |
