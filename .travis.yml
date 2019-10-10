@@ -96,6 +96,13 @@ install:
       pip install -e .;
       conda list;
     fi
+  - if [[ $INSTALL_TYPE == 'conda' ]]; then
+      cd ../;
+      git clone https://github.com/opesci/opescibench.git;
+      cd opescibench;
+      pip install -e .;
+      cd ../devito;
+    fi
   - if [[ "$MPI_INSTALL" == '1' ]]; then
       pip install -r requirements-optional.txt;
     fi
@@ -131,6 +138,17 @@ script:
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test examples/cfd/example_diffusion.py; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test examples/seismic/elastic/elastic_example.py; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test examples/seismic/viscoelastic/viscoelastic_example.py; fi
+
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py test -P tti -so 4 -d 20 20 20 -n 5; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py test -P acoustic; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py bench -P acoustic; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py bench -P elastic; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py bench -P tti; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py bench -P viscoelastic; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py plot -P acoustic --flop-ceil 80 linpack --max-bw 12.8; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py plot -P elastic --flop-ceil 80 linpack --max-bw 12.8; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py plot -P viscoelastic --flop-ceil 80 linpack --max-bw 12.8; fi
+  - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py plot -P tti --flop-ceil 80 linpack --max-bw 12.8; fi
   # Test tutorial notebooks for the website using nbval
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/cfd; fi
   - if [[ $RUN_EXAMPLES == 'True' ]]; then py.test --nbval examples/seismic/tutorials; fi
