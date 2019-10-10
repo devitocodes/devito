@@ -24,13 +24,13 @@ from devito.tools import (EnrichedTuple, ReducerMap, as_tuple, flatten, is_integ
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
-from devito.types.basic import AbstractCachedFunction
+from devito.types.basic import AbstractFunction
 from devito.types.utils import Buffer, NODE, CELL
 
 __all__ = ['Function', 'TimeFunction']
 
 
-class DiscreteFunction(AbstractCachedFunction, ArgProvider):
+class DiscreteFunction(AbstractFunction, ArgProvider):
     """
     Symbol representing a discrete array in symbolic equations. Unlike an
     Array, a DiscreteFunction carries data.
@@ -103,7 +103,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         # sympify(), so here we rather check for idendity
         return all(i is j for i, j in zip(self.args, other.args))
 
-    __hash__ = AbstractCachedFunction.__hash__  # Required since we're overriding __eq__
+    __hash__ = AbstractFunction.__hash__  # Required since we're overriding __eq__
 
     def _allocate_memory(func):
         """Allocate memory as a Data."""
@@ -313,8 +313,8 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
             retval.append(size.glb if size is not None else s)
         return tuple(retval)
 
-    _offset_inhalo = AbstractCachedFunction._offset_halo
-    _size_inhalo = AbstractCachedFunction._size_halo
+    _offset_inhalo = AbstractFunction._offset_halo
+    _size_inhalo = AbstractFunction._size_halo
 
     @cached_property
     def _size_outhalo(self):
@@ -826,7 +826,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
         return ReducerMap({key.name: self._C_make_dataobj(args[key.name])})
 
     # Pickling support
-    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs +\
+    _pickle_kwargs = AbstractFunction._pickle_kwargs +\
         ['grid', 'staggered', 'initializer']
 
 
