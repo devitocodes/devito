@@ -26,6 +26,21 @@ class Dimension(ArgProvider):
     into Functions, but it can also appear in the middle of a symbolic expression
     just like any other symbol.
 
+    Dimension is the root of a hierarchy of classes, which looks as follows (only
+    the classes exposed to the level of the user API are shown).
+
+                                      Dimension
+                                          |
+                             ---------------------------
+                             |                         |
+                      BasicDimension            DefaultDimension
+                             |
+                     DerivedDimension
+                             |
+          ----------------------------------------
+          |                  |                   |
+    SteppingDimension   SubDimension   ConditionalDimension
+
     Parameters
     ----------
     name : str
@@ -85,9 +100,7 @@ class Dimension(ArgProvider):
     is_Modulo = False
     is_Incr = False
 
-    # Unlike other Symbols, Dimensions can only be integers
-    dtype = np.int32
-    _C_typename = 'const %s' % dtype_to_cstr(dtype)
+    _C_typename = 'const %s' % dtype_to_cstr(np.int32)
     _C_typedata = _C_typename
 
     def __new__(cls, *args, **kwargs):
@@ -103,6 +116,11 @@ class Dimension(ArgProvider):
             return BasicDimension(*args, **kwargs)
         else:
             return BasicDimension.__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        # Unlike other Symbols, Dimensions can only be integers
+        return np.int32
 
     def __str__(self):
         return self.name
