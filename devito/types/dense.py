@@ -31,9 +31,10 @@ __all__ = ['Function', 'TimeFunction']
 
 
 class DiscreteFunction(AbstractFunction, ArgProvider):
+
     """
-    Symbol representing a discrete array in symbolic equations. Unlike an
-    Array, a DiscreteFunction carries data.
+    Tensor symbol representing a discrete function in symbolic equations.
+    Unlike an Array, a DiscreteFunction carries data.
 
     Notes
     -----
@@ -831,8 +832,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
 
 
 class Function(DiscreteFunction, Differentiable):
+
     """
-    Discretized symbol representing an array in symbolic equations.
+    Tensor symbol representing a discrete function in symbolic equations.
 
     A Function carries multi-dimensional data and provides operations to create
     finite-differences approximations.
@@ -1099,11 +1101,14 @@ class Function(DiscreteFunction, Differentiable):
 
 
 class TimeFunction(Function):
+
     """
-    Tensor symbol representing a space- and time-varying array in symbolic equations.
+    Tensor symbol representing a discrete function in symbolic equations.
 
     A TimeFunction carries multi-dimensional data and provides operations to create
     finite-differences approximations, in both space and time.
+
+    A TimeFunction encapsulates space- and time-varying data.
 
     Parameters
     ----------
@@ -1316,6 +1321,7 @@ class TimeFunction(Function):
 
 
 class SubFunction(Function):
+
     """
     A Function bound to a "parent" DiscreteFunction.
 
