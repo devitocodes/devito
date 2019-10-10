@@ -184,7 +184,7 @@ class CGen(Visitor):
                     ret.append(self.visit(i).text)
                 elif i.is_LocalObject:
                     ret.append('&%s' % i._C_name)
-                elif i.is_Array or (hasattr(i, 'is_TypeCast') and i.is_TypeCast):
+                elif i.is_Array:
                     ret.append("(%s)%s" % (i._C_typename, i.name))
                 else:
                     ret.append(i._C_name)

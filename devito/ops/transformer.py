@@ -209,7 +209,9 @@ def create_ops_memory_call(f, name_to_ops_dat, time_iteration, func):
     # to generate a C code like: `v`. Instead, I am generating `&(v[0][0][0])`.
     ops_indices = lambda x: [0 if i.is_Space else time_access(x) for i in f.indices]
 
-    casted_data = lambda x: TypeCast(Byref(f.indexify(ops_indices(x))), ctypes.c_char_p)
+    casted_data = lambda x: TypeCast(name=Byref(f.indexify(ops_indices(x))),
+                                     dtype=str,
+                                     cast_to_ctype=ctypes.c_char_p)
 
     if f.is_TimeFunction:
         ops_fetch = [func(name_to_ops_dat[f.name].indexify([time_access(i)]),
