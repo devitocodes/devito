@@ -90,7 +90,7 @@ class TestCodeGen(object):
         time_iter = time_iter[0]
 
         # Check uindices in Iteration header
-        signatures = [i._properties for i in time_iter.uindices]
+        signatures = [(i._offset, i._modulo) for i in time_iter.uindices]
         assert len(signatures) == len(exp_uindices)
         assert all(i in signatures for i in exp_uindices)
 
