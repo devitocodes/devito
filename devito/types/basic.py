@@ -415,17 +415,15 @@ class Scalar(Symbol, ArgProvider):
         return kwargs.get('dtype', np.float32)
 
 
-class AbstractFunction(sympy.Function, Basic, Pickable):
+class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     """
-    Base class for tensor symbols, only cached by SymPy. It inherits from and
-    mimick the behaviour of a sympy.Function.
+    Base class for tensor symbols, cached by both SymPy and Devito. It inherits
+    from and mimick the behaviour of a sympy.Function.
 
     The hierarchy is structured as follows
 
                          AbstractFunction
-                                |
-                      AbstractCachedFunction
                                 |
                  ---------------------------------
                  |                               |
@@ -464,14 +462,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
 
     is_AbstractFunction = True
 
-
-class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
-    """
-    Base class for tensor symbols, cached by both Devito and Sympy.
-
-    For more information, refer to ``AbstractFunction.__doc__``.
-    """
-
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
         if cls._cached():
@@ -495,9 +485,9 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
             newobj._dtype = cls.__dtype_setup__(**kwargs)
             newobj.__init_finalize__(*args, **kwargs)
 
-            # All objects cached on the AbstractFunction /newobj/ keep a reference
-            # to /newobj/ through the /function/ field. Thus, all indexified
-            # object will point to /newobj/, the "actual Function".
+            # All objects cached on the AbstractFunction `newobj` keep a reference
+            # to `newobj` through the `function` field. Thus, all indexified
+            # object will point to `newobj`, the "actual Function".
             newobj.function = newobj
 
             # Store new instance in symbol cache
@@ -779,7 +769,7 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         return self.__class__.__base__
 
 
-class Array(AbstractCachedFunction):
+class Array(AbstractFunction):
     """
     Tensor symbol representing an array in symbolic equations.
 
@@ -814,7 +804,7 @@ class Array(AbstractCachedFunction):
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
-        return AbstractCachedFunction.__new__(cls, *args, **kwargs)
+        return AbstractFunction.__new__(cls, *args, **kwargs)
 
     def __init_finalize__(self, *args, **kwargs):
         super(Array, self).__init_finalize__(*args, **kwargs)
@@ -897,7 +887,7 @@ class Array(AbstractCachedFunction):
         assert self._scope in ['heap', 'stack']
 
     # Pickling support
-    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['dimensions', 'scope']
+    _pickle_kwargs = AbstractFunction._pickle_kwargs + ['dimensions', 'scope']
 
 
 # Objects belonging to the Devito API not involving data, such as data structures
