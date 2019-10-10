@@ -202,6 +202,14 @@ class Allocator(object):
         """Define an Array or a composite type (e.g., a struct) on the stack."""
         handle = self.stack.setdefault(scope, OrderedDict())
 
+        for k, v in self.stack.items():
+            try:
+                if obj in self.stack[k]:
+                    return
+            except TypeError:
+                # E.g., non-iterable argument
+                pass
+
         if obj.is_LocalObject:
             handle[obj] = Element(c.Value(obj._C_typename, obj.name))
         else:
