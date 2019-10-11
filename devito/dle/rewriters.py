@@ -427,8 +427,8 @@ class PlatformRewriter(AbstractRewriter):
                     except IndexError:
                         # Fallback: use the outermost Iteration
                         candidate = tree.root
-                    mapper[candidate] = candidate._rebuild(nodes=((prodder._rebuild(),) +
-                                                                  candidate.nodes))
+                    mapper[candidate] = candidate._rebuild(nodes=(candidate.nodes +
+                                                                  (prodder._rebuild(),)))
                     mapper[prodder] = None
 
         iet = Transformer(mapper, nested=True).visit(iet)

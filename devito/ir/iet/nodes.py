@@ -23,7 +23,7 @@ from devito.types.basic import AbstractFunction
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'ArrayCast', 'ForeignExpression', 'HaloSpot', 'IterationTree',
-           'ExpressionBundle', 'Increment', 'Return']
+           'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return', 'While']
 
 # First-class IET nodes
 
@@ -36,6 +36,7 @@ class Node(Signer):
     is_Block = False
     is_Iteration = False
     is_IterationFold = False
+    is_While = False
     is_Expression = False
     is_Increment = False
     is_ForeignExpression = False
@@ -316,11 +317,23 @@ class Expression(Simple, Node):
         return tuple(filter_ordered(functions))
 
 
-class Increment(Expression):
+class AugmentedExpression(Expression):
 
-    """A node representing a += increment."""
+    """A node representing an augmented assignment, such as +=, -=, &=, ...."""
 
     is_Increment = True
+
+    def __init__(self, expr, op):
+        super(AugmentedExpression, self).__init__(expr)
+        self.op = op
+
+
+class Increment(AugmentedExpression):
+
+    """Shortcut for ``AugmentedExpression(expr, '+'), since it's so widely used."""
+
+    def __init__(self, expr):
+        super(Increment, self).__init__(expr, '+')
 
 
 class Iteration(Node):
@@ -519,6 +532,31 @@ class Iteration(Node):
     def write(self):
         """All Functions written to in this Iteration"""
         return []
+
+
+class While(Node):
+
+    """
+    Implement a while-loop.
+
+    Parameters
+    ----------
+    condition : sympy.Function or sympy.Relation or bool
+        The while-loop exit condition.
+    body : Node or list of Node, optional
+        The whie-loop body.
+    """
+
+    is_While = True
+
+    _traversable = ['body']
+
+    def __init__(self, condition, body=None):
+        self.condition = condition
+        self.body = as_tuple(body)
+
+    def __repr__(self):
+        return "<While %s; %d>" % (self.condition, len(self.body))
 
 
 class Callable(Node):

@@ -10,8 +10,8 @@ from sympy import Integer
 from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocator
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
-                           Iteration, LocalExpression, List, Prodder, PARALLEL,
-                           make_efunc, FindNodes, Transformer)
+                           AugmentedExpression, Iteration, List, Prodder, Return,
+                           PARALLEL, make_efunc, FindNodes, Transformer)
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro)
@@ -822,22 +822,32 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
             return make_efunc('compute%d' % key, iet, hs.arguments)
 
     def _make_poke(self, hs, key, msgs):
-        flag = Symbol(name='flag')
-        initflag = LocalExpression(DummyEq(flag, 0))
+        lflag = Symbol(name='lflag')
+        gflag = Symbol(name='gflag')
 
-        body = [initflag]
+        # Init flags
+        body = [Expression(DummyEq(lflag, 0)),
+                Expression(DummyEq(gflag, 1))]
+
+        # For each msg, build an Iteration calling MPI_Test on all peers
         for msg in msgs:
             dim = Dimension(name='i')
             msgi = IndexedPointer(msg, dim)
 
             rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
+            testrecv = Call('MPI_Test', [rrecv, Byref(lflag), Macro('MPI_STATUS_IGNORE')])
+
             rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
-            testrecv = Call('MPI_Test', [rrecv, Byref(flag), Macro('MPI_STATUS_IGNORE')])
-            testsend = Call('MPI_Test', [rsend, Byref(flag), Macro('MPI_STATUS_IGNORE')])
+            testsend = Call('MPI_Test', [rsend, Byref(lflag), Macro('MPI_STATUS_IGNORE')])
 
-            body.append(Iteration([testsend, testrecv], dim, msg.npeers - 1))
+            update = AugmentedExpression(DummyEq(gflag, lflag), '&')
 
-        return make_efunc('pokempi%d' % key, body)
+            body.append(Iteration([testsend, update, testrecv, update],
+                                  dim, msg.npeers - 1))
+
+        body.append(Return(gflag))
+
+        return make_efunc('pokempi%d' % key, List(body=body), retval='int')
 
     def _call_poke(self, poke):
         return Prodder(poke.name, poke.parameters, single_thread=True, periodic=True)

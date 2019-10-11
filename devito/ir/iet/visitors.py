@@ -112,10 +112,23 @@ class PrintAST(Visitor):
             detail, props = '', ''
         return self.indent + "<%sIteration %s%s>\n%s" % (props, o.dim.name, detail, body)
 
+    def visit_While(self, o):
+        self._depth += 1
+        body = self._visit(o.children)
+        self._depth -= 1
+        return self.indent + "<While %s>\n%s" % (o.condition, body)
+
     def visit_Expression(self, o):
         if self.verbose:
             body = "%s = %s" % (o.expr.lhs, o.expr.rhs)
             return self.indent + "<Expression %s>" % body
+        else:
+            return self.indent + str(o)
+
+    def visit_AugmentedExpression(self, o):
+        if self.verbose:
+            body = "%s %s= %s" % (o.expr.lhs, o.op, o.expr.rhs)
+            return self.indent + "<%s %s>" % (o.__class__.__name__, body)
         else:
             return self.indent + str(o)
 
@@ -218,9 +231,9 @@ class CGen(Visitor):
         return c.Assign(ccode(o.expr.lhs, dtype=o.dtype),
                         ccode(o.expr.rhs, dtype=o.dtype))
 
-    def visit_Increment(self, o):
-        return c.Statement("%s += %s" % (ccode(o.expr.lhs, dtype=o.dtype),
-                                         ccode(o.expr.rhs, dtype=o.dtype)))
+    def visit_AugmentedExpression(self, o):
+        return c.Statement("%s %s= %s" % (ccode(o.expr.lhs, dtype=o.dtype), o.op,
+                                          ccode(o.expr.rhs, dtype=o.dtype)))
 
     def visit_LocalExpression(self, o):
         if o.write.is_Array:
@@ -298,6 +311,15 @@ class CGen(Visitor):
             handle = c.Module(o.pragmas + (handle,))
 
         return handle
+
+    def visit_While(self, o):
+        condition = ccode(o.condition)
+        if o.body:
+            body = flatten(self._visit(i) for i in o.children)
+            return c.While(condition, body)
+        else:
+            # Hack: cgen doesn't support body-less while-loops, i.e. `while(...);`
+            return c.Statement('while(%s)' % condition)
 
     def visit_Callable(self, o):
         body = flatten(self._visit(i) for i in o.children)
