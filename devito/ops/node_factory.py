@@ -43,8 +43,8 @@ class OPSNodeFactory(object):
         if ops_arg_id not in self.ops_args:
             symbol_to_access = OpsAccessible(
                 ops_arg_id,
-                indexed.dtype,
-                not is_write
+                dtype=indexed.dtype,
+                read_only=not is_write
             )
 
             accessible_info = AccessibleInfo(
