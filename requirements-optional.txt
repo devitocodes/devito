@@ -1,3 +1,4 @@
 mpi4py
 matplotlib
 ipyparallel
+pyzfp>=0.2
