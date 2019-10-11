@@ -22,7 +22,7 @@ from devito.tools import (EnrichedTuple, Evaluable, Pickable,
 from devito.types.args import ArgProvider
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
-           'LocalObject', 'CompositeObject']
+           'LocalObject', 'CompositeObject', 'TypeCast']
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
@@ -1105,6 +1105,25 @@ class Indexed(sympy.Indexed):
     @property
     def name(self):
         return self.function.name
+
+
+class TypeCast(Object):
+    """
+        An object encapsulating a cast to a raw C type.
+    """
+
+    def __init__(self, name, dtype, cast_to_ctype):
+        self.cast_to_ctype = cast_to_ctype
+        self.dtype = dtype
+        self.name = name
+
+    @property
+    def _C_name(self):
+        return '(%s)%s' % (ctypes_to_cstr(self.cast_to_ctype), str(self.name))
+
+    @property
+    def value(self):
+        return self.name
 
 # Utilities
 

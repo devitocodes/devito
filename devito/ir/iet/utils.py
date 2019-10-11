@@ -4,7 +4,7 @@ from devito.ir.iet import (Iteration, List, IterationTree, FindSections, FindSym
                            FindNodes, Section, Expression)
 from devito.symbolics import Literal, Macro
 from devito.tools import flatten, ReducerMap
-from devito.types import Array, LocalObject
+from devito.types import Array, LocalObject, TypeCast
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree',
            'compose_nodes', 'derive_parameters', 'find_affine_trees']
@@ -111,6 +111,9 @@ def derive_parameters(nodes, drop_locals=False):
 
     # Drop globally-visible objects
     parameters = [p for p in parameters if not isinstance(p, (Literal, Macro))]
+
+    # Drop cast objects
+    parameters = [p for p in parameters if not isinstance(p, (TypeCast))]
 
     # Filter out locally-allocated Arrays and Objects
     if drop_locals:

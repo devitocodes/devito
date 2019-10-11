@@ -10,11 +10,11 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Call, Callable, Expression, IterationTree
 from devito.ir.iet.visitors import FindNodes
 from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil, TypeCast
+from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
 from devito.ops.utils import namespace
 from devito.symbolics import Add, Byref, ListInitializer, Literal
 from devito.tools import dtype_to_cstr
-from devito.types import Constant, DefaultDimension, Symbol
+from devito.types import Constant, DefaultDimension, Symbol, TypeCast
 
 
 def opsit(trees, count, name_to_ops_dat, block, dims):
@@ -149,6 +149,8 @@ def create_ops_dat(f, name_to_ops_dat, block):
         for i in range(time_dims):
             name = '%s%s%s' % (f.name, time_index, i)
 
+            ops_indices = [0 if a.is_Space else i for a in f.indices]
+
             dat_decls.append(namespace['ops_decl_dat'](
                 block,
                 1,
@@ -156,7 +158,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                Byref(f.indexify([i])),
+                Byref(f.indexify(ops_indices)),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % name)
             ))
@@ -209,7 +211,7 @@ def create_ops_memory_call(f, name_to_ops_dat, time_iteration, func):
     # to generate a C code like: `v`. Instead, I am generating `&(v[0][0][0])`.
     ops_indices = lambda x: [0 if i.is_Space else time_access(x) for i in f.indices]
 
-    casted_data = lambda x: TypeCast(name=Byref(f.indexify(ops_indices(x))),
+    casted_data = lambda x: TypeCast(name=str(Byref(f.indexify(ops_indices(x)))),
                                      dtype=str,
                                      cast_to_ctype=ctypes.c_char_p)
 
