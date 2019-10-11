@@ -827,16 +827,14 @@ class TestCodeGeneration(object):
         call = tree.root.nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
-        try:
+        if configuration['openmp']:
             # W/ OpenMP, we prod until all comms have completed
             assert call.then_body[0].body[0].is_While
             # W/ OpenMP, we expect dynamic thread scheduling
             assert 'dynamic,1' in tree.root.pragmas[0].value
-            assert configuration['openmp']
-        except AttributeError:
+        else:
             # W/o OpenMP, it's a different story
             assert call._single_thread
-            assert not configuration['openmp']
 
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
@@ -850,16 +848,14 @@ class TestCodeGeneration(object):
         call = tree.root.nodes[0].nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
-        try:
+        if configuration['openmp']:
             # W/ OpenMP, we prod until all comms have completed
             assert call.then_body[0].body[0].is_While
             # W/ OpenMP, we expect dynamic thread scheduling
             assert 'dynamic,1' in tree.root.pragmas[0].value
-            assert configuration['openmp']
-        except AttributeError:
+        else:
             # W/o OpenMP, it's a different story
             assert call._single_thread
-            assert not configuration['openmp']
 
 
 class TestOperatorAdvanced(object):
