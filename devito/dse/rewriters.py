@@ -385,7 +385,7 @@ class AggressiveRewriter(AdvancedRewriter):
             for j = 2, m-1
                 a[i,j] = (a[a-1,j] + a[i,j-1] + a[i+1,j] + a[i,j+1]) / 4
             end for
-        end for     
+        end for
 
         to
 
