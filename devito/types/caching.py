@@ -58,7 +58,7 @@ class Cached(object):
             The cache key.
         """
         # Precompute hash. This uniquely depends on the cache key
-        self._hash_from_cachekey = hash(key)
+        self._cache_key_hash = hash(key)
 
         # Add ourselves to the symbol cache
         _SymbolCache[key] = AugmentedWeakRef(self, self._cache_meta())
@@ -68,7 +68,7 @@ class Cached(object):
         The hash value of an object that caches on its type is the
         hash value of the type itself.
         """
-        return self._hash_from_cachekey
+        return self._cache_key_hash
 
     def _cache_meta(self):
         """
