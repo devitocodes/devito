@@ -111,7 +111,13 @@ class Function(dense.Function, Signer):
         return wrapper
 
     def __del__(self):
-        if self._data is not None:
+        if self._data is None:
+            # Perhaps data had never been allocated
+            return
+        if self is self.function:
+            # The original Function (e.g., f(x, y)) is in charge of freeing memory,
+            # while this is a no-op for all other objects derived from it (e.g.,
+            # (e.g., f(x+1, y), f(x, y-2))
             self._data.release_storage()
 
     @property
