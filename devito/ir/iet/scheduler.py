@@ -7,7 +7,7 @@ from devito.ir.iet import (ArrayCast, Expression, Increment, LocalExpression, El
                            ExpressionBundle, Transformer, FindNodes, FindSymbols,
                            MapExprStmts, XSubs, iet_analyze)
 from devito.symbolics import IntDiv, ccode, xreplace_indices
-from devito.tools import as_mapper, as_tuple
+from devito.tools import as_mapper, as_tuple, flatten
 from devito.types import ConditionalDimension
 
 __all__ = ['iet_build', 'iet_insert_decls', 'iet_insert_casts']
@@ -202,13 +202,8 @@ class Allocator(object):
         """Define an Array or a composite type (e.g., a struct) on the stack."""
         handle = self.stack.setdefault(scope, OrderedDict())
 
-        for k, v in self.stack.items():
-            try:
-                if obj in self.stack[k]:
-                    return
-            except TypeError:
-                # E.g., non-iterable argument
-                pass
+        if obj in flatten(self.stack.values()):
+            return
 
         if obj.is_LocalObject:
             handle[obj] = Element(c.Value(obj._C_typename, obj.name))
