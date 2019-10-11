@@ -522,6 +522,23 @@ class TestCaching(object):
             assert i.indexify().base.function.space_order ==\
                 (i.indexify() + 1.).args[1].base.function.space_order
 
+    def test_reinsertion_after_deletion(self, operate_on_empty_cache):
+        """
+        Test that dead weakrefs in the symbol cache do not cause any issues when
+        objects with the same key/hash are reinserted.
+        """
+        d = Dimension(name='d')
+        del d
+
+        # `d` has just been deleted, but a weakref pointing to a dead object is still
+        # in the symbol cache at this point; `h_d` is still in the cache too, dead too
+        assert len(_SymbolCache) == 2
+        assert all(i() is None for i in _SymbolCache.values())
+
+        d = Dimension(name='d')  # noqa
+        assert len(_SymbolCache) == 2
+        assert all(i() is not None for i in _SymbolCache.values())
+
 
 class TestMemoryLeaks(object):
 
