@@ -96,13 +96,6 @@ install:
       pip install -e .;
       conda list;
     fi
-  - if [[ $INSTALL_TYPE == 'conda' ]]; then
-      cd ../;
-      git clone https://github.com/opesci/opescibench.git;
-      cd opescibench;
-      pip install -e .;
-      cd ../devito;
-    fi
   - if [[ "$MPI_INSTALL" == '1' ]]; then
       pip install -r requirements-optional.txt;
     fi
