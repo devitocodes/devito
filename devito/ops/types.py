@@ -29,16 +29,12 @@ class OpsAccessible(basic.Symbol):
         Any object that can be interpreted as a numpy data type. Defaults
         to ``np.float32``.
     """
+
     is_Scalar = True
 
-    def __new__(cls, name, dtype, read_only, *args, **kwargs):
-        obj = basic.Symbol.__new__(cls, name, dtype, *args, **kwargs)
-        obj.__init__(name, dtype, read_only, *args, **kwargs)
-        return obj
-
-    def __init__(self, name, dtype, read_only, *args, **kwargs):
+    def __init_finalize__(self, name, read_only=False, **kwargs):
         self.read_only = read_only
-        super().__init__(name, dtype, *args, **kwargs)
+        super().__init_finalize__(name, **kwargs)
 
     @property
     def _C_name(self):
@@ -119,6 +115,16 @@ class OpsAccess(basic.Basic, sympy.Basic):
     __repr__ = __str__
 
 
+class OpsBlock(basic.Symbol):
+
+    def __init_finalize__(self, name, *args, **kwargs):
+        super().__init_finalize__(name, np.void, *args, **kwargs)
+
+    @property
+    def _C_typedata(self):
+        return namespace['ops_block_type']
+
+
 class OpsStencil(basic.LocalObject):
 
     def __init__(self, name, *args, **kwargs):
@@ -127,16 +133,6 @@ class OpsStencil(basic.LocalObject):
     @property
     def _C_typename(self):
         return namespace['ops_stencil_type']
-
-
-class OpsBlock(basic.Symbol):
-
-    def __init__(self, name, *args, **kwargs):
-        super().__init__(name, np.void, *args, **kwargs)
-
-    @property
-    def _C_typedata(self):
-        return namespace['ops_block_type']
 
 
 class OpsDat(basic.LocalObject):
