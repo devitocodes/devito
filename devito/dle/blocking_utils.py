@@ -10,7 +10,7 @@ from devito.ir.iet import (Expression, Iteration, List, FindAdjacent, FindNodes,
 from devito.exceptions import InvalidArgument
 from devito.symbolics import as_symbol, xreplace_indices
 from devito.tools import all_equal, as_tuple, flatten
-from devito.types import IncrDimension, Scalar
+from devito.types import IncrDimension, Scalar, _SymbolCache
 
 __all__ = ['Blocker', 'BlockDimension']
 
@@ -74,8 +74,19 @@ class Blocker(object):
                 # Build Iteration across all `level_i` blocks, `i` in (1, self.nlevels]
                 for n, li in enumerate(level_i, 1):
                     di = BlockDimension(d, name=template % n)
-                    li.append(Iteration([], di, limits=(d, d+d.step-1, di.step),
-                                        properties=properties))
+                    try:
+                        li.append(Iteration([], di, limits=(d, d+d.step-1, di.step),
+                                            properties=properties))
+                    except:
+                        print('d:', d)
+                        print('d.step:', d.step)
+                        print('di:', di)
+                        print('_SymbolCache follows')
+                        for k, v in _SymbolCache.items():
+                            print(k, v)
+                        # re-trigger failure
+                        li.append(Iteration([], di, limits=(d, d+d.step-1, di.step),
+                                            properties=properties))
                     d = di
 
                 # Build Iteration within the smallest block
