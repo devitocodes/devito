@@ -6,7 +6,7 @@ import pytest
 
 from conftest import skipif
 from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
-                    Eq, Operator, Constant, SubDimension, switchconfig)
+                    Eq, Operator, Constant, Dimension, SubDimension, switchconfig)
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
 from devito.types import Array
 
@@ -785,3 +785,32 @@ class TestConditionalDimension(object):
         assert np.all(usave.data[1] == 3)
         assert np.all(usave.data[2] == 5)
         assert np.all(usave.data[3] == 7)
+
+    def test_implicit_dims(self):
+        """
+        Test ConditionalDimension as an implicit dimension for an equation.
+        """
+
+        # This test makes an Operator that should create a vector of increasing
+        # integers, but stop incrementing when a certain stop value is reached
+
+        shape = (50,)
+        stop_value = 20
+
+        time = Dimension(name='time')
+        f = TimeFunction(name='f', shape=shape, dimensions=[time])
+
+        # The condition to stop incrementing
+        cond = ConditionalDimension(name='cond',
+                                    parent=time, condition=f[time] < stop_value)
+
+        eqs = [Eq(f.forward, f), Eq(f.forward, f.forward + 1, implicit_dims=[cond])]
+        op = Operator(eqs)
+        op.apply(time_M=shape[0] - 2)
+
+        # Make the same calculation in python to assert the result
+        F = np.zeros(shape[0])
+        for i in range(shape[0]):
+            F[i] = i if i < stop_value else stop_value
+
+        assert np.all(f.data == F)

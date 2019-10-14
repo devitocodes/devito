@@ -6,6 +6,7 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension,
                     Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, configuration, switchconfig)
 from devito.data import LEFT, RIGHT, Decomposition, loc_data_idx, convert_index
 from devito.tools import as_tuple
+from devito.data.allocators import ExternalAllocator
 
 pytestmark = skipif('ops')
 
@@ -1229,6 +1230,32 @@ def test_numpy_c_contiguous():
     grid = Grid(shape=(4, 4))
     u = Function(name='u', grid=grid, space_order=2)
     assert(u._data_allocated.flags.c_contiguous)
+
+
+@skipif(['yask', 'ops'])
+def test_external_allocator():
+    shape = (2, 2)
+    space_order = 0
+    numpy_array = np.ones(shape, dtype=np.float32)
+    g = Grid(shape)
+    f = Function(name='f', space_order=space_order, grid=g,
+                 allocator=ExternalAllocator(numpy_array), initializer=lambda x: None)
+
+    # Ensure the two arrays have the same value
+    assert(np.array_equal(f.data, numpy_array))
+
+    # Ensure the original numpy array is unchanged
+    assert(np.array_equal(numpy_array, np.ones(shape, dtype=np.float32)))
+
+    # Change the underlying numpy array
+    numpy_array[:] = 3.
+    # Ensure the function.data changes too
+    assert(np.array_equal(f.data, numpy_array))
+
+    # Change the function.data
+    f.data[:] = 4.
+    # Ensure the underlying numpy array changes too
+    assert(np.array_equal(f.data, numpy_array))
 
 
 if __name__ == "__main__":

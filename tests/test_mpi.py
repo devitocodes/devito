@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, Dimension, ConditionalDimension,
-                    SubDimension, Eq, Inc, NODE, Operator, norm, inner, switchconfig)
+                    SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
+                    Eq, Inc, NODE, Operator, norm, inner, configuration, switchconfig)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iteration_tree
 from devito.mpi import MPI
@@ -820,13 +820,21 @@ class TestCodeGeneration(object):
 
         trees = retrieve_iteration_tree(op._func_table['compute0'].root)
         assert len(trees) == 2
-        tree = trees[1]
-        # Make sure `pokempi0` is within the outer Iteration
+        tree = trees[0]
+        # Make sure `pokempi0` is the last node within the outer Iteration
         assert len(tree) == 2
         assert len(tree.root.nodes) == 2
-        call = tree.root.nodes[0]
+        call = tree.root.nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
+        if configuration['openmp']:
+            # W/ OpenMP, we prod until all comms have completed
+            assert call.then_body[0].body[0].is_While
+            # W/ OpenMP, we expect dynamic thread scheduling
+            assert 'dynamic,1' in tree.root.pragmas[0].value
+        else:
+            # W/o OpenMP, it's a different story
+            assert call._single_thread
 
         # Now we do as before, but enforcing loop blocking (by default off,
         # as heuristically it is not enabled when the Iteration nest has depth < 3)
@@ -834,12 +842,20 @@ class TestCodeGeneration(object):
         trees = retrieve_iteration_tree(op._func_table['bf0'].root)
         assert len(trees) == 2
         tree = trees[1]
-        # Make sure `pokempi0` is within the inner Iteration over blocks
-        assert len(tree) == 4
+        # Make sure `pokempi0` is the last node within the inner Iteration over blocks
+        assert len(tree) == 2
         assert len(tree.root.nodes[0].nodes) == 2
-        call = tree.root.nodes[0].nodes[0]
+        call = tree.root.nodes[0].nodes[1]
         assert call.name == 'pokempi0'
         assert call.arguments[0].name == 'msg0'
+        if configuration['openmp']:
+            # W/ OpenMP, we prod until all comms have completed
+            assert call.then_body[0].body[0].is_While
+            # W/ OpenMP, we expect dynamic thread scheduling
+            assert 'dynamic,1' in tree.root.pragmas[0].value
+        else:
+            # W/o OpenMP, it's a different story
+            assert call._single_thread
 
 
 class TestOperatorAdvanced(object):
@@ -1551,7 +1567,6 @@ class TestIsotropicAcoustic(object):
 
 
 if __name__ == "__main__":
-    from devito import configuration
     configuration['mpi'] = True
     # TestDecomposition().test_reshape_left_right()
     # TestOperatorSimple().test_trivial_eq_2d()
