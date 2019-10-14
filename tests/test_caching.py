@@ -6,7 +6,7 @@ import pytest
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
                     ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
-                    DefaultDimension, _SymbolCache, clear_cache)
+                    DefaultDimension, _SymbolCache, clear_cache, solve)
 from devito.types.basic import Scalar, Symbol
 
 pytestmark = skipif(['yask', 'ops'])
@@ -595,3 +595,30 @@ class TestMemoryLeaks(object):
         assert w_a() is None
         assert w_s() is None
         assert w_op() is None
+
+    def test_solve(self, operate_on_empty_cache):
+        """
+        Test to ensure clear_cache wipes out *all of* sympy caches. ``sympy.solve``,
+        in particular, relies on a series of private caches that must be purged too
+        (calling sympy's clear_cache() API function isn't enough).
+        """
+        grid = Grid(shape=(4,))
+
+        u = TimeFunction(name='u', grid=grid, time_order=1, space_order=2)
+
+        eqn = Eq(u.dt, u.dx2)
+        solve(eqn, u.forward)
+
+        del u
+        del eqn
+        del grid
+
+        # `u` points to the various Dimensions, the Dimensions point to the various
+        # spacing symbols, hence, we need three sweeps to clear up the cache
+        assert len(_SymbolCache) == 12
+        clear_cache()
+        assert len(_SymbolCache) == 8
+        clear_cache()
+        assert len(_SymbolCache) == 2
+        clear_cache()
+        assert len(_SymbolCache) == 0

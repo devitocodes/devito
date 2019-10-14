@@ -120,7 +120,14 @@ class CacheManager(object):
 
     @classmethod
     def clear(cls, force=True):
+        # Wipe out the "true" SymPy cache
         sympy.cache.clear_cache()
+
+        # Wipe out the hidden module-private SymPy caches
+        sympy.polys.rootoftools.ComplexRootOf.clear_cache()
+        sympy.polys.rings._ring_cache.clear()
+        sympy.polys.fields._field_cache.clear()
+        sympy.polys.domains.modularinteger._modular_integer_cache.clear()
 
         # Maybe trigger garbage collection
         fire_gc = force or any(i.nbytes > cls.gc_ths for i in _SymbolCache.values())
