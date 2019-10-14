@@ -118,6 +118,14 @@ class CacheManager(object):
     we do it judiciously.
     """
 
+    force_ths = 100
+    """
+    After `force_ths` *consecutive* calls ``clear(force=False)``, the flag
+    ``force`` is ignored, and thus ``clear(force=True)`` is executed.
+    ``
+    """
+    ncalls_w_force_false = 0
+
     @classmethod
     def clear(cls, force=True):
         # Wipe out the "true" SymPy cache
@@ -130,8 +138,19 @@ class CacheManager(object):
         sympy.polys.domains.modularinteger._modular_integer_cache.clear()
 
         # Maybe trigger garbage collection
-        fire_gc = force or any(i.nbytes > cls.gc_ths for i in _SymbolCache.values())
-        if fire_gc:
+        if force is False:
+            if cls.ncalls_w_force_false + 1 == cls.force_ths:
+                # Case 1: too long since we called gc.collect, let's do it now
+                gc.collect()
+                cls.ncalls_w_force_false = 0
+            elif any(i.nbytes > cls.gc_ths for i in _SymbolCache.values()):
+                # Case 2: we got big objects in cache, we try to reclaim memory
+                gc.collect()
+                cls.ncalls_w_force_false = 0
+            else:
+                # We won't call gc.collect() this time
+                cls.ncalls_w_force_false += 1
+        else:
             gc.collect()
 
         for key, obj in list(_SymbolCache.items()):
