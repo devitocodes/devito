@@ -3,7 +3,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.finite_differences import generate_indices, form_side
-from devito.tools import filter_ordered
+from devito.tools import filter_ordered, as_tuple
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
@@ -50,24 +50,18 @@ class Coefficient(object):
         self._check_input(deriv_order, function, dimension, weights)
 
         # Ensure the given set of weights is the correct length
+        try:
+            wl = weights.shape[-1]-1
+        except AttributeError:
+            wl = len(weights)-1
         if dimension.is_Time:
-            if isinstance(weights, np.ndarray):
-                if len(weights)-1 != function.time_order:
-                    raise ValueError("Number FD weights provided does not "
-                                     "match the functions space_order")
-            else:
-                if weights.shape[-1]-1 != function.time_order:
-                    raise ValueError("Number FD weights provided does not "
-                                     "match the functions space_order")
+            if wl != function.time_order:
+                raise ValueError("Number of FD weights provided does not "
+                                 "match the functions space_order")
         elif dimension.is_Space:
-            if isinstance(weights, np.ndarray):
-                if len(weights)-1 != function.space_order:
-                    raise ValueError("Number FD weights provided does not "
-                                     "match the functions space_order")
-            else:
-                if weights.shape[-1]-1 != function.space_order:
-                    raise ValueError("Number FD weights provided does not "
-                                     "match the functions space_order")
+            if wl != function.space_order:
+                raise ValueError("Number of FD weights provided does not "
+                                 "match the functions space_order")
 
         self._deriv_order = deriv_order
         self._function = function
@@ -97,8 +91,6 @@ class Coefficient(object):
     def _check_input(self, deriv_order, function, dimension, weights):
         if not isinstance(deriv_order, int):
             raise TypeError("Derivative order must be an integer")
-        # NOTE: Can potentially be tidied up following the implementation
-        # of lazy evaluation.
         try:
             if not function.is_Function:
                 raise TypeError("Object is not of type Function")
@@ -110,7 +102,6 @@ class Coefficient(object):
         except AttributeError:
             raise TypeError("Coefficients must be attached to a valid dimension")
         try:
-            # FIXME: Add necessary checks for Function weights here.
             weights.is_Function is True
         except AttributeError:
             if not isinstance(weights, np.ndarray):
@@ -208,19 +199,11 @@ class Substitutions(object):
                 shape = weights.shape
                 x = weights.dimensions
                 for j in range(shape[-1]):
-                    # FIXME: Simplify
-                    if len(shape)-1 == 1:
-                        subs.update({function._coeff_symbol
-                                     (indices[j], deriv_order, function, dim):
-                                         weights[x[0], j]})
-                    elif len(shape)-1 == 2:
-                        subs.update({function._coeff_symbol
-                                     (indices[j], deriv_order, function, dim):
-                                         weights[x[0], x[1], j]})
-                    elif len(shape)-1 == 3:
-                        subs.update({function._coeff_symbol
-                                     (indices[j], deriv_order, function, dim):
-                                         weights[x[0], x[1], x[2], j]})
+                    idx = list(x)
+                    idx[-1] = j
+                    subs.update({function._coeff_symbol
+                                 (indices[j], deriv_order, function, dim):
+                                     weights[as_tuple(idx)]})
 
             return subs
 
