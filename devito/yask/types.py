@@ -60,16 +60,23 @@ class Function(dense.Function, Signer):
     from_YASK = True
 
     def __new__(cls, *args, **kwargs):
-        if cls._cached():
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
+
+        if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **kwargs.get('options', {}))
-            newobj._cached_init()
-        else:
-            # If a Function has no SpaceDimension, than for sure it won't be
-            # used by YASK. We then return a devito.Function, which employs
-            # a standard row-major format for data values
-            indices = cls.__indices_setup__(**kwargs)
-            klass = cls if any(i.is_Space for i in indices) else cls.__base__
-            newobj = cls.__base__.__new__(klass, *args, **kwargs)
+            newobj.__init_cached__(key)
+            return newobj
+
+        # Not in cache. Create a new Function via core.Function
+
+        # If a Function has no SpaceDimension, than for sure it won't be
+        # used by YASK. We then return a devito.Function, which employs
+        # a standard row-major format for data values
+        indices = cls.__indices_setup__(**kwargs)
+        klass = cls if any(i.is_Space for i in indices) else cls.__base__
+        newobj = cls.__base__.__new__(klass, *args, **kwargs)
+
         return newobj
 
     def __padding_setup__(self, **kwargs):

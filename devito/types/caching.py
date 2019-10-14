@@ -24,29 +24,38 @@ class Cached(object):
     """
 
     @classmethod
-    def _cached(cls, key=None):
-        """
-        Test if a key is in the symbol cache and maps to an object that
-        is still alive.
-
-        Parameters
-        ----------
-        key : key, optional
-            The cache key. If not supplied, use `cls._cache_key()`
-        """
-        key = key or cls._cache_key()
-        if key not in _SymbolCache:
-            return False
-        return _SymbolCache[key]() is not None
-
-    @classmethod
     def _cache_key(cls, *args, **kwargs):
         """
         A unique, deterministic cache key from the input arguments.
 
-        By default, the cache key is ``cls``, namely the class type itself.
+        Notes
+        -----
+        To be implemented by subclasses.
         """
-        return cls
+        raise NotImplementedError
+
+    @classmethod
+    def _cache_get(cls, key):
+        """
+        Retrieve the object corresponding to a given key. If the key is not in
+        the symbol cache or if the mapped object is not alive anymore, returns None.
+
+        Parameters
+        ----------
+        key : object
+            The cache key. It must be hashable.
+        """
+        if key in _SymbolCache:
+            # There is indeed an object mapped to `key`. But is it still alive?
+            obj = _SymbolCache[key]()
+            if obj is None:
+                # Cleanup _SymbolCache (though practically unnecessary)
+                del _SymbolCache[key]
+                return None
+            else:
+                return obj
+        else:
+            return None
 
     def __init__(self, key):
         """
@@ -54,14 +63,26 @@ class Cached(object):
 
         Parameters
         ----------
-        key : key
-            The cache key.
+        key : object
+            The cache key. It must be hashable.
         """
         # Precompute hash. This uniquely depends on the cache key
         self._cache_key_hash = hash(key)
 
         # Add ourselves to the symbol cache
         _SymbolCache[key] = AugmentedWeakRef(self, self._cache_meta())
+
+    def __init_cached__(self, key):
+        """
+        Initialise `self` with a cached object state.
+
+        Parameters
+        ----------
+        key : object
+            The cache key of the object whose state is used to initialize `self`.
+            It must be hashable.
+        """
+        self.__dict__ = _SymbolCache[key]().__dict__
 
     def __hash__(self):
         """
@@ -80,11 +101,6 @@ class Cached(object):
         to implement callbacks to be executed upon eviction.
         """
         return {}
-
-    def _cached_init(self):
-        """Initialise symbolic object with a cached object state."""
-        original = _SymbolCache[self.__class__]
-        self.__dict__ = original().__dict__
 
 
 class CacheManager(object):

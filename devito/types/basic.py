@@ -18,7 +18,7 @@ from devito.symbolics import Add
 from devito.tools import (EnrichedTuple, Evaluable, Pickable,
                           ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
 from devito.types.args import ArgProvider
-from devito.types.caching import Cached, _SymbolCache
+from devito.types.caching import Cached
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
            'LocalObject', 'CompositeObject']
@@ -326,25 +326,26 @@ class Symbol(AbstractSymbol, Cached):
 
     def __new__(cls, *args, **kwargs):
         key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
 
-        if cls._cached(key):
-            return _SymbolCache[key]()
-        else:
-            name = kwargs.get('name') or args[0]
-            assumptions, kwargs = cls._filter_assumptions(**kwargs)
+        if obj is not None:
+            return obj
 
-            # Create the new Symbol
-            # Note: use __xnew__ to bypass sympy caching
-            newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
+        # Not in cache. Create a new Symbol via sympy.Symbol
+        name = kwargs.get('name') or args[0]
+        assumptions, kwargs = cls._filter_assumptions(**kwargs)
 
-            # Initialization
-            newobj._dtype = cls.__dtype_setup__(**kwargs)
-            newobj.__init_finalize__(*args, **kwargs)
+        # Note: use __xnew__ to bypass sympy caching
+        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
 
-            # Store new instance in symbol cache
-            Cached.__init__(newobj, key)
+        # Initialization
+        newobj._dtype = cls.__dtype_setup__(**kwargs)
+        newobj.__init_finalize__(*args, **kwargs)
 
-            return newobj
+        # Store new instance in symbol cache
+        Cached.__init__(newobj, key)
+
+        return newobj
 
     __hash__ = Cached.__hash__
 
@@ -355,29 +356,36 @@ class DataSymbol(AbstractSymbol, Cached):
     A scalar symbol, cached by both Devito and SymPy, which carries data.
     """
 
+    @classmethod
+    def _cache_key(cls, *args, **kwargs):
+        """A DataSymbol caches on the class type itself."""
+        return cls
+
     def __new__(cls, *args, **kwargs):
         key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
 
-        if cls._cached(key):
-            return _SymbolCache[key]()
-        else:
-            name = kwargs.get('name') or args[0]
-            assumptions, kwargs = cls._filter_assumptions(**kwargs)
+        if obj is not None:
+            return obj
 
-            # Create new, unique type instance from cls and the symbol name
-            newcls = type(name, (cls,), dict(cls.__dict__))
+        # Not in cache. Create a new Symbol via sympy.Symbol
+        name = kwargs.get('name') or args[0]
+        assumptions, kwargs = cls._filter_assumptions(**kwargs)
 
-            # Create the new Symbol and invoke __init__
-            newobj = sympy.Symbol.__new__(newcls, name, **assumptions)
+        # Create new, unique type instance from cls and the symbol name
+        newcls = type(name, (cls,), dict(cls.__dict__))
 
-            # Initialization
-            newobj._dtype = cls.__dtype_setup__(**kwargs)
-            newobj.__init_finalize__(*args, **kwargs)
+        # Create the new Symbol and invoke __init__
+        newobj = sympy.Symbol.__new__(newcls, name, **assumptions)
 
-            # Store new instance in symbol cache
-            Cached.__init__(newobj, newcls)
+        # Initialization
+        newobj._dtype = cls.__dtype_setup__(**kwargs)
+        newobj.__init_finalize__(*args, **kwargs)
 
-            return newobj
+        # Store new instance in symbol cache
+        Cached.__init__(newobj, newcls)
+
+        return newobj
 
     __hash__ = Cached.__hash__
 
@@ -462,36 +470,47 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     is_AbstractFunction = True
 
+    @classmethod
+    def _cache_key(cls, *args, **kwargs):
+        """An AbstractFunction caches on the class type itself."""
+        return cls
+
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
-        if cls._cached():
+
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
+
+        if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj._cached_init()
-        else:
-            name = kwargs.get('name')
-            indices = cls.__indices_setup__(**kwargs)
+            newobj.__init_cached__(key)
+            return newobj
 
-            # Create new, unique type instance from cls and the symbol name
-            newcls = type(name, (cls,), dict(cls.__dict__))
+        # Not in cache. Create a new Function via sympy.Function
+        name = kwargs.get('name')
+        indices = cls.__indices_setup__(**kwargs)
 
-            # Create the new Function object and invoke __init__
-            newobj = sympy.Function.__new__(newcls, *indices, **options)
+        # Create new, unique type instance from cls and the symbol name
+        newcls = type(name, (cls,), dict(cls.__dict__))
 
-            # Initialization. The following attributes must be available
-            # when executing __init_finalize__
-            newobj._name = name
-            newobj._indices = indices
-            newobj._shape = cls.__shape_setup__(**kwargs)
-            newobj._dtype = cls.__dtype_setup__(**kwargs)
-            newobj.__init_finalize__(*args, **kwargs)
+        # Create the new Function object and invoke __init__
+        newobj = sympy.Function.__new__(newcls, *indices, **options)
 
-            # All objects cached on the AbstractFunction `newobj` keep a reference
-            # to `newobj` through the `function` field. Thus, all indexified
-            # object will point to `newobj`, the "actual Function".
-            newobj.function = newobj
+        # Initialization. The following attributes must be available
+        # when executing __init_finalize__
+        newobj._name = name
+        newobj._indices = indices
+        newobj._shape = cls.__shape_setup__(**kwargs)
+        newobj._dtype = cls.__dtype_setup__(**kwargs)
+        newobj.__init_finalize__(*args, **kwargs)
 
-            # Store new instance in symbol cache
-            Cached.__init__(newobj, newcls)
+        # All objects cached on the AbstractFunction `newobj` keep a reference
+        # to `newobj` through the `function` field. Thus, all indexified
+        # object will point to `newobj`, the "actual Function".
+        newobj.function = newobj
+
+        # Store new instance in symbol cache
+        Cached.__init__(newobj, newcls)
         return newobj
 
     def __init__(self, *args, **kwargs):
