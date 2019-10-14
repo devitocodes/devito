@@ -66,8 +66,8 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
         symm = kwargs.get('symmetric', True)
         # Fill tensor, only upper diagonal if symmetric
         for i, d in enumerate(dims):
-            start = i+1 if symm else 0
-            funcs2 = [0 for _ in range(i+1)] if symm else []
+            funcs2 = [0 for _ in range(i)] if symm else []
+            start = i if symm else 0
             for j in range(start, len(dims)):
                 kwargs["name"] = "%s_%s%s" % (name, d.name, dims[j].name)
                 kwargs["staggered"] = (stagg[i][j] if stagg is not None
@@ -77,11 +77,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
 
         # Symmetrize and fill diagonal if symmetric
         if symm:
-            funcs = np.array(funcs) + np.array(funcs).T
-            for i in range(len(dims)):
-                kwargs["name"] = "%s_%s%s" % (name, dims[i].name, dims[i].name)
-                kwargs["staggered"] = stagg[i][i] if stagg is not None else NODE
-                funcs[i, i] = cls._sub_type(**kwargs)
+            funcs = np.array(funcs) + np.triu(np.array(funcs), k=1).T
             funcs = funcs.tolist()
         return funcs
 
@@ -189,7 +185,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
         Evaluate tensor at var location
         """
         def entry(i, j):
-            return self[i, j]._eval_at(var[i, j])
+            return getattr(self[i, j], '_eval_at', lambda x: self[i, j])(var[i, j])
         comps = [[entry(i, j) for i in range(self.cols)] for j in range(self.rows)]
         to = getattr(self, 'time_order', 0)
         func = tens_func(self, self)
@@ -241,7 +237,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
 
     @property
     def evaluate(self):
-        return self.applyfunc(lambda x: x.evaluate)
+        return self.applyfunc(lambda x: getattr(x, 'evaluate', x))
 
     # Custom repr and str
     def __str__(self):
@@ -279,7 +275,7 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
         return super(TensorFunction, self).__getitem__(i, j)
 
     def _eval_transpose(self):
-        if self.is_symmetric:
+        if self.is_symmetric or self.is_diagonal:
             return self
         mat = [[self[j, i] for j in range(self.cols)] for i in range(self.rows)]
         func = tens_func(self, self)

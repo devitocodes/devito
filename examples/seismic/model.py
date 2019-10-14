@@ -676,7 +676,7 @@ class Model(GenericModel):
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
         dt = self.dtype(coeff * np.min(self.spacing) / (self.scale*self._max_vp))
-        return self.dtype("%.3f" % dt)
+        return self.dtype("%.3e" % dt)
 
     @property
     def vp(self):
@@ -771,9 +771,9 @@ class ModelElastic(GenericModel):
         # For a fixed time order this number decreases as the space order increases.
         #
         # The CFL condtion is then given by
-        # dt < h / (sqrt(2) * max(vp)))
-        coeff = np.sqrt(3) if len(self.shape) == 3 else np.sqrt(3)
-        return self.dtype(.95*np.min(self.spacing) / (coeff*self.maxvp))
+        # dt < h / (sqrt(ndim) * max(vp)))
+        dt = .95*np.min(self.spacing) / (np.sqrt(3)*self.maxvp)
+        return self.dtype("%.3e" % dt)
 
 
 class ModelViscoelastic(ModelElastic):
@@ -828,5 +828,5 @@ class ModelViscoelastic(ModelElastic):
         # See Blanch, J. O., 1995, "A study of viscous effects in seismic modelling,
         # imaging, and inversion: methodology, computational aspects and sensitivity"
         # for further details:
-        return self.dtype(6.*np.min(self.spacing) /
-                          (7.*np.sqrt(self.grid.dim)*self.maxvp))
+        dt = .85*np.min(self.spacing) / (np.sqrt(self.grid.dim)*self.maxvp)
+        return self.dtype("%.3e" % dt)

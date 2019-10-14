@@ -104,12 +104,15 @@ class Eq(sympy.Eq, Evaluable):
         Flatten vectorial/tensorial Equation into list of scalar Equations.
         """
         try:
+            # Maps the Equations to retreive the rhs from relevant lhs
+            eqs = {lhs: rhs for lhs, rhs in zip(as_tuple(self.lhs), as_tuple(self.rhs))}
+            # get the relevant equations from the lhs structure, .values removes
+            # the symetric duplicates and off-diagonal zeros
             lhss = self.lhs.values()
-            rhss = self.rhs.values(symmetric=self.lhs.is_symmetric)
-            return [self.func(l, r, subdomain=self.subdomain,
+            return [self.func(l, eqs[l], subdomain=self.subdomain,
                               coefficients=self.substitutions,
                               implicit_dims=self._implicit_dims)
-                    for l, r in zip(lhss, rhss)]
+                    for l in lhss]
         except:
             return [self]
 
