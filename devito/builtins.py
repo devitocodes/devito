@@ -11,15 +11,15 @@ __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function', 'norm',
            'sumall', 'inner', 'mmin', 'mmax']
 
 
-def assign(f, RHS=0, options=None, name='asign', **kwargs):
+def assign(f, RHS=0, options=None, name='assign', **kwargs):
     """
-    Assign a list of RHS's to a list of Function's.
+    Assign a list of RHSs to a list of Functions.
 
     Parameters
     ----------
     f : Function or list of Function's
         The left-hand side of the assignment.
-    RHS : expression or list of expression's, optional
+    RHS : expr-like or list of expr-like, optional
         The right-hand side of the assignment.
     options : list, optional
         ...
@@ -31,7 +31,7 @@ def assign(f, RHS=0, options=None, name='asign', **kwargs):
     if not isinstance(RHS, list):
         RHS = [RHS, ]*len(f)
     eqs = []
-    if bool(options):
+    if options:
         for i, j, k in zip(f, RHS, options):
             if k is not None:
                 eqs.append(dv.Eq(i, j, **k))
@@ -135,14 +135,9 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
         expr['options'] = options
         additional_expressions[d] = expr
 
-    if isinstance(f, dv.Function):
-        initialize_function(f_c, f.data[:], lw,
-                            additional_expressions=additional_expressions,
-                            mode='reflect', name='smooth')
-    else:
-        initialize_function(f_c, f, lw,
-                            additional_expressions=additional_expressions,
-                            mode='reflect', name='smooth')
+    initialize_function(f_c, f.data[:], lw,
+                        additional_expressions=additional_expressions,
+                        mode='reflect', name='smooth')
 
     fset(f, f_c)
 
@@ -160,7 +155,7 @@ def initialize_function(function, data, nbpml, additional_expressions=dict(),
     ----------
     function : Function
         The initialised object.
-    data : ndarray
+    data : ndarray of Function
         The data array used for initialisation.
     nbpml : int
         Number of PML layers for boundary damping.
@@ -169,7 +164,10 @@ def initialize_function(function, data, nbpml, additional_expressions=dict(),
         accepted.
     """
     slices = tuple([slice(nbpml, -nbpml) for _ in range(function.grid.dim)])
-    function.data[slices] = data
+    if isinstance(data, dv.Function):
+        function.data[slices] = data.data[:]
+    else:
+        function.data[slices] = data
     lhs = []
     rhs = []
     options = []
@@ -193,7 +191,7 @@ def initialize_function(function, data, nbpml, additional_expressions=dict(),
         rhs.append(function.subs({d: subsr}))
         options.extend([None, None])
 
-        if bool(additional_expressions):
+        if additional_expressions:
             exprs = additional_expressions[d]
             lhs_extra = exprs['lhs']
             rhs_extra = exprs['rhs']
@@ -209,9 +207,7 @@ def initialize_function(function, data, nbpml, additional_expressions=dict(),
         options = None
 
     # TODO: Figure out why yask doesn't like it with dse/dle
-    # NOTE: Need to sort out the "dse='noop', dle='noop'" issue
-    assign(lhs, rhs, options=options, name=name)
-    #assign(lhs, rhs, options=options, name=name, dse='noop', dle='noop')
+    assign(lhs, rhs, options=options, name=name, dse='noop', dle='noop')
 
 
 # Reduction-inducing builtins
