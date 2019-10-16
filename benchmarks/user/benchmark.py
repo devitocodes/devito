@@ -321,8 +321,8 @@ def plot(problem, **kwargs):
              if len(set(dict(j)[i] for j in gflopss)) > 1]
 
     # Filename
-    figname = "%s_arch[%s]_shape%s_so%s_to%s_bkend[%s]_at[%s]" % (
-        problem, arch, shape, space_order, time_order, backend, autotune
+    figname = "%s_shape%s_so%s_to%s_arch[%s]_bkend[%s]_at[%s]" % (
+        problem, shape, space_order, time_order, arch, backend, autotune
     )
 
     # Legend setup. Do not plot a legend if there's no variation in performance
