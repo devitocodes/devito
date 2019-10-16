@@ -96,7 +96,6 @@ RUN if [ $installWithPip == "true" ] ; then \
       wget --no-verbose https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh ; \
       bash /tmp/miniconda.sh -b -p /usr/local/miniconda ; \
       conda config --set always_yes yes --set changeps1 no ; \
-      conda update -q conda ; \
     fi
 
 RUN adduser --disabled-password --gecos "" devito
@@ -116,6 +115,7 @@ RUN if [ $installWithPip == "true" ] ; then \
     else \
       conda env create -q -f environment.yml ; \
       source activate devito ; \
+      conda update -q conda ; \
       echo $PATH ; \
       pip install -e . ; \
       if [ $MPI_INSTALL == '1' ] ; then \
