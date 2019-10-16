@@ -11,18 +11,36 @@ __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function', 'norm',
            'sumall', 'inner', 'mmin', 'mmax']
 
 
-def assign(f, v=0):
+def assign(f, RHS=0, options=None, name='asign', **kwargs):
     """
-    Assign a value to a Function.
+    Assign a list of RHS's to a list of Function's.
 
     Parameters
     ----------
-    f : Function
+    f : Function or list of Function's
         The left-hand side of the assignment.
-    v : scalar, optional
+    RHS : expression or list of expression's, optional
         The right-hand side of the assignment.
+    options : list, optional
+        ...
+    name : str, optional
+        Name of the operator.
     """
-    dv.Operator(dv.Eq(f, v), name='assign')()
+    if not isinstance(f, list):
+        f = list(f)
+    if not isinstance(RHS, list):
+        RHS = [RHS, ]*len(f)
+    eqs = []
+    if bool(options):
+        for i, j, k in zip(f, RHS, options):
+            if k is not None:
+                eqs.append(dv.Eq(i, j, **k))
+            else:
+                eqs.append(dv.Eq(i, j))
+    else:
+        for i, j in zip(f, RHS):
+            eqs.append(dv.Eq(i, j))
+    dv.Operator(eqs, name=name, **kwargs)()
 
 
 def smooth(f, g, axis=None):
@@ -69,36 +87,6 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
         def define(self, dimensions):
             return {d: ('middle', self.lw, self.lw) for d in dimensions}
 
-    def smooth(fo, fi, data):
-        # TODO: Merge part of this with part of initialize_function and assign
-        slices = tuple([slice(lw, -lw) for _ in range(fi.grid.dim)])
-        fi.data[slices] = data
-        eqs = []
-        for d in fi.dimensions:
-            dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d,
-                                         thickness=lw)
-            dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d,
-                                          thickness=lw)
-            if mode == 'constant':
-                subsl = lw
-                subsr = d.symbolic_max - lw
-            elif mode == 'reflect':
-                subsl = 2*lw - 1 - dim_l
-                subsr = 2*(d.symbolic_max - lw) + 1 - dim_r
-            else:
-                raise ValueError("Mode not available")
-            eqs += [dv.Eq(fi.subs({d: dim_l}), fi.subs({d: subsl}))]
-            eqs += [dv.Eq(fi.subs({d: dim_r}), fi.subs({d: subsr}))]
-
-            rhs = dv.generic_derivative(fi, d, 2*lw, 1)
-            coeffs = dv.Coefficient(1, fi, d, weights)
-            eqs += [dv.Eq(fo, rhs, coefficients=dv.Substitutions(coeffs),
-                          subdomain=grid.subdomains['objective_domain'])]
-
-            eqs += [dv.Eq(fi, fo, subdomain=grid.subdomains['objective_domain'])]
-
-        dv.Operator(eqs)()
-
     def fset(f, g):
         indices = [slice(lw, -lw, 1) for _ in g.grid.dimensions]
         slices = (slice(None, None, 1), )*len(g.grid.dimensions)
@@ -126,17 +114,43 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
     weights = np.exp(-0.5/sigma**2*(np.linspace(-lw, lw, 2*lw+1))**2)
     weights = weights/weights.sum()
 
-    if isinstance(f, dv.Function):
-        smooth(f_o, f_c, f.data[:])
-    else:
-        smooth(f_o, f_c, f)
+    additional_expressions = {}
+    for d in f_c.dimensions:
+        expr = {}
+        lhs = []
+        rhs = []
+        options = []
 
-    fset(f, f_o)
+        lhs.append(f_o)
+        rhs.append(dv.generic_derivative(f_c, d, 2*lw, 1))
+        coeffs = dv.Coefficient(1, f_c, d, weights)
+        options.append({'coefficients': dv.Substitutions(coeffs),
+                        'subdomain': grid.subdomains['objective_domain']})
+        lhs.append(f_c)
+        rhs.append(f_o)
+        options.append({'subdomain': grid.subdomains['objective_domain']})
+
+        expr['lhs'] = lhs
+        expr['rhs'] = rhs
+        expr['options'] = options
+        additional_expressions[d] = expr
+
+    if isinstance(f, dv.Function):
+        initialize_function(f_c, f.data[:], lw,
+                            additional_expressions=additional_expressions,
+                            mode='reflect', name='smooth')
+    else:
+        initialize_function(f_c, f, lw,
+                            additional_expressions=additional_expressions,
+                            mode='reflect', name='smooth')
+
+    fset(f, f_c)
 
     return f
 
 
-def initialize_function(function, data, nbpml, mode='constant'):
+def initialize_function(function, data, nbpml, additional_expressions=dict(),
+                        mode='constant', name='padfunc'):
     """
     Initialize a `Function` with the given ``data``. ``data``
     does *not* include the PML layers for the absorbing boundary conditions;
@@ -156,7 +170,9 @@ def initialize_function(function, data, nbpml, mode='constant'):
     """
     slices = tuple([slice(nbpml, -nbpml) for _ in range(function.grid.dim)])
     function.data[slices] = data
-    eqs = []
+    lhs = []
+    rhs = []
+    options = []
 
     for d in function.dimensions:
         dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d,
@@ -171,11 +187,31 @@ def initialize_function(function, data, nbpml, mode='constant'):
             subsr = 2*(d.symbolic_max - nbpml) + 1 - dim_r
         else:
             raise ValueError("Mode not available")
-        eqs += [dv.Eq(function.subs({d: dim_l}), function.subs({d: subsl}))]
-        eqs += [dv.Eq(function.subs({d: dim_r}), function.subs({d: subsr}))]
+        lhs.append(function.subs({d: dim_l}))
+        lhs.append(function.subs({d: dim_r}))
+        rhs.append(function.subs({d: subsl}))
+        rhs.append(function.subs({d: subsr}))
+        options.extend([None, None])
+
+        if bool(additional_expressions):
+            exprs = additional_expressions[d]
+            lhs_extra = exprs['lhs']
+            rhs_extra = exprs['rhs']
+            lhs.extend(lhs_extra)
+            rhs.extend(rhs_extra)
+            if 'options' in exprs.keys():
+                options_extra = exprs['options']
+            else:
+                options_extra = len(lhs_extra)*[None, ]
+            options.extend(options_extra)
+
+    if all(options is None for i in options):
+        options = None
 
     # TODO: Figure out why yask doesn't like it with dse/dle
-    dv.Operator(eqs, name='padfunc', dse='noop', dle='noop')()
+    # NOTE: Need to sort out the "dse='noop', dle='noop'" issue
+    assign(lhs, rhs, options=options, name=name)
+    #assign(lhs, rhs, options=options, name=name, dse='noop', dle='noop')
 
 
 # Reduction-inducing builtins
