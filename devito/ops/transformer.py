@@ -127,16 +127,19 @@ def create_ops_dat(f, name_to_ops_dat, block):
     res = []
     base_val = [Zero() for i in range(ndim)]
 
-    # If f is a TimeFunction we need to create a ops_dat for each time stepping
+    # If f is a TimeFunction we need to create an ops_dat for each time stepping
     # variable (eg: t1, t2)
     if f.is_TimeFunction:
         time_pos = f._time_position
         time_index = f.indices[time_pos]
         time_dims = f.shape[time_pos]
 
-        dim_shape = f.shape[:time_pos] + f.shape[time_pos + 1:]
         d_p_val = f._size_nodomain.left[time_pos+1:]
         d_m_val = [-i for i in f._size_nodomain.right[time_pos+1:]]
+        # OPS dat sizes must include both domain size and halo size.
+        dim_shape = [sum(i) for i in zip(f.shape[:time_pos] + f.shape[time_pos + 1:],
+                                         f._size_nodomain.left[time_pos+1:],
+                                         f._size_nodomain.right[time_pos+1:])]
 
         ops_dat_array = Array(
             name=namespace['ops_dat_name'](f.name),
@@ -175,9 +178,12 @@ def create_ops_dat(f, name_to_ops_dat, block):
         ops_dat = OpsDat("%s_dat" % f.name)
         name_to_ops_dat[f.name] = ops_dat
 
-        dim_shape = f.shape
         d_p_val = f._size_nodomain.left
         d_m_val = [-i for i in f._size_nodomain.right]
+        # OPS dat sizes must include both domain size and halo size.
+        dim_shape = [sum(i) for i in zip(f.shape,
+                                         f._size_nodomain.left,
+                                         f._size_nodomain.right)]
 
         ops_decl_dat = Expression(ClusterizedEq(Eq(
             ops_dat,
@@ -188,7 +194,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                Byref(f.indexify([0])),
+                Byref(f.indexify([0 for a in f.indices])),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % f.name)
             )
@@ -205,12 +211,14 @@ def create_ops_dat(f, name_to_ops_dat, block):
 
 def create_ops_memory_call(f, name_to_ops_dat, time_iteration, func):
 
+    # Build the time access.
     time_access = lambda x: Mod(Add(time_iteration, -x), f._time_size)
 
-    # The second parameter is the beginning of the array. But I didn't manage
-    # to generate a C code like: `v`. Instead, I am generating `&(v[0][0][0])`.
+    # Build a list of indices to access the data array. Example: we are trying to
+    # generate `&(v[time_index][0][0])` for a TimeFunction with 2 space dimensions.
     ops_indices = lambda x: [0 if i.is_Space else time_access(x) for i in f.indices]
 
+    # Cast object to char pointer.
     casted_data = lambda x: TypeCast(name=str(Byref(f.indexify(ops_indices(x)))),
                                      dtype=str,
                                      cast_to_ctype=ctypes.c_char_p)
