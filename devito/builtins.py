@@ -27,9 +27,9 @@ def assign(f, RHS=0, options=None, name='assign', **kwargs):
         Name of the operator.
     """
     if not isinstance(f, list):
-        f = list(f)
+        f = [f]
     if not isinstance(RHS, list):
-        RHS = [RHS, ]*len(f)
+        RHS = len(f)*[RHS, ]
     eqs = []
     if options:
         for i, j, k in zip(f, RHS, options):
