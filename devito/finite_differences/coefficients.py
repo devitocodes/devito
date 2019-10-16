@@ -105,7 +105,7 @@ class Coefficient(object):
             weights.is_Function is True
         except AttributeError:
             if not isinstance(weights, np.ndarray):
-                raise TypeError("Weights must be of type np.ndarray or Function")
+                raise TypeError("Weights must be of type np.ndarray or a Devito Function")
         return
 
 
@@ -191,6 +191,10 @@ class Substitutions(object):
             indices, x0 = generate_indices(function, dim, dim.spacing, fd_order,
                                            side=None, stagger=stagger)
 
+            # NOTE: This implementation currently assumes that indices are ordered
+            # according to their position in the FD stencil. This may not be the
+            # case in all schemes and should be changed such that the weights are
+            # passed as a dictionary of the form {pos: w} (or something similar).
             if isinstance(weights, np.ndarray):
                 for j in range(len(weights)):
                     subs.update({function._coeff_symbol
