@@ -3,7 +3,7 @@ import pytest
 from sympy import simplify, diff, cos, sin
 
 from conftest import skipif
-from devito import (Grid, Function, TimeFunction, Eq, Operator, clear_cache, NODE,
+from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE,
                     ConditionalDimension, left, right, centered, generic_derivative)
 from devito.finite_differences import Derivative, Differentiable
 
@@ -211,7 +211,6 @@ class TestFD(object):
         For a given order p, the finite difference scheme should
         be exact for polynomials of order p.
         """
-        clear_cache()
         # dummy axis dimension
         nx = 100
         xx = np.linspace(-1, 1, nx)
@@ -252,7 +251,6 @@ class TestFD(object):
         For a given order p, the finite difference scheme should
         be exact for polynomials of order p
         """
-        clear_cache()
         # dummy axis dimension
         nx = 100
         xx = np.linspace(-1, 1, nx)
@@ -368,7 +366,6 @@ class TestFD(object):
         ('dxl', 'dxr', -1),
         ('dxr', 'dxl', -1)])
     def test_fd_adjoint(self, so, ndim, derivative, adjoint_name, adjoint_coeff):
-        clear_cache()
         grid = Grid(shape=tuple([51]*ndim), extent=tuple([25]*ndim))
         x = grid.dimensions[0]
         f = Function(name='f', grid=grid, space_order=so)
