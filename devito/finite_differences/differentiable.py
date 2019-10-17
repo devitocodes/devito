@@ -194,7 +194,7 @@ class DifferentiableOp(Differentiable):
 
         # Unfortunately SymPy may build new sympy.core objects (e.g., sympy.Add),
         # so here we have to rebuild them as devito.core objects
-        obj = Rebuild.evaluate(obj)
+        obj = diffify(obj)
 
         return obj
 
@@ -215,20 +215,25 @@ class Mod(sympy.Mod, DifferentiableOp):
     __new__ = DifferentiableOp.__new__
 
 
-class Rebuild(object):
+class diffify(object):
 
     """
     Helper class based on single dispatch to reconstruct all nodes in a sympy
     tree such they are all of type Differentiable.
+
+    Notes
+    -----
+    The name "diffify" stems from SymPy's "simpify", which has an analogous task --
+    converting all arguments into SymPy core objects.
     """
 
-    def evaluate(obj):
-        args = [Rebuild._doit(i) for i in obj.args]
-        obj = Rebuild._doit(obj, args)
+    def __new__(cls, obj):
+        args = [diffify._doit(i) for i in obj.args]
+        obj = diffify._doit(obj, args)
         return obj
 
     def _doit(obj, args=None):
-        cls = Rebuild._cls(obj)
+        cls = diffify._cls(obj)
         if cls is obj.__class__:
             return obj
 
@@ -239,7 +244,7 @@ class Rebuild(object):
         # As facts are deduced, a SymPy core object's ``_assumptions`` data
         # structure is updated. Since here we use ``evaluate=False`` all over
         # the place, we have to explicitly reassign the ``_assumptions``.
-        newobj._assumptions = obj._assumptions
+        newobj._assumptions = obj._assumptions.copy()
 
         return newobj
 
