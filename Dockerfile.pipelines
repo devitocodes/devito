@@ -131,7 +131,9 @@ RUN if [ $installWithPip == "true" ] ; then \
         popd ; \
       fi ; \
       if [ $RUN_EXAMPLES == "true" ] ; then \
-        bash scripts/create_ipyparallel_mpi_profile.sh; \
+        if [ $MPI_INSTALL == '1' ] ; then \
+          bash scripts/create_ipyparallel_mpi_profile.sh ; \
+        fi ; \ 
         git clone https://github.com/opesci/opescibench.git /tmp/opescibench ; \
         pushd /tmp/opescibench ; \
         pip install -e . ; \
