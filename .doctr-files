@@ -9,7 +9,6 @@
 ./_modules/devito/types/grid.html
 ./_modules/devito/types/sparse.html
 ./_modules/index.html
-./_modules/numpy.html
 ./_sources/builtins.rst.txt
 ./_sources/compiler.rst.txt
 ./_sources/constant.rst.txt
