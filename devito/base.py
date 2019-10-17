@@ -4,6 +4,7 @@ from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
 import devito.types.basic as basic
+import devito.types.caching as caching
 import devito.types.dense as dense
 import devito.types.grid as grid
 import devito.types.sparse as sparse
@@ -55,5 +56,5 @@ class Operator(with_metaclass(_BackendSelector, operator.Operator)):
     pass
 
 
-class CacheManager(with_metaclass(_BackendSelector, basic.CacheManager)):
+class CacheManager(with_metaclass(_BackendSelector, caching.CacheManager)):
     pass

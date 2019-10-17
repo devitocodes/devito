@@ -4,6 +4,7 @@ from devito.types.basic import *  # noqa
 # Needed both within and outside Devito
 from devito.types.dimension import *  # noqa
 from devito.types.utils import *  # noqa
+from devito.types.caching import _SymbolCache, CacheManager  # noqa
 
 # Needed only outside Devito
 from devito.types.constant import *  # noqa

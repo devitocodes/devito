@@ -3,7 +3,7 @@ import pytest
 from numpy import linalg
 
 from conftest import unit_box, points, skipif
-from devito import clear_cache, Operator
+from devito import Operator
 from devito.logger import info
 from examples.seismic import demo_model, Receiver
 from examples.seismic.acoustic import acoustic_setup
@@ -17,13 +17,6 @@ presets = {
 
 
 class TestAdjoint(object):
-
-    def setup_method(self, method):
-        # Some of these tests are memory intensive as it requires to store the entire
-        # forward wavefield to compute the gradient (nx.ny.nz.nt). We therefore call
-        # 'clear_cache()' to release any remaining memory from the previous tests or
-        # previous instances (different parametrizations) of these tests
-        clear_cache()
 
     @pytest.mark.parametrize('mkey, shape, kernel, space_order, nbpml', [
         # 1 tests with varying time and space orders

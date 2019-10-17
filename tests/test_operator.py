@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from conftest import skipif, EVAL, time, x, y, z
-from devito import (clear_cache, Grid, Eq, Operator, Constant, Function, TimeFunction,
+from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, configuration)
 from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
@@ -30,10 +30,6 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
 
 
 class TestCodeGen(object):
-
-    @classmethod
-    def setup_class(cls):
-        clear_cache()
 
     def test_parameters(self):
         """Tests code generation for Operator parameters."""
@@ -94,7 +90,7 @@ class TestCodeGen(object):
         time_iter = time_iter[0]
 
         # Check uindices in Iteration header
-        signatures = [i._properties for i in time_iter.uindices]
+        signatures = [(i._offset, i._modulo) for i in time_iter.uindices]
         assert len(signatures) == len(exp_uindices)
         assert all(i in signatures for i in exp_uindices)
 
@@ -105,10 +101,6 @@ class TestCodeGen(object):
 
 
 class TestArithmetic(object):
-
-    @classmethod
-    def setup_class(cls):
-        clear_cache()
 
     @pytest.mark.parametrize('expr, result', [
         ('Eq(a, a + b + 5.)', 10.),
@@ -393,10 +385,6 @@ class TestArithmetic(object):
 
 class TestAllocation(object):
 
-    @classmethod
-    def setup_class(cls):
-        clear_cache()
-
     @pytest.mark.parametrize('shape', [(20, 20),
                                        (20, 20, 20),
                                        (20, 20, 20, 20)])
@@ -451,10 +439,6 @@ class TestAllocation(object):
 
 
 class TestArguments(object):
-
-    @classmethod
-    def setup_class(cls):
-        clear_cache()
 
     def verify_arguments(self, arguments, expected):
         """
@@ -965,10 +949,6 @@ class TestArguments(object):
 
 
 class TestDeclarator(object):
-
-    @classmethod
-    def setup_class(cls):
-        clear_cache()
 
     def test_heap_1D_stencil(self, a, b):
         operator = Operator(Eq(a, a + b + 5.), dse='noop', dle=None)

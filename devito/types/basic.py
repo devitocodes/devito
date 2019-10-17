@@ -1,6 +1,4 @@
-import weakref
 import abc
-import gc
 from collections import namedtuple
 from ctypes import POINTER, Structure, byref
 from functools import reduce
@@ -9,10 +7,10 @@ from operator import mul
 
 import numpy as np
 import sympy
-
-from sympy.core.cache import cacheit
+from sympy.core.assumptions import _assume_rules
 from cached_property import cached_property
 from cgen import Struct, Value
+from frozendict import frozendict
 
 from devito.data import default_allocator
 from devito.parameters import configuration
@@ -20,19 +18,16 @@ from devito.symbolics import Add
 from devito.tools import (EnrichedTuple, Evaluable, Pickable,
                           ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype)
 from devito.types.args import ArgProvider
+from devito.types.caching import Cached
 
 __all__ = ['Symbol', 'Scalar', 'Array', 'Indexed', 'Object',
            'LocalObject', 'CompositeObject']
 
-# This cache stores a reference to each created data object
-# so that we may re-create equivalent symbols during symbolic
-# manipulation with the correct shapes, pointers, etc.
-_SymbolCache = {}
-
 
 class Basic(object):
+
     """
-    Three relevant types inherit from this class: ::
+    Three relevant types inherit from this class:
 
         * AbstractSymbol: represents a scalar; may carry data; may be used
                           to build equations.
@@ -47,13 +42,13 @@ class Basic(object):
                     |                     |                  |
              AbstractSymbol       AbstractFunction     AbstractObject
 
-    Subtypes must implement a number of methods/properties to enable code
-    generation via the Devito compiler. These methods/properties are easily
-    recognizable as their name starts with _C_.
+    All these subtypes must implement a number of methods/properties to enable
+    code generation via the Devito compiler. These methods/properties are
+    easily recognizable as their name starts with _C_.
 
     Notes
     -----
-    Part of the AbstractFunction sub-hierarchy is implemented in :mod:`function.py`.
+    The AbstractFunction sub-hierarchy is implemented in :mod:`dense.py`.
     """
 
     # Top hierarchy
@@ -148,99 +143,72 @@ class Basic(object):
         return
 
 
-class Cached(object):
-    """
-    Base class for symbolic objects that cache on the class type.
-
-    In order to maintain meta information across the numerous
-    re-instantiation SymPy performs during symbolic manipulation, we inject
-    the symbol name as the class name and cache all created objects on that
-    name. This entails that a symbolic object inheriting from Cached should
-    implement `__init__` in the following way:
-
-        .. code-block::
-            def __init__(self, \*args, \*\*kwargs):
-                if not self._cached():
-                    ... # Initialise object properties from kwargs
-    """
-
-    @classmethod
-    def _cached(cls):
-        """Test if current class is already in the symbol cache."""
-        return cls in _SymbolCache
-
-    @classmethod
-    def _cache_put(cls, obj):
-        """Store given object instance in symbol cache.
-
-        Parameters
-        ----------
-        obj : object
-            Object to be cached.
-        """
-        _SymbolCache[cls] = weakref.ref(obj)
-
-    @classmethod
-    def _symbol_type(cls, name):
-        """Create new type instance from cls and inject symbol name"""
-        return type(name, (cls, ), dict(cls.__dict__))
-
-    def _cached_init(self):
-        """Initialise symbolic object with a cached object state"""
-        original = _SymbolCache[self.__class__]
-        self.__dict__ = original().__dict__
-
-    def __hash__(self):
-        """The hash value of an object that caches on its type is the
-        hash value of the type itself."""
-        return hash(type(self))
-
-
 class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
-    """
-    Base class for dimension-free symbols.
 
-    The sub-hierarchy is structured as follows
+    """
+    Base class for scalar symbols.
+
+    The hierarchy is structured as follows
 
                              AbstractSymbol
                                    |
                  -------------------------------------
                  |                                   |
-        AbstractCachedSymbol                --------------------
-                 |                          |                  |
-              Constant                    Symbol           Dimension
-                                            |
-                                          Scalar
+             DataSymbol                            Symbol
+                 |                                   |
+         ----------------                   -------------------
+         |              |                   |                 |
+      Constant   DefaultDimension         Scalar          Dimension
+                                                    <:mod:`dimension.py`>
 
-    There are three relevant AbstractSymbol sub-types: ::
+    All symbols can be used to build equations. However, while DataSymbol
+    carries data, Symbol is a pure symbolic object.
 
-        * Symbol: A generic scalar symbol that can be used to build an equation.
-                  It does not carry data. Typically, Symbols are created internally
-                  by Devito (e.g., for temporary variables)
-        * Constant: A generic scalar symbol that can be used to build an equation.
-                    It carries data (a scalar value).
-        * Dimension: A problem dimension, used to create an iteration space. It
-                     may be used to build equations; typically, it is used as
-                     an index for an Indexed.
+    Constant, DefaultDimension, and Dimension (and most of its subclasses) are
+    part of the user API; Scalar, instead, is only used internally by Devito.
 
-    Notes
-    -----
-    Constants are cached by both SymPy and Devito, while Symbols and Dimensions
-    by SymPy only.
+    DefaultDimension and Dimension define a problem dimension (in other words,
+    an "iteration space"). They can be used to index into Functions. For more
+    information, refer to :mod:`dimension.py`.
     """
 
     is_AbstractSymbol = True
+    is_Symbol = True
 
-    def __new__(cls, name, dtype=np.int32, **assumptions):
-        return AbstractSymbol.__xnew_cached_(cls, name, dtype, **assumptions)
+    @classmethod
+    def _filter_assumptions(cls, **kwargs):
+        """Extract sympy.Symbol-specific kwargs."""
+        assumptions = {}
+        for i in list(kwargs):
+            if i in _assume_rules.defined_facts:
+                assumptions[i] = kwargs.pop(i)
+        return assumptions, kwargs
 
-    def __new_stage2__(cls, name, dtype, **assumptions):
+    def __new__(cls, *args, **kwargs):
+        name = kwargs.get('name') or args[0]
+        assumptions, kwargs = cls._filter_assumptions(**kwargs)
+
+        # Create the new Symbol
+        # Note: use __xnew__ to bypass sympy caching
         newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
-        newobj._dtype = dtype
+
+        # Initialization
+        newobj._dtype = cls.__dtype_setup__(**kwargs)
+        newobj.__init_finalize__(*args, **kwargs)
+
         return newobj
 
-    __xnew__ = staticmethod(__new_stage2__)
-    __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        """Extract the object data type from ``kwargs``."""
+        return kwargs.get('dtype', np.int32)
+
+    def __init__(self, *args, **kwargs):
+        # no-op, the true init is performed by __init_finalize__
+        pass
+
+    def __init_finalize__(self, *args, **kwargs):
+        self._is_const = kwargs.get('is_const', False)
 
     @property
     def dtype(self):
@@ -278,27 +246,13 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def indexify(self):
         return self
 
-    def _subs(self, old, new, **hints):
-        """
-        This stub allows sympy.Basic.subs to operate on an expression
-        involving devito Scalars.  Ordinarily the comparisons between
-        devito subclasses of sympy types are quite strict.
-        """
-        try:
-            if old.name == self.name:
-                return new
-        except AttributeError:
-            pass
-
-        return self
-
     @property
     def is_const(self):
         """
         True if the symbol value cannot be modified within an Operator (and thus
         its value is provided by the user directly from Python-land), False otherwise.
         """
-        return False
+        return self._is_const
 
     @property
     def _C_name(self):
@@ -317,66 +271,133 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def _C_ctype(self):
         return dtype_to_ctype(self.dtype)
 
+    def _subs(self, old, new, **hints):
+        """
+        This stub allows sympy.Basic.subs to operate on an expression
+        involving devito Scalars.  Ordinarily the comparisons between
+        devito subclasses of sympy types are quite strict.
+        """
+        try:
+            if old.name == self.name:
+                return new
+        except AttributeError:
+            pass
+
+        return self
+
     # Pickling support
-    _pickle_args = ['name']
-    _pickle_kwargs = ['dtype']
+    _pickle_args = []
+    _pickle_kwargs = ['name', 'dtype', 'is_const']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class AbstractCachedSymbol(AbstractSymbol, Cached):
-    """
-    Base class for dimension-free symbols, cached by both Devito and SymPy.
+class Symbol(AbstractSymbol, Cached):
 
-    For more information, refer to the documentation of AbstractSymbol.
     """
+    A scalar symbol, cached by both Devito and SymPy, which does not carry
+    any data.
+
+    Notes
+    -----
+    A Symbol may not be in the SymPy cache, but still be present in the
+    Devito cache. This is because SymPy caches operations, rather than
+    actual objects.
+    """
+
+    @classmethod
+    def _cache_key(cls, *args, **kwargs):
+        args = list(args)
+        key = {}
+
+        # The base type is necessary, otherwise two objects such as
+        # `Scalar(name='s')` and `Dimension(name='s')` would have the same key
+        key['cls'] = cls
+
+        # The name is always present, and added as if it were an arg
+        key['name'] = kwargs.pop('name', None) or args.pop(0)
+
+        # From the args
+        key['args'] = tuple(args)
+
+        # From the kwargs
+        key.update(kwargs)
+
+        return frozendict(key)
 
     def __new__(cls, *args, **kwargs):
-        options = kwargs.get('options', {})
-        if cls in _SymbolCache:
-            newobj = sympy.Symbol.__new__(cls, *args, **options)
-            newobj._cached_init()
-        else:
-            name = kwargs.get('name')
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
 
-            # Create the new Function object and invoke __init__
-            newcls = cls._symbol_type(name)
-            newobj = sympy.Symbol.__new__(newcls, name, *args, **options)
+        if obj is not None:
+            return obj
 
-            # Initialization
-            newobj._dtype = cls.__dtype_setup__(**kwargs)
-            newobj.__init__(*args, **kwargs)
+        # Not in cache. Create a new Symbol via sympy.Symbol
+        name = kwargs.get('name') or args[0]
+        assumptions, kwargs = cls._filter_assumptions(**kwargs)
 
-            # Store new instance in symbol cache
-            newcls._cache_put(newobj)
+        # Note: use __xnew__ to bypass sympy caching
+        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
+
+        # Initialization
+        newobj._dtype = cls.__dtype_setup__(**kwargs)
+        newobj.__init_finalize__(*args, **kwargs)
+
+        # Store new instance in symbol cache
+        Cached.__init__(newobj, key)
+
         return newobj
 
     __hash__ = Cached.__hash__
 
+
+class DataSymbol(AbstractSymbol, Cached):
+
+    """
+    A scalar symbol, cached by both Devito and SymPy, which carries data.
+    """
+
     @classmethod
-    def __dtype_setup__(cls, **kwargs):
-        """Extract the object data type from ``kwargs``."""
-        return None
+    def _cache_key(cls, *args, **kwargs):
+        """A DataSymbol caches on the class type itself."""
+        return cls
+
+    def __new__(cls, *args, **kwargs):
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
+
+        if obj is not None:
+            return obj
+
+        # Not in cache. Create a new Symbol via sympy.Symbol
+        name = kwargs.get('name') or args[0]
+        assumptions, kwargs = cls._filter_assumptions(**kwargs)
+
+        # Create new, unique type instance from cls and the symbol name
+        newcls = type(name, (cls,), dict(cls.__dict__))
+
+        # Create the new Symbol and invoke __init__
+        newobj = sympy.Symbol.__new__(newcls, name, **assumptions)
+
+        # Initialization
+        newobj._dtype = cls.__dtype_setup__(**kwargs)
+        newobj.__init_finalize__(*args, **kwargs)
+
+        # Store new instance in symbol cache
+        Cached.__init__(newobj, newcls)
+
+        return newobj
+
+    __hash__ = Cached.__hash__
 
     # Pickling support
-    _pickle_args = []
-    _pickle_kwargs = ['name', 'dtype']
-    __reduce_ex__ = Pickable.__reduce_ex__
 
     @property
     def _pickle_reconstruct(self):
         return self.__class__.__base__
 
 
-class Symbol(AbstractSymbol):
-
-    """
-    Like a sympy.Symbol, but with an API mimicking that of a sympy.Indexed.
-    """
-
-    is_Symbol = True
-
-
 class Scalar(Symbol, ArgProvider):
+
     """
     Like a Symbol, but in addition it can pass runtime values to an Operator.
 
@@ -397,35 +418,20 @@ class Scalar(Symbol, ArgProvider):
 
     is_Scalar = True
 
-    def __new__(cls, name, dtype=np.float32, is_const=False, **assumptions):
-        return Scalar.__xnew_cached_(cls, name, dtype, is_const, **assumptions)
-
-    def __new_stage2__(cls, name, dtype, is_const, **assumptions):
-        newobj = Symbol.__xnew__(cls, name, dtype, **assumptions)
-        newobj._is_const = is_const
-        return newobj
-
-    @property
-    def is_const(self):
-        return self._is_const
-
-    __xnew__ = staticmethod(__new_stage2__)
-    __xnew_cached_ = staticmethod(cacheit(__new_stage2__))
-
-    # Pickling support
-    _pickle_kwargs = Symbol._pickle_kwargs + ['is_const']
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return kwargs.get('dtype', np.float32)
 
 
-class AbstractFunction(sympy.Function, Basic, Pickable):
+class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
+
     """
-    Base class for tensor symbols, only cached by SymPy. It inherits from and
-    mimick the behaviour of a sympy.Function.
+    Base class for tensor symbols, cached by both SymPy and Devito. It inherits
+    from and mimick the behaviour of a sympy.Function.
 
-    The sub-hierarchy is structured as follows
+    The hierarchy is structured as follows
 
                          AbstractFunction
-                                |
-                      AbstractCachedFunction
                                 |
                  ---------------------------------
                  |                               |
@@ -464,50 +470,58 @@ class AbstractFunction(sympy.Function, Basic, Pickable):
 
     is_AbstractFunction = True
 
-
-class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
-    """
-    Base class for tensor symbols, cached by both Devito and Sympy.
-
-    For more information, refer to ``AbstractFunction.__doc__``.
-    """
+    @classmethod
+    def _cache_key(cls, *args, **kwargs):
+        """An AbstractFunction caches on the class type itself."""
+        return cls
 
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
-        if cls in _SymbolCache:
+
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
+
+        if obj is not None:
             newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj._cached_init()
-        else:
-            name = kwargs.get('name')
-            indices = cls.__indices_setup__(**kwargs)
+            newobj.__init_cached__(key)
+            return newobj
 
-            # Create the new Function object and invoke __init__
-            newcls = cls._symbol_type(name)
-            newobj = sympy.Function.__new__(newcls, *indices, **options)
+        # Not in cache. Create a new Function via sympy.Function
+        name = kwargs.get('name')
+        indices = cls.__indices_setup__(**kwargs)
 
-            # Initialization. The following attributes must be available
-            # when executing __init__
-            newobj._name = name
-            newobj._indices = indices
-            newobj._shape = cls.__shape_setup__(**kwargs)
-            newobj._dtype = cls.__dtype_setup__(**kwargs)
-            newobj.__init__(*args, **kwargs)
+        # Create new, unique type instance from cls and the symbol name
+        newcls = type(name, (cls,), dict(cls.__dict__))
 
-            # All objects cached on the AbstractFunction /newobj/ keep a reference
-            # to /newobj/ through the /function/ field. Thus, all indexified
-            # object will point to /newobj/, the "actual Function".
-            newobj.function = newobj
+        # Create the new Function object and invoke __init__
+        newobj = sympy.Function.__new__(newcls, *indices, **options)
 
-            # Store new instance in symbol cache
-            newcls._cache_put(newobj)
+        # Initialization. The following attributes must be available
+        # when executing __init_finalize__
+        newobj._name = name
+        newobj._indices = indices
+        newobj._shape = cls.__shape_setup__(**kwargs)
+        newobj._dtype = cls.__dtype_setup__(**kwargs)
+        newobj.__init_finalize__(*args, **kwargs)
+
+        # All objects cached on the AbstractFunction `newobj` keep a reference
+        # to `newobj` through the `function` field. Thus, all indexified
+        # object will point to `newobj`, the "actual Function".
+        newobj.function = newobj
+
+        # Store new instance in symbol cache
+        Cached.__init__(newobj, newcls)
         return newobj
 
     def __init__(self, *args, **kwargs):
-        if not self._cached():
-            # Setup halo and padding regions
-            self._is_halo_dirty = False
-            self._halo = self.__halo_setup__(**kwargs)
-            self._padding = self.__padding_setup__(**kwargs)
+        # no-op, the true init is performed by __init_finalize__
+        pass
+
+    def __init_finalize__(self, *args, **kwargs):
+        # Setup halo and padding regions
+        self._is_halo_dirty = False
+        self._halo = self.__halo_setup__(**kwargs)
+        self._padding = self.__padding_setup__(**kwargs)
 
     __hash__ = Cached.__hash__
 
@@ -774,7 +788,7 @@ class AbstractCachedFunction(AbstractFunction, Cached, Evaluable):
         return self.__class__.__base__
 
 
-class Array(AbstractCachedFunction):
+class Array(AbstractFunction):
     """
     Tensor symbol representing an array in symbolic equations.
 
@@ -809,14 +823,13 @@ class Array(AbstractCachedFunction):
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
-        return AbstractCachedFunction.__new__(cls, *args, **kwargs)
+        return AbstractFunction.__new__(cls, *args, **kwargs)
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(Array, self).__init__(*args, **kwargs)
+    def __init_finalize__(self, *args, **kwargs):
+        super(Array, self).__init_finalize__(*args, **kwargs)
 
-            self._scope = kwargs.get('scope', 'heap')
-            assert self._scope in ['heap', 'stack']
+        self._scope = kwargs.get('scope', 'heap')
+        assert self._scope in ['heap', 'stack']
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -893,7 +906,7 @@ class Array(AbstractCachedFunction):
         assert self._scope in ['heap', 'stack']
 
     # Pickling support
-    _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['dimensions', 'scope']
+    _pickle_kwargs = AbstractFunction._pickle_kwargs + ['dimensions', 'scope']
 
 
 # Objects belonging to the Devito API not involving data, such as data structures
@@ -1059,7 +1072,7 @@ class IndexedData(sympy.IndexedBase, Pickable):
     def __new__(cls, label, shape=None, function=None):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
         if isinstance(label, str):
-            label = Symbol(label, dtype=function.dtype)
+            label = Symbol(name=label, dtype=function.dtype)
         obj = sympy.IndexedBase.__new__(cls, label, shape)
         obj.function = function
         return obj
@@ -1105,21 +1118,3 @@ class Indexed(sympy.Indexed):
     @property
     def name(self):
         return self.function.name
-
-# Utilities
-
-
-class CacheManager(object):
-
-    """
-    Drop unreferenced objects from the SymPy and Devito caches. The associated
-    data is lost (and thus memory is freed).
-    """
-
-    @classmethod
-    def clear(cls):
-        sympy.cache.clear_cache()
-        gc.collect()
-        for key, val in list(_SymbolCache.items()):
-            if val() is None:
-                del _SymbolCache[key]
