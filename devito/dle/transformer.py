@@ -93,7 +93,8 @@ def transform(iet, mode='advanced', options=None):
             params[k] = v
 
     # Force OpenMP/MPI if parallelism was requested, even though mode is 'noop'
-    mode = tuple(i for i in ['openmp', 'mpi'] if params[i] is not False) or 'noop'
+    if mode == 'noop':
+        mode = tuple(i for i in ['mpi', 'openmp'] if params[i]) or 'noop'
 
     # What is the target platform for which the optimizations are applied?
     platform = configuration['platform']

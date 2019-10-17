@@ -4,10 +4,77 @@ from scipy.ndimage import gaussian_filter
 
 from conftest import skipif
 from devito import Grid, Function
-from devito.builtins import gaussian_smooth
+from devito.builtins import assign, gaussian_smooth
 from devito.tools import as_tuple
+from devito.types import SubDomain
 
 pytestmark = skipif(['yask', 'ops'])
+
+
+class TestAssign(object):
+    """
+    Class for testing the assign builtin
+    """
+    def test_single_scalar(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+
+        assign(f, 4)
+
+        assert np.all(f.data == 4)
+
+    def test_multiple_fns_single_scalar(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+        functions = [f, g, h]
+        assign(functions, 2)
+
+        assert np.all(f.data == 2)
+        assert np.all(g.data == 2)
+        assert np.all(h.data == 2)
+
+    def test_multiple_fns_multiple_scalar(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+        functions = [f, g, h]
+        scalars = [1, 2, 3]
+        assign(functions, scalars)
+
+        assert np.all(f.data == 1)
+        assert np.all(g.data == 2)
+        assert np.all(h.data == 3)
+
+    def test_equations_with_options(self):
+
+        class CompDomain(SubDomain):
+
+            name = 'comp_domain'
+
+            def define(self, dimensions):
+                return {d: ('middle', 1, 1) for d in dimensions}
+
+        comp_domain = CompDomain()
+        grid = Grid(shape=(4, 4), subdomains=comp_domain)
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        functions = [f, g]
+        scalars = 2
+        options = [None, {'subdomain': grid.subdomains['comp_domain']}]
+        assign(functions, scalars, options=options)
+
+        assert np.all(f.data == 2)
+        assert np.all(np.array(g.data) == [[0, 0, 0, 0],
+                                           [0, 2, 2, 0],
+                                           [0, 2, 2, 0],
+                                           [0, 0, 0, 0]])
 
 
 class TestGaussianSmooth(object):

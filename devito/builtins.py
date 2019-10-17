@@ -21,10 +21,17 @@ def assign(f, RHS=0, options=None, name='assign', **kwargs):
         The left-hand side of the assignment.
     RHS : expr-like or list of expr-like, optional
         The right-hand side of the assignment.
-    options : list, optional
-        ...
+    options : dict or list of dict, optional
+        Dictionary or list (of len(f)) of dictionaries containing optional arguments to
+        be passed to Eq.
     name : str, optional
         Name of the operator.
+
+    Examples
+    --------
+    >>>
+    >>>
+    >>>
     """
     if not isinstance(f, list):
         f = [f]
@@ -147,6 +154,7 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
 def initialize_function(function, data, nbpml, additional_expressions=dict(),
                         mode='constant', name='padfunc'):
     """
+    # TODO: Generalise some of the below descriptions. Change nbpml.Finish docstring.
     Initialize a `Function` with the given ``data``. ``data``
     does *not* include the PML layers for the absorbing boundary conditions;
     these are added via padding by this function.
@@ -156,12 +164,16 @@ def initialize_function(function, data, nbpml, additional_expressions=dict(),
     function : Function
         The initialised object.
     data : ndarray of Function
-        The data array used for initialisation.
+        The data used for initialisation.
     nbpml : int
         Number of PML layers for boundary damping.
-    mode : str
+    additional_expressions : dict, optional
+        Dictionary containing ...
+    mode : str, optional
         The function initialisation mode. 'constant' and 'reflect' are
         accepted.
+    name : str, optional
+        The name assigned to the operator.
     """
     slices = tuple([slice(nbpml, -nbpml) for _ in range(function.grid.dim)])
     if isinstance(data, dv.Function):
