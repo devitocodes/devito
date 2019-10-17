@@ -7,14 +7,14 @@ from sympy.core.decorators import call_highest_priority
 
 from devito.finite_differences import Differentiable
 from devito.logger import error
-from devito.types.basic import AbstractCachedTensor, Basic
+from devito.types.basic import AbstractTensor, Basic
 from devito.types.dense import Function, TimeFunction
 from devito.types.utils import NODE
 
 __all__ = ['TensorFunction', 'TensorTimeFunction', 'VectorFunction', 'VectorTimeFunction']
 
 
-class TensorFunction(AbstractCachedTensor, Differentiable):
+class TensorFunction(AbstractTensor, Differentiable):
     """
     Tensor valued Function represented as a Matrix.
     Each component is a Function or TimeFunction.
@@ -36,13 +36,12 @@ class TensorFunction(AbstractCachedTensor, Differentiable):
     _op_priority = Differentiable._op_priority + 2.
     _class_priority = 10
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self._is_symmetric = kwargs.get('symmetric', True)
-            self._is_diagonal = kwargs.get('diagonal', False)
-            self._staggered = kwargs.get('staggered', self.space_dimensions)
-            self._grid = kwargs.get('grid')
-            self._space_order = kwargs.get('space_order', 1)
+    def __init_finalize__(self, *args, **kwargs):
+        self._is_symmetric = kwargs.get('symmetric', True)
+        self._is_diagonal = kwargs.get('diagonal', False)
+        self._staggered = kwargs.get('staggered', self.space_dimensions)
+        self._grid = kwargs.get('grid')
+        self._space_order = kwargs.get('space_order', 1)
 
     @classmethod
     def __subfunc_setup__(cls, *args, **kwargs):
@@ -370,10 +369,9 @@ class TensorTimeFunction(TensorFunction):
     _sub_type = TimeFunction
     _time_position = 0
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(TensorTimeFunction, self).__init__(*args, **kwargs)
-            self._time_order = kwargs.get('time_order', 1)
+    def __init_finalize__(self, *args, **kwargs):
+        super(TensorTimeFunction, self).__init_finalize__(*args, **kwargs)
+        self._time_order = kwargs.get('time_order', 1)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -416,10 +414,9 @@ class VectorFunction(TensorFunction):
     _is_symmetric = False
     _op_priority = Differentiable._op_priority + 1.
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(VectorFunction, self).__init__(*args, **kwargs)
-            self._is_transposed = kwargs.get("transpose", False)
+    def __init_finalize__(self, *args, **kwargs):
+        super(VectorFunction, self).__init_finalize__(*args, **kwargs)
+        self._is_transposed = kwargs.get("transpose", False)
 
     @property
     def is_transposed(self):

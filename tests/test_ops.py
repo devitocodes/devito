@@ -208,7 +208,7 @@ class TestOPSExpression(object):
     @pytest.mark.parametrize('read', [True, False])
     def test_create_ops_arg_function(self, read):
 
-        u = OpsAccessible('u', np.float32, read)
+        u = OpsAccessible('u', dtype=np.float32, read_only=read)
         dat = OpsDat('u_dat')
         stencil = OpsStencil('stencil')
         info = AccessibleInfo(u, None, None)

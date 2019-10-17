@@ -9,7 +9,6 @@ except:
     plt = None
 
 from devito.types import Dimension, SparseTimeFunction
-from devito.types.basic import _SymbolCache
 
 __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
            'RickerSource', 'GaborSource', 'DGaussSource', 'TimeAxis']
@@ -107,37 +106,44 @@ class PointSource(SparseTimeFunction):
 
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
-        if cls in _SymbolCache:
-            obj = sympy.Function.__new__(cls, *args, **options)
-            obj._cached_init()
-        else:
-            name = kwargs.pop('name')
-            grid = kwargs.pop('grid')
-            time_range = kwargs.pop('time_range')
-            time_order = kwargs.pop('time_order', 2)
-            p_dim = kwargs.pop('dimension', Dimension(name='p_%s' % name))
 
-            coordinates = kwargs.pop('coordinates', kwargs.pop('coordinates_data', None))
-            # Either `npoint` or `coordinates` must be provided
-            npoint = kwargs.pop('npoint', None)
-            if npoint is None:
-                if coordinates is None:
-                    raise TypeError("Need either `npoint` or `coordinates`")
-                npoint = coordinates.shape[0]
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
 
-            # Create the underlying SparseTimeFunction object
-            obj = SparseTimeFunction.__new__(cls, name=name, grid=grid,
-                                             dimensions=(grid.time_dim, p_dim),
-                                             npoint=npoint, nt=time_range.num,
-                                             time_order=time_order,
-                                             coordinates=coordinates, **kwargs)
+        if obj is not None:
+            newobj = sympy.Function.__new__(cls, *args, **options)
+            newobj.__init_cached__(key)
+            return newobj
 
-            obj._time_range = time_range._rebuild()
+        # Not in cache. Create a new PointSouce via devito.SparseTimeFunction
 
-            # If provided, copy initial data into the allocated buffer
-            data = kwargs.get('data')
-            if data is not None:
-                obj.data[:] = data
+        name = kwargs.pop('name')
+        grid = kwargs.pop('grid')
+        time_range = kwargs.pop('time_range')
+        time_order = kwargs.pop('time_order', 2)
+        p_dim = kwargs.pop('dimension', Dimension(name='p_%s' % name))
+
+        coordinates = kwargs.pop('coordinates', kwargs.pop('coordinates_data', None))
+        # Either `npoint` or `coordinates` must be provided
+        npoint = kwargs.pop('npoint', None)
+        if npoint is None:
+            if coordinates is None:
+                raise TypeError("Need either `npoint` or `coordinates`")
+            npoint = coordinates.shape[0]
+
+        # Create the underlying SparseTimeFunction object
+        obj = SparseTimeFunction.__new__(cls, name=name, grid=grid,
+                                         dimensions=(grid.time_dim, p_dim),
+                                         npoint=npoint, nt=time_range.num,
+                                         time_order=time_order,
+                                         coordinates=coordinates, **kwargs)
+
+        obj._time_range = time_range._rebuild()
+
+        # If provided, copy initial data into the allocated buffer
+        data = kwargs.get('data')
+        if data is not None:
+            obj.data[:] = data
 
         return obj
 
@@ -209,20 +215,23 @@ class WaveletSource(PointSource):
 
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
-        if cls in _SymbolCache:
-            obj = sympy.Function.__new__(cls, *args, **options)
-            obj._cached_init()
-        else:
-            npoint = kwargs.pop('npoint', 1)
-            obj = PointSource.__new__(cls, npoint=npoint, **kwargs)
-            obj.f0 = kwargs.get('f0')
-            for p in range(npoint):
-                obj.data[:, p] = obj.wavelet(obj.f0, obj.time_values)
-        return obj
 
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            super(WaveletSource, self).__init__(*args, **kwargs)
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
+
+        if obj is not None:
+            newobj = sympy.Function.__new__(cls, *args, **options)
+            newobj.__init_cached__(key)
+            return newobj
+
+        # Not in cache. Create a new WaveletSouce via PointSource
+        npoint = kwargs.pop('npoint', 1)
+        obj = PointSource.__new__(cls, npoint=npoint, **kwargs)
+        obj.f0 = kwargs.get('f0')
+        for p in range(npoint):
+            obj.data[:, p] = obj.wavelet(obj.f0, obj.time_values)
+
+        return obj
 
     def wavelet(self, f0, t):
         """

@@ -211,7 +211,6 @@ class TestFD(object):
         For a given order p, the finite difference scheme should
         be exact for polynomials of order p.
         """
-        clear_cache()
         # dummy axis dimension
         nx = 100
         xx = np.linspace(-1, 1, nx)
@@ -252,7 +251,6 @@ class TestFD(object):
         For a given order p, the finite difference scheme should
         be exact for polynomials of order p
         """
-        clear_cache()
         # dummy axis dimension
         nx = 101
         xx = np.linspace(-1, 1, nx)

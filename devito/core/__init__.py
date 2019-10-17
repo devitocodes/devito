@@ -37,5 +37,5 @@ from devito.types.constant import *  # noqa
 from devito.types.dense import *  # noqa
 from devito.types.sparse import *  # noqa
 from devito.types.tensor import *  # noqa
-from devito.types.basic import CacheManager  # noqa
+from devito.types.caching import CacheManager  # noqa
 from devito.types.grid import Grid  # noqa
