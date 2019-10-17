@@ -99,6 +99,10 @@ class Dimension(ArgProvider):
     is_Modulo = False
     is_Incr = False
 
+    # SymPy default assumptions
+    is_integer = True
+    is_nonnegative = True
+
     _C_typename = 'const %s' % dtype_to_cstr(np.int32)
     _C_typedata = _C_typename
 

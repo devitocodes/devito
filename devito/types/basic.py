@@ -175,6 +175,20 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     is_AbstractSymbol = True
     is_Symbol = True
 
+    # SymPy default assumptions
+    is_zero = False
+    is_prime = False
+    is_even = False
+    is_odd = False
+    is_integer = False
+    is_rational = False
+    is_real = True
+    is_imaginary = False
+    is_algebraic = False
+    is_composite = False
+    is_finite = True
+    is_commutative = True
+
     @classmethod
     def _filter_assumptions(cls, **kwargs):
         """Extract sympy.Symbol-specific kwargs."""
@@ -469,6 +483,20 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     """
 
     is_AbstractFunction = True
+
+    # SymPy default assumptions
+    is_zero = False
+    is_prime = False
+    is_even = False
+    is_odd = False
+    is_integer = False
+    is_rational = False
+    is_real = True
+    is_imaginary = False
+    is_algebraic = False
+    is_composite = False
+    is_finite = True
+    is_commutative = True
 
     @classmethod
     def _cache_key(cls, *args, **kwargs):
