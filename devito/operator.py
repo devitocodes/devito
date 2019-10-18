@@ -237,6 +237,7 @@ class Operator(Callable):
                 try:
                     dims = [d.root for d in e.free_symbols if isinstance(d, Dimension)]
                     sub_dims = [d.root for d in e.subdomain.dimensions]
+                    sub_dims.append(e.subdomain.implicit_dimension)
                     dims = [d for d in dims if d not in frozenset(sub_dims)]
                     dims.append(e.subdomain.implicit_dimension)
                     if e.subdomain not in seen:
