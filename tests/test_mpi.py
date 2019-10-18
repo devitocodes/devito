@@ -760,21 +760,6 @@ class TestCodeGeneration(object):
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
-    def test_haloupdate_different_locindices(self):
-        """
-        Test that halo updates from multiple timesteps (t, t+1) are supported.
-        """
-        grid = Grid((4, 4))
-        x, y = grid.dimensions
-        t = grid.stepping_dim
-
-        f = TimeFunction(name='f', grid=grid)
-
-        op = Operator([Eq(f.forward, f[t, x, y+1]),
-                       Eq(f.forward, f[t+1, x, y+1])])
-
-        assert False
-
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
@@ -1480,6 +1465,33 @@ class TestOperatorAdvanced(object):
         assert np.isclose(norm(uxx), 60904.192, rtol=1.e-4)
         assert np.isclose(norm(uxy), 58555.359, rtol=1.e-4)
 
+    @pytest.mark.parallel(mode=2)
+    def test_haloupdate_different_locindices(self):
+        """
+        Test that halo updates from multiple timesteps (t, t+1) are supported.
+        """
+        size = 12
+        grid = Grid((size,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+
+        op = Operator([Eq(f.forward, f[t, x+1] + 1),
+                       Eq(g.forward, f[t+1, x+1] + 1)])
+
+        op.apply(time_M=1)
+        # TODO: this actually seems to be already well tested ?!?
+
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        if LEFT in glb_pos_map[x]:
+            assert np.all(g.data_ro_domain[0, :6] == list(range(size, size//2, -1)))
+            assert np.all(f.data_ro_domain[1, :6] == list(range(size, size//2, -1)))
+        else:
+            assert np.all(f.data_ro_domain[0, 6:] == list(range(size//2, 0, -1)))
+            assert np.all(f.data_ro_domain[1, 6:] == list(range(size//2, 0, -1)))
+
 
 class TestIsotropicAcoustic(object):
 
@@ -1564,7 +1576,7 @@ class TestIsotropicAcoustic(object):
 if __name__ == "__main__":
     configuration['mpi'] = True
     # TestDecomposition().test_reshape_left_right()
-    # TestOperatorSimple().test_trivial_eq_2d()
+    TestOperatorAdvanced().test_haloupdate_different_locindices()
     # TestOperatorSimple().test_num_comms('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'})
     # TestFunction().test_halo_exchange_bilateral()
     # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
