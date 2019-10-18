@@ -293,7 +293,6 @@ def plot(problem, **kwargs):
     flop_ceils = kwargs.pop('flop_ceil')
     point_runtime = kwargs.pop('point_runtime')
     autotune = kwargs['autotune']
-
     arch = kwargs['arch']
     space_order = "[%s]" % ",".join(str(i) for i in kwargs['space_order'])
     time_order = kwargs['time_order']
@@ -322,7 +321,7 @@ def plot(problem, **kwargs):
              if len(set(dict(j)[i] for j in gflopss)) > 1]
 
     # Filename
-    figname = "%s_dim%s_so%s_to%s_arch[%s]_bkend[%s]_at[%s]pdf" % (
+    figname = "%s_shape%s_so%s_to%s_arch[%s]_bkend[%s]_at[%s]" % (
         problem, shape, space_order, time_order, arch, backend, autotune
     )
 
@@ -408,6 +407,8 @@ def get_ob_bench(problem, resultsdir, parameters):
                 devito_params['nt'] = os.environ.get('OMP_NUM_THREADS', default_nthreads)
             else:
                 devito_params['nt'] = 1
+
+            devito_params['mpi'] = configuration['mpi']
 
             if configuration['mpi']:
                 devito_params['np'] = MPI.COMM_WORLD.size
