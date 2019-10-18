@@ -265,7 +265,6 @@ class Enforce(Queue):
 
         # Compute iteration direction
         direction = {d: Backward for d in candidates if d.root in scope.d_anti.cause}
-        direction.update({d: Forward for d in candidates if d.root in scope.d_flow.cause})
         direction.update({d: Forward for d in candidates if d not in direction})
 
         # Enforce iteration direction on each Cluster
