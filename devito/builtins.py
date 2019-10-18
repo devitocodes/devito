@@ -29,9 +29,29 @@ def assign(f, RHS=0, options=None, name='assign', **kwargs):
 
     Examples
     --------
-    >>>
-    >>>
-    >>>
+    >>> from devito import Grid, Function, assign
+    >>> grid = Grid(shape=(4, 4))
+    >>> f = Function(name='f', grid=grid, dtype=np.int32)
+    >>> g = Function(name='g', grid=grid, dtype=np.int32)
+    >>> h = Function(name='h', grid=grid, dtype=np.int32)
+    >>> functions = [f, g, h]
+    >>> scalars = [1, 2, 3]
+    >>> assign(functions, scalars)
+    >>> f.data
+    Data([[1, 1, 1, 1],
+          [1, 1, 1, 1],
+          [1, 1, 1, 1],
+          [1, 1, 1, 1]], dtype=int32)
+    >>> g.data
+    Data([[2, 2, 2, 2],
+          [2, 2, 2, 2],
+          [2, 2, 2, 2],
+          [2, 2, 2, 2]], dtype=int32)
+    >>> h.data
+    Data([[3, 3, 3, 3],
+          [3, 3, 3, 3],
+          [3, 3, 3, 3],
+          [3, 3, 3, 3]], dtype=int32)
     """
     if not isinstance(f, list):
         f = [f]
@@ -151,13 +171,12 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
     return f
 
 
-def initialize_function(function, data, nbpml, additional_expressions=dict(),
+def initialize_function(function, data, nbl, additional_expressions=dict(),
                         mode='constant', name='padfunc'):
     """
-    # TODO: Generalise some of the below descriptions. Change nbpml.Finish docstring.
     Initialize a `Function` with the given ``data``. ``data``
-    does *not* include the PML layers for the absorbing boundary conditions;
-    these are added via padding by this function.
+    does *not* include the ``nbl`` outer/boundary layers; these are added via padding
+    by this function.
 
     Parameters
     ----------
@@ -165,17 +184,22 @@ def initialize_function(function, data, nbpml, additional_expressions=dict(),
         The initialised object.
     data : ndarray of Function
         The data used for initialisation.
-    nbpml : int
-        Number of PML layers for boundary damping.
+    nbl : int
+        Number of outer layers (such as PML layers for boundary damping).
     additional_expressions : dict, optional
-        Dictionary containing ...
+        Dictionary containing, for each dimension of function, a sub-dictionary
+        containing the following keys:
+        1) 'lhs': List of additional expressions to be added to the LHS expressions list.
+        2) 'rhs': List of additional expressions to be added to the RHS expressions list.
+        3) 'options': Options pertaining to the additional equations that will be
+        constructed.
     mode : str, optional
         The function initialisation mode. 'constant' and 'reflect' are
         accepted.
     name : str, optional
         The name assigned to the operator.
     """
-    slices = tuple([slice(nbpml, -nbpml) for _ in range(function.grid.dim)])
+    slices = tuple([slice(nbl, -nbl) for _ in range(function.grid.dim)])
     if isinstance(data, dv.Function):
         function.data[slices] = data.data[:]
     else:
@@ -184,17 +208,29 @@ def initialize_function(function, data, nbpml, additional_expressions=dict(),
     rhs = []
     options = []
 
+    if mode == 'reflect' and function.grid.distributor.is_parallel:
+        # Check that HALO size is appropriate
+        halo = function.halo
+        local_size = function.grid.distributor.shape
+
+        def buff(i, j):
+            return [(i + k - 2*nbl) for k in j]
+
+        b = [min(l) for l in (w for w in (buff(i, j) for i, j in zip(local_size, halo)))]
+        if any(np.array(b) < 0):
+            raise ValueError("Function's halo is not sufficiently thick.")
+
     for d in function.dimensions:
         dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d,
-                                     thickness=nbpml)
+                                     thickness=nbl)
         dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d,
-                                      thickness=nbpml)
+                                      thickness=nbl)
         if mode == 'constant':
-            subsl = nbpml
-            subsr = d.symbolic_max - nbpml
+            subsl = nbl
+            subsr = d.symbolic_max - nbl
         elif mode == 'reflect':
-            subsl = 2*nbpml - 1 - dim_l
-            subsr = 2*(d.symbolic_max - nbpml) + 1 - dim_r
+            subsl = 2*nbl - 1 - dim_l
+            subsr = 2*(d.symbolic_max - nbl) + 1 - dim_r
         else:
             raise ValueError("Mode not available")
         lhs.append(function.subs({d: dim_l}))
