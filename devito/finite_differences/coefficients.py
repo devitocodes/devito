@@ -3,7 +3,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.finite_differences import generate_indices, form_side
-from devito.tools import filter_ordered
+from devito.tools import filter_ordered, as_tuple
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
 
@@ -50,13 +50,17 @@ class Coefficient(object):
         self._check_input(deriv_order, function, dimension, weights)
 
         # Ensure the given set of weights is the correct length
+        try:
+            wl = weights.shape[-1]-1
+        except AttributeError:
+            wl = len(weights)-1
         if dimension.is_Time:
-            if len(weights)-1 != function.time_order:
-                raise ValueError("Number FD weights provided does not "
+            if wl != function.time_order:
+                raise ValueError("Number of FD weights provided does not "
                                  "match the functions space_order")
         elif dimension.is_Space:
-            if len(weights)-1 != function.space_order:
-                raise ValueError("Number FD weights provided does not "
+            if wl != function.space_order:
+                raise ValueError("Number of FD weights provided does not "
                                  "match the functions space_order")
 
         self._deriv_order = deriv_order
@@ -87,8 +91,6 @@ class Coefficient(object):
     def _check_input(self, deriv_order, function, dimension, weights):
         if not isinstance(deriv_order, int):
             raise TypeError("Derivative order must be an integer")
-        # NOTE: Can potentially be tidied up following the implementation
-        # of lazy evaluation.
         try:
             if not function.is_Function:
                 raise TypeError("Object is not of type Function")
@@ -99,10 +101,11 @@ class Coefficient(object):
                 raise TypeError("Coefficients must be attached to a valid dimension")
         except AttributeError:
             raise TypeError("Coefficients must be attached to a valid dimension")
-        # Currently only numpy arrays are accepted here.
-        # Functionality will be expanded in the near future.
-        if not isinstance(weights, np.ndarray):
-            raise NotImplementedError
+        try:
+            weights.is_Function is True
+        except AttributeError:
+            if not isinstance(weights, np.ndarray):
+                raise TypeError("Weights must be of type np.ndarray or a Devito Function")
         return
 
 
@@ -175,7 +178,10 @@ class Substitutions(object):
             dim = i.dimension
             weights = i.weights
 
-            fd_order = len(weights)-1
+            if isinstance(weights, np.ndarray):
+                fd_order = len(weights)-1
+            else:
+                fd_order = weights.shape[-1]-1
 
             side = form_side((dim,), function)
             stagger = side.get(dim)
@@ -185,9 +191,23 @@ class Substitutions(object):
             indices, x0 = generate_indices(function, dim, dim.spacing, fd_order,
                                            side=None, stagger=stagger)
 
-            for j in range(len(weights)):
-                subs.update({function._coeff_symbol
-                             (indices[j], deriv_order, function, dim): weights[j]})
+            # NOTE: This implementation currently assumes that indices are ordered
+            # according to their position in the FD stencil. This may not be the
+            # case in all schemes and should be changed such that the weights are
+            # passed as a dictionary of the form {pos: w} (or something similar).
+            if isinstance(weights, np.ndarray):
+                for j in range(len(weights)):
+                    subs.update({function._coeff_symbol
+                                 (indices[j], deriv_order, function, dim): weights[j]})
+            else:
+                shape = weights.shape
+                x = weights.dimensions
+                for j in range(shape[-1]):
+                    idx = list(x)
+                    idx[-1] = j
+                    subs.update({function._coeff_symbol
+                                 (indices[j], deriv_order, function, dim):
+                                     weights[as_tuple(idx)]})
 
             return subs
 
@@ -196,8 +216,7 @@ class Substitutions(object):
         # replacement rules
         rules = {}
         for i in self.coefficients:
-            if isinstance(i.weights, np.ndarray):
-                rules.update(generate_subs(i))
+            rules.update(generate_subs(i))
 
         return rules
 
