@@ -237,11 +237,18 @@ class Enforce(Queue):
         # Here, `eq0` marches forward along `t`, while `eq1` has both a flow and an
         # anti dependence with `eq0`, which ultimately will require `eq1` to go in
         # a separate t-loop
-        require_break = (scope.d_flow.cause & scope.d_anti.cause) & candidates
-        if require_break and len(clusters) > 1:
-            backlog = [clusters[-1]] + backlog
-            # Try with increasingly smaller Cluster groups until the ambiguity is solved
-            return self.callback(clusters[:-1], prefix, backlog, require_break)
+        #
+        # Note: in most cases, `scope.d_anti.cause == {}` -- either because
+        # `scope.d_anti == {}` or because the few anti dependences are not carried
+        # in any dimension. We exploit this observation so that we only compute
+        # `d_flow`, which may be expensive, when strictly necessary
+        maybe_break = scope.d_anti.cause & candidates
+        if len(clusters) > 1 and maybe_break:
+            require_break = scope.d_flow.cause & maybe_break
+            if require_break:
+                backlog = [clusters[-1]] + backlog
+                # Try with increasingly smaller ClusterGroups until the ambiguity is gone
+                return self.callback(clusters[:-1], prefix, backlog, require_break)
 
         # If the flow- or anti-dependences are not coupled, one or more Clusters
         # might be scheduled separately, to increase parallelism (this is basically
