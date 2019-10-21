@@ -250,18 +250,24 @@ class Enforce(Queue):
                 # Try with increasingly smaller ClusterGroups until the ambiguity is gone
                 return self.callback(clusters[:-1], prefix, backlog, require_break)
 
-        # If the flow- or anti-dependences are not coupled, one or more Clusters
-        # might be scheduled separately, to increase parallelism (this is basically
-        # what low-level compilers call "loop fission")
-        for n, _ in enumerate(clusters):
-            d_cross = scope.d_from_access(scope.a_query(n, 'R')).cross()
-            if any(d.is_storage_volatile(candidates) for d in d_cross):
+        # Schedule Clusters over different IterationSpaces if this increases parallelism
+        # (essentially this is what low-level compilers call "loop fission" -- only that
+        # here it occurs at a much higher level of abstraction)
+        for i in range(1, len(clusters)):
+            test0 = False
+            test1 = False
+            for d in scope.d_from_access_gen(scope.a_query(i)):
+                test0 = (d.is_storage_volatile(candidates) or
+                         (d.is_flow and d.is_carried() and d.is_lex_negative) or
+                         (d.is_anti and d.is_carried() and d.is_lex_positive))
+                if test0:
+                    break
+                test1 = test1 or bool(d.cause & candidates)
+            if test0:
                 break
-            elif d_cross.cause & candidates:
-                if n > 0:
-                    return self.callback(clusters[:n], prefix, clusters[n:] + backlog,
-                                         (d_cross.cause & candidates) | known_break)
-                break
+            if test1:
+                return self.callback(clusters[:i], prefix, clusters[i:] + backlog,
+                                     candidates | known_break)
 
         # Compute iteration direction
         direction = {d: Backward for d in candidates if d.root in scope.d_anti.cause}

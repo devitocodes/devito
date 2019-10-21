@@ -1,3 +1,5 @@
+from itertools import chain
+
 from cached_property import cached_property
 from sympy import S
 
@@ -5,7 +7,7 @@ from devito.ir.support.space import Any, Backward
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import retrieve_terminals, q_monoaffine
 from devito.tools import (EnrichedTuple, Tag, as_tuple, is_integer,
-                          filter_sorted, flatten, memoized_meth)
+                          filter_sorted, flatten, memoized_meth, memoized_generator)
 from devito.types import Dimension
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope']
@@ -185,8 +187,10 @@ class TimedAccess(IterationInstance):
     on the values of the index functions and the access mode (read, write).
     """
 
+    _modes = ('R', 'W', 'RI', 'WI')
+
     def __new__(cls, indexed, mode, timestamp, ispace=None):
-        assert mode in ['R', 'W', 'RI', 'WI']
+        assert mode in cls._modes
         assert is_integer(timestamp)
 
         obj = super(TimedAccess, cls).__new__(cls, indexed)
@@ -484,8 +488,19 @@ class Dependence(object):
         return not self.is_regular
 
     @cached_property
-    def is_cross(self):
-        return self.source.timestamp != self.sink.timestamp
+    def is_lex_positive(self):
+        """True if the source preceeds the sink, False otherwise."""
+        return self.source.timestamp < self.sink.timestamp
+
+    @cached_property
+    def is_lex_equal(self):
+        """True if the source has same timestamp as the sink, False otherwise."""
+        return self.source.timestamp == self.sink.timestamp
+
+    @cached_property
+    def is_lex_negative(self):
+        """True if the sink preceeds the source, False otherwise."""
+        return self.source.timestamp > self.sink.timestamp
 
     @memoized_meth
     def is_carried(self, dim=None):
@@ -606,10 +621,6 @@ class DependenceGroup(list):
         """Return the in-place dependences."""
         return DependenceGroup(i for i in self if i.is_inplace(dim))
 
-    def cross(self):
-        """The dependences whose source and sink are from different timestamps."""
-        return DependenceGroup(i for i in self if i.is_cross)
-
     def __add__(self, other):
         assert isinstance(other, DependenceGroup)
         return DependenceGroup(super(DependenceGroup, self).__add__(other))
@@ -718,12 +729,13 @@ class Scope(object):
 
     @memoized_meth
     def a_query(self, timestamps=None, modes=None):
+        timestamps = as_tuple(timestamps)
+        modes = as_tuple(modes) or TimedAccess._modes
         return tuple(a for a in self.accesses
-                     if (a.timestamp in as_tuple(timestamps) and
-                         a.mode in as_tuple(modes)))
+                     if a.timestamp in timestamps and a.mode in modes)
 
     def d_flow_gen(self):
-        """Generator for flow (or "read-after-write") dependences."""
+        """Generate the flow (or "read-after-write") dependences."""
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
@@ -745,7 +757,7 @@ class Scope(object):
         return DependenceGroup(self.d_flow_gen())
 
     def d_anti_gen(self):
-        """Generator for anti (or "write-after-read") dependences."""
+        """Generate the anti (or "write-after-read") dependences."""
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
@@ -767,7 +779,7 @@ class Scope(object):
         return DependenceGroup(self.d_anti_gen())
 
     def d_output_gen(self):
-        """Generator for output (or "write-after-write") dependences."""
+        """Generate the output (or "write-after-write") dependences."""
         for k, v in self.writes.items():
             for w1 in v:
                 for w2 in self.writes.get(k, []):
@@ -787,18 +799,31 @@ class Scope(object):
         """Output (or "write-after-write") dependences."""
         return DependenceGroup(self.d_output_gen())
 
+    def d_all_gen(self):
+        """Generate all flow, anti and output dependences."""
+        return chain(self.d_flow_gen(), self.d_anti_gen(), self.d_output_gen())
+
     @cached_property
     def d_all(self):
-        """Generate all flow, anti, and output dependences."""
+        """All flow, anti, and output dependences."""
         return self.d_flow + self.d_anti + self.d_output
+
+    def d_from_access_gen(self, accesses):
+        """
+        Generate all flow, anti, and output dependences involving any of
+        the given TimedAccess objects.
+        """
+        accesses = as_tuple(accesses)
+        for d in self.d_all_gen():
+            for i in accesses:
+                if d.source is i or d.sink is i:
+                    yield d
+                    break
 
     @memoized_meth
     def d_from_access(self, accesses):
-        """Generate all dependences involving a given TimedAccess."""
-        accesses = as_tuple(accesses)
-        found = DependenceGroup()
-        for d in self.d_all:
-            for i in accesses:
-                if d.source is i or d.sink is i:
-                    found.append(d)
-        return found
+        """
+        All flow, anti, and output dependences involving any of the given
+        TimedAccess objects.
+        """
+        return DependenceGroup(self.d_from_access_gen(accesses))

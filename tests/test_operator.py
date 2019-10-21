@@ -1195,7 +1195,7 @@ class TestLoopScheduling(object):
         u = TimeFunction(name='u', grid=grid)
         v = TimeFunction(name='v', grid=grid)
 
-        # Fission as an optimization to increase parallelism
+        # Expect Cluster fission to increase parallelism
         eqns = [Eq(u, 1), Eq(v, u.dxl)]
         op = Operator(eqns)
         trees = retrieve_iteration_tree(op)
@@ -1203,7 +1203,7 @@ class TestLoopScheduling(object):
         assert trees[0][1].dim is x
         assert trees[1][1].dim is x
 
-        # Same story as above, but now with a WAR
+        # Same story as above, but with a flow0dependence in the Backward direction
         eqns = [Eq(u, 1), Eq(v, u.dxr)]
         op = Operator(eqns)
         trees = retrieve_iteration_tree(op)
@@ -1211,8 +1211,7 @@ class TestLoopScheduling(object):
         assert trees[0][1].dim is x
         assert trees[1][1].dim is x
 
-        # Again pretty similar, but with a WAR on `v` -- fission is still
-        # the result of optimization
+        # Similar, but with an additional Dimension-independent dependence
         eqns = [Eq(u, v), Eq(v, u.dxl)]
         op = Operator(eqns)
         trees = retrieve_iteration_tree(op)
@@ -1220,8 +1219,19 @@ class TestLoopScheduling(object):
         assert trees[0][1].dim is x
         assert trees[1][1].dim is x
 
+        #TODO : move to "test_no_fission"
+
         # No fission expected
         eqns = [Eq(u.forward, v), Eq(v, u.dxl)]
+        op = Operator(eqns)
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+
+        us = TimeFunction(name='u', grid=grid, save=5)
+        vs = TimeFunction(name='v', grid=grid, save=5)
+
+        # No fission expected
+        eqns = [Eq(us, 1), Eq(us.forward, vs), Eq(vs.forward, us.dxl)]
         op = Operator(eqns)
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
