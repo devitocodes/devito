@@ -602,12 +602,12 @@ def test_tti_rewrite_aggressive(tti_nodse):
     # * four Arrays are allocated on the heap
     # * two Arrays are allocated on the stack and only appear within an efunc
     arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-    assert len(arrays) == 3
+    assert len(arrays) == 4
     assert all(i._mem_heap and not i._mem_external for i in arrays)
     arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root) if i.is_Array]
-    assert len(arrays) == 5
+    assert len(arrays) == 6
     assert all(not i._mem_external for i in arrays)
-    assert len([i for i in arrays if i._mem_heap]) == 3
+    assert len([i for i in arrays if i._mem_heap]) == 4
     assert len([i for i in arrays if i._mem_stack]) == 2
 
 
@@ -625,7 +625,7 @@ def test_tti_rewrite_aggressive_wmpi():
 
 @switchconfig(profiling='advanced')
 @pytest.mark.parametrize('space_order,expected', [
-    (8, 173), (16, 309)
+    (8, 152), (16, 268)
 ])
 def test_tti_rewrite_aggressive_opcounts(space_order, expected):
     operator = tti_operator(dse='aggressive', space_order=space_order)
@@ -635,7 +635,7 @@ def test_tti_rewrite_aggressive_opcounts(space_order, expected):
 
 @switchconfig(profiling='advanced')
 @pytest.mark.parametrize('space_order,expected', [
-    (4, 315), (12, 779)
+    (4, 181), (12, 373)
 ])
 def test_tti_v2_rewrite_aggressive_opcounts(space_order, expected):
     grid = Grid(shape=(3, 3, 3))

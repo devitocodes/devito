@@ -63,11 +63,6 @@ class Differentiable(sympy.Expr, Evaluable):
         return any(getattr(i, 'is_TensorValued', False) for i in self._args_diff)
 
     @cached_property
-    def is_Function(self):
-        # Default False, True if is a Function
-        return any(getattr(i, 'is_Function', False) for i in self._args_diff)
-
-    @cached_property
     def grid(self):
         grids = {getattr(i, 'grid', None) for i in self._args_diff} - {None}
         if len(grids) > 1:
