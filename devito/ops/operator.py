@@ -73,7 +73,7 @@ class OperatorOPS(Operator):
             if f.is_Constant:
                 continue
 
-            pre_time_loop.extend(create_ops_dat(f, name_to_ops_dat, ops_block))
+            pre_time_loop.extend(list(create_ops_dat(f, name_to_ops_dat, ops_block)))
             # To return the result to Devito, it is necessary to copy the data
             # from the dat object back to the CPU memory.
             after_time_loop.extend(create_ops_fetch(f,
