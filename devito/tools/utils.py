@@ -12,11 +12,34 @@ from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'roundm',
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
            'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
-           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal']
+           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal', 'as_list']
 
 
 def prod(iterable, initial=1):
     return reduce(mul, iterable, initial)
+
+
+def as_list(item, type=None, length=None):
+    """
+    Force item to a list.
+    """
+    # Empty list if we get passed None
+    if item is None:
+        t = []
+    elif isinstance(item, (str, sympy.Function)):
+        t = [item, ]
+    else:
+        # Convert iterable to list...
+        try:
+            t = list(item)
+        # ... or create a list of a single item
+        except (TypeError, NotImplementedError):
+            t = [item, ] * (length or 1)
+    if length and not len(t) == length:
+        raise ValueError("Tuple needs to be of length %d" % length)
+    if type and not all(isinstance(i, type) for i in t):
+        raise TypeError("Items need to be of type %s" % type)
+    return t
 
 
 def as_tuple(item, type=None, length=None):

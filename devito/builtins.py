@@ -6,20 +6,21 @@ from sympy import Abs, Pow
 import numpy as np
 
 import devito as dv
+from devito.tools import as_list
 
 __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function', 'norm',
            'sumall', 'inner', 'mmin', 'mmax']
 
 
-def assign(f, RHS=0, options=None, name='assign', **kwargs):
+def assign(f, rhs=0, options=None, name='assign', **kwargs):
     """
     Assign a list of RHSs to a list of Functions.
 
     Parameters
     ----------
-    f : Function or list of Function's
+    f : Function or list of Functions
         The left-hand side of the assignment.
-    RHS : expr-like or list of expr-like, optional
+    rhs : expr-like or list of expr-like, optional
         The right-hand side of the assignment.
     options : dict or list of dict, optional
         Dictionary or list (of len(f)) of dictionaries containing optional arguments to
@@ -55,17 +56,17 @@ def assign(f, RHS=0, options=None, name='assign', **kwargs):
     """
     if not isinstance(f, list):
         f = [f]
-    if not isinstance(RHS, list):
-        RHS = len(f)*[RHS, ]
+    if not isinstance(rhs, list):
+        rhs = len(f)*[rhs, ]
     eqs = []
     if options:
-        for i, j, k in zip(f, RHS, options):
+        for i, j, k in zip(f, rhs, options):
             if k is not None:
                 eqs.append(dv.Eq(i, j, **k))
             else:
                 eqs.append(dv.Eq(i, j))
     else:
-        for i, j in zip(f, RHS):
+        for i, j in zip(f, rhs):
             eqs.append(dv.Eq(i, j))
     dv.Operator(eqs, name=name, **kwargs)()
 
@@ -141,9 +142,8 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
     weights = np.exp(-0.5/sigma**2*(np.linspace(-lw, lw, 2*lw+1))**2)
     weights = weights/weights.sum()
 
-    additional_expressions = {}
+    mapper = {}
     for d in f_c.dimensions:
-        expr = {}
         lhs = []
         rhs = []
         options = []
@@ -157,13 +157,10 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
         rhs.append(f_o)
         options.append({'subdomain': grid.subdomains['objective_domain']})
 
-        expr['lhs'] = lhs
-        expr['rhs'] = rhs
-        expr['options'] = options
-        additional_expressions[d] = expr
+        mapper[d] = {'lhs': lhs, 'rhs': rhs, 'options': options}
 
     initialize_function(f_c, f.data[:], lw,
-                        additional_expressions=additional_expressions,
+                        mapper=mapper,
                         mode='reflect', name='smooth')
 
     fset(f, f_c)
@@ -171,8 +168,8 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
     return f
 
 
-def initialize_function(function, data, nbl, additional_expressions=dict(),
-                        mode='constant', name='padfunc'):
+def initialize_function(function, data, nbl, mapper=dict(), mode='constant',
+                        name='padfunc'):
     """
     Initialize a `Function` with the given ``data``. ``data``
     does *not* include the ``nbl`` outer/boundary layers; these are added via padding
@@ -186,7 +183,7 @@ def initialize_function(function, data, nbl, additional_expressions=dict(),
         The data used for initialisation.
     nbl : int
         Number of outer layers (such as PML layers for boundary damping).
-    additional_expressions : dict, optional
+    mapper : dict, optional
         Dictionary containing, for each dimension of function, a sub-dictionary
         containing the following keys:
         1) 'lhs': List of additional expressions to be added to the LHS expressions list.
@@ -198,6 +195,54 @@ def initialize_function(function, data, nbl, additional_expressions=dict(),
         accepted.
     name : str, optional
         The name assigned to the operator.
+
+    Examples
+    --------
+    In the following example the `inner` region of a function is set to one plus the
+    value on the boundary.
+
+    >>> import numpy as np
+    >>> from devito import Grid, SubDomain, Function, initialize_function
+
+    Create a subdomain representing the `inner` region:
+
+    >>> class Inner(SubDomain):
+    ...     name = 'inner'
+    ...     def define(self, dimensions):
+    ...        return {d: ('middle', 1, 1) for d in dimensions}
+    >>> inner = Inner()
+
+    Now create the computational domain including the `inner` subdomain:
+
+    >>> grid = Grid(shape=(6, 6), subdomains=inner)
+    >>> x, y = grid.dimensions
+
+    Create the function we wish to set along with the data we wish to use to set it:
+
+    >>> f = Function(name='f', grid=grid, dtype=np.int32)
+    >>> data = np.full((4, 4), 2, dtype=np.int32)
+
+    Create the additional expressions and options required to set the value of
+    the inner region to one greater than the boundary value. Note that the equation
+    is specified on the second grid dimension so that one is added to the inner values
+    after all boundary values have been set.
+
+    >>> lhs = f
+    >>> rhs = f+1
+    >>> options = {'subdomain': grid.subdomains['inner']}
+    >>> mapper = {}
+    >>> mapper[y] = {'lhs': lhs, 'rhs': rhs, 'options': options}
+
+    Call the initialize_function routine:
+
+    >>> initialize_function(f, data, 1, mapper=mapper)
+    >>> f.data
+    Data([[2, 2, 2, 2, 2, 2],
+          [2, 3, 3, 3, 3, 2],
+          [2, 3, 3, 3, 3, 2],
+          [2, 3, 3, 3, 3, 2],
+          [2, 3, 3, 3, 3, 2],
+          [2, 2, 2, 2, 2, 2]], dtype=int32)
     """
     slices = tuple([slice(nbl, -nbl) for _ in range(function.grid.dim)])
     if isinstance(data, dv.Function):
@@ -211,14 +256,14 @@ def initialize_function(function, data, nbl, additional_expressions=dict(),
     if mode == 'reflect' and function.grid.distributor.is_parallel:
         # Check that HALO size is appropriate
         halo = function.halo
-        local_size = function.grid.distributor.shape
+        local_size = function.shape
 
         def buff(i, j):
             return [(i + k - 2*nbl) for k in j]
 
         b = [min(l) for l in (w for w in (buff(i, j) for i, j in zip(local_size, halo)))]
         if any(np.array(b) < 0):
-            raise ValueError("Function's halo is not sufficiently thick.")
+            raise ValueError("Function `%s` halo is not sufficiently thick." % function)
 
     for d in function.dimensions:
         dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d,
@@ -239,17 +284,20 @@ def initialize_function(function, data, nbl, additional_expressions=dict(),
         rhs.append(function.subs({d: subsr}))
         options.extend([None, None])
 
-        if additional_expressions:
-            exprs = additional_expressions[d]
+        if mapper and d in mapper.keys():
+            exprs = mapper[d]
             lhs_extra = exprs['lhs']
             rhs_extra = exprs['rhs']
-            lhs.extend(lhs_extra)
-            rhs.extend(rhs_extra)
-            if 'options' in exprs.keys():
+            lhs.extend(as_list(lhs_extra))
+            rhs.extend(as_list(rhs_extra))
+            if 'options' in exprs.keys() and exprs['options']:
                 options_extra = exprs['options']
             else:
-                options_extra = len(lhs_extra)*[None, ]
-            options.extend(options_extra)
+                options_extra = len(as_list(lhs_extra))*[None, ]
+            if isinstance(options_extra, list):
+                options.extend(options_extra)
+            else:
+                options.extend([options_extra])
 
     if all(options is None for i in options):
         options = None
