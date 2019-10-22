@@ -516,8 +516,8 @@ class GenericModel(object):
         self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
 
-        # Origin of the computational domain with absorbing sponge layer to inject/interpolate
-        # at the correct index
+        # Origin of the computational domain with absorbing sponge layer to
+        # inject/interpolate at the correct index
         origin_pml = tuple([dtype(o - s*nbl) for o, s in zip(origin, spacing)])
         phydomain = PhysicalDomain(self.nbl)
         subdomains = subdomains + (phydomain, )
