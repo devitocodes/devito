@@ -422,6 +422,46 @@ def demo_model(preset, **kwargs):
         raise ValueError("Unknown model preset name")
 
 
+def initialize_damp(damp, nbl, spacing, mask=False):
+    """
+    Initialise damping field with an absorbing sponge layer.
+
+    Parameters
+    ----------
+    damp : Function
+        The damping field for absorbing boundary condition.
+    nbl : int
+        Number of points in the damping layer.
+    spacing :
+        Grid spacing coefficient.
+    mask : bool, optional
+        whether the dampening is a mask or layer.
+        mask => 1 inside the domain and decreases in the layer
+        not mask => 0 inside the domain and increase in the layer
+    """
+    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40)
+
+    eqs = [Eq(damp, 1.0)] if mask else []
+    for d in damp.dimensions:
+        # left
+        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
+                                  thickness=nbl)
+        pos = Abs((nbl - (dim_l - d.symbolic_min) + 1) / float(nbl))
+        val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
+        val = -val if mask else val
+        eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
+        # right
+        dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
+                                   thickness=nbl)
+        pos = Abs((nbl - (d.symbolic_max - dim_r) + 1) / float(nbl))
+        val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
+        val = -val if mask else val
+        eqs += [Inc(damp.subs({d: dim_r}), val/d.spacing)]
+
+    # TODO: Figure out why yask doesn't like it with dse/dle
+    Operator(eqs, name='initdamp', dse='noop', dle='noop')()
+
+
 def initialize_function(function, data, nbl):
     """
     Initialize a `Function` with the given ``data``. ``data``
@@ -477,7 +517,7 @@ class GenericModel(object):
         self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
 
-        # Origin of the computational domain with PML to inject/interpolate
+        # Origin of the computational domain with absorbing sponge layer to inject/interpolate
         # at the correct index
         origin_pml = tuple([dtype(o - s*nbl) for o, s in zip(origin, spacing)])
         phydomain = PhysicalDomain(self.nbl)
@@ -569,7 +609,7 @@ class Model(GenericModel):
     vp : array_like or float
         Velocity in km/s.
     nbl : int, optional
-        The number of PML layers for boundary damping.
+        The number of absorbing sponge layers for boundary damping.
     dtype : np.float32 or np.float64
         Defaults to 32.
     epsilon : array_like or float, optional
@@ -699,7 +739,7 @@ class ModelElastic(GenericModel):
     vs : float or array
         S-wave velocity in km/s.
     nbl : int, optional
-        The number of PML layers for boundary damping.
+        The number of absorbing sponge layers for boundary damping.
     rho : float or array, optional
         Density in kg/cm^3 (rho=1 for water).
 
@@ -763,7 +803,7 @@ class ModelViscoelastic(ModelElastic):
     qs : float or array
         S-wave qulaity factor (dimensionless).
     nbl : int, optional
-        The number of PML layers for boundary damping.
+        The number of absorbing sponge layers for boundary damping.
     rho : float or array, optional
         Density in kg/cm^3 (rho=1 for water).
 
