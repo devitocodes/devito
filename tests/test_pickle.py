@@ -146,13 +146,13 @@ def test_geometry():
 
     shape = (50, 50, 50)
     spacing = [10. for _ in shape]
-    nbpml = 10
+    nbl = 10
     nrec = 10
     tn = 150.
 
     # Create two-layer model from preset
     model = demo_model(preset='layers-isotropic', vp_top=1., vp_bottom=2.,
-                       spacing=spacing, shape=shape, nbpml=nbpml)
+                       spacing=spacing, shape=shape, nbl=nbl)
     # Source and receiver geometries
     src_coordinates = np.empty((1, len(spacing)))
     src_coordinates[0, :] = np.array(model.domain_size) * .5
@@ -360,11 +360,11 @@ def test_full_model():
 
     shape = (50, 50, 50)
     spacing = [10. for _ in shape]
-    nbpml = 10
+    nbl = 10
 
     # Create two-layer model from preset
     model = demo_model(preset='layers-isotropic', vp_top=1., vp_bottom=2.,
-                       spacing=spacing, shape=shape, nbpml=nbpml)
+                       spacing=spacing, shape=shape, nbl=nbl)
 
     # Test Model pickling
     pkl_model = pickle.dumps(model)

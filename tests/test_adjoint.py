@@ -18,7 +18,7 @@ presets = {
 
 class TestAdjoint(object):
 
-    @pytest.mark.parametrize('mkey, shape, kernel, space_order, nbpml', [
+    @pytest.mark.parametrize('mkey, shape, kernel, space_order, nbl', [
         # 1 tests with varying time and space orders
         ('layers', (60, ), 'OT2', 4, 10), ('layers', (60, ), 'OT2', 8, 10),
         ('layers', (60, ), 'OT4', 4, 10),
@@ -32,7 +32,7 @@ class TestAdjoint(object):
         ('constant', (60, 70), 'OT2', 8, 14), ('constant', (60, 70, 80), 'OT2', 8, 14),
         ('constant', (60, 70), 'OT4', 12, 14), ('constant', (60, 70, 80), 'OT4', 4, 14),
     ])
-    def test_adjoint_F(self, mkey, shape, kernel, space_order, nbpml):
+    def test_adjoint_F(self, mkey, shape, kernel, space_order, nbl):
         """
         Adjoint test for the forward modeling operator.
         The forward modeling operator F generates a shot record (measurements)
@@ -44,7 +44,7 @@ class TestAdjoint(object):
 
         # Create solver from preset
         solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
-                                nbpml=nbpml, tn=tn, space_order=space_order,
+                                nbl=nbl, tn=tn, space_order=space_order,
                                 **(presets[mkey]), dtype=np.float64)
 
         # Create adjoint receiver symbol
@@ -75,17 +75,17 @@ class TestAdjoint(object):
         < Jx, y> = <x ,J^T y>
         """
         tn = 500.  # Final time
-        nbpml = 10 + space_order / 2
+        nbl = 10 + space_order / 2
         spacing = tuple([10.]*len(shape))
         # Create solver from preset
         solver = acoustic_setup(shape=shape, spacing=spacing,
-                                nbpml=nbpml, tn=tn, space_order=space_order,
+                                nbl=nbl, tn=tn, space_order=space_order,
                                 preset='layers-isotropic', dtype=np.float64)
 
         # Create initial model (m0) with a constant velocity throughout
         model0 = demo_model('layers-isotropic', ratio=3, vp_top=1.5, vp_bottom=1.5,
                             spacing=spacing, space_order=space_order, shape=shape,
-                            nbpml=nbpml, dtype=np.float64, grid=solver.model.grid)
+                            nbl=nbl, dtype=np.float64, grid=solver.model.grid)
 
         # Compute the full wavefield u0
         _, u0, _ = solver.forward(save=True, vp=model0.vp)
