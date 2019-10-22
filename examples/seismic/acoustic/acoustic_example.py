@@ -87,7 +87,7 @@ if __name__ == "__main__":
     parser.add_argument("-so", "--space_order", default=6,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbl", default=40,
-                        type=int, help="Number of PML layers around the domain")
+                        type=int, help="Number of absorbing layers around the domain")
     parser.add_argument("-k", dest="kernel", default='OT2',
                         choices=['OT2', 'OT4'],
                         help="Choice of finite-difference kernel")

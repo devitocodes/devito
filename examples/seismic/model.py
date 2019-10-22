@@ -464,7 +464,7 @@ def initialize_damp(damp, nbl, spacing, mask=False):
 def initialize_function(function, data, nbl):
     """
     Initialize a `Function` with the given ``data``. ``data``
-    does *not* include the PML layers for the absorbing boundary conditions;
+    does *not* include the absorbing layers for the absorbing boundary conditions;
     these are added via padding by this function.
 
     Parameters
@@ -474,7 +474,7 @@ def initialize_function(function, data, nbl):
     data : ndarray
         The data array used for initialisation.
     nbl : int
-        Number of PML layers for boundary damping.
+        Number of absorbing layers for boundary damping.
     """
     slices = tuple([slice(nbl, -nbl) for _ in range(function.grid.dim)])
     function.data[slices] = data
@@ -608,7 +608,7 @@ class Model(GenericModel):
     vp : array_like or float
         Velocity in km/s.
     nbl : int, optional
-        The number of PML layers for boundary damping.
+        The number of absorbing layers for boundary damping.
     dtype : np.float32 or np.float64
         Defaults to 32.
     epsilon : array_like or float, optional
@@ -738,7 +738,7 @@ class ModelElastic(GenericModel):
     vs : float or array
         S-wave velocity in km/s.
     nbl : int, optional
-        The number of PML layers for boundary damping.
+        The number of absorbing layers for boundary damping.
     rho : float or array, optional
         Density in kg/cm^3 (rho=1 for water).
 
@@ -802,7 +802,7 @@ class ModelViscoelastic(ModelElastic):
     qs : float or array
         S-wave qulaity factor (dimensionless).
     nbl : int, optional
-        The number of PML layers for boundary damping.
+        The number of absorbing layers for boundary damping.
     rho : float or array, optional
         Density in kg/cm^3 (rho=1 for water).
 
