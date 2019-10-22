@@ -454,7 +454,7 @@ class TestIsotropicAcoustic(object):
         return (60, 70, 80)
 
     @cached_property
-    def nbpml(self):
+    def nbl(self):
         return 10
 
     @cached_property
@@ -469,7 +469,7 @@ class TestIsotropicAcoustic(object):
     def model(self):
         return demo_model(spacing=[15., 15., 15.], dtype=self.dtype,
                           space_order=self.space_order, shape=self.shape,
-                          nbpml=self.nbpml, preset='layers-isotropic', ratio=3)
+                          nbl=self.nbl, preset='layers-isotropic', ratio=3)
 
     @cached_property
     def time_params(self):
@@ -589,7 +589,7 @@ class TestIsotropicAcoustic(object):
         """
         from test_adjoint import TestAdjoint
         TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel,
-                                     self.space_order, self.nbpml)
+                                     self.space_order, self.nbl)
 
     @switchconfig(openmp=True)
     def test_acoustic_adjoint_omp(self):
@@ -599,4 +599,4 @@ class TestIsotropicAcoustic(object):
         """
         from test_adjoint import TestAdjoint
         TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel,
-                                     self.space_order, self.nbpml)
+                                     self.space_order, self.nbl)

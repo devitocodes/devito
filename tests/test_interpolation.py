@@ -396,7 +396,7 @@ def test_position(shape):
 
     # Create model from preset
     model = demo_model('constant-isotropic', spacing=[15. for _ in shape],
-                       shape=shape, nbpml=10)
+                       shape=shape, nbl=10)
 
     # Derive timestepping from model spacing
     dt = model.critical_dt

@@ -34,7 +34,7 @@ class TestGradient(object):
         spacing = tuple(10. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                      kernel=kernel, space_order=space_order,
-                     nbpml=40)
+                     nbl=40)
 
         v0 = Function(name='v0', grid=wave.model.grid, space_order=space_order)
         smooth(v0, wave.model.vp)
@@ -77,7 +77,7 @@ class TestGradient(object):
         spacing = tuple(10. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                      kernel=kernel, space_order=space_order,
-                     nbpml=40)
+                     nbl=40)
 
         v0 = Function(name='v0', grid=wave.model.grid, space_order=space_order)
         smooth(v0, wave.model.vp)
@@ -143,7 +143,7 @@ class TestGradient(object):
         spacing = tuple(15. for _ in shape)
         wave = setup(shape=shape, spacing=spacing, dtype=np.float64,
                      kernel=kernel, space_order=space_order,
-                     tn=1000., nbpml=10+space_order/2)
+                     tn=1000., nbl=10+space_order/2)
 
         v0 = Function(name='v0', grid=wave.model.grid, space_order=space_order)
         smooth(v0, wave.model.vp)
