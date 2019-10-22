@@ -54,19 +54,17 @@ def assign(f, rhs=0, options=None, name='assign', **kwargs):
           [3, 3, 3, 3],
           [3, 3, 3, 3]], dtype=int32)
     """
-    if not isinstance(f, list):
-        f = [f]
     if not isinstance(rhs, list):
-        rhs = len(f)*[rhs, ]
+        rhs = len(as_list(f))*[rhs, ]
     eqs = []
     if options:
-        for i, j, k in zip(f, rhs, options):
+        for i, j, k in zip(as_list(f), rhs, options):
             if k is not None:
                 eqs.append(dv.Eq(i, j, **k))
             else:
                 eqs.append(dv.Eq(i, j))
     else:
-        for i, j in zip(f, rhs):
+        for i, j in zip(as_list(f), rhs):
             eqs.append(dv.Eq(i, j))
     dv.Operator(eqs, name=name, **kwargs)()
 
@@ -168,10 +166,10 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
     return f
 
 
-def initialize_function(function, data, nbl, mapper=dict(), mode='constant',
+def initialize_function(function, data, nbl, mapper=None, mode='constant',
                         name='padfunc'):
     """
-    Initialize a `Function` with the given ``data``. ``data``
+    Initialize a Function with the given ``data``. ``data``
     does *not* include the ``nbl`` outer/boundary layers; these are added via padding
     by this function.
 
@@ -179,12 +177,12 @@ def initialize_function(function, data, nbl, mapper=dict(), mode='constant',
     ----------
     function : Function
         The initialised object.
-    data : ndarray of Function
+    data : ndarray or Function
         The data used for initialisation.
     nbl : int
         Number of outer layers (such as PML layers for boundary damping).
     mapper : dict, optional
-        Dictionary containing, for each dimension of function, a sub-dictionary
+        Dictionary containing, for each dimension of `function`, a sub-dictionary
         containing the following keys:
         1) 'lhs': List of additional expressions to be added to the LHS expressions list.
         2) 'rhs': List of additional expressions to be added to the RHS expressions list.
@@ -198,38 +196,30 @@ def initialize_function(function, data, nbl, mapper=dict(), mode='constant',
 
     Examples
     --------
-    In the following example the `inner` region of a function is set to one plus the
-    value on the boundary.
+    In the following example the `'interior'` subdomain of a function is set to one plus
+    the value on the boundary.
 
     >>> import numpy as np
     >>> from devito import Grid, SubDomain, Function, initialize_function
 
-    Create a subdomain representing the `inner` region:
+    Create the computational domain:
 
-    >>> class Inner(SubDomain):
-    ...     name = 'inner'
-    ...     def define(self, dimensions):
-    ...        return {d: ('middle', 1, 1) for d in dimensions}
-    >>> inner = Inner()
-
-    Now create the computational domain including the `inner` subdomain:
-
-    >>> grid = Grid(shape=(6, 6), subdomains=inner)
+    >>> grid = Grid(shape=(6, 6))
     >>> x, y = grid.dimensions
 
-    Create the function we wish to set along with the data we wish to use to set it:
+    Create the function we wish to set along with the data to set it:
 
     >>> f = Function(name='f', grid=grid, dtype=np.int32)
     >>> data = np.full((4, 4), 2, dtype=np.int32)
 
-    Create the additional expressions and options required to set the value of
-    the inner region to one greater than the boundary value. Note that the equation
-    is specified on the second grid dimension so that one is added to the inner values
-    after all boundary values have been set.
+    Now create the additional expressions and options required to set the value of
+    the interior region to one greater than the boundary value. Note that the equation
+    is specified on the second (final)grid dimension so that additional equation is
+    executed after padding is complete.
 
     >>> lhs = f
     >>> rhs = f+1
-    >>> options = {'subdomain': grid.subdomains['inner']}
+    >>> options = {'subdomain': grid.subdomains['interior']}
     >>> mapper = {}
     >>> mapper[y] = {'lhs': lhs, 'rhs': rhs, 'options': options}
 
@@ -290,7 +280,7 @@ def initialize_function(function, data, nbl, mapper=dict(), mode='constant',
             rhs_extra = exprs['rhs']
             lhs.extend(as_list(lhs_extra))
             rhs.extend(as_list(rhs_extra))
-            if 'options' in exprs.keys() and exprs['options']:
+            if 'options' in exprs and exprs['options']:
                 options_extra = exprs['options']
             else:
                 options_extra = len(as_list(lhs_extra))*[None, ]
