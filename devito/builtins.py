@@ -234,6 +234,9 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
           [2, 3, 3, 3, 3, 2],
           [2, 2, 2, 2, 2, 2]], dtype=int32)
     """
+    if isinstance(function, dv.TimeFunction):
+        raise NotImplementedError("TimeFunctions are not currently supported.")
+
     slices = tuple([slice(nbl, -nbl) for _ in range(function.grid.dim)])
     if isinstance(data, dv.Function):
         function.data[slices] = data.data[:]
@@ -255,7 +258,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         if any(np.array(b) < 0):
             raise ValueError("Function `%s` halo is not sufficiently thick." % function)
 
-    for d in function.dimensions:
+    for d in function.space_dimensions:
         dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d,
                                      thickness=nbl)
         dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d,
