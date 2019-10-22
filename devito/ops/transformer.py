@@ -195,13 +195,11 @@ def create_ops_dat(f, name_to_ops_dat, block):
     d_p_val = Expression(ClusterizedEq(Eq(d_p, ListInitializer(d_p_val))))
     d_m_val = Expression(ClusterizedEq(Eq(d_m, ListInitializer(d_m_val))))
 
-    ops_dat = OpsDatDecl(dim_val=dim_val,
-                         base_val=base_val,
-                         d_p_val=d_p_val,
-                         d_m_val=d_m_val,
-                         ops_decl_dat=ops_decl_dat)
-
-    return ops_dat
+    return OpsDatDecl(dim_val=dim_val,
+                      base_val=base_val,
+                      d_p_val=d_p_val,
+                      d_m_val=d_m_val,
+                      ops_decl_dat=ops_decl_dat)
 
 
 def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
