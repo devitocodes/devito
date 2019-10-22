@@ -196,7 +196,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
 
     Examples
     --------
-    In the following example the `'interior'` subdomain of a function is set to one plus
+    In the following example the `'interior'` of a function is set to one plus
     the value on the boundary.
 
     >>> import numpy as np
@@ -214,7 +214,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
 
     Now create the additional expressions and options required to set the value of
     the interior region to one greater than the boundary value. Note that the equation
-    is specified on the second (final)grid dimension so that additional equation is
+    is specified on the second (final) grid dimension so that additional equation is
     executed after padding is complete.
 
     >>> lhs = f
