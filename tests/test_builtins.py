@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from scipy.ndimage import gaussian_filter
+from scipy import misc
 
 from conftest import skipif
 from devito import Grid, Function
@@ -104,17 +105,57 @@ class TestGaussianSmooth(object):
     """
     Class for testing the Gaussian smooth builtin
     """
-    def test_gs_serial(self):
-        """Test in serial."""
+    #@pytest.mark.parametrize('sigma', [1, 2, 3, 4, 5])
+    #def test_gs_1d(self, sigma):
+        #"""Test the Gaussian smoother in 1d."""
+
+        #a = np.arange(97, step=5)
+        ##a = a.astype(np.float32)
+        #sp_smoothed = gaussian_filter(a, sigma=sigma)
+        #dv_smoothed = gaussian_smooth(a, sigma=sigma)
+
+        #from IPython import embed; embed()
+        #assert np.amax(np.abs(sp_smoothed - np.array(dv_smoothed))) <= 1
+
+    @pytest.mark.parametrize('sigma', [1, 2])
+    def test_gs_float(self, sigma):
+        """Test the Gaussian smoother in 1d."""
+
+        a = np.array([1.2, 2.7, 3.9, 4.1, 5.2, 6.5, 7.1, 9.3, 11.0])
+        sp_smoothed = gaussian_filter(a, sigma=sigma)
+        dv_smoothed = gaussian_smooth(a, sigma=sigma)
+
+        #from IPython import embed; embed()
+        assert np.amax(np.abs(sp_smoothed - np.array(dv_smoothed))) <= 1e-4
+
+    #@pytest.mark.parametrize('sigma', [1, (2, 2), (3, 1), (1, 4), (5, 5)])
+    #@pytest.mark.parametrize('sigma', [(2, 2)])
+    def test_gs_2d(self):
+        """Test the Gaussian smoother in 2d."""
 
         a = np.arange(50, step=2).reshape((5, 5))
+        #from IPython import embed; embed()
         sp_smoothed = gaussian_filter(a, sigma=1)
         dv_smoothed = gaussian_smooth(a, sigma=1)
 
         assert np.all(sp_smoothed - np.array(dv_smoothed) == 0)
+        #assert np.amax(np.abs(sp_smoothed - np.array(dv_smoothed))) <= 1e-4
+
+    ##@pytest.mark.parametrize('sigma', [(5, 5), (3, 1)])
+    #@pytest.mark.parametrize('sigma', [2])
+    #def test_gs_tuple_sigma(self, sigma):
+        #"""Test in serial."""
+
+        #fig = misc.ascent()
+        #sp_smoothed = gaussian_filter(fig, sigma=sigma)
+        #dv_smoothed = gaussian_smooth(fig, sigma=sigma)
+
+        ##from IPython import embed; embed()
+        #assert np.all(sp_smoothed - np.array(dv_smoothed) == 0)
 
     @skipif('nompi')
     @pytest.mark.parallel(mode=4)
+    #@pytest.mark.parametrize('sigma', [1, (1, 1)])
     def test_gs_parallel(self):
         a = np.arange(64).reshape((8, 8))
         grid = Grid(shape=a.shape)

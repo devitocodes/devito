@@ -3,7 +3,7 @@ import os
 import numpy as np
 from sympy import sin, Abs
 
-from examples.seismic.utils import scipy_smooth
+from examples.seismic.utils import devito_smooth
 from devito import (Grid, SubDomain, Function, Constant, mmax,
                     SubDimension, Eq, Inc, Operator)
 from devito.builtins import initialize_function
@@ -231,12 +231,12 @@ def demo_model(preset, **kwargs):
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        epsilon = scipy_smooth(.3*(v - 1.5))
-        delta = scipy_smooth(.2*(v - 1.5))
-        theta = scipy_smooth(.5*(v - 1.5))
+        epsilon = devito_smooth(.3*(v - 1.5))
+        delta = devito_smooth(.2*(v - 1.5))
+        theta = devito_smooth(.5*(v - 1.5))
         phi = None
         if len(shape) > 2:
-            phi = scipy_smooth(.25*(v - 1.5), shape)
+            phi = devito_smooth(.25*(v - 1.5), shape)
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,

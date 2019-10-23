@@ -2,11 +2,12 @@
 Built-in Operators provided by Devito.
 """
 
-from sympy import Abs, Pow
+from sympy import Abs, Pow, floor, ceiling
 import numpy as np
+import math
 
 import devito as dv
-from devito.tools import as_list
+from devito.tools import as_tuple, as_list
 
 __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function', 'norm',
            'sumall', 'inner', 'mmin', 'mmax']
@@ -98,7 +99,7 @@ def smooth(f, g, axis=None):
         dv.Operator(dv.Eq(f, g.avg(dims=axis)), name='smoother')()
 
 
-def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
+def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
     """
     Gaussian smooth function.
     """
@@ -111,10 +112,25 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
             self.lw = lw
 
         def define(self, dimensions):
-            return {d: ('middle', self.lw, self.lw) for d in dimensions}
+            return {d: ('middle', l, l) for d, l in zip(dimensions, self.lw)}
+
+    def create_gaussian_weights(sigma, lw):
+        # FIXME: Simplify/tidy
+        weights = [np.exp(-0.5/s**2*(np.linspace(-l, l, 2*l+1))**2)
+                   for s, l in zip(sigma, lw)]
+        weights = [w/w.sum() for w in weights]
+        maxl = max([len(w) for w in weights])
+        processed = []
+        for w in weights:
+            temp = list(w)
+            while len(temp) < maxl:
+                temp.insert(0, 0)
+                temp.append(0)
+            processed.append(np.array(temp))
+        return as_tuple(processed)
 
     def fset(f, g):
-        indices = [slice(lw, -lw, 1) for _ in g.grid.dimensions]
+        indices = [slice(l, -l, 1) for _, l in zip(g.grid.dimensions, lw)]
         slices = (slice(None, None, 1), )*len(g.grid.dimensions)
         if isinstance(f, np.ndarray):
             f[slices] = g.data[tuple(indices)]
@@ -123,45 +139,75 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
         else:
             raise NotImplementedError
 
-    lw = int(_order*sigma + 0.5)
+    try:
+        dtype = f.dtype.type
+    except AttributeError:
+        dtype = f.dtype
+    #dtype = f.dtype
+    #if isinstance(f, np.ndarray):
+        #data = f.astype(np.float32)
+    #else:
+        #data = f.data.astype(np.float32)
 
+    # FIXME: Add case where is s = 0 we skip that dimension
+    lw = tuple([int(_truncate*float(s) + 0.5) for s in as_tuple(sigma)])
+
+    if len(lw) == 1 and len(lw) < len(f.shape):
+        lw = len(f.shape)*(lw[0], )
+        sigma = len(f.shape)*(as_tuple(sigma)[0], )
+    elif len(lw) == len(f.shape):
+        sigma = as_tuple(sigma)
+    else:
+        raise ValueError("sigma must be an integer or a tuple of length" +
+                         " function.dimensions.")
+
+    #from IPython import embed; embed()
     # Create the padded grid:
     objective_domain = ObjectiveDomain(lw)
-    try:
-        shape_padded = np.array(f.grid.shape) + 2*lw
-    except AttributeError:
-        shape_padded = np.array(f.shape) + 2*lw
+    shape_padded = tuple([np.array(s) + 2*l for s, l in zip(f.shape, lw)])
     grid = dv.Grid(shape=shape_padded, subdomains=objective_domain)
 
-    f_c = dv.Function(name='f_c', grid=grid, space_order=2*lw,
-                      coefficients='symbolic', dtype=np.int32)
-    f_o = dv.Function(name='f_o', grid=grid, coefficients='symbolic', dtype=np.int32)
+    f_c = dv.Function(name='f_c', grid=grid, space_order=2*max(lw),
+                      coefficients='symbolic', dtype=dtype)
+    f_o = dv.Function(name='f_o', grid=grid, dtype=dtype)
 
-    weights = np.exp(-0.5/sigma**2*(np.linspace(-lw, lw, 2*lw+1))**2)
-    weights = weights/weights.sum()
+    weights = create_gaussian_weights(sigma, lw)
 
     mapper = {}
-    for d in f_c.dimensions:
+    for d, l, w in zip(f_c.dimensions, lw, weights):
         lhs = []
         rhs = []
         options = []
 
         lhs.append(f_o)
-        rhs.append(dv.generic_derivative(f_c, d, 2*lw, 1))
-        coeffs = dv.Coefficient(1, f_c, d, weights)
+        rhs.append(dv.generic_derivative(f_c, d, 2*l, 1))
+        coeffs = dv.Coefficient(1, f_c, d, w)
         options.append({'coefficients': dv.Substitutions(coeffs),
                         'subdomain': grid.subdomains['objective_domain']})
+
         lhs.append(f_c)
         rhs.append(f_o)
         options.append({'subdomain': grid.subdomains['objective_domain']})
 
+        #lhs.append(f_u)
+        #rhs.append(f_o)
+        #options.append({'subdomain': grid.subdomains['objective_domain']})
+
+        #lhs.append(f_c)
+        #rhs.append(f_u)
+        #options.append({'subdomain': grid.subdomains['objective_domain']})
+
         mapper[d] = {'lhs': lhs, 'rhs': rhs, 'options': options}
 
-    initialize_function(f_c, f.data[:], lw,
+    initialize_function(f_c, f.data, lw,
                         mapper=mapper,
                         mode='reflect', name='smooth')
 
     fset(f, f_c)
+    #if isinstance(f, np.ndarray):
+        #f = data.astype(dtype)
+    #else:
+        #f.data[:] = data.astype(np.float32)
 
     return f
 
@@ -179,7 +225,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         The initialised object.
     data : ndarray or Function
         The data used for initialisation.
-    nbl : int
+    nbl : int or tuple of int
         Number of outer layers (such as absorbing layers for boundary damping).
     mapper : dict, optional
         Dictionary containing, for each dimension of `function`, a sub-dictionary
@@ -237,7 +283,15 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     if isinstance(function, dv.TimeFunction):
         raise NotImplementedError("TimeFunctions are not currently supported.")
 
-    slices = tuple([slice(nbl, -nbl) for _ in range(function.grid.dim)])
+    if len(as_tuple(nbl)) == 1 and len(as_tuple(nbl)) < len(function.shape):
+        nbl = len(function.shape)*(as_tuple(nbl)[0], )
+    elif len(nbl) == len(function.shape):
+        pass
+    else:
+        raise ValueError("nbl must be an integer or tuple of integers of length" +
+                         " function.shape.")
+
+    slices = tuple([slice(n, -n) for _, n in zip(range(function.grid.dim), nbl)])
     if isinstance(data, dv.Function):
         function.data[slices] = data.data[:]
     else:
@@ -252,23 +306,23 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         local_size = function.shape
 
         def buff(i, j):
-            return [(i + k - 2*nbl) for k in j]
+            return [(i + k - 2*max(nbl)) for k in j]
 
         b = [min(l) for l in (w for w in (buff(i, j) for i, j in zip(local_size, halo)))]
         if any(np.array(b) < 0):
             raise ValueError("Function `%s` halo is not sufficiently thick." % function)
 
-    for d in function.space_dimensions:
+    for d, n in zip(function.space_dimensions, nbl):
         dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d,
-                                     thickness=nbl)
+                                     thickness=n)
         dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d,
-                                      thickness=nbl)
+                                      thickness=n)
         if mode == 'constant':
-            subsl = nbl
-            subsr = d.symbolic_max - nbl
+            subsl = n
+            subsr = d.symbolic_max - n
         elif mode == 'reflect':
-            subsl = 2*nbl - 1 - dim_l
-            subsr = 2*(d.symbolic_max - nbl) + 1 - dim_r
+            subsl = 2*n - 1 - dim_l
+            subsr = 2*(d.symbolic_max - n) + 1 - dim_r
         else:
             raise ValueError("Mode not available")
         lhs.append(function.subs({d: dim_l}))

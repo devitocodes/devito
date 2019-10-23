@@ -1,6 +1,7 @@
 from scipy import ndimage
 
 from devito import error
+from devito.builtins import gaussian_smooth
 from devito.tools import Pickable
 
 from .source import *
@@ -12,6 +13,13 @@ def scipy_smooth(img, sigma=5):
     Smooth the input with scipy ndimage utility
     """
     return ndimage.gaussian_filter(img, sigma=sigma)
+
+
+def devito_smooth(img, sigma=5):
+    """
+    Smooth the input with the devito gaussian_smooth utility
+    """
+    return gaussian_smooth(img, sigma=sigma)
 
 
 class AcquisitionGeometry(Pickable):
