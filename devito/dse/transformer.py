@@ -1,5 +1,3 @@
-from devito.ir.clusters import ClusterGroup, optimize
-from devito.dse.promotion import scalarize
 from devito.dse.rewriters import (BasicRewriter, AdvancedRewriter, AggressiveRewriter,
                                   CustomRewriter)
 from devito.logger import dse as log
@@ -49,7 +47,7 @@ def rewrite(clusters, mode='advanced'):
         raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))
 
     if mode is None or mode == 'noop':
-        return clusters
+        return clusters, None
 
     # We use separate rewriters for dense and sparse clusters; sparse clusters have
     # non-affine index functions, thus making it basically impossible, in general,
@@ -68,13 +66,9 @@ def rewrite(clusters, mode='advanced'):
     # Print out profiling information
     print_profiling(states)
 
-    # Schedule and optimize the Rewriters-produced clusters
-    clusters = ClusterGroup(optimize(flatten(i.clusters for i in states)))
+    clusters = flatten(i.clusters for i in states)
 
-    # Turn unnecessary temporary Arrays into scalars
-    clusters = scalarize(clusters, rewriter.template)
-
-    return ClusterGroup(clusters)
+    return clusters, rewriter
 
 
 def print_profiling(states):

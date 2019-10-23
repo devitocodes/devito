@@ -8,10 +8,10 @@ from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.symbolics import CondEq
 from devito.tools import DAG, as_tuple, flatten
 
-__all__ = ['clusterize', 'optimize']
+__all__ = ['clusterize']
 
 
-def clusterize(exprs):
+def clusterize(exprs, dse_mode=None):
     """
     Turn a sequence of LoweredEqs into a sequence of Clusters.
     """
@@ -30,10 +30,7 @@ def clusterize(exprs):
     clusters = Toposort().process(clusters)
 
     # Apply optimizations
-    clusters = optimize(clusters)
-
-    # Introduce conditional Clusters
-    clusters = guard(clusters)
+    clusters = optimize(clusters, dse_mode)
 
     return ClusterGroup(clusters)
 
@@ -283,7 +280,7 @@ class Enforce(Queue):
         return processed + self.callback(backlog, prefix)
 
 
-def optimize(clusters):
+def optimize(clusters, dse_mode):
     """
     Optimize a topologically-ordered sequence of Clusters by applying the
     following transformations:
@@ -296,13 +293,28 @@ def optimize(clusters):
     This function relies on advanced data dependency analysis tools based upon classic
     Lamport theory.
     """
-    # Lifting
-    clusters = Lift().process(clusters)
-
     # Fusion
     clusters = fuse(clusters)
 
-    return clusters
+    # Introduce conditional Clusters
+    clusters = guard(clusters)
+
+    from devito.dse import rewrite, scalarize
+    clusters, rewriter = rewrite(clusters, mode=dse_mode)
+
+    # Lifting
+    clusters = Lift().process(clusters)
+
+    # Lifting might have created some more fusion opportunities
+    clusters = fuse(clusters)
+
+    if rewriter:
+        clusters = scalarize(clusters, rewriter.template)
+
+    # CSE
+    #clusters = cse(clusters)
+
+    return ClusterGroup(clusters)
 
 
 class Lift(Queue):

@@ -7,7 +7,6 @@ from cached_property import cached_property
 import ctypes
 
 from devito.dle import transform
-from devito.dse import rewrite
 from devito.equation import Eq
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning
@@ -172,10 +171,9 @@ class Operator(Callable):
         self._output = filter_sorted(flatten(e.writes for e in expressions))
         self._dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
 
-        # Group expressions based on their iteration space and data dependences,
-        # and apply the Devito Symbolic Engine (DSE) for flop optimization
-        clusters = clusterize(expressions)
-        clusters = rewrite(clusters, mode=set_dse_mode(dse))
+        # Group expressions based on their iteration space and data dependences
+        # Several optimizations are applied (fusion, lifting, flop reduction via DSE, ...)
+        clusters = clusterize(expressions, dse_mode=set_dse_mode(dse))
         self._dtype, self._dspace = clusters.meta
 
         # Lower Clusters to a Schedule tree
