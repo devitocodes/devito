@@ -156,23 +156,21 @@ def common_subexprs_elimination(exprs, make, mode='default'):
             targets.pop(k)
     processed = mapped + processed
 
+    # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them.
+    processed = compact_temporaries(processed)
+
     # Perform topological sorting so that reads-after-writes are honored
     processed = topological_sort(processed)
 
     return processed
 
 
-def compact_temporaries(temporaries, leaves):
+def compact_temporaries(exprs):
     """Drop temporaries consisting of isolated symbols."""
-    exprs = temporaries + leaves
-    targets = {i.lhs for i in leaves}
-
     graph = FlowGraph(exprs)
 
     mapper = {k: v.rhs for k, v in graph.items()
-              if v.is_Scalar and
-              (q_leaf(v.rhs) or v.rhs.is_Function) and
-              not v.readby.issubset(targets)}
+              if v.is_Scalar and (q_leaf(v.rhs) or v.rhs.is_Function)}
 
     processed = []
     for k, v in graph.items():
