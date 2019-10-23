@@ -207,7 +207,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     >>> grid = Grid(shape=(6, 6))
     >>> x, y = grid.dimensions
 
-    Create the function we wish to set along with the data to set it:
+    Create the Function we wish to set along with the data to set it:
 
     >>> f = Function(name='f', grid=grid, dtype=np.int32)
     >>> data = np.full((4, 4), 2, dtype=np.int32)
@@ -283,10 +283,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
             rhs_extra = exprs['rhs']
             lhs.extend(as_list(lhs_extra))
             rhs.extend(as_list(rhs_extra))
-            if 'options' in exprs and exprs['options']:
-                options_extra = exprs['options']
-            else:
-                options_extra = len(as_list(lhs_extra))*[None, ]
+            options_extra = exprs.get('options', len(as_list(lhs_extra))*[None, ])
             if isinstance(options_extra, list):
                 options.extend(options_extra)
             else:
