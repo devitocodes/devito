@@ -5,8 +5,7 @@ from sympy import prod
 from math import floor
 
 from devito.mpi import Distributor
-from devito.parameters import configuration
-from devito.tools import ReducerMap, as_tuple
+from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.constant import Constant
 from devito.types.dense import Function
@@ -260,6 +259,7 @@ class Grid(ArgProvider):
             name = '%s_s' % time_dim.name
         return SteppingDimension(name=name, parent=time_dim)
 
+    @memoized_meth
     def _arg_defaults(self):
         """A map of default argument values defined by this Grid."""
         args = ReducerMap()
@@ -267,7 +267,7 @@ class Grid(ArgProvider):
         for k, v in self.dimension_map.items():
             args.update(k._arg_defaults(_min=0, size=v.loc))
 
-        if configuration['mpi']:
+        if self.distributor.is_parallel:
             distributor = self.distributor
             args[distributor._obj_comm.name] = distributor._obj_comm.value
             args[distributor._obj_neighborhood.name] = distributor._obj_neighborhood.value
