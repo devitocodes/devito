@@ -161,22 +161,67 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 
 <span class="kn">import</span> <span class="nn">devito</span> <span class="k">as</span> <span class="nn">dv</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_list</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;assign&#39;</span><span class="p">,</span> <span class="s1">&#39;smooth&#39;</span><span class="p">,</span> <span class="s1">&#39;norm&#39;</span><span class="p">,</span> <span class="s1">&#39;sumall&#39;</span><span class="p">,</span> <span class="s1">&#39;inner&#39;</span><span class="p">,</span> <span class="s1">&#39;mmin&#39;</span><span class="p">,</span> <span class="s1">&#39;mmax&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;assign&#39;</span><span class="p">,</span> <span class="s1">&#39;smooth&#39;</span><span class="p">,</span> <span class="s1">&#39;gaussian_smooth&#39;</span><span class="p">,</span> <span class="s1">&#39;initialize_function&#39;</span><span class="p">,</span> <span class="s1">&#39;norm&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;sumall&#39;</span><span class="p">,</span> <span class="s1">&#39;inner&#39;</span><span class="p">,</span> <span class="s1">&#39;mmin&#39;</span><span class="p">,</span> <span class="s1">&#39;mmax&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="assign"><a class="viewcode-back" href="../../builtins.html#devito.builtins.assign">[docs]</a><span class="k">def</span> <span class="nf">assign</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<div class="viewcode-block" id="assign"><a class="viewcode-back" href="../../builtins.html#devito.builtins.assign">[docs]</a><span class="k">def</span> <span class="nf">assign</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">rhs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;assign&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Assign a value to a Function.</span>
+<span class="sd">    Assign a list of RHSs to a list of Functions.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    f : Function</span>
+<span class="sd">    f : Function or list of Functions</span>
 <span class="sd">        The left-hand side of the assignment.</span>
-<span class="sd">    v : scalar, optional</span>
+<span class="sd">    rhs : expr-like or list of expr-like, optional</span>
 <span class="sd">        The right-hand side of the assignment.</span>
+<span class="sd">    options : dict or list of dict, optional</span>
+<span class="sd">        Dictionary or list (of len(f)) of dictionaries containing optional arguments to</span>
+<span class="sd">        be passed to Eq.</span>
+<span class="sd">    name : str, optional</span>
+<span class="sd">        Name of the operator.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from devito import Grid, Function, assign</span>
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid, dtype=np.int32)</span>
+<span class="sd">    &gt;&gt;&gt; g = Function(name=&#39;g&#39;, grid=grid, dtype=np.int32)</span>
+<span class="sd">    &gt;&gt;&gt; h = Function(name=&#39;h&#39;, grid=grid, dtype=np.int32)</span>
+<span class="sd">    &gt;&gt;&gt; functions = [f, g, h]</span>
+<span class="sd">    &gt;&gt;&gt; scalars = [1, 2, 3]</span>
+<span class="sd">    &gt;&gt;&gt; assign(functions, scalars)</span>
+<span class="sd">    &gt;&gt;&gt; f.data</span>
+<span class="sd">    Data([[1, 1, 1, 1],</span>
+<span class="sd">          [1, 1, 1, 1],</span>
+<span class="sd">          [1, 1, 1, 1],</span>
+<span class="sd">          [1, 1, 1, 1]], dtype=int32)</span>
+<span class="sd">    &gt;&gt;&gt; g.data</span>
+<span class="sd">    Data([[2, 2, 2, 2],</span>
+<span class="sd">          [2, 2, 2, 2],</span>
+<span class="sd">          [2, 2, 2, 2],</span>
+<span class="sd">          [2, 2, 2, 2]], dtype=int32)</span>
+<span class="sd">    &gt;&gt;&gt; h.data</span>
+<span class="sd">    Data([[3, 3, 3, 3],</span>
+<span class="sd">          [3, 3, 3, 3],</span>
+<span class="sd">          [3, 3, 3, 3],</span>
+<span class="sd">          [3, 3, 3, 3]], dtype=int32)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">dv</span><span class="o">.</span><span class="n">Operator</span><span class="p">(</span><span class="n">dv</span><span class="o">.</span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;assign&#39;</span><span class="p">)()</span></div>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rhs</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">as_list</span><span class="p">(</span><span class="n">f</span><span class="p">))</span><span class="o">*</span><span class="p">[</span><span class="n">rhs</span><span class="p">,</span> <span class="p">]</span>
+    <span class="n">eqs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">options</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">as_list</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="n">rhs</span><span class="p">,</span> <span class="n">options</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">eqs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dv</span><span class="o">.</span><span class="n">Eq</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="o">**</span><span class="n">k</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">eqs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dv</span><span class="o">.</span><span class="n">Eq</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">as_list</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="n">rhs</span><span class="p">):</span>
+            <span class="n">eqs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dv</span><span class="o">.</span><span class="n">Eq</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">))</span>
+    <span class="n">dv</span><span class="o">.</span><span class="n">Operator</span><span class="p">(</span><span class="n">eqs</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)()</span></div>
 
 
 <div class="viewcode-block" id="smooth"><a class="viewcode-back" href="../../builtins.html#devito.builtins.smooth">[docs]</a><span class="k">def</span> <span class="nf">smooth</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -206,6 +251,207 @@
         <span class="k">if</span> <span class="n">axis</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">axis</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
         <span class="n">dv</span><span class="o">.</span><span class="n">Operator</span><span class="p">(</span><span class="n">dv</span><span class="o">.</span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">g</span><span class="o">.</span><span class="n">avg</span><span class="p">(</span><span class="n">dims</span><span class="o">=</span><span class="n">axis</span><span class="p">)),</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;smoother&#39;</span><span class="p">)()</span></div>
+
+
+<div class="viewcode-block" id="gaussian_smooth"><a class="viewcode-back" href="../../builtins.html#devito.builtins.gaussian_smooth">[docs]</a><span class="k">def</span> <span class="nf">gaussian_smooth</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;reflect&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Gaussian smooth function.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">class</span> <span class="nc">ObjectiveDomain</span><span class="p">(</span><span class="n">dv</span><span class="o">.</span><span class="n">SubDomain</span><span class="p">):</span>
+
+        <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;objective_domain&#39;</span>
+
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lw</span><span class="p">):</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">ObjectiveDomain</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lw</span> <span class="o">=</span> <span class="n">lw</span>
+
+        <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;middle&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lw</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lw</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">fset</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">g</span><span class="p">):</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="nb">slice</span><span class="p">(</span><span class="n">lw</span><span class="p">,</span> <span class="o">-</span><span class="n">lw</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">]</span>
+        <span class="n">slices</span> <span class="o">=</span> <span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">)</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="n">f</span><span class="p">[</span><span class="n">slices</span><span class="p">]</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">indices</span><span class="p">)]</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">dv</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">slices</span><span class="p">]</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">indices</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="n">lw</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">_order</span><span class="o">*</span><span class="n">sigma</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+
+    <span class="c1"># Create the padded grid:</span>
+    <span class="n">objective_domain</span> <span class="o">=</span> <span class="n">ObjectiveDomain</span><span class="p">(</span><span class="n">lw</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">shape_padded</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">lw</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="n">shape_padded</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">lw</span>
+    <span class="n">grid</span> <span class="o">=</span> <span class="n">dv</span><span class="o">.</span><span class="n">Grid</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">shape_padded</span><span class="p">,</span> <span class="n">subdomains</span><span class="o">=</span><span class="n">objective_domain</span><span class="p">)</span>
+
+    <span class="n">f_c</span> <span class="o">=</span> <span class="n">dv</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f_c&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">lw</span><span class="p">,</span>
+                      <span class="n">coefficients</span><span class="o">=</span><span class="s1">&#39;symbolic&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="n">f_o</span> <span class="o">=</span> <span class="n">dv</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f_o&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">coefficients</span><span class="o">=</span><span class="s1">&#39;symbolic&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+
+    <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="o">/</span><span class="n">sigma</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="n">lw</span><span class="p">,</span> <span class="n">lw</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">lw</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">weights</span> <span class="o">=</span> <span class="n">weights</span><span class="o">/</span><span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">f_c</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+        <span class="n">lhs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">lhs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f_o</span><span class="p">)</span>
+        <span class="n">rhs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dv</span><span class="o">.</span><span class="n">generic_derivative</span><span class="p">(</span><span class="n">f_c</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">lw</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">coeffs</span> <span class="o">=</span> <span class="n">dv</span><span class="o">.</span><span class="n">Coefficient</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">f_c</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
+        <span class="n">options</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;coefficients&#39;</span><span class="p">:</span> <span class="n">dv</span><span class="o">.</span><span class="n">Substitutions</span><span class="p">(</span><span class="n">coeffs</span><span class="p">),</span>
+                        <span class="s1">&#39;subdomain&#39;</span><span class="p">:</span> <span class="n">grid</span><span class="o">.</span><span class="n">subdomains</span><span class="p">[</span><span class="s1">&#39;objective_domain&#39;</span><span class="p">]})</span>
+        <span class="n">lhs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f_c</span><span class="p">)</span>
+        <span class="n">rhs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f_o</span><span class="p">)</span>
+        <span class="n">options</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;subdomain&#39;</span><span class="p">:</span> <span class="n">grid</span><span class="o">.</span><span class="n">subdomains</span><span class="p">[</span><span class="s1">&#39;objective_domain&#39;</span><span class="p">]})</span>
+
+        <span class="n">mapper</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;lhs&#39;</span><span class="p">:</span> <span class="n">lhs</span><span class="p">,</span> <span class="s1">&#39;rhs&#39;</span><span class="p">:</span> <span class="n">rhs</span><span class="p">,</span> <span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="n">options</span><span class="p">}</span>
+
+    <span class="n">initialize_function</span><span class="p">(</span><span class="n">f_c</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">data</span><span class="p">[:],</span> <span class="n">lw</span><span class="p">,</span>
+                        <span class="n">mapper</span><span class="o">=</span><span class="n">mapper</span><span class="p">,</span>
+                        <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;reflect&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;smooth&#39;</span><span class="p">)</span>
+
+    <span class="n">fset</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">f_c</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">f</span></div>
+
+
+<div class="viewcode-block" id="initialize_function"><a class="viewcode-back" href="../../builtins.html#devito.builtins.initialize_function">[docs]</a><span class="k">def</span> <span class="nf">initialize_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">nbl</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;constant&#39;</span><span class="p">,</span>
+                        <span class="n">name</span><span class="o">=</span><span class="s1">&#39;padfunc&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initialize a Function with the given ``data``. ``data``</span>
+<span class="sd">    does *not* include the ``nbl`` outer/boundary layers; these are added via padding</span>
+<span class="sd">    by this function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    function : Function</span>
+<span class="sd">        The initialised object.</span>
+<span class="sd">    data : ndarray or Function</span>
+<span class="sd">        The data used for initialisation.</span>
+<span class="sd">    nbl : int</span>
+<span class="sd">        Number of outer layers (such as PML layers for boundary damping).</span>
+<span class="sd">    mapper : dict, optional</span>
+<span class="sd">        Dictionary containing, for each dimension of `function`, a sub-dictionary</span>
+<span class="sd">        containing the following keys:</span>
+<span class="sd">        1) &#39;lhs&#39;: List of additional expressions to be added to the LHS expressions list.</span>
+<span class="sd">        2) &#39;rhs&#39;: List of additional expressions to be added to the RHS expressions list.</span>
+<span class="sd">        3) &#39;options&#39;: Options pertaining to the additional equations that will be</span>
+<span class="sd">        constructed.</span>
+<span class="sd">    mode : str, optional</span>
+<span class="sd">        The function initialisation mode. &#39;constant&#39; and &#39;reflect&#39; are</span>
+<span class="sd">        accepted.</span>
+<span class="sd">    name : str, optional</span>
+<span class="sd">        The name assigned to the operator.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    In the following example the `&#39;interior&#39;` of a function is set to one plus</span>
+<span class="sd">    the value on the boundary.</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from devito import Grid, SubDomain, Function, initialize_function</span>
+
+<span class="sd">    Create the computational domain:</span>
+
+<span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(6, 6))</span>
+<span class="sd">    &gt;&gt;&gt; x, y = grid.dimensions</span>
+
+<span class="sd">    Create the function we wish to set along with the data to set it:</span>
+
+<span class="sd">    &gt;&gt;&gt; f = Function(name=&#39;f&#39;, grid=grid, dtype=np.int32)</span>
+<span class="sd">    &gt;&gt;&gt; data = np.full((4, 4), 2, dtype=np.int32)</span>
+
+<span class="sd">    Now create the additional expressions and options required to set the value of</span>
+<span class="sd">    the interior region to one greater than the boundary value. Note that the equation</span>
+<span class="sd">    is specified on the second (final) grid dimension so that additional equation is</span>
+<span class="sd">    executed after padding is complete.</span>
+
+<span class="sd">    &gt;&gt;&gt; lhs = f</span>
+<span class="sd">    &gt;&gt;&gt; rhs = f+1</span>
+<span class="sd">    &gt;&gt;&gt; options = {&#39;subdomain&#39;: grid.subdomains[&#39;interior&#39;]}</span>
+<span class="sd">    &gt;&gt;&gt; mapper = {}</span>
+<span class="sd">    &gt;&gt;&gt; mapper[y] = {&#39;lhs&#39;: lhs, &#39;rhs&#39;: rhs, &#39;options&#39;: options}</span>
+
+<span class="sd">    Call the initialize_function routine:</span>
+
+<span class="sd">    &gt;&gt;&gt; initialize_function(f, data, 1, mapper=mapper)</span>
+<span class="sd">    &gt;&gt;&gt; f.data</span>
+<span class="sd">    Data([[2, 2, 2, 2, 2, 2],</span>
+<span class="sd">          [2, 3, 3, 3, 3, 2],</span>
+<span class="sd">          [2, 3, 3, 3, 3, 2],</span>
+<span class="sd">          [2, 3, 3, 3, 3, 2],</span>
+<span class="sd">          [2, 3, 3, 3, 3, 2],</span>
+<span class="sd">          [2, 2, 2, 2, 2, 2]], dtype=int32)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">dv</span><span class="o">.</span><span class="n">TimeFunction</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;TimeFunctions are not currently supported.&quot;</span><span class="p">)</span>
+
+    <span class="n">slices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="nb">slice</span><span class="p">(</span><span class="n">nbl</span><span class="p">,</span> <span class="o">-</span><span class="n">nbl</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">)])</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dv</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">slices</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">slices</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+    <span class="n">lhs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">rhs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;reflect&#39;</span> <span class="ow">and</span> <span class="n">function</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">is_parallel</span><span class="p">:</span>
+        <span class="c1"># Check that HALO size is appropriate</span>
+        <span class="n">halo</span> <span class="o">=</span> <span class="n">function</span><span class="o">.</span><span class="n">halo</span>
+        <span class="n">local_size</span> <span class="o">=</span> <span class="n">function</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="k">def</span> <span class="nf">buff</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[(</span><span class="n">i</span> <span class="o">+</span> <span class="n">k</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">nbl</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">j</span><span class="p">]</span>
+
+        <span class="n">b</span> <span class="o">=</span> <span class="p">[</span><span class="nb">min</span><span class="p">(</span><span class="n">l</span><span class="p">)</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="p">(</span><span class="n">w</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="p">(</span><span class="n">buff</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">local_size</span><span class="p">,</span> <span class="n">halo</span><span class="p">)))]</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Function `</span><span class="si">%s</span><span class="s2">` halo is not sufficiently thick.&quot;</span> <span class="o">%</span> <span class="n">function</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">function</span><span class="o">.</span><span class="n">space_dimensions</span><span class="p">:</span>
+        <span class="n">dim_l</span> <span class="o">=</span> <span class="n">dv</span><span class="o">.</span><span class="n">SubDimension</span><span class="o">.</span><span class="n">left</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;abc_</span><span class="si">%s</span><span class="s1">_l&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">d</span><span class="p">,</span>
+                                     <span class="n">thickness</span><span class="o">=</span><span class="n">nbl</span><span class="p">)</span>
+        <span class="n">dim_r</span> <span class="o">=</span> <span class="n">dv</span><span class="o">.</span><span class="n">SubDimension</span><span class="o">.</span><span class="n">right</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;abc_</span><span class="si">%s</span><span class="s1">_r&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">d</span><span class="p">,</span>
+                                      <span class="n">thickness</span><span class="o">=</span><span class="n">nbl</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;constant&#39;</span><span class="p">:</span>
+            <span class="n">subsl</span> <span class="o">=</span> <span class="n">nbl</span>
+            <span class="n">subsr</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">symbolic_max</span> <span class="o">-</span> <span class="n">nbl</span>
+        <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;reflect&#39;</span><span class="p">:</span>
+            <span class="n">subsl</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">nbl</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">dim_l</span>
+            <span class="n">subsr</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">symbolic_max</span> <span class="o">-</span> <span class="n">nbl</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">dim_r</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Mode not available&quot;</span><span class="p">)</span>
+        <span class="n">lhs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">d</span><span class="p">:</span> <span class="n">dim_l</span><span class="p">}))</span>
+        <span class="n">lhs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">d</span><span class="p">:</span> <span class="n">dim_r</span><span class="p">}))</span>
+        <span class="n">rhs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">d</span><span class="p">:</span> <span class="n">subsl</span><span class="p">}))</span>
+        <span class="n">rhs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">d</span><span class="p">:</span> <span class="n">subsr</span><span class="p">}))</span>
+        <span class="n">options</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">mapper</span> <span class="ow">and</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">exprs</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">d</span><span class="p">]</span>
+            <span class="n">lhs_extra</span> <span class="o">=</span> <span class="n">exprs</span><span class="p">[</span><span class="s1">&#39;lhs&#39;</span><span class="p">]</span>
+            <span class="n">rhs_extra</span> <span class="o">=</span> <span class="n">exprs</span><span class="p">[</span><span class="s1">&#39;rhs&#39;</span><span class="p">]</span>
+            <span class="n">lhs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">as_list</span><span class="p">(</span><span class="n">lhs_extra</span><span class="p">))</span>
+            <span class="n">rhs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">as_list</span><span class="p">(</span><span class="n">rhs_extra</span><span class="p">))</span>
+            <span class="k">if</span> <span class="s1">&#39;options&#39;</span> <span class="ow">in</span> <span class="n">exprs</span> <span class="ow">and</span> <span class="n">exprs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">]:</span>
+                <span class="n">options_extra</span> <span class="o">=</span> <span class="n">exprs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">options_extra</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">as_list</span><span class="p">(</span><span class="n">lhs_extra</span><span class="p">))</span><span class="o">*</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">]</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">options_extra</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="n">options</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">options_extra</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">options</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">options_extra</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">options</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">options</span><span class="p">):</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># TODO: Figure out why yask doesn&#39;t like it with dse/dle</span>
+    <span class="n">assign</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">dse</span><span class="o">=</span><span class="s1">&#39;noop&#39;</span><span class="p">,</span> <span class="n">dle</span><span class="o">=</span><span class="s1">&#39;noop&#39;</span><span class="p">)</span></div>
 
 
 <span class="c1"># Reduction-inducing builtins</span>
