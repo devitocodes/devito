@@ -29,13 +29,13 @@ class TestOPSExpression(object):
          '{\n  ut0(0) = -2.97015324253729F;\n}'),
         ('Eq(u, u.dxl)',
          'void OPS_Kernel_0(ACC<float> & ut0, const float *h_x)\n'
-         '{\n  r0 = 1.0/*h_x;\n  '
+         '{\n  float r0 = 1.0/*h_x;\n  '
          'ut0(0) = -2.0F*ut0(-1)*r0 + 5.0e-1F*ut0(-2)*r0 + 1.5F*ut0(0)*r0;\n}'),
         ('Eq(v,1)', 'void OPS_Kernel_0(ACC<float> & vt0)\n'
          '{\n  vt0(0, 0) = 1;\n}'),
         ('Eq(v,v.dxl + v.dxr - v.dyr - v.dyl)',
          'void OPS_Kernel_0(ACC<float> & vt0, const float *h_x, const float *h_y)\n'
-         '{\n  r1 = 1.0/*h_y;\n  r0 = 1.0/*h_x;\n  '
+         '{\n  float r1 = 1.0/*h_y;\n  float r0 = 1.0/*h_x;\n  '
          'vt0(0, 0) = 5.0e-1F*(-vt0(2, 0)*r0 + vt0(-2, 0)*r0 - '
          'vt0(0, -2)*r1 + vt0(0, 2)*r1) + 2.0F*(-vt0(-1, 0)*r0 + '
          'vt0(1, 0)*r0 - vt0(0, 1)*r1 + vt0(0, -1)*r1);\n}'),
@@ -51,6 +51,15 @@ class TestOPSExpression(object):
         ('Eq(u.forward,u+1)',
          'void OPS_Kernel_0(const ACC<float> & ut0, ACC<float> & ut1)\n'
          '{\n  ut1(0) = 1 + ut0(0);\n}'),
+        ('Eq(v.forward, v.dt - v.laplace + v.dt)',
+         'void OPS_Kernel_0(const ACC<float> & vt0, ACC<float> & vt1, '
+         'const float *dt, const float *h_x, const float *h_y)\n'
+         '{\n  float r2 = 1.0/*dt;\n'
+         '  float r1 = 1.0/(*h_y**h_y);\n'
+         '  float r0 = 1.0/(*h_x**h_x);\n'
+         '  vt1(0, 0) = 2*vt1(0, 0)*r2 + 2.0F*(vt0(0, 0)*r0 + vt0(0, 0)*r1) - '
+         '(vt0(1, 0)*r0 + vt0(-1, 0)*r0 + vt0(0, 1)*r1 + vt0(0, -1)*r1 + '
+         '2*vt0(0, 0)*r2);\n}'),
     ])
     def test_kernel_generation(self, equation, expected):
         """
