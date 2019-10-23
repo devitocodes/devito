@@ -112,7 +112,7 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     """
     Perform common sub-expressions elimination, or CSE.
 
-    Note: the output is not guranteed to be topologically sorted.
+    Note: the output is guranteed to be topologically sorted.
 
     Parameters
     ----------
