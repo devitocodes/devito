@@ -194,7 +194,7 @@ class AdvancedRewriter(BasicRewriter):
         self._factorize(state)
 
     @dse_pass
-    def _extract_time_invariants(self, cluster, template, with_cse=True, **kwargs):
+    def _extract_time_invariants(self, cluster, template, **kwargs):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
@@ -202,15 +202,6 @@ class AdvancedRewriter(BasicRewriter):
         rule = iq_timeinvariant(FlowGraph(cluster.exprs))
         costmodel = lambda e: estimate_cost(e, True) >= self.MIN_COST_ALIAS_INV
         processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
-
-        if with_cse:
-            leaves = [i for i in processed if i not in found]
-
-            # Search for common sub-expressions amongst them (and only them)
-            found = common_subexprs_elimination(found, make)
-
-            # Some temporaries may be droppable at this point
-            processed = compact_temporaries(found, leaves)
 
         return cluster.rebuild(processed)
 
@@ -347,7 +338,7 @@ class AggressiveRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._extract_sum_of_products(state)
-        self._extract_time_invariants(state, with_cse=False)
+        self._extract_time_invariants(state)
         self._eliminate_inter_stencil_redundancies(state)
 
         self._extract_sum_of_products(state)
