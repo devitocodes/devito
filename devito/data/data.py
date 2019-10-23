@@ -176,7 +176,9 @@ class Data(np.ndarray):
         if comm_type is index_by_index:
             # Retrieve the pertinent local data prior to mpi send/receive operations
             data_idx = loc_data_idx(loc_idx)
+            self._index_stash = flip_idx(glb_idx, self._decomposition)
             local_val = super(Data, self).__getitem__(data_idx)
+            self._index_stash = None
 
             comm = self._distributor.comm
             rank = comm.Get_rank()
@@ -187,7 +189,7 @@ class Data(np.ndarray):
 
             retval = Data(local_val.shape, local_val.dtype.type,
                           decomposition=local_val._decomposition,
-                          modulo=local_val._modulo)
+                          modulo=(False,)*len(local_val.shape))
             it = np.nditer(owners, flags=['refs_ok', 'multi_index'])
             # Iterate over each element of data
             while not it.finished:
@@ -427,22 +429,22 @@ class Data(np.ndarray):
                 data_glb_idx.append(None)
         mapped_idx = []
         # Based `data_glb_idx` the indices to which the locally stored data
-        # block correspond can now be computed
+        # block correspond can now be computed:
         for i, j, k in zip(data_glb_idx, as_tuple(idx), self._decomposition):
             if isinstance(j, slice) and j.start is None:
                 norm = 0
             elif isinstance(j, slice) and j.start is not None:
-                norm = j.start
+                if j.start >= 0:
+                    norm = j.start
+                else:
+                    norm = j.start+k.glb_max+1
             else:
                 norm = j
             if i is not None:
-                loc_max = k.loc_abs_max
                 if isinstance(j, slice) and j.step is not None:
                     stop = j.step*i.stop+norm
                 else:
                     stop = i.stop+norm
-                if stop > loc_max+1:
-                    stop = loc_max+1
             if i is not None:
                 if isinstance(j, slice) and j.step is not None:
                     mapped_idx.append(slice(j.step*i.start+norm,

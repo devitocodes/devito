@@ -6,6 +6,7 @@ from sympy import sin, Abs
 from examples.seismic.utils import scipy_smooth
 from devito import (Grid, SubDomain, Function, Constant,
                     SubDimension, Eq, Inc, Operator)
+from devito.builtins import initialize_function
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
@@ -470,39 +471,6 @@ def initialize_damp(damp, nbpml, spacing, mask=False):
 
     # TODO: Figure out why yask doesn't like it with dse/dle
     Operator(eqs, name='initdamp', dse='noop', dle='noop')()
-
-
-def initialize_function(function, data, nbpml):
-    """
-    Initialize a `Function` with the given ``data``. ``data``
-    does *not* include the PML layers for the absorbing boundary conditions;
-    these are added via padding by this function.
-
-    Parameters
-    ----------
-    function : Function
-        The initialised object.
-    data : ndarray
-        The data array used for initialisation.
-    nbpml : int
-        Number of PML layers for boundary damping.
-    """
-    slices = tuple([slice(nbpml, -nbpml) for _ in range(function.grid.dim)])
-    function.data[slices] = data
-    eqs = []
-
-    for d in function.dimensions:
-        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
-                                  thickness=nbpml)
-        to_copy = nbpml
-        eqs += [Eq(function.subs({d: dim_l}), function.subs({d: to_copy}))]
-        dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
-                                   thickness=nbpml)
-        to_copy = d.symbolic_max - nbpml
-        eqs += [Eq(function.subs({d: dim_r}), function.subs({d: to_copy}))]
-
-    # TODO: Figure out why yask doesn't like it with dse/dle
-    Operator(eqs, name='padfunc', dse='noop', dle='noop')()
 
 
 class PhysicalDomain(SubDomain):

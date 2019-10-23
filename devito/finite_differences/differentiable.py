@@ -1,4 +1,5 @@
 from collections import ChainMap
+from functools import singledispatch
 
 import sympy
 from sympy.functions.elementary.integers import floor
@@ -248,20 +249,93 @@ class Differentiable(sympy.Expr, Evaluable):
         return super(Differentiable, self)._has(pattern)
 
 
-class Add(sympy.Add, Differentiable):
-    pass
+class DifferentiableOp(Differentiable):
+
+    def __new__(cls, *args, **kwargs):
+        obj = cls.__base__.__new__(cls, *args, **kwargs)
+
+        # Unfortunately SymPy may build new sympy.core objects (e.g., sympy.Add),
+        # so here we have to rebuild them as devito.core objects
+        obj = diffify(obj)
+
+        return obj
 
 
-class Mul(sympy.Mul, Differentiable):
-    pass
+class Add(sympy.Add, DifferentiableOp):
+    __new__ = DifferentiableOp.__new__
 
 
-class Pow(sympy.Pow, Differentiable):
-    pass
+class Mul(sympy.Mul, DifferentiableOp):
+    __new__ = DifferentiableOp.__new__
 
 
-class Mod(sympy.Mod, Differentiable):
-    pass
+class Pow(sympy.Pow, DifferentiableOp):
+    __new__ = DifferentiableOp.__new__
+
+
+class Mod(sympy.Mod, DifferentiableOp):
+    __new__ = DifferentiableOp.__new__
+
+
+class diffify(object):
+
+    """
+    Helper class based on single dispatch to reconstruct all nodes in a sympy
+    tree such they are all of type Differentiable.
+
+    Notes
+    -----
+    The name "diffify" stems from SymPy's "simpify", which has an analogous task --
+    converting all arguments into SymPy core objects.
+    """
+
+    def __new__(cls, obj):
+        args = [diffify._doit(i) for i in obj.args]
+        obj = diffify._doit(obj, args)
+        return obj
+
+    def _doit(obj, args=None):
+        cls = diffify._cls(obj)
+        if cls is obj.__class__:
+            return obj
+
+        args = args or obj.args
+        newobj = cls(*args, evaluate=False)
+
+        # SymPy objects pretend to be immutable, but in reality they are not.
+        # As facts are deduced, a SymPy core object's ``_assumptions`` data
+        # structure is updated. Since here we use ``evaluate=False`` all over
+        # the place, we have to explicitly reassign the ``_assumptions``.
+        newobj._assumptions = obj._assumptions.copy()
+
+        return newobj
+
+    @singledispatch
+    def _cls(obj):
+        return obj.__class__
+
+    @_cls.register(sympy.Add)
+    def _(obj):
+        return Add
+
+    @_cls.register(sympy.Mul)
+    def _(obj):
+        return Mul
+
+    @_cls.register(sympy.Pow)
+    def _(obj):
+        return Pow
+
+    @_cls.register(sympy.Mod)
+    def _(obj):
+        return Mod
+
+    @_cls.register(Add)
+    @_cls.register(Mul)
+    @_cls.register(Pow)
+    @_cls.register(Mod)
+    def _(obj):
+        return obj.__class__
 
 
 # Make sure `sympy.evalf` knows how to evaluate the inherited classes
@@ -272,16 +346,3 @@ class Mod(sympy.Mod, Differentiable):
 evalf_table[Add] = evalf_table[sympy.Add]
 evalf_table[Mul] = evalf_table[sympy.Mul]
 evalf_table[Pow] = evalf_table[sympy.Pow]
-
-
-# Monkey-patch sympy.Mul/sympy.Add/sympy.Pow/...'s __new__ so that we can
-# return a devito.Mul/devito.Add/devito.Pow if any of the arguments is
-# of type Differentiable
-def __new__(cls, *args, **options):
-    if cls in __new__.table and any(isinstance(i, Differentiable) for i in args):
-        return __new__.__real_new__(__new__.table[cls], *args, **options)
-    else:
-        return __new__.__real_new__(cls, *args, **options)
-__new__.table = {getattr(sympy, i.__name__): i for i in [Add, Mul, Pow, Mod]}  # noqa
-__new__.__real_new__ = sympy.Basic.__new__
-sympy.Basic.__new__ = __new__

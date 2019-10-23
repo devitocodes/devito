@@ -7,7 +7,7 @@ from cached_property import cached_property
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
-from devito.tools import Pickable, dtype_to_cstr
+from devito.tools import Pickable, dtype_to_cstr, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 
@@ -186,6 +186,7 @@ class Dimension(ArgProvider):
         """Tuple of argument names introduced by the Dimension."""
         return (self.name, self.size_name, self.max_name, self.min_name)
 
+    @memoized_meth
     def _arg_defaults(self, _min=None, size=None, alias=None):
         """
         A map of default argument values defined by the Dimension.

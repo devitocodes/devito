@@ -728,7 +728,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         """Tuple of argument names introduced by this function."""
         return (self.name,)
 
-    @memoized_meth
+    # NOTE: This _arg_defaults, unlike many others, cannot be memoized
+    # since it leads to halo's not being updated when required. See
+    # test_mpi: test_haloupdate_multi_op
     def _arg_defaults(self, alias=None):
         """
         A map of default argument values defined by this symbol.
