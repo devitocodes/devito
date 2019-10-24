@@ -12,11 +12,18 @@ from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'roundm',
            'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered', 'as_mapper',
            'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
-           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal']
+           'ctypes_to_cstr', 'ctypes_pointer', 'pprint', 'sweep', 'all_equal', 'as_list']
 
 
 def prod(iterable, initial=1):
     return reduce(mul, iterable, initial)
+
+
+def as_list(item, type=None, length=None):
+    """
+    Force item to a list.
+    """
+    return list(as_tuple(item, type=type, length=length))
 
 
 def as_tuple(item, type=None, length=None):
