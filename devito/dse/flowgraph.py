@@ -88,22 +88,9 @@ class FlowGraph(OrderedDict):
             for i in reads[k]:
                 readby[i].add(k)
 
-        # Make sure read-after-writes are honored for scalar nodes
-        processed = [i for i in mapper if i.is_Indexed]
-        queue = [i for i in mapper if i not in processed]
-        while queue:
-            k = queue.pop(0)
-            if not readby[k] or k in readby[k]:
-                processed.insert(0, k)
-            elif all(i in processed for i in readby[k]):
-                index = min(processed.index(i) for i in readby[k])
-                processed.insert(index, k)
-            else:
-                queue.append(k)
-
         # Build up the FlowGraph
-        nodes = [(i, Node(mapper[i], reads=reads[i], readby=readby[i]))
-                 for i in processed]
+        nodes = [(k, Node(v, reads=reads[i], readby=readby[i]))
+                 for k, v in mapper.items()]
         super(FlowGraph, self).__init__(nodes, **kwargs)
 
     def time_invariant(self, expr=None):
