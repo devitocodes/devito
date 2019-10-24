@@ -164,7 +164,10 @@ def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
     #from IPython import embed; embed()
     # Create the padded grid:
     objective_domain = ObjectiveDomain(lw)
-    shape_padded = tuple([np.array(s) + 2*l for s, l in zip(f.shape, lw)])
+    try:
+        shape_padded = tuple([np.array(s) + 2*l for s, l in zip(f.grid.shape, lw)])
+    except AttributeError:
+        shape_padded = tuple([np.array(s) + 2*l for s, l in zip(f.shape, lw)])
     grid = dv.Grid(shape=shape_padded, subdomains=objective_domain)
 
     f_c = dv.Function(name='f_c', grid=grid, space_order=2*max(lw),
