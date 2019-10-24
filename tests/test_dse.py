@@ -482,7 +482,10 @@ def test_aliases_different_nests():
     assert np.all(u.data == exp)
 
 
-def test_time_invariant_aliases():
+def test_alias_largest_time_invariant():
+    """
+    Make sure the DSE extracts the largest possible time-invariant sub-expressions.
+    """
     grid = Grid((10, 10))
 
     a = Function(name="a", grid=grid, space_order=4)
@@ -499,6 +502,36 @@ def test_time_invariant_aliases():
     # We expect two temporary Arrays, one for each `sqrt` subexpr
     arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
     assert len(arrays) == 2
+    assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+
+def test_alias_duplicate_from_different_clusters():
+    """
+    Check that the compiler is able to detect redundant aliases when these
+    stem from different Clusters.
+    """
+    grid = Grid((10, 10))
+
+    a = Function(name="a", grid=grid, space_order=4)
+    b = Function(name="b", grid=grid, space_order=4)
+    c = Function(name="c", grid=grid, space_order=4)
+    d = Function(name="d", grid=grid, space_order=4)
+
+    s = SparseTimeFunction(name="s", grid=grid, npoint=1, nt=2)
+    e = TimeFunction(name="e", grid=grid, space_order=4)
+    f = TimeFunction(name="f", grid=grid, space_order=4)
+
+    deriv = (sqrt((a - 2*b)/c) * e.dx).dy + (sqrt((d - 2*c)/a) * e.dy).dx
+    deriv2 = (sqrt((c - 2*b)/c) * f.dy).dx + (sqrt((d - 2*c)/a) * f.dx).dy
+
+    eqns = ([Eq(e.forward, deriv + e)] +
+            s.inject(e.forward, expr=s) +
+            [Eq(f.forward, deriv2 + f + e.forward.dx)])
+
+    op = Operator(eqns)
+
+    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+    assert len(arrays) == 3
     assert all(i._mem_heap and not i._mem_external for i in arrays)
 
 
