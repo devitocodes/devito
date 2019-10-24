@@ -188,7 +188,7 @@ def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
 
         mapper[d] = {'lhs': lhs, 'rhs': rhs, 'options': options}
 
-    initialize_function(f_c, f.data, lw,
+    initialize_function(f_c, f.data[:], lw,
                         mapper=mapper,
                         mode='reflect', name='smooth')
 
@@ -269,13 +269,14 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
 
     if len(as_tuple(nbl)) == 1 and len(as_tuple(nbl)) < len(function.shape):
         nbl = len(function.shape)*(as_tuple(nbl)[0], )
-    elif len(nbl) == len(function.shape):
+    elif len(as_tuple(nbl)) == len(function.shape):
         pass
     else:
         raise ValueError("nbl must be an integer or tuple of integers of length" +
                          " function.shape.")
 
-    slices = tuple([slice(n, -n) for _, n in zip(range(function.grid.dim), nbl)])
+    slices = tuple([slice(n, -n) for _, n in zip(range(function.grid.dim),
+                                                 as_tuple(nbl))])
     if isinstance(data, dv.Function):
         function.data[slices] = data.data[:]
     else:
@@ -296,7 +297,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         if any(np.array(b) < 0):
             raise ValueError("Function `%s` halo is not sufficiently thick." % function)
 
-    for d, n in zip(function.space_dimensions, nbl):
+    for d, n in zip(function.space_dimensions, as_tuple(nbl)):
         dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d,
                                      thickness=n)
         dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d,

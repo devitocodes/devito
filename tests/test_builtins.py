@@ -109,7 +109,7 @@ class TestGaussianSmooth(object):
     def test_gs_1d_int(self, sigma):
         """Test the Gaussian smoother in 1d."""
 
-        a = np.arange(97, step=5)
+        a = np.arange(970, step=5)
         sp_smoothed = gaussian_filter(a, sigma=sigma)
         dv_smoothed = gaussian_smooth(a, sigma=sigma)
 
