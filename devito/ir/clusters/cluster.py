@@ -108,10 +108,11 @@ class Cluster(object):
     @cached_property
     def is_dense(self):
         """
-        True if the Cluster writes into DiscreteFunctions through affine access
-        functions, False otherwise.
+        True if the Cluster unconditionally writes into DiscreteFunctions
+        through affine access functions, False otherwise.
         """
-        return (not any(f.is_SparseFunction for f in self.functions) and
+        return (not any(e.conditionals for e in self.exprs) and
+                not any(f.is_SparseFunction for f in self.functions) and
                 any(f.is_Function for f in self.scope.writes) and
                 all(a.is_regular for a in self.scope.accesses))
 
