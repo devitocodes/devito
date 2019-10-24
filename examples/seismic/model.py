@@ -424,7 +424,7 @@ def demo_model(preset, **kwargs):
 
 def initialize_damp(damp, nbl, spacing, mask=False):
     """
-    Initialise damping field with an absorbing sponge layer.
+    Initialise damping field with an absorbing layer.
 
     Parameters
     ----------
@@ -465,7 +465,7 @@ def initialize_damp(damp, nbl, spacing, mask=False):
 def initialize_function(function, data, nbl):
     """
     Initialize a `Function` with the given ``data``. ``data``
-    does *not* include the sponge layers for the absorbing boundary conditions;
+    does *not* include the layers for the absorbing boundary conditions;
     these are added via padding by this function.
 
     Parameters
@@ -475,7 +475,7 @@ def initialize_function(function, data, nbl):
     data : ndarray
         The data array used for initialisation.
     nbl : int
-        Number of absorbing sponge layers for boundary damping.
+        Number of absorbing layers for boundary damping.
     """
     slices = tuple([slice(nbl, -nbl) for _ in range(function.grid.dim)])
     function.data[slices] = data
@@ -517,7 +517,7 @@ class GenericModel(object):
         self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
 
-        # Origin of the computational domain with absorbing sponge layer to
+        # Origin of the computational domain with absorbing layer to
         # inject/interpolate at the correct index
         origin_pml = tuple([dtype(o - s*nbl) for o, s in zip(origin, spacing)])
         phydomain = PhysicalDomain(self.nbl)
@@ -609,7 +609,7 @@ class Model(GenericModel):
     vp : array_like or float
         Velocity in km/s.
     nbl : int, optional
-        The number of absorbing sponge layers for boundary damping.
+        The number of absorbing layers for boundary damping.
     dtype : np.float32 or np.float64
         Defaults to 32.
     epsilon : array_like or float, optional
@@ -739,7 +739,7 @@ class ModelElastic(GenericModel):
     vs : float or array
         S-wave velocity in km/s.
     nbl : int, optional
-        The number of absorbing sponge layers for boundary damping.
+        The number of absorbing layers for boundary damping.
     rho : float or array, optional
         Density in kg/cm^3 (rho=1 for water).
 
@@ -803,7 +803,7 @@ class ModelViscoelastic(ModelElastic):
     qs : float or array
         S-wave qulaity factor (dimensionless).
     nbl : int, optional
-        The number of absorbing sponge layers for boundary damping.
+        The number of absorbing layers for boundary damping.
     rho : float or array, optional
         Density in kg/cm^3 (rho=1 for water).
 

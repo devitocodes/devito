@@ -53,7 +53,7 @@ if __name__ == "__main__":
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbl", default=40,
-                        type=int, help="Number of absorbing sponge layers around \
+                        type=int, help="Number of absorbing layers around \
                                        the domain")
     parser.add_argument("-k", dest="kernel", default='centered',
                         choices=['centered', 'staggered'],
