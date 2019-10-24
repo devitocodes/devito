@@ -14,12 +14,12 @@ __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
 
 def demo_model(preset, **kwargs):
     """
-    Utility function to create preset `Model` objects for
-    demonstration and testing purposes. The particular presets are ::
+    Utility function to create preset Models for
+    demonstration and testing purposes. The particular presets are:
 
     * `constant-isotropic` : Constant velocity (1.5 km/sec) isotropic model
     * `constant-tti` : Constant anisotropic model. Velocity is 1.5 km/sec and
-                      Thomsen parameters are epsilon=.3, delta=.2, theta = .7rad
+                      Thomsen parameters are epsilon=.3, delta=.2, theta=.7rad
                       and phi=.35rad for 3D. 2d/3d is defined from the input shape
     * 'layers-isotropic': Simple two-layer model with velocities 1.5 km/s
                  and 2.5 km/s in the top and bottom layer respectively.
@@ -27,7 +27,7 @@ def demo_model(preset, **kwargs):
     * 'layers-tti': Simple two-layer TTI model with velocities 1.5 km/s
                     and 2.5 km/s in the top and bottom layer respectively.
                     Thomsen parameters in the top layer are 0 and in the lower layer
-                    are epsilon=.3, delta=.2, theta = .5rad and phi=.1 rad for 3D.
+                    are epsilon=.3, delta=.2, theta=.5rad and phi=.1 rad for 3D.
                     2d/3d is defined from the input shape
     * 'circle-isotropic': Simple camembert model with velocities 1.5 km/s
                  and 2.5 km/s in a circle at the center. 2D only.
@@ -424,7 +424,7 @@ def demo_model(preset, **kwargs):
 
 def initialize_damp(damp, nbl, spacing, mask=False):
     """
-    Initialise damping field with an absorbing layer.
+    Initialise damping field with a boundary layer.
 
     Parameters
     ----------
@@ -464,8 +464,8 @@ def initialize_damp(damp, nbl, spacing, mask=False):
 
 def initialize_function(function, data, nbl):
     """
-    Initialize a `Function` with the given ``data``. ``data``
-    does *not* include the layers for the absorbing boundary conditions;
+    Initialize a Function with the input data. Here, data does *not*
+    include the layers for the absorbing boundary conditions;
     these are added via padding by this function.
 
     Parameters
@@ -509,7 +509,7 @@ class PhysicalDomain(SubDomain):
 
 class GenericModel(object):
     """
-    General model class with common properties
+    General model class with common properties.
     """
     def __init__(self, origin, spacing, shape, space_order, nbl=20,
                  dtype=np.float32, subdomains=(), damp_mask=False):
@@ -577,7 +577,7 @@ class GenericModel(object):
     @property
     def domain_size(self):
         """
-        Physical size of the domain as determined by shape and spacing
+        Physical size of the domain as determined by shape and spacing.
         """
         return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 

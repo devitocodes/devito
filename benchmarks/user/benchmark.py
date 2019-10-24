@@ -67,7 +67,7 @@ def option_simulation(f):
         click.option('-s', '--spacing', default=(20., 20., 20.),
                      help='Spacing between grid sizes in meters'),
         click.option('-n', '--nbl', default=10,
-                     help='Number of absorbing layers'),
+                     help='Number of boundary layers'),
         click.option('-so', '--space-order', type=int, multiple=True,
                      callback=default_list, help='Space order of the simulation'),
         click.option('-to', '--time-order', type=int, multiple=True,
