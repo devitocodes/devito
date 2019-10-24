@@ -9,14 +9,13 @@ from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Clust
                        detect_accesses, build_intervals)
 from devito.dse.aliases import collect
 from devito.dse.flowgraph import FlowGraph
-from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
-                                     compact_temporaries)
+from devito.dse.manipulation import collect_nested
 from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               iq_timeinvariant, pow_to_mul, q_leaf, q_sum_of_product,
                               q_terminalop, xreplace_constrained)
-from devito.tools import flatten, generator
+from devito.tools import flatten
 from devito.types import Array, Scalar
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'CustomRewriter']
@@ -63,21 +62,11 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    tempname = 'r'
-    """
-    Prefix of temporary variables.
-    """
-
     def __init__(self, profile=True, template=None):
         self.profile = profile
 
-        # Used to build globally-unique temporaries
-        if template is None:
-            counter = generator()
-            self.template = lambda: "%s%d" % (AbstractRewriter.tempname, counter())
-        else:
-            assert callable(template)
-            self.template = template
+        assert callable(template)
+        self.template = template
 
     def run(self, cluster):
         state = State(cluster, self.template)
@@ -110,7 +99,6 @@ class AbstractRewriter(object):
 class BasicRewriter(AbstractRewriter):
 
     def _pipeline(self, state):
-        self._eliminate_intra_stencil_redundancies(state)
         self._extract_increments(state)
 
     @dse_pass
@@ -127,27 +115,12 @@ class BasicRewriter(AbstractRewriter):
                     extracted = e.rhs
                 else:
                     extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
-                processed.extend([Eq(handle, extracted), e.func(e.lhs, handle)])
+                processed.extend([e.func(handle, extracted, is_Increment=False),
+                                  e.func(e.lhs, handle)])
             else:
                 processed.append(e)
 
         return cluster.rebuild(processed)
-
-    @dse_pass
-    def _eliminate_intra_stencil_redundancies(self, cluster, template, **kwargs):
-        """
-        Perform common subexpression elimination, bypassing the tensor expressions
-        extracted in previous passes.
-        """
-
-        skip = [e for e in cluster.exprs if e.lhs.base.function.is_Array]
-        candidates = [e for e in cluster.exprs if e not in skip]
-
-        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-
-        processed = common_subexprs_elimination(candidates, make)
-
-        return cluster.rebuild(skip + processed)
 
     @dse_pass
     def _optimize_trigonometry(self, cluster, **kwargs):
@@ -190,7 +163,6 @@ class AdvancedRewriter(BasicRewriter):
     def _pipeline(self, state):
         self._extract_time_invariants(state)
         self._eliminate_inter_stencil_redundancies(state)
-        self._eliminate_intra_stencil_redundancies(state)
         self._factorize(state)
 
     @dse_pass
@@ -346,7 +318,6 @@ class AggressiveRewriter(AdvancedRewriter):
         self._extract_sum_of_products(state)
 
         self._factorize(state)
-        self._eliminate_intra_stencil_redundancies(state)
 
     @dse_pass
     def _extract_sum_of_products(self, cluster, template, **kwargs):
@@ -367,7 +338,6 @@ class CustomRewriter(AggressiveRewriter):
         'extract_sop': AggressiveRewriter._extract_sum_of_products,
         'factorize': AggressiveRewriter._factorize,
         'gcse': AggressiveRewriter._eliminate_inter_stencil_redundancies,
-        'cse': AggressiveRewriter._eliminate_intra_stencil_redundancies,
         'extract_invariants': AdvancedRewriter._extract_time_invariants,
         'extract_increments': BasicRewriter._extract_increments,
         'opt_transcedentals': BasicRewriter._optimize_trigonometry

@@ -6,7 +6,8 @@ import sympy
 from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.symbolics import CondEq
-from devito.tools import DAG, as_tuple, flatten
+from devito.tools import DAG, as_tuple, flatten, generator
+from devito.types import Scalar
 
 __all__ = ['clusterize']
 
@@ -31,6 +32,9 @@ def clusterize(exprs, dse_mode=None):
 
     # Apply optimizations
     clusters = optimize(clusters, dse_mode)
+
+    # Introduce conditional Clusters
+    clusters = guard(clusters)
 
     return ClusterGroup(clusters)
 
@@ -286,21 +290,24 @@ def optimize(clusters, dse_mode):
     following transformations:
 
         * Fusion
+        * Several flop-reduction passes via the DSE
         * Lifting
+        * Bumping+Scalarization
 
     Notes
     -----
-    This function relies on advanced data dependency analysis tools based upon classic
-    Lamport theory.
+    This function relies on advanced data dependence analysis, based upon
+    classic Lamport theory.
     """
+    # To create temporaries
+    counter = generator()
+    template = lambda: "r%d" % counter()
+
     # Fusion
     clusters = fuse(clusters)
 
-    # Introduce conditional Clusters
-    clusters = guard(clusters)
-
     from devito.dse import rewrite, scalarize
-    clusters, rewriter = rewrite(clusters, mode=dse_mode)
+    clusters = rewrite(clusters, template, mode=dse_mode)
 
     # Lifting
     clusters = Lift().process(clusters)
@@ -308,11 +315,11 @@ def optimize(clusters, dse_mode):
     # Lifting might have created some more fusion opportunities
     clusters = fuse(clusters)
 
-    if rewriter:
-        clusters = scalarize(clusters, rewriter.template)
-
     # CSE
-    #clusters = cse(clusters)
+    clusters = cse(clusters, template)
+
+    # Bumping+Scalarization
+    clusters = scalarize(clusters, template)
 
     return ClusterGroup(clusters)
 
@@ -382,34 +389,45 @@ def fuse(clusters):
     return processed
 
 
+def cse(clusters, template):
+    """
+    Apply common sub-expressions elimination within and across Clusters.
+    """
+    from devito.dse import common_subexprs_elimination
+
+    processed = []
+    for c in clusters:
+        if c.is_dense:
+            #    from IPython import embed; embed()
+            make = lambda: Scalar(name=template(), dtype=c.dtype).indexify()
+            exprs = common_subexprs_elimination(c.exprs, make)
+            processed.append(c.rebuild(exprs))
+        else:
+            processed.append(c)
+
+    return processed
+
+
 def guard(clusters):
     """
     Split Clusters containing conditional expressions into separate Clusters.
     """
     processed = []
     for c in clusters:
-        free = []
-        for e in c.exprs:
-            if e.conditionals:
-                # Expressions that need no guarding are kept in a separate Cluster
-                if free:
-                    processed.append(Cluster(free, c.ispace, c.dspace))
-                    free = []
-
+        # Group together consecutive expressions with same ConditionalDimensions
+        for cds, g in groupby(c.exprs, key=lambda e: e.conditionals):
+            if cds:
                 # Create a guarded Cluster
                 guards = {}
-                for d in e.conditionals:
-                    condition = guards.setdefault(d.parent, [])
-                    if d.condition is None:
-                        condition.append(CondEq(d.parent % d.factor, 0))
+                for cd in cds:
+                    condition = guards.setdefault(cd.parent, [])
+                    if cd.condition is None:
+                        condition.append(CondEq(cd.parent % cd.factor, 0))
                     else:
-                        condition.append(d.condition)
+                        condition.append(cd.condition)
                 guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
-                processed.append(Cluster(e, c.ispace, c.dspace, guards))
+                processed.append(Cluster(list(g), c.ispace, c.dspace, guards))
             else:
-                free.append(e)
-        # Leftover
-        if free:
-            processed.append(Cluster(free, c.ispace, c.dspace))
+                processed.append(Cluster(list(g), c.ispace, c.dspace))
 
     return processed

@@ -3,7 +3,7 @@ from collections import OrderedDict
 from sympy import Add, Mul, collect, collect_const
 
 from devito.dse.flowgraph import FlowGraph
-from devito.symbolics import (Eq, count, estimate_cost, q_xop, q_leaf, retrieve_scalars,
+from devito.symbolics import (count, estimate_cost, q_xop, q_leaf, retrieve_scalars,
                               retrieve_terminals, xreplace_constrained)
 from devito.tools import DAG, ReducerMap, split
 
@@ -131,6 +131,7 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     # TODO: a second "sympy" mode will be provided, relying on SymPy's CSE() but
     # also ensuring some sort of post-processing
     assert mode == 'default'  # Only supported mode ATM
+    from devito.ir import DummyEq
 
     processed = list(exprs)
     mapped = []
@@ -149,14 +150,14 @@ def common_subexprs_elimination(exprs, make, mode='default'):
         # Apply replacements
         processed = [e.xreplace(mapper) for e in processed]
         mapped = [e.xreplace(mapper) for e in mapped]
-        mapped = [Eq(v, k) for k, v in reversed(list(mapper.items()))] + mapped
+        mapped = [DummyEq(v, k) for k, v in reversed(list(mapper.items()))] + mapped
 
         # Prepare for the next round
         for k in picked:
             targets.pop(k)
     processed = mapped + processed
 
-    # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them.
+    # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them
     processed = compact_temporaries(processed)
 
     # Perform topological sorting so that reads-after-writes are honored

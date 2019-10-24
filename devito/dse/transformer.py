@@ -16,7 +16,7 @@ modes = {
 """The DSE transformation modes."""
 
 
-def rewrite(clusters, mode='advanced'):
+def rewrite(clusters, template, mode='advanced'):
     """
     Given a sequence of N Clusters, produce a sequence of M Clusters with reduced
     operation count, with M >= N.
@@ -47,20 +47,17 @@ def rewrite(clusters, mode='advanced'):
         raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))
 
     if mode is None or mode == 'noop':
-        return clusters, None
+        return clusters
 
     # We use separate rewriters for dense and sparse clusters; sparse clusters have
     # non-affine index functions, thus making it basically impossible, in general,
     # to apply the more advanced DSE passes.
-    # Note: the sparse rewriter uses the same template for temporaries as
-    # the dense rewriter, thus temporaries are globally unique
-
     try:
-        rewriter = modes[mode]()
+        rewriter = modes[mode](True, template)
     except KeyError:
-        rewriter = CustomRewriter(mode)
+        rewriter = CustomRewriter(mode, template)
+    fallback = BasicRewriter(False, template)
 
-    fallback = BasicRewriter(False, rewriter.template)
     states = [rewriter.run(c) if c.is_dense else fallback.run(c) for c in clusters]
 
     # Print out profiling information
@@ -68,7 +65,7 @@ def rewrite(clusters, mode='advanced'):
 
     clusters = flatten(i.clusters for i in states)
 
-    return clusters, rewriter
+    return clusters
 
 
 def print_profiling(states):

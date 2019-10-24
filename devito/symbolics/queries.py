@@ -3,7 +3,7 @@ from sympy import Eq, diff, cos, sin, nan
 from devito.tools import as_tuple, is_integer
 
 
-__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_op', 'q_xop',
+__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_routine', 'q_xop',
            'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_timedimension',
            'q_constant', 'q_affine', 'q_linear', 'q_identity', 'q_inc', 'q_scalar',
            'q_multivar', 'q_monoaffine', 'iq_timeinvariant']
@@ -50,16 +50,19 @@ def q_trigonometry(expr):
     return expr.is_Function and expr.func in [sin, cos]
 
 
-def q_op(expr):
-    return expr.is_Add or expr.is_Mul or expr.is_Function
+def q_routine(expr):
+    from devito.types.basic import AbstractFunction
+    return expr.is_Function and not isinstance(expr, AbstractFunction)
 
 
 def q_xop(expr):
-    return q_op(expr) or expr.is_Pow
+    return (expr.is_Add or expr.is_Mul or expr.is_Pow or q_routine(expr))
 
 
 def q_terminalop(expr):
-    if q_op(expr):
+    if expr.is_Function:
+        return True
+    elif expr.is_Add or expr.is_Mul:
         for a in expr.args:
             if a.is_Pow:
                 elems = a.args
