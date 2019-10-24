@@ -2,9 +2,8 @@
 Built-in Operators provided by Devito.
 """
 
-from sympy import Abs, Pow, floor, ceiling
+from sympy import Abs, Pow
 import numpy as np
-import math
 
 import devito as dv
 from devito.tools import as_tuple, as_list
@@ -143,13 +142,8 @@ def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
         dtype = f.dtype.type
     except AttributeError:
         dtype = f.dtype
-    #dtype = f.dtype
-    #if isinstance(f, np.ndarray):
-        #data = f.astype(np.float32)
-    #else:
-        #data = f.data.astype(np.float32)
 
-    # FIXME: Add case where is s = 0 we skip that dimension
+    # TODO: Add s = 0 dim skip option
     lw = tuple([int(_truncate*float(s) + 0.5) for s in as_tuple(sigma)])
 
     if len(lw) == 1 and len(lw) < len(f.shape):
@@ -161,11 +155,11 @@ def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
         raise ValueError("sigma must be an integer or a tuple of length" +
                          " function.dimensions.")
 
-    #from IPython import embed; embed()
     # Create the padded grid:
     objective_domain = ObjectiveDomain(lw)
+    # NOTE: This 'try' is required for distributed `f`.
     try:
-        shape_padded = tuple([np.array(s) + 2*l for s, l in zip(f.grid.shape, lw)])
+        shape_padded = tuple([np.array(s) + 2*l for s, l in zip(f.shape_global, lw)])
     except AttributeError:
         shape_padded = tuple([np.array(s) + 2*l for s, l in zip(f.shape, lw)])
     grid = dv.Grid(shape=shape_padded, subdomains=objective_domain)
@@ -192,14 +186,6 @@ def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
         rhs.append(f_o)
         options.append({'subdomain': grid.subdomains['objective_domain']})
 
-        #lhs.append(f_u)
-        #rhs.append(f_o)
-        #options.append({'subdomain': grid.subdomains['objective_domain']})
-
-        #lhs.append(f_c)
-        #rhs.append(f_u)
-        #options.append({'subdomain': grid.subdomains['objective_domain']})
-
         mapper[d] = {'lhs': lhs, 'rhs': rhs, 'options': options}
 
     initialize_function(f_c, f.data, lw,
@@ -207,11 +193,6 @@ def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
                         mode='reflect', name='smooth')
 
     fset(f, f_c)
-    #if isinstance(f, np.ndarray):
-        #f = data.astype(dtype)
-    #else:
-        #f.data[:] = data.astype(np.float32)
-
     return f
 
 

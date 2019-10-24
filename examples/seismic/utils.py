@@ -17,7 +17,7 @@ def scipy_smooth(img, sigma=5):
 
 def devito_smooth(img, sigma=5):
     """
-    Smooth the input with the devito gaussian_smooth utility
+    Smooth the input with the devito gaussian_smooth builtin
     """
     return gaussian_smooth(img, sigma=sigma)
 
