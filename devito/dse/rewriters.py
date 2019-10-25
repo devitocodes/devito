@@ -9,7 +9,7 @@ from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Clust
                        detect_accesses, build_intervals)
 from devito.dse.aliases import collect
 from devito.dse.flowgraph import FlowGraph
-from devito.dse.manipulation import collect_nested
+from devito.dse.manipulation import collect_nested, common_subexprs_elimination
 from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
@@ -123,12 +123,22 @@ class BasicRewriter(AbstractRewriter):
         return cluster.rebuild(processed)
 
     @dse_pass
+    def _eliminate_intra_stencil_redundancies(self, cluster, template, **kwargs):
+        """
+        Perform common subexpression elimination, bypassing the tensor expressions
+        extracted in previous passes.
+        """
+        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
+        processed = common_subexprs_elimination(cluster.exprs, make)
+
+        return cluster.rebuild(processed)
+
+    @dse_pass
     def _optimize_trigonometry(self, cluster, **kwargs):
         """
         Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
         polynomials.
         """
-
         processed = []
         for expr in cluster.exprs:
             handle = expr.replace(sin, bhaskara_sin)
@@ -163,6 +173,7 @@ class AdvancedRewriter(BasicRewriter):
     def _pipeline(self, state):
         self._extract_time_invariants(state)
         self._eliminate_inter_stencil_redundancies(state)
+        self._eliminate_intra_stencil_redundancies(state)
         self._factorize(state)
 
     @dse_pass
@@ -186,7 +197,6 @@ class AdvancedRewriter(BasicRewriter):
         ``self.MIN_COST_FACTORIZE``, then the algorithm is applied recursively
         until no more factorization opportunities are detected.
         """
-
         processed = []
         for expr in cluster.exprs:
             handle = collect_nested(expr)
@@ -318,6 +328,7 @@ class AggressiveRewriter(AdvancedRewriter):
         self._extract_sum_of_products(state)
 
         self._factorize(state)
+        self._eliminate_intra_stencil_redundancies(state)
 
     @dse_pass
     def _extract_sum_of_products(self, cluster, template, **kwargs):

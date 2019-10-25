@@ -288,16 +288,11 @@ def optimize(clusters, dse_mode):
     Optimize a topologically-ordered sequence of Clusters by applying the
     following transformations:
 
-        * Fusion
-        * Several flop-reduction passes via the DSE
-        * Lifting
-        * Scalarization
-        * Common Sub-expressions Elimination
-
-    Notes
-    -----
-    This function relies on advanced data dependence analysis, based upon
-    classic Lamport theory.
+        * [cross-cluster] Fusion
+        * [intra-cluster] Several flop-reduction passes via the DSE
+        * [cross-cluster] Lifting
+        * [cross-cluster] Scalarization
+        * [cross-cluster] Arrays Elimination
     """
     # To create temporaries
     counter = generator()
@@ -312,14 +307,15 @@ def optimize(clusters, dse_mode):
     # Lifting
     clusters = Lift().process(clusters)
 
-    # Lifting might have created some fusion opportunities
+    # Lifting may create fusion opportunities
     clusters = fuse(clusters)
 
-    # Scalarization
+    # Fusion may create scalarization opportunities
     clusters = scalarize(clusters, template)
 
-    # Common sub-expressions elimination
-    clusters = cse(clusters, template)
+    # Fusion may create opportunities to eliminate Arrays (thus shrinking the
+    # working set) if these store identical expressions
+    clusters = eliminate_arrays(clusters, template)
 
     return ClusterGroup(clusters)
 
@@ -389,76 +385,6 @@ def fuse(clusters):
     return processed
 
 
-def cse(clusters, template):
-    """
-    Apply common sub-expressions elimination within and across Clusters.
-    """
-
-    def cse_local(clusters, template):
-        from devito.dse import common_subexprs_elimination
-        processed = []
-        for c in clusters:
-            if not c.is_dense:
-                processed.append(c)
-                continue
-
-            make = lambda: Scalar(name=template(), dtype=c.dtype).indexify()
-            exprs = common_subexprs_elimination(c.exprs, make)
-            processed.append(c.rebuild(exprs))
-
-        return processed
-
-    def cse_global(clusters):
-        mapper = {}
-        processed = []
-        for c in clusters:
-            if not c.is_dense:
-                processed.append(c)
-                continue
-
-            # Search the redundant RHSs
-            seen = {}
-            for e in c.exprs:
-                f = e.lhs.function
-                if not f.is_Array:
-                    continue
-                v = seen.get(e.rhs)
-                if v is not None:
-                    # Found a redundant RHS
-                    mapper[f] = v
-                else:
-                    seen[e.rhs] = f
-
-            if not mapper:
-                # Do not waste time
-                processed.append(c)
-                continue
-
-            # Replace redundancies
-            subs = {}
-            for f, v in mapper.items():
-                for i in filter_ordered(i.indexed for i in c.scope[f]):
-                    subs[i] = v[f.indices]
-            exprs = []
-            for e in c.exprs:
-                if e.lhs.function in mapper:
-                    # Drop the write
-                    continue
-                exprs.append(e.xreplace(subs))
-
-            processed.append(c.rebuild(exprs))
-
-        return processed
-
-    # CSE within each Cluster
-    processed = cse_local(clusters, template)
-
-    # CSE across Clusters
-    processed = cse_global(processed)
-
-    return processed
-
-
 def scalarize(clusters, template):
     """
     Turn local "isolated" Arrays, that is Arrays appearing only in one Cluster,
@@ -493,6 +419,52 @@ def scalarize(clusters, template):
                     exprs.append(handle)
             else:
                 exprs.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
+
+        processed.append(c.rebuild(exprs))
+
+    return processed
+
+
+def eliminate_arrays(clusters, template):
+    """
+    Eliminate redundant expressions stored in Arrays.
+    """
+    mapper = {}
+    processed = []
+    for c in clusters:
+        if not c.is_dense:
+            processed.append(c)
+            continue
+
+        # Search for any redundant RHSs
+        seen = {}
+        for e in c.exprs:
+            f = e.lhs.function
+            if not f.is_Array:
+                continue
+            v = seen.get(e.rhs)
+            if v is not None:
+                # Found a redundant RHS
+                mapper[f] = v
+            else:
+                seen[e.rhs] = f
+
+        if not mapper:
+            # Do not waste time
+            processed.append(c)
+            continue
+
+        # Replace redundancies
+        subs = {}
+        for f, v in mapper.items():
+            for i in filter_ordered(i.indexed for i in c.scope[f]):
+                subs[i] = v[f.indices]
+        exprs = []
+        for e in c.exprs:
+            if e.lhs.function in mapper:
+                # Drop the write
+                continue
+            exprs.append(e.xreplace(subs))
 
         processed.append(c.rebuild(exprs))
 
