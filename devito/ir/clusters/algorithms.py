@@ -393,16 +393,68 @@ def cse(clusters, template):
     """
     Apply common sub-expressions elimination within and across Clusters.
     """
-    from devito.dse import common_subexprs_elimination
 
-    processed = []
-    for c in clusters:
-        if c.is_dense:
+    def cse_local(clusters, template):
+        from devito.dse import common_subexprs_elimination
+        processed = []
+        for c in clusters:
+            if not c.is_dense:
+                processed.append(c)
+                continue
+
             make = lambda: Scalar(name=template(), dtype=c.dtype).indexify()
             exprs = common_subexprs_elimination(c.exprs, make)
             processed.append(c.rebuild(exprs))
-        else:
-            processed.append(c)
+
+        return processed
+
+    def cse_global(clusters):
+        mapper = {}
+        processed = []
+        for c in clusters:
+            if not c.is_dense:
+                processed.append(c)
+                continue
+
+            # Search the redundant RHSs
+            seen = {}
+            for e in c.exprs:
+                f = e.lhs.function
+                if not f.is_Array:
+                    continue
+                v = seen.get(e.rhs)
+                if v is not None:
+                    # Found a redundant RHS
+                    mapper[f] = v
+                else:
+                    seen[e.rhs] = f
+
+            if not mapper:
+                # Do not waste time
+                processed.append(c)
+                continue
+
+            # Replace redundancies
+            subs = {}
+            for f, v in mapper.items():
+                for i in filter_ordered(i.indexed for i in c.scope[f]):
+                    subs[i] = v[f.indices]
+            exprs = []
+            for e in c.exprs:
+                if e.lhs.function in mapper:
+                    # Drop the write
+                    continue
+                exprs.append(e.xreplace(subs))
+
+            processed.append(c.rebuild(exprs))
+
+        return processed
+
+    # CSE within each Cluster
+    processed = cse_local(clusters, template)
+
+    # CSE across Clusters
+    processed = cse_global(processed)
 
     return processed
 
