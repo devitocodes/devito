@@ -150,19 +150,18 @@ class Toposort(Queue):
            Non-carried flow-dependence, so `cg1` must go after `cg0`.
 
         2) cg0 := b[i, j] = ...
+           cg1 := ... = ... b[i, j-1] ...
+           Carried flow-dependence in `j`, so `cg1` must go after `cg0`.
+
+        3) cg0 := b[i, j] = ...
            cg1 := ... = ... b[i, j+1] ...
            Carried anti-dependence in `j`, so `cg1` must go after `cg0`.
 
-        3) cg0 := b[i, j] = ...
+        4) cg0 := b[i, j] = ...
            cg1 := ... = ... b[i-1, j+1] ...
            Carried flow-dependence in `i`, so `cg1` can safely go before or after
-           `cg0`. Note: the `j+1` in `cg1` has no impact -- the dependence is in `i`.
-
-        4) cg0 := b[i, j] = ...
-           cg1 := ... = ... b[i, j-1] ...
-           Carried flow-dependence in `j`, so `cg1` must go after `cg0`. Unlike
-           case 3), the flow-dependence is along a Dimension that doesn't appear in
-           `prefix`, so `cg0` and `cg1 are sequentialized.
+           `cg0`. Note: the `j+1` in `cg1` has no impact -- the actual dependence
+           betweeb `b[i, j]` and `b[i-1, j+1]` is along `i`.
         """
         prefix = {i.dim for i in as_tuple(prefix)}
 
@@ -292,7 +291,8 @@ def optimize(clusters, dse_mode):
         * Fusion
         * Several flop-reduction passes via the DSE
         * Lifting
-        * Bumping+Scalarization
+        * Scalarization
+        * Common Sub-expressions Elimination
 
     Notes
     -----
@@ -315,10 +315,10 @@ def optimize(clusters, dse_mode):
     # Lifting might have created some more fusion opportunities
     clusters = fuse(clusters)
 
-    # Bumping+Scalarization
+    # Scalarization
     clusters = scalarize(clusters, template)
 
-    # CSE
+    # Common sub-expressions elimination
     clusters = cse(clusters, template)
 
     return ClusterGroup(clusters)
@@ -398,7 +398,6 @@ def cse(clusters, template):
     processed = []
     for c in clusters:
         if c.is_dense:
-            #    from IPython import embed; embed()
             make = lambda: Scalar(name=template(), dtype=c.dtype).indexify()
             exprs = common_subexprs_elimination(c.exprs, make)
             processed.append(c.rebuild(exprs))
