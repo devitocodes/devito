@@ -194,9 +194,7 @@ class DifferentiableOp(Differentiable):
 
         # Unfortunately SymPy may build new sympy.core objects (e.g., sympy.Add),
         # so here we have to rebuild them as devito.core objects
-        # Check if already processed and don't diffify again
-        if kwargs.get('diffify', True):
-            obj = diffify(obj)
+        obj = diffify(obj)
 
         return obj
 
@@ -212,9 +210,17 @@ class Mul(sympy.Mul, DifferentiableOp):
 class Pow(sympy.Pow, DifferentiableOp):
     __new__ = DifferentiableOp.__new__
 
+    @classmethod
+    def _from_args(cls, args, is_commutative=None):
+        return cls(*args, evaluate=False)
+
 
 class Mod(sympy.Mod, DifferentiableOp):
     __new__ = DifferentiableOp.__new__
+
+    @classmethod
+    def _from_args(cls, args, is_commutative=None):
+        return cls(*args, evaluate=False)
 
 
 class diffify(object):
@@ -236,13 +242,18 @@ class diffify(object):
 
     def _doit(obj, args=None):
         cls = diffify._cls(obj)
-        # Only keep object if arfs don't need to be replaced
-        if cls is obj.__class__ and args is None:
-            return obj
-
         args = args or obj.args
-        # Already processed so don't diffify again
-        newobj = cls(*args, evaluate=False, diffify=False)
+
+        if cls is obj.__class__:
+            # Try to just update the args if possible (Add, Mul)
+            try:
+                return obj._new_rawargs(*args)
+            # Or just return the object (Float, Symbol, ....)
+            except AttributeError:
+                return obj
+
+        # Create object directly from args, avoid any rebuild
+        newobj = cls._from_args(args, is_commutative=obj.is_commutative)
 
         # SymPy objects pretend to be immutable, but in reality they are not.
         # As facts are deduced, a SymPy core object's ``_assumptions`` data
