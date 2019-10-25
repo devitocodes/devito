@@ -194,7 +194,9 @@ class DifferentiableOp(Differentiable):
 
         # Unfortunately SymPy may build new sympy.core objects (e.g., sympy.Add),
         # so here we have to rebuild them as devito.core objects
-        obj = diffify(obj)
+        # Check if already processed and don't diffify again
+        if kwargs.get('diffify', True):
+            obj = diffify(obj)
 
         return obj
 
@@ -234,11 +236,13 @@ class diffify(object):
 
     def _doit(obj, args=None):
         cls = diffify._cls(obj)
-        if cls is obj.__class__:
+        # Only keep object if arfs don't need to be replaced
+        if cls is obj.__class__ and args is None:
             return obj
 
         args = args or obj.args
-        newobj = cls(*args, evaluate=False)
+        # Already processed so don't diffify again
+        newobj = cls(*args, evaluate=False, diffify=False)
 
         # SymPy objects pretend to be immutable, but in reality they are not.
         # As facts are deduced, a SymPy core object's ``_assumptions`` data
