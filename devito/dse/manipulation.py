@@ -3,6 +3,7 @@ from collections import OrderedDict
 from sympy import Add, Mul, collect, collect_const
 
 from devito.dse.flowgraph import FlowGraph
+from devito.ir import DummyEq
 from devito.symbolics import (count, estimate_cost, q_xop, q_leaf, retrieve_scalars,
                               retrieve_terminals, xreplace_constrained)
 from devito.tools import DAG, ReducerMap, split
@@ -131,7 +132,6 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     # TODO: a second "sympy" mode will be provided, relying on SymPy's CSE() but
     # also ensuring some sort of post-processing
     assert mode == 'default'  # Only supported mode ATM
-    from devito.ir import DummyEq
 
     processed = list(exprs)
     mapped = []
