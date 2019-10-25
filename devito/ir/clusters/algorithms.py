@@ -312,7 +312,7 @@ def optimize(clusters, dse_mode):
     # Lifting
     clusters = Lift().process(clusters)
 
-    # Lifting might have created some more fusion opportunities
+    # Lifting might have created some fusion opportunities
     clusters = fuse(clusters)
 
     # Scalarization
@@ -461,12 +461,12 @@ def cse(clusters, template):
 
 def scalarize(clusters, template):
     """
-    Turn local "isolated" Arrays, that is Arrays appearing in one single Cluster
-    only, into Scalars.
+    Turn local "isolated" Arrays, that is Arrays appearing only in one Cluster,
+    into Scalars.
     """
     processed = []
     for c in clusters:
-        # Get the Arrays appearing in one single Cluster only
+        # Get any Arrays appearing only in `c`
         impacted = set(clusters) - {c}
         arrays = {i for i in c.scope.writes if i.is_Array}
         arrays -= set().union(*[i.scope.reads for i in impacted])
