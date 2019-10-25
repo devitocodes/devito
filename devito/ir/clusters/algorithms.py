@@ -5,8 +5,8 @@ import sympy
 
 from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.symbolics import CondEq
-from devito.tools import DAG, as_tuple, flatten, generator
+from devito.symbolics import CondEq, xreplace_indices
+from devito.tools import DAG, as_tuple, flatten, filter_ordered, generator
 from devito.types import Scalar
 
 __all__ = ['clusterize']
@@ -306,7 +306,7 @@ def optimize(clusters, dse_mode):
     # Fusion
     clusters = fuse(clusters)
 
-    from devito.dse import rewrite, scalarize
+    from devito.dse import rewrite
     clusters = rewrite(clusters, template, mode=dse_mode)
 
     # Lifting
@@ -315,11 +315,11 @@ def optimize(clusters, dse_mode):
     # Lifting might have created some more fusion opportunities
     clusters = fuse(clusters)
 
-    # CSE
-    clusters = cse(clusters, template)
-
     # Bumping+Scalarization
     clusters = scalarize(clusters, template)
+
+    # CSE
+    clusters = cse(clusters, template)
 
     return ClusterGroup(clusters)
 
@@ -404,6 +404,46 @@ def cse(clusters, template):
             processed.append(c.rebuild(exprs))
         else:
             processed.append(c)
+
+    return processed
+
+
+def scalarize(clusters, template):
+    """
+    Turn local "isolated" Arrays, that is Arrays appearing in one single Cluster
+    only, into Scalars.
+    """
+    processed = []
+    for c in clusters:
+        # Get the Arrays appearing in one single Cluster only
+        impacted = set(clusters) - {c}
+        arrays = {i for i in c.scope.writes if i.is_Array}
+        arrays -= set().union(*[i.scope.reads for i in impacted])
+
+        # Turn them into scalars
+        #
+        # r[x,y,z] = g(b[x,y,z])                 t0 = g(b[x,y,z])
+        # ... = r[x,y,z] + r[x,y,z+1]`  ---->    t1 = g(b[x,y,z+1])
+        #                                        ... = t0 + t1
+        mapper = {}
+        exprs = []
+        for e in c.exprs:
+            f = e.lhs.function
+            if f in arrays:
+                for i in filter_ordered(i.indexed for i in c.scope[f]):
+                    mapper[i] = Scalar(name=template(), dtype=f.dtype)
+
+                    assert len(f.indices) == len(e.lhs.indices) == len(i.indices)
+                    shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
+                                zip(f.indices, e.lhs.indices, i.indices)}
+
+                    handle = e.func(mapper[i], e.rhs.xreplace(mapper))
+                    handle = xreplace_indices(handle, shifting)
+                    exprs.append(handle)
+            else:
+                exprs.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
+
+        processed.append(c.rebuild(exprs))
 
     return processed
 
