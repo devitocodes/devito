@@ -490,18 +490,19 @@ def guard(clusters):
     for c in clusters:
         # Group together consecutive expressions with same ConditionalDimensions
         for cds, g in groupby(c.exprs, key=lambda e: e.conditionals):
-            if cds:
-                # Create a guarded Cluster
-                guards = {}
-                for cd in cds:
-                    condition = guards.setdefault(cd.parent, [])
-                    if cd.condition is None:
-                        condition.append(CondEq(cd.parent % cd.factor, 0))
-                    else:
-                        condition.append(cd.condition)
-                guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
-                processed.append(Cluster(list(g), c.ispace, c.dspace, guards))
-            else:
+            if not cds:
                 processed.append(Cluster(list(g), c.ispace, c.dspace))
+                continue
+
+            # Create a guarded Cluster
+            guards = {}
+            for cd in cds:
+                condition = guards.setdefault(cd.parent, [])
+                if cd.condition is None:
+                    condition.append(CondEq(cd.parent % cd.factor, 0))
+                else:
+                    condition.append(cd.condition)
+            guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
+            processed.append(Cluster(list(g), c.ispace, c.dspace, guards))
 
     return processed
