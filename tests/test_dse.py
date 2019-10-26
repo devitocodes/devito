@@ -535,6 +535,32 @@ def test_alias_duplicate_from_different_clusters():
     assert all(i._mem_heap and not i._mem_external for i in arrays)
 
 
+def test_alias_coupled_hoisting():
+    """
+    Test that coupled aliases are successfully hoisted out of the time loop.
+    """
+    grid = Grid((10, 10))
+
+    a = Function(name="a", grid=grid, space_order=4)
+    b = Function(name="b", grid=grid, space_order=4)
+
+    e = TimeFunction(name="e", grid=grid, space_order=4)
+    f = TimeFunction(name="f", grid=grid, space_order=4)
+
+    subexpr0 = sqrt(1. + 1./a)
+    subexpr1 = 1/(8.*subexpr0 - 8./b)
+    eqns = [Eq(e.forward, e + 1),
+            Eq(f.forward, f*subexpr0 - f*subexpr1 + e.forward.dx)]
+
+    op = Operator(eqns)
+
+    trees = retrieve_iteration_tree(op)
+    assert len(trees) == 3
+    arrays = [i for i in FindSymbols().visit(trees[0].root) if i.is_Array]
+    assert len(arrays) == 2
+    assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+
 # Acoustic
 
 def run_acoustic_forward(dse=None):
