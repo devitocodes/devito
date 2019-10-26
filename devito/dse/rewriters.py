@@ -349,6 +349,7 @@ class CustomRewriter(AggressiveRewriter):
         'extract_sop': AggressiveRewriter._extract_sum_of_products,
         'factorize': AggressiveRewriter._factorize,
         'gcse': AggressiveRewriter._eliminate_inter_stencil_redundancies,
+        'cse': AggressiveRewriter._eliminate_intra_stencil_redundancies,
         'extract_invariants': AdvancedRewriter._extract_time_invariants,
         'extract_increments': BasicRewriter._extract_increments,
         'opt_transcedentals': BasicRewriter._optimize_trigonometry
