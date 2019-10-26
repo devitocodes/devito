@@ -285,7 +285,7 @@ class AdvancedRewriter(BasicRewriter):
 
             # Build up the expression evaluating `alias`
             access = tuple(i.dim - i.lower for i in writeto)
-            expression = Eq(array[access], origin)
+            expression = Eq(array[access], origin.xreplace(subs))
 
             # Create the substitution rules so that we can use the newly created
             # temporary in place of the aliasing expressions
