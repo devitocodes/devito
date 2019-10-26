@@ -106,6 +106,10 @@ class Cluster(object):
         return self.scope.functions
 
     @cached_property
+    def has_increments(self):
+        return any(e.is_Increment for e in self.exprs)
+
+    @cached_property
     def is_dense(self):
         """
         True if the Cluster unconditionally writes into DiscreteFunctions
