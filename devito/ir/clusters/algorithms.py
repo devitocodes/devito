@@ -337,27 +337,38 @@ class Lift(Queue):
             return clusters
 
         hope_invariant = {i.dim for i in prefix}
-        candidates = [c for c in clusters if
-                      any(e.is_Tensor for e in c.exprs) and  # Not just scalar exprs
-                      not any(e.is_Increment for e in c.exprs) and  # No reductions
-                      not c.used_dimensions & hope_invariant]  # Not an invariant ispace
-        if not candidates:
-            return clusters
 
-        # Now check data dependences
         lifted = []
         processed = []
-        for c in clusters:
-            impacted = set(clusters) - {c}
-            if c in candidates and\
-                    not any(set(c.functions) & set(i.scope.writes) for i in impacted):
-                # Perform lifting, which requires contracting the iteration space
-                key = lambda d: d not in hope_invariant
-                ispace = c.ispace.project(key)
-                dspace = c.dspace.project(key)
-                lifted.append(Cluster(c.exprs, ispace, dspace, guards=c.guards))
-            else:
+        for i, c in enumerate(clusters):
+            # Increments prevent lifting
+            if c.has_increments:
                 processed.append(c)
+                continue
+
+            # Is `c` a real candidate -- is there at least one invariant Dimension?
+            if c.used_dimensions & hope_invariant:
+                processed.append(c)
+                continue
+
+            impacted = set(processed) | set(clusters[i+1:])
+
+            # None of the Functions appearing in a lifted Cluster can be written to
+            if any(c.functions & set(i.scope.writes) for i in impacted):
+                processed.append(c)
+                continue
+
+            # Scalars prevent lifting if they are read by another Cluster
+            swrites = {f for f in c.scope.writes if f.is_Scalar}
+            if any(swrites & set(i.scope.reads) for i in impacted):
+                processed.append(c)
+                continue
+
+            # Perform lifting, which requires contracting the iteration space
+            key = lambda d: d not in hope_invariant
+            ispace = c.ispace.project(key)
+            dspace = c.dspace.project(key)
+            lifted.append(Cluster(c.exprs, ispace, dspace, c.guards))
 
         return lifted + processed
 
