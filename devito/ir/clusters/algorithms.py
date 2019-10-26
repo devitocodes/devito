@@ -310,12 +310,12 @@ def optimize(clusters, dse_mode):
     # Lifting may create fusion opportunities
     clusters = fuse(clusters)
 
-    # Fusion may create scalarization opportunities
-    clusters = scalarize(clusters, template)
-
     # Fusion may create opportunities to eliminate Arrays (thus shrinking the
     # working set) if these store identical expressions
     clusters = eliminate_arrays(clusters, template)
+
+    # Fusion may create scalarization opportunities
+    clusters = scalarize(clusters, template)
 
     return ClusterGroup(clusters)
 
