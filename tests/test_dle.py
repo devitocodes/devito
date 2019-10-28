@@ -390,7 +390,7 @@ class TestNodeParallelism(object):
 
     def test_scheduling(self):
         """
-        Affine iterations -> #pragma omp ... schedule(static,1) ...
+        Affine iterations -> #pragma omp ... schedule(dynamic,1) ...
         Non-affine iterations -> #pragma omp ... schedule(static) ...
         """
         grid = Grid(shape=(11, 11))
@@ -406,7 +406,7 @@ class TestNodeParallelism(object):
         iterations = FindNodes(Iteration).visit(op)
         assert len(iterations) == 4
         assert iterations[1].is_Affine
-        assert 'schedule(static,1)' in iterations[1].pragmas[0].value
+        assert 'schedule(dynamic,1)' in iterations[1].pragmas[0].value
         assert not iterations[3].is_Affine
         assert 'schedule(static)' in iterations[3].pragmas[0].value
 
@@ -430,9 +430,9 @@ class TestNestedParallelism(object):
         assert np.all(u.data[0] == 10)
 
         iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
-        assert iterations[0].pragmas[0].value == 'omp for collapse(1) schedule(static,1)'
+        assert iterations[0].pragmas[0].value == 'omp for collapse(1) schedule(dynamic,1)'
         assert iterations[2].pragmas[0].value ==\
-            ('omp parallel for collapse(1) schedule(static,1) num_threads(%d)'
+            ('omp parallel for collapse(1) schedule(dynamic,1) num_threads(%d)'
              % nhyperthreads())
 
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
@@ -453,9 +453,9 @@ class TestNestedParallelism(object):
         assert np.all(u.data[0] == 10)
 
         iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
-        assert iterations[0].pragmas[0].value == 'omp for collapse(2) schedule(static,1)'
+        assert iterations[0].pragmas[0].value == 'omp for collapse(2) schedule(dynamic,1)'
         assert iterations[2].pragmas[0].value ==\
-            ('omp parallel for collapse(2) schedule(static,1) num_threads(%d)'
+            ('omp parallel for collapse(2) schedule(dynamic,1) num_threads(%d)'
              % nhyperthreads())
 
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
@@ -478,12 +478,12 @@ class TestNestedParallelism(object):
 
         assert trees[0][0] is trees[1][0]
         assert trees[0][0].pragmas[0].value ==\
-            'omp for collapse(1) schedule(static,1)'
+            'omp for collapse(1) schedule(dynamic,1)'
         assert trees[0][2].pragmas[0].value ==\
-            ('omp parallel for collapse(1) schedule(static,1) num_threads(%d)'
+            ('omp parallel for collapse(1) schedule(dynamic,1) num_threads(%d)'
              % nhyperthreads())
         assert trees[1][2].pragmas[0].value ==\
-            ('omp parallel for collapse(1) schedule(static,1) num_threads(%d)'
+            ('omp parallel for collapse(1) schedule(dynamic,1) num_threads(%d)'
              % nhyperthreads())
 
 

@@ -96,7 +96,7 @@ class Ompizer(object):
         'for-dynamic-1': lambda i: c.Pragma('omp for collapse(%d) schedule(dynamic,1)'
                                             % i),
         'par-for': lambda i, j: c.Pragma('omp parallel for collapse(%d) '
-                                         'schedule(static,1) num_threads(%d)' % (i, j)),
+                                         'schedule(dynamic,1) num_threads(%d)' % (i, j)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
@@ -145,10 +145,7 @@ class Ompizer(object):
         # Nonaffine -> ... schedule(static) ...
         if omp_pragma is None:
             if all(i.is_Affine for i in candidates):
-                if FindNodes(Prodder).visit(root):
-                    omp_pragma = self.lang['for-dynamic-1']
-                else:
-                    omp_pragma = self.lang['for-static-1']
+                omp_pragma = self.lang['for-dynamic-1']
             else:
                 omp_pragma = self.lang['for-static']
 
