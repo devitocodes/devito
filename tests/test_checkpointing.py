@@ -151,11 +151,11 @@ def test_forward_with_breaks(shape, kernel, space_order):
 
 @switchconfig(log_level='WARNING')
 def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
-                                  time_order=2, space_order=4, nbpml=10):
+                                  time_order=2, space_order=4, nbl=10):
     """ Run the acoustic example with and without save=True. Make sure the result is the
     same
     """
-    solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
+    solver = acoustic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
                             space_order=space_order, time_order=time_order)
     rec, u, summary = solver.forward(save=True)
     last_time_step = solver.geometry.nt-1

@@ -10,7 +10,7 @@ def test_resample():
 
     shape = (50, 50, 50)
     spacing = (10., 10., 10.)
-    nbpml = 10
+    nbl = 10
 
     f0 = 0.01
     t0 = 0.0
@@ -18,7 +18,7 @@ def test_resample():
 
     # Create two-layer model from preset
     model = demo_model(preset='layers-isotropic', vp_top=1., vp_bottom=2.,
-                       spacing=spacing, shape=shape, nbpml=nbpml)
+                       spacing=spacing, shape=shape, nbl=nbl)
 
     time_range = TimeAxis(start=t0, stop=tn, step=model.critical_dt)
     src_a = RickerSource(name='src_a', grid=model.grid, f0=f0, time_range=time_range)

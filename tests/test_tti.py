@@ -25,7 +25,7 @@ def test_tti(shape, space_order, kernel):
         space_order *= 2
     to = 2
     so = space_order
-    nbpml = 10
+    nbl = 10
     origin = [0. for _ in shape]
     spacing = [10. for _ in shape]
     vp = 1.5 * np.ones(shape)
@@ -33,7 +33,7 @@ def test_tti(shape, space_order, kernel):
 
     # Constant model for true velocity
     model = Model(origin=origin, shape=shape, vp=vp,
-                  spacing=spacing, nbpml=nbpml, space_order=space_order,
+                  spacing=spacing, nbl=nbl, space_order=space_order,
                   epsilon=np.zeros(shape), delta=np.zeros(shape),
                   theta=np.zeros(shape), phi=np.zeros(shape))
 
