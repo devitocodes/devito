@@ -23,7 +23,7 @@ The following SymPy objects are considered as tree leaves: ::
 
 
 def q_scalar(expr):
-    return expr.is_Number or expr.is_Symbol
+    return getattr(expr, 'is_Scalar', False)
 
 
 def q_leaf(expr):

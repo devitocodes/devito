@@ -246,9 +246,7 @@ class diffify(object):
                 return obj
 
         # Create object directly from args, avoid any rebuild
-        newobj = cls(*args, evaluate=False)
-
-        return newobj
+        return cls(*args, evaluate=False)
 
     @singledispatch
     def _cls(obj):
