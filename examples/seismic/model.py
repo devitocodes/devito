@@ -231,24 +231,17 @@ def demo_model(preset, **kwargs):
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        # Hakz
-        v0 = np.copy(v)
-        v1 = np.copy(v)
-        v2 = np.copy(v)
-        v3 = np.copy(v)
+        epsilon = np.copy(v)
+        delta = np.copy(v)
+        theta = np.copy(v)
 
-        v0[:] = .3*(v0[:] - 1.5)
-        v1[:] = .2*(v1[:] - 1.5)
-        v2[:] = .5*(v2[:] - 1.5)
-        v3[:] = .25*(v3[:] - 1.5)
-
-        epsilon = devito_smooth(v0[:])
-        delta = devito_smooth(v1[:])
-        theta = devito_smooth(v2[:])
+        epsilon = devito_smooth(.3*(epsilon - 1.5))
+        delta = devito_smooth(.2*(delta - 1.5))
+        theta = devito_smooth(.5*(theta - 1.5))
         phi = None
         if len(shape) > 2:
-            # phi = devito_smooth(v0[:]), shape)
-            phi = devito_smooth(v3[:])
+            phi = np.copy(v)
+            phi = devito_smooth(.25*(phi - 1.5))
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,

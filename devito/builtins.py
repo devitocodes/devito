@@ -114,15 +114,12 @@ def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
             return {d: ('middle', l, l) for d, l in zip(dimensions, self.lw)}
 
     def create_gaussian_weights(sigma, lw):
-        # FIXME: Simplify/tidy
-        weights = [np.exp(-0.5/s**2*(np.linspace(-l, l, 2*l+1))**2)
-                   for s, l in zip(sigma, lw)]
-        weights = [w/w.sum() for w in weights]
-        maxl = max([len(w) for w in weights])
+        weights = [w/w.sum() for w in (np.exp(-0.5/s**2*(np.linspace(-l, l, 2*l+1))**2)
+                   for s, l in zip(sigma, lw))]
         processed = []
         for w in weights:
             temp = list(w)
-            while len(temp) < maxl:
+            while len(temp) < 2*max(lw)+1:
                 temp.insert(0, 0)
                 temp.append(0)
             processed.append(np.array(temp))
@@ -188,7 +185,7 @@ def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
 
         mapper[d] = {'lhs': lhs, 'rhs': rhs, 'options': options}
 
-    initialize_function(f_c, f.data[:], lw,
+    initialize_function(f_c, f, lw,
                         mapper=mapper,
                         mode='reflect', name='smooth')
 
