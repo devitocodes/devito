@@ -86,6 +86,20 @@ class ParallelRegion(Block):
 
 class ParallelTree(List):
 
+    """
+    This class is to group together a parallel for-loop with some setup
+    statements, for example:
+
+        .. code-block:: C
+
+          int chunk_size = ...
+          #pragma omp ... schedule(..., chunk_size)
+          for (int i = ...)
+          {
+            ...
+          }
+    """
+
     _traversable = ['prefix', 'body']
 
     def __init__(self, prefix, body, nthreads=None):
@@ -94,7 +108,12 @@ class ParallelTree(List):
         self.nthreads = nthreads
 
     def __getattr__(self, name):
-        return getattr(self.body[0], name)
+        if 'body' in self.__dict__:
+            # During unpickling, `__setattr__` calls `__getattr__(..., 'body')`,
+            # which would cause infinite recursion if we didn't check whether
+            # 'body' is present or not
+            return getattr(self.body[0], name)
+        raise AttributeError
 
     @property
     def functions(self):
