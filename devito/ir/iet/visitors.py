@@ -17,7 +17,7 @@ from devito.symbolics import ccode
 from devito.tools import GenericVisitor, as_tuple, filter_sorted, flatten
 
 
-__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapSections', 'MapNodes',
+__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
            'IsPerfectIteration', 'XSubs', 'printAST', 'CGen', 'Transformer',
            'FindAdjacent']
 
@@ -402,7 +402,7 @@ class FindSections(Visitor):
         queue.remove(o)
         return ret
 
-    def visit_Simple(self, o, ret=None, queue=None):
+    def visit_ExprStmt(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         if queue is not None:
@@ -410,7 +410,7 @@ class FindSections(Visitor):
         return ret
 
     def visit_Conditional(self, o, ret=None, queue=None):
-        # Essentially like visit_Simple, but also go down through the children
+        # Essentially like visit_ExprStmt, but also go down through the children
         if ret is None:
             ret = self.default_retval()
         if queue is not None:
@@ -420,20 +420,22 @@ class FindSections(Visitor):
         return ret
 
 
-class MapSections(FindSections):
+class MapExprStmts(FindSections):
 
     """
-    Construct a mapper from Simple Nodes (i.e., Nodes that do *not* contain
-    other Nodes, such as Expressions and Calls) to the enclosing Iteration nest.
+    Construct a mapper from ExprStmts, i.e. expression statements such as Calls
+    and Expressions, to their enclosing block (e.g., Iteration, Block).
     """
 
-    def visit_Simple(self, o, ret=None, queue=None):
+    def visit_ExprStmt(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         ret[o] = as_tuple(queue)
         return ret
 
     visit_Conditional = FindSections.visit_Node
+
+    visit_Block = FindSections.visit_Iteration
 
 
 class MapNodes(Visitor):
