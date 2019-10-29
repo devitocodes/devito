@@ -1,8 +1,9 @@
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf, q_xop,
-                                      q_trigonometry)
+                                      q_trigonometry, q_scalar)
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_xops', 'retrieve_trigonometry', 'search']
+           'retrieve_terminals', 'retrieve_xops', 'retrieve_trigonometry', 'search',
+           'retrieve_scalars']
 
 
 class Search(object):
@@ -129,6 +130,11 @@ def retrieve_indexed(expr, mode='all', deep=False):
 def retrieve_functions(expr, mode='all'):
     """Shorthand to retrieve the DiscreteFunctions in ``expr``."""
     return search(expr, q_function, mode, 'dfs')
+
+
+def retrieve_scalars(expr, mode='all'):
+    """Shorthand to retrieve the Scalar in ``expr``."""
+    return search(expr, q_scalar, mode, 'dfs')
 
 
 def retrieve_function_carriers(expr, mode='all'):

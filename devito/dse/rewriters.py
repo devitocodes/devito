@@ -15,7 +15,7 @@ from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               iq_timeinvariant, pow_to_mul, q_leaf, q_sum_of_product,
-                              q_scalar, q_terminalop, xreplace_constrained)
+                              q_terminalop, xreplace_constrained)
 from devito.tools import flatten, generator
 from devito.types import Array, Scalar
 
@@ -123,7 +123,7 @@ class BasicRewriter(AbstractRewriter):
         for e in cluster.exprs:
             if e.is_Increment and e.lhs.function.is_Input:
                 handle = Scalar(name=template(), dtype=e.dtype).indexify()
-                if q_scalar(e.rhs):
+                if e.rhs.is_Number or e.rhs.is_Symbol:
                     extracted = e.rhs
                 else:
                     extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
