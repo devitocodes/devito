@@ -150,11 +150,11 @@ class ExprStmt(object):
     pass
 
 
-class Block(Node):
+class List(Node):
 
-    """A sequence of nodes, wrapped in a block {...}."""
+    """A sequence of Nodes."""
 
-    is_Block = True
+    is_List = True
 
     _traversable = ['body']
 
@@ -180,11 +180,11 @@ class Block(Node):
         return ()
 
 
-class List(Block):
+class Block(List):
 
-    """A sequence of nodes."""
+    """A sequence of Nodes, wrapped in a block {...}."""
 
-    is_List = True
+    is_Block = True
 
 
 class Element(Node):

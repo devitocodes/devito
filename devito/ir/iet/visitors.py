@@ -91,7 +91,7 @@ class PrintAST(Visitor):
     def visit_tuple(self, o):
         return '\n'.join([self._visit(i) for i in o])
 
-    def visit_Block(self, o):
+    def visit_List(self, o):
         self._depth += 1
         if self.verbose:
             body = [self._visit(o.header), self._visit(o.body), self._visit(o.footer)]
@@ -553,7 +553,7 @@ class FindSymbols(Visitor):
         symbols += self.rule(o)
         return filter_sorted(symbols, key=attrgetter('name'))
 
-    visit_Block = visit_Iteration
+    visit_List = visit_Iteration
     visit_Conditional = visit_Iteration
 
     def visit_Expression(self, o):
