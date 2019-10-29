@@ -1525,14 +1525,14 @@ class TestIsotropicAcoustic(object):
 
         return Eu, Erec, Ev, Esrca
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbpml,save', [
+    @pytest.mark.parametrize('shape,kernel,space_order,nbl,save', [
         ((60, ), 'OT2', 4, 10, False),
         ((60, 70), 'OT2', 8, 10, False),
     ])
     @pytest.mark.parallel(mode=1)
-    def test_adjoint_codegen(self, shape, kernel, space_order, nbpml, save):
+    def test_adjoint_codegen(self, shape, kernel, space_order, nbl, save):
         solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
-                                nbpml=nbpml, tn=500, space_order=space_order, nrec=130,
+                                nbl=nbl, tn=500, space_order=space_order, nrec=130,
                                 preset='layers-isotropic', dtype=np.float64)
         op_fwd = solver.op_fwd(save=save)
         fwd_calls = FindNodes(Call).visit(op_fwd)

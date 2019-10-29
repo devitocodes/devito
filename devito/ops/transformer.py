@@ -10,7 +10,7 @@ from devito.ir.iet.nodes import Call, Callable, Expression, IterationTree
 from devito.ir.iet.visitors import FindNodes
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
-from devito.ops.utils import namespace
+from devito.ops.utils import namespace, OpsDatDecl, OpsArgDecl
 from devito.symbolics import Add, Byref, ListInitializer, Literal
 from devito.tools import dtype_to_cstr
 from devito.types import Constant, DefaultDimension, Symbol
@@ -123,7 +123,6 @@ def create_ops_dat(f, name_to_ops_dat, block):
         scope='stack'
     )
 
-    res = []
     base_val = [Zero() for i in range(ndim)]
 
     # If f is a TimeFunction we need to create a ops_dat for each time stepping
@@ -133,7 +132,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
         time_index = f.indices[time_pos]
         time_dims = f.shape[time_pos]
 
-        dim_shape = f.shape[:time_pos] + f.shape[time_pos + 1:]
+        dim_val = f.shape[:time_pos] + f.shape[time_pos + 1:]
         d_p_val = f._size_nodomain.left[time_pos+1:]
         d_m_val = [-i for i in f._size_nodomain.right[time_pos+1:]]
 
@@ -172,7 +171,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
         ops_dat = OpsDat("%s_dat" % f.name)
         name_to_ops_dat[f.name] = ops_dat
 
-        dim_shape = f.shape
+        dim_val = f.shape
         d_p_val = f._size_nodomain.left
         d_m_val = [-i for i in f._size_nodomain.right]
 
@@ -191,13 +190,16 @@ def create_ops_dat(f, name_to_ops_dat, block):
             )
         )))
 
-    res.append(Expression(ClusterizedEq(Eq(dim, ListInitializer(dim_shape)))))
-    res.append(Expression(ClusterizedEq(Eq(base, ListInitializer(base_val)))))
-    res.append(Expression(ClusterizedEq(Eq(d_p, ListInitializer(d_p_val)))))
-    res.append(Expression(ClusterizedEq(Eq(d_m, ListInitializer(d_m_val)))))
-    res.append(ops_decl_dat)
+    dim_val = Expression(ClusterizedEq(Eq(dim, ListInitializer(dim_val))))
+    base_val = Expression(ClusterizedEq(Eq(base, ListInitializer(base_val))))
+    d_p_val = Expression(ClusterizedEq(Eq(d_p, ListInitializer(d_p_val))))
+    d_m_val = Expression(ClusterizedEq(Eq(d_m, ListInitializer(d_m_val))))
 
-    return res
+    return OpsDatDecl(dim_val=dim_val,
+                      base_val=base_val,
+                      d_p_val=d_p_val,
+                      d_m_val=d_m_val,
+                      ops_decl_dat=ops_decl_dat)
 
 
 def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
@@ -229,8 +231,7 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
 
     range_array = Array(
         name='%s_range' % ops_kernel.name,
-        dimensions=(DefaultDimension(
-            name='range', default_value=len(it_range)),),
+        dimensions=(DefaultDimension(name='range', default_value=len(it_range)),),
         dtype=np.int32,
         scope='stack'
     )
@@ -240,6 +241,18 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
         ListInitializer(it_range)
     )))
 
+    ops_args = []
+    for p in parameters:
+        ops_arg = create_ops_arg(p,
+                                 accessible_origin,
+                                 name_to_ops_dat,
+                                 par_to_ops_stencil)
+
+        ops_args.append(ops_arg.ops_type(ops_arg.ops_name,
+                                         ops_arg.elements_per_point,
+                                         ops_arg.dtype,
+                                         ops_arg.rw_flag))
+
     ops_par_loop_call = Call(
         namespace['ops_par_loop'], [
             Literal(ops_kernel.name),
@@ -247,8 +260,7 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
             block,
             dims,
             range_array,
-            *[create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil)
-              for p in parameters]
+            *ops_args
         ]
     )
 
@@ -256,27 +268,29 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
 
 
 def create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil):
-    if p.is_Constant:
-        return namespace['ops_arg_gbl'](
-            Byref(Constant(name=p.name[1:])),
-            1,
-            Literal('"%s"' % dtype_to_cstr(p.dtype)),
-            namespace['ops_read']
-        )
-    else:
-        accessible_info = accessible_origin[p.name]
+    elements_per_point = 1
+    dtype = Literal('"%s"' % dtype_to_cstr(p.dtype))
 
-        dat_name = name_to_ops_dat[p.name] \
+    if p.is_Constant:
+        ops_type = namespace['ops_arg_gbl']
+        ops_name = Byref(Constant(name=p.name[1:]))
+        rw_flag = namespace['ops_read']
+    else:
+        ops_type = namespace['ops_arg_dat']
+        accessible_info = accessible_origin[p.name]
+        ops_name = name_to_ops_dat[p.name] \
             if accessible_info.time is None \
             else name_to_ops_dat[accessible_info.origin_name].\
             indexify([accessible_info.time])
+        rw_flag = namespace['ops_read'] if p.read_only else namespace['ops_write']
 
-        return namespace['ops_arg_dat'](
-            dat_name,
-            1,
-            par_to_ops_stencil[p],
-            Literal('"%s"' % dtype_to_cstr(p.dtype)),
-            namespace['ops_read'] if p.read_only else namespace['ops_write'])
+    ops_arg = OpsArgDecl(ops_type=ops_type,
+                         ops_name=ops_name,
+                         elements_per_point=elements_per_point,
+                         dtype=dtype,
+                         rw_flag=rw_flag)
+
+    return ops_arg
 
 
 def make_ops_ast(expr, nfops, is_write=False):
@@ -294,7 +308,7 @@ def make_ops_ast(expr, nfops, is_write=False):
     Returns
     -------
     Node
-        Expression alredy translated to OPS syntax.
+        Expression already translated to OPS syntax.
     """
 
     if expr.is_Symbol:
@@ -306,10 +320,8 @@ def make_ops_ast(expr, nfops, is_write=False):
     elif expr.is_Indexed:
         return nfops.new_ops_arg(expr, is_write)
     elif expr.is_Equality:
-        res = expr.func(
+        return expr.func(
             make_ops_ast(expr.lhs, nfops, True),
-            make_ops_ast(expr.rhs, nfops)
-        )
-        return res
+            make_ops_ast(expr.rhs, nfops))
     else:
         return expr.func(*[make_ops_ast(i, nfops) for i in expr.args])

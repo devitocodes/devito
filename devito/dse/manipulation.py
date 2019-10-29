@@ -3,7 +3,7 @@ from collections import OrderedDict
 from sympy import Add, Mul, collect, collect_const
 
 from devito.dse.flowgraph import FlowGraph
-from devito.symbolics import (Eq, count, estimate_cost, q_xop, q_leaf,
+from devito.symbolics import (Eq, count, estimate_cost, q_xop, q_leaf, retrieve_scalars,
                               retrieve_terminals, xreplace_constrained)
 from devito.tools import DAG, ReducerMap, split
 
@@ -70,8 +70,16 @@ def collect_nested(expr):
             except AttributeError:
                 assert w_pows == 0
 
+            # Collect common temporaries (r0, r1, ...)
+            w_coeffs = collect(expr.func(*w_coeffs), tuple(retrieve_scalars(expr)),
+                               evaluate=False)
+            try:
+                w_coeffs = Add(*[Mul(k, collect_const(v)) for k, v in w_coeffs.items()])
+            except AttributeError:
+                assert w_coeffs == 0
+
             # Collect common coefficients
-            w_coeffs = collect_const(expr.func(*w_coeffs))
+            w_coeffs = collect_const(w_coeffs)
 
             rebuilt = Add(w_funcs, w_pows, w_coeffs, *args)
 

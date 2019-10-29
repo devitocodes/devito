@@ -256,7 +256,8 @@ class DifferentiableOp(Differentiable):
 
         # Unfortunately SymPy may build new sympy.core objects (e.g., sympy.Add),
         # so here we have to rebuild them as devito.core objects
-        obj = diffify(obj)
+        if kwargs.get('evaluate', True):
+            obj = diffify(obj)
 
         return obj
 
@@ -296,19 +297,18 @@ class diffify(object):
 
     def _doit(obj, args=None):
         cls = diffify._cls(obj)
-        if cls is obj.__class__:
-            return obj
-
         args = args or obj.args
-        newobj = cls(*args, evaluate=False)
 
-        # SymPy objects pretend to be immutable, but in reality they are not.
-        # As facts are deduced, a SymPy core object's ``_assumptions`` data
-        # structure is updated. Since here we use ``evaluate=False`` all over
-        # the place, we have to explicitly reassign the ``_assumptions``.
-        newobj._assumptions = obj._assumptions.copy()
+        if cls is obj.__class__:
+            # Try to just update the args if possible (Add, Mul)
+            try:
+                return obj._new_rawargs(*args, is_commutative=obj.is_commutative)
+            # Or just return the object (Float, Symbol, Function, ...)
+            except AttributeError:
+                return obj
 
-        return newobj
+        # Create object directly from args, avoid any rebuild
+        return cls(*args, evaluate=False)
 
     @singledispatch
     def _cls(obj):

@@ -74,8 +74,8 @@ class TestSC(object):
 
         w = Function(name='w', dimensions=wdims, shape=wshape)
         w.data[:, :, 0] = 0.0
-        w.data[:, :, 1] = -1/grid.spacing[0]
-        w.data[:, :, 2] = 1/grid.spacing[0]
+        w.data[:, :, 1] = -1.0/grid.spacing[0]
+        w.data[:, :, 2] = 1.0/grid.spacing[0]
 
         f_x_coeffs = Coefficient(1, f0, x, w)
 

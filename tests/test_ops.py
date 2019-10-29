@@ -16,7 +16,7 @@ from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # 
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil  # noqa
 from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock  # noqa
-from devito.ops.utils import namespace, AccessibleInfo  # noqa
+from devito.ops.utils import namespace, AccessibleInfo, OpsDatDecl, OpsArgDecl  # noqa
 from devito.symbolics import Byref, Literal, indexify  # noqa
 from devito.tools import dtype_to_cstr  # noqa
 from devito.types import Buffer, Constant, Symbol  # noqa
@@ -30,15 +30,15 @@ class TestOPSExpression(object):
         ('Eq(u, u.dxl)',
          'void OPS_Kernel_0(ACC<float> & ut0, const float *h_x)\n'
          '{\n  float r0 = 1.0/*h_x;\n  '
-         'ut0(0) = -2.0F*ut0(-1)*r0 + 5.0e-1F*ut0(-2)*r0 + 1.5F*ut0(0)*r0;\n}'),
+         'ut0(0) = (-2.0F*ut0(-1) + 5.0e-1F*ut0(-2) + 1.5F*ut0(0))*r0;\n}'),
         ('Eq(v,1)', 'void OPS_Kernel_0(ACC<float> & vt0)\n'
          '{\n  vt0(0, 0) = 1;\n}'),
         ('Eq(v,v.dxl + v.dxr - v.dyr - v.dyl)',
          'void OPS_Kernel_0(ACC<float> & vt0, const float *h_x, const float *h_y)\n'
-         '{\n  r1 = 1.0/*h_y;\n  r0 = 1.0/*h_x;\n  '
-         'vt0(0, 0) = 5.0e-1F*(-vt0(2, 0)*r0 + vt0(-2, 0)*r0 - vt0(0, -2)*r1 + '
-         'vt0(0, 2)*r1) + 2.0F*(-vt0(-1, 0)*r0 + vt0(1, 0)*r0 - vt0(0, 1)*r1 + '
-         'vt0(0, -1)*r1);\n}'),
+         '{\n  float r1 = 1.0/*h_y;\n  float r0 = 1.0/*h_x;\n  '
+         'vt0(0, 0) = (5.0e-1F*(-vt0(2, 0) + vt0(-2, 0)) + 2.0F*(-vt0(-1, 0) + '
+         'vt0(1, 0)))*r0 + (5.0e-1F*(-vt0(0, -2) + vt0(0, 2)) + '
+         '2.0F*(-vt0(0, 1) + vt0(0, -1)))*r1;\n}'),
         ('Eq(v,v**2 - 3*v)',
          'void OPS_Kernel_0(ACC<float> & vt0)\n'
          '{\n  vt0(0, 0) = -3*vt0(0, 0) + vt0(0, 0)*vt0(0, 0);\n}'),
@@ -57,9 +57,9 @@ class TestOPSExpression(object):
          '{\n  float r2 = 1.0/*dt;\n'
          '  float r1 = 1.0/(*h_y**h_y);\n'
          '  float r0 = 1.0/(*h_x**h_x);\n'
-         '  vt1(0, 0) = 2*vt1(0, 0)*r2 + 2.0F*(vt0(0, 0)*r0 + vt0(0, 0)*r1) - '
-         '(vt0(1, 0)*r0 + vt0(-1, 0)*r0 + vt0(0, 1)*r1 + vt0(0, -1)*r1 + '
-         '2*vt0(0, 0)*r2);\n}'),
+         '  vt1(0, 0) = (-(vt0(1, 0) + vt0(-1, 0)) + 2.0F*vt0(0, 0))*r0 + '
+         '(-(vt0(0, 1) + vt0(0, -1)) + 2.0F*vt0(0, 0))*r1 + '
+         '2*(-vt0(0, 0) + vt1(0, 0))*r2;\n}'),
     ])
     def test_kernel_generation(self, equation, expected):
         """
@@ -172,26 +172,29 @@ class TestOPSExpression(object):
 
         name_to_ops_dat = {}
 
-        result = create_ops_dat(u, name_to_ops_dat, block)
+        ops_dat = create_ops_dat(u, name_to_ops_dat, block)
 
         assert name_to_ops_dat['u'].name == namespace['ops_dat_name'](u.name)
         assert name_to_ops_dat['u']._C_typename == namespace['ops_dat_type']
 
-        assert result[0].expr.lhs.name == namespace['ops_dat_dim'](u.name)
-        assert result[0].expr.rhs.params == (Integer(4),)
+        assert ops_dat.dim_val.expr.lhs.name == \
+            namespace['ops_dat_dim'](u.name)
+        assert ops_dat.dim_val.expr.rhs.params == \
+            (Integer(4),)
 
-        assert result[1].expr.lhs.name == namespace['ops_dat_base'](u.name)
-        assert result[1].expr.rhs.params == (Zero(),)
+        assert ops_dat.base_val.expr.lhs.name == \
+            namespace['ops_dat_base'](u.name)
+        assert ops_dat.base_val.expr.rhs.params == (Zero(),)
 
-        assert result[2].expr.lhs.name == namespace['ops_dat_d_p'](u.name)
-        assert result[2].expr.rhs.params == (Integer(2),)
+        assert ops_dat.d_p_val.expr.lhs.name == namespace['ops_dat_d_p'](u.name)
+        assert ops_dat.d_p_val.expr.rhs.params == (Integer(2),)
 
-        assert result[3].expr.lhs.name == namespace['ops_dat_d_m'](u.name)
-        assert result[3].expr.rhs.params == (Integer(-2),)
+        assert ops_dat.d_m_val.expr.lhs.name == namespace['ops_dat_d_m'](u.name)
+        assert ops_dat.d_m_val.expr.rhs.params == (Integer(-2),)
 
-        assert result[4].expr.lhs == name_to_ops_dat['u']
-        assert type(result[4].expr.rhs) == namespace['ops_decl_dat']
-        assert result[4].expr.rhs.args == (
+        assert ops_dat.ops_decl_dat.expr.lhs == name_to_ops_dat['u']
+        assert type(ops_dat.ops_decl_dat.expr.rhs) == namespace['ops_decl_dat']
+        assert ops_dat.ops_decl_dat.expr.rhs.args == (
             block,
             1,
             Symbol(namespace['ops_dat_dim'](u.name)),
@@ -206,13 +209,13 @@ class TestOPSExpression(object):
     def test_create_ops_arg_constant(self):
         a = Constant(name='*a')
 
-        res = create_ops_arg(a, {}, {}, {})
+        ops_arg = create_ops_arg(a, {}, {}, {})
 
-        assert type(res) == namespace['ops_arg_gbl']
-        assert str(res.args[0]) == str(Byref(Constant(name='a')))
-        assert res.args[1] == 1
-        assert res.args[2] == Literal('"%s"' % dtype_to_cstr(a.dtype))
-        assert res.args[3] == namespace['ops_read']
+        assert ops_arg.ops_type == namespace['ops_arg_gbl']
+        assert str(ops_arg.ops_name) == str(Byref(Constant(name='a')))
+        assert ops_arg.elements_per_point == 1
+        assert ops_arg.dtype == Literal('"%s"' % dtype_to_cstr(a.dtype))
+        assert ops_arg.rw_flag == namespace['ops_read']
 
     @pytest.mark.parametrize('read', [True, False])
     def test_create_ops_arg_function(self, read):
@@ -222,16 +225,14 @@ class TestOPSExpression(object):
         stencil = OpsStencil('stencil')
         info = AccessibleInfo(u, None, None)
 
-        res = create_ops_arg(u, {'u': info}, {'u': dat}, {u: stencil})
+        ops_arg = create_ops_arg(u, {'u': info}, {'u': dat}, {u: stencil})
 
-        assert type(res) == namespace['ops_arg_dat']
-        assert res.args == (
-            dat,
-            1,
-            stencil,
-            Literal('"%s"' % dtype_to_cstr(u.dtype)),
+        assert ops_arg.ops_type == namespace['ops_arg_dat']
+        assert ops_arg.ops_name == OpsDat('u_dat')
+        assert ops_arg.elements_per_point == 1
+        assert ops_arg.dtype == Literal('"%s"' % dtype_to_cstr(u.dtype))
+        assert ops_arg.rw_flag == \
             namespace['ops_read'] if read else namespace['ops_write']
-        )
 
     @pytest.mark.parametrize('equation, expected', [
         ('Eq(u.forward, u.dt2 + u.dxr - u.dyr - u.dyl)',

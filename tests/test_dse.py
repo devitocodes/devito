@@ -507,14 +507,14 @@ def test_time_invariant_aliases():
 def run_acoustic_forward(dse=None):
     shape = (50, 50, 50)
     spacing = (10., 10., 10.)
-    nbpml = 10
+    nbl = 10
     nrec = 101
     t0 = 0.0
     tn = 250.0
 
     # Create two-layer model from preset
     model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
-                       spacing=spacing, shape=shape, nbpml=nbpml)
+                       spacing=spacing, shape=shape, nbl=nbl)
 
     # Source and receiver geometries
     src_coordinates = np.empty((1, len(spacing)))
@@ -557,12 +557,12 @@ def tti_operator(dse=False, dle='advanced', space_order=4):
     nrec = 101
     t0 = 0.0
     tn = 250.
-    nbpml = 10
+    nbl = 10
     shape = (50, 50, 50)
     spacing = (20., 20., 20.)
 
     # Two layer model for true velocity
-    model = demo_model('layers-tti', ratio=3, nbpml=nbpml, space_order=space_order,
+    model = demo_model('layers-tti', ratio=3, nbl=nbl, space_order=space_order,
                        shape=shape, spacing=spacing)
 
     # Source and receiver geometries
@@ -645,7 +645,7 @@ def test_tti_rewrite_aggressive_wmpi():
 
 @switchconfig(profiling='advanced')
 @pytest.mark.parametrize('space_order,expected', [
-    (8, 152), (16, 268)
+    (8, 154), (16, 270)
 ])
 def test_tti_rewrite_aggressive_opcounts(space_order, expected):
     operator = tti_operator(dse='aggressive', space_order=space_order)
@@ -655,7 +655,7 @@ def test_tti_rewrite_aggressive_opcounts(space_order, expected):
 
 @switchconfig(profiling='advanced')
 @pytest.mark.parametrize('space_order,expected', [
-    (4, 185), (12, 377)
+    (4, 183), (12, 375)
 ])
 def test_tti_v2_rewrite_aggressive_opcounts(space_order, expected):
     grid = Grid(shape=(3, 3, 3))
@@ -701,4 +701,4 @@ def test_tti_v2_rewrite_aggressive_opcounts(space_order, expected):
 
 
 if __name__ == "__main__":
-    test_tti_rewrite_aggressive_opcounts(16, 270)
+    test_tti_v2_rewrite_aggressive_opcounts(4, 183)

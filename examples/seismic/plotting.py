@@ -67,7 +67,7 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
     extent = [model.origin[0], model.origin[0] + domain_size[0],
               model.origin[1] + domain_size[1], model.origin[1]]
 
-    slices = tuple(slice(model.nbpml, -model.nbpml) for _ in range(2))
+    slices = tuple(slice(model.nbl, -model.nbl) for _ in range(2))
     field = (getattr(model, 'vp', None) or getattr(model, 'lam')).data[slices]
     plot = plt.imshow(np.transpose(field), animated=True, cmap=cm.jet,
                       vmin=np.min(field), vmax=np.max(field),

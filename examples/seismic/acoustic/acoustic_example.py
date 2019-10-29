@@ -8,10 +8,10 @@ from examples.seismic import demo_model, AcquisitionGeometry
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
-                   tn=500., kernel='OT2', space_order=4, nbpml=10,
+                   tn=500., kernel='OT2', space_order=4, nbl=10,
                    preset='layers-isotropic', **kwargs):
     nrec = kwargs.pop('nrec', shape[0])
-    model = demo_model(preset, space_order=space_order, shape=shape, nbpml=nbpml,
+    model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
                        dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
 
     # Source and receiver geometries
@@ -35,10 +35,10 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
 
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
-        space_order=4, kernel='OT2', nbpml=40, full_run=False,
+        space_order=4, kernel='OT2', nbl=40, full_run=False,
         autotune=False, preset='layers-isotropic', checkpointing=False, **kwargs):
 
-    solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
+    solver = acoustic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
                             space_order=space_order, kernel=kernel,
                             preset=preset, **kwargs)
 
@@ -86,8 +86,8 @@ if __name__ == "__main__":
                         help="Operator auto-tuning mode")
     parser.add_argument("-so", "--space_order", default=6,
                         type=int, help="Space order of the simulation")
-    parser.add_argument("--nbpml", default=40,
-                        type=int, help="Number of PML layers around the domain")
+    parser.add_argument("--nbl", default=40,
+                        type=int, help="Number of boundary layers around the domain")
     parser.add_argument("-k", dest="kernel", default='OT2',
                         choices=['OT2', 'OT4'],
                         help="Choice of finite-difference kernel")
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     spacing = tuple(args.ndim * [15.0])
     tn = 750. if args.ndim < 3 else 250.
     preset = 'constant-isotropic' if args.constant else 'layers-isotropic'
-    run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
+    run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn,
         space_order=args.space_order, preset=preset, kernel=args.kernel,
         autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full,
         checkpointing=args.checkpointing)

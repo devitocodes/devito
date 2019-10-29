@@ -66,8 +66,8 @@ def option_simulation(f):
                      help='Number of grid points along each axis'),
         click.option('-s', '--spacing', default=(20., 20., 20.),
                      help='Spacing between grid sizes in meters'),
-        click.option('-n', '--nbpml', default=10,
-                     help='Number of PML layers'),
+        click.option('-n', '--nbl', default=10,
+                     help='Number of boundary layers'),
         click.option('-so', '--space-order', type=int, multiple=True,
                      callback=default_list, help='Space order of the simulation'),
         click.option('-to', '--time-order', type=int, multiple=True,
@@ -404,7 +404,7 @@ def get_ob_bench(problem, resultsdir, parameters):
             devito_params, params = OrderedDict(), dict(params)
             devito_params['arch'] = params['arch']
             devito_params['shape'] = ",".join(str(i) for i in params['shape'])
-            devito_params['nbpml'] = params['nbpml']
+            devito_params['nbl'] = params['nbl']
             devito_params['tn'] = params['tn']
             devito_params['so'] = params['space_order']
             devito_params['to'] = params['time_order']
