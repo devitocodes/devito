@@ -3,14 +3,14 @@ import os
 
 import numpy as np
 import cgen as c
-from sympy import Function, Or, Not
+from sympy import Function, Or, Max, Not
 
-from devito.ir import (Conditional, Block, Expression, List, Prodder, While,
-                       FindSymbols, FindNodes, Return, COLLAPSED, Transformer,
+from devito.ir import (DummyEq, Conditional, Block, Expression, List, Prodder,
+                       While, FindSymbols, FindNodes, Return, COLLAPSED, Transformer,
                        IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
-from devito.symbolics import CondEq
+from devito.symbolics import CondEq, INT
 from devito.parameters import configuration
-from devito.tools import is_integer, prod
+from devito.tools import as_tuple, is_integer, prod
 from devito.types import Constant, Symbol
 
 
@@ -48,6 +48,22 @@ class ParallelRegion(Block):
     @property
     def functions(self):
         return (self.nthreads,)
+
+
+class ParallelTree(List):
+
+    _traversable = ['prefix', 'body']
+
+    def __init__(self, prefix, body):
+        self.prefix = as_tuple(prefix)
+        super(ParallelTree, self).__init__(body=body)
+
+    def __getattr__(self, name):
+        return getattr(self.root, name)
+
+    @property
+    def root(self):
+        return self.body[0]
 
 
 class ThreadedProdder(Conditional, Prodder):
@@ -90,13 +106,17 @@ class Ompizer(object):
     compilation time (e.g., this may happen when DefaultDimensions are used).
     """
 
+    CHUNKSIZE_NONAFFINE = 3
+    """
+    Coefficient to adjust the chunk size in parallelized non-affine Iterations.
+    """
+
     lang = {
-        'for-static': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
-        'for-static-1': lambda i: c.Pragma('omp for collapse(%d) schedule(static,1)' % i),
-        'for-dynamic-1': lambda i: c.Pragma('omp for collapse(%d) schedule(dynamic,1)'
-                                            % i),
-        'par-for': lambda i, j: c.Pragma('omp parallel for collapse(%d) '
-                                         'schedule(dynamic,1) num_threads(%d)' % (i, j)),
+        'for': lambda i, cs:
+            c.Pragma('omp for collapse(%d) schedule(dynamic,%s)' % (i, cs)),
+        'par-for': lambda i, cs, nt:
+            c.Pragma('omp parallel for collapse(%d) schedule(dynamic,%s) num_threads(%d)'
+                     % (i, cs, nt)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
@@ -138,17 +158,6 @@ class Ompizer(object):
         assert candidates
         root = candidates[0]
 
-        # Pick up an omp-pragma template
-        # Caller-provided -> stick to it
-        # Affine+Prodder -> ... schedule(dynamic,1) ...
-        # Affine -> ... schedule(static,1) ...
-        # Nonaffine -> ... schedule(static) ...
-        if omp_pragma is None:
-            if all(i.is_Affine for i in candidates):
-                omp_pragma = self.lang['for-dynamic-1']
-            else:
-                omp_pragma = self.lang['for-static']
-
         # Get the collapsable Iterations
         collapsable = []
         if ncores() >= Ompizer.COLLAPSE_NCORES and IsPerfectIteration().visit(root):
@@ -179,10 +188,25 @@ class Ompizer(object):
 
                 collapsable.append(i)
 
-        # Attach an OpenMP pragma-for with a collapse clause
-        ncollapse = 1 + len(collapsable)
-        partree = root._rebuild(pragmas=root.pragmas + (omp_pragma(ncollapse),),
-                                properties=root.properties + (COLLAPSED(ncollapse),))
+        # Create an OpenMP-decorated Iteration nest
+        prefix = []
+        if omp_pragma is None:
+            if all(i.is_Affine for i in candidates):
+                # Affine -> ... schedule(dynamic,1) ...
+                omp_pragma = lambda i: self.lang['for'](i, 1)
+            else:
+                # Nonaffine -> ... schedule(dynamic,expr) ...
+                chunk_size = Symbol(name='chunk_size')
+                omp_pragma = lambda i: self.lang['for'](i, chunk_size.name)
+
+                niters = prod([j.symbolic_size for j in candidates])
+                value = INT(Max(niters / (self.nthreads*self.CHUNKSIZE_NONAFFINE), 1))
+                prefix.append(Expression(DummyEq(chunk_size, value, dtype=np.int32)))
+
+        ncollapse = 1 + len(as_tuple(collapsable))
+        body = root._rebuild(pragmas=root.pragmas + (omp_pragma(ncollapse),),
+                             properties=root.properties + (COLLAPSED(ncollapse),))
+        partree = ParallelTree(prefix, body)
 
         collapsed = [partree] + collapsable
 
@@ -220,9 +244,8 @@ class Ompizer(object):
         #     ...
         mapper = {}
         for tree in retrieve_iteration_tree(partree):
-            index = tree.index(partree)
-            outer = tree[index:index + partree.ncollapsed]
-            inner = tree[index + partree.ncollapsed:]
+            outer = tree[:partree.ncollapsed]
+            inner = tree[partree.ncollapsed:]
 
             # Heuristic: nested parallelism is applied only if the top nested
             # parallel Iteration iterates *within* the top outer parallel Iteration
@@ -241,7 +264,7 @@ class Ompizer(object):
                 continue
 
             # Introduce nested parallelism
-            omp_pragma = lambda i: self.lang['par-for'](i, nhyperthreads())
+            omp_pragma = lambda i: self.lang['par-for'](i, 1, nhyperthreads())
             subroot, subpartree, _ = self._make_partree(candidates, omp_pragma)
 
             mapper[subroot] = subpartree

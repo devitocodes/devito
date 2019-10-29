@@ -391,7 +391,7 @@ class TestNodeParallelism(object):
     def test_scheduling(self):
         """
         Affine iterations -> #pragma omp ... schedule(dynamic,1) ...
-        Non-affine iterations -> #pragma omp ... schedule(static) ...
+        Non-affine iterations -> #pragma omp ... schedule(dynamic,chunk_size) ...
         """
         grid = Grid(shape=(11, 11))
 
@@ -408,7 +408,7 @@ class TestNodeParallelism(object):
         assert iterations[1].is_Affine
         assert 'schedule(dynamic,1)' in iterations[1].pragmas[0].value
         assert not iterations[3].is_Affine
-        assert 'schedule(static)' in iterations[3].pragmas[0].value
+        assert 'schedule(dynamic,chunk_size)' in iterations[3].pragmas[0].value
 
 
 class TestNestedParallelism(object):
