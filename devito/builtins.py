@@ -180,7 +180,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     data : ndarray or Function
         The data used for initialisation.
     nbl : int
-        Number of outer layers (such as PML layers for boundary damping).
+        Number of outer layers (such as absorbing layers for boundary damping).
     mapper : dict, optional
         Dictionary containing, for each dimension of `function`, a sub-dictionary
         containing the following keys:
