@@ -112,6 +112,9 @@ class OpsAccess(basic.Basic, sympy.Basic):
     def as_coeff_Add(self):
         return sympy.S.Zero, self
 
+    def as_ordered_factors(self):
+        return (self,)
+
     __repr__ = __str__
 
 
