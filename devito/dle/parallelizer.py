@@ -22,15 +22,49 @@ def nhyperthreads():
     return configuration['platform'].threads_per_core
 
 
-class NThreads(Constant):
+class NThreadsMixin(object):
+    pass
+
+
+class NThreads(Constant, NThreadsMixin):
+
+    name = 'nthreads0'
+    aliases = (name, 'nthreads')
 
     @classmethod
     def default_value(cls):
         return int(os.environ.get('OMP_NUM_THREADS', ncores()))
 
     def __new__(cls, **kwargs):
-        return super(NThreads, cls).__new__(cls, name=kwargs['name'], dtype=np.int32,
-                                            value=NThreads.default_value())
+        name = kwargs.get('name', NThreads.name)
+        value = NThreads.default_value()
+        return super(NThreads, cls).__new__(cls, name=name, dtype=np.int32, value=value)
+
+    @property
+    def _arg_names(self):
+        return NThreads.aliases
+
+    def _arg_values(self, **kwargs):
+        for i in NThreads.aliases:
+            if i in kwargs:
+                return {self.name: kwargs.pop(i)}
+        # Fallback: as usual, pick the default value
+        return self._arg_defaults()
+
+
+class NThreadsNested(Constant, NThreadsMixin):
+
+    name = 'nthreads1'
+
+    @classmethod
+    def default_value(cls):
+        return nhyperthreads()
+
+    def __new__(cls, **kwargs):
+        name = kwargs.get('name', NThreadsNested.name)
+        value = NThreadsNested.default_value()
+        return super(NThreadsNested, cls).__new__(cls, name=name, dtype=np.int32,
+                                                  value=value)
 
 
 class ParallelRegion(Block):
@@ -54,16 +88,17 @@ class ParallelTree(List):
 
     _traversable = ['prefix', 'body']
 
-    def __init__(self, prefix, body):
-        self.prefix = as_tuple(prefix)
+    def __init__(self, prefix, body, nthreads=None):
         super(ParallelTree, self).__init__(body=body)
+        self.prefix = as_tuple(prefix)
+        self.nthreads = nthreads
 
     def __getattr__(self, name):
-        return getattr(self.root, name)
+        return getattr(self.body[0], name)
 
     @property
-    def root(self):
-        return self.body[0]
+    def functions(self):
+        return as_tuple(self.nthreads)
 
 
 class ThreadedProdder(Conditional, Prodder):
@@ -115,7 +150,7 @@ class Ompizer(object):
         'for': lambda i, cs:
             c.Pragma('omp for collapse(%d) schedule(dynamic,%s)' % (i, cs)),
         'par-for': lambda i, cs, nt:
-            c.Pragma('omp parallel for collapse(%d) schedule(dynamic,%s) num_threads(%d)'
+            c.Pragma('omp parallel for collapse(%d) schedule(dynamic,%s) num_threads(%s)'
                      % (i, cs, nt)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
@@ -136,7 +171,8 @@ class Ompizer(object):
             self.key = key
         else:
             self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorizable
-        self.nthreads = NThreads(name='nthreads')
+        self.nthreads = NThreads()
+        self.nthreads_nested = NThreadsNested()
 
     def _make_atomic_incs(self, partree):
         if not partree.is_ParallelAtomic:
@@ -153,7 +189,7 @@ class Ompizer(object):
         partree = Transformer(mapper).visit(partree)
         return partree
 
-    def _make_partree(self, candidates, omp_pragma=None):
+    def _make_partree(self, candidates, nthreads=None):
         """Parallelize `root` attaching a suitable OpenMP pragma."""
         assert candidates
         root = candidates[0]
@@ -187,26 +223,31 @@ class Ompizer(object):
                     pass
 
                 collapsable.append(i)
+        ncollapse = 1 + len(collapsable)
 
-        # Create an OpenMP-decorated Iteration nest
+        # Prepare to build a ParallelTree
         prefix = []
-        if omp_pragma is None:
-            if all(i.is_Affine for i in candidates):
-                # Affine -> ... schedule(dynamic,1) ...
-                omp_pragma = lambda i: self.lang['for'](i, 1)
+        if all(i.is_Affine for i in candidates):
+            if nthreads is None:
+                # pragma omp for ... schedule(..., 1)
+                omp_pragma = self.lang['for'](ncollapse, 1)
             else:
-                # Nonaffine -> ... schedule(dynamic,expr) ...
-                chunk_size = Symbol(name='chunk_size')
-                omp_pragma = lambda i: self.lang['for'](i, chunk_size.name)
+                # pragma omp parallel for ... schedule(..., 1)
+                omp_pragma = self.lang['par-for'](ncollapse, 1, nthreads)
+        else:
+            # pragma omp for ... schedule(..., expr)
+            assert nthreads is None
+            chunk_size = Symbol(name='chunk_size')
+            omp_pragma = self.lang['for'](ncollapse, chunk_size)
 
-                niters = prod([j.symbolic_size for j in candidates])
-                value = INT(Max(niters / (self.nthreads*self.CHUNKSIZE_NONAFFINE), 1))
-                prefix.append(Expression(DummyEq(chunk_size, value, dtype=np.int32)))
+            niters = prod([j.symbolic_size for j in candidates])
+            value = INT(Max(niters / (self.nthreads*self.CHUNKSIZE_NONAFFINE), 1))
+            prefix.append(Expression(DummyEq(chunk_size, value, dtype=np.int32)))
 
-        ncollapse = 1 + len(as_tuple(collapsable))
-        body = root._rebuild(pragmas=root.pragmas + (omp_pragma(ncollapse),),
+        # Create a ParallelTree
+        body = root._rebuild(pragmas=root.pragmas + (omp_pragma,),
                              properties=root.properties + (COLLAPSED(ncollapse),))
-        partree = ParallelTree(prefix, body)
+        partree = ParallelTree(prefix, body, nthreads=nthreads)
 
         collapsed = [partree] + collapsable
 
@@ -264,8 +305,7 @@ class Ompizer(object):
                 continue
 
             # Introduce nested parallelism
-            omp_pragma = lambda i: self.lang['par-for'](i, 1, nhyperthreads())
-            subroot, subpartree, _ = self._make_partree(candidates, omp_pragma)
+            subroot, subpartree, _ = self._make_partree(candidates, self.nthreads_nested)
 
             mapper[subroot] = subpartree
 
@@ -304,5 +344,7 @@ class Ompizer(object):
 
         iet = Transformer(mapper).visit(iet)
 
-        return iet, {'args': [self.nthreads] if mapper else [],
-                     'includes': ['omp.h']}
+        # The used `nthreads` arguments
+        args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
+
+        return iet, {'args': args, 'includes': ['omp.h']}
