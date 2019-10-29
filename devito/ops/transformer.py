@@ -1,17 +1,16 @@
 import itertools
 import numpy as np
 
-from sympy import Mod
 from sympy.core.numbers import Zero
 
-from devito import Eq
+from devito import Eq, TimeFunction
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Call, Callable, Expression, IterationTree
 from devito.ir.iet.visitors import FindNodes
 from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil
+from devito.ops.types import Array, OpsAccessible, OpsDat, OpsMemSpace, OpsStencil
 from devito.ops.utils import namespace, OpsDatDecl, OpsArgDecl
-from devito.symbolics import Add, Byref, ListInitializer, Literal
+from devito.symbolics import Byref, ListInitializer, Literal, Macro, split_affine
 from devito.tools import dtype_to_cstr
 from devito.types import Constant, DefaultDimension, Symbol
 
@@ -62,7 +61,7 @@ def opsit(trees, count, name_to_ops_dat, block, dims):
 
     pre_time_loop = stencil_arrays_initializations + ops_par_loop_init
 
-    return pre_time_loop, ops_kernel, ops_par_loop_call
+    return pre_time_loop, ops_kernel, ops_par_loop_call, par_to_ops_stencil
 
 
 def to_ops_stencil(param, accesses):
@@ -125,8 +124,8 @@ def create_ops_dat(f, name_to_ops_dat, block):
 
     base_val = [Zero() for i in range(ndim)]
 
-    # If f is a TimeFunction we need to create a ops_dat for each time stepping
-    # variable (eg: t1, t2)
+    # If f is a TimeFunction we need to create an ops_dat for each time stepping
+    # variable (eg: t1, t2). For this, we will create an array of ops_dat.
     if f.is_TimeFunction:
         time_pos = f._time_position
         time_index = f.indices[time_pos]
@@ -147,6 +146,8 @@ def create_ops_dat(f, name_to_ops_dat, block):
         for i in range(time_dims):
             name = '%s%s%s' % (f.name, time_index, i)
 
+            ops_indices = [0 if a.is_Space else i for a in f.indices]
+
             dat_decls.append(namespace['ops_decl_dat'](
                 block,
                 1,
@@ -154,7 +155,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                Byref(f.indexify([i])),
+                Byref(f.indexify(ops_indices)),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % name)
             ))
@@ -184,7 +185,7 @@ def create_ops_dat(f, name_to_ops_dat, block):
                 Symbol(base.name),
                 Symbol(d_m.name),
                 Symbol(d_p.name),
-                Byref(f.indexify([0])),
+                Byref(f.indexify([0 for a in f.indices])),
                 Literal('"%s"' % f._C_typedata),
                 Literal('"%s"' % f.name)
             )
@@ -202,22 +203,54 @@ def create_ops_dat(f, name_to_ops_dat, block):
                       ops_decl_dat=ops_decl_dat)
 
 
-def create_ops_fetch(f, name_to_ops_dat, time_upper_bound):
+def initialize_memspace():
+    memspace = OpsMemSpace(namespace['ops_memspace_name'])
+    host_macro = Macro('OPS_HOST')
 
-    if f.is_TimeFunction:
-        ops_fetch = [namespace['ops_dat_fetch_data'](
-            name_to_ops_dat[f.name].indexify(
-                [Mod(Add(time_upper_bound, -i), f._time_size)]),
-            Byref(f.indexify([Mod(Add(time_upper_bound, -i), f._time_size)])))
-            for i in range(f._time_size)]
+    return Expression(ClusterizedEq(Eq(memspace, host_macro)))
 
-    else:
-        # The second parameter is the beginning of the array. But I didn't manage
-        # to generate a C code like: `v`. Instead, I am generating `&(v[0])`.
-        ops_fetch = [namespace['ops_dat_fetch_data'](
-            name_to_ops_dat[f.name], Byref(f.indexify([0])))]
 
-    return ops_fetch
+def create_ops_memory_fetch(f, name_to_ops_dat, par_to_ops_stencil, memspace):
+    """Create memory fetch calls for a given variable.
+
+    To get the data back to Devito from the device memory it is necessary to call the
+    OPS API method: `ops_dat_get_raw_pointer`.
+
+    Parameters
+    ----------
+    f : Function or TimeFunction
+        Devito object that was transfered into the device memory.
+    name_to_ops_dat : dict of {str : :class:`devito.ops.types.OpsDat`}
+        Given a variable name, it gets the associated OpsDat object.
+    par_to_ops_stencil : dict of {:class:`devito.ops.types.OpsAccessible` :
+                                  :class:`devito.ops.types.OpsStencil`}
+        Link an OpsAccessible to its OpsStencil variable.
+    memspace : :class:`devito.ops.types.OpsMemSpace`
+        Specifies which memory space should the data be transfered into.
+
+    Returns
+    ------
+    :class:`devito.ir.iet.nodes.Call`
+        The actual call to `ops_dat_get_raw_pointer` method from OPS API.
+    """
+
+    # Get the OpsDat associated with a given Function or an indexed TimeFunction.
+    nb_dats = f._time_order + 1 if f.is_TimeFunction else 1
+    ops_dat = lambda x: (name_to_ops_dat[f.name].indexify([x]) if f.is_TimeFunction
+                         else name_to_ops_dat[f.name])
+
+    # Get the OpsStencil associated with a given Function or an indexed TimeFunction.
+    time_index = split_affine(f.indices[TimeFunction._time_position])
+    ops_arg_id = lambda y: ('%s%s%d' % (f.name, time_index.var, y)
+                            if f.function.is_TimeFunction else f.name)
+    ops_stencil = lambda z: [v for k, v in par_to_ops_stencil.items()
+                             if k.name == ops_arg_id(z)]
+
+    # Build the ops memory fetch call.
+    return [namespace['ops_memory_fetch'](ops_dat(i),
+                                          *ops_stencil(i),
+                                          Byref(memspace.expr.lhs.name))
+            for i in range(nb_dats)]
 
 
 def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
@@ -250,6 +283,7 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
 
         ops_args.append(ops_arg.ops_type(ops_arg.ops_name,
                                          ops_arg.elements_per_point,
+                                         ops_arg.ops_stencil,
                                          ops_arg.dtype,
                                          ops_arg.rw_flag))
 
@@ -287,6 +321,7 @@ def create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil):
     ops_arg = OpsArgDecl(ops_type=ops_type,
                          ops_name=ops_name,
                          elements_per_point=elements_per_point,
+                         ops_stencil=par_to_ops_stencil[p],
                          dtype=dtype,
                          rw_flag=rw_flag)
 

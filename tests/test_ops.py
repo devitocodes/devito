@@ -278,30 +278,9 @@ class TestOPSExpression(object):
 
     @pytest.mark.parametrize('equation,expected', [
         ('Eq(u_2d.forward, u_2d + 1)',
-         '[\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
-         '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]));\']'),
-        ('Eq(v_2d, v_2d.dt.dx + u_2d.dt)',
-         '[\'ops_dat_fetch_data(v_dat[(time_M)%(3)],0,&(v[(time_M)%(3)]));\','
-         '\'ops_dat_fetch_data(v_dat[(time_M + 1)%(3)],0,&(v[(time_M + 1)%(3)]));\','
-         '\'ops_dat_fetch_data(v_dat[(time_M + 2)%(3)],0,&(v[(time_M + 2)%(3)]));\','
-         '\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
-         '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]));\']'),
-        ('Eq(v_3d.forward, v_3d + 1)',
-         '[\'ops_dat_fetch_data(v_dat[(time_M)%(3)],0,&(v[(time_M)%(3)]));\','
-         '\'ops_dat_fetch_data(v_dat[(time_M + 2)%(3)],0,&(v[(time_M + 2)%(3)]));\','
-         '\'ops_dat_fetch_data(v_dat[(time_M + 1)%(3)],0,&(v[(time_M + 1)%(3)]));\']'),
-        ('Eq(x_3d, x_3d.dt2 + v_3d.dt.dx + u_3d.dxr - u_3d.dxl)',
-         '[\'ops_dat_fetch_data(x_dat[(time_M)%(4)],0,&(x[(time_M)%(4)]));\','
-         '\'ops_dat_fetch_data(x_dat[(time_M + 3)%(4)],0,&(x[(time_M + 3)%(4)]));\','
-         '\'ops_dat_fetch_data(x_dat[(time_M + 2)%(4)],0,&(x[(time_M + 2)%(4)]));\','
-         '\'ops_dat_fetch_data(x_dat[(time_M + 1)%(4)],0,&(x[(time_M + 1)%(4)]));\','
-         '\'ops_dat_fetch_data(v_dat[(time_M)%(3)],0,&(v[(time_M)%(3)]));\','
-         '\'ops_dat_fetch_data(v_dat[(time_M + 2)%(3)],0,&(v[(time_M + 2)%(3)]));\','
-         '\'ops_dat_fetch_data(v_dat[(time_M + 1)%(3)],0,&(v[(time_M + 1)%(3)]));\','
-         '\'ops_dat_fetch_data(u_dat[(time_M)%(2)],0,&(u[(time_M)%(2)]));\','
-         '\'ops_dat_fetch_data(u_dat[(time_M + 1)%(2)],0,&(u[(time_M + 1)%(2)]));\']')
-    ])
-    def test_create_fetch_data(self, equation, expected):
+         '[\'ops_dat_get_raw_pointer(u_dat[0],0,S2D_UT0_1PT,&memspace);\','
+         '\'ops_memspace memspace=OPS_HOST\']')])
+    def test_memory_transfer_call(self, equation, expected):
 
         grid_2d = Grid(shape=(4, 4))
         grid_3d = Grid(shape=(4, 4, 4))

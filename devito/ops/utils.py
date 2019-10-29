@@ -17,7 +17,7 @@ OpsDatDecl = namedtuple(
 
 OpsArgDecl = namedtuple(
     'OpsArgDecl',
-    ['ops_type', 'ops_name', 'elements_per_point', 'dtype', 'rw_flag'])
+    ['ops_type', 'ops_name', 'elements_per_point', 'ops_stencil', 'dtype', 'rw_flag'])
 
 # OPS API
 namespace['ops_init'] = 'ops_init'
@@ -25,8 +25,8 @@ namespace['ops_partition'] = 'ops_partition'
 namespace['ops_timing_output'] = 'ops_timing_output'
 namespace['ops_exit'] = 'ops_exit'
 namespace['ops_par_loop'] = 'ops_par_loop'
-namespace['ops_dat_fetch_data'] = lambda ops_dat, data: Call(
-    name='ops_dat_fetch_data', arguments=[ops_dat, 0, data])
+namespace['ops_memory_fetch'] = lambda ops_dat, ops_stencil, memspace: Call(
+    name='ops_dat_get_raw_pointer', arguments=[ops_dat, 0, ops_stencil, memspace])
 
 namespace['ops_decl_stencil'] = Function(name='ops_decl_stencil')
 namespace['ops_decl_block'] = Function(name='ops_decl_block')
@@ -40,6 +40,7 @@ namespace['ops_write'] = Macro('OPS_WRITE')
 namespace['ops_stencil_type'] = 'ops_stencil'
 namespace['ops_block_type'] = 'ops_block'
 namespace['ops_dat_type'] = 'ops_dat'
+namespace['ops_memspace_type'] = 'ops_memspace'
 
 # Naming conventions
 namespace['ops_define_dimension'] = lambda i: '#define OPS_%sD' % i
@@ -50,3 +51,4 @@ namespace['ops_dat_base'] = lambda i: '%s_base' % i
 namespace['ops_dat_d_p'] = lambda i: '%s_d_p' % i
 namespace['ops_dat_d_m'] = lambda i: '%s_d_m' % i
 namespace['ops_dat_name'] = lambda i: '%s_dat' % i
+namespace['ops_memspace_name'] = 'memspace'
