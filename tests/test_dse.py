@@ -39,9 +39,9 @@ def test_scheduling_after_rewrite():
     trees = retrieve_iteration_tree(op)
 
     # Check loop nest structure
-    assert len(trees) == 4
-    assert all(i.dim == j for i, j in zip(trees[0], grid.dimensions))  # time invariant
-    assert trees[1][0].dim == trees[2][0].dim == trees[3][0].dim == grid.time_dim
+    assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions))  # time invariant
+    assert trees[1].root.dim is grid.time_dim
+    assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
 
 
 @pytest.mark.parametrize('exprs,expected', [

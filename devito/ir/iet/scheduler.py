@@ -4,8 +4,8 @@ import cgen as c
 
 from devito.ir.iet import (ArrayCast, Expression, Increment, LocalExpression, Element,
                            Iteration, List, Conditional, Section, HaloSpot,
-                           ExpressionBundle, MapSections, Transformer, FindNodes,
-                           FindSymbols, XSubs, iet_analyze, filter_iterations)
+                           ExpressionBundle, Transformer, FindNodes, FindSymbols,
+                           MapExprStmts, XSubs, iet_analyze)
 from devito.symbolics import IntDiv, ccode, xreplace_indices
 from devito.tools import as_mapper, as_tuple
 from devito.types import ConditionalDimension
@@ -145,7 +145,7 @@ def iet_insert_decls(iet, external):
 
     # Classify and then schedule declarations to stack/heap
     allocator = Allocator()
-    for k, v in MapSections().visit(iet).items():
+    for k, v in MapExprStmts().visit(iet).items():
         if k.is_Expression:
             if k.is_definition:
                 # On the stack
@@ -168,9 +168,7 @@ def iet_insert_decls(iet, external):
                         continue
                     elif i._mem_stack:
                         # On the stack
-                        key = lambda i: not i.is_Parallel
-                        site = filter_iterations(v, key=key) or iet
-                        allocator.push_object_on_stack(site[-1], i)
+                        allocator.push_object_on_stack(iet[0], i)
                     else:
                         # On the heap
                         allocator.push_array_on_heap(i)

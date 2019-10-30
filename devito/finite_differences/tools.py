@@ -78,7 +78,7 @@ def dim_with_order(dims, orders):
     [(1, 0), (0, 1), (1, 1)]
     """
     ndim = len(dims)
-    max_order = np.max(orders)
+    max_order = np.min([6, np.max(orders)])
     # Get all combinations and remove (0, 0, 0)
     all_comb = tuple(product(range(max_order+1), repeat=ndim))[1:]
     # Only keep the one with each dimension maximum order
@@ -121,7 +121,8 @@ def generate_fd_shortcuts(function):
         deriv = partial(deriv_function, deriv_order=d_orders, dims=fd_dims,
                         fd_order=fd_orders)
         name_fd = deriv_name(fd_dims, d_orders)
-        desciption = 'derivative of order %s w.r.t dimension %s' % (d_orders, fd_dims)
+        dname = (d.root.name for d in fd_dims)
+        desciption = 'derivative of order %s w.r.t dimension %s' % (d_orders, dname)
         derivatives[name_fd] = (deriv, desciption)
 
     # Add non-conventional, non-centered first-order FDs
@@ -132,20 +133,20 @@ def generate_fd_shortcuts(function):
             deriv = partial(deriv_function, deriv_order=1, dims=d,
                             fd_order=o, side=centered)
             name_fd = 'd%sc' % name
-            desciption = 'centered derivative staggered w.r.t dimension %s' % d
+            desciption = 'centered derivative staggered w.r.t dimension %s' % d.name
             derivatives[name_fd] = (deriv, desciption)
         else:
             # Left
             deriv = partial(deriv_function, deriv_order=1,
                             dims=d, fd_order=o, side=left)
             name_fd = 'd%sl' % name
-            desciption = 'left first order derivative w.r.t dimension %s' % d
+            desciption = 'left first order derivative w.r.t dimension %s' % d.name
             derivatives[name_fd] = (deriv, desciption)
             # Right
             deriv = partial(deriv_function, deriv_order=1,
                             dims=d, fd_order=o, side=right)
             name_fd = 'd%sr' % name
-            desciption = 'right first order derivative w.r.t dimension %s' % d
+            desciption = 'right first order derivative w.r.t dimension %s' % d.name
             derivatives[name_fd] = (deriv, desciption)
 
     return derivatives

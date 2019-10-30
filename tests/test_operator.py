@@ -1305,7 +1305,7 @@ class TestLoopScheduling(object):
         for e in exprs:
             eqns.append(eval(e))
 
-        op = Operator(eqns, dse='noop', dle='noop')
+        op = Operator(eqns, dse='noop', dle=('noop', {'openmp': False}))
 
         trees = retrieve_iteration_tree(op)
         iters = FindNodes(Iteration).visit(op)
@@ -1519,7 +1519,9 @@ class TestLoopScheduling(object):
         eqn3 = Eq(u2.forward, u2 + 2*u2.backward - u1.dt2)
         eqn4 = sf2.interpolate(u2)
 
-        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4)
+        # Note: DLE disabled only because with OpenMP otherwise there might be more
+        # `trees` than 4
+        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, dle=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         # Time loop not shared due to the WAR
@@ -1529,7 +1531,7 @@ class TestLoopScheduling(object):
 
         # Now single, shared time loop expected
         eqn2 = sf1.inject(u1.forward, expr=sf1)
-        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4)
+        op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, dle=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(trees[0][0] is i[0] for i in trees)

@@ -9,7 +9,6 @@ from conftest import EVAL, skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
                     Eq, Operator, solve, switchconfig)
 from devito.dle import BlockDimension, NThreads, transform
-from devito.dle.parallelizer import nhyperthreads
 from devito.exceptions import InvalidArgument
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
@@ -343,7 +342,7 @@ class TestNodeParallelism(object):
 
         # Check num_threads appears in the generated code
         # Not very elegant, but it does the trick
-        assert 'num_threads(nthreads)' in str(op)
+        assert 'num_threads(nthreads0)' in str(op)
 
         # Check `op` accepts the `nthreads` kwarg
         op.apply(time=0)
@@ -351,8 +350,10 @@ class TestNodeParallelism(object):
         assert np.all(f.data[0] == 2.)
 
         # Check the actual value assumed by `nthreads`
-        assert op.arguments(time=0)['nthreads'] == NThreads.default_value()
-        assert op.arguments(time=0, nthreads=123)['nthreads'] == 123  # user supplied
+        assert op.arguments(time=0)['nthreads0'] == NThreads.default_value()
+        assert op.arguments(time=0, nthreads0=123)['nthreads0'] == 123  # user supplied
+        # `nthreads` is an alias for `nthreads0`
+        assert op.arguments(time=0, nthreads=123)['nthreads0'] == 123  # user supplied
 
     @pytest.mark.parametrize('eq,expected,blocking', [
         ('Eq(f, 2*f)', [2, 0, 0], False),
@@ -390,8 +391,8 @@ class TestNodeParallelism(object):
 
     def test_scheduling(self):
         """
-        Affine iterations -> #pragma omp ... schedule(static,1) ...
-        Non-affine iterations -> #pragma omp ... schedule(static) ...
+        Affine iterations -> #pragma omp ... schedule(dynamic,1) ...
+        Non-affine iterations -> #pragma omp ... schedule(dynamic,chunk_size) ...
         """
         grid = Grid(shape=(11, 11))
 
@@ -406,9 +407,9 @@ class TestNodeParallelism(object):
         iterations = FindNodes(Iteration).visit(op)
         assert len(iterations) == 4
         assert iterations[1].is_Affine
-        assert 'schedule(static,1)' in iterations[1].pragmas[0].value
+        assert 'schedule(dynamic,1)' in iterations[1].pragmas[0].value
         assert not iterations[3].is_Affine
-        assert 'schedule(static)' in iterations[3].pragmas[0].value
+        assert 'schedule(dynamic,chunk_size)' in iterations[3].pragmas[0].value
 
 
 class TestNestedParallelism(object):
@@ -429,11 +430,16 @@ class TestNestedParallelism(object):
         op.apply(t_M=9)
         assert np.all(u.data[0] == 10)
 
+        # Try again but this time supplying specific values for the num_threads
+        u.data[:] = 0.
+        op.apply(t_M=9, nthreads0=1, nthreads1=2)
+        assert np.all(u.data[0] == 10)
+        assert op.arguments(t_M=9, nthreads1=2)['nthreads1'] == 2
+
         iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
-        assert iterations[0].pragmas[0].value == 'omp for collapse(1) schedule(static,1)'
+        assert iterations[0].pragmas[0].value == 'omp for collapse(1) schedule(dynamic,1)'
         assert iterations[2].pragmas[0].value ==\
-            ('omp parallel for collapse(1) schedule(static,1) num_threads(%d)'
-             % nhyperthreads())
+            'omp parallel for collapse(1) schedule(dynamic,1) num_threads(nthreads1)'
 
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
     @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
@@ -453,10 +459,9 @@ class TestNestedParallelism(object):
         assert np.all(u.data[0] == 10)
 
         iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
-        assert iterations[0].pragmas[0].value == 'omp for collapse(2) schedule(static,1)'
+        assert iterations[0].pragmas[0].value == 'omp for collapse(2) schedule(dynamic,1)'
         assert iterations[2].pragmas[0].value ==\
-            ('omp parallel for collapse(2) schedule(static,1) num_threads(%d)'
-             % nhyperthreads())
+            'omp parallel for collapse(2) schedule(dynamic,1) num_threads(nthreads1)'
 
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
     @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
@@ -478,13 +483,11 @@ class TestNestedParallelism(object):
 
         assert trees[0][0] is trees[1][0]
         assert trees[0][0].pragmas[0].value ==\
-            'omp for collapse(1) schedule(static,1)'
+            'omp for collapse(1) schedule(dynamic,1)'
         assert trees[0][2].pragmas[0].value ==\
-            ('omp parallel for collapse(1) schedule(static,1) num_threads(%d)'
-             % nhyperthreads())
+            'omp parallel for collapse(1) schedule(dynamic,1) num_threads(nthreads1)'
         assert trees[1][2].pragmas[0].value ==\
-            ('omp parallel for collapse(1) schedule(static,1) num_threads(%d)'
-             % nhyperthreads())
+            'omp parallel for collapse(1) schedule(dynamic,1) num_threads(nthreads1)'
 
 
 @switchconfig(autopadding=True, platform='knl7210')  # Platform is to fix pad value
