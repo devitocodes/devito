@@ -129,24 +129,32 @@ class Node(Signer):
         return (str(self.ccode),)
 
 
-# Some useful mixins
-
-
-class Simple(object):
+class ExprStmt(object):
 
     """
-    A mixin to decorate Nodes that do *not* contain other Nodes (IOW,
-    their ``_traversable`` list is empty).
+    A mixin for Nodes that represent C expression statements, which are expressions
+    followed by a semicolon. For example, the lines:
+
+        * i = 0;
+        * j = a[i] + 8;
+        * int a = 3;
+        * foo(b)
+
+    are all expression statements.
+
+    Notes
+    -----
+    An ExprStmt does *not* have children Nodes.
     """
 
     pass
 
 
-class Block(Node):
+class List(Node):
 
-    """A sequence of nodes, wrapped in a block {...}."""
+    """A sequence of Nodes."""
 
-    is_Block = True
+    is_List = True
 
     _traversable = ['body']
 
@@ -172,11 +180,11 @@ class Block(Node):
         return ()
 
 
-class List(Block):
+class Block(List):
 
-    """A sequence of nodes."""
+    """A sequence of Nodes, wrapped in a block {...}."""
 
-    is_List = True
+    is_Block = True
 
 
 class Element(Node):
@@ -197,7 +205,7 @@ class Element(Node):
         return "Element::\n\t%s" % (self.element)
 
 
-class Call(Simple, Node):
+class Call(ExprStmt, Node):
 
     """A function call."""
 
@@ -235,7 +243,7 @@ class Call(Simple, Node):
         return ()
 
 
-class Expression(Simple, Node):
+class Expression(ExprStmt, Node):
 
     """A node encapsulating a ClusterizedEq."""
 
