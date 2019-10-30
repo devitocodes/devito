@@ -63,8 +63,13 @@ class Profiler(object):
             for i in bundles:
                 for k, v in i.traffic.items():
                     mapper.setdefault(k, []).append(v)
-            traffic = [IntervalGroup.generate('union', *i) for i in mapper.values()]
-            traffic = sum(i.size for i in traffic)
+            traffic = 0
+            for i in mapper.values():
+                try:
+                    traffic += IntervalGroup.generate('union', *i).size
+                except:
+                    # Over different iteration spaces, hence data movement repeats
+                    traffic += sum(j.size for j in i)
 
             # Each ExpressionBundle lives in its own iteration space
             itermaps = [i.ispace.dimension_map for i in bundles]
