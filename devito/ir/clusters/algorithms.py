@@ -278,7 +278,8 @@ class Enforce(Queue):
             ispace = IterationSpace(c.ispace.intervals.lift(known_break),
                                     c.ispace.sub_iterators,
                                     {**c.ispace.directions, **direction})
-            backlog[i] = Cluster(c.exprs, ispace, c.dspace)
+            dspace = c.dspace.lift(known_break)
+            backlog[i] = Cluster(c.exprs, ispace, dspace)
 
         return processed + self.callback(backlog, prefix)
 
