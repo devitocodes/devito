@@ -6,7 +6,6 @@ from sympy.core.sympify import converter as sympify_converter
 from sympy.core.decorators import call_highest_priority
 
 from devito.finite_differences import Differentiable
-from devito.logger import error
 from devito.types.basic import AbstractTensor, Basic
 from devito.types.dense import Function, TimeFunction
 from devito.types.utils import NODE
@@ -24,11 +23,11 @@ class TensorFunction(AbstractTensor, Differentiable):
 
     Parameters
     ----------
-    symmetric : Bool, optional
-        Wether the tensor is symmetric or not. Defaults to True.
+    symmetric : bool, optional
+        Whether the tensor is symmetric or not. Defaults to True.
     diagonal : Bool, optional
         Wether the tensor is diagonal or not. Defaults to False.
-    staggered: Tuple of Dimension, optional
+    staggered: tuple of Dimension, optional
         Staggering of each component, needs to have the size of the tensor. Defaults
         to the Dimensions.
     """
@@ -108,8 +107,8 @@ class TensorFunction(AbstractTensor, Differentiable):
         # Product of two vector
         elif other.is_VectorValued and self.is_VectorValued:
             # Incorrect size
-            if self.is_transposed == other.is_transposed:
-                error("Incompatible sizes")
+            if self.is_transposed is other.is_transposed:
+                raise ValueError("Incompatible sizes")
             # Inner product
             elif self.is_transposed and not other.is_transposed:
                 return sum(s1*s2 for s1, s2 in zip(self, other))
@@ -349,7 +348,7 @@ class TensorFunction(AbstractTensor, Differentiable):
 
     @property
     def grad(self):
-        error("Gradient of a second order tensor not supported")
+        raise AttributeError("Gradient of a second order tensor not supported")
 
     def new_from_mat(self, mat):
         func = tens_func(self, self)
@@ -366,6 +365,7 @@ class TensorTimeFunction(TensorFunction):
     """
     is_TimeDependent = True
     is_TensorValued = True
+
     _sub_type = TimeFunction
     _time_position = 0
 
@@ -409,9 +409,10 @@ class VectorFunction(TensorFunction):
     """
     is_VectorValued = True
     is_TensorValued = False
+
     _sub_type = Function
-    _time_position = 0
     _is_symmetric = False
+
     _op_priority = Differentiable._op_priority + 1.
 
     def __init_finalize__(self, *args, **kwargs):
@@ -527,8 +528,9 @@ class VectorFunction(TensorFunction):
         """
         Gradient of the (3D) VectorFunction, creates the curl VectorFunction.
         """
+
         if len(self.space_dimensions) != 3:
-            error("Curl only defined in three dimensions")
+            raise AttributeError("Curl only supported for 3D VectorFunction")
         # The curl of a VectorFunction is a VectorFunction
         derivs = ['d%s' % d.name for d in self.space_dimensions]
         comp1 = getattr(self[2], derivs[1]) - getattr(self[1], derivs[2])
@@ -554,6 +556,9 @@ class VectorFunction(TensorFunction):
                     space_order=self.space_order, components=comps, symmetric=False)
 
     def new_from_mat(self, mat):
+        """
+        New VectorFunction with the same property as self and new values
+        """
         func = vec_func(self, self)
         name = "%s%s" % ("_", self.name)
         to = getattr(self, 'time_order', 0)
@@ -568,10 +573,10 @@ class VectorTimeFunction(VectorFunction, TensorTimeFunction):
     """
     is_VectorValued = True
     is_TensorValued = False
+    is_TimeDependent = True
+
     _sub_type = TimeFunction
     _time_position = 0
-    is_TimeDependent = True
-    _op_priority = Differentiable._op_priority + 1.
 
     def func(self):
         return VectorTimeFunction

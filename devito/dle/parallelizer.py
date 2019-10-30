@@ -3,14 +3,14 @@ import os
 
 import numpy as np
 import cgen as c
-from sympy import Function, Or, Not
+from sympy import Function, Or, Max, Not
 
-from devito.ir import (Conditional, Block, Expression, List, Prodder, While,
-                       FindSymbols, FindNodes, Return, COLLAPSED, Transformer,
+from devito.ir import (DummyEq, Conditional, Block, Expression, List, Prodder,
+                       While, FindSymbols, FindNodes, Return, COLLAPSED, Transformer,
                        IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
-from devito.symbolics import CondEq
+from devito.symbolics import CondEq, INT
 from devito.parameters import configuration
-from devito.tools import is_integer, prod
+from devito.tools import as_tuple, is_integer, prod
 from devito.types import Constant, Symbol
 
 
@@ -22,15 +22,49 @@ def nhyperthreads():
     return configuration['platform'].threads_per_core
 
 
-class NThreads(Constant):
+class NThreadsMixin(object):
+    pass
+
+
+class NThreads(Constant, NThreadsMixin):
+
+    name = 'nthreads0'
+    aliases = (name, 'nthreads')
 
     @classmethod
     def default_value(cls):
         return int(os.environ.get('OMP_NUM_THREADS', ncores()))
 
     def __new__(cls, **kwargs):
-        return super(NThreads, cls).__new__(cls, name=kwargs['name'], dtype=np.int32,
-                                            value=NThreads.default_value())
+        name = kwargs.get('name', NThreads.name)
+        value = NThreads.default_value()
+        return super(NThreads, cls).__new__(cls, name=name, dtype=np.int32, value=value)
+
+    @property
+    def _arg_names(self):
+        return NThreads.aliases
+
+    def _arg_values(self, **kwargs):
+        for i in NThreads.aliases:
+            if i in kwargs:
+                return {self.name: kwargs.pop(i)}
+        # Fallback: as usual, pick the default value
+        return self._arg_defaults()
+
+
+class NThreadsNested(Constant, NThreadsMixin):
+
+    name = 'nthreads1'
+
+    @classmethod
+    def default_value(cls):
+        return nhyperthreads()
+
+    def __new__(cls, **kwargs):
+        name = kwargs.get('name', NThreadsNested.name)
+        value = NThreadsNested.default_value()
+        return super(NThreadsNested, cls).__new__(cls, name=name, dtype=np.int32,
+                                                  value=value)
 
 
 class ParallelRegion(Block):
@@ -48,6 +82,42 @@ class ParallelRegion(Block):
     @property
     def functions(self):
         return (self.nthreads,)
+
+
+class ParallelTree(List):
+
+    """
+    This class is to group together a parallel for-loop with some setup
+    statements, for example:
+
+        .. code-block:: C
+
+          int chunk_size = ...
+          #pragma omp ... schedule(..., chunk_size)
+          for (int i = ...)
+          {
+            ...
+          }
+    """
+
+    _traversable = ['prefix', 'body']
+
+    def __init__(self, prefix, body, nthreads=None):
+        super(ParallelTree, self).__init__(body=body)
+        self.prefix = as_tuple(prefix)
+        self.nthreads = nthreads
+
+    def __getattr__(self, name):
+        if 'body' in self.__dict__:
+            # During unpickling, `__setattr__` calls `__getattr__(..., 'body')`,
+            # which would cause infinite recursion if we didn't check whether
+            # 'body' is present or not
+            return getattr(self.body[0], name)
+        raise AttributeError
+
+    @property
+    def functions(self):
+        return as_tuple(self.nthreads)
 
 
 class ThreadedProdder(Conditional, Prodder):
@@ -90,13 +160,17 @@ class Ompizer(object):
     compilation time (e.g., this may happen when DefaultDimensions are used).
     """
 
+    CHUNKSIZE_NONAFFINE = 3
+    """
+    Coefficient to adjust the chunk size in parallelized non-affine Iterations.
+    """
+
     lang = {
-        'for-static': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
-        'for-static-1': lambda i: c.Pragma('omp for collapse(%d) schedule(static,1)' % i),
-        'for-dynamic-1': lambda i: c.Pragma('omp for collapse(%d) schedule(dynamic,1)'
-                                            % i),
-        'par-for': lambda i, j: c.Pragma('omp parallel for collapse(%d) '
-                                         'schedule(static,1) num_threads(%d)' % (i, j)),
+        'for': lambda i, cs:
+            c.Pragma('omp for collapse(%d) schedule(dynamic,%s)' % (i, cs)),
+        'par-for': lambda i, cs, nt:
+            c.Pragma('omp parallel for collapse(%d) schedule(dynamic,%s) num_threads(%s)'
+                     % (i, cs, nt)),
         'simd-for': c.Pragma('omp simd'),
         'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
         'atomic': c.Pragma('omp atomic update')
@@ -116,7 +190,8 @@ class Ompizer(object):
             self.key = key
         else:
             self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorizable
-        self.nthreads = NThreads(name='nthreads')
+        self.nthreads = NThreads()
+        self.nthreads_nested = NThreadsNested()
 
     def _make_atomic_incs(self, partree):
         if not partree.is_ParallelAtomic:
@@ -133,24 +208,10 @@ class Ompizer(object):
         partree = Transformer(mapper).visit(partree)
         return partree
 
-    def _make_partree(self, candidates, omp_pragma=None):
+    def _make_partree(self, candidates, nthreads=None):
         """Parallelize `root` attaching a suitable OpenMP pragma."""
         assert candidates
         root = candidates[0]
-
-        # Pick up an omp-pragma template
-        # Caller-provided -> stick to it
-        # Affine+Prodder -> ... schedule(dynamic,1) ...
-        # Affine -> ... schedule(static,1) ...
-        # Nonaffine -> ... schedule(static) ...
-        if omp_pragma is None:
-            if all(i.is_Affine for i in candidates):
-                if FindNodes(Prodder).visit(root):
-                    omp_pragma = self.lang['for-dynamic-1']
-                else:
-                    omp_pragma = self.lang['for-static-1']
-            else:
-                omp_pragma = self.lang['for-static']
 
         # Get the collapsable Iterations
         collapsable = []
@@ -181,11 +242,31 @@ class Ompizer(object):
                     pass
 
                 collapsable.append(i)
-
-        # Attach an OpenMP pragma-for with a collapse clause
         ncollapse = 1 + len(collapsable)
-        partree = root._rebuild(pragmas=root.pragmas + (omp_pragma(ncollapse),),
-                                properties=root.properties + (COLLAPSED(ncollapse),))
+
+        # Prepare to build a ParallelTree
+        prefix = []
+        if all(i.is_Affine for i in candidates):
+            if nthreads is None:
+                # pragma omp for ... schedule(..., 1)
+                omp_pragma = self.lang['for'](ncollapse, 1)
+            else:
+                # pragma omp parallel for ... schedule(..., 1)
+                omp_pragma = self.lang['par-for'](ncollapse, 1, nthreads)
+        else:
+            # pragma omp for ... schedule(..., expr)
+            assert nthreads is None
+            chunk_size = Symbol(name='chunk_size')
+            omp_pragma = self.lang['for'](ncollapse, chunk_size)
+
+            niters = prod([j.symbolic_size for j in candidates])
+            value = INT(Max(niters / (self.nthreads*self.CHUNKSIZE_NONAFFINE), 1))
+            prefix.append(Expression(DummyEq(chunk_size, value, dtype=np.int32)))
+
+        # Create a ParallelTree
+        body = root._rebuild(pragmas=root.pragmas + (omp_pragma,),
+                             properties=root.properties + (COLLAPSED(ncollapse),))
+        partree = ParallelTree(prefix, body, nthreads=nthreads)
 
         collapsed = [partree] + collapsable
 
@@ -223,9 +304,8 @@ class Ompizer(object):
         #     ...
         mapper = {}
         for tree in retrieve_iteration_tree(partree):
-            index = tree.index(partree)
-            outer = tree[index:index + partree.ncollapsed]
-            inner = tree[index + partree.ncollapsed:]
+            outer = tree[:partree.ncollapsed]
+            inner = tree[partree.ncollapsed:]
 
             # Heuristic: nested parallelism is applied only if the top nested
             # parallel Iteration iterates *within* the top outer parallel Iteration
@@ -244,8 +324,7 @@ class Ompizer(object):
                 continue
 
             # Introduce nested parallelism
-            omp_pragma = lambda i: self.lang['par-for'](i, nhyperthreads())
-            subroot, subpartree, _ = self._make_partree(candidates, omp_pragma)
+            subroot, subpartree, _ = self._make_partree(candidates, self.nthreads_nested)
 
             mapper[subroot] = subpartree
 
@@ -284,5 +363,7 @@ class Ompizer(object):
 
         iet = Transformer(mapper).visit(iet)
 
-        return iet, {'args': [self.nthreads] if mapper else [],
-                     'includes': ['omp.h']}
+        # The used `nthreads` arguments
+        args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
+
+        return iet, {'args': args, 'includes': ['omp.h']}

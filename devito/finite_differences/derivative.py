@@ -31,16 +31,17 @@ class Derivative(sympy.Derivative, Differentiable):
         the resulting stencil. Defaults to 1.
     deriv_order: int or tuple of int, optional
         Derivative order. Defaults to 1.
-    stagger : Side or tuple of Side, optional
-        Shift of the finite-difference approximation. Defaults to ``centered``.
     side : Side or tuple of Side, optional
         Side of the finite difference location, centered (at x), left (at x - 1)
         or right (at x +1). Defaults to ``centered``.
     transpose : Transpose, optional
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
         finite difference. Defaults to ``direct``.
-    x0 : Dict, optional
-        Dictionary of scheme origin for the finite-difference, i.e. {x: x, y: y + h_y/2}.
+    subs : dict, optional
+        Substitutions to apply to the finite-difference expression after evaluation
+    x0 : dict, optional
+        Origin (where the finite-difference is evaluated at)
+        for the finite-difference scheme, i.e. {x: x, y: y + h_y/2}.
 
     Examples
     --------
@@ -141,6 +142,9 @@ class Derivative(sympy.Derivative, Differentiable):
         return obj
 
     def subs(self, *args, **kwargs):
+        """
+        Bypass sympy.Sub as Devito as its own lazy evaluation mecanism
+        """
         return self.xreplace(dict(*args), **kwargs)
 
     def _xreplace(self, subs):
@@ -204,7 +208,7 @@ class Derivative(sympy.Derivative, Differentiable):
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
         has to be computed at x=x + h_x/2.
         """
-        x0 = {d1: d2 for d1, d2 in zip(var.dimensions, var.index_ref)}
+        x0 = {d1: d2 for d1, d2 in zip(var.dimensions, var.indices_ref)}
         return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
                           fd_order=self.fd_order, side=self.side,
                           transpose=self.transpose, subs=self._subs, x0=x0)

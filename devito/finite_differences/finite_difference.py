@@ -16,7 +16,7 @@ _PRECISION = 9
 @check_input
 @check_symbolic
 def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
-                     symbolic=False, x0={}):
+                     symbolic=False, x0=None):
     """
     First-order derivative of a given expression.
 
@@ -35,6 +35,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
     matvec : Transpose, optional
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
         finite difference. Defaults to ``direct``.
+    x0 : dict, optional
+        Origin of the finite-difference scheme as a map dim: origin_dim
 
     Returns
     -------
@@ -105,6 +107,8 @@ def second_derivative(expr, dim, fd_order, **kwargs):
         the resulting stencil.
     stagger : Side, optional
         Shift of the finite-difference approximation.
+    x0 : dict, optional
+        Origin of the finite-difference scheme as a map dim: origin_dim
 
     Returns
     -------
@@ -157,6 +161,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
         Derivative order, e.g. 2 for a second-order derivative.
     stagger : tuple of Side, optional
         Shift of the finite-difference approximation.
+    x0 : dict, optional
+        Origin of the finite-difference scheme as a map dim: origin_dim
 
     Returns
     -------
@@ -213,6 +219,8 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
         Derivative order, e.g. 2 for a second-order derivative.
     stagger : Side, optional
         Shift of the finite-difference approximation.
+    x0 : dict, optional
+        Origin of the finite-difference scheme as a map dim: origin_dim
 
     Returns
     -------

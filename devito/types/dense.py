@@ -233,7 +233,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         In an MPI context, this is the *local* domain region shape.
         Alias to ``self.shape``.
         """
-        return self._shape
+        return self.shape
 
     @cached_property
     def shape_with_halo(self):
@@ -950,7 +950,7 @@ class Function(DiscreteFunction, Differentiable):
         if not self.is_parameter or self.staggered == var.staggered:
             return self
 
-        return self.subs({d1: var._indices_map[d1] for d1 in self.index_ref})
+        return self.subs({d1: var.indices_ref[d1] for d1 in self.indices_ref})
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -964,17 +964,15 @@ class Function(DiscreteFunction, Differentiable):
 
         # Staggered indices
         staggered = kwargs.get("staggered", None)
-        if staggered is CELL:
-            staggered_indices = dimensions
-        elif staggered is NODE:
+        if staggered in [CELL, NODE]:
             staggered_indices = dimensions
         else:
-            as_dict = {d: d for d in dimensions}
+            mapper = {d: d for d in dimensions}
             for s in as_tuple(staggered):
                 c, s = s.as_coeff_Mul()
-                as_dict.update({s: s + c * s.spacing/2})
+                mapper.update({s: s + c * s.spacing/2})
 
-            staggered_indices = tuple(as_dict.values())
+            staggered_indices = tuple(mapper.values())
         return tuple(dimensions), staggered_indices
 
     @property

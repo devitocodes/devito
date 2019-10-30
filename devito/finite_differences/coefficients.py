@@ -156,7 +156,6 @@ class Substitutions(object):
             raise TypeError("Non Coefficient object within input")
 
         self._coefficients = args
-
         self._function_list = self.function_list
         self._rules = self.rules
 

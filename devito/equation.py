@@ -103,7 +103,7 @@ class Eq(sympy.Eq, Evaluable):
         """
         Flatten vectorial/tensorial Equation into list of scalar Equations.
         """
-        try:
+        if self.lhs.is_Matrix:
             # Maps the Equations to retreive the rhs from relevant lhs
             eqs = {lhs: rhs for lhs, rhs in zip(as_tuple(self.lhs), as_tuple(self.rhs))}
             # get the relevant equations from the lhs structure, .values removes
@@ -113,7 +113,7 @@ class Eq(sympy.Eq, Evaluable):
                               coefficients=self.substitutions,
                               implicit_dims=self._implicit_dims)
                     for l in lhss]
-        except:
+        else:
             return [self]
 
     @property

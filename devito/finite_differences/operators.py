@@ -26,7 +26,7 @@ def grad(f):
     try:
         return f.grad
     except AttributeError:
-        raise error("Gradient not supported for class %s" % f.__class__)
+        error("Gradient not supported for class %s" % f.__class__)
 
 
 def curl(f):

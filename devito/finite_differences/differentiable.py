@@ -68,7 +68,11 @@ class Differentiable(sympy.Expr, Evaluable):
         grids = {getattr(i, 'grid', None) for i in self._args_diff} - {None}
         if len(grids) > 1:
             warning("Expression contains multiple grids, returning first found")
-        return list(grids)[0]
+        try:
+            return grids.pop()
+        except KeyError:
+            raise ValueError("No grid found")
+            return None
 
     @cached_property
     def indices(self):
@@ -187,7 +191,7 @@ class Differentiable(sympy.Expr, Evaluable):
         for d in self.dimensions:
             if d is dim:
                 return d
-        return []
+        return None
 
     @property
     def name(self):

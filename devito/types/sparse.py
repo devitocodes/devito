@@ -274,6 +274,9 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
         return args
 
+    def _eval_at(self, var):
+        return self
+
     def _arg_values(self, **kwargs):
         # Add value override for own data if it is provided, otherwise
         # use defaults
@@ -296,9 +299,6 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
             values = self._arg_defaults(alias=self).reduce_all()
 
         return values
-
-    def _eval_at(self, var):
-        return self
 
     def _arg_apply(self, dataobj, coordsobj, alias=None):
         key = alias if alias is not None else self

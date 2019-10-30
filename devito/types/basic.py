@@ -444,8 +444,6 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
 
                          AbstractTensor
                                 |
-                      AbstractCachedTensor
-                                |
                           TensorFunction
                                 |
                  ---------------------------------
@@ -461,9 +459,12 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
         * TensorTimeFunction: A time-space-varying vector valued function
         * VectorTImeFunction: A time-space-varying tensor valued function
     """
-    is_AbstractTensor = True
+    # Sympy attributes
     is_MatrixLike = True
     is_Matrix = True
+
+    # Devito attributes
+    is_AbstractTensor = True
     is_TensorValued = True
     is_VectorValued = False
 
@@ -683,17 +684,18 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return self.args
 
     @property
-    def index_ref(self):
+    def indices_ref(self):
         """The reference indices of the object (indices at first creation)."""
-        return self.function.indices
-
-    @property
-    def _indices_map(self):
-        return {d1: d2 for d1, d2 in zip(self.dimensions, self.index_ref)}
+        return EnrichedTuple(*self.function.indices, getters=self.dimensions)
 
     @property
     def origin(self):
-        return tuple(r - d for d, r in zip(self.dimensions, self.index_ref))
+        """
+        Origin of the AbstracFunction in term of Dimension
+        f(x) : origin = 0
+        f(x + hx/2) : origin = hx/2
+        """
+        return tuple(r - d for d, r in zip(self.dimensions, self.indices_ref))
 
     @property
     def dimensions(self):
@@ -706,7 +708,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         weight = 1.0
         avg_list = [self]
         is_averaged = False
-        for i, ir, d in zip(self.indices, self.index_ref, self.dimensions):
+        for i, ir, d in zip(self.indices, self.indices_ref, self.dimensions):
             off = (i - ir)/d.spacing
             if not isinstance(off, sympy.Number) or int(off) == off:
                 pass
@@ -719,11 +721,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         if not is_averaged:
             return self
         return weight * sum(avg_list)
-
-    def index(self, dim):
-        for i, d in zip(self.indices, self.dimensions):
-            if d is dim:
-                return i
 
     @property
     def shape(self):
@@ -904,6 +901,11 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         of the alignment.
         """
         return default_allocator().guaranteed_alignment
+
+    def index(self, dim):
+        for i, d in zip(self.indices, self.dimensions):
+            if d is dim:
+                return i
 
     def indexify(self, indices=None):
         """Create a types.Indexed from the current object."""
