@@ -235,7 +235,6 @@ def create_ops_memory_fetch(f, name_to_ops_dat, par_to_ops_stencil, memspace):
     """
 
     # Get the OpsDat associated with a given Function or an indexed TimeFunction.
-    nb_dats = f._time_order + 1 if f.is_TimeFunction else 1
     ops_dat = lambda x: (name_to_ops_dat[f.name].indexify([x]) if f.is_TimeFunction
                          else name_to_ops_dat[f.name])
 
@@ -246,11 +245,17 @@ def create_ops_memory_fetch(f, name_to_ops_dat, par_to_ops_stencil, memspace):
     ops_stencil = lambda z: [v for k, v in par_to_ops_stencil.items()
                              if k.name == ops_arg_id(z)]
 
+    # Indices used in this function or time function.
+    # IMPORTANT: Created OpsDats are not always used, implies that the stencils for the
+    # OpsDats not used are not created, so we have to get the index of the used OpsDat.
+    nb_dats = f._time_order + 1 if f.is_TimeFunction else 1
+    used_dats_index = [i for i in range(nb_dats) if ops_stencil(i)]
+
     # Build the ops memory fetch call.
     return [namespace['ops_memory_fetch'](ops_dat(i),
                                           *ops_stencil(i),
                                           Byref(memspace.expr.lhs.name))
-            for i in range(nb_dats)]
+            for i in used_dats_index]
 
 
 def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
@@ -281,11 +286,17 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
                                  name_to_ops_dat,
                                  par_to_ops_stencil)
 
-        ops_args.append(ops_arg.ops_type(ops_arg.ops_name,
-                                         ops_arg.elements_per_point,
-                                         ops_arg.ops_stencil,
-                                         ops_arg.dtype,
-                                         ops_arg.rw_flag))
+        if p.is_Constant:
+            ops_args.append(ops_arg.ops_type(ops_arg.ops_name,
+                                             ops_arg.elements_per_point,
+                                             ops_arg.dtype,
+                                             ops_arg.rw_flag))
+        else:
+            ops_args.append(ops_arg.ops_type(ops_arg.ops_name,
+                                             ops_arg.elements_per_point,
+                                             ops_arg.ops_stencil,
+                                             ops_arg.dtype,
+                                             ops_arg.rw_flag))
 
     ops_par_loop_call = Call(
         namespace['ops_par_loop'], [
@@ -308,10 +319,12 @@ def create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil):
     if p.is_Constant:
         ops_type = namespace['ops_arg_gbl']
         ops_name = Byref(Constant(name=p.name[1:]))
+        ops_stencil = None
         rw_flag = namespace['ops_read']
     else:
         ops_type = namespace['ops_arg_dat']
         accessible_info = accessible_origin[p.name]
+        ops_stencil = par_to_ops_stencil[p],
         ops_name = name_to_ops_dat[p.name] \
             if accessible_info.time is None \
             else name_to_ops_dat[accessible_info.origin_name].\
@@ -321,7 +334,7 @@ def create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil):
     ops_arg = OpsArgDecl(ops_type=ops_type,
                          ops_name=ops_name,
                          elements_per_point=elements_per_point,
-                         ops_stencil=par_to_ops_stencil[p],
+                         ops_stencil=ops_stencil,
                          dtype=dtype,
                          rw_flag=rw_flag)
 
