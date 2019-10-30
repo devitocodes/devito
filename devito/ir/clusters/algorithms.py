@@ -340,7 +340,7 @@ class Lift(Queue):
 
         lifted = []
         processed = []
-        for i, c in enumerate(clusters):
+        for n, c in enumerate(clusters):
             # Increments prevent lifting
             if c.has_increments:
                 processed.append(c)
@@ -351,7 +351,7 @@ class Lift(Queue):
                 processed.append(c)
                 continue
 
-            impacted = set(processed) | set(clusters[i+1:])
+            impacted = set(processed) | set(clusters[n+1:])
 
             # None of the Functions appearing in a lifted Cluster can be written to
             if any(c.functions & set(i.scope.writes) for i in impacted):
