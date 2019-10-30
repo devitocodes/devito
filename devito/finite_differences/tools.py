@@ -190,7 +190,7 @@ def indices_staggered(func, dim, order, side=None, x0={}):
     except AttributeError:
         ind0 = start
     if start != ind0:
-        ind = [start - diff/2 - i * diff for i in range(0, order//2)]
+        ind = [start - diff/2 - i * diff for i in range(0, order//2)][::-1]
         ind += [start + diff/2 + i * diff for i in range(0, order//2)]
         if order < 2:
             ind = [start - diff/2, start + diff/2]
