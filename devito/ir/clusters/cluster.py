@@ -213,7 +213,7 @@ class ClusterGroup(tuple):
     @cached_property
     def dspace(self):
         """Return the DataSpace of this ClusterGroup."""
-        return DataSpace.union(*[i.dspace for i in self])
+        return DataSpace.union(*[i.dspace.reset() for i in self])
 
     @cached_property
     def dtype(self):
