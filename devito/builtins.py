@@ -98,9 +98,21 @@ def smooth(f, g, axis=None):
         dv.Operator(dv.Eq(f, g.avg(dims=axis)), name='smoother')()
 
 
-def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
+def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     """
     Gaussian smooth function.
+
+    Parameters
+    ----------
+    f : Function
+        The left-hand side of the smoothing kernel, that is the smoothed Function.
+    sigma : float, optional
+        Standard deviation. Default is 1.
+    truncate : float, optional
+        Truncate the filter at this many standard deviations. Default is 4.0.
+    mode : str, optional
+        The function initialisation mode. 'constant' and 'reflect' are
+        accepted. Default mode is 'reflect'.
     """
     class ObjectiveDomain(dv.SubDomain):
 
@@ -126,8 +138,8 @@ def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
         return as_tuple(processed)
 
     def fset(f, g):
-        indices = [slice(l, -l, 1) for _, l in zip(g.grid.dimensions, lw)]
-        slices = (slice(None, None, 1), )*len(g.grid.dimensions)
+        indices = [slice(l, -l, 1) for _, l in zip(g.dimensions, lw)]
+        slices = (slice(None, None, 1), )*g.ndim
         if isinstance(f, np.ndarray):
             f[slices] = g.data[tuple(indices)]
         elif isinstance(f, dv.Function):
@@ -136,21 +148,22 @@ def gaussian_smooth(f, sigma=1, _truncate=4.0, mode='reflect'):
             raise NotImplementedError
 
     try:
+        # NOTE: required if input is an np.array
         dtype = f.dtype.type
     except AttributeError:
         dtype = f.dtype
 
     # TODO: Add s = 0 dim skip option
-    lw = tuple([int(_truncate*float(s) + 0.5) for s in as_tuple(sigma)])
+    lw = tuple(int(truncate*float(s) + 0.5) for s in as_tuple(sigma))
 
-    if len(lw) == 1 and len(lw) < len(f.shape):
-        lw = len(f.shape)*(lw[0], )
-        sigma = len(f.shape)*(as_tuple(sigma)[0], )
-    elif len(lw) == len(f.shape):
+    if len(lw) == 1 and len(lw) < f.ndim:
+        lw = f.ndim*(lw[0], )
+        sigma = f.ndim*(as_tuple(sigma)[0], )
+    elif len(lw) == f.ndim:
         sigma = as_tuple(sigma)
     else:
-        raise ValueError("sigma must be an integer or a tuple of length" +
-                         " function.dimensions.")
+        raise ValueError("`sigma` must be an integer or a tuple of length" +
+                         " `f.ndim`.")
 
     # Create the padded grid:
     objective_domain = ObjectiveDomain(lw)
@@ -264,9 +277,9 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     if isinstance(function, dv.TimeFunction):
         raise NotImplementedError("TimeFunctions are not currently supported.")
 
-    if len(as_tuple(nbl)) == 1 and len(as_tuple(nbl)) < len(function.shape):
-        nbl = len(function.shape)*(as_tuple(nbl)[0], )
-    elif len(as_tuple(nbl)) == len(function.shape):
+    if len(as_tuple(nbl)) == 1 and len(as_tuple(nbl)) < function.ndim:
+        nbl = function.ndim*(as_tuple(nbl)[0], )
+    elif len(as_tuple(nbl)) == function.ndim:
         pass
     else:
         raise ValueError("nbl must be an integer or tuple of integers of length" +
