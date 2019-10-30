@@ -79,6 +79,7 @@ class AbstractInterval(object):
     zero = negate
     flip = negate
     lift = negate
+    reset = negate
 
 
 class NullInterval(AbstractInterval):
@@ -190,6 +191,9 @@ class Interval(AbstractInterval):
 
     def lift(self):
         return Interval(self.dim, self.lower, self.upper, self.stamp + 1)
+
+    def reset(self):
+        return Interval(self.dim, self.lower, self.upper, 0)
 
 
 class IntervalGroup(PartialOrderTuple):
@@ -323,6 +327,9 @@ class IntervalGroup(PartialOrderTuple):
         d = set(self.dimensions if d is None else as_tuple(d))
         return IntervalGroup([i.lift() if i.dim._defines & d else i for i in self],
                              relations=self.relations)
+
+    def reset(self):
+        return IntervalGroup([i.reset() for i in self], relations=self.relations)
 
     def __getitem__(self, key):
         if isinstance(key, slice) or is_integer(key):
@@ -499,6 +506,11 @@ class DataSpace(Space):
     def zero(self, d=None):
         intervals = self.intervals.zero(d)
         parts = {k: v.zero(d) for k, v in self.parts.items()}
+        return DataSpace(intervals, parts)
+
+    def reset(self):
+        intervals = self.intervals.reset()
+        parts = {k: v.reset() for k, v in self.parts.items()}
         return DataSpace(intervals, parts)
 
     def project(self, cond):
