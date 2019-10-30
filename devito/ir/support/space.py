@@ -508,6 +508,11 @@ class DataSpace(Space):
         parts = {k: v.zero(d) for k, v in self.parts.items()}
         return DataSpace(intervals, parts)
 
+    def lift(self, d=None):
+        intervals = self.intervals.lift(d)
+        parts = {k: v.lift(d) for k, v in self.parts.items()}
+        return DataSpace(intervals, parts)
+
     def reset(self):
         intervals = self.intervals.reset()
         parts = {k: v.reset() for k, v in self.parts.items()}
