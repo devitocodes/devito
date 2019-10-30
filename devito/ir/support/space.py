@@ -531,8 +531,9 @@ class DataSpace(Space):
             func = cond
         else:
             func = lambda i: i in cond
-        intervals = [i for i in self.intervals if func(i.dim)]
-        return DataSpace(intervals, self.parts)
+        intervals = [i.reset() for i in self.intervals if func(i.dim)]
+        parts = {k: v.reset() for k, v in self.parts.items()}
+        return DataSpace(intervals, parts)
 
 
 class IterationSpace(Space):
@@ -610,7 +611,7 @@ class IterationSpace(Space):
             func = cond
         else:
             func = lambda i: i in cond
-        intervals = [i for i in self.intervals if func(i.dim)]
+        intervals = [i.reset() for i in self.intervals if func(i.dim)]
         sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
         directions = {k: v for k, v in self.directions.items() if func(k)}
         return IterationSpace(intervals, sub_iterators, directions)
