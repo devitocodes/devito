@@ -47,15 +47,16 @@ def test_scheduling_after_rewrite():
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(tu, ti0 + ti1 + 5.)'],
-     ['ti0[x, y, z] + ti1[x, y, z]']),
+     ['ti0[x, y, z] + ti1[x, y, z] + 5.0']),
     # more ops
     (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(t0, 0.2)', 'Eq(t1, t0 + 2.)',
       'Eq(tw, 2. + ti0*t1)', 'Eq(tu, (ti0*ti1*t0) + (ti1*tv) + (t1 + ti1)*tw)'],
-     ['t1*ti0[x, y, z]', 't1 + ti1[x, y, z]', 't0*ti0[x, y, z]*ti1[x, y, z]']),
+     ['t0 + 2.0', 't1*ti0[x, y, z] + 2.0', 't1 + ti1[x, y, z]',
+      't0*ti0[x, y, z]*ti1[x, y, z]']),
     # wrapped
     (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(t0, 0.2)', 'Eq(t1, t0 + 2.)', 'Eq(tv, 2.4)',
       'Eq(tu, ((ti0*ti1*t0)*tv + (ti0*ti1*tv)*t1))'],
-     ['t0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
+     ['t0 + 2.0', 't0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
 ])
 def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
                                               exprs, expected):
@@ -484,7 +485,8 @@ def test_aliases_different_nests():
 
 def test_alias_largest_time_invariant():
     """
-    Make sure the DSE extracts the largest possible time-invariant sub-expressions.
+    Make sure the DSE extracts the largest time-invariant sub-expressions
+    such that its operation count exceeds a certain threshold.
     """
     grid = Grid((10, 10))
 
@@ -557,6 +559,44 @@ def test_alias_coupled_hoisting():
     trees = retrieve_iteration_tree(op)
     assert len(trees) == 3
     arrays = [i for i in FindSymbols().visit(trees[0].root) if i.is_Array]
+    assert len(arrays) == 2
+    assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+
+def test_alias_dropped_after_fusion():
+    """
+    Test for detection of redundant aliases that get exposed after
+    Cluster fusion.
+    """
+    grid = Grid(shape=(10, 10))
+
+    t = cos(Function(name="t", grid=grid))
+    p = sin(Function(name="p", grid=grid))
+
+    a = TimeFunction(name="a", grid=grid)
+    b = TimeFunction(name="b", grid=grid)
+    c = TimeFunction(name="c", grid=grid)
+    d = TimeFunction(name="d", grid=grid)
+    e = TimeFunction(name="e", grid=grid)
+    f = TimeFunction(name="f", grid=grid)
+
+    s1 = SparseTimeFunction(name="s1", grid=grid, npoint=1, nt=2)
+
+    eqns = [Eq(a.forward, t*a.dx + p*b.dy),
+            Eq(b.forward, p*b.dx + p*t*a.dy)]
+
+    eqns += s1.inject(field=a.forward, expr=s1)
+    eqns += s1.inject(field=b.forward, expr=s1)
+
+    eqns += [Eq(c.forward, t*p*a.forward.dx + b.forward.dy),
+             Eq(d.forward, t*d.dx + e.dy + p*a.dt),
+             Eq(e.forward, p*d.dx + e.dy + t*b.dt)]
+
+    eqns += [Eq(f.forward, t*p*e.forward.dx + p*d.forward.dy)]
+
+    op = Operator(eqns)
+
+    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
     assert len(arrays) == 2
     assert all(i._mem_heap and not i._mem_external for i in arrays)
 
@@ -681,12 +721,12 @@ def test_tti_rewrite_aggressive(tti_nodse):
     # * four Arrays are allocated on the heap
     # * two Arrays are allocated on the stack and only appear within an efunc
     arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-    assert len(arrays) == 4
+    assert len(arrays) == 5
     assert all(i._mem_heap and not i._mem_external for i in arrays)
     arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root) if i.is_Array]
-    assert len(arrays) == 6
+    assert len(arrays) == 7
     assert all(not i._mem_external for i in arrays)
-    assert len([i for i in arrays if i._mem_heap]) == 4
+    assert len([i for i in arrays if i._mem_heap]) == 5
     assert len([i for i in arrays if i._mem_stack]) == 2
 
 
@@ -704,7 +744,7 @@ def test_tti_rewrite_aggressive_wmpi():
 
 @switchconfig(profiling='advanced')
 @pytest.mark.parametrize('space_order,expected', [
-    (8, 154), (16, 270)
+    (8, 174), (16, 306)
 ])
 def test_tti_rewrite_aggressive_opcounts(space_order, expected):
     operator = tti_operator(dse='aggressive', space_order=space_order)
@@ -714,7 +754,7 @@ def test_tti_rewrite_aggressive_opcounts(space_order, expected):
 
 @switchconfig(profiling='advanced')
 @pytest.mark.parametrize('space_order,expected', [
-    (4, 183), (12, 375)
+    (4, 194), (12, 386)
 ])
 def test_tti_v2_rewrite_aggressive_opcounts(space_order, expected):
     grid = Grid(shape=(3, 3, 3))

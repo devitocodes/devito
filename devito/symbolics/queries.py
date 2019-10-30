@@ -205,4 +205,4 @@ def q_identity(expr, var):
 
 
 def iq_timeinvariant(graph):
-    return lambda e: not e.is_Number and graph.time_invariant(e)
+    return lambda e: graph.time_invariant(e)

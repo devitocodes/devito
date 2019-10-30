@@ -184,7 +184,8 @@ class AdvancedRewriter(BasicRewriter):
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = iq_timeinvariant(FlowGraph(cluster.exprs))
         costmodel = lambda e: estimate_cost(e, True) >= self.MIN_COST_ALIAS_INV
-        processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
+        processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel,
+                                                eager=True)
 
         return cluster.rebuild(processed)
 

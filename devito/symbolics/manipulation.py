@@ -6,7 +6,7 @@ from sympy import Number, Indexed, Symbol, LM, LC
 
 from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple, flatten, split
 
 __all__ = ['freeze', 'unfreeze', 'evaluate', 'xreplace_constrained', 'xreplace_indices',
            'pow_to_mul', 'as_symbol', 'indexify', 'split_affine']
@@ -59,15 +59,16 @@ def evaluate(expr, **subs):
     return expr.subs(subs)
 
 
-def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repeat=False):
+def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repeat=False,
+                         eager=False):
     """
-    Unlike ``xreplace``, which replaces all objects specified in a mapper,
-    this function replaces all objects satisfying two criteria: ::
+    Unlike ``xreplace``, which replaces the objects specified in a mapper,
+    this function replaces the objects satisfying two criteria:
 
-        * The "matching rule" -- a function returning True if a node within ``expr``
-            satisfies a given property, and as such should be replaced;
+        * The "matching rule" -- a function returning True if an expression satisfies
+            a given property and, as such, could be replaced;
         * A "cost model" -- a function triggering replacement only if a certain
-            cost (e.g., operation count) is exceeded. This function is optional.
+            cost (e.g., operation count) is exceeded. This is optional.
 
     Note that there is not necessarily a relationship between the set of nodes
     for which the matching rule returns True and those nodes passing the cost
@@ -90,11 +91,14 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
     repeat : bool, optional
         If True, repeatedly apply ``xreplace`` until no more replacements are
         possible. Defaults to False.
+    eager : bool, optional
+        If True, replaces a sub-expression ``e`` as soon as ``costmodel(e)`` gives
+        True, that is without searching for larger sub-expressions. Defaults to False.
     """
     found = OrderedDict()
     rebuilt = []
 
-    # Define /replace()/ based on the user-provided /make/
+    # Define `replace()` based on the user-provided `make`
     if isinstance(make, dict):
         rule = rule if rule is not None else (lambda i: i in make)
         replace = lambda i: make[i]
@@ -115,28 +119,56 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
             base, flag = run(expr.base)
             if flag and costmodel(base):
                 return expr.func(replace(base), expr.exp, evaluate=False), False
+            elif flag and costmodel(expr):
+                return replace(expr), False
             else:
                 return expr.func(base, expr.exp, evaluate=False), rule(expr)
         else:
             children = [run(a) for a in expr.args]
             matching = [a for a, flag in children if flag]
             other = [a for a, _ in children if a not in matching]
-            if matching:
+
+            if not matching:
+                return expr.func(*other, evaluate=False), False
+
+            if eager is False:
                 matched = expr.func(*matching, evaluate=False)
                 if len(matching) == len(children) and rule(expr):
-                    # Go look for longer expressions first
+                    # Go look for larger expressions first
                     return matched, True
                 elif rule(matched) and costmodel(matched):
-                    # Replace what I can replace, then give up
+                    # E.g.: a*b*c*d -> a*r0
                     rebuilt = expr.func(*(other + [replace(matched)]), evaluate=False)
                     return rebuilt, False
                 else:
-                    # Replace flagged children, then give up
+                    # E.g.: a*b*c*d -> a*r0*r1*r2
                     replaced = [replace(e) for e in matching if costmodel(e)]
                     unreplaced = [e for e in matching if not costmodel(e)]
                     rebuilt = expr.func(*(other + replaced + unreplaced), evaluate=False)
                     return rebuilt, False
-            return expr.func(*other, evaluate=False), False
+            else:
+                replaceable, unreplaced = split(matching, lambda e: costmodel(e))
+                if replaceable:
+                    # E.g.: a*b*c*d -> a*r0*r1*r2
+                    replaced = [replace(e) for e in replaceable]
+                    rebuilt = expr.func(*(other + replaced + unreplaced), evaluate=False)
+                    return rebuilt, False
+                matched = expr.func(*matching, evaluate=False)
+                if rule(matched) and costmodel(matched):
+                    if len(matching) == len(children):
+                        # E.g.: a*b*c*d -> r0
+                        return replace(matched), False
+                    else:
+                        # E.g.: a*b*c*d -> a*r0
+                        rebuilt = expr.func(*(other + [replace(matched)]), evaluate=False)
+                        return rebuilt, False
+                elif len(matching) == len(children) and rule(expr):
+                    # Go look for larger expressions
+                    return matched, True
+                else:
+                    # E.g.: a*b*c*d; a,b,a*b replaceable but not satisfying the cost
+                    # model, hence giving up as c,d,c*d aren't replaceable
+                    return expr.func(*(matching + other), evaluate=False), False
 
     # Process the provided expressions
     for expr in as_tuple(exprs):
@@ -145,8 +177,12 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
 
         while True:
             ret, flag = run(root)
-            if isinstance(make, dict) and root.is_Atom and flag:
-                rebuilt.append(expr.func(expr.lhs, replace(root), evaluate=False))
+            if flag and costmodel(ret):
+                if expr.lhs.function.is_Array:
+                    rebuilt.append(expr)
+                else:
+                    # Have to replace the whole expr.rhs
+                    rebuilt.append(expr.func(expr.lhs, replace(root), evaluate=False))
                 break
             elif repeat and ret != root:
                 root = ret
