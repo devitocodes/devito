@@ -29,13 +29,13 @@ class TestOPSExpression(object):
          '{\n  ut0(0) = -2.97015324253729F;\n}'),
         ('Eq(u, u.dxl)',
          'void OPS_Kernel_0(ACC<float> & ut0, const float *h_x)\n'
-         '{\n  float r0 = 1.0/*h_x;\n  '
+         '{\n  float r0 = 1.0/(*h_x);\n  '
          'ut0(0) = (-2.0F*ut0(-1) + 5.0e-1F*ut0(-2) + 1.5F*ut0(0))*r0;\n}'),
         ('Eq(v,1)', 'void OPS_Kernel_0(ACC<float> & vt0)\n'
          '{\n  vt0(0, 0) = 1;\n}'),
         ('Eq(v,v.dxl + v.dxr - v.dyr - v.dyl)',
          'void OPS_Kernel_0(ACC<float> & vt0, const float *h_x, const float *h_y)\n'
-         '{\n  float r1 = 1.0/*h_y;\n  float r0 = 1.0/*h_x;\n  '
+         '{\n  float r1 = 1.0/(*h_y);\n  float r0 = 1.0/(*h_x);\n  '
          'vt0(0, 0) = (5.0e-1F*(-vt0(2, 0) + vt0(-2, 0)) + 2.0F*(-vt0(-1, 0) + '
          'vt0(1, 0)))*r0 + (5.0e-1F*(-vt0(0, -2) + vt0(0, 2)) + '
          '2.0F*(-vt0(0, 1) + vt0(0, -1)))*r1;\n}'),
@@ -54,9 +54,9 @@ class TestOPSExpression(object):
         ('Eq(v.forward, v.dt - v.laplace + v.dt)',
          'void OPS_Kernel_0(const ACC<float> & vt0, ACC<float> & vt1, '
          'const float *dt, const float *h_x, const float *h_y)\n'
-         '{\n  float r2 = 1.0/*dt;\n'
-         '  float r1 = 1.0/(*h_y**h_y);\n'
-         '  float r0 = 1.0/(*h_x**h_x);\n'
+         '{\n  float r2 = 1.0/(*dt);\n'
+         '  float r1 = 1.0/((*h_y)*(*h_y));\n'
+         '  float r0 = 1.0/((*h_x)*(*h_x));\n'
          '  vt1(0, 0) = (-(vt0(1, 0) + vt0(-1, 0)) + 2.0F*vt0(0, 0))*r0 + '
          '(-(vt0(0, 1) + vt0(0, -1)) + 2.0F*vt0(0, 0))*r1 + '
          '2*(-vt0(0, 0) + vt1(0, 0))*r2;\n}'),
@@ -223,7 +223,7 @@ class TestOPSExpression(object):
         u = OpsAccessible('u', dtype=np.float32, read_only=read)
         dat = OpsDat('u_dat')
         stencil = OpsStencil('stencil')
-        info = AccessibleInfo(u, None, None)
+        info = AccessibleInfo(u, None, None, None)
 
         ops_arg = create_ops_arg(u, {'u': info}, {'u': dat}, {u: stencil})
 

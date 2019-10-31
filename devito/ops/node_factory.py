@@ -49,6 +49,7 @@ class OPSNodeFactory(object):
 
             accessible_info = AccessibleInfo(
                 symbol_to_access,
+                None,
                 time_index.var if indexed.function.is_TimeFunction else None,
                 indexed.function.name)
 
@@ -69,13 +70,26 @@ class OPSNodeFactory(object):
         return OpsAccess(symbol_to_access, space_indices)
 
     def new_ops_gbl(self, c):
+        """
+        Defines Constant Symbols to have an '*' making them pointers, as needed by ops.
+
+        Parameters
+        ----------
+        c : Constant
+            Constant symbol.
+
+        Returns
+        -------
+        Constant
+            Constant Symbol, as a pointer.
+        """
         if c in self.ops_args:
-            return self.ops_args[c].accessible
+            return self.ops_args[c].safe_accessible
 
         new_c = AccessibleInfo(Constant(name='*%s' % c.name, dtype=c.dtype),
+                               Constant(name='(*%s)' % c.name, dtype=c.dtype),
                                None,
                                None)
         self.ops_args[c] = new_c
         self.ops_params.append(new_c.accessible)
-
-        return new_c.accessible
+        return new_c.safe_accessible
