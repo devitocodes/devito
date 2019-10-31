@@ -435,6 +435,37 @@ def test_alias_composite():
     assert np.allclose(u.data, exp.data, rtol=10e-7)
 
 
+@pytest.mark.xfail(reason="Cannot deal with nested aliases yet")
+def test_alias_nested():
+    """
+    Check that nested aliases are optimized away through "smaller" aliases.
+
+    Examples
+    --------
+    Given the expression
+
+        sqrt(cos(a[x, y]))
+
+    We should get
+
+        t0 = cos(a[x,y])
+        t1 = sqrt(t0)
+        out = t1  # pseudocode
+    """
+    grid = Grid(shape=(3, 3))
+    x, y = grid.dimensions  # noqa
+
+    u = TimeFunction(name='u', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    op = Operator(Eq(u.forward, u + sin(cos(g)) + sin(cos(g[x+1, y+1]))))
+
+    # We expect two temporary Arrays: `r1 = cos(g)` and `r2 = sqrt(r1)`
+    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+    assert len(arrays) == 2
+    assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+
 @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
 def test_aliases_different_nests():
     """
