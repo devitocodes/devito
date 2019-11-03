@@ -3,14 +3,14 @@ import numpy as np
 
 from sympy.core.numbers import Zero
 
-from devito import Eq, TimeFunction
+from devito import Eq
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet.nodes import Call, Callable, Expression, IterationTree
 from devito.ir.iet.visitors import FindNodes
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.types import Array, OpsAccessible, OpsDat, OpsMemSpace, OpsStencil
 from devito.ops.utils import namespace, OpsDatDecl, OpsArgDecl
-from devito.symbolics import Byref, ListInitializer, Literal, Macro, split_affine
+from devito.symbolics import Byref, ListInitializer, Literal, Macro
 from devito.tools import dtype_to_cstr
 from devito.types import Constant, DefaultDimension, Symbol
 
@@ -46,7 +46,7 @@ def opsit(trees, count, name_to_ops_dat, block, dims):
             stencil, initialization = to_ops_stencil(
                 p, node_factory.ops_args_accesses[p])
 
-            par_to_ops_stencil[p] = stencil
+            par_to_ops_stencil[p.name] = stencil
             stencil_arrays_initializations.append(initialization)
 
     ops_kernel = Callable(
@@ -61,7 +61,8 @@ def opsit(trees, count, name_to_ops_dat, block, dims):
 
     pre_time_loop = stencil_arrays_initializations + ops_par_loop_init
 
-    return pre_time_loop, ops_kernel, ops_par_loop_call, par_to_ops_stencil
+    return pre_time_loop, ops_kernel, ops_par_loop_call, par_to_ops_stencil,\
+        node_factory.ops_args
 
 
 def to_ops_stencil(param, accesses):
@@ -210,7 +211,8 @@ def initialize_memspace():
     return Expression(ClusterizedEq(Eq(memspace, host_macro)))
 
 
-def create_ops_memory_fetch(f, name_to_ops_dat, par_to_ops_stencil, memspace):
+def create_ops_memory_fetch(f, name_to_ops_dat, par_to_ops_stencil, accessibles_info,
+                            memspace):
     """Create memory fetch calls for a given variable.
 
     To get the data back to Devito from the device memory it is necessary to call the
@@ -221,41 +223,38 @@ def create_ops_memory_fetch(f, name_to_ops_dat, par_to_ops_stencil, memspace):
     f : Function or TimeFunction
         Devito object that was transfered into the device memory.
     name_to_ops_dat : dict of {str : :class:`devito.ops.types.OpsDat`}
-        Given a variable name, it gets the associated OpsDat object.
+        Given a variable name, get the associated OpsDat object.
     par_to_ops_stencil : dict of {:class:`devito.ops.types.OpsAccessible` :
                                   :class:`devito.ops.types.OpsStencil`}
         Link an OpsAccessible to its OpsStencil variable.
+    accessibles_info : dict of {str : :namedTuple:`devito.ops.types.Accessible_info`}
+        Contains the time variable used.
     memspace : :class:`devito.ops.types.OpsMemSpace`
-        Specifies which memory space should the data be transfered into.
+        Specify which memory space should the data be transfered into.
 
     Returns
     ------
     :class:`devito.ir.iet.nodes.Call`
         The actual call to `ops_dat_get_raw_pointer` method from OPS API.
     """
-
-    # Get the OpsDat associated with a given Function or an indexed TimeFunction.
+    # Get the OpsDat associated with a Function or TimeFunction f.
     ops_dat = lambda x: (name_to_ops_dat[f.name].indexify([x]) if f.is_TimeFunction
                          else name_to_ops_dat[f.name])
 
-    # Get the OpsStencil associated with a given Function or an indexed TimeFunction.
-    time_index = split_affine(f.indices[TimeFunction._time_position])
-    ops_arg_id = lambda y: ('%s%s%d' % (f.name, time_index.var, y)
-                            if f.function.is_TimeFunction else f.name)
-    ops_stencil = lambda z: [v for k, v in par_to_ops_stencil.items()
-                             if k.name == ops_arg_id(z)]
+    # Get the OpsStencil associated with the Function or the Indexed TimeFunction.
+    ops_stencil = lambda x: par_to_ops_stencil[x] if par_to_ops_stencil[x] \
+        else par_to_ops_stencil[0]
 
-    # Indices used in this function or time function.
-    # IMPORTANT: Created OpsDats are not always used, implies that the stencils for the
-    # OpsDats not used are not created, so we have to get the index of the used OpsDat.
-    nb_dats = f._time_order + 1 if f.is_TimeFunction else 1
-    used_dats_index = [i for i in range(nb_dats) if ops_stencil(i)]
+    if f.is_TimeFunction:
+        return [namespace['ops_memory_fetch'](ops_dat(v.time),
+                                              ops_stencil(v.accessible.name),
+                                              memspace.expr.lhs)
+                for k, v in accessibles_info.items() if v.origin_name == f.name]
 
-    # Build the ops memory fetch call.
-    return [namespace['ops_memory_fetch'](ops_dat(i),
-                                          *ops_stencil(i),
-                                          Byref(memspace.expr.lhs.name))
-            for i in used_dats_index]
+    else:
+        return [namespace['ops_memory_fetch'](ops_dat(0),
+                                              ops_stencil(f.name),
+                                              memspace.expr.lhs)]
 
 
 def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
@@ -294,7 +293,7 @@ def create_ops_par_loop(trees, ops_kernel, parameters, block, name_to_ops_dat,
         else:
             ops_args.append(ops_arg.ops_type(ops_arg.ops_name,
                                              ops_arg.elements_per_point,
-                                             ops_arg.ops_stencil,
+                                             *ops_arg.ops_stencil,
                                              ops_arg.dtype,
                                              ops_arg.rw_flag))
 
@@ -324,7 +323,7 @@ def create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil):
     else:
         ops_type = namespace['ops_arg_dat']
         accessible_info = accessible_origin[p.name]
-        ops_stencil = par_to_ops_stencil[p],
+        ops_stencil = par_to_ops_stencil[p.name],
         ops_name = name_to_ops_dat[p.name] \
             if accessible_info.time is None \
             else name_to_ops_dat[accessible_info.origin_name].\

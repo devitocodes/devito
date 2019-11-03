@@ -226,7 +226,7 @@ class TestOPSExpression(object):
         stencil = OpsStencil('stencil')
         info = AccessibleInfo(u, None, None, None)
 
-        ops_arg = create_ops_arg(u, {'u': info}, {'u': dat}, {u: stencil})
+        ops_arg = create_ops_arg(u, {'u': info}, {'u': dat}, {'u': stencil})
 
         assert ops_arg.ops_type == namespace['ops_arg_dat']
         assert ops_arg.ops_name == OpsDat('u_dat')
@@ -263,8 +263,17 @@ class TestOPSExpression(object):
 
     @pytest.mark.parametrize('equation,expected', [
         ('Eq(u_2d.forward, u_2d + 1)',
-         '[\'ops_dat_get_raw_pointer(u_dat[0],0,S2D_UT0_1PT,&memspace);\','
-          '\'ops_memspace memspace = OPS_HOST;\']')])
+            '[\'ops_dat_get_raw_pointer(u_dat[t0],0,S2D_UT0_1PT,&memspace);\','
+            '\'ops_dat_get_raw_pointer(u_dat[t1],0,S2D_UT1_1PT,&memspace);\','
+            '\'ops_memspace memspace;\','
+            '\'memspace = OPS_HOST;\']'),
+        ('Eq(v_3d.backward, v_3d.dt2 + b_3d)',
+            '[\'memspace = OPS_HOST;\','
+            '\'ops_memspace memspace;\','
+            '\'ops_dat_get_raw_pointer(v_dat[t5],0,S3D_VT5_1PT,&memspace);\','
+            '\'ops_dat_get_raw_pointer(v_dat[t6],0,S3D_VT6_1PT,&memspace);\','
+            '\'ops_dat_get_raw_pointer(v_dat[t7],0,S3D_VT7_1PT,&memspace);\','
+            '\'ops_dat_get_raw_pointer(b_dat,0,S3D_B_1PT,&memspace);\']')])
     def test_memory_transfer_call(self, equation, expected):
 
         grid_2d = Grid(shape=(4, 4))
@@ -278,7 +287,10 @@ class TestOPSExpression(object):
         v_3d = TimeFunction(name='v', grid=grid_3d, time_order=2)  # noqa
         x_3d = TimeFunction(name='x', grid=grid_3d, time_order=3)  # noqa
 
-        op = Operator(eval(equation))
+        a_2d = Function(name='a', grid=grid_2d)                     # noqa
+        b_3d = Function(name='b', grid=grid_3d)                     # noqa
 
+        op = Operator(eval(equation))
+        print(op)
         for i in eval(expected):
             assert i in str(op)

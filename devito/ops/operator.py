@@ -84,23 +84,22 @@ class OperatorOPS(Operator):
         # Generate ops kernels for each offloadable iteration tree
         mapper = {}
         for n, (_, tree) in enumerate(affine_trees):
-            pre_loop, ops_kernel, ops_par_loop_call, par_to_ops_stencil = opsit(
-                tree, n, name_to_ops_dat, ops_block, dims[0])
+            pre_loop, ops_kernel, ops_par_loop_call, par_to_ops_stencil,\
+                accessibles_info = opsit(tree, n, name_to_ops_dat, ops_block, dims[0])
 
             pre_time_loop.extend(pre_loop)
             self._ops_kernels.append(ops_kernel)
-            mapper[tree[0].root] = ops_par_loop_call
+            # To return the result to Devito, it is necessary to copy the data
+            # from the dat object back to the CPU memory.
+            memory_calls = [create_ops_memory_fetch(f, name_to_ops_dat,
+                                                    par_to_ops_stencil,
+                                                    accessibles_info, memspace)
+                            for f in to_dat if not f.is_Constant]
+
+            mapper[tree[0].root] = List(body=(ops_par_loop_call, memory_calls))
             mapper.update({i.root: mapper.get(i.root) for i in tree})  # Drop trees
 
         iet = Transformer(mapper).visit(iet)
-
-        # To return the result to Devito, it is necessary to copy the data
-        # from the dat object back to the CPU memory.
-        after_time_loop = [create_ops_memory_fetch(f,
-                                                   name_to_ops_dat,
-                                                   par_to_ops_stencil,
-                                                   memspace)
-                           for f in to_dat if not f.is_Constant]
 
         assert (d == dims[0] for d in dims), \
             "The OPS backend currently assumes that all kernels \
