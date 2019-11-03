@@ -138,15 +138,18 @@ class OpsStencil(basic.Symbol):
         return namespace['ops_stencil_type']
 
 
-class OpsMemSpace(basic.LocalObject):
+class OpsMemSpace(basic.Symbol):
 
     def __init__(self, name, *args, **kwargs):
         super().__init__(name, np.void, *args, **kwargs)
 
     @property
-    def _C_typename(self):
+    def _C_typedata(self):
         return namespace['ops_memspace_type']
 
+    @property
+    def _C_typename(self):
+        return self._C_typedata
 
 class OpsDat(basic.Symbol):
 

@@ -265,11 +265,9 @@ class TestOPSExpression(object):
         ('Eq(u_2d.forward, u_2d + 1)',
             '[\'ops_dat_get_raw_pointer(u_dat[t0],0,S2D_UT0_1PT,&memspace);\','
             '\'ops_dat_get_raw_pointer(u_dat[t1],0,S2D_UT1_1PT,&memspace);\','
-            '\'ops_memspace memspace;\','
-            '\'memspace = OPS_HOST;\']'),
+            '\'ops_memspace memspace = OPS_HOST;\']'),
         ('Eq(v_3d.backward, v_3d.dt2 + b_3d)',
-            '[\'memspace = OPS_HOST;\','
-            '\'ops_memspace memspace;\','
+            '[\'ops_memspace memspace = OPS_HOST;\','
             '\'ops_dat_get_raw_pointer(v_dat[t5],0,S3D_VT5_1PT,&memspace);\','
             '\'ops_dat_get_raw_pointer(v_dat[t6],0,S3D_VT6_1PT,&memspace);\','
             '\'ops_dat_get_raw_pointer(v_dat[t7],0,S3D_VT7_1PT,&memspace);\','
