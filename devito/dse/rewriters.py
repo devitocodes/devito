@@ -14,7 +14,7 @@ from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               iq_timeinvariant, pow_to_mul, q_leaf, q_sum_of_product,
-                              q_terminalop, xreplace_constrained)
+                              q_terminalop, yreplace)
 from devito.tools import flatten
 from devito.types import Array, Scalar
 
@@ -184,8 +184,7 @@ class AdvancedRewriter(BasicRewriter):
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = iq_timeinvariant(FlowGraph(cluster.exprs))
         costmodel = lambda e: estimate_cost(e, True) >= self.MIN_COST_ALIAS_INV
-        processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel,
-                                                eager=True)
+        processed, found = yreplace(cluster.exprs, make, rule, costmodel, eager=True)
 
         return cluster.rebuild(processed)
 
@@ -339,7 +338,7 @@ class AggressiveRewriter(AdvancedRewriter):
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = q_sum_of_product
         costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
-        processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
+        processed, _ = yreplace(cluster.exprs, make, rule, costmodel)
 
         return cluster.rebuild(processed)
 

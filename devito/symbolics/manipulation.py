@@ -8,7 +8,7 @@ from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_tuple, flatten, split
 
-__all__ = ['freeze', 'unfreeze', 'evaluate', 'xreplace_constrained', 'xreplace_indices',
+__all__ = ['freeze', 'unfreeze', 'evaluate', 'yreplace', 'xreplace_indices',
            'pow_to_mul', 'as_symbol', 'indexify', 'split_affine']
 
 
@@ -59,31 +59,23 @@ def evaluate(expr, **subs):
     return expr.subs(subs)
 
 
-def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repeat=False,
-                         eager=False):
+def yreplace(exprs, make, rule=None, costmodel=lambda e: True, repeat=False, eager=False):
     """
-    Unlike ``xreplace``, which replaces the objects specified in a mapper,
-    this function replaces the objects satisfying two criteria:
+    Unlike SymPy's ``xreplace``, which performs structural replacement based on a mapper,
+    ``yreplace`` applies replacements using two callbacks:
 
-        * The "matching rule" -- a function returning True if an expression satisfies
-            a given property and, as such, could be replaced;
-        * A "cost model" -- a function triggering replacement only if a certain
-            cost (e.g., operation count) is exceeded. This is optional.
-
-    Note that there is not necessarily a relationship between the set of nodes
-    for which the matching rule returns True and those nodes passing the cost
-    model check. It might happen for example that, given the expression ``a + b``,
-    all of ``a``, ``b``, and ``a + b`` satisfy the matching rule, but only
-    ``a + b`` satisfies the cost model.
+        * The "matching rule" -- a boolean function telling whether an expression
+          honors a certain property.
+        * The "cost model" -- a boolean function telling whether an expression exceeds
+          a certain (e.g., operation count) cost.
 
     Parameters
     ----------
     exprs : expr-like or list of expr-like
-        One or more expressions to which the replacement is applied.
+        One or more expressions searched for replacements.
     make : dict or callable
-        Either a mapper M: K -> V, indicating how to replace an expression in K
-        with a symbol in V, or a callable with internal state that, when
-        called, returns unique symbols.
+        Either a mapper of substitution rules (just like in ``xreplace``), or
+        or a callable returning unique symbols each time it is called.
     rule : callable, optional
         The matching rule (see above). Unnecessary if ``make`` is a dict.
     costmodel : callable, optional
@@ -92,8 +84,17 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
         If True, repeatedly apply ``xreplace`` until no more replacements are
         possible. Defaults to False.
     eager : bool, optional
-        If True, replaces a sub-expression ``e`` as soon as ``costmodel(e)`` gives
-        True, that is without searching for larger sub-expressions. Defaults to False.
+        If True, replaces an expression ``e`` as soon as the condition
+        ``rule(e) and costmodel(e)`` is True. Otherwise, the search continues
+        for larger, more expensive expressions. Defaults to False.
+
+    Notes
+    -----
+    In general, there is no relationship between the set of expressions for which
+    the matching rule gives True and the set of expressions passing the cost test.
+    For example, in the expression `a + b` all of `a`, `b` and `a+b` may satisfy
+    the matching rule, whereas only `a+b` satisfy the cost test. Likewise, an
+    expression may pass the cost test, but not satisfy the matching rule.
     """
     found = OrderedDict()
     rebuilt = []

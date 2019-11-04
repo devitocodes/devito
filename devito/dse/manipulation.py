@@ -5,7 +5,7 @@ from sympy import Add, Mul, collect, collect_const
 from devito.dse.flowgraph import FlowGraph
 from devito.ir import DummyEq
 from devito.symbolics import (count, estimate_cost, q_xop, q_leaf, retrieve_scalars,
-                              retrieve_terminals, xreplace_constrained)
+                              retrieve_terminals, yreplace)
 from devito.tools import DAG, ReducerMap, split
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'compact_temporaries']
@@ -177,7 +177,7 @@ def compact_temporaries(exprs):
     for k, v in graph.items():
         if k not in mapper:
             # The temporary /v/ is retained, and substitutions may be applied
-            handle, _ = xreplace_constrained(v, mapper, repeat=True)
+            handle, _ = yreplace(v, mapper, repeat=True)
             assert len(handle) == 1
             processed.extend(handle)
 

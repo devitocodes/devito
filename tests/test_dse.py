@@ -10,8 +10,7 @@ from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
 from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect
 from devito.dse.flowgraph import FlowGraph
-from devito.symbolics import (xreplace_constrained, iq_timeinvariant, estimate_cost,
-                              pow_to_mul)
+from devito.symbolics import yreplace, iq_timeinvariant, estimate_cost, pow_to_mul
 from devito.tools import generator
 from devito.types import Scalar
 
@@ -58,14 +57,13 @@ def test_scheduling_after_rewrite():
       'Eq(tu, ((ti0*ti1*t0)*tv + (ti0*ti1*tv)*t1))'],
      ['t0 + 2.0', 't0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
 ])
-def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
-                                              exprs, expected):
+def test_yreplace_time_invariants(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
     exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
-    processed, found = xreplace_constrained(exprs, make,
-                                            iq_timeinvariant(FlowGraph(exprs)),
-                                            lambda i: estimate_cost(i) > 0)
+    processed, found = yreplace(exprs, make,
+                                iq_timeinvariant(FlowGraph(exprs)),
+                                lambda i: estimate_cost(i) > 0)
     assert len(found) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
 
