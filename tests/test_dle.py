@@ -8,7 +8,8 @@ import pytest
 from conftest import EVAL, skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
                     Eq, Operator, solve, switchconfig)
-from devito.dle import BlockDimension, NThreads, transform
+from devito.dle import BlockDimension, NThreads, NThreadsNonaffine, transform
+from devito.dle.parallelizer import ParallelRegion
 from devito.exceptions import InvalidArgument
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
@@ -337,21 +338,33 @@ class TestNodeParallelism(object):
     def test_dynamic_nthreads(self):
         grid = Grid(shape=(16, 16, 16))
         f = TimeFunction(name='f', grid=grid)
+        sf = SparseTimeFunction(name='sf', grid=grid, npoint=1, nt=5)
 
-        op = Operator(Eq(f.forward, f + 1.), dle='openmp')
+        eqns = [Eq(f.forward, f + 1)]
+        eqns += sf.interpolate(f)
 
-        # Check num_threads appears in the generated code
+        op = Operator(eqns, dle='openmp')
+
+        parregions = FindNodes(ParallelRegion).visit(op)
+        assert len(parregions) == 2
+
+        # Check num_threads{0,2} appear in the generated code
         # Not very elegant, but it does the trick
-        assert 'num_threads(nthreads0)' in str(op)
+        assert 'num_threads(nthreads0)' in str(parregions[0].header[0])
+        assert 'num_threads(nthreads2)' in str(parregions[1].header[0])
 
-        # Check `op` accepts the `nthreads` kwarg
+        # Check `op` accepts the `nthreads[0,2]` kwargs
         op.apply(time=0)
         op.apply(time_m=1, time_M=1, nthreads=4)
+        op.apply(time_m=1, time_M=1, nthreads0=4, nthreads2=2)
+        op.apply(time_m=1, time_M=1, nthreads2=2)
         assert np.all(f.data[0] == 2.)
 
-        # Check the actual value assumed by `nthreads`
+        # Check the actual value assumed by `nthreads[0,2]`
         assert op.arguments(time=0)['nthreads0'] == NThreads.default_value()
+        assert op.arguments(time=0)['nthreads2'] == NThreadsNonaffine.default_value()
         assert op.arguments(time=0, nthreads0=123)['nthreads0'] == 123  # user supplied
+        assert op.arguments(time=0, nthreads2=100)['nthreads2'] == 100  # user supplied
         # `nthreads` is an alias for `nthreads0`
         assert op.arguments(time=0, nthreads=123)['nthreads0'] == 123  # user supplied
 
