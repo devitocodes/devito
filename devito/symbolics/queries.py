@@ -4,17 +4,12 @@ from devito.tools import as_tuple, is_integer
 
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_trigonometry', 'q_routine', 'q_xop',
-           'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_timedimension',
-           'q_constant', 'q_affine', 'q_linear', 'q_identity', 'q_inc', 'q_scalar',
-           'q_multivar', 'q_monoaffine', 'iq_timeinvariant']
+           'q_terminalop', 'q_sum_of_product', 'q_indirect', 'q_constant', 'q_affine',
+           'q_linear', 'q_identity', 'q_inc', 'q_scalar', 'q_multivar', 'q_monoaffine']
 
 
 """
-The q_* functions are to be applied directly to expression objects.
-The iq_* functions return functions to be applied to expressions objects
-('iq' stands for 'indirect query')
-
-The following SymPy objects are considered as tree leaves: ::
+The following SymPy objects are considered tree leaves:
 
     * Number
     * Symbol
@@ -94,11 +89,6 @@ def q_indirect(expr):
     if not expr.is_Indexed:
         return False
     return any(retrieve_indexed(i) for i in expr.indices)
-
-
-def q_timedimension(expr):
-    from devito.types import Dimension
-    return isinstance(expr, Dimension) and expr.is_Time
 
 
 def q_inc(expr):
@@ -202,7 +192,3 @@ def q_identity(expr, var):
     x + 2 -> True
     """
     return len(as_tuple(var)) == 1 and q_affine(expr, var) and (expr - var).is_Number
-
-
-def iq_timeinvariant(graph):
-    return lambda e: graph.time_invariant(e)

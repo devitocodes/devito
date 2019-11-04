@@ -8,9 +8,8 @@ from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunctio
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
 from devito.dle import BlockDimension
-from devito.dse import common_subexprs_elimination, collect
-from devito.dse.flowgraph import FlowGraph
-from devito.symbolics import yreplace, iq_timeinvariant, estimate_cost, pow_to_mul
+from devito.dse import common_subexprs_elimination, collect, make_is_time_invariant
+from devito.symbolics import yreplace, estimate_cost, pow_to_mul
 from devito.tools import generator
 from devito.types import Scalar
 
@@ -62,7 +61,7 @@ def test_yreplace_time_invariants(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected)
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
     processed, found = yreplace(exprs, make,
-                                iq_timeinvariant(FlowGraph(exprs)),
+                                make_is_time_invariant(exprs),
                                 lambda i: estimate_cost(i) > 0)
     assert len(found) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(found, expected))

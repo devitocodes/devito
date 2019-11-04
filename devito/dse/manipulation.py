@@ -1,14 +1,15 @@
 from collections import OrderedDict
+from functools import partial
 
 from sympy import Add, Mul, collect, collect_const
 
-from devito.dse.flowgraph import FlowGraph
 from devito.ir import DummyEq
 from devito.symbolics import (count, estimate_cost, q_xop, q_leaf, retrieve_scalars,
                               retrieve_terminals, yreplace)
 from devito.tools import DAG, ReducerMap, split
+from devito.types import Dimension, Symbol
 
-__all__ = ['collect_nested', 'common_subexprs_elimination', 'compact_temporaries']
+__all__ = ['collect_nested', 'common_subexprs_elimination', 'make_is_time_invariant']
 
 
 def collect_nested(expr):
@@ -109,6 +110,46 @@ def collect_nested(expr):
     return run(expr)[0]
 
 
+def make_is_time_invariant(context):
+    """
+    Given an ordered list of expressions, returns a callable that finds out whether
+    a given expression is time invariant or not.
+    """
+    mapper = OrderedDict([(i.lhs, i) for i in _makeit_ssa(context)])
+
+    def is_time_invariant(mapper, expr):
+        if any(isinstance(i, Dimension) and i.is_Time for i in expr.free_symbols):
+            return False
+
+        queue = [expr.rhs if expr.is_Equality else expr]
+        seen = set()
+        while queue:
+            item = queue.pop()
+            nodes = set()
+            for i in retrieve_terminals(item):
+                if i in seen:
+                    # Already inspected, nothing more can be inferred
+                    continue
+                elif any(isinstance(j, Dimension) and j.is_Time for j in i.free_symbols):
+                    # Definitely not time-invariant
+                    return False
+                elif i in mapper:
+                    # Go on with the search
+                    nodes.add(i)
+                elif isinstance(i, Dimension):
+                    # Go on with the search, as `i` is not a time dimension
+                    pass
+                elif not i.function.is_DiscreteFunction:
+                    # It didn't come from the outside and it's not in `mapper`, so
+                    # cannot determine if time-invariant; assume time-varying then
+                    return False
+                seen.add(i)
+            queue.extend([mapper[i].rhs for i in nodes])
+        return True
+
+    return partial(is_time_invariant, mapper)
+
+
 def common_subexprs_elimination(exprs, make, mode='default'):
     """
     Perform common sub-expressions elimination, or CSE.
@@ -158,34 +199,76 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     processed = mapped + processed
 
     # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them
-    processed = compact_temporaries(processed)
+    processed = _compact_temporaries(processed)
 
     # Perform topological sorting so that reads-after-writes are honored
-    processed = topological_sort(processed)
+    processed = _topological_sort(processed)
 
     return processed
 
 
-def compact_temporaries(exprs):
-    """Drop temporaries consisting of isolated symbols."""
-    graph = FlowGraph(exprs)
+# Private functions
 
-    mapper = {k: v.rhs for k, v in graph.items()
-              if v.is_Scalar and (q_leaf(v.rhs) or v.rhs.is_Function)}
+
+def _makeit_ssa(exprs):
+    """
+    Convert an iterable of Eqs into Static Single Assignment (SSA) form.
+    """
+    # Identify recurring LHSs
+    seen = {}
+    for i, e in enumerate(exprs):
+        seen.setdefault(e.lhs, []).append(i)
+    # Optimization: don't waste time reconstructing stuff if already in SSA form
+    if all(len(i) == 1 for i in seen.values()):
+        return exprs
+    # SSA conversion
+    c = 0
+    mapper = {}
+    processed = []
+    for i, e in enumerate(exprs):
+        where = seen[e.lhs]
+        rhs = e.rhs.xreplace(mapper)
+        if len(where) > 1:
+            needssa = e.is_Scalar or where[-1] != i
+            lhs = Symbol(name='ssa%d' % c, dtype=e.dtype) if needssa else e.lhs
+            if e.is_Increment:
+                # Turn AugmentedAssignment into Assignment
+                processed.append(e.func(lhs, mapper[e.lhs] + rhs, is_Increment=False))
+            else:
+                processed.append(e.func(lhs, rhs))
+            mapper[e.lhs] = lhs
+            c += 1
+        else:
+            processed.append(e.func(e.lhs, rhs))
+    return processed
+
+
+def _compact_temporaries(exprs):
+    """
+    Drop temporaries consisting of isolated symbols.
+    """
+    # First of all, convert to SSA
+    exprs = _makeit_ssa(exprs)
+
+    # What's gonna be dropped
+    mapper = {e.lhs: e.rhs for e in exprs
+              if e.lhs.is_Symbol and (q_leaf(e.rhs) or e.rhs.is_Function)}
 
     processed = []
-    for k, v in graph.items():
-        if k not in mapper:
-            # The temporary /v/ is retained, and substitutions may be applied
-            handle, _ = yreplace(v, mapper, repeat=True)
+    for e in exprs:
+        if e.lhs not in mapper:
+            # The temporary is retained, and substitutions may be applied
+            handle, _ = yreplace(e, mapper, repeat=True)
             assert len(handle) == 1
             processed.extend(handle)
 
     return processed
 
 
-def topological_sort(exprs):
-    """Topologically sort the temporaries in a list of equations."""
+def _topological_sort(exprs):
+    """
+    Topologically sort the temporaries in a list of equations.
+    """
     mapper = {e.lhs: e for e in exprs}
     assert len(mapper) == len(exprs)  # Expect SSA
 

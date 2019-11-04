@@ -8,13 +8,13 @@ from devito.equation import Eq
 from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Cluster,
                        detect_accesses, build_intervals)
 from devito.dse.aliases import collect
-from devito.dse.flowgraph import FlowGraph
-from devito.dse.manipulation import collect_nested, common_subexprs_elimination
+from devito.dse.manipulation import (collect_nested, common_subexprs_elimination,
+                                     make_is_time_invariant)
 from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
-                              iq_timeinvariant, pow_to_mul, q_leaf, q_sum_of_product,
-                              q_terminalop, yreplace)
+                              pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
+                              yreplace)
 from devito.tools import flatten
 from devito.types import Array, Scalar
 
@@ -182,7 +182,7 @@ class AdvancedRewriter(BasicRewriter):
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        rule = iq_timeinvariant(FlowGraph(cluster.exprs))
+        rule = make_is_time_invariant(cluster.exprs)
         costmodel = lambda e: estimate_cost(e, True) >= self.MIN_COST_ALIAS_INV
         processed, found = yreplace(cluster.exprs, make, rule, costmodel, eager=True)
 
@@ -233,26 +233,28 @@ class AdvancedRewriter(BasicRewriter):
            temp1 = 2.0*ti[x,y,z]
            temp2 = 3.0*ti[x,y,z+1]
         """
+        exprs = cluster.exprs
+
         # For more information about "aliases", refer to collect.__doc__
-        aliases = collect(cluster.exprs)
+        aliases = collect(exprs)
 
         # Redundancies will be stored in space-varying temporaries
-        graph = FlowGraph(cluster.exprs)
-        time_invariants = {v.rhs: graph.time_invariant(v) for v in graph.values()}
+        is_time_invariant = make_is_time_invariant(exprs)
+        time_invariants = {e.rhs: is_time_invariant(e) for e in exprs}
 
         # Find the candidate expressions
         processed = []
         candidates = OrderedDict()
-        for k, v in graph.items():
+        for e in exprs:
             # Cost check (to keep the memory footprint under control)
-            naliases = len(aliases.get(v.rhs))
-            cost = estimate_cost(v, True)*naliases
+            naliases = len(aliases.get(e.rhs))
+            cost = estimate_cost(e, True)*naliases
             test0 = lambda: cost >= self.MIN_COST_ALIAS and naliases > 1
-            test1 = lambda: cost >= self.MIN_COST_ALIAS_INV and time_invariants[v.rhs]
+            test1 = lambda: cost >= self.MIN_COST_ALIAS_INV and time_invariants[e.rhs]
             if test0() or test1():
-                candidates[v.rhs] = k
+                candidates[e.rhs] = e.lhs
             else:
-                processed.append(v)
+                processed.append(e)
 
         # Create alias Clusters and all necessary substitution rules
         # for the new temporaries
