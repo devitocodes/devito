@@ -3,10 +3,9 @@ import os
 import numpy as np
 from sympy import sin, Abs
 
-from examples.seismic.utils import devito_smooth
 from devito import (Grid, SubDomain, Function, Constant, mmax,
                     SubDimension, Eq, Inc, Operator)
-from devito.builtins import initialize_function
+from devito.builtins import initialize_function, gaussian_smooth
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
@@ -693,7 +692,7 @@ class Model(GenericModel):
 
     def smooth(self, physical_parameters, sigma=5.0):
         """
-        Apply devito_smooth to model physical parameters.
+        Apply devito.gaussian_smooth to model physical parameters.
 
         Parameters
         ----------
@@ -704,9 +703,7 @@ class Model(GenericModel):
         """
         model_parameters = self.physical_params()
         for i in physical_parameters:
-            # NOTE/FIXME: It would seem we can just remove devito_smooth now
-            # and call the gaussian smooth builtin directly here?
-            devito_smooth(model_parameters[i], sigma=sigma)
+            gaussian_smooth(model_parameters[i], sigma=sigma)
         return
 
 

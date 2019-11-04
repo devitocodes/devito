@@ -5,21 +5,7 @@ from devito.builtins import gaussian_smooth
 from devito.tools import Pickable
 
 from .source import *
-__all__ = ['scipy_smooth', 'devito_smooth', 'AcquisitionGeometry']
-
-
-def scipy_smooth(img, sigma=5):
-    """
-    Smooth the input with scipy ndimage utility
-    """
-    return ndimage.gaussian_filter(img, sigma=sigma)
-
-
-def devito_smooth(img, sigma=5):
-    """
-    Smooth the input with the devito gaussian_smooth builtin
-    """
-    return gaussian_smooth(img, sigma=sigma)
+__all__ = ['AcquisitionGeometry']
 
 
 class AcquisitionGeometry(Pickable):

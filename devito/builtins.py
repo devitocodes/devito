@@ -150,8 +150,10 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     try:
         # NOTE: required if input is an np.array
         dtype = f.dtype.type
+        shape = f.shape
     except AttributeError:
         dtype = f.dtype
+        shape = f.shape_global
 
     # TODO: Add s = 0 dim skip option
     lw = tuple(int(truncate*float(s) + 0.5) for s in as_tuple(sigma))
@@ -167,11 +169,7 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
 
     # Create the padded grid:
     objective_domain = ObjectiveDomain(lw)
-    # NOTE: This 'try' is required for distributed `f`.
-    try:
-        shape_padded = tuple([np.array(s) + 2*l for s, l in zip(f.shape_global, lw)])
-    except AttributeError:
-        shape_padded = tuple([np.array(s) + 2*l for s, l in zip(f.shape, lw)])
+    shape_padded = tuple([np.array(s) + 2*l for s, l in zip(shape, lw)])
     grid = dv.Grid(shape=shape_padded, subdomains=objective_domain)
 
     f_c = dv.Function(name='f_c', grid=grid, space_order=2*max(lw),
@@ -198,9 +196,7 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
 
         mapper[d] = {'lhs': lhs, 'rhs': rhs, 'options': options}
 
-    initialize_function(f_c, f, lw,
-                        mapper=mapper,
-                        mode='reflect', name='smooth')
+    initialize_function(f_c, f, lw, mapper=mapper, mode='reflect', name='smooth')
 
     fset(f, f_c)
     return f
@@ -308,10 +304,8 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
             raise ValueError("Function `%s` halo is not sufficiently thick." % function)
 
     for d, n in zip(function.space_dimensions, as_tuple(nbl)):
-        dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d,
-                                     thickness=n)
-        dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d,
-                                      thickness=n)
+        dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d, thickness=n)
+        dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d, thickness=n)
         if mode == 'constant':
             subsl = n
             subsr = d.symbolic_max - n
