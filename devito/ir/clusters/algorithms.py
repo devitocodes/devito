@@ -367,8 +367,8 @@ class Lift(Queue):
 
             # Perform lifting, which requires contracting the iteration space
             key = lambda d: d not in hope_invariant
-            ispace = c.ispace.project(key)
-            dspace = c.dspace.project(key)
+            ispace = c.ispace.project(key).reset()
+            dspace = c.dspace.project(key).reset()
             lifted.append(Cluster(c.exprs, ispace, dspace, c.guards))
 
         return lifted + processed

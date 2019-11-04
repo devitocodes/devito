@@ -531,9 +531,8 @@ class DataSpace(Space):
             func = cond
         else:
             func = lambda i: i in cond
-        intervals = [i.reset() for i in self.intervals if func(i.dim)]
-        parts = {k: v.reset() for k, v in self.parts.items()}
-        return DataSpace(intervals, parts)
+        intervals = [i for i in self.intervals if func(i.dim)]
+        return DataSpace(intervals, self.parts)
 
 
 class IterationSpace(Space):
@@ -598,6 +597,9 @@ class IterationSpace(Space):
                 ret.extend([d for d in v if d not in ret])
         return IterationSpace(intervals, sub_iterators, directions)
 
+    def reset(self):
+        return IterationSpace(self.intervals.reset(), self.sub_iterators, self.directions)
+
     def project(self, cond):
         """
         Create a new IterationSpace in which only some Dimensions
@@ -611,7 +613,7 @@ class IterationSpace(Space):
             func = cond
         else:
             func = lambda i: i in cond
-        intervals = [i.reset() for i in self.intervals if func(i.dim)]
+        intervals = [i for i in self.intervals if func(i.dim)]
         sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
         directions = {k: v for k, v in self.directions.items() if func(k)}
         return IterationSpace(intervals, sub_iterators, directions)
