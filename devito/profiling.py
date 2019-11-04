@@ -67,8 +67,8 @@ class Profiler(object):
             for i in mapper.values():
                 try:
                     traffic += IntervalGroup.generate('union', *i).size
-                except:
-                    # Over different iteration spaces, hence data movement repeats
+                except ValueError:
+                    # Over different iteration spaces
                     traffic += sum(j.size for j in i)
 
             # Each ExpressionBundle lives in its own iteration space
