@@ -1,7 +1,4 @@
-from scipy import ndimage
-
 from devito import error
-from devito.builtins import gaussian_smooth
 from devito.tools import Pickable
 
 from .source import *
