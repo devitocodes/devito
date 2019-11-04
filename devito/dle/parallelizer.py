@@ -259,7 +259,7 @@ class Ompizer(object):
             chunk_size = Symbol(name='chunk_size')
             omp_pragma = self.lang['for'](ncollapse, chunk_size)
 
-            niters = prod([j.symbolic_size for j in candidates])
+            niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
             value = INT(Max(niters / (self.nthreads*self.CHUNKSIZE_NONAFFINE), 1))
             prefix.append(Expression(DummyEq(chunk_size, value, dtype=np.int32)))
 
