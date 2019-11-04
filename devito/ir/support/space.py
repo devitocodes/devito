@@ -40,19 +40,6 @@ class AbstractInterval(object):
     def __hash__(self):
         return hash(self.dim.name)
 
-    @classmethod
-    def _apply_op(cls, intervals, key):
-        """
-        Create a new Interval resulting from the iterative application
-        of the method ``key`` over the Intervals in ``intervals``, i.e.:
-        ``intervals[0].key(intervals[1]).key(intervals[2])...``.
-        """
-        intervals = as_tuple(intervals)
-        partial = intervals[0]
-        for i in intervals[1:]:
-            partial = getattr(partial, key)(i)
-        return partial
-
     @abc.abstractmethod
     def _rebuild(self):
         return
@@ -87,7 +74,7 @@ class NullInterval(AbstractInterval):
     is_Null = True
 
     def __repr__(self):
-        return "%s[Null]" % self.dim
+        return "%s[Null]<%d>" % (self.dim, self.stamp)
 
     def __hash__(self):
         return hash(self.dim)
@@ -103,7 +90,8 @@ class NullInterval(AbstractInterval):
         if self.dim is o.dim:
             return o._rebuild()
         else:
-            return IntervalGroup([self._rebuild(), o._rebuild()])
+            raise ValueError("Cannot compute union of Intervals over "
+                             "different Dimensions")
 
 
 class Interval(AbstractInterval):
@@ -127,7 +115,7 @@ class Interval(AbstractInterval):
         self.size = (dim.extreme_max - dim.extreme_min + 1) + (upper - lower)
 
     def __repr__(self):
-        return "%s[%s, %s]" % (self.dim, self.lower, self.upper)
+        return "%s[%s,%s]<%d>" % (self.dim, self.lower, self.upper, self.stamp)
 
     def __hash__(self):
         return hash((self.dim, self.offsets))
@@ -164,7 +152,8 @@ class Interval(AbstractInterval):
             ovl, ovu = Vector(o.lower, smart=True), Vector(o.upper, smart=True)
             return Interval(self.dim, vmin(svl, ovl)[0], vmax(svu, ovu)[0], self.stamp)
         else:
-            return IntervalGroup([self._rebuild(), o._rebuild()])
+            raise ValueError("Cannot compute union of non-compatible Intervals (%s, %s)" %
+                             (self, o))
 
     def add(self, o):
         if not self.is_compatible(o):
@@ -268,13 +257,19 @@ class IntervalGroup(PartialOrderTuple):
         >>> ig2 = IntervalGroup([Interval(y, 2, -2), Interval(z, 1, -1)])
 
         >>> IntervalGroup.generate('intersection', ig0, ig1, ig2)
-        IntervalGroup[x[2, -2], y[3, -3], z[1, -1]]
+        IntervalGroup[x[2,-2]<0>, y[3,-3]<0>, z[1,-1]<0>]
         """
         mapper = {}
         for ig in interval_groups:
             for i in ig:
                 mapper.setdefault(i.dim, []).append(i)
-        intervals = [Interval._apply_op(v, op) for v in mapper.values()]
+        intervals = []
+        for v in mapper.values():
+            # Create a new Interval through the concatenation v0.key(v1).key(v2)...
+            interval = v[0]
+            for i in v[1:]:
+                interval = getattr(interval, op)(i)
+            intervals.append(interval)
         relations = set().union(*[ig.relations for ig in interval_groups])
         return IntervalGroup(intervals, relations=relations)
 
