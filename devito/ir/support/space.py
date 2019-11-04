@@ -205,6 +205,9 @@ class IntervalGroup(PartialOrderTuple):
 
     @classmethod
     def reorder(cls, items, relations):
+        if not all(isinstance(i, AbstractInterval) for i in items):
+            raise ValueError("Cannot create an IntervalGroup from objects of type [%s]" %
+                             ', '.join(str(type(i)) for i in items))
         # The relations are between dimensions, not intervals. So we take
         # care of that here
         ordering = filter_ordered(toposort(relations) + [i.dim for i in items])
