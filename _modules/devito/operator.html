@@ -162,7 +162,6 @@
 <span class="kn">import</span> <span class="nn">ctypes</span>
 
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">transform</span>
-<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">rewrite</span>
 <span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidOperator</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span>
@@ -327,10 +326,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_output</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">writes</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span> <span class="o">=</span> <span class="n">filter_sorted</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">dimensions</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">))</span>
 
-        <span class="c1"># Group expressions based on their iteration space and data dependences,</span>
-        <span class="c1"># and apply the Devito Symbolic Engine (DSE) for flop optimization</span>
-        <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
-        <span class="n">clusters</span> <span class="o">=</span> <span class="n">rewrite</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">set_dse_mode</span><span class="p">(</span><span class="n">dse</span><span class="p">))</span>
+        <span class="c1"># Group expressions based on their iteration space and data dependences</span>
+        <span class="c1"># Several optimizations are applied (fusion, lifting, flop reduction via DSE, ...)</span>
+        <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">dse_mode</span><span class="o">=</span><span class="n">set_dse_mode</span><span class="p">(</span><span class="n">dse</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dspace</span> <span class="o">=</span> <span class="n">clusters</span><span class="o">.</span><span class="n">meta</span>
 
         <span class="c1"># Lower Clusters to a Schedule tree</span>
