@@ -23,21 +23,11 @@ def nhyperthreads():
 
 
 class NThreadsMixin(object):
-    pass
-
-
-class NThreads(Constant, NThreadsMixin):
-
-    name = 'nthreads0'
-
-    @classmethod
-    def default_value(cls):
-        return int(os.environ.get('OMP_NUM_THREADS', ncores()))
 
     def __new__(cls, **kwargs):
         name = kwargs.get('name', cls.name)
         value = cls.default_value()
-        obj = super(NThreads, cls).__new__(cls, name=name, dtype=np.int32, value=value)
+        obj = Constant.__new__(cls, name=name, dtype=np.int32, value=value)
         obj.aliases = as_tuple(kwargs.get('aliases')) + (name,)
         return obj
 
@@ -53,24 +43,27 @@ class NThreads(Constant, NThreadsMixin):
         return self._arg_defaults()
 
 
-class NThreadsNested(Constant, NThreadsMixin):
+class NThreads(NThreadsMixin, Constant):
 
-    name = 'nthreads1'
+    name = 'nthreads'
+
+    @classmethod
+    def default_value(cls):
+        return int(os.environ.get('OMP_NUM_THREADS', ncores()))
+
+
+class NThreadsNested(NThreadsMixin, Constant):
+
+    name = 'nthreads_nested'
 
     @classmethod
     def default_value(cls):
         return nhyperthreads()
 
-    def __new__(cls, **kwargs):
-        name = kwargs.get('name', cls.name)
-        value = NThreadsNested.default_value()
-        return super(NThreadsNested, cls).__new__(cls, name=name, dtype=np.int32,
-                                                  value=value)
-
 
 class NThreadsNonaffine(NThreads):
 
-    name = 'nthreads2'
+    name = 'nthreads_nonaffine'
 
 
 class ParallelRegion(Block):
@@ -192,9 +185,9 @@ class Ompizer(object):
             self.key = key
         else:
             self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorizable
-        self.nthreads = NThreads(aliases='nthreads')
-        self.nthreads_nested = NThreadsNested()
-        self.nthreads_nonaffine = NThreadsNonaffine()
+        self.nthreads = NThreads(aliases='nthreads0')
+        self.nthreads_nested = NThreadsNested(aliases='nthreads1')
+        self.nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
 
     def _make_atomic_incs(self, partree):
         if not partree.is_ParallelAtomic:
