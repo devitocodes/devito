@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from functools import partial
 
 from sympy import Add, Mul, collect, collect_const
 
@@ -147,7 +146,9 @@ def make_is_time_invariant(context):
             queue.extend([mapper[i].rhs for i in nodes])
         return True
 
-    return partial(is_time_invariant, mapper)
+    callback = lambda i: is_time_invariant(mapper, i)
+
+    return callback
 
 
 def common_subexprs_elimination(exprs, make, mode='default'):
