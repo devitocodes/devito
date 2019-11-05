@@ -317,6 +317,7 @@ def test_hierarchical_blocking():
     assert len(op._state['autotuning'][1]['tuned']) == 4
 
 
+@switchconfig(platform='cpu64-dummy')  # To fix the core count
 def test_multiple_threads():
     """
     Test autotuning when different ``num_threads`` for a given OpenMP parallel
@@ -333,7 +334,7 @@ def test_multiple_threads():
     assert len(op._state['autotuning'][0]['tuned']) == 3
 
 
-@switchconfig(platform='knl7210')  # To systematically trigger nested parallelism
+@switchconfig(platform='knl7210')  # To trigger nested parallelism
 def test_nested_nthreads():
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
