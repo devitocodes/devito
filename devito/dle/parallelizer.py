@@ -24,6 +24,8 @@ def nhyperthreads():
 
 class NThreadsMixin(object):
 
+    is_PerfKnob = True
+
     def __new__(cls, **kwargs):
         name = kwargs.get('name', cls.name)
         value = cls.default_value()
