@@ -99,7 +99,7 @@ def autotune(operator, args, level, mode):
             tunable.append(generate_nthreads(operator.nthreads, args, level))
             tunable = list(product(*tunable))
         except ValueError:
-            # Some arguments are cumpolsory, otherwise autotuning is skipped
+            # Some arguments are compulsory, otherwise autotuning is skipped
             continue
 
         # Symbolic number of loop-blocking blocks per thread
