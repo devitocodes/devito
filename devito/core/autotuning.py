@@ -3,9 +3,7 @@ from itertools import combinations, product
 from functools import total_ordering
 import resource
 
-import psutil
-
-from devito.archinfo import KNL
+from devito.archinfo import KNL, KNL7210
 from devito.dle import BlockDimension
 from devito.ir import Backward, retrieve_iteration_tree
 from devito.logger import perf, warning as _warning
@@ -287,7 +285,7 @@ def generate_block_shapes(blockable, args, level):
     ret = [tuple((d.step, v) for d in level_0) for v in options['blocksize-l0']]
     # Always try the entire iteration space (degenerate block)
     ret.append(max_bs)
-    # More attempts if auto-tuning in aggressive mode
+    # More attempts if autotuning in aggressive mode
     if level in ['aggressive', 'max']:
         # Ramp up to larger block shapes
         handle = tuple((i, options['blocksize-l0'][-1]) for i, _ in ret[0])
@@ -340,19 +338,28 @@ def generate_nthreads(nthreads, args, level):
     if nthreads == 1:
         return [((None, 1),)]
 
-    ret = [((nthreads.name, args[nthreads.name]),)]
+    ret = []
+    basic = ((nthreads.name, args[nthreads.name]),)
 
-    if level == 'max':
+    if level != 'max':
+        ret.append(basic)
+    else:
         # Be sure to try with:
         # 1) num_threads == num_physical_cores
-        # 2) num_threads == num_hyperthreads
-        if configuration['platform'] is KNL:
-            ret.extend([((nthreads.name, psutil.cpu_count() // 4),),
-                        ((nthreads.name, psutil.cpu_count() // 2),),
-                        ((nthreads.name, psutil.cpu_count()),)])
+        # 2) num_threads == num_logical_cores
+        platform = configuration['platform']
+        if platform in (KNL, KNL7210):
+            ret.extend([((nthreads.name, platform.cores_physical),),
+                        ((nthreads.name, platform.cores_physical * 2),),
+                        ((nthreads.name, platform.cores_logical),)])
         else:
-            ret.extend([((nthreads.name, psutil.cpu_count() // 2),),
-                        ((nthreads.name, psutil.cpu_count()),)])
+            ret.extend([((nthreads.name, platform.cores_physical),),
+                        ((nthreads.name, platform.cores_logical),)])
+
+        if basic not in ret:
+            warning("skipping `%s`; perhaps you've set OMP_NUM_THREADS to a "
+                    "non-standard value while attempting autotuning in "
+                    "`max` mode?" % dict(basic))
 
     return filter_ordered(ret)
 
