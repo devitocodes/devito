@@ -1,5 +1,3 @@
-from devito.ir.clusters import ClusterGroup, optimize
-from devito.dse.promotion import scalarize
 from devito.dse.rewriters import (BasicRewriter, AdvancedRewriter, AggressiveRewriter,
                                   CustomRewriter)
 from devito.logger import dse as log
@@ -18,7 +16,7 @@ modes = {
 """The DSE transformation modes."""
 
 
-def rewrite(clusters, mode='advanced'):
+def rewrite(clusters, template, mode='advanced'):
     """
     Given a sequence of N Clusters, produce a sequence of M Clusters with reduced
     operation count, with M >= N.
@@ -54,27 +52,20 @@ def rewrite(clusters, mode='advanced'):
     # We use separate rewriters for dense and sparse clusters; sparse clusters have
     # non-affine index functions, thus making it basically impossible, in general,
     # to apply the more advanced DSE passes.
-    # Note: the sparse rewriter uses the same template for temporaries as
-    # the dense rewriter, thus temporaries are globally unique
-
     try:
-        rewriter = modes[mode]()
+        rewriter = modes[mode](True, template)
     except KeyError:
-        rewriter = CustomRewriter(mode)
+        rewriter = CustomRewriter(mode, template)
+    fallback = BasicRewriter(False, template)
 
-    fallback = BasicRewriter(False, rewriter.template)
     states = [rewriter.run(c) if c.is_dense else fallback.run(c) for c in clusters]
 
     # Print out profiling information
     print_profiling(states)
 
-    # Schedule and optimize the Rewriters-produced clusters
-    clusters = ClusterGroup(optimize(flatten(i.clusters for i in states)))
+    clusters = flatten(i.clusters for i in states)
 
-    # Turn unnecessary temporary Arrays into scalars
-    clusters = scalarize(clusters, rewriter.template)
-
-    return ClusterGroup(clusters)
+    return clusters
 
 
 def print_profiling(states):
