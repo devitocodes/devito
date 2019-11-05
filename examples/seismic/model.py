@@ -116,8 +116,7 @@ def demo_model(preset, **kwargs):
                      dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
                      delta=delta, theta=theta, phi=phi, **kwargs)
 
-    elif preset.lower() in ['layers-isotropic', 'twolayer-isotropic',
-                            '2layer-isotropic']:
+    elif preset.lower() in ['layers-isotropic', '2layer-isotropic']:
         # A two-layer model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
@@ -141,8 +140,7 @@ def demo_model(preset, **kwargs):
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
 
-    elif preset.lower() in ['layers-elastic', 'twolayer-elastic',
-                            '2layer-elastic']:
+    elif preset.lower() in ['layers-elastic', '2layer-elastic']:
         # A two-layer model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
@@ -222,7 +220,7 @@ def demo_model(preset, **kwargs):
                                  shape=shape, dtype=dtype, spacing=spacing,
                                  nbl=nbl, **kwargs)
 
-    elif preset.lower() in ['layers-tti', 'twolayer-tti', '2layer-tti']:
+    elif preset.lower() in ['layers-tti']:
         # A two-layer model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
@@ -254,8 +252,7 @@ def demo_model(preset, **kwargs):
                      dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
                      delta=delta, theta=theta, phi=phi, **kwargs)
 
-    elif preset.lower() in ['layers-tti-noazimuth', 'twolayer-tti-noazimuth',
-                            '2layer-tti-noazimuth']:
+    elif preset.lower() in ['layers-tti-noazimuth']:
         # A two-layer model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
@@ -332,7 +329,8 @@ def demo_model(preset, **kwargs):
                      dtype=np.float32, spacing=spacing, nbl=nbl, **kwargs)
 
     elif preset.lower() in ['marmousi-elastic', 'marmousi2d-elastic']:
-        spacing = (5.0, 5.0)
+        k = kwargs.get('factor', 4)
+        spacing = (k*1.25, k*1.25)
         origin = (0., 0.)
         # Read 2D Marmousi model from opesc/data repo
         data_path = kwargs.get('data_path', None)
@@ -343,9 +341,9 @@ def demo_model(preset, **kwargs):
         vs = np.load(os.path.join(data_path, 'Simple2D/VS_elastic.npy'))
         rho = np.load(os.path.join(data_path, 'Simple2D/DENSITY_elastic.npy'))
         # Cut the model to make it slightly cheap
-        v = 1e-3 * np.transpose(v[::4, ::4])
-        vs = 1e-3 * np.transpose(vs[::4, ::4])
-        rho = np.transpose(rho[::4, ::4])
+        v = 1e-3 * np.transpose(v[::k, ::k])
+        vs = 1e-3 * np.transpose(vs[::k, ::k])
+        rho = np.transpose(rho[::k, ::k])
 
         return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
                             origin=origin, shape=v.shape,
@@ -450,7 +448,7 @@ def initialize_damp(damp, nbl, spacing, mask=False):
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
-    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40)
+    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbl)
 
     eqs = [Eq(damp, 1.0)] if mask else []
     for d in damp.dimensions:

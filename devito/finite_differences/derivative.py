@@ -202,13 +202,13 @@ class Derivative(sympy.Derivative, Differentiable):
                           fd_order=self.fd_order, side=self.side, transpose=adjoint,
                           x0=self.x0, subs=self._subs)
 
-    def _eval_at(self, var):
+    def _eval_at(self, func):
         """
-        Evaluates the derivative at the location of var. This is necessary for staggered
+        Evaluates the derivative at the location of func. This is necessary for staggered
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
         has to be computed at x=x + h_x/2.
         """
-        x0 = {d1: d2 for d1, d2 in zip(var.dimensions, var.indices_ref)}
+        x0 = {d1: d2 for d1, d2 in zip(func.dimensions, func.indices_ref)}
         return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
                           fd_order=self.fd_order, side=self.side,
                           transpose=self.transpose, subs=self._subs, x0=x0)
@@ -218,9 +218,6 @@ class Derivative(sympy.Derivative, Differentiable):
         # If the expression is an addition, for example if expr was a derivative that
         # was evaluated, split it and rebuild it as each term may have a different
         # staggering and needs a separate FD computation
-        if self.expr.is_Add:
-            return self.expr.func(*[self._eval_fd(e) for e in self.expr.args])
-
         return self._eval_fd(self.expr)
 
     def _eval_fd(self, expr):

@@ -178,16 +178,16 @@ class TensorFunction(AbstractTensor, Differentiable):
         except AttributeError:
             return super(TensorFunction, self).__mul__(other)
 
-    def _eval_at(self, var):
+    def _eval_at(self, func):
         """
-        Evaluate tensor at var location
+        Evaluate tensor at func location
         """
         def entry(i, j):
-            return getattr(self[i, j], '_eval_at', lambda x: self[i, j])(var[i, j])
+            return getattr(self[i, j], '_eval_at', lambda x: self[i, j])(func[i, j])
         comps = [[entry(i, j) for i in range(self.cols)] for j in range(self.rows)]
         to = getattr(self, 'time_order', 0)
         func = tens_func(self, self)
-        return func(name='%s%s' % (self.name, var.name),
+        return func(name='%s%s' % (self.name, func.name),
                     grid=self.grid, space_order=self.space_order,
                     components=comps, time_order=to, symmetric=self.is_symmetric,
                     diagonal=self.is_diagonal)
@@ -464,15 +464,15 @@ class VectorFunction(TensorFunction):
     __repr__ = __str__
 
     # Eval matrices functions for add/mull/evaluate
-    def _eval_at(self, var):
+    def _eval_at(self, func):
 
         def entry(i):
-            return self[i]._eval_at(var[i])
+            return self[i]._eval_at(func[i])
 
         comps = [entry(i) for i in range(np.max(self.shape))]
         to = getattr(self, 'time_order', 0)
         func = vec_func(self, self)
-        return func(name='%s%s' % (self.name, var.name),
+        return func(name='%s%s' % (self.name, func.name),
                     grid=self.grid, space_order=self.space_order,
                     components=comps, time_order=to)
 

@@ -946,11 +946,12 @@ class Function(DiscreteFunction, Differentiable):
     def is_parameter(self):
         return self._is_parameter
 
-    def _eval_at(self, var):
-        if not self.is_parameter or self.staggered == var.staggered:
+    def _eval_at(self, func):
+        if not self.is_parameter or self.staggered == func.staggered:
             return self
 
-        return self.subs({d1: var.indices_ref[d1] for d1 in self.indices_ref})
+        return self.subs({self.indices_ref[d1]: func.indices_ref[d1]
+                          for d1 in self.dimensions})
 
     @classmethod
     def __indices_setup__(cls, **kwargs):

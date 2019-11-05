@@ -274,7 +274,7 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
 
         return args
 
-    def _eval_at(self, var):
+    def _eval_at(self, func):
         return self
 
     def _arg_values(self, **kwargs):
