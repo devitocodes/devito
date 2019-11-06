@@ -289,6 +289,6 @@ class TestOPSExpression(object):
         b_3d = Function(name='b', grid=grid_3d)                     # noqa
 
         op = Operator(eval(equation))
-        print(op)
+
         for i in eval(expected):
             assert i in str(op)
