@@ -162,13 +162,13 @@ def generate_indices(func, dim, order, side=None, x0=None):
     if func.is_Staggered and not dim.is_Time:
         x0, ind = indices_staggered(func, dim, order, side=side, x0=x0)
     else:
-        x0 = dim
+        x0 = (x0 or {dim: dim}).get(dim, dim)
         # Check if called from first_derivative()
-        ind = indices_cartesian(dim, order, side)
+        ind = indices_cartesian(dim, order, side, x0)
     return ind, x0
 
 
-def indices_cartesian(dim, order, side):
+def indices_cartesian(dim, order, side, x0):
     shift = 0
     diff = dim.spacing
     if side is left:
@@ -176,15 +176,15 @@ def indices_cartesian(dim, order, side):
     if side in [left, right]:
         shift = 1
 
-    ind = [(dim + (i + shift) * diff) for i in range(-order//2, order//2 + 1)]
+    ind = [(x0 + (i + shift) * diff) for i in range(-order//2, order//2 + 1)]
     if order < 2:
-        ind = [dim, dim + diff]
+        ind = [x0, x0 + diff]
     return tuple(ind)
 
 
-def indices_staggered(func, dim, order, side=None, x0={}):
+def indices_staggered(func, dim, order, side=None, x0=None):
     diff = dim.spacing
-    start = x0.get(dim) or func.indices_ref[dim]
+    start = (x0 or {}).get(dim) or func.indices_ref[dim]
     try:
         ind0 = func.indices_ref[dim]
     except AttributeError:

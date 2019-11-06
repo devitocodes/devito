@@ -4,7 +4,8 @@ import pytest
 from conftest import skipif, time, x, y, z
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, dimensions, configuration)
+                    NODE, CELL, dimensions, configuration, TensorFunction,
+                    TensorTimeFunction, VectorFunction, VectorTimeFunction)
 from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -381,6 +382,15 @@ class TestArithmetic(object):
         # Exactly in the middle of 4 points, only 1 nonzero is 4
         assert np.all(u.data[1:4, 4:6, 4:6] == pytest.approx(0.75))
         assert np.sum(u.data[:]) == pytest.approx(12*0.75)
+
+    @pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction,
+                                       VectorFunction, VectorTimeFunction])
+    def test_tensor(self, func1):
+        grid = Grid(tuple([5]*3))
+        f1 = func1(name="f1", grid=grid)
+        op1 = Operator(Eq(f1, f1.dx))
+        op2 = Operator([Eq(f, f.dx) for f in f1.values()])
+        assert str(op1.ccode) == str(op2.ccode)
 
 
 class TestAllocation(object):

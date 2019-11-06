@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from devito import VectorFunction, TensorFunction, VectorTimeFunction, TensorTimeFunction
-from devito import Grid, Function, TimeFunction, Dimension
+from devito import Grid, Function, TimeFunction, Dimension, Eq
 from devito.types import NODE
 from devito.finite_differences.differentiable import Add
 
@@ -151,3 +151,26 @@ def test_vector_transpose(func1):
     f2 = f1.T
     assert f2.shape == f1.shape[::-1]
     assert np.all([f1[i] == f2[i] for i in range(3)])
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction,
+                                   VectorFunction, VectorTimeFunction])
+def test_tensor_fd(func1):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+    assert np.all([f.dx == f2 for f, f2 in zip(f1, f1.dx)])
+
+
+@pytest.mark.parametrize('func1, symm, diag, expected',
+                         [(TensorFunction, False, False, 9),
+                          (TensorFunction, True, False, 6),
+                          (TensorFunction, False, True, 3),
+                          (TensorTimeFunction, False, False, 9),
+                          (TensorTimeFunction, True, False, 6),
+                          (TensorTimeFunction, False, True, 3)])
+def test_tensor_eq(func1, symm, diag, expected):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid, symmetric=symm, diagonal=diag)
+    for attr in f1._fd:
+        eq = Eq(f1, getattr(f1, attr))
+        assert len(eq.evaluate._flatten) == expected

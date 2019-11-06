@@ -105,9 +105,9 @@ class Eq(sympy.Eq, Evaluable):
         """
         if self.lhs.is_Matrix:
             # Maps the Equations to retreive the rhs from relevant lhs
-            eqs = {lhs: rhs for lhs, rhs in zip(as_tuple(self.lhs), as_tuple(self.rhs))}
-            # get the relevant equations from the lhs structure, .values removes
-            # the symetric duplicates and off-diagonal zeros
+            eqs = dict(zip(as_tuple(self.lhs), as_tuple(self.rhs)))
+            # Get the relevant equations from the lhs structure. .values removes
+            # the symmetric duplicates and off-diagonal zeros.
             lhss = self.lhs.values()
             return [self.func(l, eqs[l], subdomain=self.subdomain,
                               coefficients=self.substitutions,

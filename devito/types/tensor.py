@@ -283,18 +283,14 @@ class TensorFunction(AbstractTensor, Differentiable):
                     components=mat, time_order=to, symmetric=self.is_symmetric,
                     diagonal=self.is_diagonal)
 
-    def values(self, symmetric=False):
+    def values(self):
         if self.is_diagonal:
             return [self[i, i] for i in range(self.shape[0])]
         elif self.is_symmetric:
             val = super(TensorFunction, self).values()
             return list(OrderedDict.fromkeys(val))
         else:
-            val = super(TensorFunction, self).values()
-            if symmetric:
-                val = [self[i, j] for j in range(self.cols)
-                       for i in range(self.rows) if j >= i]
-            return val
+            return super(TensorFunction, self).values()
 
     def _eval_add(self, other):
         mat = [[self[i, j] + other[i, j] for j in range(self.cols)]

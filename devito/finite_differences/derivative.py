@@ -38,7 +38,7 @@ class Derivative(sympy.Derivative, Differentiable):
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
         finite difference. Defaults to ``direct``.
     subs : dict, optional
-        Substitutions to apply to the finite-difference expression after evaluation
+        Substitutions to apply to the finite-difference expression after evaluation.
     x0 : dict, optional
         Origin (where the finite-difference is evaluated at)
         for the finite-difference scheme, i.e. {x: x, y: y + h_y/2}.
@@ -143,7 +143,7 @@ class Derivative(sympy.Derivative, Differentiable):
 
     def subs(self, *args, **kwargs):
         """
-        Bypass sympy.Sub as Devito as its own lazy evaluation mecanism
+        Bypass sympy.Sub as Devito as its own lazy evaluation mechanism
         """
         return self.xreplace(dict(*args), **kwargs)
 
@@ -204,20 +204,20 @@ class Derivative(sympy.Derivative, Differentiable):
 
     def _eval_at(self, func):
         """
-        Evaluates the derivative at the location of func. This is necessary for staggered
+        Evaluates the derivative at the location of `func`. It is necessary for staggered
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
         has to be computed at x=x + h_x/2.
         """
-        x0 = {d1: d2 for d1, d2 in zip(func.dimensions, func.indices_ref)}
+        x0 = dict(zip(func.dimensions, func.indices_ref))
         return Derivative(self.expr, *self.dims, deriv_order=self.deriv_order,
                           fd_order=self.fd_order, side=self.side,
                           transpose=self.transpose, subs=self._subs, x0=x0)
 
     @property
     def evaluate(self):
-        # If the expression is an addition, for example if expr was a derivative that
-        # was evaluated, split it and rebuild it as each term may have a different
-        # staggering and needs a separate FD computation
+        # Evaluate finite-difference.
+        # Note: evaluate and _eval_fd splitted for potential future different
+        # types of discretizations.
         return self._eval_fd(self.expr)
 
     def _eval_fd(self, expr):

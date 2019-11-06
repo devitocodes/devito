@@ -36,7 +36,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
         finite difference. Defaults to ``direct``.
     x0 : dict, optional
-        Origin of the finite-difference scheme as a map dim: origin_dim
+        Origin of the finite-difference scheme as a map dim: origin_dim.
 
     Returns
     -------
@@ -74,6 +74,11 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct,
 
     >>> (f*g).dx.T.evaluate
     -f(x, y)*g(x, y)/h_x + f(x - h_x, y)*g(x - h_x, y)/h_x
+
+    Finally the x0 argument allows to choose the origin of the finite-difference
+
+    >>> first_derivative(f, dim=x, x0={x: 1})
+    -f(1, y)/h_x + f(h_x + 1, y)/h_x
     """
     side = side
     order = fd_order or expr.space_order
@@ -108,7 +113,7 @@ def second_derivative(expr, dim, fd_order, **kwargs):
     stagger : Side, optional
         Shift of the finite-difference approximation.
     x0 : dict, optional
-        Origin of the finite-difference scheme as a map dim: origin_dim
+        Origin of the finite-difference scheme as a map dim: origin_dim.
 
     Returns
     -------
@@ -137,6 +142,11 @@ def second_derivative(expr, dim, fd_order, **kwargs):
     >>> (f*g).dx2.evaluate
     -2.0*f(x, y)*g(x, y)/h_x**2 + f(x - h_x, y)*g(x - h_x, y)/h_x**2 +\
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
+
+    Finally the x0 argument allows to choose the origin of the finite-difference
+
+    >>> second_derivative(f, dim=x, fd_order=2, x0={x: 1})
+    -2.0*f(1, y)/h_x**2 + f(1 - h_x, y)/h_x**2 + f(h_x + 1, y)/h_x**2
     """
 
     return generic_derivative(expr, dim, fd_order, 2, **kwargs)
@@ -162,7 +172,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
     stagger : tuple of Side, optional
         Shift of the finite-difference approximation.
     x0 : dict, optional
-        Origin of the finite-difference scheme as a map dim: origin_dim
+        Origin of the finite-difference scheme as a map dim: origin_dim.
 
     Returns
     -------
@@ -191,6 +201,13 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
     >>> (f*g).dxdy.evaluate
     -(-f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x)/h_y +\
  (-f(x, y + h_y)*g(x, y + h_y)/h_x + f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
+
+    Finally the x0 argument allows to choose the origin of the finite-difference
+
+    >>> cross_derivative(f*g, dims=(x, y), fd_order=(2, 2), deriv_order=(1, 1), \
+    x0={x: 1, y: 2})
+    -(-f(1, 2)*g(1, 2)/h_x + f(h_x + 1, 2)*g(h_x + 1, 2)/h_x)/h_y +\
+ (-f(1, h_y + 2)*g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y
     """
     x0 = kwargs.get('x0', {})
     for d, fd, dim in zip(deriv_order, fd_order, dims):
@@ -202,7 +219,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
 @check_input
 @check_symbolic
 def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
-                       matvec=direct, x0={}):
+                       matvec=direct, x0=None):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -220,7 +237,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, symbolic=False,
     stagger : Side, optional
         Shift of the finite-difference approximation.
     x0 : dict, optional
-        Origin of the finite-difference scheme as a map dim: origin_dim
+        Origin of the finite-difference scheme as a map dim: origin_dim.
 
     Returns
     -------
@@ -253,7 +270,11 @@ def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
     d0 = ([d for d in expr.dimensions if d.root is dim] or [dim])[0]
     # Loop through weights
     for i, c in zip(inds, weights):
-        subs = dict((d, i.subs({dim: d0, diff: matvec*diff})) for d in all_dims)
+        try:
+            iloc = i.xreplace({dim: d0, diff: matvec*diff})
+        except AttributeError:
+            iloc = i
+        subs = dict((d, iloc) for d in all_dims)
         deriv += expr.subs(subs) * c
 
     return deriv.evalf(_PRECISION)
