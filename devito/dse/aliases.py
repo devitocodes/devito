@@ -74,32 +74,6 @@ def collect(exprs):
 
         aliases[alias] = Alias(alias, aliased, distances)
 
-    # Attempt to drop composite aliases to minimize the working set.
-    # For example:
-    #
-    # a[i+1]*b[i+1]             a[i+1]
-    # a[i+1]           ---->    b[i+1]
-    # b[i+1]          becomes
-    #
-    # Note:
-    # "attempt" because this is a very hard problem, which depends/relies on:
-    # - the input format, eg [r0 = a, r1 = b] rather than [r0 = a*b],
-    # - the observation that the COMs are often identical across different Aliases
-    #   eg {A[i+1] = ..., A[i+1]*B[i+1]} (here A is always centered at [i+1])
-    # Note:
-    # This approach is very naive. Ideally, one would want to set up and solve a
-    # proper minimization problem
-    for origin, alias in list(aliases.items()):
-        try:
-            impacted = [aliases[i] for i in origin.args]
-        except KeyError:
-            continue
-        for aliased, distance in alias.with_distance:
-            assert len(impacted) == len(aliased.args)
-            for i, a in zip(impacted, aliased.args):
-                aliases[i.alias] = i.add(a, distance)
-        aliases.pop(origin)
-
     # Heuristically attempt to relax the Aliases offsets to maximize the
     # likelyhood of loop fusion
     groups = OrderedDict()

@@ -5,13 +5,14 @@ import sympy
 
 from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.symbolics import CondEq
-from devito.tools import DAG, as_tuple, flatten
+from devito.symbolics import CondEq, xreplace_indices
+from devito.tools import DAG, as_tuple, flatten, filter_ordered, generator
+from devito.types import Scalar
 
-__all__ = ['clusterize', 'optimize']
+__all__ = ['clusterize']
 
 
-def clusterize(exprs):
+def clusterize(exprs, dse_mode=None):
     """
     Turn a sequence of LoweredEqs into a sequence of Clusters.
     """
@@ -30,7 +31,7 @@ def clusterize(exprs):
     clusters = Toposort().process(clusters)
 
     # Apply optimizations
-    clusters = optimize(clusters)
+    clusters = optimize(clusters, dse_mode)
 
     # Introduce conditional Clusters
     clusters = guard(clusters)
@@ -149,19 +150,18 @@ class Toposort(Queue):
            Non-carried flow-dependence, so `cg1` must go after `cg0`.
 
         2) cg0 := b[i, j] = ...
+           cg1 := ... = ... b[i, j-1] ...
+           Carried flow-dependence in `j`, so `cg1` must go after `cg0`.
+
+        3) cg0 := b[i, j] = ...
            cg1 := ... = ... b[i, j+1] ...
            Carried anti-dependence in `j`, so `cg1` must go after `cg0`.
 
-        3) cg0 := b[i, j] = ...
+        4) cg0 := b[i, j] = ...
            cg1 := ... = ... b[i-1, j+1] ...
            Carried flow-dependence in `i`, so `cg1` can safely go before or after
-           `cg0`. Note: the `j+1` in `cg1` has no impact -- the dependence is in `i`.
-
-        4) cg0 := b[i, j] = ...
-           cg1 := ... = ... b[i, j-1] ...
-           Carried flow-dependence in `j`, so `cg1` must go after `cg0`. Unlike
-           case 3), the flow-dependence is along a Dimension that doesn't appear in
-           `prefix`, so `cg0` and `cg1 are sequentialized.
+           `cg0`. Note: the `j+1` in `cg1` has no impact -- the actual dependence
+           betweeb `b[i, j]` and `b[i-1, j+1]` is along `i`.
         """
         prefix = {i.dim for i in as_tuple(prefix)}
 
@@ -278,31 +278,47 @@ class Enforce(Queue):
             ispace = IterationSpace(c.ispace.intervals.lift(known_break),
                                     c.ispace.sub_iterators,
                                     {**c.ispace.directions, **direction})
-            backlog[i] = Cluster(c.exprs, ispace, c.dspace)
+            dspace = c.dspace.lift(known_break)
+            backlog[i] = Cluster(c.exprs, ispace, dspace)
 
         return processed + self.callback(backlog, prefix)
 
 
-def optimize(clusters):
+def optimize(clusters, dse_mode):
     """
     Optimize a topologically-ordered sequence of Clusters by applying the
     following transformations:
 
-        * Fusion
-        * Lifting
-
-    Notes
-    -----
-    This function relies on advanced data dependency analysis tools based upon classic
-    Lamport theory.
+        * [cross-cluster] Fusion
+        * [intra-cluster] Several flop-reduction passes via the DSE
+        * [cross-cluster] Lifting
+        * [cross-cluster] Scalarization
+        * [cross-cluster] Arrays Elimination
     """
-    # Lifting
-    clusters = Lift().process(clusters)
+    # To create temporaries
+    counter = generator()
+    template = lambda: "r%d" % counter()
 
     # Fusion
     clusters = fuse(clusters)
 
-    return clusters
+    from devito.dse import rewrite
+    clusters = rewrite(clusters, template, mode=dse_mode)
+
+    # Lifting
+    clusters = Lift().process(clusters)
+
+    # Lifting may create fusion opportunities
+    clusters = fuse(clusters)
+
+    # Fusion may create opportunities to eliminate Arrays (thus shrinking the
+    # working set) if these store identical expressions
+    clusters = eliminate_arrays(clusters, template)
+
+    # Fusion may create scalarization opportunities
+    clusters = scalarize(clusters, template)
+
+    return ClusterGroup(clusters)
 
 
 class Lift(Queue):
@@ -322,27 +338,38 @@ class Lift(Queue):
             return clusters
 
         hope_invariant = {i.dim for i in prefix}
-        candidates = [c for c in clusters if
-                      any(e.is_Tensor for e in c.exprs) and  # Not just scalar exprs
-                      not any(e.is_Increment for e in c.exprs) and  # No reductions
-                      not c.used_dimensions & hope_invariant]  # Not an invariant ispace
-        if not candidates:
-            return clusters
 
-        # Now check data dependences
         lifted = []
         processed = []
-        for c in clusters:
-            impacted = set(clusters) - {c}
-            if c in candidates and\
-                    not any(set(c.functions) & set(i.scope.writes) for i in impacted):
-                # Perform lifting, which requires contracting the iteration space
-                key = lambda d: d not in hope_invariant
-                ispace = c.ispace.project(key)
-                dspace = c.dspace.project(key)
-                lifted.append(Cluster(c.exprs, ispace, dspace, guards=c.guards))
-            else:
+        for n, c in enumerate(clusters):
+            # Increments prevent lifting
+            if c.has_increments:
                 processed.append(c)
+                continue
+
+            # Is `c` a real candidate -- is there at least one invariant Dimension?
+            if c.used_dimensions & hope_invariant:
+                processed.append(c)
+                continue
+
+            impacted = set(processed) | set(clusters[n+1:])
+
+            # None of the Functions appearing in a lifted Cluster can be written to
+            if any(c.functions & set(i.scope.writes) for i in impacted):
+                processed.append(c)
+                continue
+
+            # Scalars prevent lifting if they are read by another Cluster
+            swrites = {f for f in c.scope.writes if f.is_Scalar}
+            if any(swrites & set(i.scope.reads) for i in impacted):
+                processed.append(c)
+                continue
+
+            # Perform lifting, which requires contracting the iteration space
+            key = lambda d: d not in hope_invariant
+            ispace = c.ispace.project(key).reset()
+            dspace = c.dspace.project(key).reset()
+            lifted.append(Cluster(c.exprs, ispace, dspace, c.guards))
 
         return lifted + processed
 
@@ -370,34 +397,113 @@ def fuse(clusters):
     return processed
 
 
+def scalarize(clusters, template):
+    """
+    Turn local "isolated" Arrays, that is Arrays appearing only in one Cluster,
+    into Scalars.
+    """
+    processed = []
+    for c in clusters:
+        # Get any Arrays appearing only in `c`
+        impacted = set(clusters) - {c}
+        arrays = {i for i in c.scope.writes if i.is_Array}
+        arrays -= set().union(*[i.scope.reads for i in impacted])
+
+        # Turn them into scalars
+        #
+        # r[x,y,z] = g(b[x,y,z])                 t0 = g(b[x,y,z])
+        # ... = r[x,y,z] + r[x,y,z+1]`  ---->    t1 = g(b[x,y,z+1])
+        #                                        ... = t0 + t1
+        mapper = {}
+        exprs = []
+        for e in c.exprs:
+            f = e.lhs.function
+            if f in arrays:
+                for i in filter_ordered(i.indexed for i in c.scope[f]):
+                    mapper[i] = Scalar(name=template(), dtype=f.dtype)
+
+                    assert len(f.indices) == len(e.lhs.indices) == len(i.indices)
+                    shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
+                                zip(f.indices, e.lhs.indices, i.indices)}
+
+                    handle = e.func(mapper[i], e.rhs.xreplace(mapper))
+                    handle = xreplace_indices(handle, shifting)
+                    exprs.append(handle)
+            else:
+                exprs.append(e.func(e.lhs, e.rhs.xreplace(mapper)))
+
+        processed.append(c.rebuild(exprs))
+
+    return processed
+
+
+def eliminate_arrays(clusters, template):
+    """
+    Eliminate redundant expressions stored in Arrays.
+    """
+    mapper = {}
+    processed = []
+    for c in clusters:
+        if not c.is_dense:
+            processed.append(c)
+            continue
+
+        # Search for any redundant RHSs
+        seen = {}
+        for e in c.exprs:
+            f = e.lhs.function
+            if not f.is_Array:
+                continue
+            v = seen.get(e.rhs)
+            if v is not None:
+                # Found a redundant RHS
+                mapper[f] = v
+            else:
+                seen[e.rhs] = f
+
+        if not mapper:
+            # Do not waste time
+            processed.append(c)
+            continue
+
+        # Replace redundancies
+        subs = {}
+        for f, v in mapper.items():
+            for i in filter_ordered(i.indexed for i in c.scope[f]):
+                subs[i] = v[f.indices]
+        exprs = []
+        for e in c.exprs:
+            if e.lhs.function in mapper:
+                # Drop the write
+                continue
+            exprs.append(e.xreplace(subs))
+
+        processed.append(c.rebuild(exprs))
+
+    return processed
+
+
 def guard(clusters):
     """
     Split Clusters containing conditional expressions into separate Clusters.
     """
     processed = []
     for c in clusters:
-        free = []
-        for e in c.exprs:
-            if e.conditionals:
-                # Expressions that need no guarding are kept in a separate Cluster
-                if free:
-                    processed.append(Cluster(free, c.ispace, c.dspace))
-                    free = []
+        # Group together consecutive expressions with same ConditionalDimensions
+        for cds, g in groupby(c.exprs, key=lambda e: e.conditionals):
+            if not cds:
+                processed.append(Cluster(list(g), c.ispace, c.dspace))
+                continue
 
-                # Create a guarded Cluster
-                guards = {}
-                for d in e.conditionals:
-                    condition = guards.setdefault(d.parent, [])
-                    if d.condition is None:
-                        condition.append(CondEq(d.parent % d.factor, 0))
-                    else:
-                        condition.append(d.condition)
-                guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
-                processed.append(Cluster(e, c.ispace, c.dspace, guards))
-            else:
-                free.append(e)
-        # Leftover
-        if free:
-            processed.append(Cluster(free, c.ispace, c.dspace))
+            # Create a guarded Cluster
+            guards = {}
+            for cd in cds:
+                condition = guards.setdefault(cd.parent, [])
+                if cd.condition is None:
+                    condition.append(CondEq(cd.parent % cd.factor, 0))
+                else:
+                    condition.append(cd.condition)
+            guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
+            processed.append(Cluster(list(g), c.ispace, c.dspace, guards))
 
     return processed
