@@ -164,7 +164,7 @@
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">transform</span>
 <span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidOperator</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">perf</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">is_log_enabled_for</span>
 <span class="kn">from</span> <span class="nn">devito.ir.equations</span> <span class="k">import</span> <span class="n">LoweredEq</span>
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="k">import</span> <span class="n">clusterize</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="k">import</span> <span class="p">(</span><span class="n">Callable</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">,</span> <span class="n">iet_insert_decls</span><span class="p">,</span>
@@ -711,6 +711,10 @@
 
         <span class="n">summary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_profiler</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span><span class="p">,</span> <span class="n">reduce_over</span><span class="o">=</span><span class="s1">&#39;apply&#39;</span><span class="p">)</span>
 
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_log_enabled_for</span><span class="p">(</span><span class="s1">&#39;PERF&#39;</span><span class="p">):</span>
+            <span class="c1"># Do not waste time</span>
+            <span class="k">return</span> <span class="n">summary</span>
+
         <span class="k">if</span> <span class="n">summary</span><span class="o">.</span><span class="n">globals</span><span class="p">:</span>
             <span class="n">indent</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">*</span><span class="mi">2</span>
 
@@ -755,7 +759,23 @@
                 <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">* </span><span class="si">%s%s</span><span class="s2"> computed in </span><span class="si">%.2f</span><span class="s2"> s&quot;</span>
                      <span class="o">%</span> <span class="p">(</span><span class="n">indent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="n">fround</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">)))</span>
 
+        <span class="c1"># Emit relevant configuration values</span>
         <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;Configuration:  </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state</span><span class="p">[</span><span class="s1">&#39;optimizations&#39;</span><span class="p">])</span>
+
+        <span class="c1"># Emit relevant performance arguments</span>
+        <span class="n">perf_args</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_PerfKnob</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">perf_args</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="c1"># Try with the aliases</span>
+                <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">_arg_names</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+                        <span class="n">perf_args</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">a</span><span class="p">]</span>
+                        <span class="k">break</span>
+        <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;Performance arguments:  </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">perf_args</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">summary</span>
 
