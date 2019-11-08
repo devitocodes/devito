@@ -66,7 +66,9 @@ class CompilerOPS(configuration['compiler'].__class__):
         if self._ops_install_path:
             # Calling OPS Translator
             translator = '%s/../ops_translator/c/ops.py' % (self._ops_install_path)
-            subprocess.run([translator, c_file.name], cwd=self.get_jit_dir())
+            translation = subprocess.run([translator, c_file.name], cwd=self.get_jit_dir())
+            if translation.returncode == 1:
+                raise ValueError("OPS Translation Error")
         else:
             warning("Couldn't find OPS_INSTALL_PATH \
                 environment variable, please check your OPS installation")
