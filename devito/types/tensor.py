@@ -94,7 +94,7 @@ class TensorFunction(AbstractTensor, Differentiable):
     @call_highest_priority('__rmul__')
     def __mul__(self, other):
         """
-        Multiplication of a TensorFunction T as T*u where u can be a TensorFunction,
+        Multiplication of a TensorFunction T with u (T*u) where u can be a TensorFunction,
         a VectorFunction or a Function/scalar.
         """
         other = sympy.sympify(other)
@@ -163,9 +163,9 @@ class TensorFunction(AbstractTensor, Differentiable):
 
     def __rmul__(self, other):
         """
-        Right multiplication of a TensorFunction T as T*u where u can be a TensorFunction,
-        a VectorFunction or a Function/scalar.
-        Computes it via mul with tranposes.
+        Right multiplication of a TensorFunction T with u (u*T)
+        where u can be a TensorFunction, a VectorFunction or a Function/scalar.
+        Computes it via __mul__ with its transpose (T^T*u^T)^T.
         """
         other = sympy.sympify(other)
         try:

@@ -33,14 +33,18 @@ class Basic(object):
                           to build equations.
         * AbstractFunction: represents a discrete R^n -> R function; may
                             carry data; may be used to build equations.
+        * AbstractTensor: represents a discrete 2nd order tensor or vector:
+                          R^n -> R^(nd x nd) tensor (nd dimensions),
+                          R^n -> R^nd vector (nd dimensions),
+                          may carry data; may be used to build equations.
         * AbstractObject: represents a generic object, for example a (pointer
                           to) data structure.
 
-                                        Basic
-                                          |
-                    ------------------------------------------
-                    |                     |                  |
-             AbstractSymbol       AbstractFunction     AbstractObject
+                                            Basic
+                                              |
+              --------------------------------------------------------------
+              |                     |                  |                   |
+        AbstractSymbol      AbstractFunction      AbstractTensor      AbstractObject
 
     All these subtypes must implement a number of methods/properties to enable
     code generation via the Devito compiler. These methods/properties are
@@ -49,6 +53,7 @@ class Basic(object):
     Notes
     -----
     The AbstractFunction sub-hierarchy is implemented in :mod:`dense.py`.
+    The AbstractTensor sub-hierarchy is implemented in :mod:`tensor.py`.
     """
 
     # Top hierarchy
