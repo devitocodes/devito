@@ -4,7 +4,7 @@ import logging
 import sys
 from contextlib import contextmanager
 
-__all__ = ('set_log_level', 'set_log_noperf',
+__all__ = ('set_log_level', 'set_log_noperf', 'is_log_enabled_for',
            'log', 'warning', 'error', 'perf', 'perf_adv', 'dse', 'dse_warning',
            'dle', 'dle_warning',
            'RED', 'GREEN', 'BLUE')
@@ -102,6 +102,14 @@ def set_log_level(level, comm=None):
 def set_log_noperf():
     """Do not print performance-related messages."""
     logger.setLevel(WARNING)
+
+
+def is_log_enabled_for(level):
+    """
+    Wrapper around `logging.isEnabledFor`. Indicates if a message of severity
+    level would be processed by this logger.
+    """
+    return logger.isEnabledFor(logger_registry[level])
 
 
 def log(msg, level=INFO, *args, **kwargs):

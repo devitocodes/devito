@@ -399,6 +399,8 @@ class IterationFold(Iteration):
 
 class BlockDimension(IncrDimension):
 
+    is_PerfKnob = True
+
     @cached_property
     def symbolic_min(self):
         return Scalar(name=self.min_name, dtype=np.int32, is_const=True)

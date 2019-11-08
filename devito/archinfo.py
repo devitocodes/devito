@@ -187,8 +187,8 @@ class Platform(object):
 
 class Cpu64(Platform):
 
-    # The known isas ​​will be overwritten in the specialized classes
-    known_isas = tuple()
+    # The known ISAs will be overwritten in the specialized classes
+    known_isas = ()
 
     def _detect_isa(self):
         for i in reversed(self.known_isas):
@@ -227,6 +227,7 @@ class Device(Platform):
 
 # CPUs
 CPU64 = Cpu64('cpu64')
+CPU64_DUMMY = Intel64('cpu64-dummy', cores_logical=2, cores_physical=1, isa='sse')
 INTEL64 = Intel64('intel64')
 SNB = Intel64('snb')
 IVB = Intel64('ivb')
@@ -244,6 +245,7 @@ NVIDIAX = Device('nvidiax')
 
 
 platform_registry = {
+    'cpu64-dummy': CPU64_DUMMY,
     'intel64': INTEL64,
     'snb': SNB,
     'ivb': IVB,

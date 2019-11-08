@@ -8,10 +8,8 @@ from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunctio
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
 from devito.dle import BlockDimension
-from devito.dse import common_subexprs_elimination, collect
-from devito.dse.flowgraph import FlowGraph
-from devito.symbolics import (xreplace_constrained, iq_timeinvariant, estimate_cost,
-                              pow_to_mul)
+from devito.dse import common_subexprs_elimination, collect, make_is_time_invariant
+from devito.symbolics import yreplace, estimate_cost, pow_to_mul
 from devito.tools import generator
 from devito.types import Scalar
 
@@ -47,24 +45,24 @@ def test_scheduling_after_rewrite():
 @pytest.mark.parametrize('exprs,expected', [
     # simple
     (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(tu, ti0 + ti1 + 5.)'],
-     ['ti0[x, y, z] + ti1[x, y, z]']),
+     ['ti0[x, y, z] + ti1[x, y, z] + 5.0']),
     # more ops
     (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(t0, 0.2)', 'Eq(t1, t0 + 2.)',
       'Eq(tw, 2. + ti0*t1)', 'Eq(tu, (ti0*ti1*t0) + (ti1*tv) + (t1 + ti1)*tw)'],
-     ['t1*ti0[x, y, z]', 't1 + ti1[x, y, z]', 't0*ti0[x, y, z]*ti1[x, y, z]']),
+     ['t0 + 2.0', 't1*ti0[x, y, z] + 2.0', 't1 + ti1[x, y, z]',
+      't0*ti0[x, y, z]*ti1[x, y, z]']),
     # wrapped
     (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(t0, 0.2)', 'Eq(t1, t0 + 2.)', 'Eq(tv, 2.4)',
       'Eq(tu, ((ti0*ti1*t0)*tv + (ti0*ti1*tv)*t1))'],
-     ['t0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
+     ['t0 + 2.0', 't0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
 ])
-def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
-                                              exprs, expected):
+def test_yreplace_time_invariants(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
     exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
-    processed, found = xreplace_constrained(exprs, make,
-                                            iq_timeinvariant(FlowGraph(exprs)),
-                                            lambda i: estimate_cost(i) > 0)
+    processed, found = yreplace(exprs, make,
+                                make_is_time_invariant(exprs),
+                                lambda i: estimate_cost(i) > 0)
     assert len(found) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
 
@@ -261,245 +259,371 @@ def test_time_dependent_split(dse, dle):
     assert np.allclose(v.data[1, 1:-1, 1:-1], 1.0)
 
 
-@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
-def test_full_alias_shape_after_blocking():
-    """
-    Check the shape of the Array used to store a DSE-captured aliasing
-    expression. The shape is impacted by loop blocking, which reduces the
-    required write-to space.
-    """
-    grid = Grid(shape=(3, 3, 3))
-    x, y, z = grid.dimensions  # noqa
-    t = grid.stepping_dim
+class TestAliases(object):
 
-    f = Function(name='f', grid=grid)
-    f.data_with_halo[:] = 1.
-    u = TimeFunction(name='u', grid=grid, space_order=3)
-    u.data_with_halo[:] = 0.
+    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    def test_full_shape_after_blocking(self):
+        """
+        Check the shape of the Array used to store a DSE-captured aliasing
+        expression. The shape is impacted by loop blocking, which reduces the
+        required write-to space.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions  # noqa
+        t = grid.stepping_dim
 
-    # Leads to 3D aliases
-    eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
-                         (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
-    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
-    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.
 
-    x0_blk_size = op1.parameters[6]
-    y0_blk_size = op1.parameters[10]
-    z_size = op1.parameters[-1]
+        # Leads to 3D aliases
+        eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
+        op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
-    # Check Array shape
-    arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]
-    assert len(arrays) == 1
-    a = arrays[0]
-    assert len(a.dimensions) == 3
-    assert a.halo == ((1, 1), (1, 1), (1, 1))
-    assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 2
-    assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
-    assert Add(*a.symbolic_shape[2].args) == z_size + 2
-    # Check numerical output
-    op0(time_M=1)
-    exp = np.copy(u.data[:])
-    u.data_with_halo[:] = 0.
-    op1(time_M=1)
-    assert np.all(u.data == exp)
+        x0_blk_size = op1.parameters[6]
+        y0_blk_size = op1.parameters[10]
+        z_size = op1.parameters[-1]
 
+        # Check Array shape
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 1
+        a = arrays[0]
+        assert len(a.dimensions) == 3
+        assert a.halo == ((1, 1), (1, 1), (1, 1))
+        assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 2
+        assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
+        assert Add(*a.symbolic_shape[2].args) == z_size + 2
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 0.
+        op1(time_M=1)
+        assert np.all(u.data == exp)
 
-@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
-def test_contracted_alias_shape_after_blocking():
-    """
-    Like `test_full_alias_shape_after_blocking`, but a different
-    Operator is used, leading to contracted Arrays (2D instead of 3D).
-    """
-    grid = Grid(shape=(3, 3, 3))
-    x, y, z = grid.dimensions  # noqa
-    t = grid.stepping_dim
+    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    def test_contracted_shape_after_blocking(self):
+        """
+        Like `test_full_alias_shape_after_blocking`, but a different
+        Operator is used, leading to contracted Arrays (2D instead of 3D).
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions  # noqa
+        t = grid.stepping_dim
 
-    f = Function(name='f', grid=grid)
-    f.data_with_halo[:] = 1.
-    u = TimeFunction(name='u', grid=grid, space_order=3)
-    u.data_with_halo[:] = 0.
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.
 
-    # Leads to 2D aliases
-    eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x, y+1, z+1])*3*f +
-                         (u[t, x, y+2, z+2] + u[t, x, y+3, z+3])*3*f + 1))
-    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
-    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
+        # Leads to 2D aliases
+        eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x, y+1, z+1])*3*f +
+                             (u[t, x, y+2, z+2] + u[t, x, y+3, z+3])*3*f + 1))
+        op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
-    y0_blk_size = op1.parameters[9]
-    z_size = op1.parameters[-1]
+        y0_blk_size = op1.parameters[9]
+        z_size = op1.parameters[-1]
 
-    arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]
-    assert len(arrays) == 1
-    a = arrays[0]
-    assert len(a.dimensions) == 2
-    assert a.halo == ((1, 1), (1, 1))
-    assert Add(*a.symbolic_shape[0].args) == y0_blk_size + 2
-    assert Add(*a.symbolic_shape[1].args) == z_size + 2
-    # Check numerical output
-    op0(time_M=1)
-    exp = np.copy(u.data[:])
-    u.data_with_halo[:] = 0.
-    op1(time_M=1)
-    assert np.all(u.data == exp)
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 1
+        a = arrays[0]
+        assert len(a.dimensions) == 2
+        assert a.halo == ((1, 1), (1, 1))
+        assert Add(*a.symbolic_shape[0].args) == y0_blk_size + 2
+        assert Add(*a.symbolic_shape[1].args) == z_size + 2
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 0.
+        op1(time_M=1)
+        assert np.all(u.data == exp)
 
+    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    def test_full_shape_with_subdims(self):
+        """
+        Like `test_full_alias_shape_after_blocking`, but SubDomains (and therefore
+        SubDimensions) are used. Nevertheless, the temporary shape should still be
+        dictated by the root Dimensions.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions  # noqa
+        t = grid.stepping_dim
 
-@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
-def test_full_alias_shape_with_subdims():
-    """
-    Like `test_full_alias_shape_after_blocking`, but SubDomains (and therefore
-    SubDimensions) are used. Nevertheless, the temporary shape should still be
-    dictated by the root Dimensions.
-    """
-    grid = Grid(shape=(3, 3, 3))
-    x, y, z = grid.dimensions  # noqa
-    t = grid.stepping_dim
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        u.data_with_halo[:] = 0.
 
-    f = Function(name='f', grid=grid)
-    f.data_with_halo[:] = 1.
-    u = TimeFunction(name='u', grid=grid, space_order=3)
-    u.data_with_halo[:] = 0.
+        # Leads to 3D aliases
+        eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                             (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1),
+                 subdomain=grid.interior)
+        op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
+        op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
-    # Leads to 3D aliases
-    eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
-                         (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1),
-             subdomain=grid.interior)
-    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
-    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
+        xi0_blk_size = op1.parameters[9]
+        yi0_blk_size = op1.parameters[15]
+        z_size = op1.parameters[20]
 
-    xi0_blk_size = op1.parameters[9]
-    yi0_blk_size = op1.parameters[15]
-    z_size = op1.parameters[20]
+        # Check Array shape
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 1
+        a = arrays[0]
+        assert len(a.dimensions) == 3
+        assert a.halo == ((1, 1), (1, 1), (1, 1))
+        assert Add(*a.symbolic_shape[0].args) == xi0_blk_size + 2
+        assert Add(*a.symbolic_shape[1].args) == yi0_blk_size + 2
+        assert Add(*a.symbolic_shape[2].args) == z_size + 2
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 0.
+        op1(time_M=1)
+        assert np.all(u.data == exp)
 
-    # Check Array shape
-    arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]
-    assert len(arrays) == 1
-    a = arrays[0]
-    assert len(a.dimensions) == 3
-    assert a.halo == ((1, 1), (1, 1), (1, 1))
-    assert Add(*a.symbolic_shape[0].args) == xi0_blk_size + 2
-    assert Add(*a.symbolic_shape[1].args) == yi0_blk_size + 2
-    assert Add(*a.symbolic_shape[2].args) == z_size + 2
-    # Check numerical output
-    op0(time_M=1)
-    exp = np.copy(u.data[:])
-    u.data_with_halo[:] = 0.
-    op1(time_M=1)
-    assert np.all(u.data == exp)
+    def test_composite(self):
+        """
+        Check that composite alias are optimized away through "smaller" aliases.
 
+        Examples
+        --------
+        Instead of the following:
 
-def test_alias_composite():
-    """
-    Check that composite alias are optimized away through "smaller" aliases.
+            t0 = a[x, y]
+            t1 = b[x, y]
+            t2 = a[x+1, y+1]*b[x, y]
+            out = t0 + t1 + t2  # pseudocode
 
-    Examples
-    --------
-    Instead of the following:
+        We should get:
 
-        t0 = a[x, y]
-        t1 = b[x, y]
-        t2 = a[x+1, y+1]*b[x, y]
-        out = t0 + t1 + t2  # pseudocode
+            t0 = a[x, y]
+            t1 = b[x, y]
+            out = t0 + t1 + t0[x+1,y+1]*t1[x, y]  # pseudocode
+        """
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions  # noqa
 
-    We should get:
+        u = TimeFunction(name='u', grid=grid)
+        u.data[:] = 1.
+        g = Function(name='g', grid=grid)
+        g.data[:] = 2.
 
-        t0 = a[x, y]
-        t1 = b[x, y]
-        out = t0 + t1 + t0[x+1,y+1]*t1[x, y]  # pseudocode
-    """
-    grid = Grid(shape=(3, 3))
-    x, y = grid.dimensions  # noqa
+        expr = (cos(g)*cos(g) +
+                sin(g)*sin(g) +
+                sin(g)*cos(g) +
+                sin(g[x + 1, y + 1])*cos(g[x + 1, y + 1]))*u
 
-    u = TimeFunction(name='u', grid=grid)
-    u.data[:] = 1.
-    g = Function(name='g', grid=grid)
-    g.data[:] = 2.
+        op0 = Operator(Eq(u.forward, expr), dse='noop')
+        op1 = Operator(Eq(u.forward, expr), dse='aggressive')
 
-    expr = (cos(g)*cos(g) +
-            sin(g)*sin(g) +
-            sin(g)*cos(g) +
-            sin(g[x + 1, y + 1])*cos(g[x + 1, y + 1]))*u
+        # We expect two temporary Arrays, one for `cos(g)` and one for `sin(g)`
+        arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
+        assert len(arrays) == 2
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data[:] = 1.
+        op1(time_M=1)
+        assert np.allclose(u.data, exp.data, rtol=10e-7)
 
-    op0 = Operator(Eq(u.forward, expr), dse='noop')
-    op1 = Operator(Eq(u.forward, expr), dse='aggressive')
+    @pytest.mark.xfail(reason="Cannot deal with nested aliases yet")
+    def test_nested(self):
+        """
+        Check that nested aliases are optimized away through "smaller" aliases.
 
-    # We expect two temporary Arrays, one for `cos(g)` and one for `sin(g)`
-    arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
-    assert len(arrays) == 2
-    assert all(i._mem_heap and not i._mem_external for i in arrays)
-    # Check numerical output
-    op0(time_M=1)
-    exp = np.copy(u.data[:])
-    u.data[:] = 1.
-    op1(time_M=1)
-    assert np.allclose(u.data, exp.data, rtol=10e-7)
+        Examples
+        --------
+        Given the expression
 
+            sqrt(cos(a[x, y]))
 
-@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
-def test_aliases_different_nests():
-    """
-    Check that aliases arising from two sets of equations A and B,
-    characterized by a flow dependence, are scheduled within A's and B's
-    loop nests respectively.
-    """
-    grid = Grid(shape=(3, 3, 3))
-    x, y, z = grid.dimensions  # noqa
-    t = grid.stepping_dim
-    i = Dimension(name='i')
+        We should get
 
-    f = Function(name='f', grid=grid)
-    f.data_with_halo[:] = 1.
-    g = Function(name='g', shape=(3,), dimensions=(i,))
-    g.data[:] = 2.
-    u = TimeFunction(name='u', grid=grid, space_order=3)
-    v = TimeFunction(name='v', grid=grid, space_order=3)
+            t0 = cos(a[x,y])
+            t1 = sqrt(t0)
+            out = t1  # pseudocode
+        """
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions  # noqa
 
-    # Leads to 3D aliases
-    eqns = [Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
-                           (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1)),
-            Inc(u[t+1, i, i, i], g + 1),
-            Eq(v.forward, ((v[t, x, y, z] + v[t, x+1, y+1, z+1])*3*u.forward +
-                           (v[t, x+2, y+2, z+2] + v[t, x+3, y+3, z+3])*3*u.forward + 1))]
-    op0 = Operator(eqns, dse='noop', dle=('noop', {'openmp': True}))
-    op1 = Operator(eqns, dse='aggressive', dle=('advanced', {'openmp': True}))
+        u = TimeFunction(name='u', grid=grid)
+        g = Function(name='g', grid=grid)
 
-    # Check code generation
-    assert 'bf0' in op1._func_table
-    assert 'bf1' in op1._func_table
-    trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
-    assert len(trees) == 2
-    assert trees[0][-1].nodes[0].body[0].write.is_Array
-    assert trees[1][-1].nodes[0].body[0].write is u
-    trees = retrieve_iteration_tree(op1._func_table['bf1'].root)
-    assert len(trees) == 2
-    assert trees[0][-1].nodes[0].body[0].write.is_Array
-    assert trees[1][-1].nodes[0].body[0].write is v
+        op = Operator(Eq(u.forward, u + sin(cos(g)) + sin(cos(g[x+1, y+1]))))
 
-    # Check numerical output
-    op0(time_M=1)
-    exp = np.copy(u.data[:])
-    u.data_with_halo[:] = 0.
-    op1(time_M=1)
-    assert np.all(u.data == exp)
+        # We expect two temporary Arrays: `r1 = cos(g)` and `r2 = sqrt(r1)`
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        assert len(arrays) == 2
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
 
+    @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    def test_from_different_nests(self):
+        """
+        Check that aliases arising from two sets of equations A and B,
+        characterized by a flow dependence, are scheduled within A's and B's
+        loop nests respectively.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions  # noqa
+        t = grid.stepping_dim
+        i = Dimension(name='i')
 
-def test_time_invariant_aliases():
-    grid = Grid((10, 10))
+        f = Function(name='f', grid=grid)
+        f.data_with_halo[:] = 1.
+        g = Function(name='g', shape=(3,), dimensions=(i,))
+        g.data[:] = 2.
+        u = TimeFunction(name='u', grid=grid, space_order=3)
+        v = TimeFunction(name='v', grid=grid, space_order=3)
 
-    a = Function(name="a", grid=grid, space_order=4)
-    b = Function(name="b", grid=grid, space_order=4)
-    c = Function(name="c", grid=grid, space_order=4)
-    d = Function(name="d", grid=grid, space_order=4)
+        # Leads to 3D aliases
+        eqns = [Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                               (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1)),
+                Inc(u[t+1, i, i, i], g + 1),
+                Eq(v.forward, ((v[t, x, y, z] + v[t, x+1, y+1, z+1])*3*u.forward +
+                               (v[t, x+2, y+2, z+2] + v[t, x+3, y+3, z+3])*3*u.forward +
+                               1))]
+        op0 = Operator(eqns, dse='noop', dle=('noop', {'openmp': True}))
+        op1 = Operator(eqns, dse='aggressive', dle=('advanced', {'openmp': True}))
 
-    e = TimeFunction(name="e", grid=grid, space_order=4)
+        # Check code generation
+        assert 'bf0' in op1._func_table
+        assert 'bf1' in op1._func_table
+        trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
+        assert len(trees) == 2
+        assert trees[0][-1].nodes[0].body[0].write.is_Array
+        assert trees[1][-1].nodes[0].body[0].write is u
+        trees = retrieve_iteration_tree(op1._func_table['bf1'].root)
+        assert len(trees) == 2
+        assert trees[0][-1].nodes[0].body[0].write.is_Array
+        assert trees[1][-1].nodes[0].body[0].write is v
 
-    deriv = (sqrt((a - 2*b)/c) * e.dx).dy + (sqrt((d - 2*c)/a) * e.dy).dx
+        # Check numerical output
+        op0(time_M=1)
+        exp = np.copy(u.data[:])
+        u.data_with_halo[:] = 0.
+        op1(time_M=1)
+        assert np.all(u.data == exp)
 
-    op = Operator(Eq(e.forward, deriv + e))
+    def test_catch_largest_time_invariant(self):
+        """
+        Make sure the DSE extracts the largest time-invariant sub-expressions
+        such that its operation count exceeds a certain threshold.
+        """
+        grid = Grid((10, 10))
 
-    # We expect two temporary Arrays, one for each `sqrt` subexpr
-    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-    assert len(arrays) == 2
-    assert all(i._mem_heap and not i._mem_external for i in arrays)
+        a = Function(name="a", grid=grid, space_order=4)
+        b = Function(name="b", grid=grid, space_order=4)
+        c = Function(name="c", grid=grid, space_order=4)
+        d = Function(name="d", grid=grid, space_order=4)
+
+        e = TimeFunction(name="e", grid=grid, space_order=4)
+
+        deriv = (sqrt((a - 2*b)/c) * e.dx).dy + (sqrt((d - 2*c)/a) * e.dy).dx
+
+        op = Operator(Eq(e.forward, deriv + e))
+
+        # We expect two temporary Arrays, one for each `sqrt` subexpr
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        assert len(arrays) == 2
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+    def test_catch_duplicate_from_different_clusters(self):
+        """
+        Check that the compiler is able to detect redundant aliases when these
+        stem from different Clusters.
+        """
+        grid = Grid((10, 10))
+
+        a = Function(name="a", grid=grid, space_order=4)
+        b = Function(name="b", grid=grid, space_order=4)
+        c = Function(name="c", grid=grid, space_order=4)
+        d = Function(name="d", grid=grid, space_order=4)
+
+        s = SparseTimeFunction(name="s", grid=grid, npoint=1, nt=2)
+        e = TimeFunction(name="e", grid=grid, space_order=4)
+        f = TimeFunction(name="f", grid=grid, space_order=4)
+
+        deriv = (sqrt((a - 2*b)/c) * e.dx).dy + (sqrt((d - 2*c)/a) * e.dy).dx
+        deriv2 = (sqrt((c - 2*b)/c) * f.dy).dx + (sqrt((d - 2*c)/a) * f.dx).dy
+
+        eqns = ([Eq(e.forward, deriv + e)] +
+                s.inject(e.forward, expr=s) +
+                [Eq(f.forward, deriv2 + f + e.forward.dx)])
+
+        op = Operator(eqns)
+
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        assert len(arrays) == 3
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+    def test_hoisting_if_coupled(self):
+        """
+        Test that coupled aliases are successfully hoisted out of the time loop.
+        """
+        grid = Grid((10, 10))
+
+        a = Function(name="a", grid=grid, space_order=4)
+        b = Function(name="b", grid=grid, space_order=4)
+
+        e = TimeFunction(name="e", grid=grid, space_order=4)
+        f = TimeFunction(name="f", grid=grid, space_order=4)
+
+        subexpr0 = sqrt(1. + 1./a)
+        subexpr1 = 1/(8.*subexpr0 - 8./b)
+        eqns = [Eq(e.forward, e + 1),
+                Eq(f.forward, f*subexpr0 - f*subexpr1 + e.forward.dx)]
+
+        op = Operator(eqns)
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 3
+        arrays = [i for i in FindSymbols().visit(trees[0].root) if i.is_Array]
+        assert len(arrays) == 2
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+
+    def test_drop_redundants_after_fusion(self):
+        """
+        Test for detection of redundant aliases that get exposed after
+        Cluster fusion.
+        """
+        grid = Grid(shape=(10, 10))
+
+        t = cos(Function(name="t", grid=grid))
+        p = sin(Function(name="p", grid=grid))
+
+        a = TimeFunction(name="a", grid=grid)
+        b = TimeFunction(name="b", grid=grid)
+        c = TimeFunction(name="c", grid=grid)
+        d = TimeFunction(name="d", grid=grid)
+        e = TimeFunction(name="e", grid=grid)
+        f = TimeFunction(name="f", grid=grid)
+
+        s1 = SparseTimeFunction(name="s1", grid=grid, npoint=1, nt=2)
+
+        eqns = [Eq(a.forward, t*a.dx + p*b.dy),
+                Eq(b.forward, p*b.dx + p*t*a.dy)]
+
+        eqns += s1.inject(field=a.forward, expr=s1)
+        eqns += s1.inject(field=b.forward, expr=s1)
+
+        eqns += [Eq(c.forward, t*p*a.forward.dx + b.forward.dy),
+                 Eq(d.forward, t*d.dx + e.dy + p*a.dt),
+                 Eq(e.forward, p*d.dx + e.dy + t*b.dt)]
+
+        eqns += [Eq(f.forward, t*p*e.forward.dx + p*d.forward.dy)]
+
+        op = Operator(eqns)
+
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        assert len(arrays) == 2
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
 
 
 # Acoustic
@@ -622,12 +746,12 @@ def test_tti_rewrite_aggressive(tti_nodse):
     # * four Arrays are allocated on the heap
     # * two Arrays are allocated on the stack and only appear within an efunc
     arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-    assert len(arrays) == 4
+    assert len(arrays) == 5
     assert all(i._mem_heap and not i._mem_external for i in arrays)
     arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root) if i.is_Array]
-    assert len(arrays) == 6
+    assert len(arrays) == 7
     assert all(not i._mem_external for i in arrays)
-    assert len([i for i in arrays if i._mem_heap]) == 4
+    assert len([i for i in arrays if i._mem_heap]) == 5
     assert len([i for i in arrays if i._mem_stack]) == 2
 
 
@@ -645,7 +769,7 @@ def test_tti_rewrite_aggressive_wmpi():
 
 @switchconfig(profiling='advanced')
 @pytest.mark.parametrize('space_order,expected', [
-    (8, 154), (16, 270)
+    (8, 174), (16, 306)
 ])
 def test_tti_rewrite_aggressive_opcounts(space_order, expected):
     operator = tti_operator(dse='aggressive', space_order=space_order)
@@ -655,7 +779,7 @@ def test_tti_rewrite_aggressive_opcounts(space_order, expected):
 
 @switchconfig(profiling='advanced')
 @pytest.mark.parametrize('space_order,expected', [
-    (4, 183), (12, 375)
+    (4, 194), (12, 386)
 ])
 def test_tti_v2_rewrite_aggressive_opcounts(space_order, expected):
     grid = Grid(shape=(3, 3, 3))

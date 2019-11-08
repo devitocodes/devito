@@ -106,12 +106,17 @@ class Cluster(object):
         return self.scope.functions
 
     @cached_property
+    def has_increments(self):
+        return any(e.is_Increment for e in self.exprs)
+
+    @cached_property
     def is_dense(self):
         """
-        True if the Cluster writes into DiscreteFunctions through affine access
-        functions, False otherwise.
+        True if the Cluster unconditionally writes into DiscreteFunctions
+        through affine access functions, False otherwise.
         """
-        return (not any(f.is_SparseFunction for f in self.functions) and
+        return (not any(e.conditionals for e in self.exprs) and
+                not any(f.is_SparseFunction for f in self.functions) and
                 any(f.is_Function for f in self.scope.writes) and
                 all(a.is_regular for a in self.scope.accesses))
 
@@ -208,7 +213,7 @@ class ClusterGroup(tuple):
     @cached_property
     def dspace(self):
         """Return the DataSpace of this ClusterGroup."""
-        return DataSpace.union(*[i.dspace for i in self])
+        return DataSpace.union(*[i.dspace.reset() for i in self])
 
     @cached_property
     def dtype(self):

@@ -8,15 +8,14 @@ from devito.equation import Eq
 from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Cluster,
                        detect_accesses, build_intervals)
 from devito.dse.aliases import collect
-from devito.dse.flowgraph import FlowGraph
-from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
-                                     compact_temporaries)
+from devito.dse.manipulation import (collect_nested, common_subexprs_elimination,
+                                     make_is_time_invariant)
 from devito.exceptions import DSEException
 from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
-                              iq_timeinvariant, pow_to_mul, q_leaf, q_sum_of_product,
-                              q_terminalop, xreplace_constrained)
-from devito.tools import flatten, generator
+                              pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
+                              yreplace)
+from devito.tools import flatten
 from devito.types import Array, Scalar
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'CustomRewriter']
@@ -63,21 +62,11 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    tempname = 'r'
-    """
-    Prefix of temporary variables.
-    """
-
     def __init__(self, profile=True, template=None):
         self.profile = profile
 
-        # Used to build globally-unique temporaries
-        if template is None:
-            counter = generator()
-            self.template = lambda: "%s%d" % (AbstractRewriter.tempname, counter())
-        else:
-            assert callable(template)
-            self.template = template
+        assert callable(template)
+        self.template = template
 
     def run(self, cluster):
         state = State(cluster, self.template)
@@ -110,7 +99,6 @@ class AbstractRewriter(object):
 class BasicRewriter(AbstractRewriter):
 
     def _pipeline(self, state):
-        self._eliminate_intra_stencil_redundancies(state)
         self._extract_increments(state)
 
     @dse_pass
@@ -127,7 +115,8 @@ class BasicRewriter(AbstractRewriter):
                     extracted = e.rhs
                 else:
                     extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
-                processed.extend([Eq(handle, extracted), e.func(e.lhs, handle)])
+                processed.extend([e.func(handle, extracted, is_Increment=False),
+                                  e.func(e.lhs, handle)])
             else:
                 processed.append(e)
 
@@ -139,15 +128,10 @@ class BasicRewriter(AbstractRewriter):
         Perform common subexpression elimination, bypassing the tensor expressions
         extracted in previous passes.
         """
-
-        skip = [e for e in cluster.exprs if e.lhs.base.function.is_Array]
-        candidates = [e for e in cluster.exprs if e not in skip]
-
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
+        processed = common_subexprs_elimination(cluster.exprs, make)
 
-        processed = common_subexprs_elimination(candidates, make)
-
-        return cluster.rebuild(skip + processed)
+        return cluster.rebuild(processed)
 
     @dse_pass
     def _optimize_trigonometry(self, cluster, **kwargs):
@@ -155,7 +139,6 @@ class BasicRewriter(AbstractRewriter):
         Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
         polynomials.
         """
-
         processed = []
         for expr in cluster.exprs:
             handle = expr.replace(sin, bhaskara_sin)
@@ -194,23 +177,14 @@ class AdvancedRewriter(BasicRewriter):
         self._factorize(state)
 
     @dse_pass
-    def _extract_time_invariants(self, cluster, template, with_cse=True, **kwargs):
+    def _extract_time_invariants(self, cluster, template, **kwargs):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        rule = iq_timeinvariant(FlowGraph(cluster.exprs))
+        rule = make_is_time_invariant(cluster.exprs)
         costmodel = lambda e: estimate_cost(e, True) >= self.MIN_COST_ALIAS_INV
-        processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
-
-        if with_cse:
-            leaves = [i for i in processed if i not in found]
-
-            # Search for common sub-expressions amongst them (and only them)
-            found = common_subexprs_elimination(found, make)
-
-            # Some temporaries may be droppable at this point
-            processed = compact_temporaries(found, leaves)
+        processed, found = yreplace(cluster.exprs, make, rule, costmodel, eager=True)
 
         return cluster.rebuild(processed)
 
@@ -223,7 +197,6 @@ class AdvancedRewriter(BasicRewriter):
         ``self.MIN_COST_FACTORIZE``, then the algorithm is applied recursively
         until no more factorization opportunities are detected.
         """
-
         processed = []
         for expr in cluster.exprs:
             handle = collect_nested(expr)
@@ -260,26 +233,28 @@ class AdvancedRewriter(BasicRewriter):
            temp1 = 2.0*ti[x,y,z]
            temp2 = 3.0*ti[x,y,z+1]
         """
+        exprs = cluster.exprs
+
         # For more information about "aliases", refer to collect.__doc__
-        aliases = collect(cluster.exprs)
+        aliases = collect(exprs)
 
         # Redundancies will be stored in space-varying temporaries
-        graph = FlowGraph(cluster.exprs)
-        time_invariants = {v.rhs: graph.time_invariant(v) for v in graph.values()}
+        is_time_invariant = make_is_time_invariant(exprs)
+        time_invariants = {e.rhs: is_time_invariant(e) for e in exprs}
 
         # Find the candidate expressions
         processed = []
         candidates = OrderedDict()
-        for k, v in graph.items():
+        for e in exprs:
             # Cost check (to keep the memory footprint under control)
-            naliases = len(aliases.get(v.rhs))
-            cost = estimate_cost(v, True)*naliases
+            naliases = len(aliases.get(e.rhs))
+            cost = estimate_cost(e, True)*naliases
             test0 = lambda: cost >= self.MIN_COST_ALIAS and naliases > 1
-            test1 = lambda: cost >= self.MIN_COST_ALIAS_INV and time_invariants[v.rhs]
+            test1 = lambda: cost >= self.MIN_COST_ALIAS_INV and time_invariants[e.rhs]
             if test0() or test1():
-                candidates[v.rhs] = k
+                candidates[e.rhs] = e.lhs
             else:
-                processed.append(v)
+                processed.append(e)
 
         # Create alias Clusters and all necessary substitution rules
         # for the new temporaries
@@ -312,7 +287,7 @@ class AdvancedRewriter(BasicRewriter):
 
             # Build up the expression evaluating `alias`
             access = tuple(i.dim - i.lower for i in writeto)
-            expression = Eq(array[access], origin)
+            expression = Eq(array[access], origin.xreplace(subs))
 
             # Create the substitution rules so that we can use the newly created
             # temporary in place of the aliasing expressions
@@ -347,7 +322,7 @@ class AggressiveRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._extract_sum_of_products(state)
-        self._extract_time_invariants(state, with_cse=False)
+        self._extract_time_invariants(state)
         self._eliminate_inter_stencil_redundancies(state)
 
         self._extract_sum_of_products(state)
@@ -365,7 +340,7 @@ class AggressiveRewriter(AdvancedRewriter):
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = q_sum_of_product
         costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
-        processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
+        processed, _ = yreplace(cluster.exprs, make, rule, costmodel)
 
         return cluster.rebuild(processed)
 

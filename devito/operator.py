@@ -7,10 +7,9 @@ from cached_property import cached_property
 import ctypes
 
 from devito.dle import transform
-from devito.dse import rewrite
 from devito.equation import Eq
 from devito.exceptions import InvalidOperator
-from devito.logger import info, perf, warning
+from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, MetaCall, iet_build, iet_insert_decls,
@@ -172,10 +171,9 @@ class Operator(Callable):
         self._output = filter_sorted(flatten(e.writes for e in expressions))
         self._dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
 
-        # Group expressions based on their iteration space and data dependences,
-        # and apply the Devito Symbolic Engine (DSE) for flop optimization
-        clusters = clusterize(expressions)
-        clusters = rewrite(clusters, mode=set_dse_mode(dse))
+        # Group expressions based on their iteration space and data dependences
+        # Several optimizations are applied (fusion, lifting, flop reduction via DSE, ...)
+        clusters = clusterize(expressions, dse_mode=set_dse_mode(dse))
         self._dtype, self._dspace = clusters.meta
 
         # Lower Clusters to a Schedule tree
@@ -558,6 +556,10 @@ class Operator(Callable):
 
         summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
 
+        if not is_log_enabled_for('PERF'):
+            # Do not waste time
+            return summary
+
         if summary.globals:
             indent = " "*2
 
@@ -602,7 +604,23 @@ class Operator(Callable):
                 perf("%s* %s%s computed in %.2f s"
                      % (indent, name, rank, fround(v.time)))
 
+        # Emit relevant configuration values
         perf("Configuration:  %s" % self._state['optimizations'])
+
+        # Emit relevant performance arguments
+        perf_args = {}
+        for i in self.input + self.dimensions:
+            if not i.is_PerfKnob:
+                continue
+            try:
+                perf_args[i.name] = args[i.name]
+            except KeyError:
+                # Try with the aliases
+                for a in i._arg_names:
+                    if a in args:
+                        perf_args[a] = args[a]
+                        break
+        perf("Performance arguments:  %s" % perf_args)
 
         return summary
 
