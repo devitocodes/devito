@@ -28,7 +28,6 @@ class OperatorOPS(Operator):
 
     def __init__(self, *args, **kwargs):
         super(OperatorOPS, self).__init__(*args, **kwargs)
-        self._compiler = ops_configuration['compiler'].copy()
 
     def _specialize_iet(self, iet, **kwargs):
         warning("The OPS backend is still work-in-progress")
@@ -37,7 +36,10 @@ class OperatorOPS(Operator):
 
         # If there is no affine trees, then there is no loop to be optimized using OPS.
         if not affine_trees:
-            return iet
+            self._should_compile_with_ops = False
+            return super()._specialize_iet(iet, **kwargs)
+
+        self._should_compile_with_ops = True
 
         ops_init = Call(namespace['ops_init'], [0, 0, 2])
         ops_partition = Call(namespace['ops_partition'], Literal('""'))
@@ -120,9 +122,13 @@ class OperatorOPS(Operator):
         return super()._finalize(iet, parameters)
 
     def _compile(self):
-        self._includes.append('%s.h' % self._soname)
-        if self._lib is None:
-            self._compiler.jit_compile(self._soname, str(self.ccode), str(self.hcode))
+        if self._should_compile_with_ops:
+            self._compiler = ops_configuration['compiler'].copy()
+            self._includes.append('%s.h' % self._soname)
+            if self._lib is None:
+                self._compiler.jit_compile(self._soname, str(self.ccode), str(self.hcode))
+        else:
+            super()._compile()
 
     @cached_property
     def time_dimension(self):
