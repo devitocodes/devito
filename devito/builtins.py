@@ -6,7 +6,7 @@ from sympy import Abs, Pow
 import numpy as np
 
 import devito as dv
-from devito.tools import as_list
+from devito.tools import as_tuple, as_list
 
 __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function', 'norm',
            'sumall', 'inner', 'mmin', 'mmax']
@@ -98,9 +98,21 @@ def smooth(f, g, axis=None):
         dv.Operator(dv.Eq(f, g.avg(dims=axis)), name='smoother')()
 
 
-def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
+def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     """
     Gaussian smooth function.
+
+    Parameters
+    ----------
+    f : Function
+        The left-hand side of the smoothing kernel, that is the smoothed Function.
+    sigma : float, optional
+        Standard deviation. Default is 1.
+    truncate : float, optional
+        Truncate the filter at this many standard deviations. Default is 4.0.
+    mode : str, optional
+        The function initialisation mode. 'constant' and 'reflect' are
+        accepted. Default mode is 'reflect'.
     """
     class ObjectiveDomain(dv.SubDomain):
 
@@ -111,11 +123,23 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
             self.lw = lw
 
         def define(self, dimensions):
-            return {d: ('middle', self.lw, self.lw) for d in dimensions}
+            return {d: ('middle', l, l) for d, l in zip(dimensions, self.lw)}
+
+    def create_gaussian_weights(sigma, lw):
+        weights = [w/w.sum() for w in (np.exp(-0.5/s**2*(np.linspace(-l, l, 2*l+1))**2)
+                   for s, l in zip(sigma, lw))]
+        processed = []
+        for w in weights:
+            temp = list(w)
+            while len(temp) < 2*max(lw)+1:
+                temp.insert(0, 0)
+                temp.append(0)
+            processed.append(np.array(temp))
+        return as_tuple(processed)
 
     def fset(f, g):
-        indices = [slice(lw, -lw, 1) for _ in g.grid.dimensions]
-        slices = (slice(None, None, 1), )*len(g.grid.dimensions)
+        indices = [slice(l, -l, 1) for _, l in zip(g.dimensions, lw)]
+        slices = (slice(None, None, 1), )*g.ndim
         if isinstance(f, np.ndarray):
             f[slices] = g.data[tuple(indices)]
         elif isinstance(f, dv.Function):
@@ -123,46 +147,58 @@ def gaussian_smooth(f, sigma=1, _order=4, mode='reflect'):
         else:
             raise NotImplementedError
 
-    lw = int(_order*sigma + 0.5)
+    try:
+        # NOTE: required if input is an np.array
+        dtype = f.dtype.type
+        shape = f.shape
+    except AttributeError:
+        dtype = f.dtype
+        shape = f.shape_global
+
+    # TODO: Add s = 0 dim skip option
+    lw = tuple(int(truncate*float(s) + 0.5) for s in as_tuple(sigma))
+
+    if len(lw) == 1 and len(lw) < f.ndim:
+        lw = f.ndim*(lw[0], )
+        sigma = f.ndim*(as_tuple(sigma)[0], )
+    elif len(lw) == f.ndim:
+        sigma = as_tuple(sigma)
+    else:
+        raise ValueError("`sigma` must be an integer or a tuple of length" +
+                         " `f.ndim`.")
 
     # Create the padded grid:
     objective_domain = ObjectiveDomain(lw)
-    try:
-        shape_padded = np.array(f.grid.shape) + 2*lw
-    except AttributeError:
-        shape_padded = np.array(f.shape) + 2*lw
+    shape_padded = tuple([np.array(s) + 2*l for s, l in zip(shape, lw)])
     grid = dv.Grid(shape=shape_padded, subdomains=objective_domain)
 
-    f_c = dv.Function(name='f_c', grid=grid, space_order=2*lw,
-                      coefficients='symbolic', dtype=np.int32)
-    f_o = dv.Function(name='f_o', grid=grid, coefficients='symbolic', dtype=np.int32)
+    f_c = dv.Function(name='f_c', grid=grid, space_order=2*max(lw),
+                      coefficients='symbolic', dtype=dtype)
+    f_o = dv.Function(name='f_o', grid=grid, dtype=dtype)
 
-    weights = np.exp(-0.5/sigma**2*(np.linspace(-lw, lw, 2*lw+1))**2)
-    weights = weights/weights.sum()
+    weights = create_gaussian_weights(sigma, lw)
 
     mapper = {}
-    for d in f_c.dimensions:
+    for d, l, w in zip(f_c.dimensions, lw, weights):
         lhs = []
         rhs = []
         options = []
 
         lhs.append(f_o)
-        rhs.append(dv.generic_derivative(f_c, d, 2*lw, 1))
-        coeffs = dv.Coefficient(1, f_c, d, weights)
+        rhs.append(dv.generic_derivative(f_c, d, 2*l, 1))
+        coeffs = dv.Coefficient(1, f_c, d, w)
         options.append({'coefficients': dv.Substitutions(coeffs),
                         'subdomain': grid.subdomains['objective_domain']})
+
         lhs.append(f_c)
         rhs.append(f_o)
         options.append({'subdomain': grid.subdomains['objective_domain']})
 
         mapper[d] = {'lhs': lhs, 'rhs': rhs, 'options': options}
 
-    initialize_function(f_c, f.data[:], lw,
-                        mapper=mapper,
-                        mode='reflect', name='smooth')
+    initialize_function(f_c, f, lw, mapper=mapper, mode='reflect', name='smooth')
 
     fset(f, f_c)
-
     return f
 
 
@@ -179,7 +215,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         The initialised object.
     data : ndarray or Function
         The data used for initialisation.
-    nbl : int
+    nbl : int or tuple of int
         Number of outer layers (such as absorbing layers for boundary damping).
     mapper : dict, optional
         Dictionary containing, for each dimension of `function`, a sub-dictionary
@@ -207,7 +243,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     >>> grid = Grid(shape=(6, 6))
     >>> x, y = grid.dimensions
 
-    Create the function we wish to set along with the data to set it:
+    Create the Function we wish to set along with the data to set it:
 
     >>> f = Function(name='f', grid=grid, dtype=np.int32)
     >>> data = np.full((4, 4), 2, dtype=np.int32)
@@ -237,7 +273,16 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     if isinstance(function, dv.TimeFunction):
         raise NotImplementedError("TimeFunctions are not currently supported.")
 
-    slices = tuple([slice(nbl, -nbl) for _ in range(function.grid.dim)])
+    if len(as_tuple(nbl)) == 1 and len(as_tuple(nbl)) < function.ndim:
+        nbl = function.ndim*(as_tuple(nbl)[0], )
+    elif len(as_tuple(nbl)) == function.ndim:
+        pass
+    else:
+        raise ValueError("nbl must be an integer or tuple of integers of length" +
+                         " function.shape.")
+
+    slices = tuple([slice(n, -n) for _, n in zip(range(function.grid.dim),
+                                                 as_tuple(nbl))])
     if isinstance(data, dv.Function):
         function.data[slices] = data.data[:]
     else:
@@ -252,23 +297,21 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         local_size = function.shape
 
         def buff(i, j):
-            return [(i + k - 2*nbl) for k in j]
+            return [(i + k - 2*max(nbl)) for k in j]
 
         b = [min(l) for l in (w for w in (buff(i, j) for i, j in zip(local_size, halo)))]
         if any(np.array(b) < 0):
             raise ValueError("Function `%s` halo is not sufficiently thick." % function)
 
-    for d in function.space_dimensions:
-        dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d,
-                                     thickness=nbl)
-        dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d,
-                                      thickness=nbl)
+    for d, n in zip(function.space_dimensions, as_tuple(nbl)):
+        dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d, thickness=n)
+        dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d, thickness=n)
         if mode == 'constant':
-            subsl = nbl
-            subsr = d.symbolic_max - nbl
+            subsl = n
+            subsr = d.symbolic_max - n
         elif mode == 'reflect':
-            subsl = 2*nbl - 1 - dim_l
-            subsr = 2*(d.symbolic_max - nbl) + 1 - dim_r
+            subsl = 2*n - 1 - dim_l
+            subsr = 2*(d.symbolic_max - n) + 1 - dim_r
         else:
             raise ValueError("Mode not available")
         lhs.append(function.subs({d: dim_l}))
@@ -283,10 +326,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
             rhs_extra = exprs['rhs']
             lhs.extend(as_list(lhs_extra))
             rhs.extend(as_list(rhs_extra))
-            if 'options' in exprs and exprs['options']:
-                options_extra = exprs['options']
-            else:
-                options_extra = len(as_list(lhs_extra))*[None, ]
+            options_extra = exprs.get('options', len(as_list(lhs_extra))*[None, ])
             if isinstance(options_extra, list):
                 options.extend(options_extra)
             else:

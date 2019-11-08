@@ -3,10 +3,9 @@ import os
 import numpy as np
 from sympy import sin, Abs
 
-from examples.seismic.utils import scipy_smooth
 from devito import (Grid, SubDomain, Function, Constant, mmax,
                     SubDimension, Eq, Inc, Operator)
-from devito.builtins import initialize_function
+from devito.builtins import initialize_function, gaussian_smooth
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic', 'demo_model']
@@ -231,16 +230,21 @@ def demo_model(preset, **kwargs):
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        epsilon = scipy_smooth(.3*(v - 1.5))
-        delta = scipy_smooth(.2*(v - 1.5))
-        theta = scipy_smooth(.5*(v - 1.5))
+        epsilon = .3*(v - 1.5)
+        delta = .2*(v - 1.5)
+        theta = .5*(v - 1.5)
         phi = None
         if len(shape) > 2:
-            phi = scipy_smooth(.25*(v - 1.5), shape)
+            phi = .25*(v - 1.5)
+        model = Model(space_order=space_order, vp=v, origin=origin, shape=shape,
+                      dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
+                      delta=delta, theta=theta, phi=phi, **kwargs)
+        if len(shape) > 2:
+            model.smooth(('epsilon', 'delta', 'theta', 'phi'))
+        else:
+            model.smooth(('epsilon', 'delta', 'theta'))
 
-        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
-                     dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
-                     delta=delta, theta=theta, phi=phi, **kwargs)
+        return model
 
     elif preset.lower() in ['layers-tti-noazimuth', 'twolayer-tti-noazimuth',
                             '2layer-tti-noazimuth']:
@@ -685,6 +689,22 @@ class Model(GenericModel):
     @property
     def m(self):
         return 1 / (self.vp * self.vp)
+
+    def smooth(self, physical_parameters, sigma=5.0):
+        """
+        Apply devito.gaussian_smooth to model physical parameters.
+
+        Parameters
+        ----------
+        physical_parameters : string or tuple of string
+            Names of the fields to be smoothed.
+        sigma : float
+            Standard deviation of the smoothing operator.
+        """
+        model_parameters = self.physical_params()
+        for i in physical_parameters:
+            gaussian_smooth(model_parameters[i], sigma=sigma)
+        return
 
 
 class ModelElastic(GenericModel):
