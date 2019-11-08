@@ -7,14 +7,73 @@ from devito.logger import warning
 from devito.parameters import configuration
 
 
-__all__ = ['CompilerOPS']
+__all__ = ['OPSCompiler']
 
 
-class CompilerOPS(configuration['compiler'].__class__):
+class OPSMetaCompiler(configuration['compiler'].__class__):
+
     def __init__(self, *args, **kwargs):
         kwargs['cpp'] = True
+        super(OPSMetaCompiler, self).__init__(*args, **kwargs)
+
+
+class OPSCompiler(OPSMetaCompiler):
+
+    def __init__(self, *args, **kwargs):
+        super(OPSCompiler, self).__init__(*args, **kwargs)
+
+    def jit_compile(self, soname, ccode, hcode):
+
         self._ops_install_path = os.environ.get('OPS_INSTALL_PATH')
-        super(CompilerOPS, self).__init__(*args, **kwargs)
+        if not self._ops_install_path:
+            raise ValueError("Couldn't find OPS_INSTALL_PATH\
+                environment variable, please check your OPS installation")
+
+        self._ops_backend = os.environ.get('OPS_BACKEND')
+        if not self._ops_backend:
+            raise ValueError("Couldn't find OPS_BACKEND\
+                environment variable, current options: `seq` or `cuda`")
+
+        self._translate_ops(soname, ccode, hcode)
+        self.ops_src = '%s/%s_ops.cpp' % (self.get_jit_dir(), soname)
+        self.cache_dir = self.get_jit_dir()
+        self.target = str(self.get_jit_dir().joinpath(soname))
+
+        # Make a suite of cache directories based on the soname
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(self.ops_src, 'r') as f:
+                self.code = f.read()
+        except FileNotFoundError:
+            warning("Couldn't find file: %s" % self.ops_src)
+
+        if self._ops_backend == 'cuda':
+            OPSCompilerCUDA._compile(self, soname)
+        elif self._ops_backend == 'seq':
+            pass
+
+    def _translate_ops(self, soname, ccode, hcode):
+        # Creating files
+        file_name = str(self.get_jit_dir().joinpath(soname))
+        h_file = open("%s.h" % (file_name), "w")
+        c_file = open("%s.cpp" % (file_name), "w")
+
+        c_file.write(ccode)
+        h_file.write(hcode)
+
+        c_file.close()
+        h_file.close()
+
+        # Calling OPS Translator
+        translator = '%s/../ops_translator/c/ops.py' % (self._ops_install_path)
+        translation = subprocess.run([translator, c_file.name], cwd=self.get_jit_dir())
+        if translation.returncode == 1:
+            raise ValueError("OPS Translation Error")
+
+
+class OPSSpecializedCompiler(OPSMetaCompiler):
+    def __init__(self, *args, **kwargs):
+        super(OPSSpecializedCompiler, self).__init__(*args, **kwargs)
 
     def _cmdline(self, files, object=False):
         if object:
@@ -35,63 +94,47 @@ class CompilerOPS(configuration['compiler'].__class__):
             + link
         )
 
-    def jit_compile(self, soname, ccode, hcode):
-        self._translate_ops(soname, ccode, hcode)
-        self.target = str(self.get_jit_dir().joinpath(soname))
-        self.ops_src = '%s/%s_ops.cpp' % (self.get_jit_dir(), soname)
-        self.cache_dir = self.get_codepy_dir().joinpath(soname[:7])
 
-        # Make a suite of cache directories based on the soname
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            with open(self.ops_src, 'r') as f:
-                self.code = f.read()
-        except FileNotFoundError:
-            warning("Couldn't find file: %s" % self.ops_src)
-        else:
-            self._compile_cuda(soname)
+class OPSCompilerSEQ(OPSCompiler, OPSSpecializedCompiler):
 
-    def _translate_ops(self, soname, ccode, hcode):
-        # Creating files
-        file_name = str(self.get_jit_dir().joinpath(soname))
-        h_file = open("%s.h" % (file_name), "w")
-        c_file = open("%s.cpp" % (file_name), "w")
+    def __init__(self, *args, **kwargs):
+        super(OPSCompilerCUDA, self).__init__(*args, **kwargs)
 
-        c_file.write(ccode)
-        h_file.write(hcode)
+    def _compile(self, soname):
+        pass
 
-        c_file.close()
-        h_file.close()
 
-        if self._ops_install_path:
-            # Calling OPS Translator
-            translator = '%s/../ops_translator/c/ops.py' % (self._ops_install_path)
-            translation = subprocess.run([translator, c_file.name], cwd=self.get_jit_dir())
-            if translation.returncode == 1:
-                raise ValueError("OPS Translation Error")
-        else:
-            warning("Couldn't find OPS_INSTALL_PATH \
-                environment variable, please check your OPS installation")
+class OPSCompilerCUDA(OPSCompiler, OPSSpecializedCompiler):
 
-    def _compile_cuda(self, soname):
+    def __init__(self, *args, **kwargs):
+        super(OPSCompilerCUDA, self).__init__(*args, **kwargs)
+
+        self._cuda_install_path = os.environ.get('CUDA_INSTALL_PATH')
+        if not self._cuda_install_path:
+            raise ValueError("Couldn't find CUDA_INSTALL_PATH a\
+                environment variable, please check your CUDA installation")
+
+        self._nv_arch = os.environ.get('NV_ARCH')
+        if not self._nv_arch:
+            raise ValueError("Select an NVIDIA device to compile in CUDA, e.g. \
+                NV_ARCH=Kepler")
+
+    def _compile(self, soname):
         # CUDA kernel compilation
         cuda_src = '%s/CUDA/%s_kernels.cu' % (self.get_jit_dir(), soname)
         cuda_target = '%s/%s_kernels_cu' % (self.get_jit_dir(), soname)
 
-        cuda_code = ""
         try:
             with open(cuda_src, 'r') as f:
                 cuda_code = f.read()
         except FileNotFoundError:
             raise ValueError("Couldn't find file: %s" % cuda_src)
 
-        cuda_device_compiler = CUDADeviceCompiler()
-        cuda_host_compiler = CudaHostCompiler()
-
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
 
             # Spinlock in case of MPI
+            cuda_device_compiler = CUDADeviceCompiler()
             sleep_delay = 0 if configuration['mpi'] else 1
             _, _, cuda_o, _ = compile_from_string(
                 cuda_device_compiler, cuda_target,
@@ -101,6 +144,11 @@ class CompilerOPS(configuration['compiler'].__class__):
                 sleep_delay=sleep_delay,
                 object=True
             )
+            if not os.path.exists(cuda_o):
+                raise ValueError("Error when compiling for device\
+                                 Couldn't find file: %s" % cuda_o)
+
+            cuda_host_compiler = CUDAHostCompiler()
             _, _, src_o, _ = compile_from_string(
                 cuda_host_compiler, self.target,
                 self.code, self.ops_src,
@@ -109,31 +157,34 @@ class CompilerOPS(configuration['compiler'].__class__):
                 sleep_delay=sleep_delay,
                 object=True
             )
-            cuda_host_compiler.link_extension(
-                '%s%s' % (self.target, cuda_host_compiler.so_ext),
-                [src_o, cuda_o],
-                debug=configuration['debug-compiler']
-            )
+            if not os.path.exists(src_o):
+                raise ValueError("Error when compiling for host\
+                                 Couldn't find file: %s" % src_o)
+
+            try:
+                cuda_host_compiler.link_extension(
+                    '%s%s' % (self.target, cuda_host_compiler.so_ext),
+                    [src_o, cuda_o],
+                    debug=configuration['debug-compiler']
+                )
+            except:
+                raise ValueError("Error at the linking stage")
 
 
-class CUDADeviceCompiler(CompilerOPS):
+class CUDADeviceCompiler(OPSCompilerCUDA):
 
     def __init__(self, *args, **kwargs):
         super(CUDADeviceCompiler, self).__init__(*args, **kwargs)
         self.o_ext = '.o'
         self.cflags = ['-Xcompiler="-fPIC"', '-O3', '-g', '-gencode']
-        nv_arch = os.environ.get('NV_ARCH')
 
-        if(nv_arch is None):
-            raise ValueError("Select an NVIDIA device to compile in CUDA, e.g. \
-                NV_ARCH=Kepler")
-        elif(nv_arch == 'Fermi'):
+        if(self._nv_arch == 'Fermi'):
             self.cflags.append('arch=compute_20,code=sm_21')
-        elif(nv_arch == 'Kepler'):
+        elif(self._nv_arch == 'Kepler'):
             self.cflags.append('arch=compute_35,code=sm_35')
-        elif(nv_arch == 'Pascal'):
+        elif(self._nv_arch == 'Pascal'):
             self.cflags.append('arch=compute_60,code=sm_60')
-        elif(nv_arch == 'Volta'):
+        elif(self._nv_arch == 'Volta'):
             self.cflags.append('arch=compute_70,code=sm_70')
         else:
             raise ValueError("Unknown NVIDIA architecture, select: \
@@ -143,24 +194,19 @@ class CUDADeviceCompiler(CompilerOPS):
 
         include_dirs = '%s %s/c/include' % (self.get_jit_dir(), self._ops_install_path)
         self.include_dirs = include_dirs.split(' ')
+        self.include_dirs.append(os.path.join(self._cuda_install_path, 'include'))
 
     def __lookup_cmds__(self):
         self.CC = os.environ.get('CC', 'nvcc')
         self.CXX = os.environ.get('CXX', 'nvcc')
 
 
-class CudaHostCompiler(CompilerOPS):
+class CUDAHostCompiler(OPSCompilerCUDA):
 
     def __init__(self, *args, **kwargs):
-        super(CudaHostCompiler, self).__init__(*args, **kwargs)
+        super(CUDAHostCompiler, self).__init__(*args, **kwargs)
         self.o_ext = '.o'
-        self._cuda_install_path = os.environ.get('CUDA_INSTALL_PATH')
-        if not self._cuda_install_path:
-            raise ValueError("Couldn't find CUDA_INSTALL_PATH \
-                environment variable, please check your CUDA installation")
-
-        cflags = '-fopenmp -O3 -fPIC -DUNIX -Wall -shared -g'
-        self.cflags = os.environ.get('CFLAGS', cflags).split(' ')
+        self.cflags = ['-fopenmp', '-O3', '-fPIC', '-DUNIX', '-Wall', '-shared', '-g']
 
         self.include_dirs.append(os.path.join(self._cuda_install_path, 'include'))
         self.include_dirs.append(os.path.join(self._ops_install_path, 'c', 'include'))

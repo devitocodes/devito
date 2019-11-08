@@ -13,7 +13,7 @@ modes.add(Cpu64, {'noop': PlatformRewriter,
                   'speculative': PlatformRewriter})
 
 # The following used by backends.backendSelector
-from devito.ops.compiler import CompilerOPS as Compiler # noqa
+from devito.ops.compiler import OPSCompiler as Compiler # noqa
 
 ops_configuration = Parameters('ops')
 ops_configuration.add('compiler', Compiler())
