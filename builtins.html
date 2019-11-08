@@ -238,8 +238,19 @@ to <code class="docutils literal notranslate"><span class="pre">f</span></code>�
 
 <dl class="function">
 <dt id="devito.builtins.gaussian_smooth">
-<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">gaussian_smooth</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">sigma=1</em>, <em class="sig-param">_order=4</em>, <em class="sig-param">mode='reflect'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#gaussian_smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.gaussian_smooth" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">devito.builtins.</code><code class="sig-name descname">gaussian_smooth</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">sigma=1</em>, <em class="sig-param">truncate=4.0</em>, <em class="sig-param">mode='reflect'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/builtins.html#gaussian_smooth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.builtins.gaussian_smooth" title="Permalink to this definition">¶</a></dt>
 <dd><p>Gaussian smooth function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>f</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The left-hand side of the smoothing kernel, that is the smoothed Function.</p></li>
+<li><p><strong>sigma</strong> (<em>float</em><em>, </em><em>optional</em>) – Standard deviation. Default is 1.</p></li>
+<li><p><strong>truncate</strong> (<em>float</em><em>, </em><em>optional</em>) – Truncate the filter at this many standard deviations. Default is 4.0.</p></li>
+<li><p><strong>mode</strong> (<em>str</em><em>, </em><em>optional</em>) – The function initialisation mode. ‘constant’ and ‘reflect’ are
+accepted. Default mode is ‘reflect’.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="function">
@@ -253,7 +264,7 @@ by this function.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>function</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The initialised object.</p></li>
 <li><p><strong>data</strong> (<em>ndarray</em><em> or </em><a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – The data used for initialisation.</p></li>
-<li><p><strong>nbl</strong> (<em>int</em>) – Number of outer layers (such as absorbing layers for boundary damping).</p></li>
+<li><p><strong>nbl</strong> (<em>int</em><em> or </em><em>tuple of int</em>) – Number of outer layers (such as absorbing layers for boundary damping).</p></li>
 <li><p><strong>mapper</strong> (<em>dict</em><em>, </em><em>optional</em>) – Dictionary containing, for each dimension of <cite>function</cite>, a sub-dictionary
 containing the following keys:
 1) ‘lhs’: List of additional expressions to be added to the LHS expressions list.
@@ -278,7 +289,7 @@ the value on the boundary.</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
 </pre></div>
 </div>
-<p>Create the function we wish to set along with the data to set it:</p>
+<p>Create the Function we wish to set along with the data to set it:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="mi">2</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
 </pre></div>
