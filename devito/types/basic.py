@@ -87,6 +87,9 @@ class Basic(object):
     is_Scalar = False
     is_Tensor = False
 
+    # Some other properties
+    is_PerfKnob = False  # Does it impact the Operator performance?
+
     @abc.abstractmethod
     def __init__(self, *args, **kwargs):
         return

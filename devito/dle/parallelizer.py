@@ -23,48 +23,49 @@ def nhyperthreads():
 
 
 class NThreadsMixin(object):
-    pass
 
-
-class NThreads(Constant, NThreadsMixin):
-
-    name = 'nthreads0'
-    aliases = (name, 'nthreads')
-
-    @classmethod
-    def default_value(cls):
-        return int(os.environ.get('OMP_NUM_THREADS', ncores()))
+    is_PerfKnob = True
 
     def __new__(cls, **kwargs):
-        name = kwargs.get('name', NThreads.name)
-        value = NThreads.default_value()
-        return super(NThreads, cls).__new__(cls, name=name, dtype=np.int32, value=value)
+        name = kwargs.get('name', cls.name)
+        value = cls.default_value()
+        obj = Constant.__new__(cls, name=name, dtype=np.int32, value=value)
+        obj.aliases = as_tuple(kwargs.get('aliases')) + (name,)
+        return obj
 
     @property
     def _arg_names(self):
-        return NThreads.aliases
+        return self.aliases
 
     def _arg_values(self, **kwargs):
-        for i in NThreads.aliases:
+        for i in self.aliases:
             if i in kwargs:
                 return {self.name: kwargs.pop(i)}
         # Fallback: as usual, pick the default value
         return self._arg_defaults()
 
 
-class NThreadsNested(Constant, NThreadsMixin):
+class NThreads(NThreadsMixin, Constant):
 
-    name = 'nthreads1'
+    name = 'nthreads'
+
+    @classmethod
+    def default_value(cls):
+        return int(os.environ.get('OMP_NUM_THREADS', ncores()))
+
+
+class NThreadsNested(NThreadsMixin, Constant):
+
+    name = 'nthreads_nested'
 
     @classmethod
     def default_value(cls):
         return nhyperthreads()
 
-    def __new__(cls, **kwargs):
-        name = kwargs.get('name', NThreadsNested.name)
-        value = NThreadsNested.default_value()
-        return super(NThreadsNested, cls).__new__(cls, name=name, dtype=np.int32,
-                                                  value=value)
+
+class NThreadsNonaffine(NThreads):
+
+    name = 'nthreads_nonaffine'
 
 
 class ParallelRegion(Block):
@@ -78,10 +79,6 @@ class ParallelRegion(Block):
     def _make_header(cls, nthreads, private):
         private = ('private(%s)' % ','.join(private)) if private else ''
         return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
-
-    @property
-    def functions(self):
-        return (self.nthreads,)
 
 
 class ParallelTree(List):
@@ -190,8 +187,9 @@ class Ompizer(object):
             self.key = key
         else:
             self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorizable
-        self.nthreads = NThreads()
-        self.nthreads_nested = NThreadsNested()
+        self.nthreads = NThreads(aliases='nthreads0')
+        self.nthreads_nested = NThreadsNested(aliases='nthreads1')
+        self.nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
 
     def _make_atomic_incs(self, partree):
         if not partree.is_ParallelAtomic:
@@ -249,6 +247,7 @@ class Ompizer(object):
         if all(i.is_Affine for i in candidates):
             if nthreads is None:
                 # pragma omp for ... schedule(..., 1)
+                nthreads = self.nthreads
                 omp_pragma = self.lang['for'](ncollapse, 1)
             else:
                 # pragma omp parallel for ... schedule(..., 1)
@@ -256,11 +255,13 @@ class Ompizer(object):
         else:
             # pragma omp for ... schedule(..., expr)
             assert nthreads is None
+            nthreads = self.nthreads_nonaffine
+
             chunk_size = Symbol(name='chunk_size')
             omp_pragma = self.lang['for'](ncollapse, chunk_size)
 
             niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
-            value = INT(Max(niters / (self.nthreads*self.CHUNKSIZE_NONAFFINE), 1))
+            value = INT(Max(niters / (nthreads*self.CHUNKSIZE_NONAFFINE), 1))
             prefix.append(Expression(DummyEq(chunk_size, value, dtype=np.int32)))
 
         # Create a ParallelTree
@@ -277,7 +278,7 @@ class Ompizer(object):
         private = [i for i in FindSymbols().visit(partree)
                    if i.is_Array and i._mem_stack]
         private = sorted(set([i.name for i in private]))
-        return ParallelRegion(partree, self.nthreads, private)
+        return ParallelRegion(partree, partree.nthreads, private)
 
     def _make_guard(self, partree, collapsed):
         # Do not enter the parallel region if the step increment is 0; this
