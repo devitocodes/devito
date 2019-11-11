@@ -271,10 +271,23 @@ class TestOPSExpression(object):
     ])
     def test_upper_bound(self, equation, expected):
         grid = Grid((5, 5))
-        u = TimeFunction(name='u', grid=grid) # noqa
+        u = TimeFunction(name='u', grid=grid)  # noqa
         op = Operator(eval(equation))
 
         assert expected in str(op.ccode)
+
+    @pytest.mark.parametrize('equation, declaration', [
+        ('Eq(u.forward, u+1)',
+         'int OPS_Kernel_0_range[4]')
+    ])
+    def test_single_declaration(self, equation, declaration):
+        grid = Grid((5, 5))
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        op = Operator(eval(equation))
+
+        occurrences = [i for i in str(op.ccode).split('\n') if declaration in i]
+
+        assert len(occurrences) == 1
 
     @pytest.mark.parametrize('equation,expected', [
         ('Eq(u_2d.forward, u_2d + 1)',
