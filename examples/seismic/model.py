@@ -116,8 +116,8 @@ def demo_model(preset, **kwargs):
                      dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
                      delta=delta, theta=theta, phi=phi, **kwargs)
 
-    elif preset.lower() in ['layers-isotropic', '2layer-isotropic']:
-        # A two-layer model in a 2D or 3D domain with two different
+    elif preset.lower() in ['layers-isotropic']:
+        # A n-layers model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
         # and the bottom part of the domain has 2.5 km/s.
@@ -140,8 +140,8 @@ def demo_model(preset, **kwargs):
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
 
-    elif preset.lower() in ['layers-elastic', '2layer-elastic']:
-        # A two-layer model in a 2D or 3D domain with two different
+    elif preset.lower() in ['layers-elastic']:
+        # A n-layers model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
         # and the bottom part of the domain has 2.5 km/s.
@@ -221,7 +221,7 @@ def demo_model(preset, **kwargs):
                                  nbl=nbl, **kwargs)
 
     elif preset.lower() in ['layers-tti']:
-        # A two-layer model in a 2D or 3D domain with two different
+        # A n-layers model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
         # and the bottom part of the domain has 2.5 km/s.\
@@ -258,7 +258,7 @@ def demo_model(preset, **kwargs):
         return model
 
     elif preset.lower() in ['layers-tti-noazimuth']:
-        # A two-layer model in a 2D or 3D domain with two different
+        # A n-layers model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
         # and the bottom part of the domain has 2.5 km/s.\
@@ -318,7 +318,7 @@ def demo_model(preset, **kwargs):
         origin = (0., 0.)
         nbl = kwargs.pop('nbl', 20)
 
-        # Read 2D Marmousi model from opesc/data repo
+        # Read 2D Marmousi model from opesci/data repo
         data_path = kwargs.get('data_path', None)
         if data_path is None:
             raise ValueError("Path to opesci/data not found! Please specify with "
@@ -337,7 +337,7 @@ def demo_model(preset, **kwargs):
         k = kwargs.get('factor', 4)
         spacing = (k*1.25, k*1.25)
         origin = (0., 0.)
-        # Read 2D Marmousi model from opesc/data repo
+        # Read 2D Marmousi model from opesci/data repo
         data_path = kwargs.get('data_path', None)
         if data_path is None:
             raise ValueError("Path to opesci/data not found! Please specify with "
@@ -362,7 +362,7 @@ def demo_model(preset, **kwargs):
         origin = (0., 0.)
         nbl = kwargs.pop('nbl', 20)
 
-        # Read 2D Marmousi model from opesc/data repo
+        # Read 2D Marmousi model from opesci/data repo
         data_path = kwargs.pop('data_path', None)
         if data_path is None:
             raise ValueError("Path to opesci/data not found! Please specify with "
@@ -400,7 +400,7 @@ def demo_model(preset, **kwargs):
         origin = (0., 0., 0.)
         nbl = kwargs.pop('nbl', 20)
 
-        # Read 2D Marmousi model from opesc/data repo
+        # Read 2D Marmousi model from opesci/data repo
         data_path = kwargs.pop('data_path', None)
         if data_path is None:
             raise ValueError("Path to opesci/data not found! Please specify with "

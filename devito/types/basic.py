@@ -458,14 +458,14 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
                  |                               |
           VectorFunction                 TensorTimeFunction
                         \-------\                |
-                                 \------- VectorimeFunction
+                                 \------- VectorTimeFunction
 
     There are four relevant AbstractTensor sub-types: ::
 
-        * TensorFunction: A space-varying vector valued function
-        * VectorFunction: A space-varying tensor valued function
-        * TensorTimeFunction: A time-space-varying vector valued function
-        * VectorTImeFunction: A time-space-varying tensor valued function
+        * TensorFunction: A space-varying tensor valued function
+        * VectorFunction: A space-varying vector valued function
+        * TensorTimeFunction: A time-space-varying tensor valued function
+        * VectorTimeFunction: A time-space-varying vector valued function
     """
     # Sympy attributes
     is_MatrixLike = True
@@ -552,7 +552,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evalua
 class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     """
     Base class for tensor symbols, cached by both SymPy and Devito. It inherits
-    from and mimick the behaviour of a sympy.Function.
+    from and mimicks the behaviour of a sympy.Function.
 
     The hierarchy is structured as follows
 
@@ -699,7 +699,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @property
     def origin(self):
         """
-        Origin of the AbstracFunction in term of Dimension
+        Origin of the AbstractFunction in term of Dimension
         f(x) : origin = 0
         f(x + hx/2) : origin = hx/2
         """

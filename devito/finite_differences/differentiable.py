@@ -50,7 +50,7 @@ class Differentiable(sympy.Expr, Evaluable):
 
     @cached_property
     def is_TimeDependent(self):
-        # Default False, True if anything is time dependant in the expression
+        # Default False, True if anything is time dependent in the expression
         return any(getattr(i, 'is_TimeDependent', False) for i in self._args_diff)
 
     @cached_property
@@ -106,6 +106,7 @@ class Differentiable(sympy.Expr, Evaluable):
 
     def _eval_at(self, func):
         if not func.is_Staggered:
+            # Cartesian grid, do no waste time
             return self
         return self.func(*[getattr(a, '_eval_at', lambda x: a)(func) for a in self.args])
 
@@ -220,10 +221,10 @@ class Differentiable(sympy.Expr, Evaluable):
         return vec_func(name='grad_%s' % self.name, time_order=self.time_order,
                         space_order=self.space_order, components=comps, grid=self.grid)
 
-    def laplace2(self, weight=1):
+    def biharmonic(self, weight=1):
         """
-        Generates a symbolic expression for the double Laplacian w.r.t.
-        all spatial Dimensions.
+        Generates a symbolic expression for the weighted biharmonic operator w.r.t.
+        all spatial Dimensions Laplace(weight * Laplace (self))
         """
         space_dims = [d for d in self.dimensions if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)

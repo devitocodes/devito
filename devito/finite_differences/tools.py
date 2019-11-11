@@ -160,15 +160,15 @@ def symbolic_weights(function, deriv_order, indices, dim):
 def generate_indices(func, dim, order, side=None, x0=None):
     # If staggered finited difference
     if func.is_Staggered and not dim.is_Time:
-        x0, ind = indices_staggered(func, dim, order, side=side, x0=x0)
+        x0, ind = generate_indices_staggered(func, dim, order, side=side, x0=x0)
     else:
         x0 = (x0 or {dim: dim}).get(dim, dim)
         # Check if called from first_derivative()
-        ind = indices_cartesian(dim, order, side, x0)
+        ind = generate_indices_cartesian(dim, order, side, x0)
     return ind, x0
 
 
-def indices_cartesian(dim, order, side, x0):
+def generate_indices_cartesian(dim, order, side, x0):
     shift = 0
     diff = dim.spacing
     if side is left:
@@ -182,7 +182,7 @@ def indices_cartesian(dim, order, side, x0):
     return tuple(ind)
 
 
-def indices_staggered(func, dim, order, side=None, x0=None):
+def generate_indices_staggered(func, dim, order, side=None, x0=None):
     diff = dim.spacing
     start = (x0 or {}).get(dim) or func.indices_ref[dim]
     try:

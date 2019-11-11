@@ -40,8 +40,8 @@ class Derivative(sympy.Derivative, Differentiable):
     subs : dict, optional
         Substitutions to apply to the finite-difference expression after evaluation.
     x0 : dict, optional
-        Origin (where the finite-difference is evaluated at)
-        for the finite-difference scheme, i.e. {x: x, y: y + h_y/2}.
+        Origin (where the finite-difference is evaluated at) for the finite-difference
+        scheme, e.g. {x: x, y: y + h_y/2}.
 
     Examples
     --------
@@ -138,12 +138,12 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._side = kwargs.get("side", centered)
         obj._transpose = kwargs.get("transpose", direct)
         obj._subs = as_tuple(kwargs.get("subs"))
-        obj._x0 = kwargs.get('x0', {d: d for d in obj._dims})
+        obj._x0 = kwargs.get('x0', None)
         return obj
 
     def subs(self, *args, **kwargs):
         """
-        Bypass sympy.Sub as Devito as its own lazy evaluation mechanism
+        Bypass sympy.Subs as Devito has its own lazy evaluation mechanism.
         """
         return self.xreplace(dict(*args), **kwargs)
 
@@ -234,4 +234,4 @@ class Derivative(sympy.Derivative, Differentiable):
                                      matvec=self.transpose, x0=self.x0)
         for e in self._subs:
             res = res.xreplace(e)
-        return res.evaluate
+        return res

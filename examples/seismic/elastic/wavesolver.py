@@ -52,7 +52,7 @@ class ElasticWaveSolver(object):
         rec2 : SparseTimeFunction or array_like, optional
             The interpolated receiver data of the particle velocities.
         v : VectorTimeFunction, optional
-            The computed  particle velocity.
+            The computed particle velocity.
         tau : TensorTimeFunction, optional
             The computed symmetric stress tensor.
         lam : Function, optional
@@ -66,7 +66,8 @@ class ElasticWaveSolver(object):
 
         Returns
         -------
-        Rec1(tzz), Rec2(div(v)), particle velocities v, stress t and performance summary.
+        Rec1(tzz), Rec2(div(v)), particle velocities v, stress tensor tau and
+        performance summary.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src

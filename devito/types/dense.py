@@ -936,7 +936,7 @@ class Function(DiscreteFunction, Differentiable):
         # Dynamically add derivative short-cuts
         self._fd = generate_fd_shortcuts(self)
 
-        # Flag wether it is a parameter or a variable.
+        # Flag whether it is a parameter or a variable.
         # Used at operator evaluation to evaluate the Function at the
         # variable location (i.e. if the variable is staggered in x the
         # parameter has to be computed at x + hx/2)

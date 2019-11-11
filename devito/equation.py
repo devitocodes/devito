@@ -104,7 +104,7 @@ class Eq(sympy.Eq, Evaluable):
         Flatten vectorial/tensorial Equation into list of scalar Equations.
         """
         if self.lhs.is_Matrix:
-            # Maps the Equations to retreive the rhs from relevant lhs
+            # Maps the Equations to retrieve the rhs from relevant lhs
             eqs = dict(zip(as_tuple(self.lhs), as_tuple(self.rhs)))
             # Get the relevant equations from the lhs structure. .values removes
             # the symmetric duplicates and off-diagonal zeros.

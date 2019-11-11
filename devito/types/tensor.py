@@ -26,7 +26,7 @@ class TensorFunction(AbstractTensor, Differentiable):
     symmetric : bool, optional
         Whether the tensor is symmetric or not. Defaults to True.
     diagonal : Bool, optional
-        Wether the tensor is diagonal or not. Defaults to False.
+        Whether the tensor is diagonal or not. Defaults to False.
     staggered: tuple of Dimension, optional
         Staggering of each component, needs to have the size of the tensor. Defaults
         to the Dimensions.
