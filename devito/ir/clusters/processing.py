@@ -43,12 +43,10 @@ class Queue(object):
 
         return processed
 
-    def _process_fatd(self, elements, level, prefix=None):
+    def _process_fatd(self, elements, level):
         """
         fatd -> First Apply Then Divide
         """
-        prefix = prefix or []
-
         # Divide part
         processed = []
         for pfx, g in groupby(elements, key=lambda i: i.itintervals[:level]):
@@ -57,8 +55,8 @@ class Queue(object):
                 processed.extend(list(g))
             else:
                 # Apply callback
-                _elements = self.callback(list(g), prefix)
+                _elements = self.callback(list(g), pfx)
                 # Recursion
-                processed.extend(self._process_fatd(_elements, level + 1, pfx))
+                processed.extend(self._process_fatd(_elements, level + 1))
 
         return processed
