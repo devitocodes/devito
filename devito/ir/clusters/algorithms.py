@@ -47,17 +47,21 @@ class Queue(object):
 
     Notes
     -----
-    Subclasses must override :meth:`callback`, which gets executed upon
-    the conquer phase of the algorithm.
+    Subclasses must override :meth:`callback`, which may get executed either
+    before (fdta -- first divide then apply) or after (fatd -- first apply
+    then divide) the divide phase of the algorithm.
     """
 
     def callback(self, *args):
         raise NotImplementedError
 
     def process(self, elements):
-        return self._process(elements, 1)
+        return self._process_fdta(elements, 1)
 
-    def _process(self, elements, level, prefix=None):
+    def _process_fdta(self, elements, level, prefix=None):
+        """
+        fdta -> First Divide Then Apply
+        """
         prefix = prefix or []
 
         # Divide part
@@ -68,10 +72,30 @@ class Queue(object):
                 processed.extend(list(g))
             else:
                 # Recursion
-                processed.extend(self._process(list(g), level + 1, pfx))
+                processed.extend(self._process_fdta(list(g), level + 1, pfx))
 
-        # Conquer part (execute callback)
+        # Apply callback
         processed = self.callback(processed, prefix)
+
+        return processed
+
+    def _process_fatd(self, elements, level, prefix=None):
+        """
+        fatd -> First Apply Then Divide
+        """
+        prefix = prefix or []
+
+        # Divide part
+        processed = []
+        for pfx, g in groupby(elements, key=lambda i: i.itintervals[:level]):
+            if level > len(pfx):
+                # Base case
+                processed.extend(list(g))
+            else:
+                # Apply callback
+                _elements = self.callback(list(g), prefix)
+                # Recursion
+                processed.extend(self._process_fatd(_elements, level + 1, pfx))
 
         return processed
 
@@ -92,7 +116,7 @@ class Toposort(Queue):
 
     def process(self, clusters):
         cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
-        cgroups = self._process(cgroups, 1)
+        cgroups = self._process_fdta(cgroups, 1)
         clusters = ClusterGroup.concatenate(*cgroups)
         return clusters
 
