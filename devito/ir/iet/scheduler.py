@@ -168,7 +168,7 @@ def iet_insert_decls(iet, external):
                         continue
                     elif i._mem_stack:
                         # On the stack
-                        allocator.push_object_on_stack(iet[0], i)
+                        allocator.push_array_on_stack(iet[0], i)
                     else:
                         # On the heap
                         allocator.push_array_on_heap(i)
