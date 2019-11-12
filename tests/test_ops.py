@@ -297,20 +297,19 @@ class TestOPSExpression(object):
         dims = len(accesses[0])
         pts = len(accesses)
         stencil_name = namespace['ops_stencil_name'](dims, 'name', pts)
-
         stencil_array = Array(
             name=stencil_name,
             dimensions=(DefaultDimension(name='len', default_value=dims * pts),),
             dtype=np.int32,
             scope='stack'
         )
-
         list_initialize = Expression(ClusterizedEq(Eq(
             stencil_array,
             ListInitializer(list(itertools.chain(*accesses)))
         )))
+
         iet = Conditional(x < 3, list_initialize, list_initialize)
-        # Derive all Operator parameters based on the IET
+
         parameters = derive_parameters(iet, True)
         iet = iet_insert_decls(iet, parameters)
         iet = iet_insert_casts(iet, parameters)
