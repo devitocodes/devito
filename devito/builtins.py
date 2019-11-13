@@ -273,6 +273,13 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     if isinstance(function, dv.TimeFunction):
         raise NotImplementedError("TimeFunctions are not currently supported.")
 
+    if nbl == 0:
+        if isinstance(data, dv.Function):
+            function.data[:] = data.data[:]
+        else:
+            function.data[:] = data[:]
+        return
+
     if len(as_tuple(nbl)) == 1 and len(as_tuple(nbl)) < function.ndim:
         nbl = function.ndim*(as_tuple(nbl)[0], )
     elif len(as_tuple(nbl)) == function.ndim:
