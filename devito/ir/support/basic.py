@@ -722,10 +722,8 @@ class Scope(object):
                      if (a.timestamp in as_tuple(timestamps) and
                          a.mode in as_tuple(modes)))
 
-    @cached_property
-    def d_flow(self):
-        """Generate all flow (or "read-after-write") dependences."""
-        found = DependenceGroup()
+    def d_flow_gen(self):
+        """Generator for flow (or "read-after-write") dependences."""
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
@@ -739,13 +737,15 @@ class Scope(object):
                         # it's a read-for-increment
                         is_flow = not r.is_read_increment
                     if is_flow:
-                        found.append(dependence)
-        return found
+                        yield dependence
 
     @cached_property
-    def d_anti(self):
-        """Generate all anti (or "write-after-read") dependences."""
-        found = DependenceGroup()
+    def d_flow(self):
+        """Flow (or "read-after-write") dependences."""
+        return DependenceGroup(self.d_flow_gen())
+
+    def d_anti_gen(self):
+        """Generator for anti (or "write-after-read") dependences."""
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads.get(k, []):
@@ -759,13 +759,15 @@ class Scope(object):
                         # it's a read-for-increment
                         is_anti = not r.is_read_increment
                     if is_anti:
-                        found.append(dependence)
-        return found
+                        yield dependence
 
     @cached_property
-    def d_output(self):
-        """Generate all output (or "write-after-write") dependences."""
-        found = DependenceGroup()
+    def d_anti(self):
+        """Anti (or "write-after-read") dependences."""
+        return DependenceGroup(self.d_anti_gen())
+
+    def d_output_gen(self):
+        """Generator for output (or "write-after-write") dependences."""
         for k, v in self.writes.items():
             for w1 in v:
                 for w2 in self.writes.get(k, []):
@@ -778,8 +780,12 @@ class Scope(object):
                         # Conservatively, we assume it is a dependence
                         is_output = True
                     if is_output:
-                        found.append(dependence)
-        return found
+                        yield dependence
+
+    @cached_property
+    def d_output(self):
+        """Output (or "write-after-write") dependences."""
+        return DependenceGroup(self.d_output_gen())
 
     @cached_property
     def d_all(self):
