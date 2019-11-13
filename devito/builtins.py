@@ -277,7 +277,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         if isinstance(data, dv.Function):
             function.data[:] = data.data[:]
         else:
-            function.data[:] = data
+            function.data[:] = data[:]
         return
 
     if len(as_tuple(nbl)) == 1 and len(as_tuple(nbl)) < function.ndim:

@@ -503,6 +503,8 @@ class GenericModel(object):
             # Create dampening field as symbol `damp`
             self.damp = Function(name="damp", grid=self.grid)
             initialize_damp(self.damp, self.nbl, self.spacing, mask=damp_mask)
+        else:
+            self.damp = 1 if damp_mask else 0
 
     def physical_params(self, **kwargs):
         """
