@@ -1,3 +1,4 @@
+import itertools
 import numpy as np
 import pytest
 
@@ -6,12 +7,14 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction)
-from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
-                           retrieve_iteration_tree)
+from devito.ir.equations import ClusterizedEq
+from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
+                           IsPerfectIteration, derive_parameters, iet_insert_decls,
+                           iet_insert_casts, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
-from devito.symbolics import indexify, retrieve_indexed
+from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten
-from devito.types import Array, Scalar
+from devito.types import Array, DefaultDimension, Scalar
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -990,6 +993,37 @@ class TestArguments(object):
 
 
 class TestDeclarator(object):
+
+    def test_conditional_declarations(self):
+        accesses = [[0, 0], [0, 1], [1, 0], [1, 1]]
+        dims = len(accesses[0])
+        pts = len(accesses)
+        stencil_name = 's%dd_%s_%dpt' % (dims, 'name', pts)
+        stencil_array = Array(
+            name=stencil_name,
+            dimensions=(DefaultDimension(name='len', default_value=dims * pts),),
+            dtype=np.int32,
+            scope='stack'
+        )
+        list_initialize = Expression(ClusterizedEq(Eq(
+            stencil_array,
+            ListInitializer(list(itertools.chain(*accesses)))
+        )))
+
+        iet = Conditional(x < 3, list_initialize, list_initialize)
+
+        parameters = derive_parameters(iet, True)
+        iet = iet_insert_decls(iet, parameters)
+        iet = iet_insert_casts(iet, parameters)
+        assert str(iet) == """\
+if (x < 3)
+{
+  int s2d_name_4pt[8] = {0, 0, 0, 1, 1, 0, 1, 1};
+}
+else
+{
+  int s2d_name_4pt[8] = {0, 0, 0, 1, 1, 0, 1, 1};
+}"""
 
     def test_heap_1D_stencil(self):
         i, j = dimensions('i j')
