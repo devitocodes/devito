@@ -35,6 +35,12 @@ ENV testWithPip=$installWithPip
 ARG DEVITO_BACKEND=none
 ENV DEVITO_BACKEND=$DEVITO_BACKEND
 
+# Set OPS variable in case they are needed
+ARG ops_compiler=gnu
+ARG ops_install_path=/tmp/OPS/ops
+ENV OPS_COMPILER=$ops_compiler
+ENV OPS_INSTALL_PATH=$ops_install_path
+
 # Use OpenMP?
 ARG DEVITO_OPENMP=0
 ENV DEVITO_OPENMP=$DEVITO_OPENMP
@@ -129,6 +135,11 @@ RUN if [ $installWithPip == "true" ] ; then \
           make compiler-api ; \
           pip install -e . ; \
         popd ; \
+      elif [ $DEVITO_BACKEND == "ops" ] ; then \
+        git clone https://github.com/opesci/OPS.git /tmp/OPS ; \
+        cd $OPS_INSTALL_PATH/c ; \
+        make ; \
+        cd $HOME ; \
       fi ; \
       if [ $RUN_EXAMPLES == "true" ] ; then \
         bash scripts/create_ipyparallel_mpi_profile.sh; \

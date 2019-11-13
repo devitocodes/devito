@@ -63,7 +63,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=ops YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=0
+      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=ops YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=0 OPS_COMPILER=gnu OPS_INSTALL_PATH=$HOME/build/opesci/OPS/ops
 
 addons:
   apt:
@@ -108,6 +108,10 @@ before_script:
       conda install swig; cd ../;
       git clone https://github.com/opesci/yask.git;
       cd yask; make compiler-api; pip install -e .; cd ../devito;
+    elif [[ $DEVITO_BACKEND == 'ops' ]]; then
+      cd ../;
+      git clone https://github.com/opesci/OPS.git;
+      cd OPS/ops/c; make; cd ../../../devito;
     fi
 
 script:
