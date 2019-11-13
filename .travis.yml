@@ -109,13 +109,13 @@ before_script:
       git clone https://github.com/opesci/yask.git;
       cd yask; make compiler-api; pip install -e .; cd ../devito;
     elif [[ $DEVITO_BACKEND == 'ops' ]]; then
-      cd $HOME
-      git clone https://github.com/opesci/OPS.git;
+      pwd
+      git clone https://github.com/opesci/OPS.git OPS;
       export OPS_COMPILER=gnu;
       export OPS_INSTALL_PATH=$HOME/OPS/ops;
       cd $OPS_INSTALL_PATH/c;
       make;
-      cd $HOME/devito;
+      cd $HOME;
     fi
 
 script:
