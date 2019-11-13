@@ -22,18 +22,16 @@ class OPSCompiler(OPSMetaCompiler):
     def __init__(self, *args, **kwargs):
         super(OPSCompiler, self).__init__(*args, **kwargs)
 
-    def jit_compile(self, soname, ccode, hcode):
-
         self._ops_install_path = os.environ.get('OPS_INSTALL_PATH')
         if not self._ops_install_path:
             raise ValueError("Couldn't find OPS_INSTALL_PATH\
                 environment variable, please check your OPS installation")
 
-        self._ops_backend = os.environ.get('OPS_BACKEND')
-        if not self._ops_backend:
-            raise ValueError("Couldn't find OPS_BACKEND\
-                environment variable, current options: `seq` or `cuda`")
+        self._devito_platform = os.environ.get('DEVITO_PLATFORM')
+        if not self._devito_platform:
+            self._devito_platform = 'seq'
 
+    def jit_compile(self, soname, ccode, hcode):
         self._translate_ops(soname, ccode, hcode)
         self.ops_src = '%s/%s_ops.cpp' % (self.get_jit_dir(), soname)
         self.cache_dir = self.get_jit_dir()
@@ -47,9 +45,9 @@ class OPSCompiler(OPSMetaCompiler):
         except FileNotFoundError:
             warning("Couldn't find file: %s" % self.ops_src)
 
-        if self._ops_backend == 'cuda':
+        if self._devito_platform == 'nvidiaX':
             OPSCompilerCUDA._compile(self, soname)
-        elif self._ops_backend == 'seq':
+        elif self._devito_platform == 'seq':
             pass
 
     def _translate_ops(self, soname, ccode, hcode):
