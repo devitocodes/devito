@@ -630,9 +630,18 @@ class Scope(object):
 
     def __init__(self, exprs):
         """
-        A Scope represents a group of TimedAcces objects extracted
-        from some IREq ``exprs``. The expressions must be provided
-        in program order.
+        A Scope enables data dependence analysis on a totally ordered sequence
+        of expressions.
+
+        A Scope may be used only if IterationSpaces and Function's Dimensions
+        follow the same ordering.  For example, given ``f(x, y, z)`` and ``g(x,
+        y)``, the IterationSpace must be ``[x, y, z]`` (and not ``[x, z, y]``).
+        In Devito, this is guaranteed by construction -- IterationSpaces are
+        built from a deterministic partial ordering of Dimensions. This
+        condition ensures that the lexicographic ordering of the iterations for
+        the iteration vector ``(x, y, z)`` is ``(0, 0, 0), (0, 0, 1), ..., (0,
+        1, 0), (0, 1, 1), ...``, which greatly simplifies the collection and
+        classification of data dependences.
         """
         exprs = as_tuple(exprs)
 
