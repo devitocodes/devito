@@ -108,23 +108,14 @@ before_script:
       conda install swig; cd ../;
       git clone https://github.com/opesci/yask.git;
       cd yask; make compiler-api; pip install -e .; cd ../devito;
-    fi
     elif [[ $DEVITO_BACKEND == 'ops' ]]; then
-      echo 1
       cd $HOME
-      echo 2
       git clone https://github.com/opesci/OPS.git;
-      echo 3
       export OPS_COMPILER=gnu;
-      echo 4
       export OPS_INSTALL_PATH=$HOME/OPS/ops;
-      echo 5
       cd $OPS_INSTALL_PATH/c;
-      echo 6
       make;
-      echo 7
       cd $HOME/devito;
-      echo 9
     fi
 
 script:
