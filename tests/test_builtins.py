@@ -190,6 +190,15 @@ class TestInitializeFunction(object):
         assert np.all(a[::-1, :] - np.array(f.data[0:4, 4:8]) == 0)
         assert np.all(a[::-1, :] - np.array(f.data[8:12, 4:8]) == 0)
 
+    def test_nbl_zero(self):
+        """Test for nbl = 0."""
+        a = np.arange(16).reshape((4, 4))
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        initialize_function(f, a, 0)
+
+        assert np.all(a[:] - np.array(f.data[:]) == 0)
+
     @skipif('nompi')
     @pytest.mark.parallel(mode=4)
     def test_if_parallel(self):
