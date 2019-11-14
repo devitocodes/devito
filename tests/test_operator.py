@@ -1184,64 +1184,88 @@ class TestLoopScheduling(object):
             exprs = FindNodes(Expression).visit(tree[-1])
             assert len(exprs) == 3
 
-    def test_fission_for_parallelism(self):
+    @pytest.mark.parametrize('exprs', [
+        # Trivial case
+        ('Eq(u, 1)', 'Eq(v, u.dxl)'),
+        # Anti-dependence along x
+        ('Eq(u, 1)', 'Eq(v, u.dxr)'),
+        # As above, but with an additional Dimension-independent dependence
+        ('Eq(u, v)', 'Eq(v, u.dxl)'),
+        ('Eq(u, v)', 'Eq(v, u.dxr)'),
+        # Slightly more convoluted than above, as the additional dependence is
+        # now carried along x
+        ('Eq(u, v)', 'Eq(v, u.dxr)'),
+        # No backward carried dependences, no storage related dependences
+        ('Eq(us.forward, vs)', 'Eq(vs, us.dxl)'),
+        # No backward carried dependences, no storage related dependences
+        ('Eq(us.forward, vs)', 'Eq(vs, us.dxr)'),
+    ])
+    def test_fission_for_parallelism(self, exprs):
         """
         Test that expressions are scheduled to separate loops if this can
         turn one sequential loop into two parallel loops ("loop fission").
         """
         grid = Grid(shape=(3, 3))
+        t = grid.stepping_dim  # noqa
         x, y = grid.dimensions
 
-        u = TimeFunction(name='u', grid=grid)
-        v = TimeFunction(name='v', grid=grid)
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+        us = TimeFunction(name='u', grid=grid, save=5)  # noqa
+        vs = TimeFunction(name='v', grid=grid, save=5)  # noqa
 
-        # Expect Cluster fission to increase parallelism
-        eqns = [Eq(u, 1), Eq(v, u.dxl)]
+        # List comprehension would need explicit locals/globals mappings to eval
+        eqns = []
+        for e in exprs:
+            eqns.append(eval(e))
+
         op = Operator(eqns)
+
+        # Fission expected
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
         assert trees[0][1].dim is x
         assert trees[1][1].dim is x
 
-        # Same story as above, but with a flow0dependence in the Backward direction
-        eqns = [Eq(u, 1), Eq(v, u.dxr)]
-        op = Operator(eqns)
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        assert trees[0][1].dim is x
-        assert trees[1][1].dim is x
+    @pytest.mark.parametrize('exprs', [
+        # Storage related dependence
+        ('Eq(u.forward, v)', 'Eq(v, u.dxl)'),
+        # Backward carried flow-dependence through `v`
+        ('Eq(u, v.forward)', 'Eq(v, u)'),
+        # Backward carried flow-dependence through `vs`
+        ('Eq(us.forward, vs)', 'Eq(vs.forward, us.dxl)'),
+        # Classic coupled forward-marching equations
+        ('Eq(u.forward, u + u.backward + v)', 'Eq(v.forward, v + v.backward + u)')
+    ])
+    def test_no_fission_as_illegal(self, exprs):
+        """
+        Antithesis of `test_fission_for_parallelism`.
+        """
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions
 
-        # Similar, but with an additional Dimension-independent dependence
-        eqns = [Eq(u, v), Eq(v, u.dxl)]
-        op = Operator(eqns)
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        assert trees[0][1].dim is x
-        assert trees[1][1].dim is x
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+        us = TimeFunction(name='u', grid=grid, save=5)  # noqa
+        vs = TimeFunction(name='v', grid=grid, save=5)  # noqa
 
-        #TODO : move to "test_no_fission"
+        # List comprehension would need explicit locals/globals mappings to eval
+        eqns = []
+        for e in exprs:
+            eqns.append(eval(e))
+
+        op = Operator(eqns)
 
         # No fission expected
-        eqns = [Eq(u.forward, v), Eq(v, u.dxl)]
-        op = Operator(eqns)
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 1
-
-        us = TimeFunction(name='u', grid=grid, save=5)
-        vs = TimeFunction(name='v', grid=grid, save=5)
-
-        # No fission expected
-        eqns = [Eq(us, 1), Eq(us.forward, vs), Eq(vs.forward, us.dxl)]
-        op = Operator(eqns)
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
 
     @pytest.mark.parametrize('exprs,directions,expected,visit', [
-        # 0) WAR 2->3
+        # 0) WAR 2->3, 3 fissioned to maximize parallelism
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
-         '++++', ['xyz', 'xyz'], 'xyzz'),
+         '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
         # 1) WAR 1->2, 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
@@ -1289,7 +1313,7 @@ class TestLoopScheduling(object):
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         '+++++++', ['txyz', 'txyz', 'txyz'], 'txyzzyz'),
+         '++++++++', ['txyz', 'txyz', 'txyz'], 'txyzyzyz'),
         # 10) WAR 1->2; WAW 1->3
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
