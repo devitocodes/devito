@@ -273,14 +273,16 @@ class Schedule(Queue):
                                      candidates | known_break)
 
         # Compute iteration direction
-        direction = {d: Backward for d in candidates if d.root in scope.d_anti.cause}
-        direction.update({d: Forward for d in candidates if d not in direction})
+        idir = {d: Backward for d in candidates if d.root in scope.d_anti.cause}
+        if maybe_break:
+            idir.update({d: Forward for d in candidates if d.root in scope.d_flow.cause})
+        idir.update({d: Forward for d in candidates if d not in idir})
 
         # Enforce iteration direction on each Cluster
         processed = []
         for c in clusters:
             ispace = IterationSpace(c.ispace.intervals, c.ispace.sub_iterators,
-                                    {**c.ispace.directions, **direction})
+                                    {**c.ispace.directions, **idir})
             processed.append(Cluster(c.exprs, ispace, c.dspace))
 
         if not backlog:
@@ -288,11 +290,11 @@ class Schedule(Queue):
 
         # Handle the backlog -- the Clusters characterized by flow- and anti-dependences
         # along one or more Dimensions
-        direction = {d: Any for d in known_break}
+        idir = {d: Any for d in known_break}
         for i, c in enumerate(list(backlog)):
             ispace = IterationSpace(c.ispace.intervals.lift(known_break),
                                     c.ispace.sub_iterators,
-                                    {**c.ispace.directions, **direction})
+                                    {**c.ispace.directions, **idir})
             dspace = c.dspace.lift(known_break)
             backlog[i] = Cluster(c.exprs, ispace, dspace)
 
