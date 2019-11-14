@@ -310,7 +310,7 @@ class Schedule(Queue):
                                    (d.is_anti and d.is_lex_positive)):
                 # Would break a data dependence
                 return False
-            test = test or bool(d.cause & candidates)
+            test = test or (bool(d.cause & candidates) and not d.is_lex_equal)
         return test
 
 
