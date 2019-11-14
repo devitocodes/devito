@@ -30,8 +30,8 @@ ENV YC_CXX=g++-$gccVersion
 # Set OPS variable in case they are needed
 ARG ops_compiler=gnu
 ARG ops_install_path=/tmp/OPS/ops
-ENV OPS_COMPILER=ops_compiler
-ENV OPS_INSTALL_PATH=ops_install_path
+ENV OPS_COMPILER=$ops_compiler
+ENV OPS_INSTALL_PATH=$ops_install_path
 
 # Default devito install method
 ARG installWithPip=false
@@ -137,7 +137,7 @@ RUN if [ $installWithPip == "true" ] ; then \
         popd ; \
       elif [ $DEVITO_BACKEND == "ops" ] ; then \
         git clone https://github.com/opesci/OPS.git /tmp/OPS ; \
-        pushd $OPS_INSTALL_PATH/c ; \
+        pushd /tmp/OPS/ops/c ; \
           make ; \
         popd ; \
       fi ; \
