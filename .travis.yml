@@ -112,7 +112,7 @@ before_script:
       git clone https://github.com/opesci/OPS.git /tmp/OPS;
       cd $OPS_INSTALL_PATH/c;
       make;
-      cd $HOME/devito;
+      cd /devito;
     fi
 
 script:
