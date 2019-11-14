@@ -1237,104 +1237,104 @@ class TestLoopScheduling(object):
         assert len(trees) == 1
 
     @pytest.mark.parametrize('exprs,directions,expected,visit', [
-        # WAR 2->3
+        # 0) WAR 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
          '++++', ['xyz', 'xyz'], 'xyzz'),
-        # WAR 1->2, 2->3
+        # 1) WAR 1->2, 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
           'Eq(ti3[x,y,z], ti1[x,y,z-2] + 1.)'),
          '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
-        # WAR 1->2, 2->3, RAW 2->3
+        # 2) WAR 1->2, 2->3, RAW 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
           'Eq(ti3[x,y,z], ti1[x,y,z-2] + ti1[x,y,z+2])'),
          '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
-        # WAR 1->3
+        # 3) WAR 1->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y,z+1] + 1.)'),
          '++++', ['xyz', 'xyz'], 'xyzz'),
-        # WAR 1->3
+        # 4) WAR 1->3
         # Like before, but the WAR is along `y`, an inner Dimension
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y+1,z] + 1.)'),
          '+++++', ['xyz', 'xyz'], 'xyzyz'),
-        # WAR 1->2, 2->3; WAW 1->3
+        # 5) WAR 1->2, 2->3; WAW 1->3
         # Similar to the cases above, but the last equation does not iterate over `z`
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+2])',
           'Eq(ti0[x,y,0], ti0[x,y,0] + 1.)'),
          '++++', ['xyz', 'xyz', 'xy'], 'xyzz'),
-        # WAR 1->2; WAW 1->3
+        # 6) WAR 1->2; WAW 1->3
         # Basically like above, but with the time dimension. This should have no impact
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t,x,y,0], tu[t,x,y,0] + 1.)'),
          '+++++', ['txyz', 'txyz', 'txy'], 'txyzz'),
-        # WAR 1->2, 2->3
+        # 7) WAR 1->2, 2->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z-1] + 1.)'),
          '++++++', ['txyz', 'txyz', 'txyz'], 'txyzzz'),
-        # WAR 1->2; WAW 1->3
+        # 8) WAR 1->2; WAW 1->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
           'Eq(tu[t,3,y,0], tu[t,3,y,0] + 1.)'),
          '++++++++', ['txyz', 'txyz', 'ty'], 'txyzxyzy'),
-        # RAW 1->2, WAR 2->3
+        # 9) RAW 1->2, WAR 2->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
          '+++++++', ['txyz', 'txyz', 'txyz'], 'txyzzyz'),
-        # WAR 1->2; WAW 1->3
+        # 10) WAR 1->2; WAW 1->3
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t-1,x,y,0], tu[t,x,y,0] + 1.)'),
          '-+++', ['txyz', 'txy'], 'txyz'),
-        # WAR 1->2
+        # 11) WAR 1->2
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2] + tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z] + 2)'),
          '-+++', ['txyz'], 'txyz'),
-        # Time goes backward so that information flows in time
+        # 12) Time goes backward so that information flows in time
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tv[t-1,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
          '-+++', ['txyz'], 'txyz'),
-        # Time goes backward so that information flows in time, interleaved
+        # 13) Time goes backward so that information flows in time, interleaved
         # with independent Eq
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
          '-++++++', ['txyz', 'xyz'], 'txyzxyz'),
-        # Time goes backward so that information flows in time
+        # 14) Time goes backward so that information flows in time
         (('Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + ti0[x,y-1,z])'),
          '+++-+++', ['xyz', 'txyz'], 'xyztxyz'),
-        # WAR 2->1
+        # 15) WAR 2->1
         # Here the difference is that we're using SubDimensions
         (('Eq(tv[t,xi,yi,zi], tu[t,xi-1,yi,zi] + tu[t,xi+1,yi,zi])',
           'Eq(tu[t+1,xi,yi,zi], tu[t,xi,yi,zi] + tv[t,xi-1,yi,zi] + tv[t,xi+1,yi,zi])'),
          '+++++++', ['txiyizi', 'txiyizi'], 'txiyizixiyizi'),
-        # RAW 3->1; expected=2
+        # 16) RAW 3->1; expected=2
         # Time goes backward, but the third equation should get fused with
         # the first one, as there dependence is carried along time
         (('Eq(tv[t-1,x,y,z], tv[t,x-1,y,z] + tv[t,x+1,y,z])',
           'Eq(tv[t-1,z,z,z], tv[t-1,z,z,z] + 1)',
           'Eq(f[x,y,z], tu[t-1,x,y,z] + tu[t,x,y,z] + tu[t+1,x,y,z] + tv[t,x,y,z])'),
          '-++++', ['txyz', 'tz'], 'txyzz'),
-        # WAR 2->3, 2->4; expected=4
+        # 17) WAR 2->3, 2->4; expected=4
         (('Eq(tu[t+1,x,y,z], tu[t,x,y,z] + 1.)',
           'Eq(tu[t+1,y,y,y], tu[t+1,y,y,y] + tw[t+1,y,y,y])',
           'Eq(tw[t+1,z,z,z], tw[t+1,z,z,z] + 1.)',
           'Eq(tv[t+1,x,y,z], tu[t+1,x,y,z] + 1.)'),
          '+++++++++', ['txyz', 'ty', 'tz', 'txyz'], 'txyzyzxyz'),
-        # WAR 1->3; expected=2
+        # 18) WAR 1->3; expected=2
         # 5 is expected to be moved before 4 but after 3, to be merged with 3
         (('Eq(tu[t+1,x,y,z], tv[t,x,y,z] + 1.)',
           'Eq(tv[t+1,x,y,z], tu[t,x,y,z] + 1.)',
