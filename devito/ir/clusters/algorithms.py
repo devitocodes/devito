@@ -308,10 +308,10 @@ class Schedule(Queue):
             if d.is_storage_volatile(candidates):
                 # Would break a dependence on storage
                 return False
-            if d.is_carried() and ((d.is_flow and d.is_lex_negative) or
-                                   (d.is_anti and d.is_lex_positive)):
-                # Would break a data dependence
-                return False
+            if any(d.is_carried(i) for i in candidates):
+                if (d.is_flow and d.is_lex_negative) or (d.is_anti and d.is_lex_positive):
+                    # Would break a data dependence
+                    return False
             test = test or (bool(d.cause & candidates) and not d.is_lex_equal)
         return test
 
