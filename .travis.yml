@@ -113,7 +113,7 @@ before_script:
       git clone https://github.com/opesci/OPS.git;
       cd OPS/ops/c;
       CC=gcc-7 make;
-      cd $HOME/opesci/devito;
+      cd ../../../devito;
     fi
 
 script:
