@@ -9,9 +9,9 @@ from devito.ops.utils import AccessibleInfo
 
 class OPSNodeFactory(object):
     """
-    Generate OPS nodes for building an OPS expression.
+    Generate OPS nodes for building OPS expressions.
     A new OPS argument is created based on the indexed name, and its time dimension.
-    Such a pair identifies an unique argument within the OPS kernel. The function
+    Such a pair identifies an unique argument within an OPS kernel. The function
     returns the stored argument associated with this pair, if it was already created.
     """
 
@@ -68,14 +68,25 @@ class OPSNodeFactory(object):
 
         return OpsAccess(symbol_to_access, space_indices)
 
-    def new_ops_gbl(self, c):
-        if c in self.ops_args:
-            return self.ops_args[c].accessible
+    def new_ops_gbl(self, expr):
+        """
+        Ensure Constant symbols are accessed as C pointers.
 
-        new_c = AccessibleInfo(Constant(name='*%s' % c.name, dtype=c.dtype),
-                               None,
-                               None)
-        self.ops_args[c] = new_c
-        self.ops_params.append(new_c.accessible)
+        Parameters
+        ----------
+        expr : Expression
+               Constant expression.
 
-        return new_c.accessible
+        Returns
+        -------
+        Constant
+            Constant symbol, as a pointer.
+        """
+        if expr not in self.ops_args:
+            self.ops_args[expr] = AccessibleInfo(Constant(name='*%s' % expr.name,
+                                                          dtype=expr.dtype),
+                                                 None,
+                                                 None)
+            self.ops_params.append(self.ops_args[expr].accessible)
+
+        return Constant(name='(*%s)' % expr.name, dtype=expr.dtype)
