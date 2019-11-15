@@ -122,13 +122,13 @@ class OperatorOPS(Operator):
         return super()._finalize(iet, parameters)
 
     def _compile(self):
-        if self._should_compile_with_ops:
+        if not self._should_compile_with_ops:
+            super()._compile()
+        else:
             self._compiler = ops_configuration['compiler'].copy()
             self._includes.append('%s.h' % self._soname)
             if self._lib is None:
                 self._compiler.jit_compile(self._soname, str(self.ccode), str(self.hcode))
-        else:
-            super()._compile()
 
     @cached_property
     def time_dimension(self):
