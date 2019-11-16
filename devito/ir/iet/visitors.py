@@ -747,7 +747,7 @@ class Transformer(Visitor):
                     children = [self._visit(i, **kwargs) for i in handle.children]
                     return handle._rebuild(*children, **handle.args_frozen)
                 else:
-                    return handle._rebuild(**handle.args)
+                    return handle
         else:
             children = [self._visit(i, **kwargs) for i in o.children]
             return o._rebuild(*children, **o.args_frozen)
