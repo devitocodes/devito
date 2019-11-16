@@ -191,29 +191,9 @@ class Ompizer(object):
         self.nthreads_nested = NThreadsNested(aliases='nthreads1')
         self.nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
 
-    def _make_atomic_incs(self, partree):
-        if not partree.is_ParallelAtomic:
-            return partree
-        # Introduce one `omp atomic` pragma for each increment
-        exprs = FindNodes(Expression).visit(partree)
-        exprs = [i for i in exprs if i.is_Increment and not i.is_ForeignExpression]
-        mapper = {i: List(header=self.lang['atomic'], body=i) for i in exprs}
-        partree = Transformer(mapper).visit(partree)
-        return partree
-
-    def _make_threaded_prodders(self, partree):
-        mapper = {i: ThreadedProdder(i) for i in FindNodes(Prodder).visit(partree)}
-        partree = Transformer(mapper).visit(partree)
-        return partree
-
-    def _make_partree(self, candidates, nthreads=None):
-        """Parallelize `root` attaching a suitable OpenMP pragma."""
-        assert candidates
-        root = candidates[0]
-
-        # Get the collapsable Iterations
+    def _find_collapsable(self, root, candidates):
         collapsable = []
-        if ncores() >= Ompizer.COLLAPSE_NCORES and IsPerfectIteration().visit(root):
+        if ncores() >= self.COLLAPSE_NCORES and IsPerfectIteration().visit(root):
             for n, i in enumerate(candidates[1:], 1):
                 # The OpenMP specification forbids collapsed loops to use iteration
                 # variables in initializer expressions. E.g., the following is forbidden:
@@ -240,6 +220,30 @@ class Ompizer(object):
                     pass
 
                 collapsable.append(i)
+        return collapsable
+
+    def _make_atomic_incs(self, partree):
+        if not partree.is_ParallelAtomic:
+            return partree
+        # Introduce one `omp atomic` pragma for each increment
+        exprs = FindNodes(Expression).visit(partree)
+        exprs = [i for i in exprs if i.is_Increment and not i.is_ForeignExpression]
+        mapper = {i: List(header=self.lang['atomic'], body=i) for i in exprs}
+        partree = Transformer(mapper).visit(partree)
+        return partree
+
+    def _make_threaded_prodders(self, partree):
+        mapper = {i: ThreadedProdder(i) for i in FindNodes(Prodder).visit(partree)}
+        partree = Transformer(mapper).visit(partree)
+        return partree
+
+    def _make_partree(self, candidates, nthreads=None):
+        """Parallelize the `candidates` Iterations attaching suitable OpenMP pragmas."""
+        assert candidates
+        root = candidates[0]
+
+        # Get the collapsable Iterations
+        collapsable = self._find_collapsable(root, candidates)
         ncollapse = 1 + len(collapsable)
 
         # Prepare to build a ParallelTree
@@ -368,3 +372,62 @@ class Ompizer(object):
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
 
         return iet, {'args': args, 'includes': ['omp.h']}
+
+
+class OmpizerGPU(Ompizer):
+
+    COLLAPSE_NCORES = 1
+    """
+    Always collapse when possible.
+    """
+
+    lang = dict(Ompizer.lang)
+    lang.update({
+        'par-for-teams': lambda i:
+            c.Pragma('omp target teams distribute parallel for collapse(%d)' % i),
+    })
+
+    def __init__(self, key=None):
+        if key is None:
+            key = lambda i: i.is_ParallelRelaxed
+        super(OmpizerGPU, self).__init__(key=key)
+
+    def _make_threaded_prodders(self, partree):
+        # no-op for now
+        return partree
+
+    def _make_partree(self, candidates, nthreads=None):
+        """
+        Parallelize the `candidates` Iterations attaching suitable OpenMP pragmas
+        for GPU offloading.
+        """
+        assert candidates
+        root = candidates[0]
+
+        # Get the collapsable Iterations
+        collapsable = self._find_collapsable(root, candidates)
+        ncollapse = 1 + len(collapsable)
+
+        # Prepare to build a ParallelTree
+        omp_pragma = self.lang['par-for-teams'](ncollapse)
+
+        # Create a ParallelTree
+        body = root._rebuild(pragmas=root.pragmas + (omp_pragma,),
+                             properties=root.properties + (COLLAPSED(ncollapse),))
+        partree = ParallelTree([], body, nthreads=nthreads)
+
+        collapsed = [partree] + collapsable
+
+        return root, partree, collapsed
+
+    def _make_parregion(self, partree):
+        # no-op for now
+        return partree
+
+    def _make_guard(self, partree, *args):
+        # no-op for now
+        return partree
+
+    def _make_nested_partree(self, partree):
+        # no-op for now
+        return partree
