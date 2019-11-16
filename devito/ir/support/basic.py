@@ -734,6 +734,7 @@ class Scope(object):
         return tuple(a for a in self.accesses
                      if a.timestamp in timestamps and a.mode in modes)
 
+    @memoized_generator
     def d_flow_gen(self):
         """Generate the flow (or "read-after-write") dependences."""
         for k, v in self.writes.items():
@@ -756,6 +757,7 @@ class Scope(object):
         """Flow (or "read-after-write") dependences."""
         return DependenceGroup(self.d_flow_gen())
 
+    @memoized_generator
     def d_anti_gen(self):
         """Generate the anti (or "write-after-read") dependences."""
         for k, v in self.writes.items():
@@ -778,6 +780,7 @@ class Scope(object):
         """Anti (or "write-after-read") dependences."""
         return DependenceGroup(self.d_anti_gen())
 
+    @memoized_generator
     def d_output_gen(self):
         """Generate the output (or "write-after-write") dependences."""
         for k, v in self.writes.items():
@@ -808,6 +811,7 @@ class Scope(object):
         """All flow, anti, and output dependences."""
         return self.d_flow + self.d_anti + self.d_output
 
+    @memoized_generator
     def d_from_access_gen(self, accesses):
         """
         Generate all flow, anti, and output dependences involving any of
