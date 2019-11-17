@@ -369,8 +369,8 @@ class ClangCompiler(Compiler):
 
         if configuration['platform'] == NVIDIAX:
             # clang has offloading support via OpenMP
-            # TODO: add in the required flags
-            self.cflags += ['-fopenmp']
+            self.cflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda',
+                            '-Xopenmp-target']
         else:
             if configuration['platform'] in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
