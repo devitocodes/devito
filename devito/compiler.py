@@ -368,9 +368,11 @@ class ClangCompiler(Compiler):
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable', '-ffast-math']
 
         if configuration['platform'] == NVIDIAX:
-            # clang has offloading support via OpenMP
-            self.cflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda',
-                            '-Xopenmp-target']
+            # Clang has offloading support via OpenMP
+            self.cflags.remove('-std=c99')
+            # TODO: Need a generic -march setup
+            # self.cflags += ['-Xopenmp-target', '-march=sm_37']
+            self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
         else:
             if configuration['platform'] in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
