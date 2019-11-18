@@ -913,7 +913,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def index(self, dim):
         for i, d in zip(self.indices, self.dimensions):
             if d is dim:
-                return i
+                return d
 
     def indexify(self, indices=None):
         """Create a types.Indexed from the current object."""

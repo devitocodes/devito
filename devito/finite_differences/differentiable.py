@@ -191,7 +191,6 @@ class Differentiable(sympy.Expr, Evaluable):
         for d in self.dimensions:
             if d is dim:
                 return d
-        return None
 
     @property
     def name(self):
