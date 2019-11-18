@@ -8,7 +8,7 @@ import cgen
 from devito.dle.blocking_utils import Blocker, BlockDimension
 from devito.dle.parallelizer import Ompizer, OmpizerGPU
 from devito.exceptions import DLEException
-from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL,
+from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL, VECTOR,
                            FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
                            filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv, dle_warning as warning
@@ -493,8 +493,23 @@ class DeviceOffloadingRewriter(PlatformRewriter):
     def _pipeline(self, state):
         self._optimize_halospots(state)
         self._parallelize_dist(state)
+        self._simdize(state)
         self._parallelize_shm(state)
         self._hoist_prodders(state)
+
+    @dle_pass
+    def _simdize(self, iet):
+        # No SIMD-ization for devices. We then drop the VECTOR property
+        # so that later passes can perform more aggressive transformations
+        mapper = {}
+        for i in FindNodes(Iteration).visit(iet):
+            if i.is_Vectorizable:
+                properties = [p for p in i.properties if p is not VECTOR]
+                mapper[i] = i._rebuild(properties=properties)
+
+        iet = Transformer(mapper).visit(iet)
+
+        return iet, {}
 
     @dle_pass
     def _parallelize_shm(self, iet):

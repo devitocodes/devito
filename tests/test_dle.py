@@ -526,7 +526,7 @@ class TestOffloading(object):
         assert len(trees) == 1
 
         assert trees[0][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(2)'
+            'omp target teams distribute parallel for collapse(3)'
         assert op.body[0].body[1][0].body[0].header[0].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
@@ -548,7 +548,7 @@ class TestOffloading(object):
         assert len(trees) == 1
 
         assert trees[0][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(2)'
+            'omp target teams distribute parallel for collapse(3)'
         for i, f in enumerate([u, v]):
             assert op.body[0].body[2][0].body[0].header[i].value ==\
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'

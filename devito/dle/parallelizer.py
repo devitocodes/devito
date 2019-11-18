@@ -216,7 +216,7 @@ class Ompizer(object):
                 # Would there be enough work per parallel iteration?
                 try:
                     work = prod([int(j.dim.symbolic_size) for j in candidates[n+1:]])
-                    if work < Ompizer.COLLAPSE_WORK:
+                    if work < self.COLLAPSE_WORK:
                         break
                 except TypeError:
                     pass
@@ -386,6 +386,11 @@ class Ompizer(object):
 class OmpizerGPU(Ompizer):
 
     COLLAPSE_NCORES = 1
+    """
+    Always collapse when possible.
+    """
+
+    COLLAPSE_WORK = 1
     """
     Always collapse when possible.
     """
