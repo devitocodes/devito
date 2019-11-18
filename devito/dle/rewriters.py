@@ -514,34 +514,6 @@ class SpeculativeRewriter(CPU64Rewriter):
         self._minimize_remainders(state)
         self._hoist_prodders(state)
 
-    @dle_pass
-    def _nontemporal_stores(self, nodes):
-        """
-        Add compiler-specific pragmas and instructions to generate nontemporal
-        stores (ie, non-cached stores).
-        """
-        pragma = self._backend_compiler_pragma('ntstores')
-        fence = self._backend_compiler_pragma('storefence')
-        if not pragma or not fence:
-            return {}
-
-        mapper = {}
-        for tree in retrieve_iteration_tree(nodes):
-            for i in tree:
-                if i.is_Parallel:
-                    mapper[i] = List(body=i, footer=fence)
-                    break
-        processed = Transformer(mapper).visit(nodes)
-
-        mapper = {}
-        for tree in retrieve_iteration_tree(processed):
-            for i in tree:
-                if i.is_Vectorizable:
-                    mapper[i] = List(header=pragma, body=i)
-        processed = Transformer(mapper).visit(processed)
-
-        return processed, {}
-
 
 class CustomRewriter(SpeculativeRewriter):
 
