@@ -12,7 +12,7 @@ from devito.ir import (DummyEq, Conditional, Block, Expression, List, Prodder,
                        filter_iterations)
 from devito.symbolics import CondEq, INT
 from devito.parameters import configuration
-from devito.tools import as_tuple, is_integer, flatten, prod
+from devito.tools import as_tuple, is_integer, filter_sorted, flatten, prod
 from devito.types import Constant, Symbol
 
 
@@ -491,7 +491,9 @@ class OmpizerGPU(Ompizer):
         mapper = {}
         for i, v in data_transfers.items():
             map_tos, map_froms = zip(*v)
-            mapper[i] = List(header=flatten(map_tos), body=i, footer=flatten(map_froms))
+            map_tos = filter_sorted(flatten(map_tos), key=lambda i: i.value)
+            map_froms = filter_sorted(flatten(map_froms), key=lambda i: i.value)
+            mapper[i] = List(header=map_tos, body=i, footer=map_froms)
         iet = Transformer(mapper).visit(iet)
 
         return iet
