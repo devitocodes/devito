@@ -51,7 +51,7 @@ def test_viscoelastic():
     _, _, _, [rec1, rec2, v, tau] = run()
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
     assert np.isclose(norm(rec1), 5.774392, atol=1e-3, rtol=0)
-    assert np.isclose(norm(rec2), 0.27482614, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec2), 0.119801, atol=1e-3, rtol=0)
 
 
 if __name__ == "__main__":

@@ -51,7 +51,7 @@ def test_elastic():
     _, _, _, [rec1, rec2, v, tau] = run()
     norm = lambda x: np.linalg.norm(x.data.reshape(-1))
     assert np.isclose(norm(rec1), 29.8925, atol=1e-3, rtol=0)
-    assert np.isclose(norm(rec2), 1.72996, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec2), 1.20394, atol=1e-3, rtol=0)
 
 
 if __name__ == "__main__":

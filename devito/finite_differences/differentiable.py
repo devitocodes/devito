@@ -188,7 +188,7 @@ class Differentiable(sympy.Expr, Evaluable):
             all(getattr(self, i, None) == getattr(other, i, None) for i in self._state)
 
     def index(self, dim):
-        for d in self.dimensions:
+        for i, d in zip(self.indices, self.dimensions):
             if d is dim:
                 return d
 
@@ -265,19 +265,19 @@ class DifferentiableOp(Differentiable):
         return obj
 
 
-class Add(sympy.Add, DifferentiableOp):
+class Add(DifferentiableOp, sympy.Add):
     __new__ = DifferentiableOp.__new__
 
 
-class Mul(sympy.Mul, DifferentiableOp):
+class Mul(DifferentiableOp, sympy.Mul):
     __new__ = DifferentiableOp.__new__
 
 
-class Pow(sympy.Pow, DifferentiableOp):
+class Pow(DifferentiableOp, sympy.Pow):
     __new__ = DifferentiableOp.__new__
 
 
-class Mod(sympy.Mod, DifferentiableOp):
+class Mod(DifferentiableOp, sympy.Mod):
     __new__ = DifferentiableOp.__new__
 
 

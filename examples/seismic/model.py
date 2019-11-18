@@ -509,10 +509,14 @@ class GenericModel(object):
         self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml, dtype=dtype,
                          subdomains=subdomains)
 
-        # Create dampening field as symbol `damp`
-        self.damp = Function(name="damp", grid=self.grid)
-        initialize_damp(self.damp, self.nbl, self.spacing, mask=damp_mask)
-        self._physical_parameters = ['damp']
+        if self.nbl != 0:
+            # Create dampening field as symbol `damp`
+            self.damp = Function(name="damp", grid=self.grid)
+            initialize_damp(self.damp, self.nbl, self.spacing, mask=damp_mask)
+            self._physical_parameters = ['damp']
+        else:
+            self.damp = 1 if damp_mask else 0
+            self._physical_parameters = []
 
     def physical_params(self, **kwargs):
         """
