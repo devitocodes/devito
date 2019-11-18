@@ -24,10 +24,9 @@ class YaskOmpizer(Ompizer):
 
 class YaskRewriter(Intel64Rewriter):
 
-    _node_parallelizer_type = YaskOmpizer
+    _parallelizer_shm_type = YaskOmpizer
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._loop_wrapping(state)
-        if self.params['openmp'] is True:
-            self._node_parallelize(state)
+        self._parallelize_shm(state)
