@@ -527,6 +527,12 @@ class TestOffloading(object):
 
         assert trees[0][1].pragmas[0].value ==\
             'omp target teams distribute parallel for collapse(2)'
+        assert op.body[0].body[1][0].body[0].header[0].value ==\
+            ('omp target enter data map(to: u[0:u_vec->size[0]]'
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+        assert op.body[0].body[1][0].body[0].footer[0].value ==\
+            ('omp target exit data map(from: u[0:u_vec->size[0]]'
+             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
 
 
 @switchconfig(autopadding=True, platform='knl7210')  # Platform is to fix pad value
