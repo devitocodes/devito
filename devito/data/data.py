@@ -431,12 +431,12 @@ class Data(np.ndarray):
             else:
                 data_glb_idx.append(None)
         mapped_idx = []
-        # Testing block:
+        # Add any integer indices that were not present in `val_idx`.
         if len(as_list(idx)) > len(data_glb_idx):
             for index, value in enumerate(idx):
-                if index > 0 and is_integer(value):
+                if is_integer(value) and index > 0:
                     data_glb_idx.insert(index, value)
-        # Based `data_glb_idx` the indices to which the locally stored data
+        # Based on `data_glb_idx` the indices to which the locally stored data
         # block correspond can now be computed:
         for i, j, k in zip(data_glb_idx, as_tuple(idx), self._decomposition):
             if is_integer(j):
