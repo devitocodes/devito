@@ -273,7 +273,7 @@ def create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil):
 
     if p.is_Constant:
         ops_type = namespace['ops_arg_gbl']
-        ops_name = Byref(Constant(name=p.name[1:]))
+        ops_name = Byref(Constant(name=p.name))
         rw_flag = namespace['ops_read']
     else:
         ops_type = namespace['ops_arg_dat']

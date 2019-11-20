@@ -3,8 +3,10 @@ import sympy
 
 import devito.types.basic as basic
 
-from devito.tools import dtype_to_cstr
+from devito.tools import dtype_to_cstr, ctypes_to_cstr
 from devito.ops.utils import namespace
+
+from ctypes import POINTER, c_float
 
 
 class Array(basic.Array):
@@ -15,6 +17,26 @@ class Array(basic.Array):
             return self.dtype
 
         return super()._C_typedata
+
+
+class RawAccessToFloat(basic.Symbol):
+    is_Constant = True
+
+    def __init_finalize__(self, name, read_only=True, **kwargs):
+        self.name = name
+        self.read_only = read_only
+        super().__init_finalize__(name, **kwargs)
+
+    @property
+    def _C_name(self):
+        return self.name
+
+    @property
+    def _C_typename(self):
+        return '%s%s' % (
+            'const ' if self.read_only else '',
+            ctypes_to_cstr(POINTER(c_float))
+        )
 
 
 class OpsAccessible(basic.Symbol):
