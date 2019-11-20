@@ -1002,8 +1002,7 @@ class TestDataDistributed(object):
          (slice(None, None, 1), slice(None, None, 1), 1)),
         ((8, 8, 8), (slice(None, None, 1), 5, slice(None, None, 1)),
          (slice(None, None, 1), 1, slice(None, None, 1)),
-         (slice(None, None, 1), 7, slice(None, None, 1)))
-        ])
+         (slice(None, None, 1), 7, slice(None, None, 1)))])
     def test_niche_slicing2(self, shape, slice0, slice1, slice2):
         grid = Grid(shape=shape)
         f = Function(name='f', grid=grid)
