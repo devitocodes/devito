@@ -202,9 +202,10 @@
     <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">dimensions</span>
+            <span class="k">return</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">dimensions</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">(</span><span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]),)</span>
+            <span class="n">dimensions</span> <span class="o">=</span> <span class="p">(</span><span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]),)</span>
+            <span class="k">return</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">dimensions</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -428,6 +429,9 @@
 
         <span class="k">return</span> <span class="n">args</span>
 
+    <span class="k">def</span> <span class="nf">_eval_at</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
     <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="c1"># Add value override for own data if it is provided, otherwise</span>
         <span class="c1"># use defaults</span>
@@ -495,9 +499,10 @@
     <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">dimensions</span>
+            <span class="k">return</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">dimensions</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;grid&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">time_dim</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]))</span>
+            <span class="n">dims</span> <span class="o">=</span> <span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;grid&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">time_dim</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="n">dims</span><span class="p">,</span> <span class="n">dims</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -731,15 +736,15 @@
                       <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span>
                                          <span class="n">indices</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">])])</span>
 
-    <span class="nd">@cached_property</span>
-    <span class="k">def</span> <span class="nf">_coordinate_bases</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_coordinate_bases</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_offset</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for the base coordinates of the reference grid point.&quot;&quot;&quot;</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">cast_mapper</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">](</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span> <span class="o">-</span> <span class="n">idx</span> <span class="o">*</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
-                      <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span>
-                                              <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span>
-                                              <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_indices</span><span class="p">,</span>
-                                              <span class="n">indices</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">])])</span>
+                      <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">of</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span>
+                                                  <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span>
+                                                  <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_indices</span><span class="p">,</span>
+                                                  <span class="n">indices</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">],</span>
+                                                  <span class="n">field_offset</span><span class="p">)])</span>
 
     <span class="nd">@memoized_meth</span>
     <span class="k">def</span> <span class="nf">_index_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">offset</span><span class="p">):</span>
@@ -760,7 +765,7 @@
 
         <span class="k">return</span> <span class="n">index_matrix</span><span class="p">,</span> <span class="n">points</span>
 
-    <span class="k">def</span> <span class="nf">_interpolation_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_interpolation_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">field_offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate interpolation indices for the DiscreteFunctions in ``variables``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -785,7 +790,8 @@
         <span class="n">temps</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">points</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
         <span class="c1"># Temporaries for the coefficients</span>
         <span class="n">temps</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">Eq</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
-                      <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_point_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_bases</span><span class="p">)])</span>
+                      <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_point_symbols</span><span class="p">,</span>
+                                      <span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_bases</span><span class="p">(</span><span class="n">field_offset</span><span class="p">))])</span>
 
         <span class="k">return</span> <span class="n">idx_subs</span><span class="p">,</span> <span class="n">temps</span>
 
@@ -821,8 +827,12 @@
 
         <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
 
+        <span class="c1"># Need to get origin of the field in case it is staggered</span>
+        <span class="c1"># TODO: handle each variable staggereing spearately</span>
+        <span class="n">field_offset</span> <span class="o">=</span> <span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">origin</span>
         <span class="c1"># List of indirection indices for all adjacent grid points</span>
-        <span class="n">idx_subs</span><span class="p">,</span> <span class="n">temps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_indices</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>
+        <span class="n">idx_subs</span><span class="p">,</span> <span class="n">temps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_indices</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span>
+                                                      <span class="n">field_offset</span><span class="o">=</span><span class="n">field_offset</span><span class="p">)</span>
 
         <span class="c1"># Substitute coordinate base symbols into the interpolation coefficients</span>
         <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">v_sub</span><span class="p">)</span> <span class="o">*</span> <span class="n">b</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">v_sub</span><span class="p">)</span>
@@ -861,8 +871,11 @@
 
         <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">retrieve_function_carriers</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span> <span class="o">+</span> <span class="p">[</span><span class="n">field</span><span class="p">]</span>
 
+        <span class="c1"># Need to get origin of the field in case it is staggered</span>
+        <span class="n">field_offset</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">origin</span>
         <span class="c1"># List of indirection indices for all adjacent grid points</span>
-        <span class="n">idx_subs</span><span class="p">,</span> <span class="n">temps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_indices</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>
+        <span class="n">idx_subs</span><span class="p">,</span> <span class="n">temps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_indices</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span>
+                                                      <span class="n">field_offset</span><span class="o">=</span><span class="n">field_offset</span><span class="p">)</span>
 
         <span class="c1"># Substitute coordinate base symbols into the interpolation coefficients</span>
         <span class="n">eqns</span> <span class="o">=</span> <span class="p">[</span><span class="n">Inc</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">vsub</span><span class="p">),</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">vsub</span><span class="p">)</span> <span class="o">*</span> <span class="n">b</span><span class="p">,</span>
