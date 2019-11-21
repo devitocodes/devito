@@ -468,6 +468,13 @@ class MPICommObject(Object):
         comm_val = self.dtype.from_address(comm_ptr)
         self.value = comm_val
 
+    def _arg_values(self, *args, **kwargs):
+        grid = kwargs.get('grid', None)
+        if grid is not None:
+            return grid.distributor._obj_comm._arg_defaults()
+        else:
+            return self._arg_defaults()
+
     # Pickling support
     _pickle_args = []
 
@@ -513,6 +520,13 @@ class MPINeighborhood(CompositeObject):
         for name, i in zip(self.fields, self.entries):
             setattr(values[self.name]._obj, name, self.neighborhood[i])
         return values
+
+    def _arg_values(self, *args, **kwargs):
+        grid = kwargs.get('grid', None)
+        if grid is not None:
+            return grid.distributor._obj_neighborhood._arg_defaults()
+        else:
+            return self._arg_defaults()
 
     # Pickling support
     _pickle_args = ['neighborhood']
