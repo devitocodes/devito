@@ -264,8 +264,8 @@ def indices_weights_to_fd(expr, dim, inds, weights, matvec=1):
     """Expression from lists of indices and weights."""
     diff = dim.spacing
     deriv = 0
-    all_dims = tuple(set((expr.index(dim),) +
-                     tuple(expr.index(i) for i in expr.dimensions if i.root is dim)))
+    all_dims = tuple(set((expr.indices_ref[dim],) + tuple(expr.indices_ref[dim]
+                         for i in expr.dimensions if i.root is dim)))
 
     d0 = ([d for d in expr.dimensions if d.root is dim] or [dim])[0]
     # Loop through weights

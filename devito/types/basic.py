@@ -910,11 +910,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         """
         return default_allocator().guaranteed_alignment
 
-    def index(self, dim):
-        for i, d in zip(self.indices, self.dimensions):
-            if d is dim:
-                return i
-
     def indexify(self, indices=None):
         """Create a types.Indexed from the current object."""
         if indices is not None:

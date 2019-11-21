@@ -6,9 +6,8 @@ from sympy.functions.elementary.integers import floor
 from sympy.core.evalf import evalf_table
 
 from cached_property import cached_property
-
 from devito.logger import warning
-from devito.tools import Evaluable, filter_ordered, flatten
+from devito.tools import Evaluable, EnrichedTuple, filter_ordered, flatten
 
 __all__ = ['Differentiable']
 
@@ -82,6 +81,11 @@ class Differentiable(sympy.Expr, Evaluable):
     def dimensions(self):
         return tuple(filter_ordered(flatten(getattr(i, 'dimensions', ())
                                             for i in self._args_diff)))
+
+    @property
+    def indices_ref(self):
+        """The reference indices of the object (indices at first creation)."""
+        return EnrichedTuple(*self.dimensions, getters=self.dimensions)
 
     @cached_property
     def staggered(self):
@@ -186,11 +190,6 @@ class Differentiable(sympy.Expr, Evaluable):
     def __eq__(self, other):
         return super(Differentiable, self).__eq__(other) and\
             all(getattr(self, i, None) == getattr(other, i, None) for i in self._state)
-
-    def index(self, dim):
-        for i, d in zip(self.indices, self.dimensions):
-            if d is dim:
-                return d
 
     @property
     def name(self):
