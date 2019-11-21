@@ -3,7 +3,8 @@ import os
 import numpy as np
 from sympy import sin, Abs
 
-from devito import (Grid, SubDomain, Function, Constant, mmax,
+
+from devito import (Grid, SubDomain, Function, Constant,
                     SubDimension, Eq, Inc, Operator)
 from devito.builtins import initialize_function, gaussian_smooth
 from devito.tools import as_tuple
@@ -20,13 +21,17 @@ def demo_model(preset, **kwargs):
     * `constant-tti` : Constant anisotropic model. Velocity is 1.5 km/sec and
                       Thomsen parameters are epsilon=.3, delta=.2, theta = .7rad
                       and phi=.35rad for 3D. 2d/3d is defined from the input shape
-    * 'layers-isotropic': Simple two-layer model with velocities 1.5 km/s
-                 and 2.5 km/s in the top and bottom layer respectively.
+    * 'layers-isotropic': Simple n-layered model with velocities ranging from 1.5 km/s
+                 to 3.5 km/s in the top and bottom layer respectively.
                  2d/3d is defined from the input shape
-    * 'layers-tti': Simple two-layer TTI model with velocities 1.5 km/s
-                    and 2.5 km/s in the top and bottom layer respectively.
-                    Thomsen parameters in the top layer are 0 and in the lower layer
-                    are epsilon=.3, delta=.2, theta = .5rad and phi=.1 rad for 3D.
+    * 'layers-elastic': Simple n-layered model with velocities ranging from 1.5 km/s
+                    to 3.5 km/s in the top and bottom layer respectively.
+                    Vs is set to .5 vp and 0 in the top layer.
+    * 'layers-viscoelastic': Simple two layers viscoelastic model.
+    * 'layers-tti': Simple n-layered model with velocities ranging from 1.5 km/s
+                    to 3.5 km/s in the top and bottom layer respectively.
+                    Thomsen parameters in the top layer are 0 and in the lower layers
+                    are scaled versions of vp.
                     2d/3d is defined from the input shape
     * 'circle-isotropic': Simple camembert model with velocities 1.5 km/s
                  and 2.5 km/s in a circle at the center. 2D only.
@@ -111,9 +116,8 @@ def demo_model(preset, **kwargs):
                      dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
                      delta=delta, theta=theta, phi=phi, **kwargs)
 
-    elif preset.lower() in ['layers-isotropic', 'twolayer-isotropic',
-                            '2layer-isotropic']:
-        # A two-layer model in a 2D or 3D domain with two different
+    elif preset.lower() in ['layers-isotropic']:
+        # A n-layers model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
         # and the bottom part of the domain has 2.5 km/s.
@@ -122,21 +126,22 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbl = kwargs.pop('nbl', 10)
-        ratio = kwargs.pop('ratio', 3)
+        nlayers = kwargs.pop('nlayers', 3)
         vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+        vp_bottom = kwargs.pop('vp_bottom', 3.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+        vp_i = np.linspace(vp_top, vp_bottom, nlayers)
+        for i in range(1, nlayers):
+            v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
         return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                      dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
 
-    elif preset.lower() in ['layers-elastic', 'twolayer-elastic',
-                            '2layer-elastic']:
-        # A two-layer model in a 2D or 3D domain with two different
+    elif preset.lower() in ['layers-elastic']:
+        # A n-layers model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
         # and the bottom part of the domain has 2.5 km/s.
@@ -145,17 +150,21 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbl = kwargs.pop('nbl', 10)
-        ratio = kwargs.pop('ratio', 2)
+        nlayers = kwargs.pop('nlayers', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+        vp_bottom = kwargs.pop('vp_bottom', 3.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+        vp_i = np.linspace(vp_top, vp_bottom, nlayers)
+        for i in range(1, nlayers):
+            v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
         vs = 0.5 * v[:]
-        rho = v[:]/vp_top
+        rho = 0.31 * (1e3*v)**0.25
+        rho[v < 1.51] = 1.0
+        vs[v < 1.51] = 0.0
 
         return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
                             origin=origin, shape=shape,
@@ -211,8 +220,8 @@ def demo_model(preset, **kwargs):
                                  shape=shape, dtype=dtype, spacing=spacing,
                                  nbl=nbl, **kwargs)
 
-    elif preset.lower() in ['layers-tti', 'twolayer-tti', '2layer-tti']:
-        # A two-layer model in a 2D or 3D domain with two different
+    elif preset.lower() in ['layers-tti']:
+        # A n-layers model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
         # and the bottom part of the domain has 2.5 km/s.\
@@ -221,14 +230,16 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbl = kwargs.pop('nbl', 10)
-        ratio = kwargs.pop('ratio', 2)
+        nlayers = kwargs.pop('nlayers', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
-        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+        vp_bottom = kwargs.pop('vp_bottom', 3.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+        vp_i = np.linspace(vp_top, vp_bottom, nlayers)
+        for i in range(1, nlayers):
+            v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
         epsilon = .3*(v - 1.5)
         delta = .2*(v - 1.5)
@@ -246,9 +257,8 @@ def demo_model(preset, **kwargs):
 
         return model
 
-    elif preset.lower() in ['layers-tti-noazimuth', 'twolayer-tti-noazimuth',
-                            '2layer-tti-noazimuth']:
-        # A two-layer model in a 2D or 3D domain with two different
+    elif preset.lower() in ['layers-tti-noazimuth']:
+        # A n-layers model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
         # and the bottom part of the domain has 2.5 km/s.\
@@ -257,14 +267,16 @@ def demo_model(preset, **kwargs):
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         dtype = kwargs.pop('dtype', np.float32)
         nbl = kwargs.pop('nbl', 10)
-        ratio = kwargs.pop('ratio', 2)
+        nlayers = kwargs.pop('nlayers', 2)
         vp_top = kwargs.pop('vp_top', 1.5)
         vp_bottom = kwargs.pop('vp_bottom', 2.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=dtype)
         v[:] = vp_top  # Top velocity (background)
-        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+        vp_i = np.linspace(vp_top, vp_bottom, nlayers)
+        for i in range(1, nlayers):
+            v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
         epsilon = .3*(v - 1.5)
         delta = .2*(v - 1.5)
@@ -306,7 +318,7 @@ def demo_model(preset, **kwargs):
         origin = (0., 0.)
         nbl = kwargs.pop('nbl', 20)
 
-        # Read 2D Marmousi model from opesc/data repo
+        # Read 2D Marmousi model from opesci/data repo
         data_path = kwargs.get('data_path', None)
         if data_path is None:
             raise ValueError("Path to opesci/data not found! Please specify with "
@@ -322,23 +334,21 @@ def demo_model(preset, **kwargs):
                      dtype=np.float32, spacing=spacing, nbl=nbl, **kwargs)
 
     elif preset.lower() in ['marmousi-elastic', 'marmousi2d-elastic']:
-        shape = (1601, 401)
-        spacing = (7.5, 7.5)
+        k = kwargs.get('factor', 4)
+        spacing = (k*1.25, k*1.25)
         origin = (0., 0.)
-
-        # Read 2D Marmousi model from opesc/data repo
+        # Read 2D Marmousi model from opesci/data repo
         data_path = kwargs.get('data_path', None)
         if data_path is None:
             raise ValueError("Path to opesci/data not found! Please specify with "
                              "'data_path=<path/to/opesci/data>'")
-        path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
-        v = np.fromfile(path, dtype='float32', sep="")
-        v = v.reshape(shape)
-
-        # Cut the model to make it slightly cheaper
-        v = v[301:-300, :]
-        vs = .5 * v[:]
-        rho = v[:]/mmax(v[:])
+        v = np.load(os.path.join(data_path, 'Simple2D/VP_elastic.npy'))
+        vs = np.load(os.path.join(data_path, 'Simple2D/VS_elastic.npy'))
+        rho = np.load(os.path.join(data_path, 'Simple2D/DENSITY_elastic.npy'))
+        # Cut the model to make it slightly cheap
+        v = 1e-3 * np.transpose(v[::k, ::k])
+        vs = 1e-3 * np.transpose(vs[::k, ::k])
+        rho = np.transpose(rho[::k, ::k])
 
         return ModelElastic(space_order=space_order, vp=v, vs=vs, rho=rho,
                             origin=origin, shape=v.shape,
@@ -352,7 +362,7 @@ def demo_model(preset, **kwargs):
         origin = (0., 0.)
         nbl = kwargs.pop('nbl', 20)
 
-        # Read 2D Marmousi model from opesc/data repo
+        # Read 2D Marmousi model from opesci/data repo
         data_path = kwargs.pop('data_path', None)
         if data_path is None:
             raise ValueError("Path to opesci/data not found! Please specify with "
@@ -390,7 +400,7 @@ def demo_model(preset, **kwargs):
         origin = (0., 0., 0.)
         nbl = kwargs.pop('nbl', 20)
 
-        # Read 2D Marmousi model from opesc/data repo
+        # Read 2D Marmousi model from opesci/data repo
         data_path = kwargs.pop('data_path', None)
         if data_path is None:
             raise ValueError("Path to opesci/data not found! Please specify with "
@@ -443,7 +453,7 @@ def initialize_damp(damp, nbl, spacing, mask=False):
         mask => 1 inside the domain and decreases in the layer
         not mask => 0 inside the domain and increase in the layer
     """
-    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40)
+    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbl)
 
     eqs = [Eq(damp, 1.0)] if mask else []
     for d in damp.dimensions:
@@ -503,15 +513,34 @@ class GenericModel(object):
             # Create dampening field as symbol `damp`
             self.damp = Function(name="damp", grid=self.grid)
             initialize_damp(self.damp, self.nbl, self.spacing, mask=damp_mask)
+            self._physical_parameters = ['damp']
         else:
             self.damp = 1 if damp_mask else 0
+            self._physical_parameters = []
 
     def physical_params(self, **kwargs):
         """
         Return all set physical parameters and update to input values if provided
         """
-        known = [getattr(self, i) for i in self._physical_parameters]
+        known = [getattr(self, i) for i in self.physical_parameters]
         return {i.name: kwargs.get(i.name, i) or i for i in known}
+
+    def _gen_phys_param(self, field, name, space_order, is_param=False,
+                        default_value=0):
+        if field is None:
+            return default_value
+        if isinstance(field, np.ndarray):
+            function = Function(name=name, grid=self.grid, space_order=space_order,
+                                parameter=is_param)
+            initialize_function(function, field, self.nbl)
+        else:
+            function = Constant(name=name, value=field)
+        self._physical_parameters.append(name)
+        return function
+
+    @property
+    def physical_parameters(self):
+        return as_tuple(self._physical_parameters)
 
     @property
     def dim(self):
@@ -554,16 +583,6 @@ class GenericModel(object):
         Physical size of the domain as determined by shape and spacing
         """
         return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
-
-    def _gen_phys_param(self, field, name, space_order, default_value=0):
-        if field is None:
-            return default_value
-        if isinstance(field, np.ndarray):
-            function = Function(name=name, grid=self.grid, space_order=space_order)
-            initialize_function(function, field, self.nbl)
-        else:
-            function = Constant(name=name, value=field)
-        return function
 
 
 class Model(GenericModel):
@@ -609,34 +628,18 @@ class Model(GenericModel):
         super(Model, self).__init__(origin, spacing, shape, space_order, nbl, dtype,
                                     subdomains)
 
-        physical_parameters = []
-
         # Create square slowness of the wave as symbol `m`
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
-        physical_parameters.append('vp')
         self._max_vp = np.max(vp)
 
         # Additional parameter fields for TTI operators
         self.epsilon = self._gen_phys_param(epsilon, 'epsilon', space_order)
-        if self.epsilon != 0:
-            physical_parameters.append('epsilon')
-            self.scale = np.sqrt(1 + 2 * np.max(epsilon))
-        else:
-            self.scale = 1
+        self.scale = 1 if epsilon is None else np.sqrt(1 + 2 * np.max(epsilon))
 
         self.delta = self._gen_phys_param(delta, 'delta', space_order)
-        if self.delta != 0:
-            physical_parameters.append('delta')
-
         self.theta = self._gen_phys_param(theta, 'theta', space_order)
-        if self.theta != 0:
-            physical_parameters.append('theta')
-
-        self.phi = self._gen_phys_param(phi, 'phi', space_order)
-        if self.phi != 0 and self.grid.dim == 3:
-            physical_parameters.append('phi')
-
-        self._physical_parameters = as_tuple(physical_parameters)
+        if self.grid.dim > 2:
+            self.phi = self._gen_phys_param(phi, 'phi', space_order)
 
     @property
     def critical_dt(self):
@@ -649,7 +652,7 @@ class Model(GenericModel):
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
         dt = self.dtype(coeff * np.min(self.spacing) / (self.scale*self._max_vp))
-        return self.dtype("%.3f" % dt)
+        return self.dtype("%.3e" % dt)
 
     @property
     def vp(self):
@@ -686,7 +689,6 @@ class Model(GenericModel):
                                                                      self.vp.shape))
         else:
             self._vp.data = vp
-
         self._max_vp = np.max(vp)
 
     @property
@@ -745,29 +747,25 @@ class ModelElastic(GenericModel):
                                            nbl=nbl, dtype=dtype,
                                            damp_mask=True)
 
-        physical_parameters = []
+        self.maxvp = np.max(vp)
+        self.lam = self._gen_phys_param((vp**2 - 2 * vs**2)*rho, 'lam', space_order,
+                                        is_param=True)
 
-        self.vp = self._gen_phys_param(vp, 'vp', space_order)
-        physical_parameters.append('vp')
+        self.mu = self._gen_phys_param(vs**2 * rho, 'mu', space_order, is_param=True)
 
-        self.vs = self._gen_phys_param(vs, 'vs', space_order)
-        physical_parameters.append('vs')
-
-        self.rho = self._gen_phys_param(rho, 'rho', space_order)
-        physical_parameters.append('rho')
-
-        self._physical_parameters = as_tuple(physical_parameters)
+        self.irho = self._gen_phys_param(1/rho, 'irho', space_order, is_param=True)
 
     @property
     def critical_dt(self):
         """
         Critical computational time step value from the CFL condition.
         """
-        # For a fixed time order this number goes down as the space order increases.
+        # For a fixed time order this number decreases as the space order increases.
         #
         # The CFL condtion is then given by
-        # dt < h / (sqrt(2) * max(vp)))
-        return self.dtype(.5*np.min(self.spacing) / (np.sqrt(2)*mmax(self.vp)))
+        # dt < h / (sqrt(ndim) * max(vp)))
+        dt = .95*np.min(self.spacing) / (np.sqrt(3)*self.maxvp)
+        return self.dtype("%.3e" % dt)
 
 
 class ModelViscoelastic(ModelElastic):
@@ -809,15 +807,9 @@ class ModelViscoelastic(ModelElastic):
                                                 space_order, vp, vs, rho,
                                                 nbl=nbl, dtype=dtype)
 
-        physical_parameters = list(self._physical_parameters)
+        self.qp = self._gen_phys_param(qp, 'qp', space_order, is_param=True)
 
-        self.qp = self._gen_phys_param(qp, 'qp', space_order)
-        physical_parameters.append('qp')
-
-        self.qs = self._gen_phys_param(qs, 'qs', space_order)
-        physical_parameters.append('qs')
-
-        self._physical_parameters = as_tuple(physical_parameters)
+        self.qs = self._gen_phys_param(qs, 'qs', space_order, is_param=True)
 
     @property
     def critical_dt(self):
@@ -828,5 +820,5 @@ class ModelViscoelastic(ModelElastic):
         # See Blanch, J. O., 1995, "A study of viscous effects in seismic modelling,
         # imaging, and inversion: methodology, computational aspects and sensitivity"
         # for further details:
-        return self.dtype(6.*np.min(self.spacing) /
-                          (7.*np.sqrt(self.grid.dim)*mmax(self.vp)))
+        dt = .85*np.min(self.spacing) / (np.sqrt(self.grid.dim)*self.maxvp)
+        return self.dtype("%.3e" % dt)

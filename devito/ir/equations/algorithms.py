@@ -43,7 +43,7 @@ def dimension_sort(expr):
     # Add in pure data dimensions (e.g., those accessed only via explicit values,
     # such as A[3])
     indexeds = retrieve_indexed(expr, deep=True)
-    extra.update(set().union(*[set(i.function.indices) for i in indexeds]))
+    extra.update(set().union(*[set(i.function.dimensions) for i in indexeds]))
 
     # Enforce determinism
     extra = filter_sorted(extra, key=attrgetter('name'))

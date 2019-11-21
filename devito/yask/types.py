@@ -73,7 +73,7 @@ class Function(dense.Function, Signer):
         # If a Function has no SpaceDimension, than for sure it won't be
         # used by YASK. We then return a devito.Function, which employs
         # a standard row-major format for data values
-        indices = cls.__indices_setup__(**kwargs)
+        dimensions, indices = cls.__indices_setup__(**kwargs)
         klass = cls if any(i.is_Space for i in indices) else cls.__base__
         newobj = cls.__base__.__new__(klass, *args, **kwargs)
 
@@ -209,12 +209,15 @@ class TimeFunction(dense.TimeFunction, Function):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        indices = list(dense.TimeFunction.__indices_setup__(**kwargs))
+        dimensions, indices = dense.TimeFunction.__indices_setup__(**kwargs)
+        dimensions, indices = list(dimensions), list(indices)
         # Never use a SteppingDimension in the yask backend: it is simply
         # unnecessary
         if indices[cls._time_position].is_Stepping:
             indices[cls._time_position] = indices[cls._time_position].root
-        return tuple(indices)
+        if dimensions[cls._time_position].is_Stepping:
+            dimensions[cls._time_position] = dimensions[cls._time_position].root
+        return tuple(dimensions), tuple(indices)
 
     @memoized_meth
     def _arg_defaults(self, alias=None):

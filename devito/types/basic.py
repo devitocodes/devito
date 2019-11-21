@@ -33,14 +33,18 @@ class Basic(object):
                           to build equations.
         * AbstractFunction: represents a discrete R^n -> R function; may
                             carry data; may be used to build equations.
+        * AbstractTensor: represents a discrete 2nd order tensor or vector:
+                          R^n -> R^(nd x nd) tensor (nd dimensions),
+                          R^n -> R^nd vector (nd dimensions),
+                          may carry data; may be used to build equations.
         * AbstractObject: represents a generic object, for example a (pointer
                           to) data structure.
 
-                                        Basic
-                                          |
-                    ------------------------------------------
-                    |                     |                  |
-             AbstractSymbol       AbstractFunction     AbstractObject
+                                            Basic
+                                              |
+              --------------------------------------------------------------
+              |                     |                  |                   |
+        AbstractSymbol      AbstractFunction      AbstractTensor      AbstractObject
 
     All these subtypes must implement a number of methods/properties to enable
     code generation via the Devito compiler. These methods/properties are
@@ -49,6 +53,7 @@ class Basic(object):
     Notes
     -----
     The AbstractFunction sub-hierarchy is implemented in :mod:`dense.py`.
+    The AbstractTensor sub-hierarchy is implemented in :mod:`tensor.py`.
     """
 
     # Top hierarchy
@@ -75,6 +80,13 @@ class Basic(object):
     is_SparseFunction = False
     is_PrecomputedSparseFunction = False
     is_PrecomputedSparseTimeFunction = False
+
+    # Time dependence
+    is_TimeDependent = False
+
+    # Tensor and Vector valued objects
+    is_VectorValued = False
+    is_TensorValued = False
 
     # Basic symbolic object properties
     is_Scalar = False
@@ -221,6 +233,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     @property
     def indices(self):
         return ()
+
+    @property
+    def dimensions(self):
+        return self.indices
 
     @property
     def shape(self):
@@ -426,11 +442,117 @@ class Scalar(Symbol, ArgProvider):
         return kwargs.get('dtype', np.float32)
 
 
-class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
+class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Cached, Pickable, Evaluable):
+    """
+    Base class for vector and tensor valued functions. It inherits from and
+    mimicks the behavior of a sympy.ImmutableDenseMatrix.
 
+
+    The sub-hierachy is as follows
+
+                         AbstractTensor
+                                |
+                          TensorFunction
+                                |
+                 ---------------------------------
+                 |                               |
+          VectorFunction                 TensorTimeFunction
+                        \-------\                |
+                                 \------- VectorTimeFunction
+
+    There are four relevant AbstractTensor sub-types: ::
+
+        * TensorFunction: A space-varying tensor valued function
+        * VectorFunction: A space-varying vector valued function
+        * TensorTimeFunction: A time-space-varying tensor valued function
+        * VectorTimeFunction: A time-space-varying vector valued function
+    """
+    # Sympy attributes
+    is_MatrixLike = True
+    is_Matrix = True
+
+    # Devito attributes
+    is_AbstractTensor = True
+    is_TensorValued = True
+    is_VectorValued = False
+
+    @classmethod
+    def _cache_key(cls, *args, **kwargs):
+        """An AbstractTensor caches on the class type itself."""
+        return cls
+
+    def __new__(cls, *args, **kwargs):
+        options = kwargs.get('options', {})
+
+        key = cls._cache_key(*args, **kwargs)
+        obj = cls._cache_get(key)
+
+        if obj is not None:
+            newobj = sympy.Matrix.__new__(cls, *args, **options)
+            newobj.__init_cached__(key)
+            return newobj
+
+        name = kwargs.get('name')
+        # Number of dimensions
+        indices, _ = cls.__indices_setup__(**kwargs)
+
+        # Create new, unique type instance from cls and the symbol name
+        newcls = type(name, (cls,), dict(cls.__dict__))
+
+        # Create the new Function object and invoke __init__
+        comps = cls.__subfunc_setup__(*args, **kwargs)
+        newobj = sympy.ImmutableDenseMatrix.__new__(newcls, comps)
+        # Initialization. The following attributes must be available
+        newobj._indices = indices
+        newobj._name = name
+        newobj._dtype = cls.__dtype_setup__(**kwargs)
+        newobj.__init_finalize__(*args, **kwargs)
+
+        # Store new instance in symbol cache
+        Cached.__init__(newobj, newcls)
+        return newobj
+
+    __hash__ = Cached.__hash__
+
+    def __init_finalize__(self, *args, **kwargs):
+        pass
+
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        """Extract the object data type from ``kwargs``."""
+        return None
+
+    @classmethod
+    def __subfunc_setup__(cls, *args, **kwargs):
+        """Setup each component of the tensor as a Devito type."""
+        return []
+
+    @classmethod
+    def __indices_setup__(cls, *args, **kwargs):
+        """Extract the object indices from ``kwargs``."""
+        return (), ()
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @classmethod
+    def _new2(cls, *args, **kwargs):
+        """Bypass sympy `_new` that hard codes `Matrix.__new__` to call our own."""
+        return cls.__new__(cls, *args, **kwargs)
+
+    def applyfunc(self, f):
+        return self._new2(self.rows, self.cols, [f(x) for x in self])
+
+
+class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     """
     Base class for tensor symbols, cached by both SymPy and Devito. It inherits
-    from and mimick the behaviour of a sympy.Function.
+    from and mimicks the behaviour of a sympy.Function.
 
     The hierarchy is structured as follows
 
@@ -491,7 +613,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
         # Not in cache. Create a new Function via sympy.Function
         name = kwargs.get('name')
-        indices = cls.__indices_setup__(**kwargs)
+        dimensions, indices = cls.__indices_setup__(**kwargs)
 
         # Create new, unique type instance from cls and the symbol name
         newcls = type(name, (cls,), dict(cls.__dict__))
@@ -502,7 +624,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # Initialization. The following attributes must be available
         # when executing __init_finalize__
         newobj._name = name
-        newobj._indices = indices
+        newobj._dimensions = dimensions
         newobj._shape = cls.__shape_setup__(**kwargs)
         newobj._dtype = cls.__dtype_setup__(**kwargs)
         newobj.__init_finalize__(*args, **kwargs)
@@ -531,7 +653,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @classmethod
     def __indices_setup__(cls, **kwargs):
         """Extract the object indices from ``kwargs``."""
-        return ()
+        return (), ()
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -567,12 +689,46 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @property
     def indices(self):
         """The indices (aka dimensions) of the object."""
-        return self._indices
+        return self.args
+
+    @property
+    def indices_ref(self):
+        """The reference indices of the object (indices at first creation)."""
+        return EnrichedTuple(*self.function.indices, getters=self.dimensions)
+
+    @property
+    def origin(self):
+        """
+        Origin of the AbstractFunction in term of Dimension
+        f(x) : origin = 0
+        f(x + hx/2) : origin = hx/2
+        """
+        return tuple(r - d for d, r in zip(self.dimensions, self.indices_ref))
 
     @property
     def dimensions(self):
         """Tuple of Dimensions representing the object indices."""
-        return self.indices
+        return self._dimensions
+
+    @property
+    def evaluate(self):
+        # Average values if at a location not on the Function's grid
+        weight = 1.0
+        avg_list = [self]
+        is_averaged = False
+        for i, ir, d in zip(self.indices, self.indices_ref, self.dimensions):
+            off = (i - ir)/d.spacing
+            if not isinstance(off, sympy.Number) or int(off) == off:
+                pass
+            else:
+                weight *= 1/2
+                is_averaged = True
+                avg_list = [a.subs({i: i - d.spacing/2}) + a.subs({i: i + d.spacing/2})
+                            for a in avg_list]
+
+        if not is_averaged:
+            return self
+        return weight * sum(avg_list)
 
     @property
     def shape(self):
@@ -598,7 +754,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         """
         halo = [Add(*i) for i in self._size_halo]
         padding = [Add(*i) for i in self._size_padding]
-        domain = [i.symbolic_size for i in self.indices]
+        domain = [i.symbolic_size for i in self.dimensions]
         ret = tuple(Add(i, j, k) for i, j, k in zip(domain, halo, padding))
         return EnrichedTuple(*ret, getters=self.dimensions)
 
@@ -754,17 +910,13 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         """
         return default_allocator().guaranteed_alignment
 
-    @property
-    def evaluate(self):
-        return self
-
     def indexify(self, indices=None):
         """Create a types.Indexed from the current object."""
         if indices is not None:
             return Indexed(self.indexed, *indices)
 
         # Get spacing symbols for replacement
-        spacings = [i.spacing for i in self.indices]
+        spacings = [i.spacing for i in self.dimensions]
 
         # Only keep the ones used as indices.
         spacings = [s for i, s in enumerate(spacings)
@@ -774,7 +926,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         subs = dict([(s, 1) for s in spacings])
 
         # Indices after substitutions
-        indices = [a.subs(subs) for a in self.args]
+        indices = [(a - o).subs(subs) for a, o in zip(self.args, self.origin)]
 
         return Indexed(self.indexed, *indices)
 
@@ -869,7 +1021,7 @@ class Array(AbstractFunction):
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
-        return tuple(kwargs['dimensions'])
+        return tuple(kwargs['dimensions']), tuple(kwargs['dimensions'])
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
@@ -901,7 +1053,7 @@ class Array(AbstractFunction):
 
     def update(self, **kwargs):
         self._shape = kwargs.get('shape', self.shape)
-        self._indices = kwargs.get('dimensions', self.indices)
+        self._dimensions = kwargs.get('dimensions', self.dimensions)
         self._dtype = kwargs.get('dtype', self.dtype)
         self._halo = kwargs.get('halo', self._halo)
         self._padding = kwargs.get('padding', self._padding)
@@ -1121,3 +1273,7 @@ class Indexed(sympy.Indexed):
     @property
     def name(self):
         return self.function.name
+
+    @property
+    def origin(self):
+        return self.function.origin

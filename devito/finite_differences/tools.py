@@ -26,14 +26,14 @@ class Side(Tag):
     """
 
     def adjoint(self, matvec):
-        if matvec == direct:
+        if matvec is direct:
             return self
         else:
-            if self == centered:
+            if self is centered:
                 return centered
-            elif self == right:
+            elif self is right:
                 return left
-            elif self == left:
+            elif self is left:
                 return right
             else:
                 raise ValueError("Unsupported side value")
@@ -97,7 +97,7 @@ def deriv_name(dims, orders):
 
 def generate_fd_shortcuts(function):
     """Create all legal finite-difference derivatives for the given Function."""
-    dimensions = function.indices
+    dimensions = function.dimensions
     s_fd_order = function.space_order
     t_fd_order = function.time_order if (function.is_TimeFunction or
                                          function.is_SparseTimeFunction) else 0
@@ -109,7 +109,6 @@ def generate_fd_shortcuts(function):
         return Derivative(expr, *as_tuple(dims), deriv_order=deriv_order,
                           fd_order=fd_order, side=side, **kwargs)
 
-    side = form_side(dimensions, function)
     all_combs = dim_with_order(dimensions, orders)
 
     derivatives = {}
@@ -119,9 +118,8 @@ def generate_fd_shortcuts(function):
         fd_dims = tuple(d for d, o_d in zip(dimensions, o) if o_d > 0)
         d_orders = tuple(o_d for d, o_d in zip(dimensions, o) if o_d > 0)
         fd_orders = tuple(t_fd_order if d.is_Time else s_fd_order for d in fd_dims)
-
         deriv = partial(deriv_function, deriv_order=d_orders, dims=fd_dims,
-                        fd_order=fd_orders, stagger=tuple(side[d] for d in fd_dims))
+                        fd_order=fd_orders)
         name_fd = deriv_name(fd_dims, d_orders)
         dname = (d.root.name for d in fd_dims)
         desciption = 'derivative of order %s w.r.t dimension %s' % (d_orders, dname)
@@ -133,7 +131,7 @@ def generate_fd_shortcuts(function):
         if function.is_Staggered:
             # Add centered first derivatives if staggered
             deriv = partial(deriv_function, deriv_order=1, dims=d,
-                            fd_order=o, stagger={d: centered})
+                            fd_order=o, side=centered)
             name_fd = 'd%sc' % name
             desciption = 'centered derivative staggered w.r.t dimension %s' % d.name
             derivatives[name_fd] = (deriv, desciption)
@@ -159,51 +157,46 @@ def symbolic_weights(function, deriv_order, indices, dim):
             for j in range(0, len(indices))]
 
 
-def generate_indices(func, dim, diff, order, stagger=None, side=None):
-
+def generate_indices(func, dim, order, side=None, x0=None):
     # If staggered finited difference
-    if func.is_Staggered:
-        if stagger == left:
-            off = -.5
-        elif stagger == right:
-            off = .5
-        else:
-            off = 0
-        ind = list(set([(dim + int(i+.5+off) * dim.spacing)
-                        for i in range(-order//2, order//2)]))
-        x0 = (dim + off*diff)
-        if order < 2:
-            ind = [dim + diff, dim] if stagger == right else [dim - diff, dim]
-
-        return ind, x0
-
-    # Check if called from first_derivative()
-    if bool(side):
-        if side == right:
-            ind = [(dim+i*diff) for i in range(-int(order/2)+1-(order % 2),
-                                               int((order+1)/2)+2-(order % 2))]
-        elif side == left:
-            ind = [(dim-i*diff) for i in range(-int(order/2)+1-(order % 2),
-                                               int((order+1)/2)+2-(order % 2))]
-        else:
-            ind = [(dim+i*diff) for i in range(-int(order/2),
-                                               int((order+1)/2)+1)]
-        x0 = None
+    if func.is_Staggered and not dim.is_Time:
+        x0, ind = generate_indices_staggered(func, dim, order, side=side, x0=x0)
     else:
-        ind = [(dim + i*dim.spacing) for i in range(-order//2, order//2 + 1)]
-        x0 = dim
-        if order < 2:
-            ind = [dim, dim + diff]
+        x0 = (x0 or {dim: dim}).get(dim, dim)
+        # Check if called from first_derivative()
+        ind = generate_indices_cartesian(dim, order, side, x0)
     return ind, x0
 
 
-def form_side(dimensions, function):
-    side = dict()
-    for (d, s) in zip(dimensions, function.staggered):
-        if s == 0:
-            side[d] = left
-        elif s == 1:
-            side[d] = right
-        else:
-            side[d] = centered
-    return side
+def generate_indices_cartesian(dim, order, side, x0):
+    shift = 0
+    diff = dim.spacing
+    if side is left:
+        diff = -diff
+    if side in [left, right]:
+        shift = 1
+
+    ind = [(x0 + (i + shift) * diff) for i in range(-order//2, order//2 + 1)]
+    if order < 2:
+        ind = [x0, x0 + diff]
+    return tuple(ind)
+
+
+def generate_indices_staggered(func, dim, order, side=None, x0=None):
+    diff = dim.spacing
+    start = (x0 or {}).get(dim) or func.indices_ref[dim]
+    try:
+        ind0 = func.indices_ref[dim]
+    except AttributeError:
+        ind0 = start
+    if start != ind0:
+        ind = [start - diff/2 - i * diff for i in range(0, order//2)][::-1]
+        ind += [start + diff/2 + i * diff for i in range(0, order//2)]
+        if order < 2:
+            ind = [start - diff/2, start + diff/2]
+    else:
+        ind = [start + i * diff for i in range(-order//2, order//2+1)]
+        if order < 2:
+            ind = [start, start - diff]
+
+    return start, tuple(ind)
