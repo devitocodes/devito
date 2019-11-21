@@ -6,7 +6,7 @@ import numpy as np
 from devito.data.allocators import ALLOC_FLAT
 from devito.data.utils import *
 from devito.parameters import configuration
-from devito.tools import Tag, as_tuple, is_integer
+from devito.tools import Tag, as_tuple, as_list, is_integer
 
 __all__ = ['Data']
 
@@ -169,6 +169,9 @@ class Data(np.ndarray):
 
     def __repr__(self):
         return super(Data, self._local).__repr__()
+
+    def __str__(self):
+        return super(Data, self._local).__str__()
 
     @_check_idx
     def __getitem__(self, glb_idx, comm_type):
@@ -428,10 +431,18 @@ class Data(np.ndarray):
             else:
                 data_glb_idx.append(None)
         mapped_idx = []
-        # Based `data_glb_idx` the indices to which the locally stored data
+        # Add any integer indices that were not present in `val_idx`.
+        if len(as_list(idx)) > len(data_glb_idx):
+            for index, value in enumerate(idx):
+                if is_integer(value) and index > 0:
+                    data_glb_idx.insert(index, value)
+        # Based on `data_glb_idx` the indices to which the locally stored data
         # block correspond can now be computed:
         for i, j, k in zip(data_glb_idx, as_tuple(idx), self._decomposition):
-            if isinstance(j, slice) and j.start is None:
+            if is_integer(j):
+                mapped_idx.append(j)
+                continue
+            elif isinstance(j, slice) and j.start is None:
                 norm = 0
             elif isinstance(j, slice) and j.start is not None:
                 if j.start >= 0:
