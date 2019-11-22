@@ -37,7 +37,7 @@ class OPSNodeFactory(object):
 
         # Build the OPS arg identifier
         time_index = split_affine(indexed.indices[TimeFunction._time_position])
-        ops_arg_id = ('%s%s' % (indexed.name, time_index.var)
+        ops_arg_id = ('%s%s%s' % (indexed.name, time_index.var, time_index.shift)
                       if indexed.function.is_TimeFunction else indexed.name)
 
         if ops_arg_id not in self.ops_args:
@@ -50,6 +50,7 @@ class OPSNodeFactory(object):
             accessible_info = AccessibleInfo(
                 symbol_to_access,
                 time_index.var if indexed.function.is_TimeFunction else None,
+                time_index.shift if indexed.function.is_TimeFunction else None,
                 indexed.function.name)
 
             self.ops_args[ops_arg_id] = accessible_info
@@ -73,6 +74,7 @@ class OPSNodeFactory(object):
             return self.ops_args[c].accessible
 
         new_c = AccessibleInfo(Constant(name='*%s' % c.name, dtype=c.dtype),
+                               None,
                                None,
                                None)
         self.ops_args[c] = new_c

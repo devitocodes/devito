@@ -281,7 +281,7 @@ def create_ops_arg(p, accessible_origin, name_to_ops_dat, par_to_ops_stencil):
         ops_name = name_to_ops_dat[p.name] \
             if accessible_info.time is None \
             else name_to_ops_dat[accessible_info.origin_name].\
-            indexify([accessible_info.time])
+            indexify([Add(accessible_info.time, accessible_info.shift)])
         rw_flag = namespace['ops_read'] if p.read_only else namespace['ops_write']
 
     ops_arg = OpsArgDecl(ops_type=ops_type,
