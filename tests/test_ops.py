@@ -152,16 +152,16 @@ class TestOPSExpression(object):
          '\'v_dat = ops_decl_dat(block, 1, v_dim, v_base, v_d_m, v_d_p, '
          '&(v[0]), "float", "v")\']'),
         ('Eq(w1.forward, w1 + 1)',
-         '[\'ops_dat w1_dat[2] = {ops_decl_dat(block, 1, w1_dim, w1_base, w1_d_m, w1_d_p, '
-         '&(w1[0]), "float", "w1time0"), ops_decl_dat(block, 1, w1_dim, w1_base, w1_d_m, w1_d_p, '
-         '&(w1[1]), "float", "w1time1")}\']'),
+         '[\'ops_dat w1_dat[2] = {ops_decl_dat(block, 1, w1_dim, w1_base, w1_d_m, '
+         'w1_d_p, &(w1[0]), "float", "w1time0"), ops_decl_dat(block, 1, w1_dim, '
+         'w1_base, w1_d_m, w1_d_p, &(w1[1]), "float", "w1time1")}\']'),
         ('Eq(w2.forward, w2 + v.dx)',
-         '[\'ops_dat w2_dat[5] = {ops_decl_dat(block, 1, w2_dim, w2_base, w2_d_m, w2_d_p, '
-         '&(w2[0]), "float", "w2time0"), ops_decl_dat(block, 1, w2_dim, w2_base, w2_d_m, w2_d_p, '
-         '&(w2[1]), "float", "w2time1"), ops_decl_dat(block, 1, w2_dim, w2_base, w2_d_m, w2_d_p, '
-         '&(w2[2]), "float", "w2time2"), ops_decl_dat(block, 1, w2_dim, w2_base, w2_d_m, w2_d_p, '
-         '&(w2[3]), "float", "w2time3"), ops_decl_dat(block, 1, w2_dim, w2_base, w2_d_m, w2_d_p, '
-         '&(w2[4]), "float", "w2time4")}\','
+         '[\'ops_dat w2_dat[5] = {ops_decl_dat(block, 1, w2_dim, w2_base, w2_d_m, '
+         'w2_d_p, &(w2[0]), "float", "w2time0"), ops_decl_dat(block, 1, w2_dim, w2_base, '
+         'w2_d_m, w2_d_p, &(w2[1]), "float", "w2time1"), ops_decl_dat(block, 1, w2_dim, '
+         'w2_base, w2_d_m, w2_d_p, &(w2[2]), "float", "w2time2"), ops_decl_dat(block, 1, '
+         'w2_dim, w2_base, w2_d_m, w2_d_p, &(w2[3]), "float", "w2time3"), ops_decl_dat('
+         'block, 1, w2_dim, w2_base, w2_d_m, w2_d_p, &(w2[4]), "float", "w2time4")}\','
          '\'ops_dat v_dat;\','
          '\'v_dat = ops_decl_dat(block, 1, v_dim, v_base, v_d_m, v_d_p, '
          '&(v[0]), "float", "v")\']')
