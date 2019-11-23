@@ -60,7 +60,7 @@ class IterationInstance(LabeledVector):
     """
 
     def __new__(cls, indexed):
-        findices = tuple(indexed.function.indices)
+        findices = tuple(indexed.function.dimensions)
         if len(findices) != len(set(findices)):
             raise ValueError("Illegal non-unique `findices`")
         return super(IterationInstance, cls).__new__(cls,

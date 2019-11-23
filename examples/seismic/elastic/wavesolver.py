@@ -1,7 +1,8 @@
 from devito.tools import memoized_meth
+from devito import VectorTimeFunction, TensorTimeFunction
+
 from examples.seismic import Receiver
-from examples.seismic.elastic.operators import (ForwardOperator, tensor_function,
-                                                vector_function)
+from examples.seismic.elastic.operators import ForwardOperator
 
 
 class ElasticWaveSolver(object):
@@ -19,11 +20,6 @@ class ElasticWaveSolver(object):
         receivers (SparseTimeFunction) and their position.
     space_order : int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
-
-    Notes
-    -----
-    This is an experimental staggered grid elastic modeling kernel.
-    Only 2D supported.
     """
     def __init__(self, model, geometry, space_order=4, **kwargs):
         self.model = model
@@ -41,41 +37,37 @@ class ElasticWaveSolver(object):
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order, **self._kwargs)
 
-    def forward(self, src=None, rec1=None, rec2=None, vp=None, vs=None, rho=None,
-                vx=None, vz=None, txx=None, tzz=None, txz=None, save=None, **kwargs):
+    def forward(self, src=None, rec1=None, rec2=None, lam=None, mu=None, irho=None,
+                v=None, tau=None, save=None, **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
 
         Parameters
         ----------
-        geometry : AcquisitionGeometry
-            Geometry object that contains the source (src : SparseTimeFunction) and
-            receivers (rec1(txx) : SparseTimeFunction, rec2(tzz) : SparseTimeFunction)
-            and their position.
-        vx : TimeFunction, optional
-            The computed horizontal particle velocity.
-        vz : TimeFunction, optional
-            The computed vertical particle velocity.
-        txx : TimeFunction, optional
-            The computed horizontal stress.
-        tzz : TimeFunction, optional
-            The computed vertical stress.
-        txz : TimeFunction, optional
-            The computed diagonal stresss.
-        vp : Function, optional
-            The time-constant P-wave velocity (km/s).
-        vs : Function, optional
-            The time-constant S-wave velocity (km/s).
-        rho : Function, optional
-            The time-constant density (rho=1 for water).
+        src : SparseTimeFunction or array_like, optional
+            Time series data for the injected source term.
+        rec1 : SparseTimeFunction or array_like, optional
+            The interpolated receiver data of the pressure (tzz).
+        rec2 : SparseTimeFunction or array_like, optional
+            The interpolated receiver data of the particle velocities.
+        v : VectorTimeFunction, optional
+            The computed particle velocity.
+        tau : TensorTimeFunction, optional
+            The computed symmetric stress tensor.
+        lam : Function, optional
+            The time-constant first Lame parameter lambda.
+        mu : Function, optional
+            The time-constant second Lame parameter mu.
+        irho : Function, optional
+            The time-constant inverse density (irho=1 for water).
         save : int or Buffer, optional
             Option to store the entire (unrolled) wavefield.
 
         Returns
         -------
-        Rec1 (txx), Rec2 (tzz), particle velocities vx and vz, stress txx,
-        tzz and txz and performance summary.
+        Rec1(tzz), Rec2(div(v)), particle velocities v, stress tensor tau and
+        performance summary.
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
@@ -89,25 +81,18 @@ class ElasticWaveSolver(object):
 
         # Create all the fields vx, vz, tau_xx, tau_zz, tau_xz
         save_t = src.nt if save else None
-        vx, vy, vz = vector_function('v', self.model, save_t, self.space_order)
-        txx, tyy, tzz, txy, txz, tyz = tensor_function('t', self.model, save_t,
-                                                       self.space_order)
-        kwargs['vx'] = vx
-        kwargs['vz'] = vz
-        kwargs['txx'] = txx
-        kwargs['tzz'] = tzz
-        kwargs['txz'] = txz
-        if self.model.grid.dim == 3:
-            kwargs['vy'] = vy
-            kwargs['tyy'] = tyy
-            kwargs['txy'] = txy
-            kwargs['tyz'] = tyz
-        # Pick physical parameters from model unless explicitly provided
-        vp = vp or self.model.vp
-        vs = vs or self.model.vs
-        rho = rho or self.model.rho
+        v = VectorTimeFunction(name='v', grid=self.model.grid, save=save_t,
+                               space_order=self.space_order, time_order=1)
+        tau = TensorTimeFunction(name='tau', grid=self.model.grid, save=save_t,
+                                 space_order=self.space_order, time_order=1)
+        kwargs.update({k.name: k for k in v})
+        kwargs.update({k.name: k for k in tau})
+        # Pick Lame parameters from model unless explicitly provided
+        lam = lam or self.model.lam
+        mu = mu or self.model.mu
+        irho = irho or self.model.irho
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, vp=vp, vs=vs, rho=rho,
+        summary = self.op_fwd(save).apply(src=src, rec1=rec1, lam=lam, mu=mu, irho=irho,
                                           rec2=rec2, dt=kwargs.pop('dt', self.dt),
                                           **kwargs)
-        return rec1, rec2, vx, vz, txx, tzz, txz, summary
+        return rec1, rec2, v, tau, summary

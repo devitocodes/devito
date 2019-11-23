@@ -159,9 +159,10 @@ class Operator(Callable):
         # Form and gather any required implicit expressions
         expressions = self._add_implicit(expressions)
 
-        # Expression lowering: evaluation of derivatives, indexification,
-        # substitution rules, specialization
+        # Expression lowering: evaluation of derivatives, flatten vectorial equations,
+        # indexification, substitution rules, specialization
         expressions = [i.evaluate for i in expressions]
+        expressions = [j for i in expressions for j in i._flatten]
         expressions = [indexify(i) for i in expressions]
         expressions = self._apply_substitutions(expressions, subs)
         expressions = self._specialize_exprs(expressions)
@@ -339,7 +340,9 @@ class Operator(Callable):
         args = args.reduce_all()
 
         # All DiscreteFunctions should be defined on the same Grid
-        grids = {getattr(p, 'grid', None) for p in overrides + defaults} - {None}
+        grids = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
+        grids.update({getattr(p, 'grid', None) for p in defaults})
+        grids.discard(None)
         if len(grids) > 1 and configuration['mpi']:
             raise ValueError("Multiple Grids found")
         try:

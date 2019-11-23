@@ -4,7 +4,7 @@ from sympy import simplify, diff, cos, sin
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE,
-                    ConditionalDimension, left, right, centered, generic_derivative)
+                    ConditionalDimension, left, right, centered)
 from devito.finite_differences import Derivative, Differentiable
 
 _PRECISION = 9
@@ -175,7 +175,7 @@ class TestFD(object):
         expr = getattr(u, derivative).evaluate
         # Establish native sympy derivative expression
         width = int(order / 2)
-        if order == 1:
+        if order <= 2:
             indices = [dim, dim + dim.spacing]
         else:
             indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
@@ -252,7 +252,7 @@ class TestFD(object):
         be exact for polynomials of order p
         """
         # dummy axis dimension
-        nx = 100
+        nx = 101
         xx = np.linspace(-1, 1, nx)
         dx = xx[1] - xx[0]
         # Symbolic data
@@ -263,18 +263,17 @@ class TestFD(object):
         if stagger == left:
             off = -.5
             side = -x
-            xx2 = xx - off * dx
+            xx2 = xx + off * dx
         elif stagger == right:
             off = .5
             side = x
-            xx2 = xx - off * dx
+            xx2 = xx + off * dx
         else:
-            off = 0
             side = NODE
             xx2 = xx
 
-        u = Function(name="u", grid=grid, space_order=space_order, staggered=(side,))
-        du = Function(name="du", grid=grid, space_order=space_order)
+        u = Function(name="u", grid=grid, space_order=space_order, staggered=side)
+        du = Function(name="du", grid=grid, space_order=space_order, staggered=side)
         # Define polynomial with exact fd
         coeffs = np.ones((space_order-1,), dtype=np.float32)
         polynome = sum([coeffs[i]*x**i for i in range(0, space_order-1)])
@@ -283,12 +282,9 @@ class TestFD(object):
         u.data[:] = polyvalues
         # True derivative of the polynome
         Dpolynome = diff(polynome)
-        Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx], np.float32)
-        # FD derivative, symbolic
-        u_deriv = generic_derivative(u, deriv_order=1, fd_order=space_order,
-                                     dim=x, stagger=stagger)
+        Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx2], np.float32)
         # Compute numerical FD
-        stencil = Eq(du, u_deriv)
+        stencil = Eq(du, u.dx)
         op = Operator(stencil, subs={x.spacing: dx})
         op.apply()
 
@@ -360,12 +356,12 @@ class TestFD(object):
 
     @pytest.mark.parametrize('so', [2, 4, 8, 12])
     @pytest.mark.parametrize('ndim', [1, 2])
-    @pytest.mark.parametrize('derivative, adjoint_name, adjoint_coeff', [
-        ('dx', 'dx', -1),
-        ('dx2', 'dx2', 1),
-        ('dxl', 'dxr', -1),
-        ('dxr', 'dxl', -1)])
-    def test_fd_adjoint(self, so, ndim, derivative, adjoint_name, adjoint_coeff):
+    @pytest.mark.parametrize('derivative, adjoint_name', [
+        ('dx', 'dx'),
+        ('dx2', 'dx2'),
+        ('dxl', 'dxr'),
+        ('dxr', 'dxl')])
+    def test_fd_adjoint(self, so, ndim, derivative, adjoint_name):
         grid = Grid(shape=tuple([51]*ndim), extent=tuple([25]*ndim))
         x = grid.dimensions[0]
         f = Function(name='f', grid=grid, space_order=so)
@@ -374,10 +370,11 @@ class TestFD(object):
         g_deriv = Function(name='g_deriv', grid=grid, space_order=so)
 
         # Fill f and g with smooth cos/sin
-        Operator([Eq(g, cos(2*np.pi*x/5)), Eq(f, sin(2*np.pi*x/8))]).apply()
+        Operator([Eq(g, x*cos(2*np.pi*x/5)), Eq(f, sin(2*np.pi*x/8))]).apply()
         # Check symbolic expression are expected ones for the adjoint .T
         deriv = getattr(f, derivative)
-        expected = adjoint_coeff * getattr(f, adjoint_name).evaluate
+        coeff = 1 if derivative == 'dx2' else -1
+        expected = coeff * getattr(f, derivative).evaluate.subs({x.spacing: -x.spacing})
         assert deriv.T.evaluate == expected
 
         # Compute numerical derivatives and verify dot test

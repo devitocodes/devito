@@ -56,7 +56,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         self._distributor = self.__distributor_setup__(**kwargs)
 
         # Staggering metadata
-        self._staggered, self.is_Staggered = self.__staggered_setup__(**kwargs)
+        self._staggered = self.__staggered_setup__(**kwargs)
 
         # Now that *all* __X_setup__ hooks have been called, we can let the
         # superclass constructor do its job
@@ -157,25 +157,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
             * 0 to non-staggered dimensions;
             * 1 to staggered dimensions.
         """
-        staggered = kwargs.get('staggered')
-        if staggered is None:
-            return tuple(0 for _ in self.dimensions), False
-        else:
-            if staggered is NODE:
-                staggered = ()
-            elif staggered is CELL:
-                staggered = self.dimensions
-            else:
-                staggered = as_tuple(staggered)
-            mask = []
-            for d in self.dimensions:
-                if d in staggered:
-                    mask.append(1)
-                elif -d in staggered:
-                    mask.append(-1)
-                else:
-                    mask.append(0)
-            return tuple(mask), True
+        staggered = kwargs.get('staggered', None)
+        if staggered is CELL:
+            staggered = self.dimensions
+        return staggered
 
     def __distributor_setup__(self, **kwargs):
         grid = kwargs.get('grid')
@@ -759,7 +744,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider):
         args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s in zip(key.indices, self.shape):
+        for i, s in zip(key.dimensions, self.shape):
             args.update(i._arg_defaults(_min=0, size=s))
 
         # Add MPI-related data structures
@@ -951,6 +936,23 @@ class Function(DiscreteFunction, Differentiable):
         # Dynamically add derivative short-cuts
         self._fd = generate_fd_shortcuts(self)
 
+        # Flag whether it is a parameter or a variable.
+        # Used at operator evaluation to evaluate the Function at the
+        # variable location (i.e. if the variable is staggered in x the
+        # parameter has to be computed at x + hx/2)
+        self._is_parameter = kwargs.get('parameter', False)
+
+    @property
+    def is_parameter(self):
+        return self._is_parameter
+
+    def _eval_at(self, func):
+        if not self.is_parameter or self.staggered == func.staggered:
+            return self
+
+        return self.subs({self.indices_ref[d1]: func.indices_ref[d1]
+                          for d1 in self.dimensions})
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         grid = kwargs.get('grid')
@@ -960,7 +962,23 @@ class Function(DiscreteFunction, Differentiable):
                 raise TypeError("Need either `grid` or `dimensions`")
         elif dimensions is None:
             dimensions = grid.dimensions
-        return dimensions
+
+        # Staggered indices
+        staggered = kwargs.get("staggered", None)
+        if staggered in [CELL, NODE]:
+            staggered_indices = dimensions
+        else:
+            mapper = {d: d for d in dimensions}
+            for s in as_tuple(staggered):
+                c, s = s.as_coeff_Mul()
+                mapper.update({s: s + c * s.spacing/2})
+
+            staggered_indices = tuple(mapper.values())
+        return tuple(dimensions), staggered_indices
+
+    @property
+    def is_Staggered(self):
+        return self.staggered is not None
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -1012,11 +1030,7 @@ class Function(DiscreteFunction, Differentiable):
                 halo = (left_points, right_points)
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
-            base = [halo if i.is_Space else (0, 0) for i in self.dimensions]
-            # left-/right-staggering require extra points
-            extra = [(-i, 0) if i < 0 else (0, i) for i in self.staggered]
-            assert len(base) == len(extra)
-            return tuple((int(i), int(j)) for i, j in np.add(base, extra))
+            return tuple(halo if i.is_Space else (0, 0) for i in self.dimensions)
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -1215,6 +1229,7 @@ class TimeFunction(Function):
     """
 
     is_TimeFunction = True
+    is_TimeDependent = True
 
     _time_position = 0
     """Position of time index among the function indices."""
@@ -1237,6 +1252,7 @@ class TimeFunction(Function):
     @classmethod
     def __indices_setup__(cls, **kwargs):
         dimensions = kwargs.get('dimensions')
+        staggered = kwargs.get('staggered')
         if dimensions is None:
             save = kwargs.get('save')
             grid = kwargs.get('grid')
@@ -1246,11 +1262,9 @@ class TimeFunction(Function):
                 time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
             elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
                 raise TypeError("`time_dim` must be a time dimension")
-
-            dimensions = list(Function.__indices_setup__(**kwargs))
+            dimensions = list(Function.__indices_setup__(**kwargs)[0])
             dimensions.insert(cls._time_position, time_dim)
-
-        return tuple(dimensions)
+        return Function.__indices_setup__(dimensions=dimensions, staggered=staggered)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

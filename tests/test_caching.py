@@ -6,7 +6,8 @@ import pytest
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
                     ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
-                    DefaultDimension, _SymbolCache, clear_cache, solve)
+                    DefaultDimension, _SymbolCache, clear_cache, solve, VectorFunction,
+                    TensorFunction, TensorTimeFunction, VectorTimeFunction)
 from devito.types.basic import Scalar, Symbol
 
 pytestmark = skipif(['yask', 'ops'])
@@ -144,6 +145,21 @@ class TestHashing(object):
         u4 = FunctionType(name='u', grid=grid0, npoint=1, nt=14)
         assert u0 is not u4
         assert hash(u0) != hash(u4)
+
+    @pytest.mark.parametrize('FunctionType', [TensorFunction, TensorTimeFunction,
+                                              VectorTimeFunction, VectorFunction])
+    def test_tensor_hash(self, FunctionType):
+        """Test that different Functions have different hash value."""
+        grid0 = Grid(shape=(3, 3))
+        u0 = FunctionType(name='u', grid=grid0)
+        grid1 = Grid(shape=(4, 4))
+        u1 = FunctionType(name='u', grid=grid1)
+        assert u0 is not u1
+        assert hash(u0) != hash(u1)
+        # Now with the same grid
+        u2 = FunctionType(name='u', grid=grid0)
+        assert u0 is not u2
+        assert hash(u0) != hash(u2)
 
 
 class TestCaching(object):
@@ -538,6 +554,45 @@ class TestCaching(object):
         d = Dimension(name='d')  # noqa
         assert len(_SymbolCache) == 2
         assert all(i() is not None for i in _SymbolCache.values())
+
+    @pytest.mark.parametrize('FunctionType', [VectorFunction, TensorFunction,
+                                              VectorTimeFunction, TensorTimeFunction])
+    def test_tensor_different_indices(self, FunctionType):
+        """Test caching of u[x + h, y] instance from derivative"""
+        grid = Grid(shape=(3, 4))
+        u0 = FunctionType(name='u', grid=grid)
+        for s in u0:
+            s.data[:] = 6.
+        # Pick u[x + h, y] (different indices) from derivative
+        u = u0.dx.evaluate[0].args[0].args[1]
+        assert np.allclose(u.data, u0[0].data)
+
+    @pytest.mark.parametrize('FunctionType', [VectorFunction, TensorFunction,
+                                              VectorTimeFunction, TensorTimeFunction])
+    def test_tensor_same_indices(self, FunctionType):
+        """Test caching of derived u[x, y] instance from derivative"""
+        grid = Grid(shape=(3, 4))
+        u0 = FunctionType(name='u', grid=grid)
+        for s in u0:
+            s.data[:] = 6.
+        # Pick u(x, y) and u(x + h_x, y) from derivative
+        u1 = u0.dx.evaluate[0].args[1].args[2]
+        u2 = u0.dx.evaluate[1].args[0].args[1]
+        assert np.allclose(u1.data, 6.)
+        assert np.allclose(u2.data, 6.)
+
+    @pytest.mark.parametrize('FunctionType', [VectorFunction, TensorFunction,
+                                              VectorTimeFunction, TensorTimeFunction])
+    def test_tensor_new(self, FunctionType):
+        """Test that new u[x, y] instances don't cache"""
+        grid = Grid(shape=(3, 4))
+        u0 = FunctionType(name='u', grid=grid)
+        for s in u0:
+            s.data[:] = 6.
+        u1 = FunctionType(name='u', grid=grid)
+        for s in u1:
+            s.data[:] = 2.
+        assert np.all(np.allclose(s.data, 6.) for s in u0)
 
 
 class TestMemoryLeaks(object):

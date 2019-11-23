@@ -76,8 +76,17 @@ class Eq(sympy.Eq, Evaluable):
 
     @cached_property
     def evaluate(self):
-        eq = self.func(*self._evaluate_args(), subdomain=self.subdomain,
-                       coefficients=self.substitutions, implicit_dims=self._implicit_dims)
+        """
+        Evaluate the Equation or system of Equations.
+        The rhs of the Equation is evaluated at the indices of the lhs if required.
+        """
+        try:
+            lhs, rhs = self.lhs.evaluate, self.rhs._eval_at(self.lhs).evaluate
+        except AttributeError:
+            lhs, rhs = self._evaluate_args()
+        eq = self.func(lhs, rhs, subdomain=self.subdomain,
+                       coefficients=self.substitutions,
+                       implicit_dims=self._implicit_dims)
         if eq._uses_symbolic_coefficients:
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
@@ -87,8 +96,25 @@ class Eq(sympy.Eq, Evaluable):
             except AttributeError:
                 if bool(rules):
                     eq = eq.xreplace(rules)
-
         return eq
+
+    @property
+    def _flatten(self):
+        """
+        Flatten vectorial/tensorial Equation into list of scalar Equations.
+        """
+        if self.lhs.is_Matrix:
+            # Maps the Equations to retrieve the rhs from relevant lhs
+            eqs = dict(zip(as_tuple(self.lhs), as_tuple(self.rhs)))
+            # Get the relevant equations from the lhs structure. .values removes
+            # the symmetric duplicates and off-diagonal zeros.
+            lhss = self.lhs.values()
+            return [self.func(l, eqs[l], subdomain=self.subdomain,
+                              coefficients=self.substitutions,
+                              implicit_dims=self._implicit_dims)
+                    for l in lhss]
+        else:
+            return [self]
 
     @property
     def substitutions(self):
@@ -201,6 +227,14 @@ def solve(eq, target, **kwargs):
     # turnaround time
     kwargs['rational'] = False  # Avoid float indices
     kwargs['simplify'] = False  # Do not attempt premature optimisation
+    kwargs['manual'] = True  # Force sympy to solve one line at a time for VectorFunction
     if isinstance(eq, Eq):
-        eq = eq.lhs - eq.rhs
-    return sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
+        eq = eq.lhs - eq.rhs if eq.rhs != 0 else eq.lhs
+    sol = sympy.solve(eq.evaluate, target.evaluate, **kwargs)[0]
+
+    # We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions
+    from devito.types import TensorFunction
+    if isinstance(target, TensorFunction):
+        return target.new_from_mat(sol)
+    else:
+        return sol

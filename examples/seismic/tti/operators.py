@@ -1,6 +1,6 @@
 from sympy import cos, sin, sqrt
 
-from devito import Eq, Operator, TimeFunction
+from devito import Eq, Operator, TimeFunction, NODE
 from examples.seismic import PointSource, Receiver
 from devito.finite_differences import centered, first_derivative, transpose
 
@@ -16,6 +16,7 @@ def second_order_stencil(model, u, v, H0, Hz):
     epsilon = 1 + 2 * epsilon
     delta = sqrt(1 + 2 * delta)
     s = model.grid.stepping_dim.spacing
+
     stencilp = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
          u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
@@ -51,7 +52,7 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     -------
     Rotated second order derivative w.r.t. z.
     """
-    order1 = space_order / 2
+    order1 = space_order // 2
     x, y, z = field.space_dimensions
     Gz = -(sintheta * cosphi * first_derivative(field, dim=x,
                                                 side=centered, fd_order=order1) +
@@ -91,7 +92,7 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
     -------
     Rotated second order derivative w.r.t. z.
     """
-    order1 = space_order / 2
+    order1 = space_order // 2
     x, y = field.space_dimensions[:2]
     Gz = -(sintheta * first_derivative(field, dim=x, side=centered, fd_order=order1) +
            costheta * first_derivative(field, dim=y, side=centered, fd_order=order1))
@@ -339,7 +340,8 @@ def kernel_staggered_3d(model, u, v, space_order):
     # u and v equations
     pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * (dvx + dvy) + dvz)))
 
-    ph_eq = Eq(u.forward, dampl * (u - s / m * (epsilon * (dvx + dvy) + delta * dvz)))
+    ph_eq = Eq(u.forward, dampl * (u - s / m * (epsilon * (dvx + dvy) +
+                                                delta * dvz)))
 
     return [u_vx, u_vy, u_vz] + [pv_eq, ph_eq]
 
@@ -368,9 +370,7 @@ def ForwardOperator(model, geometry, space_order=4,
     m = model.m
     time_order = 1 if kernel == 'staggered' else 2
     if kernel == 'staggered':
-        dims = model.space_dimensions
-        stagg_u = (-dims[-1])
-        stagg_v = (-dims[0], -dims[1]) if model.grid.dim == 3 else (-dims[0])
+        stagg_u = stagg_v = NODE
     else:
         stagg_u = stagg_v = None
 

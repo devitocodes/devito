@@ -13,6 +13,7 @@ from devito.finite_differences import *  # noqa
 from devito.mpi import MPI  # noqa
 from devito.types import _SymbolCache, NODE, CELL, Buffer, SubDomain, SubDomainSet  # noqa
 from devito.types.dimension import *  # noqa
+from devito.types.tensor import *  # noqa
 
 # Imports required to initialize Devito
 from devito.archinfo import platform_registry

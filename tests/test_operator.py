@@ -4,7 +4,8 @@ import pytest
 from conftest import skipif, time, x, y, z
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, dimensions, configuration)
+                    NODE, CELL, dimensions, configuration, TensorFunction,
+                    TensorTimeFunction, VectorFunction, VectorTimeFunction)
 from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
@@ -382,6 +383,15 @@ class TestArithmetic(object):
         assert np.all(u.data[1:4, 4:6, 4:6] == pytest.approx(0.75))
         assert np.sum(u.data[:]) == pytest.approx(12*0.75)
 
+    @pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction,
+                                       VectorFunction, VectorTimeFunction])
+    def test_tensor(self, func1):
+        grid = Grid(tuple([5]*3))
+        f1 = func1(name="f1", grid=grid)
+        op1 = Operator(Eq(f1, f1.dx))
+        op2 = Operator([Eq(f, f.dx) for f in f1.values()])
+        assert str(op1.ccode) == str(op2.ccode)
+
 
 class TestAllocation(object):
 
@@ -406,11 +416,14 @@ class TestAllocation(object):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple([11]*ndim))
+        grid = Grid(shape=tuple([11]*ndim), dimensions=(x, y, z)[:ndim])
         f = Function(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape == tuple([11]*ndim)
+        # Add a non-staggered field to ensure that the auto-derived
+        # dimension size arguments are at maximum
         g = Function(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple(5 for _ in f.staggered)
+        index = tuple(5 for _ in f.dimensions)
         set_f = Eq(f[index], 2.)
         set_g = Eq(g[index], 3.)
 
@@ -426,11 +439,14 @@ class TestAllocation(object):
         """
         Test the "deformed" allocation for staggered functions
         """
-        grid = Grid(shape=tuple([11]*ndim))
+        grid = Grid(shape=tuple([11]*ndim), dimensions=(x, y, z)[:ndim])
         f = TimeFunction(name='f', grid=grid, staggered=stagg)
+        assert f.data.shape[1:] == tuple([11]*ndim)
+        # Add a non-staggered field to ensure that the auto-derived
+        # dimension size arguments are at maximum
         g = TimeFunction(name='g', grid=grid)
         # Test insertion into a central point
-        index = tuple([0] + [5 for _ in f.staggered[1:]])
+        index = tuple([0] + [5 for _ in f.dimensions[1:]])
         set_f = Eq(f[index], 2.)
         set_g = Eq(g[index], 3.)
 

@@ -6,8 +6,8 @@ from sympy.functions.elementary.integers import floor
 from sympy.core.evalf import evalf_table
 
 from cached_property import cached_property
-
-from devito.tools import Evaluable, filter_ordered, flatten
+from devito.logger import warning
+from devito.tools import Evaluable, EnrichedTuple, filter_ordered, flatten
 
 __all__ = ['Differentiable']
 
@@ -48,8 +48,48 @@ class Differentiable(sympy.Expr, Evaluable):
                    default=100)
 
     @cached_property
+    def is_TimeDependent(self):
+        # Default False, True if anything is time dependent in the expression
+        return any(getattr(i, 'is_TimeDependent', False) for i in self._args_diff)
+
+    @cached_property
+    def is_VectorValued(self):
+        # Default False, True if is a vector valued expression
+        return any(getattr(i, 'is_VectorValued', False) for i in self._args_diff)
+
+    @cached_property
+    def is_TensorValued(self):
+        # Default False, True if is a tensor valued expression
+        return any(getattr(i, 'is_TensorValued', False) for i in self._args_diff)
+
+    @cached_property
+    def grid(self):
+        grids = {getattr(i, 'grid', None) for i in self._args_diff} - {None}
+        if len(grids) > 1:
+            warning("Expression contains multiple grids, returning first found")
+        try:
+            return grids.pop()
+        except KeyError:
+            raise ValueError("No grid found")
+
+    @cached_property
     def indices(self):
         return tuple(filter_ordered(flatten(getattr(i, 'indices', ())
+                                            for i in self._args_diff)))
+
+    @cached_property
+    def dimensions(self):
+        return tuple(filter_ordered(flatten(getattr(i, 'dimensions', ())
+                                            for i in self._args_diff)))
+
+    @property
+    def indices_ref(self):
+        """The reference indices of the object (indices at first creation)."""
+        return EnrichedTuple(*self.dimensions, getters=self.dimensions)
+
+    @cached_property
+    def staggered(self):
+        return tuple(filter_ordered(flatten(getattr(i, 'staggered', ())
                                             for i in self._args_diff)))
 
     @cached_property
@@ -67,6 +107,12 @@ class Differentiable(sympy.Expr, Evaluable):
     @cached_property
     def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)
+
+    def _eval_at(self, func):
+        if not func.is_Staggered:
+            # Cartesian grid, do no waste time
+            return self
+        return self.func(*[getattr(a, '_eval_at', lambda x: a)(func) for a in self.args])
 
     def __hash__(self):
         return super(Differentiable, self).__hash__()
@@ -146,23 +192,41 @@ class Differentiable(sympy.Expr, Evaluable):
             all(getattr(self, i, None) == getattr(other, i, None) for i in self._state)
 
     @property
+    def name(self):
+        return "".join(f.name for f in self._functions)
+
+    @property
     def laplace(self):
         """
         Generates a symbolic expression for the Laplacian, the second
         derivative w.r.t all spatial Dimensions.
         """
-        space_dims = [d for d in self.indices if d.is_Space]
+        space_dims = [d for d in self.dimensions if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return Add(*[getattr(self, d) for d in derivs])
 
-    def laplace2(self, weight=1):
+    @property
+    def div(self):
+        space_dims = [d for d in self.dimensions if d.is_Space]
+        derivs = tuple('d%s' % d.name for d in space_dims)
+        return Add(*[getattr(self, d) for d in derivs])
+
+    @property
+    def grad(self):
+        from devito.types.tensor import VectorFunction, VectorTimeFunction
+        comps = [getattr(self, 'd%s' % d.name) for d in self.dimensions if d.is_Space]
+        vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
+        return vec_func(name='grad_%s' % self.name, time_order=self.time_order,
+                        space_order=self.space_order, components=comps, grid=self.grid)
+
+    def biharmonic(self, weight=1):
         """
-        Generates a symbolic expression for the double Laplacian w.r.t.
-        all spatial Dimensions.
+        Generates a symbolic expression for the weighted biharmonic operator w.r.t.
+        all spatial Dimensions Laplace(weight * Laplace (self))
         """
-        space_dims = [d for d in self.indices if d.is_Space]
+        space_dims = [d for d in self.dimensions if d.is_Space]
         derivs = tuple('d%s2' % d.name for d in space_dims)
-        return sum([getattr(self.laplace * weight, d) for d in derivs])
+        return Add(*[getattr(self.laplace * weight, d) for d in derivs])
 
     def diff(self, *symbols, **assumptions):
         """
