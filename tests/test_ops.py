@@ -25,41 +25,41 @@ from devito.types import Buffer, Constant, Symbol  # noqa
 class TestOPSExpression(object):
 
     @pytest.mark.parametrize('equation, expected', [
-        ('Eq(u,3*a - 4**a)', 'void OPS_Kernel_0(ACC<float> & ut0)\n'
-         '{\n  ut0(0) = -2.97015324253729F;\n}'),
+        ('Eq(u,3*a - 4**a)', 'void OPS_Kernel_0(ACC<float> & ut00)\n'
+         '{\n  ut00(0) = -2.97015324253729F;\n}'),
         ('Eq(u, u.dxl)',
-         'void OPS_Kernel_0(ACC<float> & ut0, const float *h_x)\n'
+         'void OPS_Kernel_0(ACC<float> & ut00, const float *h_x)\n'
          '{\n  float r0 = 1.0/*h_x;\n  '
-         'ut0(0) = (-2.0F*ut0(-1) + 5.0e-1F*ut0(-2) + 1.5F*ut0(0))*r0;\n}'),
-        ('Eq(v,1)', 'void OPS_Kernel_0(ACC<float> & vt0)\n'
-         '{\n  vt0(0, 0) = 1;\n}'),
+         'ut00(0) = (-2.0F*ut00(-1) + 5.0e-1F*ut00(-2) + 1.5F*ut00(0))*r0;\n}'),
+        ('Eq(v,1)', 'void OPS_Kernel_0(ACC<float> & vt00)\n'
+         '{\n  vt00(0, 0) = 1;\n}'),
         ('Eq(v,v.dxl + v.dxr - v.dyr - v.dyl)',
-         'void OPS_Kernel_0(ACC<float> & vt0, const float *h_x, const float *h_y)\n'
+         'void OPS_Kernel_0(ACC<float> & vt00, const float *h_x, const float *h_y)\n'
          '{\n  float r1 = 1.0/*h_y;\n  float r0 = 1.0/*h_x;\n  '
-         'vt0(0, 0) = (5.0e-1F*(-vt0(2, 0) + vt0(-2, 0)) + 2.0F*(-vt0(-1, 0) + '
-         'vt0(1, 0)))*r0 + (5.0e-1F*(-vt0(0, -2) + vt0(0, 2)) + '
-         '2.0F*(-vt0(0, 1) + vt0(0, -1)))*r1;\n}'),
+         'vt00(0, 0) = (5.0e-1F*(-vt00(2, 0) + vt00(-2, 0)) + 2.0F*(-vt00(-1, 0) + '
+         'vt00(1, 0)))*r0 + (5.0e-1F*(-vt00(0, -2) + vt00(0, 2)) + '
+         '2.0F*(-vt00(0, 1) + vt00(0, -1)))*r1;\n}'),
         ('Eq(v,v**2 - 3*v)',
-         'void OPS_Kernel_0(ACC<float> & vt0)\n'
-         '{\n  vt0(0, 0) = -3*vt0(0, 0) + vt0(0, 0)*vt0(0, 0);\n}'),
+         'void OPS_Kernel_0(ACC<float> & vt00)\n'
+         '{\n  vt00(0, 0) = -3*vt00(0, 0) + vt00(0, 0)*vt00(0, 0);\n}'),
         ('Eq(v,a*v + b)',
-         'void OPS_Kernel_0(ACC<float> & vt0)\n'
-         '{\n  vt0(0, 0) = 9.87e-7F + 1.43F*vt0(0, 0);\n}'),
+         'void OPS_Kernel_0(ACC<float> & vt00)\n'
+         '{\n  vt00(0, 0) = 9.87e-7F + 1.43F*vt00(0, 0);\n}'),
         ('Eq(w,c*w**2)',
-         'void OPS_Kernel_0(ACC<float> & wt0)\n'
-         '{\n  wt0(0, 0, 0) = 999999999999999*(wt0(0, 0, 0)*wt0(0, 0, 0));\n}'),
+         'void OPS_Kernel_0(ACC<float> & wt00)\n'
+         '{\n  wt00(0, 0, 0) = 999999999999999*(wt00(0, 0, 0)*wt00(0, 0, 0));\n}'),
         ('Eq(u.forward,u+1)',
-         'void OPS_Kernel_0(const ACC<float> & ut0, ACC<float> & ut1)\n'
-         '{\n  ut1(0) = 1 + ut0(0);\n}'),
+         'void OPS_Kernel_0(const ACC<float> & ut00, ACC<float> & ut10)\n'
+         '{\n  ut10(0) = 1 + ut00(0);\n}'),
         ('Eq(v.forward, v.dt - v.laplace + v.dt)',
-         'void OPS_Kernel_0(const ACC<float> & vt0, ACC<float> & vt1, '
+         'void OPS_Kernel_0(const ACC<float> & vt00, ACC<float> & vt10, '
          'const float *dt, const float *h_x, const float *h_y)\n'
          '{\n  float r2 = 1.0/*dt;\n'
          '  float r1 = 1.0/(*h_y**h_y);\n'
          '  float r0 = 1.0/(*h_x**h_x);\n'
-         '  vt1(0, 0) = (-(vt0(1, 0) + vt0(-1, 0)) + 2.0F*vt0(0, 0))*r0 + '
-         '(-(vt0(0, 1) + vt0(0, -1)) + 2.0F*vt0(0, 0))*r1 + '
-         '2*(-vt0(0, 0) + vt1(0, 0))*r2;\n}'),
+         '  vt10(0, 0) = (-(vt00(1, 0) + vt00(-1, 0)) + 2.0F*vt00(0, 0))*r0 + '
+         '(-(vt00(0, 1) + vt00(0, -1)) + 2.0F*vt00(0, 0))*r1 + '
+         '2*(-vt00(0, 0) + vt10(0, 0))*r2;\n}'),
     ])
     def test_kernel_generation(self, equation, expected):
         """
@@ -89,9 +89,9 @@ class TestOPSExpression(object):
         assert str(operator._ops_kernels[0]) == expected
 
     @pytest.mark.parametrize('equation, expected', [
-        ('Eq(u,3*a - 4**a)', '{ "ut": [[0]] }'),
-        ('Eq(u, u.dxl)', '{ "ut": [[0], [-1], [-2]] }'),
-        ('Eq(u,v+1)', '{ "ut": [[0]], "vt": [[0]] }')
+        ('Eq(u,3*a - 4**a)', '{ "ut0": [[0]] }'),
+        ('Eq(u, u.dxl)', '{ "ut0": [[0], [-1], [-2]] }'),
+        ('Eq(u,v+1)', '{ "ut0": [[0]], "vt0": [[0]] }')
     ])
     def test_accesses_extraction(self, equation, expected):
         grid_1d = Grid(shape=(4))
@@ -150,6 +150,20 @@ class TestOPSExpression(object):
          '&(u[1]), "float", "ut1")}\','
          '\'ops_dat v_dat;\','
          '\'v_dat = ops_decl_dat(block, 1, v_dim, v_base, v_d_m, v_d_p, '
+         '&(v[0]), "float", "v")\']'),
+        ('Eq(w1.forward, w1 + 1)',
+         '[\'ops_dat w1_dat[2] = {ops_decl_dat(block, 1, w1_dim, w1_base, w1_d_m, '
+         'w1_d_p, &(w1[0]), "float", "w1time0"), ops_decl_dat(block, 1, w1_dim, '
+         'w1_base, w1_d_m, w1_d_p, &(w1[1]), "float", "w1time1")}\']'),
+        ('Eq(w2.forward, w2 + v.dx)',
+         '[\'ops_dat w2_dat[5] = {ops_decl_dat(block, 1, w2_dim, w2_base, w2_d_m, '
+         'w2_d_p, &(w2[0]), "float", "w2time0"), ops_decl_dat(block, 1, w2_dim, w2_base, '
+         'w2_d_m, w2_d_p, &(w2[1]), "float", "w2time1"), ops_decl_dat(block, 1, w2_dim, '
+         'w2_base, w2_d_m, w2_d_p, &(w2[2]), "float", "w2time2"), ops_decl_dat(block, 1, '
+         'w2_dim, w2_base, w2_d_m, w2_d_p, &(w2[3]), "float", "w2time3"), ops_decl_dat('
+         'block, 1, w2_dim, w2_base, w2_d_m, w2_d_p, &(w2[4]), "float", "w2time4")}\','
+         '\'ops_dat v_dat;\','
+         '\'v_dat = ops_decl_dat(block, 1, v_dim, v_base, v_d_m, v_d_p, '
          '&(v[0]), "float", "v")\']')
     ])
     def test_create_ops_dat(self, equation, expected):
@@ -157,6 +171,8 @@ class TestOPSExpression(object):
 
         u = TimeFunction(name='u', grid=grid, space_order=2)  # noqa
         v = Function(name='v', grid=grid, space_order=2)  # noqa
+        w1 = TimeFunction(name='w1', grid=grid, space_order=2, save=2)  # noqa
+        w2 = TimeFunction(name='w2', grid=grid, space_order=2, save=5)  # noqa
 
         op = Operator(eval(equation))
 
@@ -223,7 +239,7 @@ class TestOPSExpression(object):
         u = OpsAccessible('u', dtype=np.float32, read_only=read)
         dat = OpsDat('u_dat')
         stencil = OpsStencil('stencil')
-        info = AccessibleInfo(u, None, None)
+        info = AccessibleInfo(u, None, None, None)
 
         ops_arg = create_ops_arg(u, {'u': info}, {'u': dat}, {u: stencil})
 
