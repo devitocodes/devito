@@ -512,6 +512,23 @@ class TestNestedParallelism(object):
                                                 'num_threads(nthreads_nested)')
 
 
+class TestOffloading(object):
+
+    @switchconfig(platform='nvidiaX')
+    def test_basic(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u + 1), dle=('advanced', {'openmp': True}))
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 1
+
+        assert trees[0][1].pragmas[0].value ==\
+            'omp target teams distribute parallel for collapse(2)'
+
+
 @switchconfig(autopadding=True, platform='knl7210')  # Platform is to fix pad value
 @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
 def test_minimize_reminders_due_to_autopadding():

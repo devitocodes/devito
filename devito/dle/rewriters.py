@@ -6,7 +6,7 @@ from time import time
 import cgen
 
 from devito.dle.blocking_utils import Blocker, BlockDimension
-from devito.dle.parallelizer import Ompizer
+from devito.dle.parallelizer import Ompizer, OmpizerGPU
 from devito.exceptions import DLEException
 from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL,
                            FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
@@ -484,24 +484,14 @@ ArmRewriter = CPU64Rewriter
 
 class DeviceOffloadingRewriter(PlatformRewriter):
 
-    _node_parallelizer_type = Ompizer
+    _node_parallelizer_type = OmpizerGPU
 
     def _pipeline(self, state):
         self._optimize_halospots(state)
         if self.params['mpi']:
             self._dist_parallelize(state)
-        self._simdize(state)
         self._node_parallelize(state)
         self._hoist_prodders(state)
-
-    @dle_pass
-    def _node_parallelize(self, iet):
-        """
-        Add OpenMP pragmas to offload PARALLEL Iteration nests onto a device.
-        """
-        # TODO: this is still to be implemented -- something other than
-        # `.make_parallel` will have to be used, e.g., `.make_offloadable`
-        return self._node_parallelizer.make_parallel(iet)
 
 
 class SpeculativeRewriter(CPU64Rewriter):
