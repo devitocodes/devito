@@ -12,7 +12,7 @@ from devito.ir import (DummyEq, Conditional, Block, Expression, List, Prodder,
                        filter_iterations)
 from devito.symbolics import CondEq, INT
 from devito.parameters import configuration
-from devito.tools import as_tuple, is_integer, flatten, prod
+from devito.tools import as_tuple, is_integer, filter_sorted, flatten, prod
 from devito.types import Constant, Symbol
 
 
@@ -216,7 +216,7 @@ class Ompizer(object):
                 # Would there be enough work per parallel iteration?
                 try:
                     work = prod([int(j.dim.symbolic_size) for j in candidates[n+1:]])
-                    if work < Ompizer.COLLAPSE_WORK:
+                    if work < self.COLLAPSE_WORK:
                         break
                 except TypeError:
                     pass
@@ -390,6 +390,11 @@ class OmpizerGPU(Ompizer):
     Always collapse when possible.
     """
 
+    COLLAPSE_WORK = 1
+    """
+    Always collapse when possible.
+    """
+
     def map_to(f):
         omp_pragma = 'omp target enter data map(to: %s%s)'
         var_name = f.name
@@ -491,7 +496,9 @@ class OmpizerGPU(Ompizer):
         mapper = {}
         for i, v in data_transfers.items():
             map_tos, map_froms = zip(*v)
-            mapper[i] = List(header=flatten(map_tos), body=i, footer=flatten(map_froms))
+            map_tos = filter_sorted(flatten(map_tos), key=lambda i: i.value)
+            map_froms = filter_sorted(flatten(map_froms), key=lambda i: i.value)
+            mapper[i] = List(header=map_tos, body=i, footer=map_froms)
         iet = Transformer(mapper).visit(iet)
 
         return iet
