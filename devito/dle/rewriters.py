@@ -322,9 +322,6 @@ class PlatformRewriter(AbstractRewriter):
         Add MPI routines performing halo exchanges to emit distributed-memory
         parallel code.
         """
-        if not self.params['mpi']:
-            return iet, {}
-
         # To produce unique object names
         generators = {'msg': generator(), 'comm': generator(), 'comp': generator()}
         sync_heb = HaloExchangeBuilder('basic', **generators)
@@ -385,10 +382,7 @@ class PlatformRewriter(AbstractRewriter):
         Add OpenMP pragmas to the Iteration/Expression tree to emit SIMD and
         shared-memory parallel code.
         """
-        if self.params['openmp']:
-            return self._parallelizer_shm.make_parallel(iet)
-        else:
-            return iet, {}
+        return self._parallelizer_shm.make_parallel(iet)
 
     @dle_pass
     def _minimize_remainders(self, iet):
@@ -449,10 +443,12 @@ class CPU64Rewriter(PlatformRewriter):
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._optimize_halospots(state)
-        self._parallelize_dist(state)
+        if self.params['mpi']:
+            self._parallelize_dist(state)
         self._loop_blocking(state)
         self._simdize(state)
-        self._parallelize_shm(state)
+        if self.params['openmp']:
+            self._parallelize_shm(state)
         self._minimize_remainders(state)
         self._hoist_prodders(state)
 
@@ -492,9 +488,11 @@ class DeviceOffloadingRewriter(PlatformRewriter):
 
     def _pipeline(self, state):
         self._optimize_halospots(state)
-        self._parallelize_dist(state)
+        if self.params['mpi']:
+            self._parallelize_dist(state)
         self._simdize(state)
-        self._parallelize_shm(state)
+        if self.params['openmp']:
+            self._parallelize_shm(state)
         self._hoist_prodders(state)
 
     @dle_pass
@@ -511,10 +509,6 @@ class DeviceOffloadingRewriter(PlatformRewriter):
 
         return iet, {}
 
-    @dle_pass
-    def _parallelize_shm(self, iet):
-        return self._parallelizer_shm.make_parallel(iet)
-
 
 class SpeculativeRewriter(CPU64Rewriter):
 
@@ -522,10 +516,12 @@ class SpeculativeRewriter(CPU64Rewriter):
         self._avoid_denormals(state)
         self._optimize_halospots(state)
         self._loop_wrapping(state)
-        self._parallelize_dist(state)
+        if self.params['mpi']:
+            self._parallelize_dist(state)
         self._loop_blocking(state)
         self._simdize(state)
-        self._parallelize_shm(state)
+        if self.params['openmp']:
+            self._parallelize_shm(state)
         self._minimize_remainders(state)
         self._hoist_prodders(state)
 

@@ -29,4 +29,5 @@ class YaskRewriter(Intel64Rewriter):
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._loop_wrapping(state)
-        self._parallelize_shm(state)
+        if self.params['openmp']:
+            self._parallelize_shm(state)
