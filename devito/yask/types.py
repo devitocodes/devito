@@ -11,6 +11,7 @@ from devito.tools import Signer, memoized_meth, dtype_to_ctype
 import devito.types.basic as basic
 import devito.types.caching as caching
 import devito.types.constant as constant
+import devito.types.dimension as dimension
 import devito.types.dense as dense
 import devito.types.grid as grid
 
@@ -244,6 +245,19 @@ class TimeFunction(dense.TimeFunction, Function):
             super(TimeFunction, self)._arg_check(args, intervals)
 
 
+class YaskTimeDimension(dimension.TimeDimension):
+
+    """
+    A TimeDimension that acts like and can be used in place of SteppingDimension.
+    """
+
+    is_NonlinearDerived = True
+
+    @property
+    def parent(self):
+        return self
+
+
 class Grid(grid.Grid):
 
     def __init__(self, *args, **kwargs):
@@ -260,6 +274,9 @@ class Grid(grid.Grid):
         # In the `yask` backend, the stepping dimension is an alias of the
         # time dimension
         return time_dim
+
+    def _make_time_dim(self, spacing):
+        return YaskTimeDimension(name='time', spacing=spacing)
 
     def __setstate__(self, state):
         super(Grid, self).__setstate__(state)

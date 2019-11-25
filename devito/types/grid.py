@@ -130,7 +130,7 @@ class Grid(ArgProvider):
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
             spacing = self._const(name='dt', dtype=self.dtype)
-            self._time_dim = TimeDimension(name='time', spacing=spacing)
+            self._time_dim = self._make_time_dim(spacing)
             self._stepping_dim = self._make_stepping_dim(self.time_dim, name='t')
         elif isinstance(time_dimension, TimeDimension):
             self._time_dim = time_dimension
@@ -254,10 +254,14 @@ class Grid(ArgProvider):
         return Constant
 
     def _make_stepping_dim(self, time_dim, name=None):
-        """Create a stepping dimension for this Grid."""
+        """Create a SteppingDimension for this Grid."""
         if name is None:
             name = '%s_s' % time_dim.name
         return SteppingDimension(name=name, parent=time_dim)
+
+    def _make_time_dim(self, spacing):
+        """Create a TimeDimension for this Grid."""
+        return TimeDimension(name='time', spacing=spacing)
 
     @memoized_meth
     def _arg_defaults(self):
