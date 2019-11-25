@@ -8,7 +8,7 @@ import cgen
 from devito.dle.blocking_utils import Blocker, BlockDimension
 from devito.dle.parallelizer import Ompizer, OmpizerGPU
 from devito.exceptions import DLEException
-from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL,
+from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL, VECTOR,
                            FindSymbols, FindNodes, FindAdjacent, MapNodes, Transformer,
                            filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv, dle_warning as warning
@@ -154,7 +154,7 @@ class PlatformRewriter(AbstractRewriter):
     Collection of backend-compiler-specific pragmas.
     """
 
-    _node_parallelizer_type = None
+    _parallelizer_shm_type = None
     """The local-node IET parallelizer. To be specified by subclasses."""
 
     _default_blocking_levels = 1
@@ -174,7 +174,7 @@ class PlatformRewriter(AbstractRewriter):
         )
 
         # Shared-memory parallelizer
-        self._node_parallelizer = self._node_parallelizer_type()
+        self._parallelizer_shm = self._parallelizer_shm_type()
 
     def _pipeline(self, state):
         return
@@ -317,7 +317,7 @@ class PlatformRewriter(AbstractRewriter):
         return self._node_blocker.make_blocking(iet)
 
     @dle_pass
-    def _dist_parallelize(self, iet):
+    def _parallelize_dist(self, iet):
         """
         Add MPI routines performing halo exchanges to emit distributed-memory
         parallel code.
@@ -377,12 +377,12 @@ class PlatformRewriter(AbstractRewriter):
         return processed, {}
 
     @dle_pass
-    def _node_parallelize(self, iet):
+    def _parallelize_shm(self, iet):
         """
-        Add OpenMP pragmas to the Iteration/Expression tree to emit shared-memory
-        parallel code.
+        Add OpenMP pragmas to the Iteration/Expression tree to emit SIMD and
+        shared-memory parallel code.
         """
-        return self._node_parallelizer.make_parallel(iet)
+        return self._parallelizer_shm.make_parallel(iet)
 
     @dle_pass
     def _minimize_remainders(self, iet):
@@ -438,17 +438,17 @@ class PlatformRewriter(AbstractRewriter):
 
 class CPU64Rewriter(PlatformRewriter):
 
-    _node_parallelizer_type = Ompizer
+    _parallelizer_shm_type = Ompizer
 
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._optimize_halospots(state)
         if self.params['mpi']:
-            self._dist_parallelize(state)
+            self._parallelize_dist(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp']:
-            self._node_parallelize(state)
+            self._parallelize_shm(state)
         self._minimize_remainders(state)
         self._hoist_prodders(state)
 
@@ -484,14 +484,30 @@ ArmRewriter = CPU64Rewriter
 
 class DeviceOffloadingRewriter(PlatformRewriter):
 
-    _node_parallelizer_type = OmpizerGPU
+    _parallelizer_shm_type = OmpizerGPU
 
     def _pipeline(self, state):
         self._optimize_halospots(state)
         if self.params['mpi']:
-            self._dist_parallelize(state)
-        self._node_parallelize(state)
+            self._parallelize_dist(state)
+        self._simdize(state)
+        if self.params['openmp']:
+            self._parallelize_shm(state)
         self._hoist_prodders(state)
+
+    @dle_pass
+    def _simdize(self, iet):
+        # No SIMD-ization for devices. We then drop the VECTOR property
+        # so that later passes can perform more aggressive transformations
+        mapper = {}
+        for i in FindNodes(Iteration).visit(iet):
+            if i.is_Vectorizable:
+                properties = [p for p in i.properties if p is not VECTOR]
+                mapper[i] = i._rebuild(properties=properties)
+
+        iet = Transformer(mapper).visit(iet)
+
+        return iet, {}
 
 
 class SpeculativeRewriter(CPU64Rewriter):
@@ -501,41 +517,13 @@ class SpeculativeRewriter(CPU64Rewriter):
         self._optimize_halospots(state)
         self._loop_wrapping(state)
         if self.params['mpi']:
-            self._dist_parallelize(state)
+            self._parallelize_dist(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp']:
-            self._node_parallelize(state)
+            self._parallelize_shm(state)
         self._minimize_remainders(state)
         self._hoist_prodders(state)
-
-    @dle_pass
-    def _nontemporal_stores(self, nodes):
-        """
-        Add compiler-specific pragmas and instructions to generate nontemporal
-        stores (ie, non-cached stores).
-        """
-        pragma = self._backend_compiler_pragma('ntstores')
-        fence = self._backend_compiler_pragma('storefence')
-        if not pragma or not fence:
-            return {}
-
-        mapper = {}
-        for tree in retrieve_iteration_tree(nodes):
-            for i in tree:
-                if i.is_Parallel:
-                    mapper[i] = List(body=i, footer=fence)
-                    break
-        processed = Transformer(mapper).visit(nodes)
-
-        mapper = {}
-        for tree in retrieve_iteration_tree(processed):
-            for i in tree:
-                if i.is_Vectorizable:
-                    mapper[i] = List(header=pragma, body=i)
-        processed = Transformer(mapper).visit(processed)
-
-        return processed, {}
 
 
 class CustomRewriter(SpeculativeRewriter):
@@ -545,8 +533,8 @@ class CustomRewriter(SpeculativeRewriter):
         'optcomms': SpeculativeRewriter._optimize_halospots,
         'wrapping': SpeculativeRewriter._loop_wrapping,
         'blocking': SpeculativeRewriter._loop_blocking,
-        'openmp': SpeculativeRewriter._node_parallelize,
-        'mpi': SpeculativeRewriter._dist_parallelize,
+        'openmp': SpeculativeRewriter._parallelize_shm,
+        'mpi': SpeculativeRewriter._parallelize_dist,
         'simd': SpeculativeRewriter._simdize,
         'minrem': SpeculativeRewriter._minimize_remainders,
         'prodders': SpeculativeRewriter._hoist_prodders
