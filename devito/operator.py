@@ -8,7 +8,6 @@ import ctypes
 
 from devito.dle import transform
 from devito.equation import Eq
-from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
@@ -22,7 +21,6 @@ from devito.symbolics import indexify
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
 from devito.types import Dimension
-
 __all__ = ['Operator']
 
 
@@ -131,10 +129,6 @@ class Operator(Callable):
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
 
-        # Input check
-        if any(not isinstance(i, Eq) for i in expressions):
-            raise InvalidOperator("Only `devito.Eq` expressions are allowed.")
-
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         dse = kwargs.get("dse", configuration['dse'])
@@ -161,7 +155,7 @@ class Operator(Callable):
 
         # Expression lowering: evaluation of derivatives, flatten vectorial equations,
         # indexification, substitution rules, specialization
-        expressions = [i.evaluate for i in expressions]
+        expressions = flatten([i.evaluate for i in expressions])
         expressions = [j for i in expressions for j in i._flatten]
         expressions = [indexify(i) for i in expressions]
         expressions = self._apply_substitutions(expressions, subs)

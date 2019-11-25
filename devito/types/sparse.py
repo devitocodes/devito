@@ -5,16 +5,16 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
-from devito.equation import Eq, Inc
+from devito.equation import Eq
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
 from devito.symbolics import INT, cast_mapper, indexify, retrieve_function_carriers
-from devito.tools import (ReducerMap, flatten, prod, powerset,
-                          filter_ordered, memoized_meth)
+from devito.tools import ReducerMap, flatten, prod, filter_ordered, memoized_meth
 from devito.types.dense import DiscreteFunction, Function, SubFunction
-from devito.types.dimension import Dimension, ConditionalDimension, DefaultDimension
+from devito.types.dimension import Dimension, ConditionalDimension
 from devito.types.basic import Symbol, Scalar
+from devito.interpolators import (Injection, Interpolation, LinearInterpolator,
+                                  PrecomputedInterpolator)
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction']
@@ -474,7 +474,7 @@ class SparseFunction(AbstractSparseFunction):
 
     def __init_finalize__(self, *args, **kwargs):
         super(SparseFunction, self).__init_finalize__(*args, **kwargs)
-
+        self.interpolator = LinearInterpolator(self.grid, self)
         # Set up sparse point coordinates
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
         if isinstance(coordinates, Function):
@@ -512,48 +512,6 @@ class SparseFunction(AbstractSparseFunction):
     @property
     def coordinates_data(self):
         return self.coordinates.data.view(np.ndarray)
-
-    @property
-    def _interpolation_coeffs(self):
-        """
-        Symbolic expression for the coefficients for sparse point interpolation
-        according to:
-
-            https://en.wikipedia.org/wiki/Bilinear_interpolation.
-
-        Returns
-        -------
-        Matrix of coefficient expressions.
-        """
-        # Grid indices corresponding to the corners of the cell ie x1, y1, z1
-        indices1 = tuple(sympy.symbols('%s1' % d) for d in self.grid.dimensions)
-        indices2 = tuple(sympy.symbols('%s2' % d) for d in self.grid.dimensions)
-        # 1, x1, y1, z1, x1*y1, ...
-        indices = list(powerset(indices1))
-        indices[0] = (1,)
-        point_sym = list(powerset(self._point_symbols))
-        point_sym[0] = (1,)
-        # 1, px. py, pz, px*py, ...
-        A = []
-        ref_A = [np.prod(ind) for ind in indices]
-        # Create the matrix with the same increment order as the point increment
-        for i in self._point_increments:
-            # substitute x1 by x2 if increment in that dimension
-            subs = dict((indices1[d], indices2[d] if i[d] == 1 else indices1[d])
-                        for d in range(len(i)))
-            A += [[1] + [a.subs(subs) for a in ref_A[1:]]]
-
-        A = sympy.Matrix(A)
-        # Coordinate values of the sparse point
-        p = sympy.Matrix([[np.prod(ind)] for ind in point_sym])
-
-        # reference cell x1:0, x2:h_x
-        left = dict((a, 0) for a in indices1)
-        right = dict((b, dim.spacing) for b, dim in zip(indices2, self.grid.dimensions))
-        reference_cell = {**left, **right}
-        # Substitute in interpolation matrix
-        A = A.subs(reference_cell)
-        return A.inv().T * p
 
     @cached_property
     def _point_symbols(self):
@@ -610,36 +568,6 @@ class SparseFunction(AbstractSparseFunction):
 
         return index_matrix, points
 
-    def _interpolation_indices(self, variables, offset=0, field_offset=0):
-        """
-        Generate interpolation indices for the DiscreteFunctions in ``variables``.
-        """
-        index_matrix, points = self._index_matrix(offset)
-
-        idx_subs = []
-        for i, idx in enumerate(index_matrix):
-            # Introduce ConditionalDimension so that we don't go OOB
-            mapper = {}
-            for j, d in zip(idx, self.grid.dimensions):
-                p = points[j]
-                lb = sympy.And(p >= d.symbolic_min - self._radius, evaluate=False)
-                ub = sympy.And(p <= d.symbolic_max + self._radius, evaluate=False)
-                condition = sympy.And(lb, ub, evaluate=False)
-                mapper[d] = ConditionalDimension(p.name, self._sparse_dim,
-                                                 condition=condition, indirect=True)
-
-            # Track Indexed substitutions
-            idx_subs.append(mapper)
-
-        # Temporaries for the indirection dimensions
-        temps = [Eq(v, k, implicit_dims=self.dimensions) for k, v in points.items()]
-        # Temporaries for the coefficients
-        temps.extend([Eq(p, c, implicit_dims=self.dimensions)
-                      for p, c in zip(self._point_symbols,
-                                      self._coordinate_bases(field_offset))])
-
-        return idx_subs, temps
-
     @property
     def gridpoints(self):
         if self.coordinates._data is None:
@@ -650,84 +578,11 @@ class SparseFunction(AbstractSparseFunction):
                              zip(coords, self.grid.origin, self.grid.dimensions)))
         return ret
 
-    def interpolate(self, expr, offset=0, increment=False, self_subs={}):
-        """
-        Generate equations interpolating an arbitrary expression into ``self``.
+    def interpolate(self, *args, **kwargs):
+        return Interpolation(self.interpolator, args, kwargs)
 
-        Parameters
-        ----------
-        expr : expr-like
-            Input expression to interpolate.
-        offset : int, optional
-            Additional offset from the boundary.
-        increment: bool, optional
-            If True, generate increments (Inc) rather than assignments (Eq).
-        """
-        # Derivatives must be evaluated before the introduction of indirect accesses
-        try:
-            expr = expr.evaluate
-        except AttributeError:
-            # E.g., a generic SymPy expression or a number
-            pass
-
-        variables = list(retrieve_function_carriers(expr))
-
-        # Need to get origin of the field in case it is staggered
-        # TODO: handle each variable staggereing spearately
-        field_offset = variables[0].origin
-        # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interpolation_indices(variables, offset,
-                                                      field_offset=field_offset)
-
-        # Substitute coordinate base symbols into the interpolation coefficients
-        args = [expr.xreplace(v_sub) * b.xreplace(v_sub)
-                for b, v_sub in zip(self._interpolation_coeffs, idx_subs)]
-
-        # Accumulate point-wise contributions into a temporary
-        rhs = Scalar(name='sum', dtype=self.dtype)
-        summands = [Eq(rhs, 0., implicit_dims=self.dimensions)]
-        summands.extend([Inc(rhs, i, implicit_dims=self.dimensions) for i in args])
-
-        # Write/Incr `self`
-        lhs = self.subs(self_subs)
-        last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
-
-        return temps + summands + last
-
-    def inject(self, field, expr, offset=0):
-        """
-        Generate equations injecting an arbitrary expression into a field.
-
-        Parameters
-        ----------
-        field : Function
-            Input field into which the injection is performed.
-        expr : expr-like
-            Injected expression.
-        offset : int, optional
-            Additional offset from the boundary.
-        """
-        # Derivatives must be evaluated before the introduction of indirect accesses
-        try:
-            expr = expr.evaluate
-        except AttributeError:
-            # E.g., a generic SymPy expression or a number
-            pass
-
-        variables = list(retrieve_function_carriers(expr)) + [field]
-
-        # Need to get origin of the field in case it is staggered
-        field_offset = field.origin
-        # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interpolation_indices(variables, offset,
-                                                      field_offset=field_offset)
-
-        # Substitute coordinate base symbols into the interpolation coefficients
-        eqns = [Inc(field.xreplace(vsub), expr.xreplace(vsub) * b,
-                    implicit_dims=self.dimensions)
-                for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
-
-        return temps + eqns
+    def inject(self, *args, **kwargs):
+        return Injection(self.interpolator, args, kwargs)
 
     def guard(self, expr=None, offset=0):
         """
@@ -1082,92 +937,17 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
         # Grid points per sparse point (2 in the case of bilinear and trilinear)
         r = kwargs.get('r')
-        if not isinstance(r, int):
-            raise TypeError('Need `r` int argument')
-        if r <= 0:
-            raise ValueError('`r` must be > 0')
-        self.r = r
+        gridpoints = kwargs.get('gridpoints')
+        interpolation_coeffs = kwargs.get('interpolation_coeffs')
 
-        gridpoints = SubFunction(name="%s_gridpoints" % self.name, dtype=np.int32,
-                                 dimensions=(self.indices[-1], Dimension(name='d')),
-                                 shape=(self.npoint, self.grid.dim), space_order=0,
-                                 parent=self)
+        self.interpolator = PrecomputedInterpolator(self, r, gridpoints,
+                                                    interpolation_coeffs)
 
-        gridpoints_data = kwargs.get('gridpoints', None)
-        assert(gridpoints_data is not None)
-        gridpoints.data[:] = gridpoints_data[:]
-        self._gridpoints = gridpoints
+    def interpolate(self, *args, **kwargs):
+        return Interpolation(self.interpolator, args, kwargs)
 
-        interpolation_coeffs = SubFunction(name="%s_interpolation_coeffs" % self.name,
-                                           dimensions=(self.indices[-1],
-                                                       Dimension(name='d'),
-                                                       Dimension(name='i')),
-                                           shape=(self.npoint, self.grid.dim,
-                                                  self.r),
-                                           dtype=self.dtype, space_order=0,
-                                           parent=self)
-        coefficients_data = kwargs.get('interpolation_coeffs', None)
-        assert(coefficients_data is not None)
-        interpolation_coeffs.data[:] = coefficients_data[:]
-        self._interpolation_coeffs = interpolation_coeffs
-        warning("Ensure that the provided interpolation coefficient and grid point " +
-                "values are computed on the final grid that will be used for other " +
-                "computations.")
-
-    def interpolate(self, expr, offset=0, increment=False, self_subs={}):
-        """
-        Generate equations interpolating an arbitrary expression into ``self``.
-
-        Parameters
-        ----------
-        expr : expr-like
-            Input expression to interpolate.
-        offset : int, optional
-            Additional offset from the boundary.
-        increment: bool, optional
-            If True, generate increments (Inc) rather than assignments (Eq).
-        """
-        expr = indexify(expr)
-
-        p, _, _ = self.interpolation_coeffs.indices
-        dim_subs = []
-        coeffs = []
-        for i, d in enumerate(self.grid.dimensions):
-            rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-            dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
-            coeffs.append(self.interpolation_coeffs[p, i, rd])
-        # Apply optional time symbol substitutions to lhs of assignment
-        lhs = self.subs(self_subs)
-        rhs = prod(coeffs) * expr.subs(dim_subs)
-
-        return [Eq(lhs, lhs + rhs)]
-
-    def inject(self, field, expr, offset=0):
-        """
-        Generate equations injecting an arbitrary expression into a field.
-
-        Parameters
-        ----------
-        field : Function
-            Input field into which the injection is performed.
-        expr : expr-like
-            Injected expression.
-        offset : int, optional
-            Additional offset from the boundary.
-        """
-        expr = indexify(expr)
-        field = indexify(field)
-
-        p, _ = self.gridpoints.indices
-        dim_subs = []
-        coeffs = []
-        for i, d in enumerate(self.grid.dimensions):
-            rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-            dim_subs.append((d, INT(rd + self.gridpoints[p, i])))
-            coeffs.append(self.interpolation_coeffs[p, i, rd])
-        rhs = prod(coeffs) * expr
-        field = field.subs(dim_subs)
-        return [Eq(field, field + rhs.subs(dim_subs))]
+    def inject(self, *args, **kwargs):
+        return Injection(self.interpolator, args, kwargs)
 
     @property
     def gridpoints(self):
