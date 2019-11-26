@@ -1121,57 +1121,24 @@ class TestDeclarator(object):
 
 class TestLoopScheduling(object):
 
-    def test_consistency_coupled_wo_ofs(self, tu, tv, ti0, t0, t1):
+    def test_permutations_without_deps(self):
         """
-        Test that no matter what is the order in which the equations are
-        provided to an Operator, the resulting loop nest is the same.
-        None of the array accesses in the equations use offsets.
-        """
-        eq1 = Eq(tu, tv*ti0*t0 + ti0*t1)
-        eq2 = Eq(ti0, tu + t0*3.)
-        eq3 = Eq(tv, ti0*tu)
-        op1 = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
-        op2 = Operator([eq2, eq1, eq3], dse='noop', dle='noop')
-        op3 = Operator([eq3, eq2, eq1], dse='noop', dle='noop')
-
-        trees = [retrieve_iteration_tree(i) for i in [op1, op2, op3]]
-        assert all(len(i) == 1 for i in trees)
-        trees = [i[0] for i in trees]
-        for tree in trees:
-            assert IsPerfectIteration().visit(tree[0])
-            exprs = FindNodes(Expression).visit(tree[-1])
-            assert len(exprs) == 3
-
-    @pytest.mark.parametrize('exprs', [
-        ('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])', 'Eq(ti1[x,y,z], ti3[x,y,z])',
-         'Eq(ti3[x,y,z], ti1[x,y,z] + 1.)'),
-        ('Eq(ti0[x,y,z+2], ti0[x,y,z-1] + ti1[x,y,z+1])',
-         'Eq(ti1[x,y,z+3], ti3[x,y,z+1])',
-         'Eq(ti3[x,y,z+2], ti0[x,y,z+1]*ti3[x,y,z-1])'),
-        ('Eq(ti0[x,y,z], ti0[x-2,y-1,z-1] + ti1[x-3,y+3,z+1])',
-         'Eq(ti1[x+4,y+5,z+3], ti3[x+1,y-4,z+1])',
-         'Eq(ti3[x+7,y,z+2], ti3[x+5,y,z-1] - ti0[x-3,y-2,z-4])')
-    ])
-    def test_consistency_coupled_w_ofs(self, exprs):
-        """
-        Test that no matter what is the order in which the equations are
-        provided to an Operator, the resulting loop nest is the same.
-        The array accesses in the equations may or may not use offsets;
-        these impact the loop bounds, but not the resulting tree
-        structure.
+        Test that if none of the Function accesses in the equations use
+        offsets, implying that there are no carried dependences, then no
+        matter the order in which the equations are provided to an Operator
+        the resulting loop nest is the same, and the input ordering of the
+        equations is honored.
         """
         grid = Grid(shape=(4, 4, 4))
-        x, y, z = grid.dimensions  # noqa
 
-        ti0 = Function(name='ti0', grid=grid)  # noqa
-        ti1 = Function(name='ti1', grid=grid)  # noqa
-        ti3 = Function(name='ti3', grid=grid)  # noqa
+        ti0 = Function(name='ti0', grid=grid)
+        ti1 = Function(name='ti1', grid=grid)
+        tu = TimeFunction(name='tu', grid=grid)
+        tv = TimeFunction(name='tv', grid=grid)
 
-        # List comprehension would need explicit locals/globals mappings to eval
-        eq1 = eval(exprs[0])
-        eq2 = eval(exprs[1])
-        eq3 = eval(exprs[2])
-
+        eq1 = Eq(tu, tv*ti0 + ti0)
+        eq2 = Eq(ti0, tu + 3.)
+        eq3 = Eq(tv, ti0*ti1)
         op1 = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
         op2 = Operator([eq2, eq1, eq3], dse='noop', dle='noop')
         op3 = Operator([eq3, eq2, eq1], dse='noop', dle='noop')
@@ -1184,147 +1151,197 @@ class TestLoopScheduling(object):
             exprs = FindNodes(Expression).visit(tree[-1])
             assert len(exprs) == 3
 
-    def test_fission_for_parallelism(self):
+    @pytest.mark.parametrize('exprs,fissioned,shared', [
+        # 0) Trivial case
+        (('Eq(u, 1)', 'Eq(v, u.dxl)'), '(1,x)', [0]),
+        # 1) Anti-dependence along x
+        (('Eq(u, 1)', 'Eq(v, u.dxr)'), '(1,x)', [0]),
+        # 2, 3) As above, but with an additional Dimension-independent dependence
+        (('Eq(u, v)', 'Eq(v, u.dxl)'), '(1,x)', [0]),
+        (('Eq(u, v)', 'Eq(v, u.dxr)'), '(1,x)', [0]),
+        # 4) Slightly more convoluted than above, as the additional dependence is
+        # now carried along x
+        (('Eq(u, v)', 'Eq(v, u.dxr)'), '(1,x)', [0]),
+        # 5) No backward carried dependences, no storage related dependences
+        (('Eq(us.forward, vs)', 'Eq(vs, us.dxl)'), '(0,time)', []),
+        # 6) No backward carried dependences, no storage related dependences
+        (('Eq(us.forward, vs)', 'Eq(vs, us.dxr)'), '(0,time)', []),
+        # 7) Three fissionable Eqs
+        (('Eq(u, u.dxl + v.dxr)', 'Eq(v, w.dxr)', 'Eq(w, u*w.dxl)'), '(1,x)', [0]),
+        # 8) There are carried backward dependences, but not in the Dimension
+        # that gets fissioned
+        (('Eq(u.forward, u + v.dx)', 'Eq(v.forward, v + u.forward.dx)'), '(1,x)', [0])
+    ])
+    def test_fission_for_parallelism(self, exprs, fissioned, shared):
         """
         Test that expressions are scheduled to separate loops if this can
         turn one sequential loop into two parallel loops ("loop fission").
         """
         grid = Grid(shape=(3, 3))
+        t = grid.stepping_dim  # noqa
+        time = grid.time_dim  # noqa
+        x, y = grid.dimensions  # noqa
+
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+        w = TimeFunction(name='w', grid=grid)  # noqa
+        us = TimeFunction(name='u', grid=grid, save=5)  # noqa
+        vs = TimeFunction(name='v', grid=grid, save=5)  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        eqns = []
+        for e in exprs:
+            eqns.append(eval(e))
+
+        op = Operator(eqns)
+
+        # Fission expected
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == len(eqns)
+
+        exp_depth, exp_dim = eval(fissioned)
+        for i in trees:
+            # Some outer loops may still be shared
+            for j in shared:
+                assert i[j] is trees[0][j]
+            # Fission happened
+            assert i[exp_depth].dim is exp_dim
+
+    @pytest.mark.parametrize('exprs', [
+        # 0) Storage related dependence
+        ('Eq(u.forward, v)', 'Eq(v, u.dxl)'),
+        # 1) Backward carried flow-dependence through `v`
+        ('Eq(u, v.forward)', 'Eq(v, u)'),
+        # 2) Backward carried flow-dependence through `vs`
+        ('Eq(us.forward, vs)', 'Eq(vs.forward, us.dxl)'),
+        # 3) Classic coupled forward-marching equations
+        ('Eq(u.forward, u + u.backward + v)', 'Eq(v.forward, v + v.backward + u)'),
+        # 4) Three non-fissionable Eqs
+        ('Eq(u, v.dxl)', 'Eq(v, w.dxl)', 'Eq(w, u*w.dxl)')
+    ])
+    def test_no_fission_as_illegal(self, exprs):
+        """
+        Antithesis of `test_fission_for_parallelism`.
+        """
+        grid = Grid(shape=(3, 3))
         x, y = grid.dimensions
 
-        u = TimeFunction(name='u', grid=grid)
-        v = TimeFunction(name='v', grid=grid)
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        v = TimeFunction(name='v', grid=grid)  # noqa
+        w = TimeFunction(name='w', grid=grid)  # noqa
+        us = TimeFunction(name='u', grid=grid, save=5)  # noqa
+        vs = TimeFunction(name='v', grid=grid, save=5)  # noqa
 
-        # Fission as an optimization to increase parallelism
-        eqns = [Eq(u, 1), Eq(v, u.dxl)]
-        op = Operator(eqns)
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        assert trees[0][1].dim is x
-        assert trees[1][1].dim is x
+        # List comprehension would need explicit locals/globals mappings to eval
+        eqns = []
+        for e in exprs:
+            eqns.append(eval(e))
 
-        # Same story as above, but now with a WAR
-        eqns = [Eq(u, 1), Eq(v, u.dxr)]
         op = Operator(eqns)
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        assert trees[0][1].dim is x
-        assert trees[1][1].dim is x
-
-        # Again pretty similar, but with a WAR on `v` -- fission is still
-        # the result of optimization
-        eqns = [Eq(u, v), Eq(v, u.dxl)]
-        op = Operator(eqns)
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 2
-        assert trees[0][1].dim is x
-        assert trees[1][1].dim is x
 
         # No fission expected
-        eqns = [Eq(u.forward, v), Eq(v, u.dxl)]
-        op = Operator(eqns)
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
 
     @pytest.mark.parametrize('exprs,directions,expected,visit', [
-        # WAR 2->3
+        # 0) WAR 2->3, 3 fissioned to maximize parallelism
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
-         '++++', ['xyz', 'xyz'], 'xyzz'),
-        # WAR 1->2, 2->3
+         '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
+        # 1) WAR 1->2, 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
           'Eq(ti3[x,y,z], ti1[x,y,z-2] + 1.)'),
          '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
-        # WAR 1->2, 2->3, RAW 2->3
+        # 2) WAR 1->2, 2->3, RAW 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
           'Eq(ti3[x,y,z], ti1[x,y,z-2] + ti1[x,y,z+2])'),
          '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
-        # WAR 1->3
+        # 3) WAR 1->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y,z+1] + 1.)'),
          '++++', ['xyz', 'xyz'], 'xyzz'),
-        # WAR 1->3
+        # 4) WAR 1->3
         # Like before, but the WAR is along `y`, an inner Dimension
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti0[x,y+1,z] + 1.)'),
          '+++++', ['xyz', 'xyz'], 'xyzyz'),
-        # WAR 1->2, 2->3; WAW 1->3
+        # 5) WAR 1->2, 2->3; WAW 1->3
         # Similar to the cases above, but the last equation does not iterate over `z`
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+2])',
           'Eq(ti0[x,y,0], ti0[x,y,0] + 1.)'),
          '++++', ['xyz', 'xyz', 'xy'], 'xyzz'),
-        # WAR 1->2; WAW 1->3
+        # 6) WAR 1->2; WAW 1->3
         # Basically like above, but with the time dimension. This should have no impact
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t,x,y,0], tu[t,x,y,0] + 1.)'),
          '+++++', ['txyz', 'txyz', 'txy'], 'txyzz'),
-        # WAR 1->2, 2->3
+        # 7) WAR 1->2, 2->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z-1] + 1.)'),
          '++++++', ['txyz', 'txyz', 'txyz'], 'txyzzz'),
-        # WAR 1->2; WAW 1->3
+        # 8) WAR 1->2; WAW 1->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
           'Eq(tu[t,3,y,0], tu[t,3,y,0] + 1.)'),
          '++++++++', ['txyz', 'txyz', 'ty'], 'txyzxyzy'),
-        # RAW 1->2, WAR 2->3
+        # 9) RAW 1->2, WAR 2->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         '+++++++', ['txyz', 'txyz', 'txyz'], 'txyzzyz'),
-        # WAR 1->2; WAW 1->3
+         '++++++++', ['txyz', 'txyz', 'txyz'], 'txyzyzyz'),
+        # 10) WAR 1->2; WAW 1->3
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t-1,x,y,0], tu[t,x,y,0] + 1.)'),
          '-+++', ['txyz', 'txy'], 'txyz'),
-        # WAR 1->2
+        # 11) WAR 1->2
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2] + tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z] + 2)'),
          '-+++', ['txyz'], 'txyz'),
-        # Time goes backward so that information flows in time
+        # 12) Time goes backward so that information flows in time
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tv[t-1,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
          '-+++', ['txyz'], 'txyz'),
-        # Time goes backward so that information flows in time, interleaved
+        # 13) Time goes backward so that information flows in time, interleaved
         # with independent Eq
         (('Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + tv[t,x,y-1,z])'),
          '-++++++', ['txyz', 'xyz'], 'txyzxyz'),
-        # Time goes backward so that information flows in time
+        # 14) Time goes backward so that information flows in time
         (('Eq(ti0[x,y,z], ti1[x,y,z+2])',
           'Eq(tu[t-1,x,y,z], tu[t,x+3,y,z] + tv[t,x,y,z])',
           'Eq(tw[t-1,x,y,z], tu[t,x,y+1,z] + ti0[x,y-1,z])'),
          '+++-+++', ['xyz', 'txyz'], 'xyztxyz'),
-        # WAR 2->1
+        # 15) WAR 2->1
         # Here the difference is that we're using SubDimensions
         (('Eq(tv[t,xi,yi,zi], tu[t,xi-1,yi,zi] + tu[t,xi+1,yi,zi])',
           'Eq(tu[t+1,xi,yi,zi], tu[t,xi,yi,zi] + tv[t,xi-1,yi,zi] + tv[t,xi+1,yi,zi])'),
          '+++++++', ['txiyizi', 'txiyizi'], 'txiyizixiyizi'),
-        # RAW 3->1; expected=2
+        # 16) RAW 3->1; expected=2
         # Time goes backward, but the third equation should get fused with
         # the first one, as there dependence is carried along time
         (('Eq(tv[t-1,x,y,z], tv[t,x-1,y,z] + tv[t,x+1,y,z])',
           'Eq(tv[t-1,z,z,z], tv[t-1,z,z,z] + 1)',
           'Eq(f[x,y,z], tu[t-1,x,y,z] + tu[t,x,y,z] + tu[t+1,x,y,z] + tv[t,x,y,z])'),
          '-++++', ['txyz', 'tz'], 'txyzz'),
-        # WAR 2->3, 2->4; expected=4
+        # 17) WAR 2->3, 2->4; expected=4
         (('Eq(tu[t+1,x,y,z], tu[t,x,y,z] + 1.)',
           'Eq(tu[t+1,y,y,y], tu[t+1,y,y,y] + tw[t+1,y,y,y])',
           'Eq(tw[t+1,z,z,z], tw[t+1,z,z,z] + 1.)',
           'Eq(tv[t+1,x,y,z], tu[t+1,x,y,z] + 1.)'),
          '+++++++++', ['txyz', 'ty', 'tz', 'txyz'], 'txyzyzxyz'),
-        # WAR 1->3; expected=2
+        # 18) WAR 1->3; expected=2
         # 5 is expected to be moved before 4 but after 3, to be merged with 3
         (('Eq(tu[t+1,x,y,z], tv[t,x,y,z] + 1.)',
           'Eq(tv[t+1,x,y,z], tu[t,x,y,z] + 1.)',

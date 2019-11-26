@@ -19,16 +19,11 @@ def clusterize(exprs, dse_mode=None):
     # Initialization
     clusters = [Cluster(e, e.ispace, e.dspace) for e in exprs]
 
-    # Compute a topological ordering that honours flow- and anti-dependences.
-    # This is necessary prior to enforcing the iteration direction (step below)
+    # Compute a topological ordering that honours flow- and anti-dependences
     clusters = Toposort().process(clusters)
 
-    # Enforce iteration directions. This turns anti- into flow-dependences by
-    # reversing the iteration direction (Backward instead of Forward). A new
-    # topological sorting is then computed to expose more fusion opportunities,
-    # which will be exploited within `optimize`
-    clusters = Enforce().process(clusters)
-    clusters = Toposort().process(clusters)
+    # Setup the IterationSpaces based on data dependence analysis
+    clusters = Schedule().process(clusters)
 
     # Apply optimizations
     clusters = optimize(clusters, dse_mode)
@@ -200,22 +195,47 @@ class Toposort(Queue):
         return dag
 
 
-class Enforce(Queue):
+class Schedule(Queue):
 
     """
-    Enforce the iteration direction in a sequence of Clusters based on
-    data dependence analysis. The iteration direction will be such that
-    the information naturally flows from one iteration to another.
+    This special Queue produces a new sequence of "scheduled" Clusters, which
+    means that:
 
-    This will construct a new sequence of Clusters in which only `Forward`
-    or `Backward` IterationDirections will appear (i.e., no `Any`).
+        * The iteration direction along each Dimension of each Cluster is such
+          that the information "naturally flows from one iteration to another".
+          For example, in `u[t+1, x] = u[t, x]`, the iteration Dimension `t`
+          gets assigned the `Forward` direction, to honor the flow-dependence
+          along `t`. Instead, in `u[t-1, x] = u[t, x]`, `t` gets assigned the
+          `Backward` direction. This simple rule ensures that when we evaluate
+          the LHS, the information on the RHS is up-to-date.
 
-    Examples
-    --------
-    In `u[t+1, x] = u[t, x]`, the iteration Dimension `t` gets assigned the
-    `Forward` iteration direction, whereas in `u[t-1, x] = u[t, x]` it gets
-    assigned `Backward`. The idea is that "to evaluate the LHS at a given
-    `t`, we need up-to-date information on the RHS".
+        * If a Cluster has both a flow- and an anti-dependence along a given
+          Dimension `x`, then `x` is assigned the `Forward` direction but its
+          IterationSpace is _lifted_ such that it cannot be fused with any
+          other Clusters within the same iteration Dimension `x`. For example,
+          consider the following coupled statements:
+
+            - `u[t+1, x] = f(u[t, x])`
+            - `v[t+1, x] = g(v[t, x], u[t, x], u[t+1, x], u[t+2, x]`
+
+          The first statement has a flow-dependence along `t`, while the second
+          one has both a flow- and an anti-dependence along `t`, hence the two
+          statements will ultimately be kept in separate Clusters and then
+          scheduled to different loop nests.
+
+        * If *all* dependences across two Clusters along a given Dimension are
+          backward carried depedences, then the IterationSpaces are _lifted_
+          such that the two Clusters cannot be fused. This is to maximize
+          the number of parallel Dimensions. Essentially, this is what low-level
+          compilers call "loop fission" -- only that here it occurs at a much
+          higher level of abstraction. For example:
+
+            - `u[x+1] = w[x] + v[x]`
+            - `v[x] = u[x] + w[x]
+
+          Here, the two statements will ultimately be kept in separate Clusters
+          and then scheduled to different loops; this way, `x` will be a parallel
+          Dimension in both Clusters.
     """
 
     def callback(self, clusters, prefix, backlog=None, known_break=None):
@@ -231,41 +251,38 @@ class Enforce(Queue):
 
         scope = Scope(exprs=flatten(c.exprs for c in clusters))
 
-        # The nastiest case:
-        # eq0 := u[t+1, x] = ... u[t, x]
-        # eq1 := v[t+1, x] = ... v[t, x] ... u[t, x] ... u[t+1, x] ... u[t+2, x]
-        # Here, `eq0` marches forward along `t`, while `eq1` has both a flow and an
-        # anti dependence with `eq0`, which ultimately will require `eq1` to go in
-        # a separate t-loop
-        require_break = (scope.d_flow.cause & scope.d_anti.cause) & candidates
-        if require_break and len(clusters) > 1:
-            backlog = [clusters[-1]] + backlog
-            # Try with increasingly smaller Cluster groups until the ambiguity is solved
-            return self.callback(clusters[:-1], prefix, backlog, require_break)
+        # Handle the nastiest case -- ambiguity due to the presence of both a
+        # flow- and an anti-dependence.
+        #
+        # Note: in most cases, `scope.d_anti.cause == {}` -- either because
+        # `scope.d_anti == {}` or because the few anti dependences are not carried
+        # in any Dimension. We exploit this observation so that we only compute
+        # `d_flow`, which instead may be expensive, when strictly necessary
+        maybe_break = scope.d_anti.cause & candidates
+        if len(clusters) > 1 and maybe_break:
+            require_break = scope.d_flow.cause & maybe_break
+            if require_break:
+                backlog = [clusters[-1]] + backlog
+                # Try with increasingly smaller ClusterGroups until the ambiguity is gone
+                return self.callback(clusters[:-1], prefix, backlog, require_break)
 
-        # If the flow- or anti-dependences are not coupled, one or more Clusters
-        # might be scheduled separately, to increase parallelism (this is basically
-        # what low-level compilers call "loop fission")
-        for n, _ in enumerate(clusters):
-            d_cross = scope.d_from_access(scope.a_query(n, 'R')).cross()
-            if any(d.is_storage_volatile(candidates) for d in d_cross):
-                break
-            elif d_cross.cause & candidates:
-                if n > 0:
-                    return self.callback(clusters[:n], prefix, clusters[n:] + backlog,
-                                         (d_cross.cause & candidates) | known_break)
-                break
+        # Schedule Clusters over different IterationSpaces if this increases parallelism
+        for i in range(1, len(clusters)):
+            if self._break_for_parallelism(scope, candidates, i):
+                return self.callback(clusters[:i], prefix, clusters[i:] + backlog,
+                                     candidates | known_break)
 
         # Compute iteration direction
-        direction = {d: Backward for d in candidates if d.root in scope.d_anti.cause}
-        direction.update({d: Forward for d in candidates if d.root in scope.d_flow.cause})
-        direction.update({d: Forward for d in candidates if d not in direction})
+        idir = {d: Backward for d in candidates if d.root in scope.d_anti.cause}
+        if maybe_break:
+            idir.update({d: Forward for d in candidates if d.root in scope.d_flow.cause})
+        idir.update({d: Forward for d in candidates if d not in idir})
 
         # Enforce iteration direction on each Cluster
         processed = []
         for c in clusters:
             ispace = IterationSpace(c.ispace.intervals, c.ispace.sub_iterators,
-                                    {**c.ispace.directions, **direction})
+                                    {**c.ispace.directions, **idir})
             processed.append(Cluster(c.exprs, ispace, c.dspace))
 
         if not backlog:
@@ -273,15 +290,30 @@ class Enforce(Queue):
 
         # Handle the backlog -- the Clusters characterized by flow- and anti-dependences
         # along one or more Dimensions
-        direction = {d: Any for d in known_break}
+        idir = {d: Any for d in known_break}
         for i, c in enumerate(list(backlog)):
             ispace = IterationSpace(c.ispace.intervals.lift(known_break),
                                     c.ispace.sub_iterators,
-                                    {**c.ispace.directions, **direction})
+                                    {**c.ispace.directions, **idir})
             dspace = c.dspace.lift(known_break)
             backlog[i] = Cluster(c.exprs, ispace, dspace)
 
         return processed + self.callback(backlog, prefix)
+
+    def _break_for_parallelism(self, scope, candidates, i):
+        # `test` will be True if there's at least one data-dependence that would
+        # break parallelism
+        test = False
+        for d in scope.d_from_access_gen(scope.a_query(i)):
+            if d.is_storage_volatile(candidates):
+                # Would break a dependence on storage
+                return False
+            if any(d.is_carried(i) for i in candidates):
+                if (d.is_flow and d.is_lex_negative) or (d.is_anti and d.is_lex_positive):
+                    # Would break a data dependence
+                    return False
+            test = test or (bool(d.cause & candidates) and not d.is_lex_equal)
+        return test
 
 
 def optimize(clusters, dse_mode):
@@ -299,7 +331,8 @@ def optimize(clusters, dse_mode):
     counter = generator()
     template = lambda: "r%d" % counter()
 
-    # Fusion
+    # Toposort+Fusion (the former to expose more fusion opportunities)
+    clusters = Toposort().process(clusters)
     clusters = fuse(clusters)
 
     from devito.dse import rewrite

@@ -1,7 +1,8 @@
 from collections.abc import Hashable
 from functools import partial
+from itertools import tee
 
-__all__ = ['memoized_func', 'memoized_meth']
+__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator']
 
 
 class memoized_func(object):
@@ -80,12 +81,46 @@ class memoized_meth(object):
             return self.func(*args)
         obj = args[0]
         try:
-            cache = obj.__cache
+            cache = obj.__cache_meth
         except AttributeError:
-            cache = obj.__cache = {}
+            cache = obj.__cache_meth = {}
         key = (self.func, args[1:], frozenset(kw.items()))
         try:
             res = cache[key]
         except KeyError:
             res = cache[key] = self.func(*args, **kw)
         return res
+
+
+class memoized_generator(object):
+
+    """
+    Decorator. Cache the return value of an instance generator method.
+    """
+
+    def __init__(self, func):
+        self.func = func
+
+    def __repr__(self):
+        """Return the function's docstring."""
+        return self.func.__doc__
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self.func
+        return partial(self, obj)
+
+    def __call__(self, *args, **kwargs):
+        if not isinstance(args, Hashable):
+            # Uncacheable, a list, for instance.
+            # Better to not cache than blow up.
+            return self.func(*args)
+        obj = args[0]
+        try:
+            cache = obj.__cache_gen
+        except AttributeError:
+            cache = obj.__cache_gen = {}
+        key = (self.func, args[1:], frozenset(kwargs.items()))
+        it = cache[key] if key in cache else self.func(*args, **kwargs)
+        cache[key], result = tee(it)
+        return result
