@@ -2,7 +2,7 @@ import itertools
 import pytest
 import numpy as np
 
-from conftest import skipif, x
+from conftest import skipif
 from sympy import Integer
 from sympy.core.numbers import Zero, One  # noqa
 
@@ -14,7 +14,7 @@ pytestmark = skipif('noops', whole_module=True)
 # `pytestmark` above
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ir.equations import ClusterizedEq  # noqa
-from devito.ir.iet import Conditional, Expression, derive_parameters, iet_insert_decls, iet_insert_casts  # noqa
+from devito.ir.iet import Conditional, Expression, derive_parameters, iet_insert_decls  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil  # noqa
 from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil, OpsBlock  # noqa
@@ -291,37 +291,6 @@ class TestOPSExpression(object):
         occurrences = [i for i in str(op.ccode).split('\n') if declaration in i]
 
         assert len(occurrences) == 1
-
-    def test_conditional_declarations(self):
-        accesses = [[0, 0], [0, 1], [1, 0], [1, 1]]
-        dims = len(accesses[0])
-        pts = len(accesses)
-        stencil_name = namespace['ops_stencil_name'](dims, 'name', pts)
-        stencil_array = Array(
-            name=stencil_name,
-            dimensions=(DefaultDimension(name='len', default_value=dims * pts),),
-            dtype=np.int32,
-            scope='stack'
-        )
-        list_initialize = Expression(ClusterizedEq(Eq(
-            stencil_array,
-            ListInitializer(list(itertools.chain(*accesses)))
-        )))
-
-        iet = Conditional(x < 3, list_initialize, list_initialize)
-
-        parameters = derive_parameters(iet, True)
-        iet = iet_insert_decls(iet, parameters)
-        iet = iet_insert_casts(iet, parameters)
-        assert str(iet) == """\
-if (x < 3)
-{
-  int s2d_name_4pt[8] = {0, 0, 0, 1, 1, 0, 1, 1};
-}
-else
-{
-  int s2d_name_4pt[8] = {0, 0, 0, 1, 1, 0, 1, 1};
-}"""
 
     @pytest.mark.parametrize('equation,expected', [
         ('Eq(u_2d.forward, u_2d + 1)',

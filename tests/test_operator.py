@@ -1,4 +1,3 @@
-import itertools
 import numpy as np
 import pytest
 
@@ -10,7 +9,7 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            IsPerfectIteration, derive_parameters, iet_insert_decls,
-                           iet_insert_casts, retrieve_iteration_tree)
+                           retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten
@@ -994,37 +993,6 @@ class TestArguments(object):
 
 class TestDeclarator(object):
 
-    def test_conditional_declarations(self):
-        accesses = [[0, 0], [0, 1], [1, 0], [1, 1]]
-        dims = len(accesses[0])
-        pts = len(accesses)
-        stencil_name = 's%dd_%s_%dpt' % (dims, 'name', pts)
-        stencil_array = Array(
-            name=stencil_name,
-            dimensions=(DefaultDimension(name='len', default_value=dims * pts),),
-            dtype=np.int32,
-            scope='stack'
-        )
-        list_initialize = Expression(ClusterizedEq(Eq(
-            stencil_array,
-            ListInitializer(list(itertools.chain(*accesses)))
-        )))
-
-        iet = Conditional(x < 3, list_initialize, list_initialize)
-
-        parameters = derive_parameters(iet, True)
-        iet = iet_insert_decls(iet, parameters)
-        iet = iet_insert_casts(iet, parameters)
-        assert str(iet) == """\
-if (x < 3)
-{
-  int s2d_name_4pt[8] = {0, 0, 0, 1, 1, 0, 1, 1};
-}
-else
-{
-  int s2d_name_4pt[8] = {0, 0, 0, 1, 1, 0, 1, 1};
-}"""
-
     def test_heap_1D_stencil(self):
         i, j = dimensions('i j')
         a = Array(name='a', dimensions=(i,))
@@ -1176,6 +1144,33 @@ else
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
+
+    def test_conditional_declarations(self):
+        accesses = [0, 0]
+        stencil_array = Array(
+            name='a',
+            dimensions=(DefaultDimension(name='x', default_value=len(accesses)),),
+            dtype=np.int32,
+            scope='stack'
+        )
+        list_initialize = Expression(ClusterizedEq(Eq(
+            stencil_array,
+            ListInitializer(accesses)
+        )))
+
+        iet = Conditional(x < 3, list_initialize, list_initialize)
+
+        parameters = derive_parameters(iet, True)
+        iet = iet_insert_decls(iet, parameters)
+        assert str(iet[0]) == """\
+if (x < 3)
+{
+  int a[2] = {0, 0};
+}
+else
+{
+  int a[2] = {0, 0};
+}"""
 
 
 class TestLoopScheduling(object):
