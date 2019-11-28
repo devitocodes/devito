@@ -13,7 +13,7 @@ from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten
-from devito.types import Array, DefaultDimension, Scalar
+from devito.types import Array, Scalar
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -1121,26 +1121,15 @@ class TestDeclarator(object):
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
 
     def test_conditional_declarations(self):
-        accesses = [0, 0]
-        stencil_array = Array(
-            name='a',
-            dimensions=(DefaultDimension(name='x', default_value=len(accesses)),),
-            dtype=np.int32,
-            scope='stack'
-        )
-        list_initialize = Expression(ClusterizedEq(Eq(
-            stencil_array,
-            ListInitializer(accesses)
-        )))
-
+        a = Array(name='a', dimensions=(x,), dtype=np.int32, scope='stack')
+        list_initialize = Expression(ClusterizedEq(Eq(a, ListInitializer([0, 0]))))
         iet = Conditional(x < 3, list_initialize, list_initialize)
-
         parameters = derive_parameters(iet, True)
         iet = iet_insert_decls(iet, parameters)
         assert str(iet[0]) == """\
 if (x < 3)
 {
-  int a[2] = {0, 0};
+  int a[x_size] = {0, 0};
 }
 else
 {
