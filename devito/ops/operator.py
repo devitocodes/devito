@@ -1,6 +1,7 @@
 from devito import Eq
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import Call, Expression, List, derive_parameters, find_affine_trees
+from devito.ir.iet import (Call, Expression, List, MetaCall, derive_parameters,
+                           find_affine_trees)
 from devito.ir.iet.visitors import FindSymbols, Transformer
 from devito.logger import warning
 from devito.operator import Operator
@@ -26,7 +27,6 @@ class OperatorOPS(Operator):
     _default_headers = Operator._default_headers + ['#define restrict __restrict']
 
     def __init__(self, *args, **kwargs):
-        self._ops_kernels = []
         super(OperatorOPS, self).__init__(*args, **kwargs)
         self._compiler = ops_configuration['compiler'].copy()
 
@@ -88,7 +88,8 @@ class OperatorOPS(Operator):
             )
 
             pre_time_loop.extend(pre_loop)
-            self._ops_kernels.append(ops_kernel)
+            self._func_table[namespace['ops_kernel_file'](ops_kernel.name)] = \
+                MetaCall(ops_kernel, False)
             mapper[tree[0].root] = ops_par_loop_call
             mapper.update({i.root: mapper.get(i.root) for i in tree})  # Drop trees
 
@@ -108,13 +109,13 @@ class OperatorOPS(Operator):
 
     @property
     def hcode(self):
-        return ''.join(str(kernel) for kernel in self._ops_kernels)
+        return ''.join(str(kernel.root) for kernel in self._func_table.values())
 
     def _finalize(self, iet, parameters):
         # Applies _finalize for each generated OPS kernel, which will generate the .h file
         self._ops_kernels = [super(OperatorOPS, self)._finalize(
-            kernel, derive_parameters(kernel, True))
-            for kernel in self._ops_kernels]
+            kernel.root, derive_parameters(kernel, True))
+            for kernel in self._func_table.values()]
 
         return super()._finalize(iet, parameters)
 

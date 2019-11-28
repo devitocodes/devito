@@ -50,3 +50,5 @@ namespace['ops_dat_base'] = lambda i: '%s_base' % i
 namespace['ops_dat_d_p'] = lambda i: '%s_d_p' % i
 namespace['ops_dat_d_m'] = lambda i: '%s_d_m' % i
 namespace['ops_dat_name'] = lambda i: '%s_dat' % i
+
+namespace['ops_kernel_file'] = lambda i: 'ops_kernel_%s' % i
