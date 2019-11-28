@@ -470,6 +470,7 @@ class MPICommObject(Object):
 
     def _arg_values(self, *args, **kwargs):
         grid = kwargs.get('grid', None)
+        # Update `comm` based on object attached to `grid`
         if grid is not None:
             return grid.distributor._obj_comm._arg_defaults()
         else:
@@ -523,6 +524,7 @@ class MPINeighborhood(CompositeObject):
 
     def _arg_values(self, *args, **kwargs):
         grid = kwargs.get('grid', None)
+        # Update `nb` based on object attached to `grid`
         if grid is not None:
             return grid.distributor._obj_neighborhood._arg_defaults()
         else:
