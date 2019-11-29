@@ -361,7 +361,7 @@ class Operator(Callable):
 
         # Process Objects (which may need some `args`)
         for o in self.objects:
-            args.update(o._arg_values(args, **kwargs))
+            args.update(o._arg_values(args, grid=grid, **kwargs))
 
         # Sanity check
         for p in self.parameters:
