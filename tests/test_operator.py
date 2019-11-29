@@ -964,71 +964,29 @@ class TestArguments(object):
             assert False
 
     @skipif('nompi')
-    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parallel(mode=1)
     def test_new_distributor(self):
         """
         Test that `comm` and `nb` are correctly updated when a different distributor
         from that it was originally built with is required by an operator.
+        Note that MPI is required to ensure `comm` and `nb` are included in op.objects.
         """
-        import cloudpickle
-        from mpi4py import MPI
-        from devito.builtins import norm
+        from devito.mpi import MPI
+        grid = Grid(shape=(10, 10), comm=MPI.COMM_SELF)
+        grid2 = Grid(shape=(10, 10), comm=MPI.COMM_WORLD)
 
-        def build_operator():
-            grid = Grid(shape=(100, 100), comm=MPI.COMM_SELF)
-            u = TimeFunction(name='u', grid=grid, space_order=4, time_order=1)
-            eqn = Eq(u.forward, u + 0.000001 * u.laplace)
-            op = Operator(eqn)
-            return op
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u2 = TimeFunction(name='u2', grid=grid2, space_order=2)
 
-        def get_operator(comm):
-            op = None
-            if comm is None or comm.rank == 0:
-                op = build_operator()
-
-            if comm is not None:
-                if comm.rank == 0:
-                    op_pickle = cloudpickle.dumps(op)
-                else:
-                    op_pickle = None
-                op_pickle = comm.bcast(op_pickle, root=0)
-                if comm.rank != 0:
-                    op = cloudpickle.loads(op_pickle)
-                del op_pickle
-
-            assert op is not None
-
-            return op
-
-        def setup_u(grid):
-            u = TimeFunction(name="u", grid=grid, space_order=4, time_order=1)
-
-            x_, y_ = np.ix_(np.linspace(-1, 1, grid.shape[0]),
-                            np.linspace(-1, 1, grid.shape[1]))
-            dx = x_ - 0.5
-            dy = y_
-            u.data[0, :, :] = 1.0 * ((dx*dx + dy*dy) < 0.125)
-            return u
-
-        def run_op(op, u):
-            op.apply(u=u, time_M=15000)
-
-        def run_local(op):
-            grid = Grid(shape=(100, 100), comm=MPI.COMM_SELF)
-            u = setup_u(grid)
-            run_op(op, u)
-            return norm(u)
-
-        def run_dist(op):
-            grid = Grid(shape=(100, 100), comm=MPI.COMM_WORLD)
-            u = setup_u(grid)
-            run_op(op, u)
-            return norm(u)
-
-        op = get_operator(None)
-        norm_local = run_local(op)
-        norm_dist = run_dist(op)
-        assert abs(norm_local-norm_dist) <= 1e-3
+        # Create some operator that requires MPI communication
+        eqn = Eq(u.forward, u + u.laplace)
+        op = Operator(eqn)
+        assert op.arguments(u=u, time_M=0)['comm'] is grid.distributor._obj_comm.value
+        assert (op.arguments(u=u, time_M=0)['nb'] is
+                grid.distributor._obj_neighborhood.value)
+        assert op.arguments(u=u2, time_M=0)['comm'] is grid2.distributor._obj_comm.value
+        assert (op.arguments(u=u2, time_M=0)['nb'] is
+                grid2.distributor._obj_neighborhood.value)
 
 
 class TestDeclarator(object):
