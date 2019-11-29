@@ -1491,7 +1491,6 @@ class TestOperatorAdvanced(object):
         assert np.isclose(norm(uxx), 80001.0304, rtol=1.e-4)
         assert np.isclose(norm(uxy), 61427.853, rtol=1.e-4)
 
-    @skipif('nompi')
     @pytest.mark.parallel(mode=2)
     def test_op_new_dist(self):
         """
