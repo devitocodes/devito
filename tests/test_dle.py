@@ -14,7 +14,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
                            FindSymbols, iet_analyze, retrieve_iteration_tree)
 from devito.targets import BlockDimension, NThreads, NThreadsNonaffine, transform
-from devito.targets.dle.parallelizer import ParallelRegion
+from devito.targets.common.parallelizer import ParallelRegion
 from devito.tools import as_tuple
 
 pytestmark = skipif(['yask', 'ops'])
@@ -99,7 +99,7 @@ def _new_operator3(shape, blockshape0=None, blockshape1=None, dle=None):
     (False, 4, 5),
     (True, 8, 6)
 ])
-@patch("devito.targets.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
+@patch("devito.targets.common.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
 def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     # Check code structure
     _, op = _new_operator1((10, 31, 45), dle=('blocking', {'blockalways': True,
@@ -369,8 +369,8 @@ class TestNodeParallelism(object):
         ('Eq(u, 2*u)', [0, 2, 0, 0], False),
         ('Eq(u, 2*u)', [3, 0, 0, 0, 0, 0], True)
     ])
-    @patch("devito.targets.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
-    @patch("devito.targets.dle.parallelizer.Ompizer.COLLAPSE_WORK", 0)
+    @patch("devito.targets.common.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
+    @patch("devito.targets.common.parallelizer.Ompizer.COLLAPSE_WORK", 0)
     def test_collapsing(self, eq, expected, blocking):
         grid = Grid(shape=(3, 3, 3))
 
@@ -423,8 +423,8 @@ class TestNodeParallelism(object):
 
 class TestNestedParallelism(object):
 
-    @patch("devito.targets.dle.parallelizer.Ompizer.NESTED", 0)
-    @patch("devito.targets.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 10000)
+    @patch("devito.targets.common.parallelizer.Ompizer.NESTED", 0)
+    @patch("devito.targets.common.parallelizer.Ompizer.COLLAPSE_NCORES", 10000)
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -453,9 +453,9 @@ class TestNestedParallelism(object):
                                                   'schedule(dynamic,1) '
                                                   'num_threads(nthreads_nested)')
 
-    @patch("devito.targets.dle.parallelizer.Ompizer.NESTED", 0)
-    @patch("devito.targets.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
-    @patch("devito.targets.dle.parallelizer.Ompizer.COLLAPSE_WORK", 0)
+    @patch("devito.targets.common.parallelizer.Ompizer.NESTED", 0)
+    @patch("devito.targets.common.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
+    @patch("devito.targets.common.parallelizer.Ompizer.COLLAPSE_WORK", 0)
     def test_collapsing(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -477,8 +477,8 @@ class TestNestedParallelism(object):
                                                   'num_threads(nthreads_nested)')
 
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
-    @patch("devito.targets.dle.parallelizer.Ompizer.NESTED", 0)
-    @patch("devito.targets.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 10000)
+    @patch("devito.targets.common.parallelizer.Ompizer.NESTED", 0)
+    @patch("devito.targets.common.parallelizer.Ompizer.COLLAPSE_NCORES", 10000)
     def test_multiple_subnests(self):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions

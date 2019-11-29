@@ -12,8 +12,8 @@ from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL, V
 from devito.logger import perf_adv, dle_warning as warning
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.parameters import configuration
-from devito.targets.dle.blocking import Blocker, BlockDimension
-from devito.targets.dle.parallelizer import Ompizer, OmpizerGPU
+from devito.targets.common.blocking import Blocker, BlockDimension
+from devito.targets.common.parallelizer import Ompizer, OmpizerGPU
 from devito.tools import DAG, as_tuple, filter_ordered, generator
 
 __all__ = ['PlatformRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter',

@@ -185,7 +185,7 @@ def test_tti_aggressive():
 
 
 @switchconfig(develop_mode=False)
-@patch("devito.targets.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
+@patch("devito.targets.common.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
 def test_discarding_runs():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
