@@ -18,7 +18,7 @@ from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import indexify
-from devito.targets import transform
+from devito.targets import iet_lower
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
 from devito.types import Dimension
@@ -286,7 +286,7 @@ class Operator(Callable):
         dle = kwargs.get("dle", configuration['dle'])
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
-        iet, state = transform(iet, *set_dle_mode(dle))
+        iet, state = iet_lower(iet, *set_dle_mode(dle))
 
         self._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
                                              for i in state.efuncs]))

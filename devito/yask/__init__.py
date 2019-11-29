@@ -10,7 +10,7 @@ from devito.archinfo import Arm, Cpu64, CPU64, Power
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.parameters import Parameters, configuration, add_sub_configuration
-from devito.targets import PlatformRewriter, modes
+from devito.targets import PlatformRewriter, targets
 from devito.tools import make_tempdir
 
 from devito.yask.dle import YaskRewriter
@@ -100,10 +100,10 @@ env_vars_mapper = {
 
 add_sub_configuration(yask_configuration, env_vars_mapper)
 
-# Add YASK-specific DLE modes
-modes.add(Cpu64, {'noop': PlatformRewriter,
-                  'advanced': YaskRewriter,
-                  'speculative': YaskRewriter})
+# Add YASK-specific Targets
+targets.add(Cpu64, {'noop': PlatformRewriter,
+                    'advanced': YaskRewriter,
+                    'speculative': YaskRewriter})
 
 # The following used by backends.backendSelector
 from devito.types import SparseFunction, SparseTimeFunction  # noqa

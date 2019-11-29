@@ -1,139 +1,91 @@
-from collections import OrderedDict
+from functools import partial
 
-from devito.archinfo import Platform, Cpu64
-from devito.ir.iet import Node
-from devito.logger import dle as log, dle_warning as warning
-from devito.parameters import configuration
-from devito.targets.common.rewriters import (CPU64Rewriter, CustomRewriter,
-                                             PlatformRewriter, State)
+from cached_property import cached_property
 
-__all__ = ['dle_registry', 'modes', 'transform']
+from devito.exceptions import DLEException
+from devito.targets.basic import PlatformRewriter
+from devito.targets.common import (Ompizer, _avoid_denormals,
+                                   _optimize_halospots, _parallelize_dist, _loop_blocking,
+                                   _loop_wrapping, _simdize, _parallelize_shm,
+                                   _minimize_remainders, _hoist_prodders)
 
-
-dle_registry = ('noop', 'advanced', 'speculative')
-
-
-class DLEModes(OrderedDict):
-
-    """
-    The DLE transformation modes. This is a dictionary ``P -> {M -> R}``,
-    where P is a Platform, M a rewrite mode (e.g., 'advanced', 'speculative'),
-    and R a Rewriter.
-
-    This dictionary is to be modified at backend-initialization time by adding
-    all Platform-keyed mappers as supported by the specific backend.
-    """
-
-    def add(self, platform, mapper):
-        assert issubclass(platform, Platform)
-        assert isinstance(mapper, dict)
-        assert all(i in mapper for i in dle_registry)
-        super(DLEModes, self).__setitem__(platform, mapper)
-
-    def fetch(self, platform, mode):
-        # Try to fetch the most specific Rewriter for the given Platform
-        for cls in platform.__class__.mro():
-            for k, v in self.items():
-                if issubclass(k, cls):
-                    return v[mode]
-        raise KeyError("Couldn't find a rewriter mode for platform `%s`", platform)
+__all__ = ['CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter', 'ArmRewriter',
+           'SpeculativeRewriter', 'CustomRewriter']
 
 
-modes = DLEModes()
-modes.add(Cpu64, {'noop': PlatformRewriter,
-                  'advanced': CPU64Rewriter,
-                  'speculative': CPU64Rewriter})
+class CPU64Rewriter(PlatformRewriter):
+
+    _parallelizer_shm_type = Ompizer
+
+    def _pipeline(self, state):
+        # Optimization and parallelism
+        _avoid_denormals(state)
+        _optimize_halospots(state)
+        if self.params['mpi']:
+            _parallelize_dist(state, mode=self.params['mpi'])
+        _loop_blocking(state, blocker=self.blocker)
+        _simdize(state, simd_reg_size=self.platform.simd_reg_size)
+        if self.params['openmp']:
+            _parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
+        _minimize_remainders(state, simd_items_per_reg=self.platform.simd_items_per_reg)
+        _hoist_prodders(state)
 
 
-def transform(iet, mode='advanced', options=None):
-    """
-    Transform Iteration/Expression trees (IET) to generate optimized C code.
-
-    Parameters
-    ----------
-    iet : Node
-        The root of the IET to be transformed.
-    mode : str, optional
-        The transformation mode.
-        - ``noop``: Do nothing.
-        - ``advanced``: flush denormals, vectorization, loop blocking, OpenMP-related
-                        optimizations (collapsing, nested parallelism, ...), MPI-related
-                        optimizations (aggregation of communications, reshuffling of
-                        communications, ...).
-        - ``speculative``: Apply all of the 'advanced' transformations, plus other
-                           transformations that might increase (or possibly decrease)
-                           performance.
-    options : dict, optional
-        - ``openmp``: Enable/disable OpenMP. Defaults to `configuration['openmp']`.
-        - ``mpi``: Enable/disable MPI. Defaults to `configuration['mpi']`.
-        - ``blockinner``: Enable/disable blocking of innermost loops. By default,
-                          this is disabled to maximize SIMD vectorization. Pass True
-                          to override this heuristic.
-        - ``blockalways``: Pass True to unconditionally apply loop blocking, even when
-                           the compiler heuristically thinks that it might not be
-                           profitable and/or dangerous for performance.
-        - ``blocklevels``: Levels of blocking for hierarchical tiling (blocks,
-                           sub-blocks, sub-sub-blocks, ...). Different Platforms have
-                           different default values.
-    """
-    assert isinstance(iet, Node)
-
-    # Default options
-    params = {}
-    params['blockinner'] = configuration['dle-options'].get('blockinner', False)
-    params['blockalways'] = configuration['dle-options'].get('blockalways', False)
-    params['blocklevels'] = configuration['dle-options'].get('blocklevels', None)
-    params['openmp'] = configuration['openmp']
-    params['mpi'] = configuration['mpi']
-
-    # Parse input options (potentially replacing defaults)
-    for k, v in (options or {}).items():
-        if k not in params:
-            warning("Illegal DLE option '%s'" % k)
-        else:
-            params[k] = v
-
-    # Force OpenMP/MPI if parallelism was requested, even though mode is 'noop'
-    if mode == 'noop':
-        mode = tuple(i for i in ['mpi', 'openmp'] if params[i]) or 'noop'
-
-    # What is the target platform for which the optimizations are applied?
-    platform = configuration['platform']
-
-    # No-op case
-    if mode is None or mode == 'noop':
-        return iet, State(iet)
-
-    # Fetch the requested rewriter
-    try:
-        rewriter = modes.fetch(platform, mode)(params, platform)
-    except KeyError:
-        # Fallback: custom rewriter -- `mode` is a specific sequence of
-        # transformation passes
-        rewriter = CustomRewriter(mode, params, platform)
-
-    # Trigger the DLE passes
-    state = rewriter.run(iet)
-
-    # Print out the profiling data
-    print_profiling(state)
-
-    return state.root, state
+Intel64Rewriter = CPU64Rewriter
+PowerRewriter = CPU64Rewriter
+ArmRewriter = CPU64Rewriter
 
 
-def print_profiling(state):
-    """
-    Print a summary of the applied transformations.
-    """
-    timings = state.timings
+#TODO : the stuff below needs adding iet_insert_decls, iet_insert_casts, etc
 
-    if configuration['profiling'] in ['basic', 'advanced']:
-        row = "%s (elapsed: %.2f s)"
-        out = "\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k[1:])), v)
-                             for k, v in timings.items())
-        elapsed = sum(timings.values())
-        log("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
-    else:
-        # Shorter summary
-        log("passes: %s (elapsed %.2f s)" % (",".join(i[1:] for i in timings),
-                                             sum(timings.values())))
+
+class SpeculativeRewriter(CPU64Rewriter):
+
+    def _pipeline(self, state):
+        # Optimization and parallelism
+        _avoid_denormals(state)
+        _optimize_halospots(state)
+        _loop_wrapping(state)
+        if self.params['mpi']:
+            _parallelize_dist(state, mode=self.params['mpi'])
+        _loop_blocking(state, blocker=self.blocker)
+        _simdize(state, simd_reg_size=self.platform.simd_reg_size)
+        if self.params['openmp']:
+            _parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
+        _minimize_remainders(state, simd_items_per_reg=self.platform.simd_items_per_reg)
+        _hoist_prodders(state)
+
+
+class CustomRewriter(SpeculativeRewriter):
+
+    def __init__(self, passes, params, platform):
+        super(CustomRewriter, self).__init__(params, platform)
+
+        try:
+            passes = passes.split(',')
+            if 'openmp' not in passes and params['openmp']:
+                passes.append('openmp')
+        except AttributeError:
+            # Already in tuple format
+            if not all(i in self.passes_mapper for i in passes):
+                raise DLEException("Unknown passes `%s`" % str(passes))
+        self.passes = passes
+
+    @cached_property
+    def passes_mapper(self):
+        return {
+            'denormals': partial(_avoid_denormals),
+            'optcomms': partial(_optimize_halospots),
+            'wrapping': partial(_loop_wrapping),
+            'blocking': partial(_loop_blocking, blocker=self.blocker),
+            'openmp': partial(_parallelize_shm, parallelizer_shm=self.parallelizer_shm),
+            'mpi': partial(_parallelize_dist, mode=self.params['mpi']),
+            'simd': partial(_simdize, simd_reg_size=self.platform.simd_reg_size),
+            'minrem': partial(_minimize_remainders,
+                              simd_items_per_reg=self.platform.simd_items_per_reg),
+            'prodders': partial(_hoist_prodders)
+        }
+
+    def _pipeline(self, state):
+        for i in self.passes:
+            self.passes_mapper[i](state)

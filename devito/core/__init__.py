@@ -7,29 +7,33 @@ backend as well) are used to run Devito on standard CPU architectures.
 from devito.archinfo import Cpu64, Intel64, Arm, Power, Device
 from devito.parameters import Parameters, add_sub_configuration
 from devito.targets import (CPU64Rewriter, Intel64Rewriter, ArmRewriter, PowerRewriter,
-                            PlatformRewriter, SpeculativeRewriter,
-                            DeviceOffloadingRewriter, modes)
+                            PlatformRewriter, SpeculativeRewriter, CustomRewriter,
+                            DeviceOffloadingRewriter, targets)
 
 core_configuration = Parameters('core')
 env_vars_mapper = {}
 add_sub_configuration(core_configuration, env_vars_mapper)
 
-# Add core-specific DLE modes
-modes.add(Cpu64, {'noop': PlatformRewriter,
-                  'advanced': CPU64Rewriter,
-                  'speculative': SpeculativeRewriter})
-modes.add(Intel64, {'noop': PlatformRewriter,
-                    'advanced': Intel64Rewriter,
-                    'speculative': SpeculativeRewriter})
-modes.add(Arm, {'noop': PlatformRewriter,
-                'advanced': ArmRewriter,
-                'speculative': SpeculativeRewriter})
-modes.add(Power, {'noop': PlatformRewriter,
-                  'advanced': PowerRewriter,
-                  'speculative': SpeculativeRewriter})
-modes.add(Device, {'noop': PlatformRewriter,
-                   'advanced': DeviceOffloadingRewriter,
-                   'speculative': DeviceOffloadingRewriter})
+# Add core-specific Targets
+targets.add(Cpu64, {'noop': PlatformRewriter,
+                    'advanced': CPU64Rewriter,
+                    'speculative': SpeculativeRewriter,
+                    'custom': CustomRewriter})
+targets.add(Intel64, {'noop': PlatformRewriter,
+                      'advanced': Intel64Rewriter,
+                      'speculative': SpeculativeRewriter,
+                      'custom': CustomRewriter})
+targets.add(Arm, {'noop': PlatformRewriter,
+                  'advanced': ArmRewriter,
+                  'speculative': SpeculativeRewriter,
+                  'custom': CustomRewriter})
+targets.add(Power, {'noop': PlatformRewriter,
+                    'advanced': PowerRewriter,
+                    'speculative': SpeculativeRewriter,
+                    'custom': CustomRewriter})
+targets.add(Device, {'noop': PlatformRewriter,
+                     'advanced': DeviceOffloadingRewriter,
+                     'speculative': DeviceOffloadingRewriter})
 
 # The following used by backends.backendSelector
 from devito.core.operator import OperatorCore as Operator  # noqa

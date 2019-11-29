@@ -13,7 +13,7 @@ from devito.exceptions import InvalidArgument
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
                            FindSymbols, iet_analyze, retrieve_iteration_tree)
-from devito.targets import BlockDimension, NThreads, NThreadsNonaffine, transform
+from devito.targets import BlockDimension, NThreads, NThreadsNonaffine, iet_lower
 from devito.targets.common.parallelizer import ParallelRegion
 from devito.tools import as_tuple
 
@@ -313,7 +313,7 @@ class TestNodeParallelism(object):
 
         ast = iet_analyze(ast)
 
-        iet, _ = transform(ast, mode='openmp')
+        iet, _ = iet_lower(ast, mode='openmp')
         iterations = FindNodes(Iteration).visit(iet)
         assert len(iterations) == len(expected)
 
