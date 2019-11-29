@@ -15,9 +15,9 @@ from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, MetaCall, iet_build, iet_insert_decls,
                            iet_insert_casts, derive_parameters)
 from devito.ir.stree import st_build
+from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.profiling import create_profile
 from devito.symbolics import indexify
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
