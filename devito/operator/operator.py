@@ -7,8 +7,8 @@ from cached_property import cached_property
 import ctypes
 
 from devito.dle import transform
-from devito.equation import Eq
 from devito.exceptions import InvalidOperator
+from devito.finite_differences import Eq
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize

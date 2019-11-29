@@ -8,7 +8,6 @@ from devito.parameters import *  # noqa
 from devito.base import *  # noqa
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
-from devito.equation import *  # noqa
 from devito.finite_differences import *  # noqa
 from devito.mpi import MPI  # noqa
 from devito.types import _SymbolCache, NODE, CELL, Buffer, SubDomain, SubDomainSet  # noqa
