@@ -112,10 +112,9 @@ class OperatorOPS(Operator):
         return ''.join(str(kernel.root) for kernel in self._func_table.values())
 
     def _finalize(self, iet, parameters):
-        # Applies _finalize for each generated OPS kernel, which will generate the .h file
-        self._ops_kernels = [super(OperatorOPS, self)._finalize(
-            kernel.root, derive_parameters(kernel, True))
-            for kernel in self._func_table.values()]
+
+        self._func_table.update({k: MetaCall(super(OperatorOPS, self)._finalize(v.root, derive_parameters(v.root, True)), v.local) # noqa
+            for k, v in self._func_table.items()})
 
         return super()._finalize(iet, parameters)
 
