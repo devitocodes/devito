@@ -112,9 +112,10 @@ class OperatorOPS(Operator):
         return ''.join(str(kernel.root) for kernel in self._func_table.values())
 
     def _finalize(self, iet, parameters):
-
-        self._func_table.update({k: MetaCall(super(OperatorOPS, self)._finalize(v.root, derive_parameters(v.root, True)), v.local) # noqa
-            for k, v in self._func_table.items()})
+        for k, v in self._func_table.items():
+            parameters = derive_parameters(v.root, True)
+            root = super(OperatorOPS, self)._finalize(v.root, parameters)
+            self._func_table[k] = MetaCall(root, v.local)
 
         return super()._finalize(iet, parameters)
 
