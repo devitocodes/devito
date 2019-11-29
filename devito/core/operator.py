@@ -1,8 +1,8 @@
 from devito.core.autotuning import autotune
-from devito.dle import NThreads
 from devito.ir.support import align_accesses
 from devito.parameters import configuration
 from devito.operator import Operator
+from devito.targets import NThreads
 
 __all__ = ['OperatorCore']
 

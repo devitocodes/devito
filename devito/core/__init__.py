@@ -5,10 +5,10 @@ backend as well) are used to run Devito on standard CPU architectures.
 """
 
 from devito.archinfo import Cpu64, Intel64, Arm, Power, Device
-from devito.dle import (CPU64Rewriter, Intel64Rewriter, ArmRewriter, PowerRewriter,
-                        PlatformRewriter, SpeculativeRewriter, DeviceOffloadingRewriter,
-                        modes)
 from devito.parameters import Parameters, add_sub_configuration
+from devito.targets import (CPU64Rewriter, Intel64Rewriter, ArmRewriter, PowerRewriter,
+                            PlatformRewriter, SpeculativeRewriter,
+                            DeviceOffloadingRewriter, modes)
 
 core_configuration = Parameters('core')
 env_vars_mapper = {}

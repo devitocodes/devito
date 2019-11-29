@@ -1,5 +1,5 @@
-from devito.dle import Intel64Rewriter, Ompizer
 from devito.ir import FindNodes
+from devito.targets import Intel64Rewriter, Ompizer
 
 from devito.yask.utils import Offloaded
 

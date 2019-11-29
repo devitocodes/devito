@@ -8,9 +8,9 @@ from conftest import skipif, EVAL, x, y, z  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
-from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect, make_is_time_invariant
 from devito.symbolics import yreplace, estimate_cost, pow_to_mul
+from devito.targets import BlockDimension
 from devito.tools import generator
 from devito.types import Scalar
 

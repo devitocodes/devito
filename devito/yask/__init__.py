@@ -7,10 +7,10 @@ import os
 import sys
 
 from devito.archinfo import Arm, Cpu64, CPU64, Power
-from devito.dle import PlatformRewriter, modes
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.parameters import Parameters, configuration, add_sub_configuration
+from devito.targets import PlatformRewriter, modes
 from devito.tools import make_tempdir
 
 from devito.yask.dle import YaskRewriter

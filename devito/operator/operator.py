@@ -6,7 +6,6 @@ from math import ceil
 from cached_property import cached_property
 import ctypes
 
-from devito.dle import transform
 from devito.exceptions import InvalidOperator
 from devito.finite_differences import Eq
 from devito.logger import info, perf, warning, is_log_enabled_for
@@ -19,6 +18,7 @@ from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import indexify
+from devito.targets import transform
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split)
 from devito.types import Dimension

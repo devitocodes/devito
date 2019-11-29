@@ -2,9 +2,10 @@ from collections import OrderedDict
 
 from devito.archinfo import Platform, Cpu64
 from devito.ir.iet import Node
-from devito.dle.rewriters import CPU64Rewriter, CustomRewriter, PlatformRewriter, State
 from devito.logger import dle as log, dle_warning as warning
 from devito.parameters import configuration
+from devito.targets.dle.rewriters import (CPU64Rewriter, CustomRewriter,
+                                          PlatformRewriter, State)
 
 __all__ = ['dle_registry', 'modes', 'transform']
 

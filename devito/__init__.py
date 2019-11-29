@@ -18,10 +18,10 @@ from devito.types.tensor import *  # noqa
 from devito.archinfo import platform_registry
 from devito.backends import backends_registry, init_backend
 from devito.compiler import compiler_registry
-from devito.dle import dle_registry
 from devito.dse import dse_registry
 from devito.logger import error, warning, info, logger_registry, set_log_level  # noqa
 from devito.operator import profiler_registry
+from devito.targets import dle_registry
 
 
 from ._version import get_versions  # noqa
