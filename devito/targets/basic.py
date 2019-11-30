@@ -181,11 +181,10 @@ def print_profiling(state):
 
     if configuration['profiling'] in ['basic', 'advanced']:
         row = "%s (elapsed: %.2f s)"
-        out = "\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k[1:])), v)
+        out = "\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k)), v)
                              for k, v in timings.items())
         elapsed = sum(timings.values())
         log("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
     else:
         # Shorter summary
-        log("passes: %s (elapsed %.2f s)" % (",".join(i[1:] for i in timings),
-                                             sum(timings.values())))
+        log("passes: %s (elapsed %.2f s)" % (",".join(timings), sum(timings.values())))

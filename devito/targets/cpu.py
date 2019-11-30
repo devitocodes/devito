@@ -4,10 +4,10 @@ from cached_property import cached_property
 
 from devito.exceptions import DLEException
 from devito.targets.basic import PlatformRewriter
-from devito.targets.common import (Ompizer, _avoid_denormals,
-                                   _optimize_halospots, _parallelize_dist, _loop_blocking,
-                                   _loop_wrapping, _simdize, _parallelize_shm,
-                                   _minimize_remainders, _hoist_prodders)
+from devito.targets.common import (Ompizer, avoid_denormals,
+                                   optimize_halospots, parallelize_dist, loop_blocking,
+                                   loop_wrapping, simdize, parallelize_shm,
+                                   minimize_remainders, hoist_prodders)
 
 __all__ = ['CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter', 'ArmRewriter',
            'CustomRewriter']
@@ -19,16 +19,16 @@ class CPU64Rewriter(PlatformRewriter):
 
     def _pipeline(self, state):
         # Optimization and parallelism
-        _avoid_denormals(state)
-        _optimize_halospots(state)
+        avoid_denormals(state)
+        optimize_halospots(state)
         if self.params['mpi']:
-            _parallelize_dist(state, mode=self.params['mpi'])
-        _loop_blocking(state, blocker=self.blocker)
-        _simdize(state, simd_reg_size=self.platform.simd_reg_size)
+            parallelize_dist(state, mode=self.params['mpi'])
+        loop_blocking(state, blocker=self.blocker)
+        simdize(state, simd_reg_size=self.platform.simd_reg_size)
         if self.params['openmp']:
-            _parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
-        _minimize_remainders(state, simd_items_per_reg=self.platform.simd_items_per_reg)
-        _hoist_prodders(state)
+            parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
+        minimize_remainders(state, simd_items_per_reg=self.platform.simd_items_per_reg)
+        hoist_prodders(state)
 
 
 Intel64Rewriter = CPU64Rewriter
@@ -57,16 +57,16 @@ class CustomRewriter(CPU64Rewriter):
     @cached_property
     def passes_mapper(self):
         return {
-            'denormals': partial(_avoid_denormals),
-            'optcomms': partial(_optimize_halospots),
-            'wrapping': partial(_loop_wrapping),
-            'blocking': partial(_loop_blocking, blocker=self.blocker),
-            'openmp': partial(_parallelize_shm, parallelizer_shm=self.parallelizer_shm),
-            'mpi': partial(_parallelize_dist, mode=self.params['mpi']),
-            'simd': partial(_simdize, simd_reg_size=self.platform.simd_reg_size),
-            'minrem': partial(_minimize_remainders,
+            'denormals': partial(avoid_denormals),
+            'optcomms': partial(optimize_halospots),
+            'wrapping': partial(loop_wrapping),
+            'blocking': partial(loop_blocking, blocker=self.blocker),
+            'openmp': partial(parallelize_shm, parallelizer_shm=self.parallelizer_shm),
+            'mpi': partial(parallelize_dist, mode=self.params['mpi']),
+            'simd': partial(simdize, simd_reg_size=self.platform.simd_reg_size),
+            'minrem': partial(minimize_remainders,
                               simd_items_per_reg=self.platform.simd_items_per_reg),
-            'prodders': partial(_hoist_prodders)
+            'prodders': partial(hoist_prodders)
         }
 
     def _pipeline(self, state):

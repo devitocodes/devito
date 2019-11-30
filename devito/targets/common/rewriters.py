@@ -12,9 +12,9 @@ from devito.targets.common.blocking import BlockDimension
 from devito.targets.common.parallelizer import Ompizer
 from devito.tools import DAG, as_tuple, filter_ordered, generator
 
-__all__ = ['State', 'dle_pass', '_avoid_denormals', '_loop_wrapping',
-           '_optimize_halospots', '_loop_blocking', '_parallelize_dist', '_simdize',
-           '_parallelize_shm', '_minimize_remainders', '_hoist_prodders']
+__all__ = ['State', 'dle_pass', 'avoid_denormals', 'loop_wrapping',
+           'optimize_halospots', 'loop_blocking', 'parallelize_dist', 'simdize',
+           'parallelize_shm', 'minimize_remainders', 'hoist_prodders']
 
 
 class State(object):
@@ -104,7 +104,7 @@ def dle_pass(func):
 
 
 @dle_pass
-def _avoid_denormals(iet):
+def avoid_denormals(iet):
     """
     Introduce nodes in the Iteration/Expression tree that will expand to C
     macros telling the CPU to flush denormal numbers in hardware. Denormals
@@ -119,7 +119,7 @@ def _avoid_denormals(iet):
 
 
 @dle_pass
-def _loop_wrapping(iet):
+def loop_wrapping(iet):
     """
     Emit a performance message if WRAPPABLE Iterations are found,
     as these are a symptom that unnecessary memory is being allocated.
@@ -133,7 +133,7 @@ def _loop_wrapping(iet):
 
 
 @dle_pass
-def _optimize_halospots(iet):
+def optimize_halospots(iet):
     """
     Optimize the HaloSpots in ``iet``.
 
@@ -237,7 +237,7 @@ def _optimize_halospots(iet):
 
 
 @dle_pass
-def _loop_blocking(iet, **kwargs):
+def loop_blocking(iet, **kwargs):
     """
     Apply hierarchical loop blocking to PARALLEL Iteration trees.
     """
@@ -247,7 +247,7 @@ def _loop_blocking(iet, **kwargs):
 
 
 @dle_pass
-def _parallelize_dist(iet, **kwargs):
+def parallelize_dist(iet, **kwargs):
     """
     Add MPI routines performing halo exchanges to emit distributed-memory
     parallel code.
@@ -284,7 +284,7 @@ def _parallelize_dist(iet, **kwargs):
 
 
 @dle_pass
-def _simdize(iet, **kwargs):
+def simdize(iet, **kwargs):
     """
     Add pragmas to the Iteration/Expression tree to enforce SIMD auto-vectorization
     by the backend compiler.
@@ -311,7 +311,7 @@ def _simdize(iet, **kwargs):
 
 
 @dle_pass
-def _parallelize_shm(iet, **kwargs):
+def parallelize_shm(iet, **kwargs):
     """
     Add OpenMP pragmas to the Iteration/Expression tree to emit SIMD and
     shared-memory parallel code.
@@ -322,7 +322,7 @@ def _parallelize_shm(iet, **kwargs):
 
 
 @dle_pass
-def _minimize_remainders(iet, **kwargs):
+def minimize_remainders(iet, **kwargs):
     """
     Adjust ROUNDABLE Iteration bounds so as to avoid the insertion of remainder
     loops by the backend compiler.
@@ -353,7 +353,7 @@ def _minimize_remainders(iet, **kwargs):
 
 
 @dle_pass
-def _hoist_prodders(iet):
+def hoist_prodders(iet):
     """
     Move Prodders within the outer levels of an Iteration tree.
     """
