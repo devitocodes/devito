@@ -16,20 +16,16 @@ class OPSMetaCompiler(configuration['compiler'].__class__):
         kwargs['cpp'] = True
         super(OPSMetaCompiler, self).__init__(*args, **kwargs)
 
-
-class OPSCompiler(OPSMetaCompiler):
-
-    def __init__(self, *args, **kwargs):
-        super(OPSCompiler, self).__init__(*args, **kwargs)
-
         self._ops_install_path = os.environ.get('OPS_INSTALL_PATH')
         if not self._ops_install_path:
             raise ValueError("Couldn't find OPS_INSTALL_PATH\
                 environment variable, please check your OPS installation")
 
-        self._devito_platform = os.environ.get('DEVITO_PLATFORM')
-        if not self._devito_platform:
-            self._devito_platform = 'seq'
+
+class OPSCompiler(OPSMetaCompiler):
+
+    def __init__(self, *args, **kwargs):
+        super(OPSCompiler, self).__init__(*args, **kwargs)
 
     def jit_compile(self, soname, ccode, hcode):
         self._translate_ops(soname, ccode, hcode)
@@ -45,9 +41,9 @@ class OPSCompiler(OPSMetaCompiler):
         except FileNotFoundError:
             warning("Couldn't find file: %s" % self.ops_src)
 
-        if self._devito_platform == 'nvidiaX':
-            OPSCompilerCUDA._compile(self, soname)
-        elif self._devito_platform == 'seq':
+        if configuration['platform'] == 'nvidiaX':
+            self._compile(soname)
+        elif configuration['platform'] == 'bdw':
             pass
 
     def _translate_ops(self, soname, ccode, hcode):
@@ -67,55 +63,6 @@ class OPSCompiler(OPSMetaCompiler):
         translation = subprocess.run([translator, c_file.name], cwd=self.get_jit_dir())
         if translation.returncode == 1:
             raise ValueError("OPS Translation Error")
-
-
-class OPSSpecializedCompiler(OPSMetaCompiler):
-    def __init__(self, *args, **kwargs):
-        super(OPSSpecializedCompiler, self).__init__(*args, **kwargs)
-
-    def _cmdline(self, files, object=False):
-        if object:
-            ld_options = ['-c']
-            link = []
-        else:
-            ld_options = self.ldflags
-            link = ["-L%s" % ldir for ldir in self.library_dirs]
-            link.extend(["-l%s" % lib for lib in self.libraries])
-        return (
-            [self.cc]
-            + self.cflags
-            + ld_options
-            + ["-D%s" % define for define in self.defines]
-            + ["-U%s" % undefine for undefine in self.undefines]
-            + ["-I%s" % idir for idir in self.include_dirs]
-            + files
-            + link
-        )
-
-
-class OPSCompilerSEQ(OPSCompiler, OPSSpecializedCompiler):
-
-    def __init__(self, *args, **kwargs):
-        super(OPSCompilerCUDA, self).__init__(*args, **kwargs)
-
-    def _compile(self, soname):
-        pass
-
-
-class OPSCompilerCUDA(OPSCompiler, OPSSpecializedCompiler):
-
-    def __init__(self, *args, **kwargs):
-        super(OPSCompilerCUDA, self).__init__(*args, **kwargs)
-
-        self._cuda_install_path = os.environ.get('CUDA_INSTALL_PATH')
-        if not self._cuda_install_path:
-            raise ValueError("Couldn't find CUDA_INSTALL_PATH a\
-                environment variable, please check your CUDA installation")
-
-        self._nv_arch = os.environ.get('NV_ARCH')
-        if not self._nv_arch:
-            raise ValueError("Select an NVIDIA device to compile in CUDA, e.g. \
-                NV_ARCH=Kepler")
 
     def _compile(self, soname):
         # CUDA kernel compilation
@@ -169,12 +116,55 @@ class OPSCompilerCUDA(OPSCompiler, OPSSpecializedCompiler):
                 raise ValueError("Error at the linking stage")
 
 
+class OPSCompilerCUDA(OPSMetaCompiler):
+    def __init__(self, *args, **kwargs):
+        super(OPSCompilerCUDA, self).__init__(*args, **kwargs)
+
+        self._cuda_install_path = os.environ.get('CUDA_INSTALL_PATH')
+        if not self._cuda_install_path:
+            raise ValueError("Couldn't find CUDA_INSTALL_PATH a\
+                environment variable, please check your CUDA installation")
+
+    def _cmdline(self, files, object=False):
+        if object:
+            ld_options = ['-c']
+            link = []
+        else:
+            ld_options = self.ldflags
+            link = ["-L%s" % ldir for ldir in self.library_dirs]
+            link.extend(["-l%s" % lib for lib in self.libraries])
+        return (
+            [self.cc]
+            + self.cflags
+            + ld_options
+            + ["-D%s" % define for define in self.defines]
+            + ["-U%s" % undefine for undefine in self.undefines]
+            + ["-I%s" % idir for idir in self.include_dirs]
+            + files
+            + link
+        )
+
+
+class OPSCompilerSEQ(OPSMetaCompiler):
+
+    def __init__(self, *args, **kwargs):
+        super(OPSCompilerSEQ, self).__init__(*args, **kwargs)
+
+    def _compile(self, soname):
+        pass
+
+
 class CUDADeviceCompiler(OPSCompilerCUDA):
 
     def __init__(self, *args, **kwargs):
         super(CUDADeviceCompiler, self).__init__(*args, **kwargs)
         self.o_ext = '.o'
         self.cflags = ['-Xcompiler="-fPIC"', '-O3', '-g', '-gencode']
+
+        self._nv_arch = os.environ.get('NV_ARCH')
+        if not self._nv_arch:
+            raise ValueError("Select an NVIDIA device to compile in CUDA, e.g. \
+                NV_ARCH=Kepler")
 
         if(self._nv_arch == 'Fermi'):
             self.cflags.append('arch=compute_20,code=sm_21')
