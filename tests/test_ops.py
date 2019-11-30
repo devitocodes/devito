@@ -88,7 +88,8 @@ class TestOPSExpression(object):
 
         operator = Operator(eval(equation))
 
-        assert str(operator._ops_kernels[0]) == expected
+        for func in operator._func_table.values():
+            assert str(func.root) == expected
 
     @pytest.mark.parametrize('equation, expected', [
         ('Eq(u,3*a - 4**a)', '{ "ut0": [[0]] }'),

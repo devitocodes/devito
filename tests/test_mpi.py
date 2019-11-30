@@ -1491,6 +1491,34 @@ class TestOperatorAdvanced(object):
         assert np.isclose(norm(uxx), 80001.0304, rtol=1.e-4)
         assert np.isclose(norm(uxy), 61427.853, rtol=1.e-4)
 
+    @pytest.mark.parallel(mode=2)
+    def test_op_new_dist(self):
+        """
+        Test that an operator made with one distributor produces correct results
+        when executed with a different distributor.
+        """
+        grid = Grid(shape=(10, 10), comm=MPI.COMM_SELF)
+        grid2 = Grid(shape=(10, 10), comm=MPI.COMM_WORLD)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u2 = TimeFunction(name='u2', grid=grid2, space_order=2)
+
+        x, y = np.ix_(np.linspace(-1, 1, grid.shape[0]),
+                      np.linspace(-1, 1, grid.shape[1]))
+        dx = x - 0.5
+        dy = y
+        u.data[0, :, :] = 1.0 * ((dx*dx + dy*dy) < 0.125)
+        u2.data[0, :, :] = 1.0 * ((dx*dx + dy*dy) < 0.125)
+
+        # Create some operator that requires MPI communication
+        eqn = Eq(u.forward, u + 0.000001 * u.laplace)
+        op = Operator(eqn)
+
+        op.apply(u=u, time_M=10)
+        op.apply(u=u2, time_M=10)
+
+        assert abs(norm(u) - norm(u2)) < 1.e-3
+
 
 class TestIsotropicAcoustic(object):
 

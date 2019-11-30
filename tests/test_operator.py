@@ -965,6 +965,31 @@ class TestArguments(object):
         except:
             assert False
 
+    @skipif('nompi')
+    @pytest.mark.parallel(mode=1)
+    def test_new_distributor(self):
+        """
+        Test that `comm` and `nb` are correctly updated when a different distributor
+        from that it was originally built with is required by an operator.
+        Note that MPI is required to ensure `comm` and `nb` are included in op.objects.
+        """
+        from devito.mpi import MPI
+        grid = Grid(shape=(10, 10), comm=MPI.COMM_SELF)
+        grid2 = Grid(shape=(10, 10), comm=MPI.COMM_WORLD)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        u2 = TimeFunction(name='u2', grid=grid2, space_order=2)
+
+        # Create some operator that requires MPI communication
+        eqn = Eq(u.forward, u + u.laplace)
+        op = Operator(eqn)
+        assert op.arguments(u=u, time_M=0)['comm'] is grid.distributor._obj_comm.value
+        assert (op.arguments(u=u, time_M=0)['nb'] is
+                grid.distributor._obj_neighborhood.value)
+        assert op.arguments(u=u2, time_M=0)['comm'] is grid2.distributor._obj_comm.value
+        assert (op.arguments(u=u2, time_M=0)['nb'] is
+                grid2.distributor._obj_neighborhood.value)
+
 
 class TestDeclarator(object):
 
