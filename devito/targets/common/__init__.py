@@ -1,4 +1,3 @@
 from .blocking import *  # noqa
-from .parallelizer import (NThreads, NThreadsNested,  # noqa
-                           NThreadsNonaffine, Ompizer, OmpizerGPU)
+from .openmp import NThreads, NThreadsNested, NThreadsNonaffine, Ompizer, OmpizerGPU  # noqa
 from .rewriters import *  # noqa

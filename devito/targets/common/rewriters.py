@@ -9,7 +9,7 @@ from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL,
 from devito.logger import perf_adv, dle_warning as warning
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.targets.common.blocking import BlockDimension
-from devito.targets.common.parallelizer import Ompizer
+from devito.targets.common.openmp import Ompizer
 from devito.tools import DAG, as_tuple, filter_ordered, generator
 
 __all__ = ['State', 'dle_pass', 'avoid_denormals', 'loop_wrapping',
