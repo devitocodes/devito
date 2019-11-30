@@ -239,7 +239,7 @@ def test_makeit_ssa(exprs, exp_u, exp_v):
 
 
 @pytest.mark.parametrize('dse', ['noop', 'basic', 'advanced', 'aggressive'])
-@pytest.mark.parametrize('dle', ['noop', 'advanced', 'speculative'])
+@pytest.mark.parametrize('dle', ['noop', 'advanced'])
 def test_time_dependent_split(dse, dle):
     grid = Grid(shape=(10, 10))
     u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2, save=3)

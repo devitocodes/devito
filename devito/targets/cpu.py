@@ -10,7 +10,7 @@ from devito.targets.common import (Ompizer, _avoid_denormals,
                                    _minimize_remainders, _hoist_prodders)
 
 __all__ = ['CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter', 'ArmRewriter',
-           'SpeculativeRewriter', 'CustomRewriter']
+           'CustomRewriter']
 
 
 class CPU64Rewriter(PlatformRewriter):
@@ -39,24 +39,7 @@ ArmRewriter = CPU64Rewriter
 #TODO : the stuff below needs adding iet_insert_decls, iet_insert_casts, etc
 
 
-class SpeculativeRewriter(CPU64Rewriter):
-
-    def _pipeline(self, state):
-        # Optimization and parallelism
-        _avoid_denormals(state)
-        _optimize_halospots(state)
-        _loop_wrapping(state)
-        if self.params['mpi']:
-            _parallelize_dist(state, mode=self.params['mpi'])
-        _loop_blocking(state, blocker=self.blocker)
-        _simdize(state, simd_reg_size=self.platform.simd_reg_size)
-        if self.params['openmp']:
-            _parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
-        _minimize_remainders(state, simd_items_per_reg=self.platform.simd_items_per_reg)
-        _hoist_prodders(state)
-
-
-class CustomRewriter(SpeculativeRewriter):
+class CustomRewriter(CPU64Rewriter):
 
     def __init__(self, passes, params, platform):
         super(CustomRewriter, self).__init__(params, platform)

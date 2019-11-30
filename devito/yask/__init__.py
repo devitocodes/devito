@@ -102,8 +102,7 @@ add_sub_configuration(yask_configuration, env_vars_mapper)
 
 # Add YASK-specific Targets
 targets.add(Cpu64, {'noop': PlatformRewriter,
-                    'advanced': YaskRewriter,
-                    'speculative': YaskRewriter})
+                    'advanced': YaskRewriter})
 
 # The following used by backends.backendSelector
 from devito.types import SparseFunction, SparseTimeFunction  # noqa

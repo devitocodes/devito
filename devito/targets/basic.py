@@ -10,14 +10,16 @@ from devito.tools import Singleton
 __all__ = ['dle_registry', 'iet_lower', 'targets', 'PlatformRewriter']
 
 
-dle_registry = ('noop', 'advanced', 'speculative')
+dle_registry = ('noop', 'advanced')
 
 
 class TargetsMap(OrderedDict, metaclass=Singleton):
 
+    #TODO: update this
+
     """
     The DLE transformation modes. This is a dictionary ``P -> {M -> R}``,
-    where P is a Platform, M a rewrite mode (e.g., 'advanced', 'speculative'),
+    where P is a Platform, M a rewrite mode (e.g., 'advanced'),
     and R a Rewriter.
 
     This dictionary is to be modified at backend-initialization time by adding
@@ -106,9 +108,6 @@ def iet_lower(iet, mode='advanced', options=None):
                         optimizations (collapsing, nested parallelism, ...), MPI-related
                         optimizations (aggregation of communications, reshuffling of
                         communications, ...).
-        - ``speculative``: Apply all of the 'advanced' transformations, plus other
-                           transformations that might increase (or possibly decrease)
-                           performance.
     options : dict, optional
         - ``openmp``: Enable/disable OpenMP. Defaults to `configuration['openmp']`.
         - ``mpi``: Enable/disable MPI. Defaults to `configuration['mpi']`.

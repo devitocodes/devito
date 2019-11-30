@@ -9,8 +9,7 @@ from devito.targets import PlatformRewriter, targets
 
 # Add OPS-specific Targets
 targets.add(Cpu64, {'noop': PlatformRewriter,
-                    'advanced': PlatformRewriter,
-                    'speculative': PlatformRewriter})
+                    'advanced': PlatformRewriter})
 
 # The following used by backends.backendSelector
 from devito.ops.compiler import CompilerOPS as Compiler # noqa
