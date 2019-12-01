@@ -1,6 +1,3 @@
-from collections import OrderedDict
-from time import time
-
 import cgen
 
 from devito.ir.iet import (Call, Iteration, List, HaloSpot, Prodder, PARALLEL,
@@ -10,97 +7,12 @@ from devito.logger import perf_adv, dle_warning as warning
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.targets.common.blocking import BlockDimension
 from devito.targets.common.openmp import Ompizer
-from devito.tools import DAG, as_tuple, filter_ordered, generator
+from devito.targets.common.queue import dle_pass
+from devito.tools import as_tuple, generator
 
-__all__ = ['State', 'dle_pass', 'avoid_denormals', 'loop_wrapping',
-           'optimize_halospots', 'loop_blocking', 'parallelize_dist', 'simdize',
-           'parallelize_shm', 'minimize_remainders', 'hoist_prodders']
-
-
-class State(object):
-
-    def __init__(self, iet):
-        self._efuncs = OrderedDict([('root', iet)])
-
-        self.dimensions = []
-        self.includes = []
-
-        # Track performance of each pass
-        self.timings = OrderedDict()
-
-    @property
-    def root(self):
-        return self._efuncs['root']
-
-    @property
-    def efuncs(self):
-        return tuple(v for k, v in self._efuncs.items() if k != 'root')
-
-
-def process(func, state, **kwargs):
-    """
-    Apply ``func`` to the IETs in ``state._efuncs``, and update ``state`` accordingly.
-    """
-    # Create a Call graph. `func` will be applied to each node in the Call graph.
-    # `func` might change an `efunc` signature; the Call graph will be used to
-    # propagate such change through the `efunc` callers
-    dag = DAG(nodes=['root'])
-    queue = ['root']
-    while queue:
-        caller = queue.pop(0)
-        callees = FindNodes(Call).visit(state._efuncs[caller])
-        for callee in filter_ordered([i.name for i in callees]):
-            if callee in state._efuncs:  # Exclude foreign Calls, e.g., MPI calls
-                try:
-                    dag.add_node(callee)
-                    queue.append(callee)
-                except KeyError:
-                    # `callee` already in `dag`
-                    pass
-                dag.add_edge(callee, caller)
-    assert dag.size == len(state._efuncs)
-
-    # Apply `func`
-    for i in dag.topological_sort():
-        state._efuncs[i], metadata = func(state._efuncs[i], **kwargs)
-
-        # Track any new Dimensions introduced by `func`
-        state.dimensions.extend(list(metadata.get('dimensions', [])))
-
-        # Track any new #include required by `func`
-        state.includes.extend(list(metadata.get('includes', [])))
-        state.includes = filter_ordered(state.includes)
-
-        # Track any new ElementalFunctions
-        state._efuncs.update(OrderedDict([(i.name, i)
-                                          for i in metadata.get('efuncs', [])]))
-
-        # If there's a change to the `args` and the `iet` is an efunc, then
-        # we must update the call sites as well, as the arguments dropped down
-        # to the efunc have just increased
-        args = as_tuple(metadata.get('args'))
-        if args:
-            # `extif` avoids redundant updates to the parameters list, due
-            # to multiple children wanting to add the same input argument
-            extif = lambda v: list(v) + [e for e in args if e not in v]
-            stack = [i] + dag.all_downstreams(i)
-            for n in stack:
-                efunc = state._efuncs[n]
-                calls = [c for c in FindNodes(Call).visit(efunc) if c.name in stack]
-                mapper = {c: c._rebuild(arguments=extif(c.arguments)) for c in calls}
-                efunc = Transformer(mapper).visit(efunc)
-                if efunc.is_Callable:
-                    efunc = efunc._rebuild(parameters=extif(efunc.parameters))
-                state._efuncs[n] = efunc
-
-
-def dle_pass(func):
-    def wrapper(state, **kwargs):
-        tic = time()
-        process(func, state, **kwargs)
-        toc = time()
-        state.timings[func.__name__] = toc - tic
-    return wrapper
+__all__ = ['avoid_denormals', 'loop_wrapping', 'optimize_halospots',
+           'parallelize_dist', 'simdize', 'parallelize_shm', 'minimize_remainders',
+           'hoist_prodders']
 
 
 @dle_pass
@@ -111,10 +23,10 @@ def avoid_denormals(iet):
     are normally flushed when using SSE-based instruction sets, except when
     compiling shared objects.
     """
-    header = [cgen.Comment('Flush denormal numbers to zero in hardware'),
+    header = (cgen.Comment('Flush denormal numbers to zero in hardware'),
               cgen.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)'),
-              cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)')]
-    iet = List(header=header, body=iet)
+              cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)'))
+    iet = iet._rebuild(body=(List(header=header),) + iet.body)
     return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}
 
 
@@ -234,16 +146,6 @@ def optimize_halospots(iet):
     iet = Transformer(mapper).visit(iet)
 
     return iet, {}
-
-
-@dle_pass
-def loop_blocking(iet, **kwargs):
-    """
-    Apply hierarchical loop blocking to PARALLEL Iteration trees.
-    """
-    blocker = kwargs.pop('blocker')
-
-    return blocker.make_blocking(iet)
 
 
 @dle_pass

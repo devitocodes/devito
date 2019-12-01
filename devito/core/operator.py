@@ -9,11 +9,12 @@ __all__ = ['OperatorCore']
 
 class OperatorCore(Operator):
 
-    def _specialize_exprs(self, expressions):
+    @classmethod
+    def _specialize_exprs(cls, expressions):
         # Align data accesses to the computational domain
         key = lambda i: i.is_DiscreteFunction
         expressions = [align_accesses(e, key=key) for e in expressions]
-        return super(OperatorCore, self)._specialize_exprs(expressions)
+        return super(OperatorCore, cls)._specialize_exprs(expressions)
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:

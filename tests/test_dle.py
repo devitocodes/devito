@@ -11,8 +11,9 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimensi
                     Eq, Operator, switchconfig)
 from devito.exceptions import InvalidArgument
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
-                           FindSymbols, iet_analyze, retrieve_iteration_tree)
+from devito.ir.iet import (Call, Callable, Expression, Iteration, Conditional, FindNodes,
+                           FindSymbols, iet_analyze, derive_parameters,
+                           retrieve_iteration_tree)
 from devito.targets import BlockDimension, NThreads, NThreadsNonaffine, iet_lower
 from devito.targets.common.openmp import ParallelRegion
 from devito.tools import as_tuple
@@ -287,11 +288,14 @@ class TestNodeParallelism(object):
                                 exprs, expected, iters):
         scope = [fa, fb, fc, fd, t0, t1, t2, t3]
         node_exprs = [Expression(DummyEq(EVAL(i, *scope))) for i in exprs]
-        ast = iters[6](iters[7](node_exprs))
+        iet = iters[6](iters[7](node_exprs))
 
-        ast = iet_analyze(ast)
+        parameters = derive_parameters(iet, True)
+        iet = Callable('kernel', iet, 'int', parameters)
 
-        iet, _ = iet_lower(ast, mode='openmp')
+        iet = iet_analyze(iet)
+
+        iet, _ = iet_lower(iet, mode='openmp')
         iterations = FindNodes(Iteration).visit(iet)
         assert len(iterations) == len(expected)
 
@@ -498,10 +502,10 @@ class TestOffloading(object):
 
         assert trees[0][1].pragmas[0].value ==\
             'omp target teams distribute parallel for collapse(3)'
-        assert op.body[0].body[1][0].body[0].header[0].value ==\
+        assert op.body[0].body[0].header[0].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body[0].body[1][0].body[0].footer[0].value ==\
+        assert op.body[0].body[0].footer[0].value ==\
             ('omp target exit data map(from: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
 
@@ -521,11 +525,11 @@ class TestOffloading(object):
         assert trees[0][1].pragmas[0].value ==\
             'omp target teams distribute parallel for collapse(3)'
         for i, f in enumerate([u, v]):
-            assert op.body[0].body[2][0].body[0].header[i].value ==\
+            assert op.body[0].body[0].header[i].value ==\
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[0].body[2][0].body[0].footer[i].value ==\
+            assert op.body[0].body[0].footer[i].value ==\
                 ('omp target exit data map(from: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
@@ -554,9 +558,9 @@ def test_minimize_reminders_due_to_autopadding():
     op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': False}))
     op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': False}))
 
-    x0_blk_size = op1.parameters[5]
-    y0_blk_size = op1.parameters[9]
-    z_size = op1.parameters[-1]
+    x0_blk_size = op1.parameters[-2]
+    y0_blk_size = op1.parameters[-1]
+    z_size = op1.parameters[4]
 
     # Check Array shape
     arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]

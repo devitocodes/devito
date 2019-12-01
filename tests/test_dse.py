@@ -284,9 +284,9 @@ class TestAliases(object):
         op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
         op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
-        x0_blk_size = op1.parameters[6]
-        y0_blk_size = op1.parameters[10]
-        z_size = op1.parameters[-1]
+        x0_blk_size = op1.parameters[-3]
+        y0_blk_size = op1.parameters[-2]
+        z_size = op1.parameters[4]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
@@ -326,8 +326,8 @@ class TestAliases(object):
         op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
         op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
-        y0_blk_size = op1.parameters[9]
-        z_size = op1.parameters[-1]
+        y0_blk_size = op1.parameters[-2]
+        z_size = op1.parameters[3]
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array]
@@ -367,9 +367,9 @@ class TestAliases(object):
         op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
         op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
-        xi0_blk_size = op1.parameters[9]
-        yi0_blk_size = op1.parameters[15]
-        z_size = op1.parameters[20]
+        xi0_blk_size = op1.parameters[-3]
+        yi0_blk_size = op1.parameters[-2]
+        z_size = op1.parameters[4]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)

@@ -4,18 +4,27 @@ from cached_property import cached_property
 
 from devito.exceptions import DLEException
 from devito.targets.basic import PlatformRewriter
-from devito.targets.common import (Ompizer, avoid_denormals,
+from devito.targets.common import (Ompizer, avoid_denormals, insert_defs, insert_casts,
                                    optimize_halospots, parallelize_dist, loop_blocking,
                                    loop_wrapping, simdize, parallelize_shm,
                                    minimize_remainders, hoist_prodders)
 
-__all__ = ['CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter', 'ArmRewriter',
-           'CustomRewriter']
+__all__ = ['CPU64NoopRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter',
+           'ArmRewriter', 'CustomRewriter']
+#TODO: change all these Rewriter names
 
 
-class CPU64Rewriter(PlatformRewriter):
+class CPU64NoopRewriter(PlatformRewriter):
 
     _parallelizer_shm_type = Ompizer
+
+    def _pipeline(self, state):
+        # Symbol definitions
+        insert_defs(state)
+        insert_casts(state)
+
+
+class CPU64Rewriter(CPU64NoopRewriter):
 
     def _pipeline(self, state):
         # Optimization and parallelism
@@ -29,6 +38,10 @@ class CPU64Rewriter(PlatformRewriter):
             parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
         minimize_remainders(state, simd_items_per_reg=self.platform.simd_items_per_reg)
         hoist_prodders(state)
+
+        # Symbol definitions
+        insert_defs(state)
+        insert_casts(state)
 
 
 Intel64Rewriter = CPU64Rewriter
@@ -72,3 +85,7 @@ class CustomRewriter(CPU64Rewriter):
     def _pipeline(self, state):
         for i in self.passes:
             self.passes_mapper[i](state)
+
+        # Symbol definitions
+        insert_defs(state)
+        insert_casts(state)

@@ -6,7 +6,8 @@ import numpy as np
 
 from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
-from devito.ir.iet import MetaCall, Transformer, find_affine_trees
+from devito.ir.iet import (Expression, FindNodes, FindSymbols, Transformer,
+                           derive_parameters, find_affine_trees)
 from devito.ir.support import align_accesses
 from devito.operator import Operator
 from devito.tools import Signer, filter_ordered, flatten
@@ -31,20 +32,29 @@ class OperatorYASK(Operator):
     _default_headers = Operator._default_headers + ['#define restrict __restrict']
     _default_includes = Operator._default_includes + ['yask_kernel_api.hpp']
 
-    def __init__(self, expressions, **kwargs):
-        super(OperatorYASK, self).__init__(expressions, **kwargs)
+    def __new__(cls, expressions, **kwargs):
+        yk_solns = OrderedDict()
+        op = super(OperatorYASK, cls).__new__(cls, expressions, yk_solns=yk_solns,
+                                              **kwargs)
+
+        # Produced by `_specialize_iet`
+        op.yk_solns = yk_solns
+
         # Each YASK Operator needs to have its own compiler (hence the copy()
         # below) because Operator-specific shared object are added to the
         # list of linked libraries
-        self._compiler = configuration.yask['compiler'].copy()
-        self._compiler.libraries.extend([i.soname for i in self.yk_solns.values()])
+        op._compiler = configuration.yask['compiler'].copy()
+        op._compiler.libraries.extend([i.soname for i in op.yk_solns.values()])
 
-    def _specialize_exprs(self, expressions):
+        return op
+
+    @classmethod
+    def _specialize_exprs(cls, expressions):
         # Align data accesses to the computational domain if not a yask.Function
         key = lambda i: i.is_DiscreteFunction and not i.from_YASK
         expressions = [align_accesses(e, key=key) for e in expressions]
 
-        expressions = super(OperatorYASK, self)._specialize_exprs(expressions)
+        expressions = super(OperatorYASK, cls)._specialize_exprs(expressions)
 
         # No matter whether offloading will occur or not, all YASK vars accept
         # negative indices when using the get/set_element_* methods (up to the
@@ -53,7 +63,8 @@ class OperatorYASK(Operator):
                           dspace=e.dspace.zero([d for d in e.dimensions if d.is_Space]))
                 for e in expressions]
 
-    def _specialize_iet(self, iet, **kwargs):
+    @classmethod
+    def _specialize_iet(cls, iet, **kwargs):
         """
         Transform the Iteration/Expression tree to offload the computation of
         one or more loop nests onto YASK. This involves calling the YASK compiler
@@ -61,10 +72,19 @@ class OperatorYASK(Operator):
         transformed Iteration/Expression tree.
         """
         mapper = {}
-        self.yk_solns = OrderedDict()
+        yk_solns = kwargs.pop('yk_solns')
         for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
             dimensions = tuple(filter_ordered(i.dim.root for i in flatten(trees)))
-            context = contexts.fetch(dimensions, self._dtype)
+
+            # Retrieve the section dtype
+            exprs = FindNodes(Expression).visit(section)
+            dtypes = {e.dtype for e in exprs}
+            if len(dtypes) != 1:
+                log("Unable to offload in presence of mixed-precision arithmetic")
+                continue
+            dtype = dtypes.pop()
+
+            context = contexts.fetch(dimensions, dtype)
 
             # A unique name for the 'real' compiler and kernel solutions
             name = namespace['jit-soln'](Signer._digest(configuration,
@@ -81,16 +101,13 @@ class OperatorYASK(Operator):
                 yk_soln_obj = YaskSolnObject(namespace['code-soln-name'](n))
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'],
                                                  ['time'], yk_soln_obj)
-                funcall = Offloaded(funcall, self._dtype)
+                funcall = Offloaded(funcall, dtype)
                 mapper[trees[0].root] = funcall
                 mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
 
-                # Mark `funcall` as an external function call
-                self._func_table[namespace['code-soln-run']] = MetaCall(None, False)
-
                 # JIT-compile the newly-created YASK kernel
                 yk_soln = context.make_yk_solution(name, yc_soln, local_vars)
-                self.yk_solns[(dimensions, yk_soln_obj)] = yk_soln
+                yk_solns[(dimensions, yk_soln_obj)] = yk_soln
 
                 # Print some useful information about the newly constructed solution
                 log("Solution '%s' contains %d var(s) and %d equation(s)." %
@@ -100,27 +117,27 @@ class OperatorYASK(Operator):
                 log("Unable to offload a candidate tree. Reason: [%s]" % str(e))
         iet = Transformer(mapper).visit(iet)
 
-        if not self.yk_solns:
+        if not yk_solns:
             log("No offloadable trees found")
 
         # Some Iteration/Expression trees are not offloaded to YASK and may
-        # require further processing to be executed in YASK, due to the differences
-        # in storage layout employed by Devito and YASK
+        # require further processing to be executed through YASK, due to the
+        # different storage layout
         yk_var_objs = {i.name: YaskVarObject(i.name)
-                       for i in self._input
-                       if i.from_YASK}
-        yk_var_objs.update({i: YaskVarObject(i) for i in self._local_vars})
+                       for i in FindSymbols().visit(iet) if i.from_YASK}
+        yk_var_objs.update({i: YaskVarObject(i) for i in cls._get_local_vars(yk_solns)})
         iet = make_var_accesses(iet, yk_var_objs)
 
-        # Finally optimize all non-yaskized loops
-        iet = super(OperatorYASK, self)._specialize_iet(iet, **kwargs)
+        # The signature needs to be updated
+        parameters = derive_parameters(iet, True)
+        iet = iet._rebuild(parameters=parameters)
 
-        return iet
+        return super(OperatorYASK, cls)._specialize_iet(iet, **kwargs)
 
-    @property
-    def _local_vars(self):
+    @classmethod
+    def _get_local_vars(cls, yk_solns):
         ret = {}
-        for i in self.yk_solns.values():
+        for i in yk_solns.values():
             ret.update(i.local_vars)
         return ret
 
@@ -129,7 +146,7 @@ class OperatorYASK(Operator):
         # Add in solution pointers
         args.update({i.name: v.rawpointer for (_, i), v in self.yk_solns.items()})
         # Add in local vars pointers
-        for k, v in self._local_vars.items():
+        for k, v in OperatorYASK._get_local_vars(self.yk_solns).items():
             args[namespace['code-var-name'](k)] = ctypes.cast(int(v),
                                                               namespace['type-var'])
         return super(OperatorYASK, self).arguments(backend=args, **kwargs)

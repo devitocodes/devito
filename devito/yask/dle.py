@@ -1,5 +1,6 @@
 from devito.ir import FindNodes
-from devito.targets import Intel64Rewriter, Ompizer
+from devito.targets import (Intel64Rewriter, Ompizer, avoid_denormals, loop_wrapping,
+                            parallelize_shm, insert_defs, insert_casts)
 
 from devito.yask.utils import Offloaded
 
@@ -27,7 +28,12 @@ class YaskRewriter(Intel64Rewriter):
     _parallelizer_shm_type = YaskOmpizer
 
     def _pipeline(self, state):
-        self._avoid_denormals(state)
-        self._loop_wrapping(state)
+        # Optimization and parallelism
+        avoid_denormals(state)
+        loop_wrapping(state)
         if self.params['openmp']:
-            self._parallelize_shm(state)
+            parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
+
+        # Symbol definitions
+        insert_defs(state)
+        insert_casts(state)

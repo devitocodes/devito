@@ -1,6 +1,6 @@
 from devito.ir.iet import Iteration, FindNodes, Transformer, VECTOR
 from devito.targets.basic import PlatformRewriter
-from devito.targets.common import (OmpizerGPU, dle_pass,
+from devito.targets.common import (OmpizerGPU, dle_pass, insert_defs, insert_casts,
                                    optimize_halospots, parallelize_dist,
                                    parallelize_shm, hoist_prodders)
 
@@ -30,6 +30,7 @@ class DeviceOffloadingRewriter(PlatformRewriter):
     _parallelizer_shm_type = OmpizerGPU
 
     def _pipeline(self, state):
+        # Optimization and parallelism
         optimize_halospots(state)
         if self.params['mpi']:
             parallelize_dist(state, mode=self.params['mpi'])
@@ -37,3 +38,8 @@ class DeviceOffloadingRewriter(PlatformRewriter):
         if self.params['openmp']:
             parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
         hoist_prodders(state)
+
+        # Symbol definitions
+        #TODO
+        #insert_defs(state)
+        #insert_casts(state)

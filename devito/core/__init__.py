@@ -7,7 +7,7 @@ backend as well) are used to run Devito on standard CPU architectures.
 from devito.archinfo import Cpu64, Intel64, Arm, Power, Device
 from devito.parameters import Parameters, add_sub_configuration
 from devito.targets import (CPU64Rewriter, Intel64Rewriter, ArmRewriter, PowerRewriter,
-                            PlatformRewriter, CustomRewriter, DeviceOffloadingRewriter,
+                            CPU64NoopRewriter, CustomRewriter, DeviceOffloadingRewriter,
                             targets)
 
 core_configuration = Parameters('core')
@@ -15,19 +15,19 @@ env_vars_mapper = {}
 add_sub_configuration(core_configuration, env_vars_mapper)
 
 # Add core-specific Targets
-targets.add(Cpu64, {'noop': PlatformRewriter,
+targets.add(Cpu64, {'noop': CPU64NoopRewriter,
                     'advanced': CPU64Rewriter,
                     'custom': CustomRewriter})
-targets.add(Intel64, {'noop': PlatformRewriter,
+targets.add(Intel64, {'noop': CPU64NoopRewriter,
                       'advanced': Intel64Rewriter,
                       'custom': CustomRewriter})
-targets.add(Arm, {'noop': PlatformRewriter,
+targets.add(Arm, {'noop': CPU64NoopRewriter,
                   'advanced': ArmRewriter,
                   'custom': CustomRewriter})
-targets.add(Power, {'noop': PlatformRewriter,
+targets.add(Power, {'noop': CPU64NoopRewriter,
                     'advanced': PowerRewriter,
                     'custom': CustomRewriter})
-targets.add(Device, {'noop': PlatformRewriter,
+targets.add(Device, {'noop': CPU64NoopRewriter,
                      'advanced': DeviceOffloadingRewriter})
 
 # The following used by backends.backendSelector
