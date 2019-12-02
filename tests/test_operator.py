@@ -6,10 +6,12 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction)
-from devito.ir.iet import (Expression, Iteration, FindNodes, IsPerfectIteration,
+from devito.ir.equations import ClusterizedEq
+from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
+                           IsPerfectIteration, derive_parameters, iet_insert_decls,
                            retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
-from devito.symbolics import indexify, retrieve_indexed
+from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten
 from devito.types import Array, Scalar
 
@@ -1142,6 +1144,22 @@ class TestDeclarator(object):
   gettimeofday(&end_section0, NULL);
   timers->section0 += (double)(end_section0.tv_sec-start_section0.tv_sec)\
 +(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;""" in str(operator)
+
+    def test_conditional_declarations(self):
+        a = Array(name='a', dimensions=(x,), dtype=np.int32, scope='stack')
+        list_initialize = Expression(ClusterizedEq(Eq(a, ListInitializer([0, 0]))))
+        iet = Conditional(x < 3, list_initialize, list_initialize)
+        parameters = derive_parameters(iet, True)
+        iet = iet_insert_decls(iet, parameters)
+        assert str(iet[0]) == """\
+if (x < 3)
+{
+  int a[x_size] = {0, 0};
+}
+else
+{
+  int a[x_size] = {0, 0};
+}"""
 
 
 class TestLoopScheduling(object):

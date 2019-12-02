@@ -7,7 +7,7 @@ from devito.ir.iet import (ArrayCast, Expression, Increment, LocalExpression, El
                            ExpressionBundle, Transformer, FindNodes, FindSymbols,
                            MapExprStmts, XSubs, iet_analyze)
 from devito.symbolics import IntDiv, ccode, xreplace_indices
-from devito.tools import as_mapper, as_tuple
+from devito.tools import as_mapper, as_tuple, flatten
 from devito.types import ConditionalDimension
 
 __all__ = ['iet_build', 'iet_insert_decls', 'iet_insert_casts']
@@ -168,7 +168,7 @@ def iet_insert_decls(iet, external):
                         continue
                     elif i._mem_stack:
                         # On the stack
-                        allocator.push_object_on_stack(iet[0], i)
+                        allocator.push_array_on_stack(iet[0], i)
                     else:
                         # On the heap
                         allocator.push_array_on_heap(i)
@@ -199,16 +199,21 @@ class Allocator(object):
         self.stack = OrderedDict()
 
     def push_object_on_stack(self, scope, obj):
-        """Define an Array or a composite type (e.g., a struct) on the stack."""
+        """Define a LocalObject on the stack."""
+        handle = self.stack.setdefault(scope, OrderedDict())
+        handle[obj] = Element(c.Value(obj._C_typename, obj.name))
+
+    def push_array_on_stack(self, scope, obj):
+        """Define an Array on the stack."""
         handle = self.stack.setdefault(scope, OrderedDict())
 
-        if obj.is_LocalObject:
-            handle[obj] = Element(c.Value(obj._C_typename, obj.name))
-        else:
-            shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
-            alignment = "__attribute__((aligned(%d)))" % obj._data_alignment
-            value = "%s%s %s" % (obj.name, shape, alignment)
-            handle[obj] = Element(c.POD(obj.dtype, value))
+        if obj in flatten(self.stack.values()):
+            return
+
+        shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
+        alignment = "__attribute__((aligned(%d)))" % obj._data_alignment
+        value = "%s%s %s" % (obj.name, shape, alignment)
+        handle[obj] = Element(c.POD(obj.dtype, value))
 
     def push_scalar_on_stack(self, scope, expr):
         """Define a Scalar on the stack."""

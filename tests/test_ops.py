@@ -13,13 +13,15 @@ pytestmark = skipif('noops', whole_module=True)
 # thus invalidating all of the future tests. This is guaranteed by the
 # `pytestmark` above
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
+from devito.ir.equations import ClusterizedEq  # noqa
+from devito.ir.iet import Conditional, Expression, derive_parameters, iet_insert_decls  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil  # noqa
-from devito.ops.types import OpsAccessible, OpsDat, OpsStencil, OpsBlock  # noqa
+from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil, OpsBlock  # noqa
 from devito.ops.utils import namespace, AccessibleInfo, OpsDatDecl, OpsArgDecl  # noqa
-from devito.symbolics import Byref, Literal, indexify  # noqa
+from devito.symbolics import Byref, ListInitializer, Literal, indexify  # noqa
 from devito.tools import dtype_to_cstr  # noqa
-from devito.types import Buffer, Constant, Symbol  # noqa
+from devito.types import Buffer, Constant, DefaultDimension, Symbol  # noqa
 
 
 class TestOPSExpression(object):
@@ -272,10 +274,23 @@ class TestOPSExpression(object):
     ])
     def test_upper_bound(self, equation, expected):
         grid = Grid((5, 5))
-        u = TimeFunction(name='u', grid=grid) # noqa
+        u = TimeFunction(name='u', grid=grid)  # noqa
         op = Operator(eval(equation))
 
         assert expected in str(op.ccode)
+
+    @pytest.mark.parametrize('equation, declaration', [
+        ('Eq(u.forward, u+1)',
+         'int OPS_Kernel_0_range[4]')
+    ])
+    def test_single_declaration(self, equation, declaration):
+        grid = Grid((5, 5))
+        u = TimeFunction(name='u', grid=grid)  # noqa
+        op = Operator(eval(equation))
+
+        occurrences = [i for i in str(op.ccode).split('\n') if declaration in i]
+
+        assert len(occurrences) == 1
 
     @pytest.mark.parametrize('equation,expected', [
         ('Eq(u_2d.forward, u_2d + 1)',
