@@ -63,7 +63,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=ops INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=0 OPS_COMPILER=gnu OPS_INSTALL_PATH=$HOME/build/opesci/OPS/ops
+      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=ops INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=0 OPS_COMPILER=gnu OPS_INSTALL_PATH=$HOME/opesci/OPS/ops
 
 addons:
   apt:

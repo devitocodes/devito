@@ -5,7 +5,7 @@ import warnings
 from codepy.jit import compile_from_string
 from devito.logger import warning
 from devito.parameters import configuration
-
+from devito.archinfo import NVIDIAX
 
 __all__ = ['OPSCompiler']
 
@@ -41,9 +41,9 @@ class OPSCompiler(OPSMetaCompiler):
         except FileNotFoundError:
             warning("Couldn't find file: %s" % self.ops_src)
 
-        if configuration['platform'] == 'nvidiaX':
+        if configuration['platform'] is NVIDIAX:
             self._compile(soname)
-        elif configuration['platform'] == 'bdw':
+        elif configuration['platform'] is 'bdw':
             pass
 
     def _translate_ops(self, soname, ccode, hcode):
