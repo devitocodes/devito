@@ -2,8 +2,9 @@ from collections import OrderedDict
 from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, ROUNDABLE, AFFINE, OVERLAPPABLE, hoistable,
-                           useless, MapNodes, Transformer, retrieve_iteration_tree)
+                           VECTOR, TILABLE, WRAPPABLE, ROUNDABLE, AFFINE, OVERLAPPABLE,
+                           hoistable, useless, MapNodes, Transformer,
+                           retrieve_iteration_tree)
 from devito.ir.support import Forward, Scope
 from devito.tools import as_tuple, filter_ordered, flatten
 
@@ -45,6 +46,7 @@ def iet_analyze(iet):
     analysis = mark_iteration_wrappable(analysis)
     analysis = mark_iteration_roundable(analysis)
     analysis = mark_iteration_affine(analysis)
+    analysis = mark_iteration_tilable(analysis)
 
     # Analyze HaloSpots
     analysis = mark_halospot_useless(analysis)
@@ -123,6 +125,40 @@ def mark_iteration_parallel(analysis):
                               for k, v in properties.items()])
 
     analysis.update(properties)
+
+
+@propertizer
+def mark_iteration_tilable(analysis):
+    """
+    Update ``analysis`` detecting the TILABLE Iterations within ``analysis.iet``.
+    """
+    for tree in analysis.trees:
+        for n, i in enumerate(tree):
+            # An Iteration is TILABLE only if it's PARALLEL and AFFINE
+            if PARALLEL not in analysis.properties.get(i, []):
+                continue
+            if AFFINE not in analysis.properties.get(i, []):
+                continue
+
+            # In addition, we use the heuristic that we do not consider
+            # TILEABLE an Iteration that is not embedded in at least one
+            # SEQUENTIAL loop. This is to rule out tiling when the Iteration
+            # nest is not likely to be computationally intensive, thus
+            # improving code size and readability
+            if not any(SEQUENTIAL in analysis.properties.get(j, []) for j in tree[:n]):
+                continue
+
+            # Likewise, it won't be marked TILABLE if at least one Iteration
+            # is over a local SubDimension
+            if any(j.dim.is_Sub and j.dim.local for j in tree):
+                continue
+
+            # If it induces dynamic bounds in any of the inner Iterations,
+            # then it's ruled out too
+            if any(d.is_lex_non_stmt for d in analysis.scopes[i].d_all):
+                continue
+
+            analysis.update({i: TILABLE})
 
 
 @propertizer
