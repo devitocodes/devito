@@ -41,22 +41,6 @@ def get_blocksizes(op, dle, grid, blockshape, level=0):
         return {}
 
 
-def _new_operator1(shape, blockshape=None, dle=None):
-    blockshape = as_tuple(blockshape)
-    grid = Grid(shape=shape, dtype=np.int32)
-    infield = Function(name='infield', grid=grid)
-    infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
-    outfield = Function(name='outfield', grid=grid)
-
-    stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
-    op = Operator(stencil, dle=dle)
-
-    blocksizes = get_blocksizes(op, dle, grid, blockshape)
-    op(infield=infield, outfield=outfield, **blocksizes)
-
-    return outfield, op
-
-
 def _new_operator2(shape, time_order, blockshape=None, dle=None):
     blockshape = as_tuple(blockshape)
     grid = Grid(shape=shape, dtype=np.int32)
@@ -95,6 +79,14 @@ def _new_operator3(shape, blockshape0=None, blockshape1=None, dle=None):
     return u.data[1, :], op
 
 
+@pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
+def test_composite_transformation(shape):
+    wo_blocking, _ = _new_operator2(shape, time_order=2, dle='noop')
+    w_blocking, _ = _new_operator2(shape, time_order=2, dle='advanced')
+
+    assert np.equal(wo_blocking.data, w_blocking.data).all()
+
+
 @pytest.mark.parametrize("blockinner,exp_calls,exp_iters", [
     (False, 4, 5),
     (True, 8, 6)
@@ -102,8 +94,8 @@ def _new_operator3(shape, blockshape0=None, blockshape1=None, dle=None):
 @patch("devito.targets.common.openmp.Ompizer.COLLAPSE_NCORES", 1)
 def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     # Check code structure
-    _, op = _new_operator1((10, 31, 45), dle=('blocking', {'blockalways': True,
-                                                           'blockinner': blockinner}))
+    _, op = _new_operator2((10, 31, 45), time_order=2,
+                           dle=('blocking', {'blockinner': blockinner}))
     calls = FindNodes(Call).visit(op)
     assert len(calls) == exp_calls
     trees = retrieve_iteration_tree(op._func_table['bf0'].root)
@@ -120,10 +112,8 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     assert not isinstance(tree[4].dim, BlockDimension)
 
     # Check presence of openmp pragmas at the right place
-    _, op = _new_operator1((10, 31, 45), dle=('blocking',
-                                              {'openmp': True,
-                                               'blockalways': True,
-                                               'blockinner': blockinner}))
+    _, op = _new_operator2((10, 31, 45), time_order=2,
+                           dle=('blocking', {'openmp': True, 'blockinner': blockinner}))
     trees = retrieve_iteration_tree(op._func_table['bf0'].root)
     assert len(trees) == 1
     tree = trees[0]
@@ -171,21 +161,9 @@ def test_cache_blocking_structure_subdims():
     assert not isinstance(tree[2].dim, BlockDimension)
 
 
-@pytest.mark.parametrize("shape", [(10,), (10, 45), (10, 31, 45)])
-@pytest.mark.parametrize("blockshape", [(2,), (7,), (3, 3), (2, 9, 1)])
-@pytest.mark.parametrize("blockinner", [False, True])
-def test_cache_blocking_no_time_loop(shape, blockshape, blockinner):
-    wo_blocking, _ = _new_operator1(shape, dle='noop')
-    w_blocking, _ = _new_operator1(shape, blockshape, dle=('blocking',
-                                                           {'blockalways': True,
-                                                            'blockinner': blockinner}))
-
-    assert np.equal(wo_blocking.data, w_blocking.data).all()
-
-
-@pytest.mark.parametrize("shape", [(20, 33), (45, 31, 45)])
+@pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45), (45, 31, 45)])
 @pytest.mark.parametrize("time_order", [2])
-@pytest.mark.parametrize("blockshape", [2, (13, 20), (11, 15, 23)])
+@pytest.mark.parametrize("blockshape", [2, (3, 3), (9, 20), (2, 9, 11), (7, 15, 23)])
 @pytest.mark.parametrize("blockinner", [False, True])
 def test_cache_blocking_time_loop(shape, time_order, blockshape, blockinner):
     wo_blocking, _ = _new_operator2(shape, time_order, dle='noop')
@@ -604,11 +582,3 @@ def test_minimize_reminders_due_to_autopadding():
     u.data_with_halo[:] = 0.
     op1(time_M=1)
     assert np.all(u.data == exp)
-
-
-@pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
-def test_composite_transformation(shape):
-    wo_blocking, _ = _new_operator1(shape, dle='noop')
-    w_blocking, _ = _new_operator1(shape, dle='advanced')
-
-    assert np.equal(wo_blocking.data, w_blocking.data).all()

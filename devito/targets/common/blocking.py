@@ -17,9 +17,8 @@ __all__ = ['Blocker', 'BlockDimension']
 
 class Blocker(object):
 
-    def __init__(self, blockinner, blockalways, nlevels):
+    def __init__(self, blockinner, nlevels):
         self.blockinner = bool(blockinner)
-        self.blockalways = bool(blockalways)
         self.nlevels = nlevels
 
         self.nblocked = 0
@@ -42,22 +41,6 @@ class Blocker(object):
             if len(iterations) <= 1:
                 continue
             root = iterations[0]
-            if not self.blockalways:
-                # Heuristically bypass loop blocking if we think `tree`
-                # won't be computationally expensive. This will help with code
-                # size/readbility, JIT time, and auto-tuning time
-                if not (tree.root.is_Sequential or iet.is_Callable):
-                    # E.g., not inside a time-stepping Iteration
-                    continue
-                if any(i.dim.is_Sub and i.dim.local for i in tree):
-                    # At least an outer Iteration is over a local SubDimension,
-                    # which suggests the computational cost of this Iteration
-                    # nest will be negligible w.r.t. the "core" Iteration nest
-                    # (making use of non-local (Sub)Dimensions only)
-                    continue
-            if not IsPerfectIteration().visit(root):
-                # Don't know how to block non-perfect nests
-                continue
 
             # Apply hierarchical loop blocking to `tree`
             level_0 = []  # Outermost level of blocking

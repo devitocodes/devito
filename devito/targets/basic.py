@@ -67,11 +67,8 @@ class PlatformRewriter(object):
         self.platform = platform
 
         # Iteration blocker (i.e., for "loop blocking")
-        self.blocker = Blocker(
-            params.get('blockinner'),
-            params.get('blockalways'),
-            params.get('blocklevels') or self._default_blocking_levels
-        )
+        self.blocker = Blocker(params.get('blockinner'),
+                               params.get('blocklevels') or self._default_blocking_levels)
 
         # Shared-memory parallelizer
         self.parallelizer_shm = self._parallelizer_shm_type()
@@ -114,9 +111,6 @@ def iet_lower(iet, mode='advanced', options=None):
         - ``blockinner``: Enable/disable blocking of innermost loops. By default,
                           this is disabled to maximize SIMD vectorization. Pass True
                           to override this heuristic.
-        - ``blockalways``: Pass True to unconditionally apply loop blocking, even when
-                           the compiler heuristically thinks that it might not be
-                           profitable and/or dangerous for performance.
         - ``blocklevels``: Levels of blocking for hierarchical tiling (blocks,
                            sub-blocks, sub-sub-blocks, ...). Different Platforms have
                            different default values.
@@ -136,7 +130,6 @@ def iet_lower(iet, mode='advanced', options=None):
     # Default options
     params = {}
     params['blockinner'] = configuration['dle-options'].get('blockinner', False)
-    params['blockalways'] = configuration['dle-options'].get('blockalways', False)
     params['blocklevels'] = configuration['dle-options'].get('blocklevels', None)
     params['openmp'] = configuration['openmp']
     params['mpi'] = configuration['mpi']
