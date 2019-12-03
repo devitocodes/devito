@@ -36,7 +36,7 @@ class Blocker(object):
         block_dims = []
         for tree in retrieve_iteration_tree(iet):
             # Is the Iteration tree blockable ?
-            iterations = filter_iterations(tree, lambda i: i.is_Parallel and i.is_Affine)
+            iterations = filter_iterations(tree, lambda i: i.is_Tilable)
             if not self.blockinner:
                 iterations = iterations[:-1]
             if len(iterations) <= 1:
