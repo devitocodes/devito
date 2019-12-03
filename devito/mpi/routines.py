@@ -15,7 +15,7 @@ from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBu
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro)
-from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten, generator
+from devito.tools import OrderedSet, dtype_to_mpitype, dtype_to_ctype, flatten, generator
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
 
 __all__ = ['HaloExchangeBuilder']
@@ -48,6 +48,7 @@ class HaloExchangeBuilder(object):
 
         obj._cache_halo = OrderedDict()
         obj._cache_dims = OrderedDict()
+        obj._objs = OrderedSet()
         obj._regions = OrderedDict()
         obj._msgs = OrderedDict()
         obj._efuncs = []
@@ -68,7 +69,7 @@ class HaloExchangeBuilder(object):
 
     @property
     def objs(self):
-        return self.msgs + self.regions
+        return list(self._objs) + self.msgs + self.regions
 
     def make(self, hs):
         """
@@ -290,6 +291,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         self._cache_halo[(f.ndim, hse)] = (haloupdate, halowait)
         self._efuncs.append(haloupdate)
+        self._objs.add(f.grid.distributor._obj_comm)
+        self._objs.add(f.grid.distributor._obj_neighborhood)
 
         return haloupdate, halowait
 
@@ -527,6 +530,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         self._cache_halo[(f.ndim, hse)] = (haloupdate, halowait)
         self._efuncs.extend([haloupdate, halowait])
+        self._objs.add(f.grid.distributor._obj_comm)
+        self._objs.add(f.grid.distributor._obj_neighborhood)
 
         return haloupdate, halowait
 
@@ -689,6 +694,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
             _, _, haloupdate, halowait = self._cache_dims[f.dimensions]
 
         self._cache_halo[(f.ndim, hse)] = (haloupdate, halowait)
+        self._objs.add(f.grid.distributor._obj_comm)
 
         return haloupdate, halowait
 
