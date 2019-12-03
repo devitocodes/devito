@@ -520,7 +520,6 @@ class SubDomainSet(SubDomain):
             self.implicit_dimension = n
         self._n_domains = kwargs.get('N', 1)
         self._bounds = kwargs.get('bounds', None)
-        self._implicit_exprs = None
 
     def __subdomain_finalize__(self, dimensions, shape):
         # Create the SubDomain's SubDimensions
