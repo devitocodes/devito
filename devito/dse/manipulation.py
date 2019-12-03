@@ -295,14 +295,18 @@ def _topological_sort(exprs):
     # Append tensor equations at the end in user-provided order
     processed_ordered = []
     for p in processed:
-        # Tensor equation was required for the sorting, add all up to that
-        # equation
         if p in tensors:
+            # Tensor equation was required for the sorting, add all tensor equations
+            # up to that one to satisfy order
             j = tensors.index(p)
-            processed_ordered.extend(tensors[:j+1])
+            for t in tensors[:j+1]:
+                if t not in processed_ordered:
+                    processed_ordered.extend([t])
             tensors = tensors[j+1:]
         else:
+            # Temporary, nothing to do
             processed_ordered.extend([p])
+    # Add remainging tensor equations
     processed_ordered.extend(tensors)
 
     return processed_ordered
