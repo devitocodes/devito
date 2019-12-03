@@ -284,14 +284,25 @@ def _topological_sort(exprs):
                 # Avoid cyclic dependences, such as
                 # Eq(f, f + 1)
                 continue
-            elif r.is_Indexed:
-                # Only scalars enforce an ordering
+            elif r.is_Indexed and e.lhs in retrieve_terminals(mapper[r].rhs):
+                # Cyclic dependencies stay "as is" ie
+                # [Eq(r1, u + 1), Eq(u, r1 + 2)]
                 continue
             else:
                 dag.add_edge(mapper[r], e, force_add=True)
     processed = dag.topological_sort()
 
     # Append tensor equations at the end in user-provided order
-    processed.extend(tensors)
+    processed_ordered = []
+    for p in processed:
+        # Tensor equation was required for the sorting, add all up to that
+        # equation
+        if p in tensors:
+            j = tensors.index(p)
+            processed_ordered.extend(tensors[:j+1])
+            tensors = tensors[j+1:]
+        else:
+            processed_ordered.extend([p])
+    processed_ordered.extend(tensors)
 
-    return processed
+    return processed_ordered

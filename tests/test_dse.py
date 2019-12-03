@@ -9,7 +9,8 @@ from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunctio
 from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
 from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect, make_is_time_invariant
-from devito.symbolics import yreplace, estimate_cost, pow_to_mul
+from devito.dse.manipulation import _topological_sort
+from devito.symbolics import yreplace, estimate_cost, pow_to_mul, indexify
 from devito.tools import generator
 from devito.types import Scalar
 
@@ -18,6 +19,42 @@ from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
 pytestmark = skipif(['yask', 'ops'])
+
+
+@pytest.mark.parametrize('expected', [
+    ['Eq(r3, 1/h_x)',
+     'Eq(r2, 1/dt)',
+     'Eq(d[t + 1, x, y],'
+     ' 0.0833333333*r3*d[t, x - 2, y] - 0.666666667*r3*d[t, x - 1, y] +'
+     ' 0.666666667*r3*d[t, x + 1, y] - 0.0833333333*r3*d[t, x + 2, y] + 1)',
+     'Eq(a[t + 1, x, y],'
+     ' 0.0833333333*r3*a[t, x - 2, y] - 0.666666667*r3*a[t, x - 1, y] +'
+     ' 0.666666667*r3*a[t, x + 1, y] - 0.0833333333*r3*a[t, x + 2, y] + 1)',
+     'Eq(r1, -r2*a[t, x, y])',
+     'Eq(r0, r2*a[t + 1, x, y])',
+     'Eq(b[t + 1, x, y], r0 + r1 + 1)',
+     'Eq(c[t + 1, x, y], r0 + r1 + 2)']])
+def test_topological_sorting(expected):
+    """
+    Test that verifies that:
+    - Temporaries are sorted according to dependencies
+    - Temporaries are not moved before and equation that defines its rhs
+    """
+    grid = Grid((10, 10))
+    a = TimeFunction(name="a", grid=grid, space_order=4)
+    b = TimeFunction(name="b", grid=grid, space_order=4)
+    c = TimeFunction(name="c", grid=grid, space_order=4)
+    d = TimeFunction(name="d", grid=grid, space_order=4)
+
+    eq1 = indexify(Eq(d.forward, d.dx + 1).evaluate)
+    eq2 = indexify(Eq(a.forward, a.dx + 1).evaluate)
+    eq3 = indexify(Eq(b.forward, a.dt + 1).evaluate)
+    eq4 = indexify(Eq(c.forward, a.dt + 2).evaluate)
+    counter = generator()
+    make = lambda: Scalar(name='r%d' % counter()).indexify()
+    processed = common_subexprs_elimination([eq1, eq2, eq3, eq4], make)
+    processed = _topological_sort(processed)
+    assert np.all([str(p) == e for p, e in zip(processed, expected)])
 
 
 def test_scheduling_after_rewrite():
