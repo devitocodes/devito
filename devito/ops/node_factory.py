@@ -71,7 +71,7 @@ class OPSNodeFactory(object):
 
     def new_ops_gbl(self, expr):
         if expr not in self.ops_args:
-            param = RawAccessible(expr.name, expr.dtype)
+            param = RawAccessible(name=expr.name, dtype=expr.dtype)
             self.ops_args[expr] = AccessibleInfo(param, None, None, None)
             self.ops_params.append(param)
 

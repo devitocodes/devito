@@ -46,6 +46,17 @@ class RawAccess(basic.Basic, sympy.Basic):
     def __repr__(self):
         return self.base._C_name
 
+    def _eval_power(self, other):
+        # subclass to compute self**other for cases when
+        # other is not NaN, 0, or 1
+        return None
+
+    def as_coeff_Mul(self):
+        return sympy.S.One, self
+
+    def as_coeff_Add(self):
+        return sympy.S.Zero, self
+
 
 class OpsAccessible(basic.Symbol):
     """
@@ -146,6 +157,9 @@ class OpsAccess(basic.Basic, sympy.Basic):
         return (self,)
 
     __repr__ = __str__
+
+    def as_base_exp(self):
+        return self.args, sympy.S.One
 
 
 class OpsBlock(basic.Symbol):
