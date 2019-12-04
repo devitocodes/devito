@@ -1,13 +1,9 @@
-from functools import reduce
-from operator import mul
-
 import pytest
 import numpy as np
 from unittest.mock import patch
 
 from conftest import skipif
-from devito import (Grid, Function, TimeFunction, Eq, Operator, configuration,
-                    switchconfig)
+from devito import Grid, TimeFunction, Eq, Operator, configuration, switchconfig
 from devito.data import LEFT
 
 pytestmark = skipif(['yask', 'ops'], whole_module=True)
