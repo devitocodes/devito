@@ -1186,7 +1186,7 @@ class TestLoopScheduling(object):
         assert all(len(i) == 1 for i in trees)
         trees = [i[0] for i in trees]
         for tree in trees:
-            assert IsPerfectIteration().visit(tree[0])
+            assert IsPerfectIteration().visit(tree[1])
             exprs = FindNodes(Expression).visit(tree[-1])
             assert len(exprs) == 3
 
