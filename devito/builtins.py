@@ -12,7 +12,7 @@ __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function', 'norm',
            'sumall', 'inner', 'mmin', 'mmax']
 
 
-def assign(f, rhs=0, options=None, name='assign', **kwargs):
+def assign(f, rhs=0, options=None, name='assign', save=False, **kwargs):
     """
     Assign a list of RHSs to a list of Functions.
 
@@ -98,7 +98,7 @@ def smooth(f, g, axis=None):
         dv.Operator(dv.Eq(f, g.avg(dims=axis)), name='smoother')()
 
 
-def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
+def gaussian_smooth(f, sigma=1, truncate=4.0, save=False, mode='reflect'):
     """
     Gaussian smooth function.
 
@@ -203,7 +203,7 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
 
 
 def initialize_function(function, data, nbl, mapper=None, mode='constant',
-                        name='padfunc'):
+                        name='padfunc', save=False):
     """
     Initialize a Function with the given ``data``. ``data``
     does *not* include the ``nbl`` outer/boundary layers; these are added via padding
