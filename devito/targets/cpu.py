@@ -4,9 +4,9 @@ from cached_property import cached_property
 
 from devito.exceptions import DLEException
 from devito.targets.basic import PlatformRewriter
-from devito.targets.common import (Ompizer, avoid_denormals, insert_defs, insert_casts,
-                                   optimize_halospots, parallelize_dist, loop_blocking,
-                                   loop_wrapping, simdize, parallelize_shm,
+from devito.targets.common import (Blocker, Ompizer, avoid_denormals, insert_defs,
+                                   insert_casts, optimize_halospots, parallelize_dist,
+                                   loop_blocking, loop_wrapping, simdize, parallelize_shm,
                                    minimize_remainders, hoist_prodders)
 
 __all__ = ['CPU64NoopRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewriter',
@@ -16,8 +16,6 @@ __all__ = ['CPU64NoopRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewrit
 
 class CPU64NoopRewriter(PlatformRewriter):
 
-    _parallelizer_shm_type = Ompizer
-
     def _pipeline(self, state):
         # Symbol definitions
         insert_defs(state)
@@ -25,6 +23,23 @@ class CPU64NoopRewriter(PlatformRewriter):
 
 
 class CPU64Rewriter(CPU64NoopRewriter):
+
+    #TODO: move this
+    _default_blocking_levels = 1
+    """
+    Depth of the loop blocking hierarchy. 1 => "blocks", 2 => "blocks" and "sub-blocks",
+    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
+    """
+
+    def __init__(self, params, platform):
+        super(CPU64Rewriter, self).__init__(params, platform)
+
+        # Iteration blocker (i.e., for "loop blocking")
+        self.blocker = Blocker(params.get('blockinner'),
+                               params.get('blocklevels') or self._default_blocking_levels)
+
+        # Shared-memory parallelizer
+        self.parallelizer_shm = Ompizer()
 
     def _pipeline(self, state):
         # Optimization and parallelism

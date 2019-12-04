@@ -27,7 +27,11 @@ def simdize(iet):
 
 class DeviceOffloadingRewriter(PlatformRewriter):
 
-    _parallelizer_shm_type = OmpizerGPU
+    def __init__(self, params, platform):
+        super(DeviceOffloadingRewriter, self).__init__(params, platform)
+
+        # Shared-memory parallelizer
+        self.parallelizer_shm = OmpizerGPU()
 
     def _pipeline(self, state):
         # Optimization and parallelism

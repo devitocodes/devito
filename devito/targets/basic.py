@@ -4,7 +4,7 @@ from devito.archinfo import Platform
 from devito.ir.iet import Node
 from devito.logger import dle as log, dle_warning as warning
 from devito.parameters import configuration
-from devito.targets.common import Blocker, State
+from devito.targets.common import State
 from devito.tools import Singleton
 
 __all__ = ['dle_registry', 'iet_lower', 'targets', 'PlatformRewriter']
@@ -53,25 +53,9 @@ class PlatformRewriter(object):
     optimizations, parallelism, etc.
     """
 
-    _parallelizer_shm_type = None
-    """The shared-memory parallelizer."""
-
-    _default_blocking_levels = 1
-    """
-    Depth of the loop blocking hierarchy. 1 => "blocks", 2 => "blocks" and "sub-blocks",
-    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
-    """
-
     def __init__(self, params, platform):
         self.params = params
         self.platform = platform
-
-        # Iteration blocker (i.e., for "loop blocking")
-        self.blocker = Blocker(params.get('blockinner'),
-                               params.get('blocklevels') or self._default_blocking_levels)
-
-        # Shared-memory parallelizer
-        self.parallelizer_shm = self._parallelizer_shm_type()
 
     def process(self, iet):
         state = State(iet)
