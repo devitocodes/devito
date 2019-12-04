@@ -1,10 +1,14 @@
+from functools import partial
+
+from cached_property import cached_property
+
 from devito.ir import FindNodes
-from devito.targets import (Intel64Rewriter, Ompizer, avoid_denormals, loop_wrapping,
-                            parallelize_shm, insert_defs, insert_casts)
+from devito.targets import (CustomRewriter, Intel64Rewriter, Ompizer, avoid_denormals,
+                            loop_wrapping, parallelize_shm, insert_defs, insert_casts)
 
 from devito.yask.utils import Offloaded
 
-__all__ = ['YaskRewriter']
+__all__ = ['YaskRewriter', 'YaskCustomRewriter']
 
 
 class YaskOmpizer(Ompizer):
@@ -37,3 +41,14 @@ class YaskRewriter(Intel64Rewriter):
         # Symbol definitions
         insert_defs(state)
         insert_casts(state)
+
+
+class YaskCustomRewriter(CustomRewriter, YaskRewriter):
+
+    @cached_property
+    def passes_mapper(self):
+        return {
+            'denormals': partial(avoid_denormals),
+            'wrapping': partial(loop_wrapping),
+            'openmp': partial(parallelize_shm, parallelizer_shm=self.parallelizer_shm)
+        }

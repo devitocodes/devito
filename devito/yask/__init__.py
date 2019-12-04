@@ -13,7 +13,7 @@ from devito.parameters import Parameters, configuration, add_sub_configuration
 from devito.targets import CPU64NoopRewriter, targets
 from devito.tools import make_tempdir
 
-from devito.yask.dle import YaskRewriter
+from devito.yask.dle import YaskRewriter, YaskCustomRewriter
 from devito.yask.utils import namespace
 
 
@@ -102,7 +102,8 @@ add_sub_configuration(yask_configuration, env_vars_mapper)
 
 # Add YASK-specific Targets
 targets.add(Cpu64, {'noop': CPU64NoopRewriter,
-                    'advanced': YaskRewriter})
+                    'advanced': YaskRewriter,
+                    'custom': YaskCustomRewriter})
 
 # The following used by backends.backendSelector
 from devito.types import SparseFunction, SparseTimeFunction  # noqa
