@@ -43,7 +43,7 @@ class OPSCompiler(OPSMetaCompiler):
 
         if configuration['platform'] is NVIDIAX:
             self._compile(soname)
-        elif configuration['platform'] is 'bdw':
+        elif configuration['platform'] == 'bdw':
             pass
 
     def _translate_ops(self, soname, ccode, hcode):
