@@ -126,7 +126,9 @@ def iet_lower(iet, mode='advanced', options=None):
             params[k] = v
 
     # Force OpenMP/MPI if parallelism was requested, even though mode is 'noop'
-    if mode is None or mode == 'noop':
+    if mode is None:
+        mode = 'noop'
+    elif mode == 'noop':
         mode = tuple(i for i in ['mpi', 'openmp'] if params[i]) or 'noop'
 
     # Fetch the requested rewriter
