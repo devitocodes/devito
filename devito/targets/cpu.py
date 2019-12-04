@@ -16,10 +16,10 @@ __all__ = ['CPU64NoopRewriter', 'CPU64Rewriter', 'Intel64Rewriter', 'PowerRewrit
 
 class CPU64NoopRewriter(PlatformRewriter):
 
-    def _pipeline(self, state):
+    def _pipeline(self, graph):
         # Symbol definitions
-        insert_defs(state)
-        insert_casts(state)
+        insert_defs(graph)
+        insert_casts(graph)
 
 
 class CPU64Rewriter(CPU64NoopRewriter):
@@ -41,22 +41,22 @@ class CPU64Rewriter(CPU64NoopRewriter):
         # Shared-memory parallelizer
         self.parallelizer_shm = Ompizer()
 
-    def _pipeline(self, state):
+    def _pipeline(self, graph):
         # Optimization and parallelism
-        avoid_denormals(state)
-        optimize_halospots(state)
+        avoid_denormals(graph)
+        optimize_halospots(graph)
         if self.params['mpi']:
-            parallelize_dist(state, mode=self.params['mpi'])
-        loop_blocking(state, blocker=self.blocker)
-        simdize(state, simd_reg_size=self.platform.simd_reg_size)
+            parallelize_dist(graph, mode=self.params['mpi'])
+        loop_blocking(graph, blocker=self.blocker)
+        simdize(graph, simd_reg_size=self.platform.simd_reg_size)
         if self.params['openmp']:
-            parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
-        minimize_remainders(state, simd_items_per_reg=self.platform.simd_items_per_reg)
-        hoist_prodders(state)
+            parallelize_shm(graph, parallelizer_shm=self.parallelizer_shm)
+        minimize_remainders(graph, simd_items_per_reg=self.platform.simd_items_per_reg)
+        hoist_prodders(graph)
 
         # Symbol definitions
-        insert_defs(state)
-        insert_casts(state)
+        insert_defs(graph)
+        insert_casts(graph)
 
 
 Intel64Rewriter = CPU64Rewriter
@@ -97,10 +97,10 @@ class CustomRewriter(CPU64Rewriter):
             'prodders': partial(hoist_prodders)
         }
 
-    def _pipeline(self, state):
+    def _pipeline(self, graph):
         for i in self.passes:
-            self.passes_mapper[i](state)
+            self.passes_mapper[i](graph)
 
         # Symbol definitions
-        insert_defs(state)
-        insert_casts(state)
+        insert_defs(graph)
+        insert_casts(graph)

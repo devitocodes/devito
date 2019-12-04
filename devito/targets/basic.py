@@ -4,7 +4,7 @@ from devito.archinfo import Platform
 from devito.ir.iet import Node
 from devito.logger import dle as log, dle_warning as warning
 from devito.parameters import configuration
-from devito.targets.common import State
+from devito.targets.common import Graph
 from devito.tools import Singleton
 
 __all__ = ['dle_registry', 'iet_lower', 'targets', 'PlatformRewriter']
@@ -58,13 +58,13 @@ class PlatformRewriter(object):
         self.platform = platform
 
     def process(self, iet):
-        state = State(iet)
+        graph = Graph(iet)
 
-        self._pipeline(state)
+        self._pipeline(graph)
 
-        return state
+        return graph
 
-    def _pipeline(self, state):
+    def _pipeline(self, graph):
         """The rewrite passes."""
         return
 
@@ -140,19 +140,19 @@ def iet_lower(iet, mode='advanced', options=None):
         rewriter = targets.fetch(platform, 'custom')(mode, params, platform)
 
     # Trigger the DLE passes
-    state = rewriter.process(iet)
+    graph = rewriter.process(iet)
 
     # Print out the profiling data
-    print_profiling(state)
+    print_profiling(graph)
 
-    return state.root, state
+    return graph.root, graph
 
 
-def print_profiling(state):
+def print_profiling(graph):
     """
     Print a summary of the applied transformations.
     """
-    timings = state.timings
+    timings = graph.timings
 
     if configuration['profiling'] in ['basic', 'advanced']:
         row = "%s (elapsed: %.2f s)"

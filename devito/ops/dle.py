@@ -95,10 +95,10 @@ def make_ops_kernels(iet):
 
 class OpsRewriter(PlatformRewriter):
 
-    def _pipeline(self, state):
+    def _pipeline(self, graph):
         # Optimization and parallelism
-        make_ops_kernels(state)
+        make_ops_kernels(graph)
 
         # Symbol definitions
-        insert_defs(state)
-        insert_casts(state)
+        insert_defs(graph)
+        insert_casts(graph)

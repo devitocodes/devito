@@ -33,17 +33,17 @@ class DeviceOffloadingRewriter(PlatformRewriter):
         # Shared-memory parallelizer
         self.parallelizer_shm = OmpizerGPU()
 
-    def _pipeline(self, state):
+    def _pipeline(self, graph):
         # Optimization and parallelism
-        optimize_halospots(state)
+        optimize_halospots(graph)
         if self.params['mpi']:
-            parallelize_dist(state, mode=self.params['mpi'])
-        simdize(state)
+            parallelize_dist(graph, mode=self.params['mpi'])
+        simdize(graph)
         if self.params['openmp']:
-            parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
-        hoist_prodders(state)
+            parallelize_shm(graph, parallelizer_shm=self.parallelizer_shm)
+        hoist_prodders(graph)
 
         # Symbol definitions
         #TODO
-        #insert_defs(state)
-        #insert_casts(state)
+        #insert_defs(graph)
+        #insert_casts(graph)

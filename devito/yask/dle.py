@@ -31,16 +31,16 @@ class YaskRewriter(Intel64Rewriter):
 
     _parallelizer_shm_type = YaskOmpizer
 
-    def _pipeline(self, state):
+    def _pipeline(self, graph):
         # Optimization and parallelism
-        avoid_denormals(state)
-        loop_wrapping(state)
+        avoid_denormals(graph)
+        loop_wrapping(graph)
         if self.params['openmp']:
-            parallelize_shm(state, parallelizer_shm=self.parallelizer_shm)
+            parallelize_shm(graph, parallelizer_shm=self.parallelizer_shm)
 
         # Symbol definitions
-        insert_defs(state)
-        insert_casts(state)
+        insert_defs(graph)
+        insert_casts(graph)
 
 
 class YaskCustomRewriter(CustomRewriter, YaskRewriter):
