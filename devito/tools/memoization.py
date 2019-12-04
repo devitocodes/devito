@@ -2,7 +2,8 @@ from collections.abc import Hashable
 from functools import partial
 from itertools import tee
 
-__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator']
+__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator',
+           'memoized_op']
 
 
 class memoized_func(object):
@@ -124,3 +125,25 @@ class memoized_generator(object):
         it = cache[key] if key in cache else self.func(*args, **kwargs)
         cache[key], result = tee(it)
         return result
+
+
+class memoized_op(object):
+    """
+    Experimental
+    """
+    def __init__(self, func, *args, **kwargs):
+        self.func = func
+        self.op = None
+        self.rhs = None
+
+    def __call__(self, f, rhs=0, *args, **kwargs):
+        if not self.op:
+            self.rhs = rhs
+            f, self.op = self.func(f, rhs)
+            return f
+        elif self.rhs == rhs:
+            self.op(f=f)
+            return f
+        else:
+            raise NotImplementedError
+

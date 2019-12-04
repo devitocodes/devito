@@ -6,12 +6,13 @@ from sympy import Abs, Pow
 import numpy as np
 
 import devito as dv
-from devito.tools import as_tuple, as_list
+from devito.tools import as_tuple, as_list, memoized_op
 
 __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function', 'norm',
            'sumall', 'inner', 'mmin', 'mmax']
 
 
+@memoized_op
 def assign(f, rhs=0, options=None, name='assign', save=False, **kwargs):
     """
     Assign a list of RHSs to a list of Functions.
@@ -66,7 +67,9 @@ def assign(f, rhs=0, options=None, name='assign', save=False, **kwargs):
     else:
         for i, j in zip(as_list(f), rhs):
             eqs.append(dv.Eq(i, j))
-    dv.Operator(eqs, name=name, **kwargs)()
+    op = dv.Operator(eqs, name=name, **kwargs)
+    op()
+    return f, op
 
 
 def smooth(f, g, axis=None):
