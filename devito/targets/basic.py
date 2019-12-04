@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from itertools import product
 
 from devito.archinfo import Platform
 from devito.ir.iet import Node
@@ -7,11 +8,7 @@ from devito.parameters import configuration
 from devito.targets.common import Graph
 from devito.tools import Singleton
 
-__all__ = ['dle_registry', 'iet_lower', 'targets', 'Target']
-
-
-#TODO: change this
-dle_registry = ('noop', 'advanced')
+__all__ = ['iet_lower', 'targets', 'targets_registry', 'Target']
 
 
 class Target(object):
@@ -54,10 +51,14 @@ class TargetsMap(OrderedDict, metaclass=Singleton):
         * `target` is an object of type Target.
     """
 
+    _modes = ('noop', 'advanced')
+    _languages = ('C',)
+    _registry = _modes + tuple(product(_modes, _languages))
+
     def add(self, target, platform, mode, language='C'):
         assert issubclass(target, Target)
         assert issubclass(platform, Platform)
-        assert mode in dle_registry or mode == 'custom'
+        assert mode in TargetsMap._modes or mode == 'custom'
 
         self[(platform, mode, language)] = target
 
@@ -72,6 +73,8 @@ class TargetsMap(OrderedDict, metaclass=Singleton):
 
 targets = TargetsMap()
 """To be populated by the individual backends."""
+
+targets_registry = TargetsMap._registry
 
 
 def iet_lower(iet, mode='advanced', options=None):

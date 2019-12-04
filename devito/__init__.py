@@ -21,7 +21,7 @@ from devito.compiler import compiler_registry
 from devito.dse import dse_registry
 from devito.logger import error, warning, info, logger_registry, set_log_level  # noqa
 from devito.operator import profiler_registry
-from devito.targets import dle_registry
+from devito.targets import targets_registry
 
 
 from ._version import get_versions  # noqa
@@ -96,7 +96,9 @@ configuration.add('develop-mode', True, [False, True])
 configuration.add('dse', 'advanced', list(dse_registry))
 
 # Setup DLE
-configuration.add('dle', 'advanced', list(dle_registry))
+# Note: for backwards compatibility, this config option is still called 'dle',
+# instead of 'target' for example
+configuration.add('dle', 'advanced', list(targets_registry))
 configuration.add('dle-options', {})
 
 # Setup Operator profiling
