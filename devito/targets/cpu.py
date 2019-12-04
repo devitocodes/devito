@@ -23,10 +23,9 @@ class CPU64NoopTarget(Target):
 
 class CPU64Target(CPU64NoopTarget):
 
-    #TODO: move this
-    _default_blocking_levels = 1
+    BLOCK_LEVELS = 1
     """
-    Depth of the loop blocking hierarchy. 1 => "blocks", 2 => "blocks" and "sub-blocks",
+    Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
     """
 
@@ -35,7 +34,7 @@ class CPU64Target(CPU64NoopTarget):
 
         # Iteration blocker (i.e., for "loop blocking")
         self.blocker = Blocker(params.get('blockinner'),
-                               params.get('blocklevels') or self._default_blocking_levels)
+                               params.get('blocklevels') or self.BLOCK_LEVELS)
 
         # Shared-memory parallelizer
         self.parallelizer_shm = Ompizer()
