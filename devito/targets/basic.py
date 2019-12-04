@@ -10,40 +10,8 @@ from devito.tools import Singleton
 __all__ = ['dle_registry', 'iet_lower', 'targets', 'Target']
 
 
+#TODO: change this
 dle_registry = ('noop', 'advanced')
-
-
-class TargetsMap(OrderedDict, metaclass=Singleton):
-
-    #TODO: update this
-
-    """
-    The DLE transformation modes. This is a dictionary ``P -> {M -> R}``,
-    where P is a Platform, M a rewrite mode (e.g., 'advanced'),
-    and R a Target.
-
-    This dictionary is to be modified at backend-initialization time by adding
-    all Platform-keyed mappers as supported by the specific backend.
-    """
-
-    def add(self, platform, mapper):
-        assert issubclass(platform, Platform)
-        assert isinstance(mapper, dict)
-        assert all(i in mapper for i in dle_registry)
-        super(TargetsMap, self).__setitem__(platform, mapper)
-
-    def fetch(self, platform, mode):
-        # Try to fetch the most specific Target for the given Platform
-        for cls in platform.__class__.mro():
-            for k, v in self.items():
-                if issubclass(k, cls):
-                    return v[mode]
-        raise KeyError("Couldn't find a rewriter `%s` for platform `%s`"
-                       % (mode, platform))
-
-
-targets = TargetsMap()
-"""To be populated by the individual backends."""
 
 
 class Target(object):
@@ -67,6 +35,43 @@ class Target(object):
     def _pipeline(self, graph):
         """The rewrite passes."""
         return
+
+
+class TargetsMap(OrderedDict, metaclass=Singleton):
+
+    """
+    A special mapper for Targets:
+
+        (platform, mode, language) -> target
+
+    where:
+
+        * `platform` is an object of type Platform, that is the architecture
+          the generated code should be specializer for.
+        * `mode` is the optimization level (e.g., `advanced`)
+        * `language` is the generated code language (default is C+OpenMP+MPI,
+          but in the future it could also be OpenACC or CUDA.
+        * `target` is an object of type Target.
+    """
+
+    def add(self, target, platform, mode, language='C'):
+        assert issubclass(target, Target)
+        assert issubclass(platform, Platform)
+        assert mode in dle_registry or mode == 'custom'
+
+        self[(platform, mode, language)] = target
+
+    def fetch(self, platform, mode, language='C'):
+        # Retrieve the most specialized Target
+        for cls in platform.__class__.mro():
+            for (p, m, l), target in self.items():
+                if issubclass(p, cls) and m == mode and l == language:
+                    return target
+        raise KeyError("Couldn't find a Target for `%s`" % str((p, m, l)))
+
+
+targets = TargetsMap()
+"""To be populated by the individual backends."""
 
 
 def iet_lower(iet, mode='advanced', options=None):

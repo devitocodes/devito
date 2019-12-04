@@ -3,15 +3,15 @@ The ``ops`` Devito backend uses the OPS library to generate,
 JIT-compile, and run kernels on multiple architectures.
 """
 
+from devito.ops.targets import OpsTarget
+
 from devito.archinfo import Cpu64
 from devito.parameters import Parameters, add_sub_configuration
 from devito.targets import targets
 
-from devito.ops.dle import OpsTarget
-
 # Add OPS-specific Targets
-targets.add(Cpu64, {'noop': OpsTarget,
-                    'advanced': OpsTarget})
+targets.add(OpsTarget, Cpu64, 'noop')
+targets.add(OpsTarget, Cpu64, 'advanced')
 
 # The following used by backends.backendSelector
 from devito.ops.compiler import CompilerOPS as Compiler # noqa

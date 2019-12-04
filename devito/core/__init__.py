@@ -15,20 +15,24 @@ env_vars_mapper = {}
 add_sub_configuration(core_configuration, env_vars_mapper)
 
 # Add core-specific Targets
-targets.add(Cpu64, {'noop': CPU64NoopTarget,
-                    'advanced': CPU64Target,
-                    'custom': CustomTarget})
-targets.add(Intel64, {'noop': CPU64NoopTarget,
-                      'advanced': Intel64Target,
-                      'custom': CustomTarget})
-targets.add(Arm, {'noop': CPU64NoopTarget,
-                  'advanced': ArmTarget,
-                  'custom': CustomTarget})
-targets.add(Power, {'noop': CPU64NoopTarget,
-                    'advanced': PowerTarget,
-                    'custom': CustomTarget})
-targets.add(Device, {'noop': CPU64NoopTarget,
-                     'advanced': DeviceOffloadingTarget})
+targets.add(CPU64NoopTarget, Cpu64, 'noop')
+targets.add(CPU64Target, Cpu64, 'advanced')
+targets.add(CustomTarget, Cpu64, 'custom')
+
+targets.add(CPU64NoopTarget, Intel64, 'noop')
+targets.add(Intel64Target, Intel64, 'advanced')
+targets.add(CustomTarget, Intel64, 'custom')
+
+targets.add(CPU64NoopTarget, Arm, 'noop')
+targets.add(ArmTarget, Arm, 'advanced')
+targets.add(CustomTarget, Arm, 'custom')
+
+targets.add(CPU64NoopTarget, Power, 'noop')
+targets.add(PowerTarget, Power, 'advanced')
+targets.add(CustomTarget, Power, 'custom')
+
+targets.add(CPU64NoopTarget, Device, 'noop')
+targets.add(DeviceOffloadingTarget, Device, 'advanced')
 
 # The following used by backends.backendSelector
 from devito.core.operator import OperatorCore as Operator  # noqa
