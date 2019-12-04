@@ -1,9 +1,9 @@
 from collections import defaultdict, OrderedDict
 
-from devito import Constant, TimeFunction
+from devito import TimeFunction
 from devito.types.dimension import SpaceDimension
 from devito.symbolics import split_affine
-from devito.ops.types import OpsAccess, OpsAccessible
+from devito.ops.types import OpsAccess, OpsAccessible, RawAccess, RawAccessible
 from devito.ops.utils import AccessibleInfo
 
 
@@ -69,15 +69,10 @@ class OPSNodeFactory(object):
 
         return OpsAccess(symbol_to_access, space_indices)
 
-    def new_ops_gbl(self, c):
-        if c in self.ops_args:
-            return self.ops_args[c].accessible
+    def new_ops_gbl(self, expr):
+        if expr not in self.ops_args:
+            param = RawAccessible(expr.name, expr.dtype)
+            self.ops_args[expr] = AccessibleInfo(param, None, None, None)
+            self.ops_params.append(param)
 
-        new_c = AccessibleInfo(Constant(name='*%s' % c.name, dtype=c.dtype),
-                               None,
-                               None,
-                               None)
-        self.ops_args[c] = new_c
-        self.ops_params.append(new_c.accessible)
-
-        return new_c.accessible
+        return RawAccess(expr)

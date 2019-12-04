@@ -3,8 +3,10 @@ import sympy
 
 import devito.types.basic as basic
 
-from devito.tools import dtype_to_cstr
+from devito.tools import dtype_to_cstr, ctypes_to_cstr
 from devito.ops.utils import namespace
+
+from ctypes import c_float
 
 
 class Array(basic.Array):
@@ -15,6 +17,34 @@ class Array(basic.Array):
             return self.dtype
 
         return super()._C_typedata
+
+
+class RawAccessible(basic.Symbol):
+    is_Scalar = True
+
+    def __init_finalize__(self, name, read_only=True, **kwargs):
+        self.read_only = read_only
+        super().__init_finalize__(name, **kwargs)
+
+    @property
+    def _C_typename(self):
+        # TODO: can't change self.dtype from __init_finalize__
+        return '%s%s *' % (
+            'const ' if self.read_only else '',
+            ctypes_to_cstr(c_float)
+        )
+
+
+class RawAccess(basic.Basic, sympy.Basic):
+    def __init__(self, base, *args, **kwargs):
+        self.base = base
+        super().__init__(*args, **kwargs)
+
+    def __str__(self):
+        return '(*%s)' % self.base._C_name
+
+    def __repr__(self):
+        return self.base._C_name
 
 
 class OpsAccessible(basic.Symbol):
@@ -30,7 +60,7 @@ class OpsAccessible(basic.Symbol):
         to ``np.float32``.
     """
 
-    is_Scalar = True
+    is_Scalar = False
 
     def __init_finalize__(self, name, read_only=False, **kwargs):
         self.read_only = read_only
