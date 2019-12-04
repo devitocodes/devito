@@ -7,7 +7,7 @@ from devito.parameters import configuration
 from devito.targets.common import Graph
 from devito.tools import Singleton
 
-__all__ = ['dle_registry', 'iet_lower', 'targets', 'PlatformRewriter']
+__all__ = ['dle_registry', 'iet_lower', 'targets', 'Target']
 
 
 dle_registry = ('noop', 'advanced')
@@ -20,7 +20,7 @@ class TargetsMap(OrderedDict, metaclass=Singleton):
     """
     The DLE transformation modes. This is a dictionary ``P -> {M -> R}``,
     where P is a Platform, M a rewrite mode (e.g., 'advanced'),
-    and R a Rewriter.
+    and R a Target.
 
     This dictionary is to be modified at backend-initialization time by adding
     all Platform-keyed mappers as supported by the specific backend.
@@ -33,7 +33,7 @@ class TargetsMap(OrderedDict, metaclass=Singleton):
         super(TargetsMap, self).__setitem__(platform, mapper)
 
     def fetch(self, platform, mode):
-        # Try to fetch the most specific Rewriter for the given Platform
+        # Try to fetch the most specific Target for the given Platform
         for cls in platform.__class__.mro():
             for k, v in self.items():
                 if issubclass(k, cls):
@@ -46,7 +46,7 @@ targets = TargetsMap()
 """To be populated by the individual backends."""
 
 
-class PlatformRewriter(object):
+class Target(object):
 
     """
     Specialize an Iteration/Expression tree (IET) introducing Target-specific

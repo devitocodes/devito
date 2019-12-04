@@ -1,10 +1,10 @@
 from devito.ir.iet import Iteration, FindNodes, Transformer, VECTOR
-from devito.targets.basic import PlatformRewriter
+from devito.targets.basic import Target
 from devito.targets.common import (OmpizerGPU, target_pass, insert_defs, insert_casts,
                                    optimize_halospots, parallelize_dist,
                                    parallelize_shm, hoist_prodders)
 
-__all__ = ['DeviceOffloadingRewriter']
+__all__ = ['DeviceOffloadingTarget']
 
 
 @target_pass
@@ -25,10 +25,10 @@ def simdize(iet):
 #TODO: Move here OmpizerGPU
 
 
-class DeviceOffloadingRewriter(PlatformRewriter):
+class DeviceOffloadingTarget(Target):
 
     def __init__(self, params, platform):
-        super(DeviceOffloadingRewriter, self).__init__(params, platform)
+        super(DeviceOffloadingTarget, self).__init__(params, platform)
 
         # Shared-memory parallelizer
         self.parallelizer_shm = OmpizerGPU()

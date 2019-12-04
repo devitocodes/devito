@@ -3,12 +3,12 @@ from functools import partial
 from cached_property import cached_property
 
 from devito.ir import FindNodes
-from devito.targets import (CustomRewriter, Intel64Rewriter, Ompizer, avoid_denormals,
+from devito.targets import (CustomTarget, Intel64Target, Ompizer, avoid_denormals,
                             loop_wrapping, parallelize_shm, insert_defs, insert_casts)
 
 from devito.yask.utils import Offloaded
 
-__all__ = ['YaskRewriter', 'YaskCustomRewriter']
+__all__ = ['YaskTarget', 'YaskCustomTarget']
 
 
 class YaskOmpizer(Ompizer):
@@ -27,7 +27,7 @@ class YaskOmpizer(Ompizer):
         super(YaskOmpizer, self).__init__(key=key)
 
 
-class YaskRewriter(Intel64Rewriter):
+class YaskTarget(Intel64Target):
 
     _parallelizer_shm_type = YaskOmpizer
 
@@ -43,7 +43,7 @@ class YaskRewriter(Intel64Rewriter):
         insert_casts(graph)
 
 
-class YaskCustomRewriter(CustomRewriter, YaskRewriter):
+class YaskCustomTarget(CustomTarget, YaskTarget):
 
     @cached_property
     def passes_mapper(self):

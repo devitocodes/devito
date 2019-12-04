@@ -7,12 +7,10 @@ from devito.ops.types import OpsBlock
 from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.utils import namespace
 from devito.symbolics import Literal
-from devito.targets import PlatformRewriter, target_pass, insert_defs, insert_casts
+from devito.targets import Target, target_pass, insert_defs, insert_casts
 from devito.tools import filter_sorted, flatten
 
-__all__ = ['OpsRewriter']
-
-#TODO: rename dle.py into something else
+__all__ = ['OpsTarget']
 
 
 @target_pass
@@ -93,7 +91,7 @@ def make_ops_kernels(iet):
                  'headers': [namespace['ops_define_dimension'](dims[0])]}
 
 
-class OpsRewriter(PlatformRewriter):
+class OpsTarget(Target):
 
     def _pipeline(self, graph):
         # Optimization and parallelism

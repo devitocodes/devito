@@ -5,7 +5,7 @@ from time import time
 from devito.ir.iet import Call, FindNodes, MetaCall, Transformer
 from devito.tools import DAG, as_tuple, filter_ordered
 
-__all__ = ['Graph', 'pass']
+__all__ = ['Graph', 'target_pass']
 
 
 class Graph(object):
@@ -113,7 +113,7 @@ class Graph(object):
             self.ffuncs[i], _ = func(self.ffuncs[i], **kwargs)
 
 
-def pass(func):
+def target_pass(func):
     @wraps(func)
     def wrapper(graph, **kwargs):
         tic = time()

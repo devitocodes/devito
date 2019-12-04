@@ -9,7 +9,7 @@ from devito.ir import (Expression, Iteration, List, FindAdjacent, FindNodes,
                        compose_nodes, filter_iterations, retrieve_iteration_tree)
 from devito.exceptions import InvalidArgument
 from devito.symbolics import as_symbol, xreplace_indices
-from devito.targets.common.queue import target_pass
+from devito.targets.common.engine import target_pass
 from devito.tools import all_equal, as_tuple, flatten
 from devito.types import IncrDimension, Scalar
 

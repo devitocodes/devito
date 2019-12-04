@@ -7,11 +7,11 @@ from devito.archinfo import Cpu64
 from devito.parameters import Parameters, add_sub_configuration
 from devito.targets import targets
 
-from devito.ops.dle import OpsRewriter
+from devito.ops.dle import OpsTarget
 
 # Add OPS-specific Targets
-targets.add(Cpu64, {'noop': OpsRewriter,
-                    'advanced': OpsRewriter})
+targets.add(Cpu64, {'noop': OpsTarget,
+                    'advanced': OpsTarget})
 
 # The following used by backends.backendSelector
 from devito.ops.compiler import CompilerOPS as Compiler # noqa
