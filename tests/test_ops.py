@@ -14,7 +14,6 @@ pytestmark = skipif('noops', whole_module=True)
 # `pytestmark` above
 from devito import Eq, Function, Grid, Operator, TimeFunction, configuration  # noqa
 from devito.ir.equations import ClusterizedEq  # noqa
-from devito.ir.iet import Conditional, Expression, derive_parameters, iet_insert_decls  # noqa
 from devito.ops.node_factory import OPSNodeFactory  # noqa
 from devito.ops.transformer import create_ops_arg, create_ops_dat, make_ops_ast, to_ops_stencil  # noqa
 from devito.ops.types import Array, OpsAccessible, OpsDat, OpsStencil, OpsBlock  # noqa
