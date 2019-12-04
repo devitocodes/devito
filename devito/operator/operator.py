@@ -181,6 +181,7 @@ class Operator(Callable):
 
         # Header files, etc.
         op._headers = list(cls._default_headers)
+        op._headers.extend(target_state.headers)
         op._globals = list(cls._default_globals)
         op._includes = list(cls._default_includes)
         op._includes.extend(profiler._default_includes)
@@ -195,8 +196,7 @@ class Operator(Callable):
         op._func_table = OrderedDict()
         op._func_table.update(OrderedDict([(i, MetaCall(None, False))
                                            for i in profiler._ext_calls]))
-        op._func_table.update(OrderedDict([(i.name, MetaCall(i, True))
-                                           for i in target_state.efuncs]))
+        op._func_table.update(OrderedDict([(i.root.name, i) for i in target_state.funcs]))
 
         # Internal state. May be used to store information about previous runs,
         # autotuning reports, etc

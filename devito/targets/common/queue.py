@@ -2,7 +2,7 @@ from collections import OrderedDict
 from functools import wraps
 from time import time
 
-from devito.ir.iet import Call, FindNodes, Transformer
+from devito.ir.iet import Call, FindNodes, MetaCall, Transformer
 from devito.tools import DAG, as_tuple, filter_ordered
 
 __all__ = ['State', 'dle_pass']
@@ -11,26 +11,30 @@ __all__ = ['State', 'dle_pass']
 class State(object):
 
     def __init__(self, iet):
-        self._efuncs = OrderedDict([('root', iet)])
+        self.efuncs = OrderedDict([('root', iet)])
+        self.ffuncs = []
 
         self.dimensions = []
         self.includes = []
+        self.headers = []
 
         # Track performance of each pass
         self.timings = OrderedDict()
 
     @property
     def root(self):
-        return self._efuncs['root']
+        return self.efuncs['root']
 
     @property
-    def efuncs(self):
-        return tuple(v for k, v in self._efuncs.items() if k != 'root')
+    def funcs(self):
+        retval = [MetaCall(v, True) for k, v in self.efuncs.items() if k != 'root']
+        retval.extend([MetaCall(i, False) for i in self.ffuncs])
+        return tuple(retval)
 
 
 def process(func, state, **kwargs):
     """
-    Apply ``func`` to the IETs in ``state._efuncs``, and update ``state`` accordingly.
+    Apply ``func`` to the IETs in ``state.efuncs``, and update ``state`` accordingly.
     """
     # Create a Call graph. `func` will be applied to each node in the Call graph.
     # `func` might change an `efunc` signature; the Call graph will be used to
@@ -39,9 +43,9 @@ def process(func, state, **kwargs):
     queue = ['root']
     while queue:
         caller = queue.pop(0)
-        callees = FindNodes(Call).visit(state._efuncs[caller])
+        callees = FindNodes(Call).visit(state.efuncs[caller])
         for callee in filter_ordered([i.name for i in callees]):
-            if callee in state._efuncs:  # Exclude foreign Calls, e.g., MPI calls
+            if callee in state.efuncs:  # Exclude foreign Calls, e.g., MPI calls
                 try:
                     dag.add_node(callee)
                     queue.append(callee)
@@ -49,22 +53,28 @@ def process(func, state, **kwargs):
                     # `callee` already in `dag`
                     pass
                 dag.add_edge(callee, caller)
-    assert dag.size == len(state._efuncs)
+    assert dag.size == len(state.efuncs)
 
     # Apply `func`
     for i in dag.topological_sort():
-        state._efuncs[i], metadata = func(state._efuncs[i], **kwargs)
+        state.efuncs[i], metadata = func(state.efuncs[i], **kwargs)
 
         # Track any new Dimensions introduced by `func`
         state.dimensions.extend(list(metadata.get('dimensions', [])))
 
-        # Track any new #include required by `func`
+        # Track any new #include and #define required by `func`
         state.includes.extend(list(metadata.get('includes', [])))
         state.includes = filter_ordered(state.includes)
+        state.headers.extend(list(metadata.get('headers', [])))
+        state.headers = filter_ordered(state.headers)
+
+        # Tracky any new external function
+        state.ffuncs.extend(list(metadata.get('ffuncs', [])))
+        state.ffuncs = filter_ordered(state.ffuncs)
 
         # Track any new ElementalFunctions
-        state._efuncs.update(OrderedDict([(i.name, i)
-                                          for i in metadata.get('efuncs', [])]))
+        state.efuncs.update(OrderedDict([(i.name, i)
+                                         for i in metadata.get('efuncs', [])]))
 
         # If there's a change to the `args` and the `iet` is an efunc, then
         # we must update the call sites as well, as the arguments dropped down
@@ -76,13 +86,17 @@ def process(func, state, **kwargs):
             extif = lambda v: list(v) + [e for e in args if e not in v]
             stack = [i] + dag.all_downstreams(i)
             for n in stack:
-                efunc = state._efuncs[n]
+                efunc = state.efuncs[n]
                 calls = [c for c in FindNodes(Call).visit(efunc) if c.name in stack]
                 mapper = {c: c._rebuild(arguments=extif(c.arguments)) for c in calls}
                 efunc = Transformer(mapper).visit(efunc)
                 if efunc.is_Callable:
                     efunc = efunc._rebuild(parameters=extif(efunc.parameters))
-                state._efuncs[n] = efunc
+                state.efuncs[n] = efunc
+
+    # Apply `func` to the external functions
+    for i in range(len(state.ffuncs)):
+        state.ffuncs[i], _ = func(state.ffuncs[i], **kwargs)
 
 
 def dle_pass(func):
