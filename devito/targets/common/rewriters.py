@@ -7,7 +7,7 @@ from devito.logger import perf_adv, dle_warning as warning
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.targets.common.blocking import BlockDimension
 from devito.targets.common.openmp import Ompizer
-from devito.targets.common.queue import dle_pass
+from devito.targets.common.engine import target_pass
 from devito.tools import as_tuple, generator
 
 __all__ = ['avoid_denormals', 'loop_wrapping', 'optimize_halospots',
@@ -15,7 +15,7 @@ __all__ = ['avoid_denormals', 'loop_wrapping', 'optimize_halospots',
            'hoist_prodders']
 
 
-@dle_pass
+@target_pass
 def avoid_denormals(iet):
     """
     Introduce nodes in the Iteration/Expression tree that will expand to C
@@ -30,7 +30,7 @@ def avoid_denormals(iet):
     return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}
 
 
-@dle_pass
+@target_pass
 def loop_wrapping(iet):
     """
     Emit a performance message if WRAPPABLE Iterations are found,
@@ -44,7 +44,7 @@ def loop_wrapping(iet):
     return iet, {}
 
 
-@dle_pass
+@target_pass
 def optimize_halospots(iet):
     """
     Optimize the HaloSpots in ``iet``.
@@ -148,7 +148,7 @@ def optimize_halospots(iet):
     return iet, {}
 
 
-@dle_pass
+@target_pass
 def parallelize_dist(iet, **kwargs):
     """
     Add MPI routines performing halo exchanges to emit distributed-memory
@@ -185,7 +185,7 @@ def parallelize_dist(iet, **kwargs):
     return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'args': objs}
 
 
-@dle_pass
+@target_pass
 def simdize(iet, **kwargs):
     """
     Add pragmas to the Iteration/Expression tree to enforce SIMD auto-vectorization
@@ -212,7 +212,7 @@ def simdize(iet, **kwargs):
     return processed, {}
 
 
-@dle_pass
+@target_pass
 def parallelize_shm(iet, **kwargs):
     """
     Add OpenMP pragmas to the Iteration/Expression tree to emit SIMD and
@@ -223,7 +223,7 @@ def parallelize_shm(iet, **kwargs):
     return parallelizer_shm.make_parallel(iet)
 
 
-@dle_pass
+@target_pass
 def minimize_remainders(iet, **kwargs):
     """
     Adjust ROUNDABLE Iteration bounds so as to avoid the insertion of remainder
@@ -254,7 +254,7 @@ def minimize_remainders(iet, **kwargs):
     return iet, {}
 
 
-@dle_pass
+@target_pass
 def hoist_prodders(iet):
     """
     Move Prodders within the outer levels of an Iteration tree.

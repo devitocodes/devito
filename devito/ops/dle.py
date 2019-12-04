@@ -7,7 +7,7 @@ from devito.ops.types import OpsBlock
 from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.utils import namespace
 from devito.symbolics import Literal
-from devito.targets import PlatformRewriter, dle_pass, insert_defs, insert_casts
+from devito.targets import PlatformRewriter, target_pass, insert_defs, insert_casts
 from devito.tools import filter_sorted, flatten
 
 __all__ = ['OpsRewriter']
@@ -15,7 +15,7 @@ __all__ = ['OpsRewriter']
 #TODO: rename dle.py into something else
 
 
-@dle_pass
+@target_pass
 def make_ops_kernels(iet):
     warning("The OPS backend is still work-in-progress")
 

@@ -10,7 +10,7 @@ import cgen as c
 from devito.ir import (ArrayCast, Element, Expression, List, LocalExpression,
                        FindNodes, MapExprStmts, Transformer)
 from devito.symbolics import ccode
-from devito.targets.common.rewriters import dle_pass  #TODO: Turn dle_pass into something else
+from devito.targets.common.rewriters import target_pass
 from devito.tools import flatten
 
 __all__ = ['insert_defs', 'insert_casts']
@@ -82,7 +82,7 @@ class Allocator(object):
         return self.heap.values()
 
 
-@dle_pass
+@target_pass
 def insert_defs(iet):
     """
     Transform the input IET inserting the necessary symbol declarations.
@@ -138,7 +138,7 @@ def insert_defs(iet):
     return iet, {}
 
 
-@dle_pass
+@target_pass
 def insert_casts(iet):
     """
     Transform the input IET inserting the necessary type casts.

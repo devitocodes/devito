@@ -1,13 +1,13 @@
 from devito.ir.iet import Iteration, FindNodes, Transformer, VECTOR
 from devito.targets.basic import PlatformRewriter
-from devito.targets.common import (OmpizerGPU, dle_pass, insert_defs, insert_casts,
+from devito.targets.common import (OmpizerGPU, target_pass, insert_defs, insert_casts,
                                    optimize_halospots, parallelize_dist,
                                    parallelize_shm, hoist_prodders)
 
 __all__ = ['DeviceOffloadingRewriter']
 
 
-@dle_pass
+@target_pass
 def simdize(iet):
     # No SIMD-ization for devices. We then drop the VECTOR property
     # so that later passes can perform more aggressive transformations
