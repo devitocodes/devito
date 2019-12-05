@@ -24,30 +24,34 @@ class OmpizerGPU(Ompizer):
     Always collapse when possible.
     """
 
-    def map_to(f):
-        omp_pragma = 'omp target enter data map(to: %s%s)'
-        var_name = f.name
-        var_data = ''.join('[0:%s]' % f._C_get_field(FULL, d).size for d in f.dimensions)
-        return c.Pragma(omp_pragma % (var_name, var_data))
-
-    def map_from(f):
-        omp_pragma = 'omp target exit data map(from: %s%s)'
-        var_name = f.name
-        var_data = ''.join('[0:%s]' % f._C_get_field(FULL, d).size for d in f.dimensions)
-        return c.Pragma(omp_pragma % (var_name, var_data))
-
     lang = dict(Ompizer.lang)
     lang.update({
         'par-for-teams': lambda i:
             c.Pragma('omp target teams distribute parallel for collapse(%d)' % i),
-        'map-to': map_to,
-        'map-from': map_from
+        'map-enter': lambda i, j:
+            c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
+        'map-exit': lambda i, j:
+            c.Pragma('omp target exit data map(from: %s%s)' % (i, j))
     })
 
     def __init__(self, key=None):
         if key is None:
             key = lambda i: i.is_ParallelRelaxed
         super(OmpizerGPU, self).__init__(key=key)
+
+    def __map_data(self, f):
+        if f.is_Array:
+            return f.symbolic_shape
+        else:
+            return tuple(f._C_get_field(FULL, d).size for d in f.dimensions)
+
+    def __map_to(self, f):
+        return self.lang['map-enter'](f.name,
+                                      ''.join('[0:%s]' % i for i in self.__map_data(f)))
+
+    def __map_from(self, f):
+        return self.lang['map-exit'](f.name,
+                                     ''.join('[0:%s]' % i for i in self.__map_data(f)))
 
     def _make_threaded_prodders(self, partree):
         # no-op for now
@@ -117,8 +121,8 @@ class OmpizerGPU(Ompizer):
                 break
 
             # Create the omp pragmas for the data transfer
-            map_tos = [self.lang['map-to'](i) for i in data]
-            map_froms = [self.lang['map-from'](i) for i in writes if i.is_Tensor]
+            map_tos = [self.__map_to(i) for i in data]
+            map_froms = [self.__map_from(i) for i in writes if i.is_Tensor]
             data_transfers.setdefault(candidate, []).append((map_tos, map_froms))
 
         # Now create a new IET with the data transfer

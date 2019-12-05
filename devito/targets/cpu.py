@@ -16,8 +16,8 @@ class CPU64NoopTarget(Target):
 
     def _pipeline(self, graph):
         # Symbol definitions
-        insert_defs(graph)
-        insert_casts(graph)
+        self.data_manager.place_definitions(graph)
+        self.data_manager.place_casts(graph)
 
 
 class CPU64Target(CPU64NoopTarget):

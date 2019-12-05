@@ -7,7 +7,7 @@ from devito.ops.types import OpsBlock
 from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.utils import namespace
 from devito.symbolics import Literal
-from devito.targets import Target, target_pass, insert_defs, insert_casts
+from devito.targets import Target, target_pass
 from devito.tools import filter_sorted, flatten
 
 __all__ = ['OpsTarget']
@@ -93,10 +93,16 @@ def make_ops_kernels(iet):
 
 class OpsTarget(Target):
 
+    def __init__(self, params, platform):
+        super(OpsTarget, self).__init__(params, platform)
+
+        # Data manager (declarations, definitions, ...)
+        self.data_manager = DataManager()
+
     def _pipeline(self, graph):
         # Optimization and parallelism
         make_ops_kernels(graph)
 
         # Symbol definitions
-        insert_defs(graph)
-        insert_casts(graph)
+        self.data_manager.place_definitions(graph)
+        self.data_manager.place_casts(graph)
