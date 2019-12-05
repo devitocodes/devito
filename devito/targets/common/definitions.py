@@ -10,7 +10,7 @@ import cgen as c
 from devito.ir import (ArrayCast, Element, Expression, List, LocalExpression,
                        FindNodes, MapExprStmts, Transformer)
 from devito.symbolics import ccode
-from devito.targets.common.rewriters import target_pass
+from devito.targets.common.engine import target_pass
 from devito.tools import flatten
 
 __all__ = ['insert_defs', 'insert_casts']
