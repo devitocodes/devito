@@ -5,7 +5,7 @@ from cached_property import cached_property
 from devito.exceptions import DLEException
 from devito.targets.basic import Target
 from devito.targets.common import (Blocker, Ompizer, avoid_denormals, insert_defs,
-                                   insert_casts, optimize_halospots, parallelize_dist,
+                                   insert_casts, optimize_halospots, mpiize,
                                    loop_blocking, loop_wrapping, simdize,
                                    minimize_remainders, hoist_prodders)
 
@@ -44,7 +44,7 @@ class CPU64Target(CPU64NoopTarget):
         avoid_denormals(graph)
         optimize_halospots(graph)
         if self.params['mpi']:
-            parallelize_dist(graph, mode=self.params['mpi'])
+            mpiize(graph, mode=self.params['mpi'])
         loop_blocking(graph, blocker=self.blocker)
         simdize(graph, simd_reg_size=self.platform.simd_reg_size)
         if self.params['openmp']:
@@ -85,7 +85,7 @@ class CustomTarget(CPU64Target):
             'wrapping': partial(loop_wrapping),
             'blocking': partial(loop_blocking, blocker=self.blocker),
             'openmp': partial(self.ompizer.make_openmp),
-            'mpi': partial(parallelize_dist, mode=self.params['mpi']),
+            'mpi': partial(mpiize, mode=self.params['mpi']),
             'simd': partial(simdize, simd_reg_size=self.platform.simd_reg_size),
             'minrem': partial(minimize_remainders,
                               simd_items_per_reg=self.platform.simd_items_per_reg),

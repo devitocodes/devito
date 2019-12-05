@@ -5,7 +5,7 @@ from devito.ir.iet import (Expression, Iteration, List, FindNodes, MapNodes,
                            Transformer, COLLAPSED, VECTOR, retrieve_iteration_tree)
 from devito.targets.basic import Target
 from devito.targets.common import (Ompizer, ParallelTree, target_pass, insert_defs,
-                                   insert_casts, optimize_halospots, parallelize_dist,
+                                   insert_casts, optimize_halospots, mpiize,
                                    hoist_prodders)
 from devito.tools import filter_sorted, flatten
 
@@ -160,7 +160,7 @@ class DeviceOffloadingTarget(Target):
         # Optimization and parallelism
         optimize_halospots(graph)
         if self.params['mpi']:
-            parallelize_dist(graph, mode=self.params['mpi'])
+            mpiize(graph, mode=self.params['mpi'])
         simdize(graph)
         if self.params['openmp']:
             self.ompizer.make_openmp(graph)

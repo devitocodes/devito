@@ -3,7 +3,7 @@ from itertools import product
 
 from devito.archinfo import Platform
 from devito.ir.iet import Node
-from devito.logger import dle as log, dle_warning as warning
+from devito.logger import log, warning
 from devito.parameters import configuration
 from devito.targets.common import Graph
 from devito.tools import Singleton
