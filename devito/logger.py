@@ -6,7 +6,6 @@ from contextlib import contextmanager
 
 __all__ = ('set_log_level', 'set_log_noperf', 'is_log_enabled_for',
            'log', 'warning', 'error', 'perf', 'perf_adv', 'dse', 'dse_warning',
-           'dle', 'dle_warning',
            'RED', 'GREEN', 'BLUE')
 
 
@@ -20,8 +19,6 @@ YASK = 16
 YASK_WARN = 17
 DSE = 18
 DSE_WARN = 19
-DLE = DSE
-DLE_WARN = DSE_WARN
 PERF = 19
 INFO = logging.INFO
 WARNING = logging.WARNING
@@ -33,8 +30,6 @@ logging.addLevelName(YASK, "YASK")
 logging.addLevelName(YASK_WARN, "YASK_WARN")
 logging.addLevelName(DSE, "DSE")
 logging.addLevelName(DSE_WARN, "DSE_WARN")
-logging.addLevelName(DLE, "DLE")
-logging.addLevelName(DLE_WARN, "DLE_WARN")
 
 logger_registry = {
     'DEBUG': DEBUG,
@@ -44,8 +39,6 @@ logger_registry = {
     'INFO': INFO,
     'DSE': DSE,
     'DSE_WARN': DSE_WARN,
-    'DLE': DLE,
-    'DLE_WARN': DLE_WARN,
     'WARNING': WARNING,
     'ERROR': ERROR,
     'CRITICAL': CRITICAL
@@ -64,8 +57,6 @@ COLORS = {
     INFO: NOCOLOR,
     DSE: NOCOLOR,
     DSE_WARN: BLUE,
-    DLE: NOCOLOR,
-    DLE_WARN: BLUE,
     WARNING: BLUE,
     ERROR: RED,
     CRITICAL: RED
@@ -80,7 +71,7 @@ def set_log_level(level, comm=None):
     ----------
     level : int
         The logging level. Accepted values are: ``DEBUG, PERF, INFO, DSE, DSE_WARN,
-        DLE, DLE_WARN, WARNING, ERROR, CRITICAL``.
+        WARNING, ERROR, CRITICAL``.
     comm : MPI communicator, optional
         An MPI communicator the logger should be collective over. If provided, only
         rank-0 on that communicator will write to the registered handlers, other
@@ -123,7 +114,7 @@ def log(msg, level=INFO, *args, **kwargs):
         The message to be printed.
     level : int
         The logging level. Accepted values are: ``DEBUG, PERF, INFO, DSE, DSE_WARN,
-        DLE, DLE_WARN, WARNING, ERROR, CRITICAL``.
+        WARNING, ERROR, CRITICAL``.
     """
     color = COLORS[level] if sys.stdout.isatty() and sys.stderr.isatty() else '%s'
     logger.log(level, color % msg, *args, **kwargs)
@@ -159,14 +150,6 @@ def dse(msg, *args, **kwargs):
 
 def dse_warning(msg, *args, **kwargs):
     log("DSE: %s" % msg, DSE_WARN, *args, **kwargs)
-
-
-def dle(msg, *args, **kwargs):
-    log("DLE: %s" % msg, DLE, *args, **kwargs)
-
-
-def dle_warning(msg, *args, **kwargs):
-    log("DLE: %s" % msg, DLE_WARN, *args, **kwargs)
 
 
 def yask(msg, *args, **kwargs):
