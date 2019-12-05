@@ -299,7 +299,7 @@ class TestMetaData(object):
         assert u._offset_owned == ((2, 5), (3, 6), (4, 7))
 
     @skipif('yask')
-    @switchconfig(autopadding=True, platform='skx')  # Platform is to fix pad value
+    @switchconfig(autopadding=True, platform='bdw')  # Platform is to fix pad value
     def test_w_halo_w_autopadding(self):
         grid = Grid(shape=(4, 4, 4))
         u0 = Function(name='u0', grid=grid, space_order=0)
