@@ -345,9 +345,9 @@ class Ompizer(object):
         return iet
 
     @target_pass
-    def make_openmp(self, iet):
+    def make_parallel(self, iet):
         """
-        Transform ``iet`` by introducing shared-memory parallelism via OpenMP pragmas.
+        Create a new IET with shared-memory parallelism via OpenMP pragmas.
         """
         mapper = OrderedDict()
         for tree in retrieve_iteration_tree(iet):
@@ -385,3 +385,28 @@ class Ompizer(object):
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]
 
         return iet, {'args': args, 'includes': ['omp.h']}
+
+    @target_pass
+    def make_simd(self, iet, **kwargs):
+        """
+        Create a new IET with SIMD parallelism via OpenMP pragmas.
+        """
+        simd_reg_size = kwargs.pop('simd_reg_size')
+
+        mapper = {}
+        for tree in retrieve_iteration_tree(iet):
+            vector_iterations = [i for i in tree if i.is_Vectorizable]
+            for i in vector_iterations:
+                aligned = [j for j in FindSymbols('symbolics').visit(i)
+                           if j.is_DiscreteFunction]
+                if aligned:
+                    simd = self.lang['simd-for-aligned']
+                    simd = as_tuple(simd(','.join([j.name for j in aligned]),
+                                    simd_reg_size))
+                else:
+                    simd = as_tuple(self.lang['simd-for'])
+                mapper[i] = i._rebuild(pragmas=i.pragmas + simd)
+
+        iet = Transformer(mapper).visit(iet)
+
+        return iet, {}

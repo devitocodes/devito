@@ -40,7 +40,7 @@ class YaskTarget(Intel64Target):
         avoid_denormals(graph)
         loop_wrapping(graph)
         if self.params['openmp']:
-            self.ompizer.make_openmp(graph)
+            self.ompizer.make_openmp_parallel(graph)
 
         # Symbol definitions
         insert_defs(graph)
@@ -54,5 +54,5 @@ class YaskCustomTarget(CustomTarget, YaskTarget):
         return {
             'denormals': partial(avoid_denormals),
             'wrapping': partial(loop_wrapping),
-            'openmp': partial(self.ompizer.make_openmp),
+            'openmp': partial(self.ompizer.make_openmp_parallel),
         }

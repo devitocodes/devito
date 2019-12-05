@@ -1,15 +1,14 @@
+"""Misc Target passes."""
+
 import cgen
 
 from devito.ir.iet import (Iteration, List, Prodder, FindSymbols, FindNodes,
                            Transformer, filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv
 from devito.targets.common.blocking import BlockDimension
-from devito.targets.common.openmp import Ompizer
 from devito.targets.common.engine import target_pass
-from devito.tools import as_tuple
 
-__all__ = ['avoid_denormals', 'loop_wrapping', 'simdize', 'minimize_remainders',
-           'hoist_prodders']
+__all__ = ['avoid_denormals', 'loop_wrapping', 'minimize_remainders', 'hoist_prodders']
 
 
 @target_pass
@@ -39,33 +38,6 @@ def loop_wrapping(iet):
         perf_adv("Functions using modulo iteration along Dimension `%s` "
                  "may safely allocate a one slot smaller buffer" % i.dim)
     return iet, {}
-
-
-@target_pass
-def simdize(iet, **kwargs):
-    """
-    Add pragmas to the Iteration/Expression tree to enforce SIMD auto-vectorization
-    by the backend compiler.
-    """
-    simd_reg_size = kwargs.pop('simd_reg_size')
-
-    mapper = {}
-    for tree in retrieve_iteration_tree(iet):
-        vector_iterations = [i for i in tree if i.is_Vectorizable]
-        for i in vector_iterations:
-            aligned = [j for j in FindSymbols('symbolics').visit(i)
-                       if j.is_DiscreteFunction]
-            if aligned:
-                simd = Ompizer.lang['simd-for-aligned']
-                simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                simd_reg_size))
-            else:
-                simd = as_tuple(Ompizer.lang['simd-for'])
-            mapper[i] = i._rebuild(pragmas=i.pragmas + simd)
-
-    processed = Transformer(mapper).visit(iet)
-
-    return processed, {}
 
 
 @target_pass

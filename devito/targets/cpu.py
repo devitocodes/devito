@@ -6,8 +6,8 @@ from devito.exceptions import DLEException
 from devito.targets.basic import Target
 from devito.targets.common import (Blocker, Ompizer, avoid_denormals, insert_defs,
                                    insert_casts, optimize_halospots, mpiize,
-                                   loop_blocking, loop_wrapping, simdize,
-                                   minimize_remainders, hoist_prodders)
+                                   loop_blocking, loop_wrapping, minimize_remainders,
+                                   hoist_prodders)
 
 __all__ = ['CPU64NoopTarget', 'CPU64Target', 'Intel64Target', 'PowerTarget',
            'ArmTarget', 'CustomTarget']
@@ -46,9 +46,9 @@ class CPU64Target(CPU64NoopTarget):
         if self.params['mpi']:
             mpiize(graph, mode=self.params['mpi'])
         loop_blocking(graph, blocker=self.blocker)
-        simdize(graph, simd_reg_size=self.platform.simd_reg_size)
+        self.ompizer.make_simd(graph, simd_reg_size=self.platform.simd_reg_size)
         if self.params['openmp']:
-            self.ompizer.make_openmp(graph)
+            self.ompizer.make_parallel(graph)
         minimize_remainders(graph, simd_items_per_reg=self.platform.simd_items_per_reg)
         hoist_prodders(graph)
 
@@ -84,9 +84,10 @@ class CustomTarget(CPU64Target):
             'optcomms': partial(optimize_halospots),
             'wrapping': partial(loop_wrapping),
             'blocking': partial(loop_blocking, blocker=self.blocker),
-            'openmp': partial(self.ompizer.make_openmp),
+            'openmp': partial(self.ompizer.make_parallel),
             'mpi': partial(mpiize, mode=self.params['mpi']),
-            'simd': partial(simdize, simd_reg_size=self.platform.simd_reg_size),
+            'simd': partial(self.ompizer.make_simd,
+                            simd_reg_size=self.platform.simd_reg_size),
             'minrem': partial(minimize_remainders,
                               simd_items_per_reg=self.platform.simd_items_per_reg),
             'prodders': partial(hoist_prodders)

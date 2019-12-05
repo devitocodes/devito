@@ -12,21 +12,6 @@ from devito.tools import filter_sorted, flatten
 __all__ = ['DeviceOffloadingTarget']
 
 
-@target_pass
-def simdize(iet):
-    # No SIMD-ization for devices. We then drop the VECTOR property
-    # so that later passes can perform more aggressive transformations
-    mapper = {}
-    for i in FindNodes(Iteration).visit(iet):
-        if i.is_Vectorizable:
-            properties = [p for p in i.properties if p is not VECTOR]
-            mapper[i] = i._rebuild(properties=properties)
-
-    iet = Transformer(mapper).visit(iet)
-
-    return iet, {}
-
-
 class OmpizerGPU(Ompizer):
 
     COLLAPSE_NCORES = 1
@@ -147,6 +132,20 @@ class OmpizerGPU(Ompizer):
 
         return iet
 
+    @target_pass
+    def make_simd(self, iet, **kwargs):
+        # No SIMD-ization for devices. We then drop the VECTOR property
+        # so that later passes can perform more aggressive transformations
+        mapper = {}
+        for i in FindNodes(Iteration).visit(iet):
+            if i.is_Vectorizable:
+                properties = [p for p in i.properties if p is not VECTOR]
+                mapper[i] = i._rebuild(properties=properties)
+
+        iet = Transformer(mapper).visit(iet)
+
+        return iet, {}
+
 
 class DeviceOffloadingTarget(Target):
 
@@ -161,9 +160,9 @@ class DeviceOffloadingTarget(Target):
         optimize_halospots(graph)
         if self.params['mpi']:
             mpiize(graph, mode=self.params['mpi'])
-        simdize(graph)
+        self.ompizer.make_simd(graph, simd_reg_size=self.platform.simd_reg_size)
         if self.params['openmp']:
-            self.ompizer.make_openmp(graph)
+            self.ompizer.make_parallel(graph)
         hoist_prodders(graph)
 
         # Symbol definitions
