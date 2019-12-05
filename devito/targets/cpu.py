@@ -4,15 +4,21 @@ from cached_property import cached_property
 
 from devito.exceptions import DLEException
 from devito.targets.basic import Target
-from devito.targets.common import (Blocker, Ompizer, avoid_denormals, insert_defs,
-                                   insert_casts, optimize_halospots, mpiize,
-                                   loop_wrapping, minimize_remainders, hoist_prodders)
+from devito.targets.common import (DataManager, Blocker, Ompizer, avoid_denormals,
+                                   optimize_halospots, mpiize, loop_wrapping,
+                                   minimize_remainders, hoist_prodders)
 
 __all__ = ['CPU64NoopTarget', 'CPU64Target', 'Intel64Target', 'PowerTarget',
            'ArmTarget', 'CustomTarget']
 
 
 class CPU64NoopTarget(Target):
+
+    def __init__(self, params, platform):
+        super(CPU64NoopTarget, self).__init__(params, platform)
+
+        # Data manager (declarations, definitions, ...)
+        self.data_manager = DataManager()
 
     def _pipeline(self, graph):
         # Symbol definitions
@@ -52,8 +58,8 @@ class CPU64Target(CPU64NoopTarget):
         hoist_prodders(graph)
 
         # Symbol definitions
-        insert_defs(graph)
-        insert_casts(graph)
+        self.data_manager.place_definitions(graph)
+        self.data_manager.place_casts(graph)
 
 
 Intel64Target = CPU64Target
@@ -97,5 +103,5 @@ class CustomTarget(CPU64Target):
             self.passes_mapper[i](graph)
 
         # Symbol definitions
-        insert_defs(graph)
-        insert_casts(graph)
+        self.data_manager.place_definitions(graph)
+        self.data_manager.place_casts(graph)

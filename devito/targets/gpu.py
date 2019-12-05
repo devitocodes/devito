@@ -4,15 +4,14 @@ from devito.data import FULL
 from devito.ir.iet import (Expression, Iteration, List, FindNodes, MapNodes,
                            Transformer, COLLAPSED, VECTOR, retrieve_iteration_tree)
 from devito.targets.basic import Target
-from devito.targets.common import (Ompizer, ParallelTree, target_pass, insert_defs,
-                                   insert_casts, optimize_halospots, mpiize,
-                                   hoist_prodders)
+from devito.targets.common import (DataManager, Ompizer, ParallelTree, target_pass,
+                                   optimize_halospots, mpiize, hoist_prodders)
 from devito.tools import filter_sorted, flatten
 
 __all__ = ['DeviceOffloadingTarget']
 
 
-class OmpizerGPU(Ompizer):
+class OffloadingOmpizer(Ompizer):
 
     COLLAPSE_NCORES = 1
     """
@@ -37,7 +36,7 @@ class OmpizerGPU(Ompizer):
     def __init__(self, key=None):
         if key is None:
             key = lambda i: i.is_ParallelRelaxed
-        super(OmpizerGPU, self).__init__(key=key)
+        super(OffloadingOmpizer, self).__init__(key=key)
 
     def __map_data(self, f):
         if f.is_Array:
@@ -151,13 +150,21 @@ class OmpizerGPU(Ompizer):
         return iet, {}
 
 
+class OffloadingDataManager(DataManager):
+    pass
+
+
 class DeviceOffloadingTarget(Target):
 
     def __init__(self, params, platform):
         super(DeviceOffloadingTarget, self).__init__(params, platform)
 
         # Shared-memory parallelizer
-        self.ompizer = OmpizerGPU()
+        self.ompizer = OffloadingOmpizer()
+
+        # Data manager (declarations, definitions, movemented between
+        # host and device, ...)
+        self.data_manager = OffloadingDataManager()
 
     def _pipeline(self, graph):
         # Optimization and parallelism
@@ -170,6 +177,5 @@ class DeviceOffloadingTarget(Target):
         hoist_prodders(graph)
 
         # Symbol definitions
-        #TODO
-        #insert_defs(graph)
-        #insert_casts(graph)
+        #self.data_manager.place_definitions(graph)
+        #self.data_manager.place_casts(graph)

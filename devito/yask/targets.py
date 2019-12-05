@@ -3,8 +3,8 @@ from functools import partial
 from cached_property import cached_property
 
 from devito.ir import FindNodes
-from devito.targets import (CustomTarget, Intel64Target, Ompizer, avoid_denormals,
-                            loop_wrapping, insert_defs, insert_casts)
+from devito.targets import (CustomTarget, CPU64NoopTarget, Ompizer, avoid_denormals,
+                            loop_wrapping)
 
 from devito.yask.utils import Offloaded
 
@@ -27,7 +27,7 @@ class YaskOmpizer(Ompizer):
         super(YaskOmpizer, self).__init__(key=key)
 
 
-class YaskTarget(Intel64Target):
+class YaskTarget(CPU64NoopTarget):
 
     def __init__(self, params, platform):
         super(YaskTarget, self).__init__(params, platform)
@@ -43,8 +43,8 @@ class YaskTarget(Intel64Target):
             self.ompizer.make_parallel(graph)
 
         # Symbol definitions
-        insert_defs(graph)
-        insert_casts(graph)
+        self.data_manager.place_definitions(graph)
+        self.data_manager.place_casts(graph)
 
 
 class YaskCustomTarget(CustomTarget, YaskTarget):

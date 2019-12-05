@@ -13,25 +13,45 @@ from devito.symbolics import ccode
 from devito.targets.common.engine import target_pass
 from devito.tools import flatten
 
-__all__ = ['insert_defs', 'insert_casts']
+__all__ = ['DataManager']
 
 
-class Allocator(object):
+class Storage(object):
 
     def __init__(self):
-        self.heap = OrderedDict()
-        self.stack = OrderedDict()
+        # Storage with high bandwitdh
+        self._high_bw_mem = OrderedDict()
 
-    def push_object_on_stack(self, scope, obj):
-        """Define a LocalObject on the stack."""
-        handle = self.stack.setdefault(scope, OrderedDict())
+        # Storage with low latency
+        self._low_lat_mem = OrderedDict()
+
+    @property
+    def _on_low_lat_mem(self):
+        ret = []
+        for k, v in self._low_lat_mem.items():
+            try:
+                ret.append((k, [i for i in v.values() if i is not None]))
+            except AttributeError:
+                ret.append((k, v))
+        return ret
+
+    @property
+    def _on_high_bw_mem(self):
+        return self._high_bw_mem.values()
+
+
+class DataManager(object):
+
+    def _push_object_on_low_lat_mem(self, scope, obj, storage):
+        """Place a LocalObject in the low latency memory."""
+        handle = storage._low_lat_mem.setdefault(scope, OrderedDict())
         handle[obj] = Element(c.Value(obj._C_typename, obj.name))
 
-    def push_array_on_stack(self, scope, obj):
-        """Define an Array on the stack."""
-        handle = self.stack.setdefault(scope, OrderedDict())
+    def _push_array_on_low_lat_mem(self, scope, obj, storage):
+        """Place an Array in the low latency memory."""
+        handle = storage._low_lat_mem.setdefault(scope, OrderedDict())
 
-        if obj in flatten(self.stack.values()):
+        if obj in flatten(storage._low_lat_mem.values()):
             return
 
         shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
@@ -39,20 +59,20 @@ class Allocator(object):
         value = "%s%s %s" % (obj.name, shape, alignment)
         handle[obj] = Element(c.POD(obj.dtype, value))
 
-    def push_scalar_on_stack(self, scope, expr):
-        """Define a Scalar on the stack."""
-        handle = self.stack.setdefault(scope, OrderedDict())
+    def _push_scalar_on_low_lat_mem(self, scope, expr, storage):
+        """Place a Scalar in the low latency memory."""
+        handle = storage._low_lat_mem.setdefault(scope, OrderedDict())
 
         obj = expr.write
         if obj in handle:
             return
 
         handle[obj] = None  # Placeholder to avoid reallocation
-        self.stack[expr] = LocalExpression(**expr.args)
+        storage._low_lat_mem[expr] = LocalExpression(**expr.args)
 
-    def push_array_on_heap(self, obj):
-        """Define an Array on the heap."""
-        if obj in self.heap:
+    def _push_array_on_high_bw_mem(self, obj, storage):
+        """Place an Array in the high bandwidth memory."""
+        if obj in storage._high_bw_mem:
             return
 
         decl = "(*%s)%s" % (obj.name, "".join("[%s]" % i for i in obj.symbolic_shape[1:]))
@@ -65,98 +85,81 @@ class Allocator(object):
 
         free = c.Statement('free(%s)' % obj.name)
 
-        self.heap[obj] = (decl, alloc, free)
+        storage._high_bw_mem[obj] = (decl, alloc, free)
 
-    @property
-    def onstack(self):
-        ret = []
-        for k, v in self.stack.items():
-            try:
-                ret.append((k, [i for i in v.values() if i is not None]))
-            except AttributeError:
-                ret.append((k, v))
-        return ret
+    @target_pass
+    def place_definitions(self, iet):
+        """
+        Create a new IET with symbols allocated/deallocated in some memory space.
 
-    @property
-    def onheap(self):
-        return self.heap.values()
+        Parameters
+        ----------
+        iet : Callable
+            The input Iteration/Expression tree.
+        """
+        storage = Storage()
 
-
-@target_pass
-def insert_defs(iet):
-    """
-    Transform the input IET inserting the necessary symbol declarations.
-    Declarations are placed as close as possible to the first symbol occurrence.
-
-    Parameters
-    ----------
-    iet : Callable
-        The input Iteration/Expression tree.
-    """
-    # Classify and then schedule declarations to stack/heap
-    allocator = Allocator()
-    for k, v in MapExprStmts().visit(iet).items():
-        if k.is_Expression:
-            if k.is_definition:
-                # On the stack
-                site = v[-1] if v else iet
-                allocator.push_scalar_on_stack(site, k)
-                continue
-            objs = [k.write]
-        elif k.is_Call:
-            objs = k.arguments
-
-        for i in objs:
-            try:
-                if i.is_LocalObject:
-                    # On the stack
+        for k, v in MapExprStmts().visit(iet).items():
+            if k.is_Expression:
+                if k.is_definition:
+                    # On the low latency memory
                     site = v[-1] if v else iet
-                    allocator.push_object_on_stack(site, i)
-                elif i.is_Array:
-                    if i in iet.parameters:
-                        # The Array is passed as a Callable argument
-                        continue
-                    elif i._mem_stack:
-                        # On the stack
-                        allocator.push_array_on_stack(iet, i)
-                    else:
-                        # On the heap
-                        allocator.push_array_on_heap(i)
-            except AttributeError:
-                # E.g., a generic SymPy expression
-                pass
+                    self._push_scalar_on_low_lat_mem(site, k, storage)
+                    continue
+                objs = [k.write]
+            elif k.is_Call:
+                objs = k.arguments
 
-    # Introduce declarations on the stack
-    mapper = dict(allocator.onstack)
-    iet = Transformer(mapper, nested=True).visit(iet)
+            for i in objs:
+                try:
+                    if i.is_LocalObject:
+                        # On the low latency memory
+                        site = v[-1] if v else iet
+                        self._push_object_on_low_lat_mem(site, i, storage)
+                    elif i.is_Array:
+                        if i in iet.parameters:
+                            # The Array is passed as a Callable argument
+                            continue
+                        elif i._mem_stack:
+                            # On the low latency memory
+                            self._push_array_on_low_lat_mem(iet, i, storage)
+                        else:
+                            # On the high bandwidth memory
+                            self._push_array_on_high_bw_mem(i, storage)
+                except AttributeError:
+                    # E.g., a generic SymPy expression
+                    pass
 
-    # Introduce declarations on the heap (if any)
-    if allocator.onheap:
-        decls, allocs, frees = zip(*allocator.onheap)
-        iet = iet._rebuild(body=List(header=decls+allocs, body=iet.body, footer=frees))
+        # Introduce symbol definitions going in the low latency memory
+        mapper = dict(storage._on_low_lat_mem)
+        iet = Transformer(mapper, nested=True).visit(iet)
 
-    return iet, {}
+        # Introduce symbol definitions going in the high bandwidth memory
+        if storage._on_high_bw_mem:
+            decls, allocs, frees = zip(*storage._on_high_bw_mem)
+            body = List(header=decls + allocs, body=iet.body, footer=frees)
+            iet = iet._rebuild(body=body)
 
+        return iet, {}
 
-@target_pass
-def insert_casts(iet):
-    """
-    Transform the input IET inserting the necessary type casts.
-    The type casts are placed at the top of the IET.
+    @target_pass
+    def place_casts(self, iet):
+        """
+        Create a new IET with the necessary type casts.
 
-    Parameters
-    ----------
-    iet : Callable
-        The input Iteration/Expression tree.
-    """
-    # Make the generated code less verbose: if a non-Array parameter does not
-    # appear in any Expression, that is, if the parameter is merely propagated
-    # down to another Call, then there's no need to cast it
-    exprs = FindNodes(Expression).visit(iet)
-    need_cast = {i for i in set().union(*[i.functions for i in exprs]) if i.is_Tensor}
-    need_cast.update({i for i in iet.parameters if i.is_Array})
+        Parameters
+        ----------
+        iet : Callable
+            The input Iteration/Expression tree.
+        """
+        # Make the generated code less verbose: if a non-Array parameter does not
+        # appear in any Expression, that is, if the parameter is merely propagated
+        # down to another Call, then there's no need to cast it
+        exprs = FindNodes(Expression).visit(iet)
+        need_cast = {i for i in set().union(*[i.functions for i in exprs]) if i.is_Tensor}
+        need_cast.update({i for i in iet.parameters if i.is_Array})
 
-    casts = tuple(ArrayCast(i) for i in iet.parameters if i in need_cast)
-    iet = iet._rebuild(body=casts + iet.body)
+        casts = tuple(ArrayCast(i) for i in iet.parameters if i in need_cast)
+        iet = iet._rebuild(body=casts + iet.body)
 
-    return iet, {}
+        return iet, {}
