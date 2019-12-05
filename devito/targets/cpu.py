@@ -6,7 +6,7 @@ from devito.exceptions import DLEException
 from devito.targets.basic import Target
 from devito.targets.common import (Blocker, Ompizer, avoid_denormals, insert_defs,
                                    insert_casts, optimize_halospots, parallelize_dist,
-                                   loop_blocking, loop_wrapping, simdize, parallelize_shm,
+                                   loop_blocking, loop_wrapping, simdize,
                                    minimize_remainders, hoist_prodders)
 
 __all__ = ['CPU64NoopTarget', 'CPU64Target', 'Intel64Target', 'PowerTarget',
@@ -36,8 +36,8 @@ class CPU64Target(CPU64NoopTarget):
         self.blocker = Blocker(params.get('blockinner'),
                                params.get('blocklevels') or self.BLOCK_LEVELS)
 
-        # Shared-memory parallelizer
-        self.parallelizer_shm = Ompizer()
+        # For shared-memory parallelism
+        self.ompizer = Ompizer()
 
     def _pipeline(self, graph):
         # Optimization and parallelism
@@ -48,7 +48,7 @@ class CPU64Target(CPU64NoopTarget):
         loop_blocking(graph, blocker=self.blocker)
         simdize(graph, simd_reg_size=self.platform.simd_reg_size)
         if self.params['openmp']:
-            parallelize_shm(graph, parallelizer_shm=self.parallelizer_shm)
+            self.ompizer.make_openmp(graph)
         minimize_remainders(graph, simd_items_per_reg=self.platform.simd_items_per_reg)
         hoist_prodders(graph)
 
@@ -84,7 +84,7 @@ class CustomTarget(CPU64Target):
             'optcomms': partial(optimize_halospots),
             'wrapping': partial(loop_wrapping),
             'blocking': partial(loop_blocking, blocker=self.blocker),
-            'openmp': partial(parallelize_shm, parallelizer_shm=self.parallelizer_shm),
+            'openmp': partial(self.ompizer.make_openmp),
             'mpi': partial(parallelize_dist, mode=self.params['mpi']),
             'simd': partial(simdize, simd_reg_size=self.platform.simd_reg_size),
             'minrem': partial(minimize_remainders,

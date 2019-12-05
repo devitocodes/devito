@@ -4,7 +4,7 @@ from cached_property import cached_property
 
 from devito.ir import FindNodes
 from devito.targets import (CustomTarget, Intel64Target, Ompizer, avoid_denormals,
-                            loop_wrapping, parallelize_shm, insert_defs, insert_casts)
+                            loop_wrapping, insert_defs, insert_casts)
 
 from devito.yask.utils import Offloaded
 
@@ -29,14 +29,18 @@ class YaskOmpizer(Ompizer):
 
 class YaskTarget(Intel64Target):
 
-    _parallelizer_shm_type = YaskOmpizer
+    def __init__(self, params, platform):
+        super(YaskTarget, self).__init__(params, platform)
+
+        # For shared-memory parallelism
+        self.ompizer = YaskOmpizer()
 
     def _pipeline(self, graph):
         # Optimization and parallelism
         avoid_denormals(graph)
         loop_wrapping(graph)
         if self.params['openmp']:
-            parallelize_shm(graph, parallelizer_shm=self.parallelizer_shm)
+            self.ompizer.make_openmp(graph)
 
         # Symbol definitions
         insert_defs(graph)
@@ -50,5 +54,5 @@ class YaskCustomTarget(CustomTarget, YaskTarget):
         return {
             'denormals': partial(avoid_denormals),
             'wrapping': partial(loop_wrapping),
-            'openmp': partial(parallelize_shm, parallelizer_shm=self.parallelizer_shm)
+            'openmp': partial(self.ompizer.make_openmp),
         }

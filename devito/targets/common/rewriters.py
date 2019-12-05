@@ -11,7 +11,7 @@ from devito.targets.common.engine import target_pass
 from devito.tools import as_tuple, generator
 
 __all__ = ['avoid_denormals', 'loop_wrapping', 'optimize_halospots',
-           'parallelize_dist', 'simdize', 'parallelize_shm', 'minimize_remainders',
+           'parallelize_dist', 'simdize', 'minimize_remainders',
            'hoist_prodders']
 
 
@@ -210,17 +210,6 @@ def simdize(iet, **kwargs):
     processed = Transformer(mapper).visit(iet)
 
     return processed, {}
-
-
-@target_pass
-def parallelize_shm(iet, **kwargs):
-    """
-    Add OpenMP pragmas to the Iteration/Expression tree to emit SIMD and
-    shared-memory parallel code.
-    """
-    parallelizer_shm = kwargs.pop('parallelizer_shm')
-
-    return parallelizer_shm.make_parallel(iet)
 
 
 @target_pass

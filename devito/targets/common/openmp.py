@@ -10,6 +10,7 @@ from devito.ir import (DummyEq, Conditional, Block, Expression, List, Prodder,
                        IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
 from devito.symbolics import CondEq, INT
 from devito.parameters import configuration
+from devito.targets.common.engine import target_pass
 from devito.tools import as_tuple, is_integer, prod
 from devito.types import Constant, Symbol
 
@@ -343,8 +344,11 @@ class Ompizer(object):
         # No data transfers needed
         return iet
 
-    def make_parallel(self, iet):
-        """Transform ``iet`` by introducing shared-memory parallelism."""
+    @target_pass
+    def make_openmp(self, iet):
+        """
+        Transform ``iet`` by introducing shared-memory parallelism via OpenMP pragmas.
+        """
         mapper = OrderedDict()
         for tree in retrieve_iteration_tree(iet):
             # Get the omp-parallelizable Iterations in `tree`

@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from functools import wraps
+from functools import partial, wraps
 from time import time
 
 from devito.ir.iet import Call, FindNodes, MetaCall, Transformer
@@ -115,9 +115,16 @@ class Graph(object):
 
 def target_pass(func):
     @wraps(func)
-    def wrapper(graph, **kwargs):
+    def wrapper(*args, **kwargs):
         tic = time()
-        graph.apply(func, **kwargs)
+        try:
+            # Pure function case
+            graph, = args
+            graph.apply(func, **kwargs)
+        except ValueError:
+            # Instance method cae
+            self, graph = args
+            graph.apply(partial(func, self), **kwargs)
         toc = time()
         graph.timings[func.__name__] = toc - tic
     return wrapper
