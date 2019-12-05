@@ -6,8 +6,7 @@ from devito.exceptions import DLEException
 from devito.targets.basic import Target
 from devito.targets.common import (Blocker, Ompizer, avoid_denormals, insert_defs,
                                    insert_casts, optimize_halospots, mpiize,
-                                   loop_blocking, loop_wrapping, minimize_remainders,
-                                   hoist_prodders)
+                                   loop_wrapping, minimize_remainders, hoist_prodders)
 
 __all__ = ['CPU64NoopTarget', 'CPU64Target', 'Intel64Target', 'PowerTarget',
            'ArmTarget', 'CustomTarget']
@@ -45,7 +44,7 @@ class CPU64Target(CPU64NoopTarget):
         optimize_halospots(graph)
         if self.params['mpi']:
             mpiize(graph, mode=self.params['mpi'])
-        loop_blocking(graph, blocker=self.blocker)
+        self.blocker.make_blocking(graph)
         self.ompizer.make_simd(graph, simd_reg_size=self.platform.simd_reg_size)
         if self.params['openmp']:
             self.ompizer.make_parallel(graph)
@@ -83,7 +82,7 @@ class CustomTarget(CPU64Target):
             'denormals': partial(avoid_denormals),
             'optcomms': partial(optimize_halospots),
             'wrapping': partial(loop_wrapping),
-            'blocking': partial(loop_blocking, blocker=self.blocker),
+            'blocking': partial(self.blocker.make_blocking),
             'openmp': partial(self.ompizer.make_parallel),
             'mpi': partial(mpiize, mode=self.params['mpi']),
             'simd': partial(self.ompizer.make_simd,

@@ -13,17 +13,7 @@ from devito.targets.common.engine import target_pass
 from devito.tools import all_equal, as_tuple, flatten
 from devito.types import IncrDimension, Scalar
 
-__all__ = ['Blocker', 'BlockDimension', 'loop_blocking']
-
-
-@target_pass
-def loop_blocking(iet, **kwargs):
-    """
-    Apply hierarchical loop blocking to PARALLEL Iteration trees.
-    """
-    blocker = kwargs.pop('blocker')
-
-    return blocker.make_blocking(iet)
+__all__ = ['Blocker', 'BlockDimension']
 
 
 class Blocker(object):
@@ -34,6 +24,7 @@ class Blocker(object):
 
         self.nblocked = 0
 
+    @target_pass
     def make_blocking(self, iet):
         """
         Apply loop blocking to PARALLEL Iteration trees.
