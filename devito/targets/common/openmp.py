@@ -340,10 +340,6 @@ class Ompizer(object):
 
         return partree
 
-    def _make_data_transfers(self, iet):
-        # No data transfers needed
-        return iet
-
     @target_pass
     def make_parallel(self, iet):
         """
@@ -377,9 +373,6 @@ class Ompizer(object):
             mapper[root] = parregion
 
         iet = Transformer(mapper).visit(iet)
-
-        # Add the data transfers
-        iet = self._make_data_transfers(iet)
 
         # The used `nthreads` arguments
         args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsMixin))]

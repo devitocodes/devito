@@ -42,13 +42,13 @@ class Storage(object):
 
 class DataManager(object):
 
-    def _push_object_on_low_lat_mem(self, scope, obj, storage):
-        """Place a LocalObject in the low latency memory."""
+    def _alloc_object_on_low_lat_mem(self, scope, obj, storage):
+        """Allocate a LocalObject in the low latency memory."""
         handle = storage._low_lat_mem.setdefault(scope, OrderedDict())
         handle[obj] = Element(c.Value(obj._C_typename, obj.name))
 
-    def _push_array_on_low_lat_mem(self, scope, obj, storage):
-        """Place an Array in the low latency memory."""
+    def _alloc_array_on_low_lat_mem(self, scope, obj, storage):
+        """Allocate an Array in the low latency memory."""
         handle = storage._low_lat_mem.setdefault(scope, OrderedDict())
 
         if obj in flatten(storage._low_lat_mem.values()):
@@ -59,8 +59,8 @@ class DataManager(object):
         value = "%s%s %s" % (obj.name, shape, alignment)
         handle[obj] = Element(c.POD(obj.dtype, value))
 
-    def _push_scalar_on_low_lat_mem(self, scope, expr, storage):
-        """Place a Scalar in the low latency memory."""
+    def _alloc_scalar_on_low_lat_mem(self, scope, expr, storage):
+        """Allocate a Scalar in the low latency memory."""
         handle = storage._low_lat_mem.setdefault(scope, OrderedDict())
 
         obj = expr.write
@@ -70,8 +70,8 @@ class DataManager(object):
         handle[obj] = None  # Placeholder to avoid reallocation
         storage._low_lat_mem[expr] = LocalExpression(**expr.args)
 
-    def _push_array_on_high_bw_mem(self, obj, storage):
-        """Place an Array in the high bandwidth memory."""
+    def _alloc_array_on_high_bw_mem(self, obj, storage):
+        """Allocate an Array in the high bandwidth memory."""
         if obj in storage._high_bw_mem:
             return
 
@@ -86,6 +86,10 @@ class DataManager(object):
         free = c.Statement('free(%s)' % obj.name)
 
         storage._high_bw_mem[obj] = (decl, alloc, free)
+
+    def _map_function_on_high_bw_mem(self, obj, storage):
+        """Place a Function in the high bandwidth memory."""
+        return
 
     @target_pass
     def place_definitions(self, iet):
@@ -102,9 +106,8 @@ class DataManager(object):
         for k, v in MapExprStmts().visit(iet).items():
             if k.is_Expression:
                 if k.is_definition:
-                    # On the low latency memory
                     site = v[-1] if v else iet
-                    self._push_scalar_on_low_lat_mem(site, k, storage)
+                    self._alloc_scalar_on_low_lat_mem(site, k, storage)
                     continue
                 objs = [k.write]
             elif k.is_Call:
@@ -113,19 +116,18 @@ class DataManager(object):
             for i in objs:
                 try:
                     if i.is_LocalObject:
-                        # On the low latency memory
                         site = v[-1] if v else iet
-                        self._push_object_on_low_lat_mem(site, i, storage)
+                        self._alloc_object_on_low_lat_mem(site, i, storage)
                     elif i.is_Array:
                         if i in iet.parameters:
                             # The Array is passed as a Callable argument
                             continue
                         elif i._mem_stack:
-                            # On the low latency memory
-                            self._push_array_on_low_lat_mem(iet, i, storage)
+                            self._alloc_array_on_low_lat_mem(iet, i, storage)
                         else:
-                            # On the high bandwidth memory
-                            self._push_array_on_high_bw_mem(i, storage)
+                            self._alloc_array_on_high_bw_mem(i, storage)
+                    elif i.is_Function:
+                        self._map_function_on_high_bw_mem(i, storage)
                 except AttributeError:
                     # E.g., a generic SymPy expression
                     pass

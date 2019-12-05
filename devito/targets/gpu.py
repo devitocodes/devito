@@ -27,10 +27,14 @@ class OffloadingOmpizer(Ompizer):
     lang.update({
         'par-for-teams': lambda i:
             c.Pragma('omp target teams distribute parallel for collapse(%d)' % i),
-        'map-enter': lambda i, j:
+        'map-enter-to': lambda i, j:
             c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
-        'map-exit': lambda i, j:
-            c.Pragma('omp target exit data map(from: %s%s)' % (i, j))
+        'map-enter-alloc': lambda i, j:
+            c.Pragma('omp target enter data map(alloc: %s%s)' % (i, j)),
+        'map-exit-from': lambda i, j:
+            c.Pragma('omp target exit data map(from: %s%s)' % (i, j)),
+        'map-exit-delete': lambda i, j:
+            c.Pragma('omp target exit data map(delete: %s%s)' % (i, j)),
     })
 
     def __init__(self, key=None):
@@ -38,19 +42,32 @@ class OffloadingOmpizer(Ompizer):
             key = lambda i: i.is_ParallelRelaxed
         super(OffloadingOmpizer, self).__init__(key=key)
 
-    def __map_data(self, f):
+    @classmethod
+    def _map_data(cls, f):
         if f.is_Array:
             return f.symbolic_shape
         else:
             return tuple(f._C_get_field(FULL, d).size for d in f.dimensions)
 
-    def __map_to(self, f):
-        return self.lang['map-enter'](f.name,
-                                      ''.join('[0:%s]' % i for i in self.__map_data(f)))
+    @classmethod
+    def _map_to(cls, f):
+        return cls.lang['map-enter-to'](f.name, ''.join('[0:%s]' % i
+                                                        for i in cls._map_data(f)))
 
-    def __map_from(self, f):
-        return self.lang['map-exit'](f.name,
-                                     ''.join('[0:%s]' % i for i in self.__map_data(f)))
+    @classmethod
+    def _map_alloc(cls, f):
+        return cls.lang['map-enter-alloc'](f.name, ''.join('[0:%s]' % i
+                                                           for i in cls._map_data(f)))
+
+    @classmethod
+    def _map_from(cls, f):
+        return cls.lang['map-exit-from'](f.name, ''.join('[0:%s]' % i
+                                                         for i in cls._map_data(f)))
+
+    @classmethod
+    def _map_delete(cls, f):
+        return cls.lang['map-exit-delete'](f.name, ''.join('[0:%s]' % i
+                                                           for i in cls._map_data(f)))
 
     def _make_threaded_prodders(self, partree):
         # no-op for now
@@ -92,49 +109,6 @@ class OffloadingOmpizer(Ompizer):
         # no-op for now
         return partree
 
-    def _make_data_transfers(self, iet):
-        data_transfers = {}
-        for iteration, partree in MapNodes(child_types=ParallelTree).visit(iet).items():
-            # The data that need to be transfered between host and device
-            exprs = FindNodes(Expression).visit(partree)
-            reads = set().union(*[i.reads for i in exprs])
-            writes = set([i.write for i in exprs])
-            data = {i for i in reads | writes if i.is_Tensor}
-
-            # At what depth in the IET should the data transfer be performed?
-            candidate = iteration
-            for tree in retrieve_iteration_tree(iet):
-                if iteration not in tree:
-                    continue
-                for i in reversed(tree[:tree.index(iteration)+1]):
-                    found = False
-                    for k, v in MapNodes('any', Expression, 'groupby').visit(i).items():
-                        test0 = any(isinstance(n, ParallelTree) for n in k)
-                        test1 = set().union(*[e.functions for e in v]) & data
-                        if not test0 and test1:
-                            found = True
-                            break
-                    if found:
-                        break
-                    candidate = i
-                break
-
-            # Create the omp pragmas for the data transfer
-            map_tos = [self.__map_to(i) for i in data]
-            map_froms = [self.__map_from(i) for i in writes if i.is_Tensor]
-            data_transfers.setdefault(candidate, []).append((map_tos, map_froms))
-
-        # Now create a new IET with the data transfer
-        mapper = {}
-        for i, v in data_transfers.items():
-            map_tos, map_froms = zip(*v)
-            map_tos = filter_sorted(flatten(map_tos), key=lambda i: i.value)
-            map_froms = filter_sorted(flatten(map_froms), key=lambda i: i.value)
-            mapper[i] = List(header=map_tos, body=i, footer=map_froms)
-        iet = Transformer(mapper).visit(iet)
-
-        return iet
-
     @target_pass
     def make_simd(self, iet, **kwargs):
         # No SIMD-ization for devices. We then drop the VECTOR property
@@ -151,7 +125,26 @@ class OffloadingOmpizer(Ompizer):
 
 
 class OffloadingDataManager(DataManager):
-    pass
+
+    def _alloc_array_on_high_bw_mem(self, obj, storage):
+        if obj in storage._high_bw_mem:
+            return
+
+        decl = c.Comment("no-op")
+        alloc = OffloadingOmpizer._map_alloc(obj)
+        free = OffloadingOmpizer._map_delete(obj)
+
+        storage._high_bw_mem[obj] = (decl, alloc, free)
+
+    def _map_function_on_high_bw_mem(self, obj, storage):
+        if obj in storage._high_bw_mem:
+            return
+
+        decl = c.Comment("no-op")
+        alloc = OffloadingOmpizer._map_to(obj)
+        free = OffloadingOmpizer._map_from(obj)
+
+        storage._high_bw_mem[obj] = (decl, alloc, free)
 
 
 class DeviceOffloadingTarget(Target):
@@ -177,5 +170,5 @@ class DeviceOffloadingTarget(Target):
         hoist_prodders(graph)
 
         # Symbol definitions
-        #self.data_manager.place_definitions(graph)
-        #self.data_manager.place_casts(graph)
+        self.data_manager.place_definitions(graph)
+        self.data_manager.place_casts(graph)
