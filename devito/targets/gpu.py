@@ -1,12 +1,10 @@
 import cgen as c
 
 from devito.data import FULL
-from devito.ir.iet import (Expression, Iteration, List, FindNodes, MapNodes,
-                           Transformer, COLLAPSED, VECTOR, retrieve_iteration_tree)
+from devito.ir.iet import Iteration, FindNodes, Transformer, COLLAPSED, VECTOR
 from devito.targets.basic import Target
 from devito.targets.common import (DataManager, Ompizer, ParallelTree, target_pass,
                                    optimize_halospots, mpiize, hoist_prodders)
-from devito.tools import filter_sorted, flatten
 
 __all__ = ['DeviceOffloadingTarget']
 
