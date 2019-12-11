@@ -710,6 +710,9 @@ class ArrayCast(Node):
     def __init__(self, function):
         self.function = function
 
+    def __repr__(self):
+        return "<ArrayCast(%s)>" % self.function
+
     @property
     def castshape(self):
         """The shape used in the left-hand side and right-hand side of the ArrayCast."""
