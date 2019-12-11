@@ -54,5 +54,5 @@ class YaskCustomTarget(CustomTarget, YaskTarget):
         return {
             'denormals': partial(avoid_denormals),
             'wrapping': partial(loop_wrapping),
-            'openmp': partial(self.ompizer.make_openmp_parallel),
+            'openmp': partial(self.ompizer.make_parallel),
         }
