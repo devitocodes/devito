@@ -104,7 +104,7 @@ class Profiler(object):
             If provided, the global execution time is derived by a single MPI
             rank, with timers started and stopped right after an MPI barrier.
         """
-        if comm is not MPI.COMM_NULL:
+        if comm and comm is not MPI.COMM_NULL:
             comm.Barrier()
             tic = MPI.Wtime()
             yield
@@ -378,6 +378,7 @@ def create_profile(name):
     else:
         level = configuration['profiling']
     profiler = profiler_registry[level](name)
+
     if profiler.initialized:
         return profiler
     else:

@@ -1,9 +1,8 @@
 from collections import OrderedDict
 from functools import partial, wraps
-from time import time
 
 from devito.ir.iet import Call, FindNodes, MetaCall, Transformer
-from devito.tools import DAG, as_tuple, filter_ordered
+from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 
 __all__ = ['Graph', 'target_pass']
 
@@ -28,9 +27,6 @@ class Graph(object):
         self.dimensions = []
         self.includes = []
         self.headers = []
-
-        # Track performance of each pass
-        self.timings = OrderedDict()
 
     @property
     def root(self):
@@ -116,15 +112,16 @@ class Graph(object):
 def target_pass(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        tic = time()
+        if timed_pass.is_enabled():
+            maybe_timed = timed_pass
+        else:
+            maybe_timed = lambda func, name: func
         try:
             # Pure function case
             graph, = args
-            graph.apply(func, **kwargs)
+            maybe_timed(graph.apply, func.__name__)(func, **kwargs)
         except ValueError:
-            # Instance method cae
+            # Instance method case
             self, graph = args
-            graph.apply(partial(func, self), **kwargs)
-        toc = time()
-        graph.timings[func.__name__] = toc - tic
+            maybe_timed(graph.apply, func.__name__)(partial(func, self), **kwargs)
     return wrapper

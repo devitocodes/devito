@@ -32,10 +32,10 @@ class OperatorYASK(Operator):
     _default_headers = Operator._default_headers + ['#define restrict __restrict']
     _default_includes = Operator._default_includes + ['yask_kernel_api.hpp']
 
-    def __new__(cls, expressions, **kwargs):
+    @classmethod
+    def _compile(cls, expressions, **kwargs):
         yk_solns = OrderedDict()
-        op = super(OperatorYASK, cls).__new__(cls, expressions, yk_solns=yk_solns,
-                                              **kwargs)
+        op = super(OperatorYASK, cls)._compile(expressions, yk_solns=yk_solns, **kwargs)
 
         # Produced by `_specialize_iet`
         op.yk_solns = yk_solns
@@ -176,7 +176,7 @@ class OperatorYASK(Operator):
             i.post_apply()
 
         # Output summary of performance achieved
-        return self._profile_output(args)
+        return self._emit_apply_profiling(args)
 
     def __getstate__(self):
         state = dict(super(OperatorYASK, self).__getstate__())

@@ -3,7 +3,7 @@ from itertools import product
 
 from devito.archinfo import Platform
 from devito.ir.iet import Node
-from devito.logger import log, warning
+from devito.logger import warning
 from devito.parameters import configuration
 from devito.targets.common import Graph
 from devito.tools import Singleton
@@ -147,27 +147,7 @@ def iet_lower(iet, mode='advanced', options=None):
         # transformation passes
         rewriter = targets.fetch(platform, 'custom')(mode, params, platform)
 
-    # Trigger the DLE passes
+    # Trigger the Target passes
     graph = rewriter.process(iet)
 
-    # Print out the profiling data
-    print_profiling(graph)
-
     return graph.root, graph
-
-
-def print_profiling(graph):
-    """
-    Print a summary of the applied transformations.
-    """
-    timings = graph.timings
-
-    if configuration['profiling'] in ['basic', 'advanced']:
-        row = "%s (elapsed: %.2f s)"
-        out = "\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k)), v)
-                             for k, v in timings.items())
-        elapsed = sum(timings.values())
-        log("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
-    else:
-        # Shorter summary
-        log("passes: %s (elapsed %.2f s)" % (",".join(timings), sum(timings.values())))

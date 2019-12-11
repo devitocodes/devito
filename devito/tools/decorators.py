@@ -1,6 +1,10 @@
+from collections import OrderedDict
 from decorator import decorator
+from functools import partial
+from threading import get_ident
+from time import time
 
-__all__ = ['validate_type']
+__all__ = ['validate_type', 'timed_pass', 'timed_region']
 
 
 class validate_base(object):
@@ -87,3 +91,69 @@ class validate_type(validate_base):
         if not isinstance(arg, argtype):
             raise exception("%s:%d Parameter %s must be of type %r"
                             % (self.file, self.line, arg, argtype))
+
+
+class timed_pass(object):
+
+    """
+    A decorator to record the timing of functions or methods.
+    """
+
+    timings = {}
+    """
+    A ``thread_id -> timings`` mapper. The only reason we key the timings by
+    thread id is to support multi-threaded codes that want to have separate
+    Python threads compiling multiple Operators in parallel.
+    """
+
+    def __init__(self, func, name=None):
+        self.func = func
+        self.name = name
+
+    @classmethod
+    def is_enabled(cls):
+        return isinstance(cls.timings.get(get_ident()), dict)
+
+    def __call__(self, *args, **kwargs):
+        timings = timed_pass.timings.get(get_ident())
+        if not isinstance(timings, dict):
+            raise ValueError("Attempting to use `timed_pass` outside a `timed_region`")
+        tic = time()
+        retval = self.func(*args, **kwargs)
+        toc = time()
+        if self.name is not None:
+            key = self.name
+        else:
+            key = self.func.__name__
+        timings[key] = toc - tic
+        return retval
+
+    def __repr__(self):
+        """Return the function's docstring."""
+        return self.func.__doc__
+
+    def __get__(self, obj, objtype):
+        """Support instance methods."""
+        return partial(self.__call__, obj)
+
+
+class timed_region(object):
+
+    """
+    A context manager for code regions in which the `timed_pass` decorator is used.
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def __enter__(self):
+        if isinstance(timed_pass.timings.get(get_ident()), dict):
+            raise ValueError("Cannot nest `timed_region`")
+        self.timings = OrderedDict()
+        timed_pass.timings[get_ident()] = self.timings
+        self.tic = time()
+        return self
+
+    def __exit__(self, *args):
+        self.timings[self.name] = time() - self.tic
+        del timed_pass.timings[get_ident()]

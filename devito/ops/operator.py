@@ -13,8 +13,9 @@ class OperatorOPS(Operator):
 
     _default_headers = Operator._default_headers + ['#define restrict __restrict']
 
-    def __new__(cls, expressions, **kwargs):
-        op = super(OperatorOPS, cls).__new__(cls, expressions, **kwargs)
+    @classmethod
+    def _compile(cls, expressions, **kwargs):
+        op = super(OperatorOPS, cls)._compile(expressions, **kwargs)
 
         op._compiler = ops_configuration['compiler'].copy()
 
@@ -24,7 +25,7 @@ class OperatorOPS(Operator):
     def hcode(self):
         return ''.join(str(kernel.root) for kernel in self._func_table.values())
 
-    def _compile(self):
+    def _jit_compile(self):
         self._includes.append('%s.h' % self._soname)
         if self._lib is None:
             self._compiler.jit_compile(self._soname, str(self.ccode), str(self.hcode))

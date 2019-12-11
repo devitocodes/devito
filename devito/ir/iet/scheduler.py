@@ -4,12 +4,13 @@ from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional,
                            Section, HaloSpot, ExpressionBundle, FindNodes, FindSymbols,
                            XSubs, iet_analyze)
 from devito.symbolics import IntDiv, xreplace_indices
-from devito.tools import as_mapper
+from devito.tools import as_mapper, timed_pass
 from devito.types import ConditionalDimension
 
 __all__ = ['iet_build']
 
 
+@timed_pass
 def iet_build(stree):
     """
     Create an Iteration/Expression tree (IET) from a ScheduleTree.
