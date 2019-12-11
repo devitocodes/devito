@@ -37,7 +37,7 @@ def opsit(trees, count, name_to_ops_dat, block, dims):
                        for expr in expressions]
 
     parameters = sorted(node_factory.ops_params,
-                        key=lambda i: (i.is_Constant, i.name))
+                        key=lambda i: (i.is_Scalar, i.name))
 
     stencil_arrays_initializations = []
     par_to_ops_stencil = {}

@@ -51,12 +51,6 @@ class RawAccess(basic.Basic, sympy.Basic):
         # other is not NaN, 0, or 1
         return None
 
-    def as_coeff_Mul(self):
-        return sympy.S.One, self
-
-    def as_coeff_Add(self):
-        return sympy.S.Zero, self
-
 
 class OpsAccessible(basic.Symbol):
     """
