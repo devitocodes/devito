@@ -129,7 +129,7 @@ def perf(msg, *args, **kwargs):
 
 
 def perf_adv(msg, *args, **kwargs):
-    log("Performance optimisation spotted: %s" % msg, PERF, *args, **kwargs)
+    log("Potential optimisation missed: %s" % msg, PERF, *args, **kwargs)
 
 
 def warning(msg, *args, **kwargs):

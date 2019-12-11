@@ -1,6 +1,6 @@
 from devito.ir.iet import (Call, HaloSpot, Iteration, List, PARALLEL, FindAdjacent,
                            FindNodes, MapNodes, Transformer, retrieve_iteration_tree)
-from devito.logger import warning
+from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.targets.common.engine import target_pass
 from devito.tools import generator
@@ -39,8 +39,8 @@ def optimize_halospots(iet):
             mapper[root] = root._rebuild(halo_scheme=HaloScheme.union(hss))
         except ValueError:
             # HaloSpots have non-matching `loc_indices` and therefore can't be merged
-            warning("Found hoistable HaloSpots with disjoint loc_indices, "
-                    "skipping optimization")
+            perf_adv("Found hoistable HaloSpots with disjoint loc_indices, "
+                     "skipping optimization")
             continue
         for hs in halo_spots[1:]:
             halo_scheme = hs.halo_scheme.drop(hs.hoistable)
@@ -64,7 +64,7 @@ def optimize_halospots(iet):
             continue
         elif len(hoistable) > 1:
             # We should never end up here, but for now we can't prove it formally
-            warning("Found multiple hoistable HaloSpots, skipping optimization")
+            perf_adv("Found multiple hoistable HaloSpots, skipping optimization")
             continue
         hs = hoistable.pop()
         if hs in mapper:
