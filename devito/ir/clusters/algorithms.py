@@ -4,6 +4,7 @@ from itertools import groupby
 import sympy
 
 from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
+from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.symbolics import CondEq, xreplace_indices
 from devito.tools import DAG, as_tuple, flatten, filter_ordered, generator, timed_pass
@@ -25,6 +26,9 @@ def clusterize(exprs, dse_mode=None):
 
     # Setup the IterationSpaces based on data dependence analysis
     clusters = Schedule().process(clusters)
+
+    # Determine relevant computational properties (e.g., parallelism)
+    clusters = analyze(clusters)
 
     # Apply optimizations
     clusters = optimize(clusters, dse_mode)
