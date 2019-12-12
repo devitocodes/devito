@@ -11,9 +11,9 @@ import cgen as c
 
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, ROUNDABLE, AFFINE, TILABLE, OVERLAPPABLE)
-from devito.ir.support import Forward, detect_io
+from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTOR,
+                               WRAPPABLE, ROUNDABLE, AFFINE, TILABLE, OVERLAPPABLE,
+                               Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
@@ -366,7 +366,7 @@ class Iteration(Node):
         The for-loop direction. Accepted:
         - ``Forward``: i += stepping (defaults)
         - ``Backward``: i -= stepping
-    properties : IterationProperty or list of IterationProperty, optional
+    properties : Property or list of Property, optional
         Iteration decorators, denoting properties such as parallelism.
     pragmas : cgen.Pragma or list of cgen.Pragma, optional
         A bag of pragmas attached to this Iteration.
@@ -402,7 +402,7 @@ class Iteration(Node):
 
         # Track this Iteration's properties, pragmas and unbounded indices
         properties = as_tuple(properties)
-        assert (i in IterationProperty._KNOWN for i in properties)
+        assert (i in Property._KNOWN for i in properties)
         self.properties = as_tuple(filter_sorted(properties))
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)

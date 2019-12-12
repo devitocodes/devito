@@ -1,11 +1,11 @@
 from collections import OrderedDict
 from functools import cmp_to_key
 
-from devito.ir.iet import (Iteration, HaloSpot, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, TILABLE, WRAPPABLE, ROUNDABLE, AFFINE, OVERLAPPABLE,
-                           hoistable, useless, MapNodes, Transformer,
+from devito.ir.iet import (Iteration, HaloSpot, MapNodes, Transformer,
                            retrieve_iteration_tree)
-from devito.ir.support import Forward, Scope
+from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTOR,
+                               TILABLE, WRAPPABLE, ROUNDABLE, AFFINE, OVERLAPPABLE,
+                               hoistable, useless, Forward, Scope)
 from devito.tools import as_tuple, filter_ordered, flatten
 
 __all__ = ['iet_analyze']

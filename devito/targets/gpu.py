@@ -1,7 +1,8 @@
 import cgen as c
 
 from devito.data import FULL
-from devito.ir.iet import Iteration, FindNodes, Transformer, COLLAPSED, VECTOR
+from devito.ir.iet import Iteration, FindNodes, Transformer
+from devito.ir.support import COLLAPSED, VECTOR
 from devito.targets.basic import Target
 from devito.targets.common import (DataManager, Ompizer, ParallelTree, target_pass,
                                    optimize_halospots, mpiize, hoist_prodders)

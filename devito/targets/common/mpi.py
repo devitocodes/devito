@@ -1,5 +1,6 @@
-from devito.ir.iet import (Call, HaloSpot, Iteration, List, PARALLEL, FindAdjacent,
+from devito.ir.iet import (Call, HaloSpot, Iteration, List, FindAdjacent,
                            FindNodes, MapNodes, Transformer, retrieve_iteration_tree)
+from devito.ir.support import PARALLEL
 from devito.logger import perf_adv
 from devito.mpi import HaloExchangeBuilder, HaloScheme
 from devito.targets.common.engine import target_pass
