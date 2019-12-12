@@ -63,12 +63,24 @@ class Cluster(object):
         dspace = DataSpace.union(*[c.dspace for c in clusters])
         return Cluster(exprs, ispace, dspace, properties=root.properties)
 
-    def rebuild(self, exprs):
+    def rebuild(self, *args, **kwargs):
         """
-        Build a new Cluster from a sequence of expressions. All other attributes
-        are inherited from ``self``.
+        Build a new Cluster from the attributes given as keywords. All other
+        attributes are taken from ``self``.
         """
-        return Cluster(exprs, self.ispace, self.dspace, self.guards)
+        # Shortcut for backwards compatibility
+        if args:
+            if len(args) != 1:
+                raise ValueError("rebuild takes at most one positional argument (exprs)")
+            if kwargs.get('exprs'):
+                raise ValueError("`exprs` provided both as arg and kwarg")
+            kwargs['exprs'] = args[0]
+
+        return Cluster(exprs=kwargs.get('exprs', self.exprs),
+                       ispace=kwargs.get('ispace', self.ispace),
+                       dspace=kwargs.get('dspace', self.dspace),
+                       guards=kwargs.get('guards', self.guards),
+                       properties=kwargs.get('properties', self.properties))
 
     @property
     def exprs(self):

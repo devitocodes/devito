@@ -252,7 +252,7 @@ class Schedule(Queue):
         for c in clusters:
             ispace = IterationSpace(c.ispace.intervals, c.ispace.sub_iterators,
                                     {**c.ispace.directions, **idir})
-            processed.append(Cluster(c.exprs, ispace, c.dspace))
+            processed.append(c.rebuild(ispace=ispace))
 
         if not backlog:
             return processed
@@ -265,7 +265,7 @@ class Schedule(Queue):
                                     c.ispace.sub_iterators,
                                     {**c.ispace.directions, **idir})
             dspace = c.dspace.lift(known_break)
-            backlog[i] = Cluster(c.exprs, ispace, dspace)
+            backlog[i] = c.rebuild(ispace=ispace, dspace=dspace)
 
         return processed + self.callback(backlog, prefix)
 
@@ -371,7 +371,7 @@ class Lift(Queue):
             key = lambda d: d not in hope_invariant
             ispace = c.ispace.project(key).reset()
             dspace = c.dspace.project(key).reset()
-            lifted.append(Cluster(c.exprs, ispace, dspace, c.guards))
+            lifted.append(c.rebuild(ispace=ispace, dspace=dspace))
 
         return lifted + processed
 
@@ -494,7 +494,7 @@ def guard(clusters):
         # Group together consecutive expressions with same ConditionalDimensions
         for cds, g in groupby(c.exprs, key=lambda e: e.conditionals):
             if not cds:
-                processed.append(Cluster(list(g), c.ispace, c.dspace))
+                processed.append(c.rebuild(exprs=list(g)))
                 continue
 
             # Create a guarded Cluster
@@ -506,6 +506,6 @@ def guard(clusters):
                 else:
                     condition.append(cd.condition)
             guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
-            processed.append(Cluster(list(g), c.ispace, c.dspace, guards))
+            processed.append(c.rebuild(exprs=list(g), guards=guards))
 
     return processed
