@@ -6,7 +6,7 @@ import sympy
 from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.ir.clusters.processing import Queue
+from devito.ir.clusters.queue import Queue
 from devito.symbolics import CondEq, xreplace_indices
 from devito.tools import DAG, as_tuple, flatten, filter_ordered, generator, timed_pass
 from devito.types import Scalar
