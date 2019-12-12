@@ -40,9 +40,10 @@ class NodeIteration(ScheduleTree):
 
     is_Iteration = True
 
-    def __init__(self, ispace, parent=None):
+    def __init__(self, ispace, parent=None, properties=None):
         super(NodeIteration, self).__init__(parent)
         self.ispace = ispace
+        self.properties = properties
 
     @property
     def interval(self):

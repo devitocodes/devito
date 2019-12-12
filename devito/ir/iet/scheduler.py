@@ -51,7 +51,8 @@ def iet_make(stree):
             uindices = sorted(i.sub_iterators, key=lambda d: d.name)
             # Generate Iteration
             body = Iteration(queues.pop(i), i.dim, i.limits, offsets=i.offsets,
-                             direction=i.direction, uindices=uindices)
+                             direction=i.direction, properties=i.properties,
+                             uindices=uindices)
 
         elif i.is_Section:
             body = Section('section%d' % nsections, body=queues.pop(i))

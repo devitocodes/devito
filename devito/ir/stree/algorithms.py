@@ -60,7 +60,7 @@ def st_schedule(clusters):
 
         # Add in Iterations
         for i in c.itintervals[index:]:
-            root = NodeIteration(c.ispace.project([i.dim]), root)
+            root = NodeIteration(c.ispace.project([i.dim]), root, c.properties.get(i.dim))
             mapper[i] = root
 
         # Add in Expressions
