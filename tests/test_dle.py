@@ -366,10 +366,10 @@ class TestNodeParallelism(object):
         eq = eval(eq)
 
         if blocking:
-            op = Operator(eq, dle=('blocking', 'openmp', {'blockinner': True}))
+            op = Operator(eq, dle=('blocking', 'simd', 'openmp', {'blockinner': True}))
             iterations = FindNodes(Iteration).visit(op._func_table['bf0'])
         else:
-            op = Operator(eq, dle='openmp')
+            op = Operator(eq, dle=('simd', 'openmp'))
             iterations = FindNodes(Iteration).visit(op)
 
         assert len(iterations) == len(expected)

@@ -11,7 +11,7 @@ import cgen as c
 
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
-from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTOR,
+from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTORIZED,
                                WRAPPABLE, ROUNDABLE, AFFINE, TILABLE, OVERLAPPABLE,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
@@ -439,8 +439,8 @@ class Iteration(Node):
         return self.is_Parallel or self.is_ParallelAtomic
 
     @property
-    def is_Vectorizable(self):
-        return VECTOR in self.properties
+    def is_Vectorized(self):
+        return VECTORIZED in self.properties
 
     @property
     def is_Wrappable(self):

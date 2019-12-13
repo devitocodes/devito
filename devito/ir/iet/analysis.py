@@ -3,7 +3,7 @@ from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, HaloSpot, MapNodes, Transformer,
                            retrieve_iteration_tree)
-from devito.ir.support import (VECTOR, TILABLE, WRAPPABLE, ROUNDABLE, AFFINE,
+from devito.ir.support import (TILABLE, WRAPPABLE, ROUNDABLE, AFFINE,
                                OVERLAPPABLE, hoistable, useless, Forward, Scope)
 from devito.tools import as_tuple
 
@@ -40,8 +40,7 @@ def iet_analyze(iet):
     This function performs actual data dependence analysis.
     """
     # Analyze Iterations
-    analysis = mark_iteration_vectorizable(iet)
-    analysis = mark_iteration_wrappable(analysis)
+    analysis = mark_iteration_wrappable(iet)
     analysis = mark_iteration_roundable(analysis)
     analysis = mark_iteration_affine(analysis)
     analysis = mark_iteration_tilable(analysis)
@@ -94,35 +93,6 @@ def mark_iteration_tilable(analysis):
                 continue
 
             analysis.update({i: TILABLE})
-
-
-@propertizer
-def mark_iteration_vectorizable(analysis):
-    """
-    Update ``analysis`` detecting the VECTOR Iterations within ``analysis.iet``.
-    """
-    properties = OrderedDict()
-    for tree in analysis.trees:
-        # An Iteration is VECTOR iff:
-        # * it's the innermost in an Iteration tree, AND
-        # * it's got at least an outer PARALLEL Iteration, AND
-        # * it's known to be PARALLEL or all accesses along its Dimension are unit-strided
-        if len(tree) == 1:
-            continue
-        else:
-            outer, innermost = tree[-2], tree[-1]
-            if not outer.is_Parallel:
-                continue
-            elif innermost.is_Parallel:
-                properties[innermost] = VECTOR
-            else:
-                accesses = analysis.scopes[innermost].accesses
-                if not accesses:
-                    continue
-                if all(accesses[0][innermost.dim] == i[innermost.dim] for i in accesses):
-                    properties[innermost] = VECTOR
-
-    analysis.update(properties)
 
 
 @propertizer
@@ -187,7 +157,7 @@ def mark_iteration_roundable(analysis):
     properties = OrderedDict()
     for tree in analysis.trees:
         innermost = tree.inner
-        if VECTOR not in analysis.properties.get(innermost, []):
+        if not innermost.is_Parallel:
             continue
 
         # All non-scalar writes must be over Arrays, that is temporaries, otherwise

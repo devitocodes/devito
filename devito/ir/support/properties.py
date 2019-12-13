@@ -22,8 +22,8 @@ PARALLEL_IF_ATOMIC = Property('parallel_if_atomic')
 COLLAPSED = lambda i: Property('collapsed', i)
 """Collapsing Dimensions."""
 
-VECTOR = Property('vector-dim')
-"""A fully parallel Dimension that would benefit from SIMD-vectorization."""
+VECTORIZED = Property('vector-dim')
+"""A SIMD-vectorized Dimension."""
 
 TILABLE = Property('tilable')
 """A fully parallel Dimension that would benefit from tiling (or "blocking")."""
