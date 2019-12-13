@@ -2,8 +2,7 @@ from collections import OrderedDict
 
 from devito.ir.iet import (Iteration, HaloSpot, MapNodes, Transformer,
                            retrieve_iteration_tree)
-from devito.ir.support import (TILABLE, AFFINE,
-                               OVERLAPPABLE, hoistable, useless, Scope)
+from devito.ir.support import TILABLE, OVERLAPPABLE, hoistable, useless, Scope
 from devito.tools import as_tuple
 
 __all__ = ['iet_analyze']
@@ -39,8 +38,7 @@ def iet_analyze(iet):
     This function performs actual data dependence analysis.
     """
     # Analyze Iterations
-    analysis = mark_iteration_affine(iet)
-    analysis = mark_iteration_tilable(analysis)
+    analysis = mark_iteration_tilable(iet)
 
     # Analyze HaloSpots
     analysis = mark_halospot_useless(analysis)
@@ -68,7 +66,7 @@ def mark_iteration_tilable(analysis):
             # An Iteration is TILABLE only if it's PARALLEL and AFFINE
             if not i.is_Parallel:
                 continue
-            if AFFINE not in analysis.properties.get(i, []):
+            if not i.is_Affine:
                 continue
 
             # In addition, we use the heuristic that we do not consider
@@ -90,23 +88,6 @@ def mark_iteration_tilable(analysis):
                 continue
 
             analysis.update({i: TILABLE})
-
-
-@propertizer
-def mark_iteration_affine(analysis):
-    """
-    Update ``analysis`` detecting the AFFINE Iterations within ``analysis.iet``.
-    """
-    properties = OrderedDict()
-    for tree in analysis.trees:
-        for i in tree:
-            if i in properties:
-                continue
-            arrays = [a for a in analysis.scopes[i].accesses if not a.is_scalar]
-            if all(a.is_regular and a.affine_if_present(i.dim._defines) for a in arrays):
-                properties[i] = AFFINE
-
-    analysis.update(properties)
 
 
 @propertizer

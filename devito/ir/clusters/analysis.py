@@ -1,8 +1,8 @@
 from functools import cmp_to_key
 
 from devito.ir.clusters.queue import Queue
-from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, WRAPPABLE,
-                               ROUNDABLE, Forward, Scope)
+from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, AFFINE,
+                               WRAPPABLE, ROUNDABLE, Forward, Scope)
 from devito.tools import as_tuple, flatten
 
 __all__ = ['analyze']
@@ -12,6 +12,7 @@ def analyze(clusters):
     state = State()
 
     clusters = Parallelism(state).process(clusters)
+    clusters = Affiness(state).process(clusters)
     clusters = Wrapping(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
@@ -206,3 +207,20 @@ class Rounding(Detector):
             return
 
         return ROUNDABLE
+
+
+class Affiness(Detector):
+
+    """
+    Detect the AFFINE Dimensions.
+    """
+
+    def _callback(self, clusters, prefix):
+        # The analyzed Dimension
+        i = prefix[-1].dim
+
+        scope = self._make_scope(clusters)
+
+        accesses = [a for a in scope.accesses if not a.is_scalar]
+        if all(a.is_regular and a.affine_if_present(i._defines) for a in accesses):
+            return AFFINE
