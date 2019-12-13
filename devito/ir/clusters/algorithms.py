@@ -31,9 +31,6 @@ def clusterize(exprs, dse_mode=None):
     # Apply optimizations
     clusters = optimize(clusters, dse_mode)
 
-    # Determine relevant computational properties (e.g., parallelism)
-    clusters = analyze(clusters)
-
     # Introduce conditional Clusters
     clusters = guard(clusters)
 
@@ -304,6 +301,7 @@ def optimize(clusters, dse_mode):
     clusters = Toposort().process(clusters)
     clusters = fuse(clusters)
 
+    # Flop reduction via the DSE
     from devito.dse import rewrite
     clusters = rewrite(clusters, template, mode=dse_mode)
 
@@ -319,6 +317,10 @@ def optimize(clusters, dse_mode):
 
     # Fusion may create scalarization opportunities
     clusters = scalarize(clusters, template)
+
+    # Determine computational properties (e.g., parallelism) that will be
+    # necessary for the later passes
+    clusters = analyze(clusters)
 
     return ClusterGroup(clusters)
 
