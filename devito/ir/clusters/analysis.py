@@ -1,5 +1,8 @@
+from functools import cmp_to_key
+
 from devito.ir.clusters.queue import Queue
-from devito.ir.support import SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, Scope
+from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, WRAPPABLE,
+                               Scope)
 from devito.tools import as_tuple, flatten
 
 __all__ = ['analyze']
@@ -9,6 +12,8 @@ def analyze(clusters):
     state = State()
 
     clusters = Parallelism(state).process(clusters)
+
+    clusters = Wrapping(state).process(clusters)
 
     # Group properties by Cluster
     properties = {}
@@ -41,6 +46,9 @@ class Detector(Queue):
             self.state.scopes[key] = Scope(flatten(c.exprs for c in key))
         return self.state.scopes[key]
 
+    def process(self, elements):
+        return self._process_fatd(elements, 1)
+
     def callback(self, clusters, prefix):
         if not prefix:
             return clusters
@@ -62,9 +70,6 @@ class Parallelism(Detector):
     """
     Detect SEQUENTIAL, PARALLEL, and PARALLEL_IF_ATOMIC Dimensions.
     """
-
-    def process(self, elements):
-        return self._process_fatd(elements, 1)
 
     def _callback(self, clusters, prefix):
         # The analyzed Dimension
@@ -103,3 +108,62 @@ class Parallelism(Detector):
             return PARALLEL_IF_ATOMIC
         else:
             return PARALLEL
+
+
+class Wrapping(Detector):
+
+    """
+    Detect the WRAPPABLE Dimensions.
+    """
+
+    def _callback(self, clusters, prefix):
+        # The analyzed Dimension
+        i = prefix[-1].dim
+
+        if not i.is_Time:
+            return
+
+        scope = self._make_scope(clusters)
+        accesses = [a for a in scope.accesses if a.function.is_TimeFunction]
+
+        # If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE
+        if not accesses or any(not a.function._time_buffering_default for a in accesses):
+            return
+
+        stepping = {a.function.time_dim for a in accesses}
+        if len(stepping) > 1:
+            # E.g., with ConditionalDimensions we may have `stepping={t, tsub}`
+            return
+        stepping = stepping.pop()
+
+        # All accesses must be affine in `stepping`
+        if any(not a.affine_if_present(stepping._defines) for a in accesses):
+            return
+
+        # Pick the `back` and `front` slots accessed
+        try:
+            compareto = cmp_to_key(lambda a0, a1: a0.distance(a1, stepping))
+            accesses = sorted(accesses, key=compareto)
+            back, front = accesses[0][stepping], accesses[-1][stepping]
+        except TypeError:
+            return
+
+        # Check we're not accessing (read, write) always the same slot
+        if back == front:
+            return
+
+        accesses_back = [a for a in accesses if a[stepping] == back]
+
+        # There must be NO writes to the `back` timeslot
+        if any(a.is_write for a in accesses_back):
+            return
+
+        # There must be NO further accesses to the `back` timeslot after
+        # any earlier timeslot is written
+        # Note: potentially, this can be relaxed by replacing "any earlier timeslot"
+        # with the `front timeslot`
+        if not all(all(d.sink is not a or d.source.lex_ge(a) for d in scope.d_flow)
+                   for a in accesses_back):
+            return
+
+        return WRAPPABLE

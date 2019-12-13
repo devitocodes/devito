@@ -1,9 +1,8 @@
 from collections import OrderedDict
-from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, HaloSpot, MapNodes, Transformer,
                            retrieve_iteration_tree)
-from devito.ir.support import (TILABLE, WRAPPABLE, ROUNDABLE, AFFINE,
+from devito.ir.support import (TILABLE, ROUNDABLE, AFFINE,
                                OVERLAPPABLE, hoistable, useless, Forward, Scope)
 from devito.tools import as_tuple
 
@@ -40,8 +39,7 @@ def iet_analyze(iet):
     This function performs actual data dependence analysis.
     """
     # Analyze Iterations
-    analysis = mark_iteration_wrappable(iet)
-    analysis = mark_iteration_roundable(analysis)
+    analysis = mark_iteration_roundable(iet)
     analysis = mark_iteration_affine(analysis)
     analysis = mark_iteration_tilable(analysis)
 
@@ -93,60 +91,6 @@ def mark_iteration_tilable(analysis):
                 continue
 
             analysis.update({i: TILABLE})
-
-
-@propertizer
-def mark_iteration_wrappable(analysis):
-    """
-    Update ``analysis`` detecting the WRAPPABLE Iterations within ``analysis.iet``.
-    """
-    for i, scope in analysis.scopes.items():
-        if not i.dim.is_Time:
-            continue
-
-        accesses = [a for a in scope.accesses if a.function.is_TimeFunction]
-
-        # If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE
-        if not accesses or any(not a.function._time_buffering_default for a in accesses):
-            continue
-
-        stepping = {a.function.time_dim for a in accesses}
-        if len(stepping) > 1:
-            # E.g., with ConditionalDimensions we may have `stepping={t, tsub}`
-            continue
-        stepping = stepping.pop()
-
-        # All accesses must be affine in `stepping`
-        if any(not a.affine_if_present(stepping._defines) for a in accesses):
-            continue
-
-        # Pick the `back` and `front` slots accessed
-        try:
-            compareto = cmp_to_key(lambda a0, a1: a0.distance(a1, stepping))
-            accesses = sorted(accesses, key=compareto)
-            back, front = accesses[0][stepping], accesses[-1][stepping]
-        except TypeError:
-            continue
-
-        # Check we're not accessing (read, write) always the same slot
-        if back == front:
-            continue
-
-        accesses_back = [a for a in accesses if a[stepping] == back]
-
-        # There must be NO writes to the `back` timeslot
-        if any(a.is_write for a in accesses_back):
-            continue
-
-        # There must be NO further accesses to the `back` timeslot after
-        # any earlier timeslot is written
-        # Note: potentially, this can be relaxed by replacing "any earlier timeslot"
-        # with the `front timeslot`
-        if not all(all(d.sink is not a or d.source.lex_ge(a) for d in scope.d_flow)
-                   for a in accesses_back):
-            continue
-
-        analysis.update({i: WRAPPABLE})
 
 
 @propertizer

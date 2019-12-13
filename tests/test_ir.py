@@ -674,7 +674,7 @@ else
         assert [f.name for f in found] == eval(expected)
 
 
-class TestIETAnalysis(object):
+class TestAnalysis(object):
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
         (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry], cx*cy*src)'],
