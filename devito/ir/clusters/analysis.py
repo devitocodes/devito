@@ -5,6 +5,23 @@ from devito.tools import as_tuple, flatten
 __all__ = ['analyze']
 
 
+def analyze(clusters):
+    state = State()
+
+    clusters = Parallelism(state).process(clusters)
+
+    # Group properties by Cluster
+    properties = {}
+    for k, v in state.properties.items():
+        for c in k:
+            properties.setdefault(c, {}).update(v)
+
+    # Rebuild Clusters to attach the discovered properties
+    processed = [c.rebuild(properties=properties.get(c)) for c in clusters]
+
+    return processed
+
+
 class State(object):
 
     def __init__(self):
@@ -24,9 +41,6 @@ class Detector(Queue):
             self.state.scopes[key] = Scope(flatten(c.exprs for c in key))
         return self.state.scopes[key]
 
-    def process(self, elements):
-        return self._process_fatd(elements, 1)
-
     def callback(self, clusters, prefix):
         if not prefix:
             return clusters
@@ -35,8 +49,9 @@ class Detector(Queue):
         retval = self._callback(clusters, prefix)
 
         # Update `self.state`
-        for c in clusters:
-            properties = self.state.properties.setdefault(c, {})
+        if retval is not None:
+            key = as_tuple(clusters)
+            properties = self.state.properties.setdefault(key, {})
             properties.setdefault(prefix[-1].dim, []).append(retval)
 
         return clusters
@@ -47,6 +62,9 @@ class Parallelism(Detector):
     """
     Detect SEQUENTIAL, PARALLEL, and PARALLEL_IF_ATOMIC Dimensions.
     """
+
+    def process(self, elements):
+        return self._process_fatd(elements, 1)
 
     def _callback(self, clusters, prefix):
         # The analyzed Dimension
@@ -85,14 +103,3 @@ class Parallelism(Detector):
             return PARALLEL_IF_ATOMIC
         else:
             return PARALLEL
-
-
-def analyze(clusters):
-    state = State()
-
-    clusters = Parallelism(state).process(clusters)
-
-    # Rebuild Clusters to attach the discovered properties
-    processed = [c.rebuild(properties=state.properties.get(c)) for c in clusters]
-
-    return processed
