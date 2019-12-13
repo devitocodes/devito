@@ -2,8 +2,8 @@ from collections import OrderedDict
 
 from devito.ir.iet import (Iteration, HaloSpot, MapNodes, Transformer,
                            retrieve_iteration_tree)
-from devito.ir.support import (TILABLE, ROUNDABLE, AFFINE,
-                               OVERLAPPABLE, hoistable, useless, Forward, Scope)
+from devito.ir.support import (TILABLE, AFFINE,
+                               OVERLAPPABLE, hoistable, useless, Scope)
 from devito.tools import as_tuple
 
 __all__ = ['iet_analyze']
@@ -39,8 +39,7 @@ def iet_analyze(iet):
     This function performs actual data dependence analysis.
     """
     # Analyze Iterations
-    analysis = mark_iteration_roundable(iet)
-    analysis = mark_iteration_affine(analysis)
+    analysis = mark_iteration_affine(iet)
     analysis = mark_iteration_tilable(analysis)
 
     # Analyze HaloSpots
@@ -91,44 +90,6 @@ def mark_iteration_tilable(analysis):
                 continue
 
             analysis.update({i: TILABLE})
-
-
-@propertizer
-def mark_iteration_roundable(analysis):
-    """
-    Update ``analysis`` detecting the ROUNDABLE Iterations within ``analysis.iet``.
-    """
-    properties = OrderedDict()
-    for tree in analysis.trees:
-        innermost = tree.inner
-        if not innermost.is_Parallel:
-            continue
-
-        # All non-scalar writes must be over Arrays, that is temporaries, otherwise
-        # we would end up overwriting user data
-        writes = [w for w in analysis.scopes[innermost].writes if w.is_Tensor]
-        if any(not w.is_Array for w in writes):
-            continue
-
-        # All accessed Functions must have enough room in the PADDING region
-        # so that the `innermost` trip count can safely be rounded up
-        # Note: autopadding guarantees that the padding size along the
-        # Fastest Varying Dimension is a multiple of the SIMD vector length
-        functions = [f for f in analysis.scopes[innermost].functions if f.is_Tensor]
-        if any(not f._honors_autopadding for f in functions):
-            continue
-
-        # Mixed data types (e.g., float and double) is unsupported
-        if len({f.dtype for f in functions}) > 1:
-            continue
-
-        # The iteration direction must be Forward -- ROUNDABLE is for rounding *up*
-        if innermost.direction is not Forward:
-            continue
-
-        properties[innermost] = ROUNDABLE
-
-    analysis.update(properties)
 
 
 @propertizer

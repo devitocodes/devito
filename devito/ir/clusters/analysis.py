@@ -2,7 +2,7 @@ from functools import cmp_to_key
 
 from devito.ir.clusters.queue import Queue
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, WRAPPABLE,
-                               Scope)
+                               ROUNDABLE, Forward, Scope)
 from devito.tools import as_tuple, flatten
 
 __all__ = ['analyze']
@@ -12,8 +12,8 @@ def analyze(clusters):
     state = State()
 
     clusters = Parallelism(state).process(clusters)
-
     clusters = Wrapping(state).process(clusters)
+    clusters = Rounding(state).process(clusters)
 
     # Group properties by Cluster
     properties = {}
@@ -167,3 +167,42 @@ class Wrapping(Detector):
             return
 
         return WRAPPABLE
+
+
+class Rounding(Detector):
+
+    def _callback(self, clusters, prefix):
+        itinterval = prefix[-1]
+
+        # The iteration direction must be Forward -- ROUNDABLE is for rounding *up*
+        if itinterval.direction is not Forward:
+            return
+
+        # The analyzed Dimension
+        i = itinterval.dim
+
+        properties = self.state.properties.get(as_tuple(clusters), {})
+        if PARALLEL not in properties.get(i, []):
+            return
+
+        scope = self._make_scope(clusters)
+
+        # All non-scalar writes must be over Arrays, that is temporaries, otherwise
+        # we would end up overwriting user data
+        writes = [w for w in scope.writes if w.is_Tensor]
+        if any(not w.is_Array for w in writes):
+            return
+
+        # All accessed Functions must have enough room in the PADDING region
+        # so that `i`'s trip count can safely be rounded up
+        # Note: autopadding guarantees that the padding size along the
+        # Fastest Varying Dimension is a multiple of the SIMD vector length
+        functions = [f for f in scope.functions if f.is_Tensor]
+        if any(not f._honors_autopadding for f in functions):
+            return
+
+        # Mixed data types (e.g., float and double) is unsupported
+        if len({f.dtype for f in functions}) > 1:
+            return
+
+        return ROUNDABLE
