@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from devito.ir.iet import (Iteration, HaloSpot, MapNodes, Transformer,
                            retrieve_iteration_tree)
-from devito.ir.support import TILABLE, OVERLAPPABLE, hoistable, useless, Scope
+from devito.ir.support import OVERLAPPABLE, hoistable, useless, Scope
 from devito.tools import as_tuple
 
 __all__ = ['iet_analyze']
@@ -32,16 +32,7 @@ def propertizer(func):
 
 
 def iet_analyze(iet):
-    """
-    Analyze an Iteration/Expression tree and decorate it with metadata describing
-    relevant computational properties (e.g., if an Iteration is parallelizable or not).
-    This function performs actual data dependence analysis.
-    """
-    # Analyze Iterations
-    analysis = mark_iteration_tilable(iet)
-
-    # Analyze HaloSpots
-    analysis = mark_halospot_useless(analysis)
+    analysis = mark_halospot_useless(iet)
     analysis = mark_halospot_hoistable(analysis)
     analysis = mark_halospot_overlappable(analysis)
 
@@ -54,40 +45,6 @@ def iet_analyze(iet):
     processed = Transformer(mapper, nested=True).visit(iet)
 
     return processed
-
-
-@propertizer
-def mark_iteration_tilable(analysis):
-    """
-    Update ``analysis`` detecting the TILABLE Iterations within ``analysis.iet``.
-    """
-    for tree in analysis.trees:
-        for n, i in enumerate(tree):
-            # An Iteration is TILABLE only if it's PARALLEL and AFFINE
-            if not i.is_Parallel:
-                continue
-            if not i.is_Affine:
-                continue
-
-            # In addition, we use the heuristic that we do not consider
-            # TILEABLE an Iteration that is not embedded in at least one
-            # SEQUENTIAL loop. This is to rule out tiling when the Iteration
-            # nest is not likely to be computationally intensive, thus
-            # improving code size and readability
-            if not any(j.is_Sequential for j in tree[:n]):
-                continue
-
-            # Likewise, it won't be marked TILABLE if at least one Iteration
-            # is over a local SubDimension
-            if any(j.dim.is_Sub and j.dim.local for j in tree):
-                continue
-
-            # If it induces dynamic bounds in any of the inner Iterations,
-            # then it's ruled out too
-            if any(d.is_lex_non_stmt for d in analysis.scopes[i].d_all):
-                continue
-
-            analysis.update({i: TILABLE})
 
 
 @propertizer

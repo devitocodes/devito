@@ -2,7 +2,7 @@ from functools import cmp_to_key
 
 from devito.ir.clusters.queue import Queue
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, AFFINE,
-                               WRAPPABLE, ROUNDABLE, Forward, Scope)
+                               WRAPPABLE, ROUNDABLE, TILABLE, Forward, Scope)
 from devito.tools import as_tuple, flatten
 
 __all__ = ['analyze']
@@ -13,6 +13,7 @@ def analyze(clusters):
 
     clusters = Parallelism(state).process(clusters)
     clusters = Affiness(state).process(clusters)
+    clusters = Blocking(state).process(clusters)
     clusters = Wrapping(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
@@ -224,3 +225,39 @@ class Affiness(Detector):
         accesses = [a for a in scope.accesses if not a.is_scalar]
         if all(a.is_regular and a.affine_if_present(i._defines) for a in accesses):
             return AFFINE
+
+
+class Blocking(Detector):
+
+    def process(self, elements):
+        return self._process_fdta(elements, 1)
+
+    def _callback(self, clusters, prefix):
+        # The analyzed Dimension
+        i = prefix[-1].dim
+
+        # A Dimension TILABLE only if it's PARALLEL and AFFINE
+        properties = self.state.properties.get(as_tuple(clusters), {})
+        if not {PARALLEL, AFFINE} <= set(properties.get(i, [])):
+            return
+
+        # In addition, we use the heuristic that we do not consider
+        # TILEABLE a Dimension that is not embedded in at least one
+        # SEQUENTIAL Dimension. This is to rule out tiling when the
+        # computation is not expected to be expensive
+        if not any(SEQUENTIAL in properties.get(j.dim, []) for j in prefix[:-1]):
+            return
+
+        # Likewise, it won't be marked TILABLE if there's at least one
+        # local SubDimension in all Clusters
+        if all(any(j.dim.is_Sub and j.dim.local for j in c.itintervals)
+               for c in clusters):
+            return
+
+        # If it induces dynamic bounds in any of the inner Iterations,
+        # then it's ruled out too
+        scope = self._make_scope(clusters)
+        if any(d.is_lex_non_stmt for d in scope.d_all_gen()):
+            return
+
+        return TILABLE
