@@ -96,7 +96,7 @@ def test_mode_destructive():
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid, time_order=0)
 
-    op = Operator(Eq(f, f + 1.), dle=('advanced', {'openmp': False}))
+    op = Operator(Eq(f.forward, f + 1.), dle=('advanced', {'openmp': False}))
     op.apply(time=100, autotune=('basic', 'destructive'))
 
     # AT is expected to have executed 30 timesteps (6 block shapes, 5 timesteps each)

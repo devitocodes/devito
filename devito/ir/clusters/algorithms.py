@@ -28,11 +28,11 @@ def clusterize(exprs, dse_mode=None):
     # Setup the IterationSpaces based on data dependence analysis
     clusters = Schedule().process(clusters)
 
-    # Determine relevant computational properties (e.g., parallelism)
-    clusters = analyze(clusters)
-
     # Apply optimizations
     clusters = optimize(clusters, dse_mode)
+
+    # Determine relevant computational properties (e.g., parallelism)
+    clusters = analyze(clusters)
 
     # Introduce conditional Clusters
     clusters = guard(clusters)
@@ -274,7 +274,7 @@ class Schedule(Queue):
         # break parallelism
         test = False
         for d in scope.d_from_access_gen(scope.a_query(i)):
-            if d.is_storage_volatile(candidates):
+            if d.is_local or d.is_storage_related(candidates):
                 # Would break a dependence on storage
                 return False
             if any(d.is_carried(i) for i in candidates):

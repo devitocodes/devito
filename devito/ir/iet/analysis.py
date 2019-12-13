@@ -3,10 +3,9 @@ from functools import cmp_to_key
 
 from devito.ir.iet import (Iteration, HaloSpot, MapNodes, Transformer,
                            retrieve_iteration_tree)
-from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, VECTOR,
-                               TILABLE, WRAPPABLE, ROUNDABLE, AFFINE, OVERLAPPABLE,
-                               hoistable, useless, Forward, Scope)
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.ir.support import (VECTOR, TILABLE, WRAPPABLE, ROUNDABLE, AFFINE,
+                               OVERLAPPABLE, hoistable, useless, Forward, Scope)
+from devito.tools import as_tuple
 
 __all__ = ['iet_analyze']
 
@@ -41,8 +40,7 @@ def iet_analyze(iet):
     This function performs actual data dependence analysis.
     """
     # Analyze Iterations
-    analysis = mark_iteration_parallel(iet)
-    analysis = mark_iteration_vectorizable(analysis)
+    analysis = mark_iteration_vectorizable(iet)
     analysis = mark_iteration_wrappable(analysis)
     analysis = mark_iteration_roundable(analysis)
     analysis = mark_iteration_affine(analysis)
@@ -65,69 +63,6 @@ def iet_analyze(iet):
 
 
 @propertizer
-def mark_iteration_parallel(analysis):
-    """
-    Update ``analysis`` detecting the SEQUENTIAL and PARALLEL Iterations within
-    ``analysis.iet``.
-    """
-    properties = OrderedDict()
-    for tree in analysis.trees:
-        for depth, i in enumerate(tree):
-            if properties.get(i) is SEQUENTIAL:
-                # Speed-up analysis
-                continue
-
-            if i.uindices:
-                # Only ++/-- increments of iteration variables are supported
-                properties.setdefault(i, []).append(SEQUENTIAL)
-                continue
-
-            # Get all dimensions up to and including Iteration /i/, grouped by Iteration
-            dims = [filter_ordered(j.dimensions) for j in tree[:depth + 1]]
-            # Get all dimensions up to and including Iteration /i-1/
-            prev = flatten(dims[:-1])
-            # Get all dimensions up to and including Iteration /i/
-            dims = flatten(dims)
-
-            # The i-th Iteration is PARALLEL if for all dependences (d_1, ..., d_n):
-            # test0 := (d_1, ..., d_i) = 0, OR
-            # test1 := (d_1, ..., d_{i-1}) > 0
-            is_parallel = True
-
-            # The i-th Iteration is PARALLEL_IF_ATOMIC if for all dependeces:
-            # test0 OR test1 OR the write is an associative and commutative increment
-            is_atomic_parallel = True
-
-            for dep in analysis.scopes[i].d_all:
-                test0 = dep.is_indep(i.dim) and all(dep.is_reduce_atmost(d) for d in prev)
-                if test0:
-                    continue
-
-                test1 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
-                if test1:
-                    continue
-
-                is_parallel = False
-                if not dep.is_increment:
-                    is_atomic_parallel = False
-                    break
-
-            if is_parallel:
-                properties.setdefault(i, []).append(PARALLEL)
-            elif is_atomic_parallel:
-                properties.setdefault(i, []).append(PARALLEL_IF_ATOMIC)
-            else:
-                properties.setdefault(i, []).append(SEQUENTIAL)
-
-    # Reduction (e.g, SEQUENTIAL takes priority over PARALLEL)
-    priorities = {PARALLEL: 0, PARALLEL_IF_ATOMIC: 1, SEQUENTIAL: 2}
-    properties = OrderedDict([(k, max(v, key=lambda i: priorities[i]))
-                              for k, v in properties.items()])
-
-    analysis.update(properties)
-
-
-@propertizer
 def mark_iteration_tilable(analysis):
     """
     Update ``analysis`` detecting the TILABLE Iterations within ``analysis.iet``.
@@ -135,7 +70,7 @@ def mark_iteration_tilable(analysis):
     for tree in analysis.trees:
         for n, i in enumerate(tree):
             # An Iteration is TILABLE only if it's PARALLEL and AFFINE
-            if PARALLEL not in analysis.properties.get(i, []):
+            if not i.is_Parallel:
                 continue
             if AFFINE not in analysis.properties.get(i, []):
                 continue
@@ -145,7 +80,7 @@ def mark_iteration_tilable(analysis):
             # SEQUENTIAL loop. This is to rule out tiling when the Iteration
             # nest is not likely to be computationally intensive, thus
             # improving code size and readability
-            if not any(SEQUENTIAL in analysis.properties.get(j, []) for j in tree[:n]):
+            if not any(j.is_Sequential for j in tree[:n]):
                 continue
 
             # Likewise, it won't be marked TILABLE if at least one Iteration
@@ -166,6 +101,7 @@ def mark_iteration_vectorizable(analysis):
     """
     Update ``analysis`` detecting the VECTOR Iterations within ``analysis.iet``.
     """
+    properties = OrderedDict()
     for tree in analysis.trees:
         # An Iteration is VECTOR iff:
         # * it's the innermost in an Iteration tree, AND
@@ -175,16 +111,18 @@ def mark_iteration_vectorizable(analysis):
             continue
         else:
             outer, innermost = tree[-2], tree[-1]
-            if PARALLEL not in analysis.properties.get(outer, []):
+            if not outer.is_Parallel:
                 continue
-            elif PARALLEL in analysis.properties.get(innermost, []):
-                analysis.properties[innermost].append(VECTOR)
+            elif innermost.is_Parallel:
+                properties[innermost] = VECTOR
             else:
                 accesses = analysis.scopes[innermost].accesses
                 if not accesses:
                     continue
                 if all(accesses[0][innermost.dim] == i[innermost.dim] for i in accesses):
-                    analysis.update({innermost: VECTOR})
+                    properties[innermost] = VECTOR
+
+    analysis.update(properties)
 
 
 @propertizer
@@ -249,7 +187,7 @@ def mark_iteration_roundable(analysis):
     properties = OrderedDict()
     for tree in analysis.trees:
         innermost = tree.inner
-        if VECTOR not in analysis.properties.get(innermost):
+        if VECTOR not in analysis.properties.get(innermost, []):
             continue
 
         # All non-scalar writes must be over Arrays, that is temporaries, otherwise
@@ -305,8 +243,7 @@ def mark_halospot_useless(analysis):
 
     # If a HaloSpot Dimension turns out to be SEQUENTIAL, then the HaloSpot is useless
     for hs, iterations in MapNodes(HaloSpot, Iteration).visit(analysis.iet).items():
-        if any(SEQUENTIAL in analysis.properties[i]
-               for i in iterations if i.dim.root in hs.dimensions):
+        if any(i.is_Sequential for i in iterations if i.dim.root in hs.dimensions):
             properties[hs] = useless(hs.functions)
             continue
 
@@ -386,7 +323,7 @@ def mark_halospot_overlappable(analysis):
     properties = OrderedDict()
     for hs, iterations in MapNodes(HaloSpot, Iteration).visit(analysis.iet).items():
         # To be OVERLAPPABLE, all inner Iterations must be PARALLEL
-        if all(PARALLEL in analysis.properties.get(i) for i in iterations):
+        if all(i.is_Parallel for i in iterations):
             properties[hs] = OVERLAPPABLE
 
     analysis.update(properties)

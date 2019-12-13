@@ -514,6 +514,10 @@ class Dependence(object):
         """
         return self.source.timestamp == -1 or self.sink.timestamp == -1
 
+    @property
+    def is_local(self):
+        return self.function.is_Symbol
+
     @memoized_meth
     def is_carried(self, dim=None):
         """Return True if definitely a dimension-carried dependence, False otherwise."""
@@ -580,17 +584,11 @@ class Dependence(object):
         return self.source.lex_eq(self.sink) and self.is_indep(dim)
 
     @memoized_meth
-    def is_storage_volatile(self, dims=None):
+    def is_storage_related(self, dims=None):
         """
-        True if a storage-volatile dependence, False otherwise.
-
-        Examples
-        --------
-        * ``self.function`` is a scalar;
-        * ``dim = t`` and `t` is a SteppingDimension appearing in ``self.function``.
+        True if a storage-related dependence, that is multiple iterations
+        cause the access of the same memory location, False otherwise.
         """
-        if self.function.is_AbstractSymbol:
-            return True
         for d in self.findices:
             if (d._defines & set(as_tuple(dims)) and
                     any(i.is_NonlinearDerived for i in d._defines)):

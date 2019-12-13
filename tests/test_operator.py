@@ -498,7 +498,7 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
         g = Function(name='g', grid=grid)
-        op = Operator(Eq(g, g + f), dle=('advanced', {'openmp': False}))
+        op = Operator(Eq(f.forward, g + f), dle=('advanced', {'openmp': False}))
 
         expected = {
             'x_m': 0, 'x_M': 4,
