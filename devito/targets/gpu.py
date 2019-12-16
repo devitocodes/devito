@@ -133,25 +133,20 @@ class OffloadingDataManager(DataManager):
 
 class DeviceOffloadingTarget(Target):
 
-    def __init__(self, params, platform):
-        super(DeviceOffloadingTarget, self).__init__(params, platform)
-
-        # Shared-memory parallelizer
-        self.ompizer = OffloadingOmpizer()
-
-        # Data manager (declarations, definitions, movemented between
-        # host and device, ...)
-        self.data_manager = OffloadingDataManager()
-
     def _pipeline(self, graph):
-        # Optimization and parallelism
+        # Distributed-memory parallelism
         optimize_halospots(graph)
         if self.params['mpi']:
             mpiize(graph, mode=self.params['mpi'])
+
+        # Shared-memory parallelism
         if self.params['openmp']:
-            self.ompizer.make_parallel(graph)
+            OffloadingOmpizer().make_parallel(graph)
+
+        # Misc optimizations
         hoist_prodders(graph)
 
         # Symbol definitions
-        self.data_manager.place_definitions(graph)
-        self.data_manager.place_casts(graph)
+        data_manager = OffloadingDataManager()
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)

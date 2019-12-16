@@ -7,7 +7,7 @@ from devito.ops.types import OpsBlock
 from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.utils import namespace
 from devito.symbolics import Literal
-from devito.targets import CPU64NoopTarget, target_pass
+from devito.targets import CPU64NoopTarget, DataManager, target_pass
 from devito.tools import filter_sorted, flatten
 
 __all__ = ['OpsTarget']
@@ -94,9 +94,10 @@ def make_ops_kernels(iet):
 class OpsTarget(CPU64NoopTarget):
 
     def _pipeline(self, graph):
-        # Optimization and parallelism
+        # Create OPS kernels
         make_ops_kernels(graph)
 
         # Symbol definitions
-        self.data_manager.place_definitions(graph)
-        self.data_manager.place_casts(graph)
+        data_manager = DataManager()
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)

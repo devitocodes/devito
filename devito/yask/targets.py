@@ -3,8 +3,8 @@ from functools import partial
 from cached_property import cached_property
 
 from devito.ir import FindNodes
-from devito.targets import (CustomTarget, CPU64NoopTarget, Ompizer, avoid_denormals,
-                            loop_wrapping)
+from devito.targets import (CustomTarget, CPU64NoopTarget, DataManager, Ompizer,
+                            avoid_denormals, loop_wrapping)
 
 from devito.yask.utils import Offloaded
 
@@ -29,30 +29,29 @@ class YaskOmpizer(Ompizer):
 
 class YaskTarget(CPU64NoopTarget):
 
-    def __init__(self, params, platform):
-        super(YaskTarget, self).__init__(params, platform)
-
-        # For shared-memory parallelism
-        self.ompizer = YaskOmpizer()
-
     def _pipeline(self, graph):
-        # Optimization and parallelism
+        # Shared-memory and SIMD-level parallelism
+        if self.params['openmp']:
+            YaskOmpizer().make_parallel(graph)
+
+        # Misc optimizations
         avoid_denormals(graph)
         loop_wrapping(graph)
-        if self.params['openmp']:
-            self.ompizer.make_parallel(graph)
 
         # Symbol definitions
-        self.data_manager.place_definitions(graph)
-        self.data_manager.place_casts(graph)
+        data_manager = DataManager()
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
 
 
 class YaskCustomTarget(CustomTarget, YaskTarget):
 
     @cached_property
     def passes_mapper(self):
+        ompizer = YaskOmpizer()
+
         return {
             'denormals': partial(avoid_denormals),
             'wrapping': partial(loop_wrapping),
-            'openmp': partial(self.ompizer.make_parallel),
+            'openmp': partial(ompizer.make_parallel),
         }
