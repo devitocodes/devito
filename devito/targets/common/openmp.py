@@ -190,7 +190,12 @@ class Ompizer(object):
         if key is not None:
             self.key = key
         else:
-            self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorized
+            def key(i):
+                if i.uindices:
+                    # Iteration must be in OpenMP canonical form
+                    return False
+                return i.is_ParallelRelaxed and not i.is_Vectorized
+            self.key = key
         self.nthreads = NThreads(aliases='nthreads0')
         self.nthreads_nested = NThreadsNested(aliases='nthreads1')
         self.nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
