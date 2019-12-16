@@ -15,7 +15,7 @@ def analyze(clusters):
     # Collect properties
     clusters = Parallelism(state).process(clusters)
     clusters = Affiness(state).process(clusters)
-    clusters = Blocking(state).process(clusters)
+    clusters = Tiling(state).process(clusters)
     clusters = Wrapping(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
@@ -68,14 +68,17 @@ class Detector(Queue):
         if not prefix:
             return clusters
 
+        # The analyzed Dimension
+        d = prefix[-1].dim
+
         # Apply the actual callback
-        retval = self._callback(clusters, prefix)
+        retval = self._callback(clusters, d, prefix)
 
         # Update `self.state`
         if retval is not None:
             for c in clusters:
                 properties = self.state.properties.setdefault(c, {})
-                properties.setdefault(prefix[-1].dim, []).append(retval)
+                properties.setdefault(d, []).append(retval)
 
         return clusters
 
@@ -86,12 +89,9 @@ class Parallelism(Detector):
     Detect SEQUENTIAL, PARALLEL, and PARALLEL_IF_ATOMIC Dimensions.
     """
 
-    def _callback(self, clusters, prefix):
-        # The analyzed Dimension
-        i = prefix[-1].dim
-
+    def _callback(self, clusters, d, prefix):
         # All Dimensions up to and including `i-1`
-        prev = flatten(d.dim._defines for d in prefix[:-1])
+        prev = flatten(i.dim._defines for i in prefix[:-1])
 
         # The i-th Dimension is PARALLEL if for all dependences (d_1, ..., d_n):
         # test0 := (d_1, ..., d_i) = 0, OR
@@ -104,12 +104,12 @@ class Parallelism(Detector):
 
         scope = self._fetch_scope(clusters)
         for dep in scope.d_all_gen():
-            test00 = dep.is_indep(i) and not dep.is_storage_related(i)
-            test01 = all(dep.is_reduce_atmost(d) for d in prev)
+            test00 = dep.is_indep(d) and not dep.is_storage_related(d)
+            test01 = all(dep.is_reduce_atmost(i) for i in prev)
             if test00 and test01:
                 continue
 
-            test1 = len(prev) > 0 and any(dep.is_carried(d) for d in prev)
+            test1 = len(prev) > 0 and any(dep.is_carried(i) for i in prev)
             if test1:
                 continue
 
@@ -131,11 +131,8 @@ class Wrapping(Detector):
     Detect the WRAPPABLE Dimensions.
     """
 
-    def _callback(self, clusters, prefix):
-        # The analyzed Dimension
-        i = prefix[-1].dim
-
-        if not i.is_Time:
+    def _callback(self, clusters, d, prefix):
+        if not d.is_Time:
             return
 
         scope = self._fetch_scope(clusters)
@@ -177,7 +174,7 @@ class Wrapping(Detector):
         # any earlier timeslot is written
         # Note: potentially, this can be relaxed by replacing "any earlier timeslot"
         # with the `front timeslot`
-        if not all(all(d.sink is not a or d.source.lex_ge(a) for d in scope.d_flow)
+        if not all(all(i.sink is not a or i.source.lex_ge(a) for i in scope.d_flow)
                    for a in accesses_back):
             return
 
@@ -186,18 +183,15 @@ class Wrapping(Detector):
 
 class Rounding(Detector):
 
-    def _callback(self, clusters, prefix):
+    def _callback(self, clusters, d, prefix):
         itinterval = prefix[-1]
 
         # The iteration direction must be Forward -- ROUNDABLE is for rounding *up*
         if itinterval.direction is not Forward:
             return
 
-        # The analyzed Dimension
-        i = itinterval.dim
-
         properties = self._fetch_properties(clusters, prefix)
-        if PARALLEL not in properties[i]:
+        if PARALLEL not in properties[d]:
             return
 
         scope = self._fetch_scope(clusters)
@@ -229,47 +223,44 @@ class Affiness(Detector):
     Detect the AFFINE Dimensions.
     """
 
-    def _callback(self, clusters, prefix):
-        # The analyzed Dimension
-        i = prefix[-1].dim
-
+    def _callback(self, clusters, d, prefix):
         scope = self._fetch_scope(clusters)
-
         accesses = [a for a in scope.accesses if not a.is_scalar]
-        if all(a.is_regular and a.affine_if_present(i._defines) for a in accesses):
+        if all(a.is_regular and a.affine_if_present(d._defines) for a in accesses):
             return AFFINE
 
 
-class Blocking(Detector):
+class Tiling(Detector):
+
+    """
+    Detect the TILABLE Dimensions.
+    """
 
     def process(self, elements):
         return self._process_fdta(elements, 1)
 
-    def _callback(self, clusters, prefix):
-        # The analyzed Dimension
-        i = prefix[-1].dim
-
+    def _callback(self, clusters, d, prefix):
         # A Dimension TILABLE only if it's PARALLEL and AFFINE
         properties = self._fetch_properties(clusters, prefix)
-        if not {PARALLEL, AFFINE} <= set(properties[i]):
+        if not {PARALLEL, AFFINE} <= set(properties[d]):
             return
 
         # In addition, we use the heuristic that we do not consider
         # TILEABLE a Dimension that is not embedded in at least one
         # SEQUENTIAL Dimension. This is to rule out tiling when the
         # computation is not expected to be expensive
-        if not any(SEQUENTIAL in properties[j.dim] for j in prefix[:-1]):
+        if not any(SEQUENTIAL in properties[i.dim] for i in prefix[:-1]):
             return
 
         # Likewise, it won't be marked TILABLE if there's at least one
         # local SubDimension in all Clusters
-        if all(any(j.dim.is_Sub and j.dim.local for j in c.itintervals)
+        if all(any(i.dim.is_Sub and i.dim.local for i in c.itintervals)
                for c in clusters):
             return
 
         # If it induces dynamic bounds, then it's ruled out too
         scope = self._fetch_scope(clusters)
-        if any(d.is_lex_non_stmt for d in scope.d_all_gen()):
+        if any(i.is_lex_non_stmt for i in scope.d_all_gen()):
             return
 
         return TILABLE
