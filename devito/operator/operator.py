@@ -148,37 +148,23 @@ class Operator(Callable):
         if any(not isinstance(i, Eq) for i in expressions):
             raise InvalidOperator("Only `devito.Eq` expressions are allowed.")
 
-        name = kwargs.get("name", "Kernel")
-        dse = kwargs.get("dse", configuration['dse'])
-
         # Python-level (i.e., compile time) and C-level (i.e., run time) performance
         profiler = create_profile('timers')
 
-        # Lower input expressions to internal expressions (e.g., attaching metadata)
+        # Lower input expressions
         expressions = cls._lower_exprs(expressions, **kwargs)
 
-        # Group expressions based on their iteration space and data dependences
-        # Several optimizations are applied (fusion, lifting, flop reduction via DSE, ...)
-        clusters = clusterize(expressions, dse_mode=set_dse_mode(dse))
+        # Group expressions based on iteration spaces and data dependences
+        clusters = cls._lower_clusters(expressions, **kwargs)
 
-        # Lower Clusters to a Schedule tree
-        stree = st_build(clusters)
+        # Turn Clusters into a Schedule tree
+        stree = cls._lower_stree(clusters, **kwargs)
 
-        # Lower Schedule tree to an Iteration/Expression tree (IET)
-        iet = iet_build(stree)
-
-        # Instrument the IET for C-level profiling
-        iet = profiler.instrument(iet)
-
-        # Wrap the IET with a Callable
-        parameters = derive_parameters(iet, True)
-        op = Callable(name, iet, 'int', parameters, ())
-
-        # Lower IET to a Target-specific IET
-        op, target_state = cls._specialize_iet(op, **kwargs)
+        # Lower Schedule tree to an Iteration/Expression tree
+        iet, target_state = cls._lower_iet(stree, profiler, **kwargs)
 
         # Make it an actual Operator
-        op = Callable.__new__(cls, **op.args)
+        op = Callable.__new__(cls, **iet.args)
         Callable.__init__(op, **op.args)
 
         # Header files, etc.
@@ -218,7 +204,7 @@ class Operator(Callable):
         # Bypass the silent call to __init__ triggered through the backends engine
         pass
 
-    # Compilation
+    # Compilation -- Expression level
 
     @classmethod
     def _add_implicit(cls, expressions):
@@ -274,7 +260,9 @@ class Operator(Callable):
 
     @classmethod
     def _specialize_exprs(cls, expressions):
-        """Transform ``expressions`` into a backend-specific representation."""
+        """
+        Backend hook for specialization at the Expression level.
+        """
         return [LoweredEq(i) for i in expressions]
 
     @classmethod
@@ -297,19 +285,100 @@ class Operator(Callable):
         expressions = [j for i in expressions for j in i._flatten]
         expressions = [indexify(i) for i in expressions]
         expressions = cls._apply_substitutions(expressions, subs)
+
         expressions = cls._specialize_exprs(expressions)
 
         return expressions
 
+    # Compilation -- Cluster level
+
+    @classmethod
+    def _specialize_clusters(cls, clusters, **kwargs):
+        """
+        Backend hook for specialization at the Cluster level.
+        """
+        return clusters
+
+    @classmethod
+    @timed_pass
+    def _lower_clusters(cls, expressions, **kwargs):
+        """
+        Clusters lowering:
+
+            * Group expressions into Clusters;
+            * Optimize Clusters for performance (flops, data locality, ...);
+            * Introduce guards for conditional Clusters
+        """
+        dse = kwargs.get("dse", configuration['dse'])
+
+        clusters = clusterize(expressions, dse_mode=set_dse_mode(dse))
+
+        clusters = cls._specialize_clusters(clusters)
+
+        return clusters
+
+    # Compilation -- ScheduleTree level
+
+    @classmethod
+    def _specialize_stree(cls, stree, **kwargs):
+        """
+        Backend hook for specialization at the Schedule tree level.
+        """
+        return stree
+
+    @classmethod
+    @timed_pass
+    def _lower_stree(cls, clusters, **kwargs):
+        """
+        Schedule tree lowering:
+
+            * Turn a sequence of Clusters into a ScheduleTree;
+            * Derive and attach metadata for distributed-memory parallelism;
+            * Derive sections for performance profiling
+        """
+        stree = st_build(clusters)
+
+        stree = cls._specialize_stree(stree)
+
+        return stree
+
+    # Compilation -- Iteration/Expression tree level
+
     @classmethod
     def _specialize_iet(cls, iet, **kwargs):
         """
-        Transform the IET into a backend-specific representation, such as code
-        to be executed on a GPU or through a lower-level system (e.g., YASK).
+        Backend hook for specialization at the Iteration/Expression tree level.
         """
         dle = kwargs.get("dle", configuration['dle'])
 
         return iet_lower(iet, *set_dle_mode(dle))
+
+    @classmethod
+    def _lower_iet(cls, stree, profiler, **kwargs):
+        """
+        Iteration/Expression tree lowering:
+
+            * Turn a ScheduleTree into an Iteration/Expression tree;
+            * Perform analysis to detect optimization opportunities;
+            * Introduce distributed-memory, shared-memory, and SIMD parallelism;
+            * Introduce optimizations for data locality;
+            * Finalization (e.g., symbol definitions, array casts)
+        """
+        name = kwargs.get("name", "Kernel")
+
+        iet = iet_build(stree)
+
+        # Instrument the IET for C-level profiling
+        iet = profiler.instrument(iet)
+
+        # Wrap the IET with a Callable
+        parameters = derive_parameters(iet, True)
+        iet = Callable(name, iet, 'int', parameters, ())
+
+        # Lower IET to a Target-specific IET
+        iet, target_state = cls._specialize_iet(iet, **kwargs)
+
+        return iet, target_state
 
     # Read-only properties exposed to the outside world
 
