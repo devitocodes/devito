@@ -38,12 +38,10 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
 
         self[(platform, mode, language)] = operator
 
-    def fetch(self, mode, language='C'):
+    def fetch(self, platform=None, mode=None, language='C', **kwargs):
         """
         Retrieve an Operator for the given `<platform, mode, language>`.
         """
-        platform = configuration['platform']
-
         if mode not in OperatorRegistry._modes:
             # DLE given as an arbitrary sequence of passes
             mode = 'custom'
@@ -52,9 +50,9 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
             raise ValueError("Unknown language `%s`" % language)
 
         for cls in platform.__class__.mro():
-            for (p, m, l), op_cls in self.items():
+            for (p, m, l), kls in self.items():
                 if issubclass(p, cls) and m == mode and l == language:
-                    return op_cls
+                    return kls
 
         raise InvalidOperator("Cannot compile an Operator for `%s`" % str((p, m, l)))
 

@@ -1,4 +1,4 @@
-"""Misc Target passes."""
+"""Misc optimization passes."""
 
 import cgen
 

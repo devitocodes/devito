@@ -139,10 +139,12 @@ class Operator(Callable):
         # The Operator type for the given target
         cls = operator_selector(**kwargs)
 
+        # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
             op = cls._build(expressions, **kwargs)
         op._profiler.py_timers.update(r.timings)
 
+        # Emit info about how long it took to perform the lowering
         op._emit_build_profiling()
 
         return op
@@ -891,6 +893,9 @@ def parse_kwargs(**kwargs):
         kwargs['mode'] = 'noop'
     elif mode == 'noop':
         kwargs['mode'] = tuple(i for i in ['mpi', 'openmp'] if options[i]) or 'noop'
+    elif isinstance(mode, tuple):
+        if 'openmp' not in mode and options['openmp']:
+            mode += ('openmp',)
 
     # `dse`
     dse = kwargs.pop("dse", configuration['dse'])
@@ -904,5 +909,9 @@ def parse_kwargs(**kwargs):
             kwargs['dse'] = ','.join(dse)
         except:
             raise InvalidOperator("Illegal `dse=%s`" % str(dse))
+
+    # Attach `platform` too for convenience, basically so that we don't always have
+    # to query `configuration
+    kwargs['platform'] = configuration['platform']
 
     return kwargs
