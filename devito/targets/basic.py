@@ -1,14 +1,5 @@
-from collections import OrderedDict
-from itertools import product
 
-from devito.archinfo import Platform
-from devito.ir.iet import Node
-from devito.logger import warning
-from devito.parameters import configuration
-from devito.targets.common import Graph
-from devito.tools import Singleton
-
-__all__ = ['iet_lower', 'targets', 'targets_registry', 'Target']
+__all__ = ['Target']
 
 
 class Target(object):
@@ -32,49 +23,6 @@ class Target(object):
     def _pipeline(self, graph):
         """The rewrite passes."""
         return
-
-
-class TargetsMap(OrderedDict, metaclass=Singleton):
-
-    """
-    A special mapper for Targets:
-
-        (platform, mode, language) -> target
-
-    where:
-
-        * `platform` is an object of type Platform, that is the architecture
-          the generated code should be specializer for.
-        * `mode` is the optimization level (e.g., `advanced`)
-        * `language` is the generated code language (default is C+OpenMP+MPI,
-          but in the future it could also be OpenACC or CUDA.
-        * `target` is an object of type Target.
-    """
-
-    _modes = ('noop', 'advanced')
-    _languages = ('C',)
-    _registry = _modes + tuple(product(_modes, _languages))
-
-    def add(self, target, platform, mode, language='C'):
-        assert issubclass(target, Target)
-        assert issubclass(platform, Platform)
-        assert mode in TargetsMap._modes or mode == 'custom'
-
-        self[(platform, mode, language)] = target
-
-    def fetch(self, platform, mode, language='C'):
-        # Retrieve the most specialized Target
-        for cls in platform.__class__.mro():
-            for (p, m, l), target in self.items():
-                if issubclass(p, cls) and m == mode and l == language:
-                    return target
-        raise KeyError("Couldn't find a Target for `%s`" % str((p, m, l)))
-
-
-targets = TargetsMap()
-"""To be populated by the individual backends."""
-
-targets_registry = TargetsMap._registry
 
 
 def iet_lower(iet, mode='advanced', options=None):
@@ -116,29 +64,6 @@ def iet_lower(iet, mode='advanced', options=None):
     """
     assert isinstance(iet, Node)
 
-    # What is the target platform for which the optimizations are applied?
-    platform = configuration['platform']
-
-    # Default options
-    params = {}
-    params['blockinner'] = configuration['dle-options'].get('blockinner', False)
-    params['blocklevels'] = configuration['dle-options'].get('blocklevels', None)
-    params['openmp'] = configuration['openmp']
-    params['mpi'] = configuration['mpi']
-
-    # Parse input options (potentially replacing defaults)
-    for k, v in (options or {}).items():
-        if k not in params:
-            warning("Illegal DLE option '%s'" % k)
-        else:
-            params[k] = v
-
-    # Force OpenMP/MPI if parallelism was requested, even though mode is 'noop'
-    if mode is None:
-        mode = 'noop'
-    elif mode == 'noop':
-        mode = tuple(i for i in ['mpi', 'openmp'] if params[i]) or 'noop'
-
     # Fetch the requested rewriter
     try:
         rewriter = targets.fetch(platform, mode)(params, platform)
@@ -147,7 +72,3 @@ def iet_lower(iet, mode='advanced', options=None):
         # transformation passes
         rewriter = targets.fetch(platform, 'custom')(mode, params, platform)
 
-    # Trigger the Target passes
-    graph = rewriter.process(iet)
-
-    return graph.root, graph

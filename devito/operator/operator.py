@@ -12,11 +12,12 @@ from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import Callable, MetaCall, iet_build, derive_parameters
 from devito.ir.stree import st_build
+from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import indexify
-from devito.targets import iet_lower
+from devito.targets import Graph
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
 from devito.types import Dimension, Eq
@@ -132,6 +133,12 @@ class Operator(Callable):
             # can't do anything useful with it
             return super(Operator, cls).__new__(cls, **kwargs)
 
+        # Parse input arguments
+        kwargs = parse_kwargs(**kwargs)
+
+        # The Operator type for the given target
+        cls = operator_selector(**kwargs)
+
         with timed_region('op-compile') as r:
             op = cls._build(expressions, **kwargs)
         op._profiler.py_timers.update(r.timings)
@@ -161,7 +168,7 @@ class Operator(Callable):
         stree = cls._lower_stree(clusters, **kwargs)
 
         # Lower Schedule tree to an Iteration/Expression tree
-        iet, target_state = cls._lower_iet(stree, profiler, **kwargs)
+        iet, byproduct = cls._lower_iet(stree, profiler, **kwargs)
 
         # Make it an actual Operator
         op = Callable.__new__(cls, **iet.args)
@@ -169,11 +176,11 @@ class Operator(Callable):
 
         # Header files, etc.
         op._headers = list(cls._default_headers)
-        op._headers.extend(target_state.headers)
+        op._headers.extend(byproduct.headers)
         op._globals = list(cls._default_globals)
         op._includes = list(cls._default_includes)
         op._includes.extend(profiler._default_includes)
-        op._includes.extend(target_state.includes)
+        op._includes.extend(byproduct.includes)
 
         # Required for the jit-compilation
         op._compiler = configuration['compiler']
@@ -184,7 +191,7 @@ class Operator(Callable):
         op._func_table = OrderedDict()
         op._func_table.update(OrderedDict([(i, MetaCall(None, False))
                                            for i in profiler._ext_calls]))
-        op._func_table.update(OrderedDict([(i.root.name, i) for i in target_state.funcs]))
+        op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
 
         # Internal state. May be used to store information about previous runs,
         # autotuning reports, etc
@@ -194,7 +201,7 @@ class Operator(Callable):
         op._input = filter_sorted(flatten(e.reads + e.writes for e in expressions))
         op._output = filter_sorted(flatten(e.writes for e in expressions))
         op._dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
-        op._dimensions.extend(target_state.dimensions)
+        op._dimensions.extend(byproduct.dimensions)
         op._dtype, op._dspace = clusters.meta
         op._profiler = profiler
 
@@ -309,9 +316,7 @@ class Operator(Callable):
             * Optimize Clusters for performance (flops, data locality, ...);
             * Introduce guards for conditional Clusters
         """
-        dse = kwargs.get("dse", configuration['dse'])
-
-        clusters = clusterize(expressions, dse_mode=set_dse_mode(dse))
+        clusters = clusterize(expressions, dse_mode=kwargs['dse'])
 
         clusters = cls._specialize_clusters(clusters)
 
@@ -345,13 +350,11 @@ class Operator(Callable):
     # Compilation -- Iteration/Expression tree level
 
     @classmethod
-    def _specialize_iet(cls, iet, **kwargs):
+    def _specialize_iet(cls, graph, **kwargs):
         """
         Backend hook for specialization at the Iteration/Expression tree level.
         """
-        dle = kwargs.get("dle", configuration['dle'])
-
-        return iet_lower(iet, *set_dle_mode(dle))
+        return graph
 
     @classmethod
     def _lower_iet(cls, stree, profiler, **kwargs):
@@ -375,10 +378,11 @@ class Operator(Callable):
         parameters = derive_parameters(iet, True)
         iet = Callable(name, iet, 'int', parameters, ())
 
-        # Lower IET to a Target-specific IET
-        iet, target_state = cls._specialize_iet(iet, **kwargs)
+        # Lower IET to a target-specific IET
+        graph = Graph(iet)
+        graph = cls._specialize_iet(graph, **kwargs)
 
-        return iet, target_state
+        return graph.root, graph
 
     # Read-only properties exposed to the outside world
 
@@ -850,35 +854,55 @@ class ArgumentsMap(dict):
         return self.grid.comm if self.grid is not None else MPI.COMM_NULL
 
 
-def set_dse_mode(mode):
-    if not mode:
-        return 'noop'
-    elif isinstance(mode, str):
-        return mode
+def parse_kwargs(**kwargs):
+    """
+    Parse keyword arguments provided to an Operator. This routine is
+    especially useful for backwards compatibility.
+    """
+    # `dle`
+    dle = kwargs.pop("dle", configuration['dle'])
+
+    if not dle or isinstance(dle, str):
+        mode, options = dle, {}
+    elif isinstance(dle, tuple):
+        if len(dle) == 0:
+            mode, options = 'noop', {}
+        elif isinstance(dle[-1], dict):
+            if len(dle) == 2:
+                mode, options = dle
+            else:
+                mode, options = tuple(flatten(i.split(',') for i in dle[:-1])), dle[-1]
+        else:
+            mode, options = tuple(flatten(i.split(',') for i in dle)), {}
+    else:
+        raise InvalidOperator("Illegal `dle=%s`" % str(dle))
+
+    # `dle`, options
+    options.setdefault('blockinner',
+                       configuration['dle-options'].get('blockinner', False))
+    options.setdefault('blocklevels',
+                       configuration['dle-options'].get('blocklevels', None))
+    options.setdefault('openmp', configuration['openmp'])
+    options.setdefault('mpi', configuration['mpi'])
+    kwargs['options'] = options
+
+    # `dle`, mode
+    if mode is None:
+        kwargs['mode'] = 'noop'
+    elif mode == 'noop':
+        kwargs['mode'] = tuple(i for i in ['mpi', 'openmp'] if options[i]) or 'noop'
+
+    # `dse`
+    dse = kwargs.pop("dse", configuration['dse'])
+
+    if not dse:
+        kwargs['dse'] = 'noop'
+    elif isinstance(dse, str):
+        kwargs['dse'] = dse
     else:
         try:
-            return ','.join(mode)
+            kwargs['dse'] = ','.join(dse)
         except:
-            raise TypeError("Illegal DSE mode %s." % str(mode))
+            raise InvalidOperator("Illegal `dse=%s`" % str(dse))
 
-
-def set_dle_mode(mode):
-    if not mode:
-        return mode, {}
-    elif isinstance(mode, str):
-        return mode, {}
-    elif isinstance(mode, tuple):
-        if len(mode) == 0:
-            return 'noop', {}
-        elif isinstance(mode[-1], dict):
-            if len(mode) == 2:
-                return mode
-            else:
-                return tuple(flatten(i.split(',') for i in mode[:-1])), mode[-1]
-        else:
-            return tuple(flatten(i.split(',') for i in mode)), {}
-    raise TypeError("Illegal DLE mode %s." % str(mode))
-
-
-def is_threaded(mode):
-    return set_dle_mode(mode)[1].get('openmp', configuration['openmp'])
+    return kwargs
