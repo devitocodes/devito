@@ -42,7 +42,7 @@ class Detector(Queue):
         super(Detector, self).__init__()
         self.state = state
 
-    def _make_scope(self, clusters):
+    def _fetch_scope(self, clusters):
         key = as_tuple(clusters)
         if key not in self.state.scopes:
             self.state.scopes[key] = Scope(flatten(c.exprs for c in key))
@@ -89,7 +89,7 @@ class Parallelism(Detector):
 
         is_parallel_atomic = False
 
-        scope = self._make_scope(clusters)
+        scope = self._fetch_scope(clusters)
         for dep in scope.d_all_gen():
             test00 = dep.is_indep(i) and not dep.is_storage_related(i)
             test01 = all(dep.is_reduce_atmost(d) for d in prev)
@@ -125,7 +125,7 @@ class Wrapping(Detector):
         if not i.is_Time:
             return
 
-        scope = self._make_scope(clusters)
+        scope = self._fetch_scope(clusters)
         accesses = [a for a in scope.accesses if a.function.is_TimeFunction]
 
         # If not using modulo-buffered iteration, then `i` is surely not WRAPPABLE
@@ -187,7 +187,7 @@ class Rounding(Detector):
         if PARALLEL not in properties.get(i, []):
             return
 
-        scope = self._make_scope(clusters)
+        scope = self._fetch_scope(clusters)
 
         # All non-scalar writes must be over Arrays, that is temporaries, otherwise
         # we would end up overwriting user data
@@ -220,7 +220,7 @@ class Affiness(Detector):
         # The analyzed Dimension
         i = prefix[-1].dim
 
-        scope = self._make_scope(clusters)
+        scope = self._fetch_scope(clusters)
 
         accesses = [a for a in scope.accesses if not a.is_scalar]
         if all(a.is_regular and a.affine_if_present(i._defines) for a in accesses):
@@ -256,7 +256,7 @@ class Blocking(Detector):
 
         # If it induces dynamic bounds in any of the inner Iterations,
         # then it's ruled out too
-        scope = self._make_scope(clusters)
+        scope = self._fetch_scope(clusters)
         if any(d.is_lex_non_stmt for d in scope.d_all_gen()):
             return
 
