@@ -1,3 +1,4 @@
+from collections import defaultdict
 from functools import cmp_to_key
 
 from devito.ir.clusters.queue import Queue
@@ -11,20 +12,15 @@ __all__ = ['analyze']
 def analyze(clusters):
     state = State()
 
+    # Collect properties
     clusters = Parallelism(state).process(clusters)
     clusters = Affiness(state).process(clusters)
     clusters = Blocking(state).process(clusters)
     clusters = Wrapping(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
-    # Group properties by Cluster
-    properties = {}
-    for k, v in state.properties.items():
-        for c in k:
-            properties.setdefault(c, {}).update(v)
-
     # Rebuild Clusters to attach the discovered properties
-    processed = [c.rebuild(properties=properties.get(c)) for c in clusters]
+    processed = [c.rebuild(properties=state.properties.get(c)) for c in clusters]
 
     return processed
 
@@ -48,6 +44,23 @@ class Detector(Queue):
             self.state.scopes[key] = Scope(flatten(c.exprs for c in key))
         return self.state.scopes[key]
 
+    def _fetch_properties(self, clusters, prefix):
+        # If the situation is:
+        #
+        # t
+        #   x0
+        #     <some clusters>
+        #   x1
+        #     <some other clusters>
+        #
+        # then retain only the "common" properties, that is those along `t`
+        properties = defaultdict(list)
+        for c in clusters:
+            v = self.state.properties.get(c, {})
+            for i in prefix:
+                properties[i.dim].extend(v.get(i.dim, []))
+        return properties
+
     def process(self, elements):
         return self._process_fatd(elements, 1)
 
@@ -60,9 +73,9 @@ class Detector(Queue):
 
         # Update `self.state`
         if retval is not None:
-            key = as_tuple(clusters)
-            properties = self.state.properties.setdefault(key, {})
-            properties.setdefault(prefix[-1].dim, []).append(retval)
+            for c in clusters:
+                properties = self.state.properties.setdefault(c, {})
+                properties.setdefault(prefix[-1].dim, []).append(retval)
 
         return clusters
 
@@ -183,8 +196,8 @@ class Rounding(Detector):
         # The analyzed Dimension
         i = itinterval.dim
 
-        properties = self.state.properties.get(as_tuple(clusters), {})
-        if PARALLEL not in properties.get(i, []):
+        properties = self._fetch_properties(clusters, prefix)
+        if PARALLEL not in properties[i]:
             return
 
         scope = self._fetch_scope(clusters)
@@ -237,15 +250,15 @@ class Blocking(Detector):
         i = prefix[-1].dim
 
         # A Dimension TILABLE only if it's PARALLEL and AFFINE
-        properties = self.state.properties.get(as_tuple(clusters), {})
-        if not {PARALLEL, AFFINE} <= set(properties.get(i, [])):
+        properties = self._fetch_properties(clusters, prefix)
+        if not {PARALLEL, AFFINE} <= set(properties[i]):
             return
 
         # In addition, we use the heuristic that we do not consider
         # TILEABLE a Dimension that is not embedded in at least one
         # SEQUENTIAL Dimension. This is to rule out tiling when the
         # computation is not expected to be expensive
-        if not any(SEQUENTIAL in properties.get(j.dim, []) for j in prefix[:-1]):
+        if not any(SEQUENTIAL in properties[j.dim] for j in prefix[:-1]):
             return
 
         # Likewise, it won't be marked TILABLE if there's at least one
@@ -254,8 +267,7 @@ class Blocking(Detector):
                for c in clusters):
             return
 
-        # If it induces dynamic bounds in any of the inner Iterations,
-        # then it's ruled out too
+        # If it induces dynamic bounds, then it's ruled out too
         scope = self._fetch_scope(clusters)
         if any(d.is_lex_non_stmt for d in scope.d_all_gen()):
             return
