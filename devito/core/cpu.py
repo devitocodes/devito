@@ -1,9 +1,7 @@
 from functools import partial
 
-from cached_property import cached_property
-
 from devito.core.operator import OperatorCore
-from devito.exceptions import DLEException
+from devito.exceptions import InvalidOperator
 from devito.targets import (DataManager, Blocker, Ompizer, avoid_denormals,
                             optimize_halospots, mpiize, loop_wrapping,
                             minimize_remainders, hoist_prodders)

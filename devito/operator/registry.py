@@ -3,7 +3,6 @@ from itertools import product
 
 from devito.archinfo import Platform
 from devito.exceptions import InvalidOperator
-from devito.parameters import configuration
 from devito.tools import Singleton
 
 __all__ = ['operator_registry', 'operator_selector']
