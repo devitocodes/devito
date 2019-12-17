@@ -3,7 +3,7 @@ from functools import partial
 from devito.core.operator import OperatorCore
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
-from devito.ir.clusters import Toposort, analyze
+from devito.ir.clusters import Toposort
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays
 from devito.passes.iet import (DataManager, Blocker, Ompizer, avoid_denormals,
                                optimize_halospots, mpiize, loop_wrapping,
@@ -42,10 +42,6 @@ class CPU64NoopOperator(OperatorCore):
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters, template)
         clusters = scalarize(clusters, template)
-
-        # Determine computational properties (e.g., parallelism) that will be
-        # used by the later passes
-        clusters = analyze(clusters)
 
         return clusters
 

@@ -1,6 +1,6 @@
 from devito import Eq
 from devito.dse import rewrite
-from devito.ir.clusters import Toposort, analyze
+from devito.ir.clusters import Toposort
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import Call, Expression, find_affine_trees
 from devito.ir.iet.visitors import FindSymbols, Transformer
@@ -52,10 +52,6 @@ class OPSOperator(Operator):
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters, template)
         clusters = scalarize(clusters, template)
-
-        # Determine computational properties (e.g., parallelism) that will be
-        # used by the later passes
-        clusters = analyze(clusters)
 
         return clusters
 

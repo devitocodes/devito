@@ -4,6 +4,7 @@ from itertools import groupby
 import sympy
 
 from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
+from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.queue import Queue
 from devito.symbolics import CondEq
@@ -27,6 +28,9 @@ def clusterize(exprs):
 
     # Introduce conditional Clusters
     clusters = guard(clusters)
+
+    # Determine relevant computational properties (e.g., parallelism)
+    clusters = analyze(clusters)
 
     return ClusterGroup(clusters)
 

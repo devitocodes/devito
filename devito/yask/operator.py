@@ -8,7 +8,7 @@ import numpy as np
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
-from devito.ir.clusters import Toposort, analyze
+from devito.ir.clusters import Toposort
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (Expression, FindNodes, FindSymbols, Transformer,
                            derive_parameters, find_affine_trees)
@@ -183,10 +183,6 @@ class YASKOperator(Operator):
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters, template)
         clusters = scalarize(clusters, template)
-
-        # Determine computational properties (e.g., parallelism) that will be
-        # used by the later passes
-        clusters = analyze(clusters)
 
         return clusters
 

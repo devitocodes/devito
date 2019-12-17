@@ -3,7 +3,7 @@ import cgen as c
 from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.dse import rewrite
-from devito.ir.clusters import Toposort, analyze
+from devito.ir.clusters import Toposort
 from devito.ir.support import COLLAPSED
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays
 from devito.passes import (DataManager, Ompizer, ParallelTree, optimize_halospots,
@@ -163,10 +163,6 @@ class DeviceOffloadingOperator(OperatorCore):
         clusters = fuse(clusters)
         clusters = eliminate_arrays(clusters, template)
         clusters = scalarize(clusters, template)
-
-        # Determine computational properties (e.g., parallelism) that will be
-        # used by the later passes
-        clusters = analyze(clusters)
 
         return clusters
 
