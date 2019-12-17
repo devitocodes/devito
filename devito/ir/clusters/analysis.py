@@ -54,11 +54,11 @@ class Detector(Queue):
         #     <some other clusters>
         #
         # then retain only the "common" properties, that is those along `t`
-        properties = defaultdict(list)
+        properties = defaultdict(set)
         for c in clusters:
             v = self.state.properties.get(c, {})
             for i in prefix:
-                properties[i.dim].extend(v.get(i.dim, []))
+                properties[i.dim].update(v.get(i.dim, set()))
         return properties
 
     def process(self, elements):
@@ -78,7 +78,7 @@ class Detector(Queue):
         if retval is not None:
             for c in clusters:
                 properties = self.state.properties.setdefault(c, {})
-                properties.setdefault(d, []).append(retval)
+                properties.setdefault(d, set()).add(retval)
 
         return clusters
 
