@@ -1,4 +1,4 @@
-from devito.tools import Tag
+from devito.tools import Tag, filter_sorted
 
 
 class Property(Tag):
@@ -47,6 +47,17 @@ A Dimension used to index into tensor objects only through affine and regular
 accesses functions. See :mod:`basic.py` for rigorous definitions of "affine"
 and "regular".
 """
+
+
+def filter_properties(properties):
+    properties = set(properties)
+
+    if SEQUENTIAL in properties:
+        properties -= {PARALLEL, PARALLEL_IF_ATOMIC}
+    elif PARALLEL_IF_ATOMIC in properties:
+        properties -= {PARALLEL}
+
+    return tuple(filter_sorted(properties))
 
 
 class HaloSpotProperty(Tag):
