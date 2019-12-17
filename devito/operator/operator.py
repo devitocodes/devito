@@ -11,7 +11,7 @@ from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import Callable, MetaCall, iet_build, derive_parameters
-from devito.ir.stree import st_build
+from devito.ir.stree import stree_build
 from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
 from devito.mpi import MPI
@@ -343,7 +343,7 @@ class Operator(Callable):
             * Derive and attach metadata for distributed-memory parallelism;
             * Derive sections for performance profiling
         """
-        stree = st_build(clusters)
+        stree = stree_build(clusters)
 
         stree = cls._specialize_stree(stree)
 
