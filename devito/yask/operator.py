@@ -5,15 +5,19 @@ from pathlib import Path
 
 import numpy as np
 
+from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
+from devito.ir.clusters import Toposort, analyze
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (Expression, FindNodes, FindSymbols, Transformer,
                            derive_parameters, find_affine_trees)
 from devito.ir.support import align_accesses
 from devito.operator import Operator
-from devito.passes import DataManager, Ompizer, avoid_denormals, loop_wrapping, iet_pass
-from devito.tools import Signer, as_tuple, filter_ordered, flatten
+from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays
+from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, loop_wrapping,
+                               iet_pass)
+from devito.tools import Signer, as_tuple, filter_ordered, flatten, generator
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
@@ -152,6 +156,39 @@ class YASKOperator(Operator):
         return [LoweredEq(e,
                           dspace=e.dspace.zero([d for d in e.dimensions if d.is_Space]))
                 for e in expressions]
+
+    @classmethod
+    def _specialize_clusters(cls, clusters, **kwargs):
+        # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
+        # but it will have to change
+
+        mode = kwargs['dse']
+
+        # To create temporaries
+        counter = generator()
+        template = lambda: "r%d" % counter()
+
+        # Toposort+Fusion (the former to expose more fusion opportunities)
+        clusters = Toposort().process(clusters)
+        clusters = fuse(clusters)
+
+        # Flop reduction via the DSE
+        clusters = rewrite(clusters, template, mode=mode)
+
+        # Lifting
+        clusters = Lift().process(clusters)
+
+        # Lifting may create fusion opportunities, which in turn may enable
+        # further optimizations
+        clusters = fuse(clusters)
+        clusters = eliminate_arrays(clusters, template)
+        clusters = scalarize(clusters, template)
+
+        # Determine computational properties (e.g., parallelism) that will be
+        # used by the later passes
+        clusters = analyze(clusters)
+
+        return clusters
 
     @classmethod
     def _specialize_iet(cls, graph, **kwargs):

@@ -1,17 +1,53 @@
 from functools import partial
 
 from devito.core.operator import OperatorCore
+from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
-from devito.passes import (DataManager, Blocker, Ompizer, avoid_denormals,
-                           optimize_halospots, mpiize, loop_wrapping,
-                           minimize_remainders, hoist_prodders)
-from devito.tools import as_tuple
+from devito.ir.clusters import Toposort, analyze
+from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays
+from devito.passes.iet import (DataManager, Blocker, Ompizer, avoid_denormals,
+                               optimize_halospots, mpiize, loop_wrapping,
+                               minimize_remainders, hoist_prodders)
+from devito.tools import as_tuple, generator
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperator',
            'ArmOperator', 'CustomOperator']
 
 
 class CPU64NoopOperator(OperatorCore):
+
+    @classmethod
+    def _specialize_clusters(cls, clusters, **kwargs):
+        """
+        Optimize Clusters for better runtime performance.
+        """
+        mode = kwargs['dse']
+
+        # To create temporaries
+        counter = generator()
+        template = lambda: "r%d" % counter()
+
+        # Toposort+Fusion (the former to expose more fusion opportunities)
+        clusters = Toposort().process(clusters)
+        clusters = fuse(clusters)
+
+        # Flop reduction via the DSE
+        clusters = rewrite(clusters, template, mode=mode)
+
+        # Lifting
+        clusters = Lift().process(clusters)
+
+        # Lifting may create fusion opportunities, which in turn may enable
+        # further optimizations
+        clusters = fuse(clusters)
+        clusters = eliminate_arrays(clusters, template)
+        clusters = scalarize(clusters, template)
+
+        # Determine computational properties (e.g., parallelism) that will be
+        # used by the later passes
+        clusters = analyze(clusters)
+
+        return clusters
 
     @classmethod
     def _specialize_iet(cls, graph, **kwargs):

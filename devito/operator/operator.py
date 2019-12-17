@@ -315,12 +315,12 @@ class Operator(Callable):
         Clusters lowering:
 
             * Group expressions into Clusters;
-            * Optimize Clusters for performance (flops, data locality, ...);
-            * Introduce guards for conditional Clusters
+            * Introduce guards for conditional Clusters.
         """
-        clusters = clusterize(expressions, dse_mode=kwargs['dse'])
+        # Build a sequence of Clusters from a sequence of Eqs
+        clusters = clusterize(expressions)
 
-        clusters = cls._specialize_clusters(clusters)
+        clusters = cls._specialize_clusters(clusters, **kwargs)
 
         return clusters
 
@@ -343,6 +343,7 @@ class Operator(Callable):
             * Derive and attach metadata for distributed-memory parallelism;
             * Derive sections for performance profiling
         """
+        # Build a ScheduleTree from a sequence of Clusters
         stree = stree_build(clusters)
 
         stree = cls._specialize_stree(stree)
@@ -371,6 +372,7 @@ class Operator(Callable):
         """
         name = kwargs.get("name", "Kernel")
 
+        # Build an IET from a ScheduleTree
         iet = iet_build(stree)
 
         # Instrument the IET for C-level profiling
