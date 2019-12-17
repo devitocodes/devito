@@ -65,12 +65,12 @@ sys.path.append(os.path.join(namespace['yask-pylib']))
 
 # Need a custom compiler to compile YASK kernels
 # This is derived from the user-selected compiler
-class YaskCompiler(configuration['compiler'].__class__):
+class YASKCompiler(configuration['compiler'].__class__):
 
     def __init__(self, *args, **kwargs):
         kwargs['cpp'] = True
         kwargs['suffix'] = configuration['compiler'].suffix
-        super(YaskCompiler, self).__init__(*args, **kwargs)
+        super(YASKCompiler, self).__init__(*args, **kwargs)
         self.cflags = [i for i in configuration['compiler'].cflags
                        if not i.startswith('-std')] + ['-std=c++11']
         # Tell the compiler where to get YASK header files and shared objects
@@ -80,7 +80,7 @@ class YaskCompiler(configuration['compiler'].__class__):
 
 
 yask_configuration = Parameters('yask')
-yask_configuration.add('compiler', YaskCompiler())
+yask_configuration.add('compiler', YASKCompiler())
 callback = lambda i: eval(i) if i else ()
 yask_configuration.add('folding', (), callback=callback, impacts_jit=False)
 yask_configuration.add('blockshape', (), callback=callback, impacts_jit=False)

@@ -22,7 +22,7 @@ from devito.yask.utils import (Offloaded, make_var_accesses, make_sharedptr_func
                                namespace)
 from devito.yask.wrappers import contexts
 from devito.yask.transformer import yaskit
-from devito.yask.types import YaskVarObject, YaskSolnObject
+from devito.yask.types import YASKVarObject, YASKSolnObject
 
 
 __all__ = ['YASKNoopOperator', 'YASKOperator', 'YASKCustomOperator']
@@ -58,7 +58,7 @@ def make_yask_kernels(iet, **kwargs):
             local_vars = yaskit(trees, yc_soln)
 
             # Build the new IET nodes
-            yk_soln_obj = YaskSolnObject(namespace['code-soln-name'](n))
+            yk_soln_obj = YASKSolnObject(namespace['code-soln-name'](n))
             funcall = make_sharedptr_funcall(namespace['code-soln-run'],
                                              ['time'], yk_soln_obj)
             funcall = Offloaded(funcall, dtype)
@@ -83,9 +83,9 @@ def make_yask_kernels(iet, **kwargs):
     # Some Iteration/Expression trees are not offloaded to YASK and may
     # require further processing to be executed through YASK, due to the
     # different storage layout
-    yk_var_objs = {i.name: YaskVarObject(i.name)
+    yk_var_objs = {i.name: YASKVarObject(i.name)
                    for i in FindSymbols().visit(iet) if i.from_YASK}
-    yk_var_objs.update({i: YaskVarObject(i) for i in get_local_vars(yk_solns)})
+    yk_var_objs.update({i: YASKVarObject(i) for i in get_local_vars(yk_solns)})
     iet = make_var_accesses(iet, yk_var_objs)
 
     # The signature needs to be updated
