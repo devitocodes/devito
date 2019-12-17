@@ -1,16 +1,20 @@
 import ctypes
 from collections import OrderedDict
+from functools import partial
 from pathlib import Path
 
 import numpy as np
 
+from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.ir.equations import LoweredEq
 from devito.ir.iet import (Expression, FindNodes, FindSymbols, Transformer,
                            derive_parameters, find_affine_trees)
 from devito.ir.support import align_accesses
 from devito.operator import Operator
-from devito.tools import Signer, filter_ordered, flatten
+from devito.targets import (DataManager, Ompizer, avoid_denormals, loop_wrapping,
+                            target_pass)
+from devito.tools import Signer, as_tuple, filter_ordered, flatten
 
 from devito.yask import configuration
 from devito.yask.data import DataScalar
@@ -20,10 +24,109 @@ from devito.yask.wrappers import contexts
 from devito.yask.transformer import yaskit
 from devito.yask.types import YaskVarObject, YaskSolnObject
 
-__all__ = ['Operator']
+
+__all__ = ['YASKNoopOperator', 'YASKOperator', 'YASKCustomOperator']
 
 
-class OperatorYASK(Operator):
+@target_pass
+def make_yask_kernels(iet, **kwargs):
+    yk_solns = kwargs.pop('yk_solns')
+
+    mapper = {}
+    for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
+        dimensions = tuple(filter_ordered(i.dim.root for i in flatten(trees)))
+
+        # Retrieve the section dtype
+        exprs = FindNodes(Expression).visit(section)
+        dtypes = {e.dtype for e in exprs}
+        if len(dtypes) != 1:
+            log("Unable to offload in presence of mixed-precision arithmetic")
+            continue
+        dtype = dtypes.pop()
+
+        context = contexts.fetch(dimensions, dtype)
+
+        # A unique name for the 'real' compiler and kernel solutions
+        name = namespace['jit-soln'](Signer._digest(configuration,
+                                                    *[i.root for i in trees]))
+
+        # Create a YASK compiler solution for this Operator
+        yc_soln = context.make_yc_solution(name)
+
+        try:
+            # Generate YASK vars and populate `yc_soln` with equations
+            local_vars = yaskit(trees, yc_soln)
+
+            # Build the new IET nodes
+            yk_soln_obj = YaskSolnObject(namespace['code-soln-name'](n))
+            funcall = make_sharedptr_funcall(namespace['code-soln-run'],
+                                             ['time'], yk_soln_obj)
+            funcall = Offloaded(funcall, dtype)
+            mapper[trees[0].root] = funcall
+            mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
+
+            # JIT-compile the newly-created YASK kernel
+            yk_soln = context.make_yk_solution(name, yc_soln, local_vars)
+            yk_solns[(dimensions, yk_soln_obj)] = yk_soln
+
+            # Print some useful information about the newly constructed solution
+            log("Solution '%s' contains %d var(s) and %d equation(s)." %
+                (yc_soln.get_name(), yc_soln.get_num_vars(),
+                 yc_soln.get_num_equations()))
+        except NotImplementedError as e:
+            log("Unable to offload a candidate tree. Reason: [%s]" % str(e))
+    iet = Transformer(mapper).visit(iet)
+
+    if not yk_solns:
+        log("No offloadable trees found")
+
+    # Some Iteration/Expression trees are not offloaded to YASK and may
+    # require further processing to be executed through YASK, due to the
+    # different storage layout
+    yk_var_objs = {i.name: YaskVarObject(i.name)
+                   for i in FindSymbols().visit(iet) if i.from_YASK}
+    yk_var_objs.update({i: YaskVarObject(i) for i in get_local_vars(yk_solns)})
+    iet = make_var_accesses(iet, yk_var_objs)
+
+    # The signature needs to be updated
+    # TODO: this could be done automagically through the iet pass engine, but
+    # currently it only supports *appending* to the parameters list. While here
+    # we actually need to change it as some parameters may disappear (x_m, x_M, ...)
+    parameters = derive_parameters(iet, True)
+    iet = iet._rebuild(parameters=parameters)
+
+    return iet, {}
+
+
+class YASKOmpizer(Ompizer):
+
+    def __init__(self, key=None):
+        if key is None:
+            def key(i):
+                # If it's not parallel, nothing to do
+                if not i.is_ParallelRelaxed or i.is_Vectorized:
+                    return False
+                # If some of the inner computation has been offloaded to YASK,
+                # avoid introducing an outer level of parallelism
+                if FindNodes(Offloaded).visit(i):
+                    return False
+                return True
+        super(YASKOmpizer, self).__init__(key=key)
+
+
+class YASKNoopOperator(Operator):
+
+    @classmethod
+    def _specialize_iet(cls, graph, **kwargs):
+        # Symbol definitions
+        data_manager = DataManager()
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
+
+        return graph
+
+
+class YASKOperator(Operator):
 
     """
     A special Operator generating and executing YASK code.
@@ -35,7 +138,7 @@ class OperatorYASK(Operator):
     @classmethod
     def _build(cls, expressions, **kwargs):
         yk_solns = OrderedDict()
-        op = super(OperatorYASK, cls)._build(expressions, yk_solns=yk_solns, **kwargs)
+        op = super(YASKOperator, cls)._build(expressions, yk_solns=yk_solns, **kwargs)
 
         # Produced by `_specialize_iet`
         op.yk_solns = yk_solns
@@ -54,7 +157,7 @@ class OperatorYASK(Operator):
         key = lambda i: i.is_DiscreteFunction and not i.from_YASK
         expressions = [align_accesses(e, key=key) for e in expressions]
 
-        expressions = super(OperatorYASK, cls)._specialize_exprs(expressions)
+        expressions = super(YASKOperator, cls)._specialize_exprs(expressions)
 
         # No matter whether offloading will occur or not, all YASK vars accept
         # negative indices when using the get/set_element_* methods (up to the
@@ -64,92 +167,43 @@ class OperatorYASK(Operator):
                 for e in expressions]
 
     @classmethod
-    def _specialize_iet(cls, iet, **kwargs):
+    def _specialize_iet(cls, graph, **kwargs):
         """
         Transform the Iteration/Expression tree to offload the computation of
         one or more loop nests onto YASK. This involves calling the YASK compiler
         to generate YASK code. Such YASK code is then called from within the
         transformed Iteration/Expression tree.
         """
-        mapper = {}
-        yk_solns = kwargs.pop('yk_solns')
-        for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
-            dimensions = tuple(filter_ordered(i.dim.root for i in flatten(trees)))
+        options = kwargs['options']
+        yk_solns = kwargs['yk_solns']
 
-            # Retrieve the section dtype
-            exprs = FindNodes(Expression).visit(section)
-            dtypes = {e.dtype for e in exprs}
-            if len(dtypes) != 1:
-                log("Unable to offload in presence of mixed-precision arithmetic")
-                continue
-            dtype = dtypes.pop()
+        # Create YASK kernels
+        make_yask_kernels(graph, yk_solns=yk_solns)
 
-            context = contexts.fetch(dimensions, dtype)
+        # Shared-memory and SIMD-level parallelism
+        if options['openmp']:
+            YASKOmpizer().make_parallel(graph)
 
-            # A unique name for the 'real' compiler and kernel solutions
-            name = namespace['jit-soln'](Signer._digest(configuration,
-                                                        *[i.root for i in trees]))
+        # Misc optimizations
+        avoid_denormals(graph)
+        loop_wrapping(graph)
 
-            # Create a YASK compiler solution for this Operator
-            yc_soln = context.make_yc_solution(name)
+        # Symbol definitions
+        data_manager = DataManager()
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
 
-            try:
-                # Generate YASK vars and populate `yc_soln` with equations
-                local_vars = yaskit(trees, yc_soln)
-
-                # Build the new IET nodes
-                yk_soln_obj = YaskSolnObject(namespace['code-soln-name'](n))
-                funcall = make_sharedptr_funcall(namespace['code-soln-run'],
-                                                 ['time'], yk_soln_obj)
-                funcall = Offloaded(funcall, dtype)
-                mapper[trees[0].root] = funcall
-                mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
-
-                # JIT-compile the newly-created YASK kernel
-                yk_soln = context.make_yk_solution(name, yc_soln, local_vars)
-                yk_solns[(dimensions, yk_soln_obj)] = yk_soln
-
-                # Print some useful information about the newly constructed solution
-                log("Solution '%s' contains %d var(s) and %d equation(s)." %
-                    (yc_soln.get_name(), yc_soln.get_num_vars(),
-                     yc_soln.get_num_equations()))
-            except NotImplementedError as e:
-                log("Unable to offload a candidate tree. Reason: [%s]" % str(e))
-        iet = Transformer(mapper).visit(iet)
-
-        if not yk_solns:
-            log("No offloadable trees found")
-
-        # Some Iteration/Expression trees are not offloaded to YASK and may
-        # require further processing to be executed through YASK, due to the
-        # different storage layout
-        yk_var_objs = {i.name: YaskVarObject(i.name)
-                       for i in FindSymbols().visit(iet) if i.from_YASK}
-        yk_var_objs.update({i: YaskVarObject(i) for i in cls._get_local_vars(yk_solns)})
-        iet = make_var_accesses(iet, yk_var_objs)
-
-        # The signature needs to be updated
-        parameters = derive_parameters(iet, True)
-        iet = iet._rebuild(parameters=parameters)
-
-        return super(OperatorYASK, cls)._specialize_iet(iet, **kwargs)
-
-    @classmethod
-    def _get_local_vars(cls, yk_solns):
-        ret = {}
-        for i in yk_solns.values():
-            ret.update(i.local_vars)
-        return ret
+        return graph
 
     def arguments(self, **kwargs):
         args = {}
         # Add in solution pointers
         args.update({i.name: v.rawpointer for (_, i), v in self.yk_solns.items()})
         # Add in local vars pointers
-        for k, v in OperatorYASK._get_local_vars(self.yk_solns).items():
+        for k, v in get_local_vars(self.yk_solns).items():
             args[namespace['code-var-name'](k)] = ctypes.cast(int(v),
                                                               namespace['type-var'])
-        return super(OperatorYASK, self).arguments(backend=args, **kwargs)
+        return super(YASKOperator, self).arguments(backend=args, **kwargs)
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
@@ -179,7 +233,7 @@ class OperatorYASK(Operator):
         return self._emit_apply_profiling(args)
 
     def __getstate__(self):
-        state = dict(super(OperatorYASK, self).__getstate__())
+        state = dict(super(YASKOperator, self).__getstate__())
         # A YASK solution object needs to be recreated upon unpickling. Steps:
         # 1) upon pickling: serialise all files generated by this Operator via YASK
         # 2) upon unpickling: deserialise and explicitly recreate the YASK solution
@@ -201,7 +255,7 @@ class OperatorYASK(Operator):
 
     def __setstate__(self, state):
         yk_solns = state.pop('yk_solns')
-        super(OperatorYASK, self).__setstate__(state)
+        super(YASKOperator, self).__setstate__(state)
         # Restore the YASK solutions (see __getstate__ for more info)
         self.yk_solns = OrderedDict()
         for (dimensions, yk_soln_obj, name, soname,
@@ -224,3 +278,54 @@ class OperatorYASK(Operator):
             local_vars = [i for i in self.parameters if i.name in local_vars]
             yk_soln = context.make_yk_solution(name, None, local_vars)
             self.yk_solns[(dimensions, yk_soln_obj)] = yk_soln
+
+
+class YASKCustomOperator(YASKOperator):
+
+    @classmethod
+    def _make_passes_mapper(cls, **kwargs):
+        ompizer = YASKOmpizer()
+
+        return {
+            'denormals': partial(avoid_denormals),
+            'wrapping': partial(loop_wrapping),
+            'openmp': partial(ompizer.make_parallel),
+        }
+
+    @classmethod
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+        passes = as_tuple(kwargs['mode'])
+
+        # Create YASK kernels
+        make_yask_kernels(graph, **kwargs)
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                passes_mapper[i](graph)
+            except KeyError:
+                raise InvalidOperator("Unknown passes `%s`" % str(passes))
+
+        # Force-call `openmp` if requested via global option
+        if 'openmp' not in passes and options['openmp']:
+            passes_mapper['openmp'](graph)
+
+        # Symbol definitions
+        data_manager = DataManager()
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
+
+        return graph
+
+
+# Utility functions
+
+def get_local_vars(yk_solns):
+    ret = {}
+    for i in yk_solns.values():
+        ret.update(i.local_vars)
+    return ret
