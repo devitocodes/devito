@@ -890,12 +890,10 @@ def parse_kwargs(**kwargs):
 
     # `dle`, mode
     if mode is None:
-        kwargs['mode'] = 'noop'
+        mode = 'noop'
     elif mode == 'noop':
-        kwargs['mode'] = tuple(i for i in ['mpi', 'openmp'] if options[i]) or 'noop'
-    elif isinstance(mode, tuple):
-        if 'openmp' not in mode and options['openmp']:
-            mode += ('openmp',)
+        mode = tuple(i for i in ['mpi', 'openmp'] if options[i]) or 'noop'
+    kwargs['mode'] = mode
 
     # `dse`
     dse = kwargs.pop("dse", configuration['dse'])

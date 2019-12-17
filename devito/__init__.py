@@ -97,7 +97,7 @@ configuration.add('dse', 'advanced', list(dse_registry))
 
 # Setup DLE
 # Note: for backwards compatibility, this config option is still called 'dle'
-configuration.add('dle', 'advanced', list(operator_registry))
+configuration.add('dle', 'advanced', list(operator_registry._accepted))
 configuration.add('dle-options', {})
 
 # Setup Operator profiling

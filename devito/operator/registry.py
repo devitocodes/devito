@@ -3,7 +3,6 @@ from itertools import product
 
 from devito.archinfo import Platform
 from devito.exceptions import InvalidOperator
-from devito.operator.operator import Operator
 from devito.parameters import configuration
 from devito.tools import Singleton
 
@@ -29,10 +28,9 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
 
     _modes = ('noop', 'advanced')
     _languages = ('C',)
-    _registry = _modes + tuple(product(_modes, _languages))
+    _accepted = _modes + tuple(product(_modes, _languages))
 
     def add(self, operator, platform, mode, language='C'):
-        assert issubclass(operator, Operator)
         assert issubclass(platform, Platform)
         assert mode in OperatorRegistry._modes or mode == 'custom'
 

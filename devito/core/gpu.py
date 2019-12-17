@@ -1,12 +1,12 @@
 import cgen as c
 
+from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.ir.support import COLLAPSED
-from devito.targets.basic import Target
-from devito.targets.common import (DataManager, Ompizer, ParallelTree,
-                                   optimize_halospots, mpiize, hoist_prodders)
+from devito.targets import (DataManager, Ompizer, ParallelTree, optimize_halospots,
+                            mpiize, hoist_prodders)
 
-__all__ = ['DeviceOffloadingTarget']
+__all__ = ['DeviceOffloadingOperator']
 
 
 class OffloadingOmpizer(Ompizer):
@@ -131,16 +131,19 @@ class OffloadingDataManager(DataManager):
         storage._high_bw_mem[obj] = (decl, alloc, free)
 
 
-class DeviceOffloadingTarget(Target):
+class DeviceOffloadingOperator(OperatorCore):
 
-    def _pipeline(self, graph):
+    @classmethod
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+
         # Distributed-memory parallelism
         optimize_halospots(graph)
-        if self.params['mpi']:
-            mpiize(graph, mode=self.params['mpi'])
+        if options['mpi']:
+            mpiize(graph, mode=options['mpi'])
 
         # Shared-memory parallelism
-        if self.params['openmp']:
+        if options['openmp']:
             OffloadingOmpizer().make_parallel(graph)
 
         # Misc optimizations
@@ -150,3 +153,5 @@ class DeviceOffloadingTarget(Target):
         data_manager = OffloadingDataManager()
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
+
+        return graph

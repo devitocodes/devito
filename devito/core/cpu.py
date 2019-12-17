@@ -2,17 +2,18 @@ from functools import partial
 
 from cached_property import cached_property
 
-from devito.core.operator import Operator
+from devito.core.operator import OperatorCore
 from devito.exceptions import DLEException
 from devito.targets import (DataManager, Blocker, Ompizer, avoid_denormals,
                             optimize_halospots, mpiize, loop_wrapping,
                             minimize_remainders, hoist_prodders)
+from devito.tools import as_tuple
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperator',
            'ArmOperator', 'CustomOperator']
 
 
-class CPU64NoopOperator(Operator):
+class CPU64NoopOperator(OperatorCore):
 
     @classmethod
     def _specialize_iet(cls, graph, **kwargs):
@@ -63,6 +64,8 @@ class CPU64Operator(CPU64NoopOperator):
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
 
+        return graph
+
 
 Intel64Operator = CPU64Operator
 PowerOperator = CPU64Operator
@@ -96,17 +99,30 @@ class CustomOperator(CPU64Operator):
 
     @classmethod
     def _specialize_iet(cls, graph, **kwargs):
-        passes = kwargs['mode']
+        options = kwargs['options']
+        passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
         passes_mapper = cls._make_passes_mapper(**kwargs)
+
+        # Call passes
         for i in passes:
             try:
                 passes_mapper[i](graph)
             except KeyError:
                 raise InvalidOperator("Unknown passes `%s`" % str(passes))
 
+        # Force-call `mpi` if requested via global option
+        if 'mpi' not in passes and options['mpi']:
+            passes_mapper['mpi'](graph)
+
+        # Force-call `openmp` if requested via global option
+        if 'openmp' not in passes and options['openmp']:
+            passes_mapper['openmp'](graph)
+
         # Symbol definitions
         data_manager = DataManager()
         data_manager.place_definitions(graph)
         data_manager.place_casts(graph)
+
+        return graph
