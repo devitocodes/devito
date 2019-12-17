@@ -12,8 +12,7 @@ from devito.ir.iet import (Expression, FindNodes, FindSymbols, Transformer,
                            derive_parameters, find_affine_trees)
 from devito.ir.support import align_accesses
 from devito.operator import Operator
-from devito.targets import (DataManager, Ompizer, avoid_denormals, loop_wrapping,
-                            target_pass)
+from devito.passes import DataManager, Ompizer, avoid_denormals, loop_wrapping, iet_pass
 from devito.tools import Signer, as_tuple, filter_ordered, flatten
 
 from devito.yask import configuration
@@ -28,7 +27,7 @@ from devito.yask.types import YASKVarObject, YASKSolnObject
 __all__ = ['YASKNoopOperator', 'YASKOperator', 'YASKCustomOperator']
 
 
-@target_pass
+@iet_pass
 def make_yask_kernels(iet, **kwargs):
     yk_solns = kwargs.pop('yk_solns')
 

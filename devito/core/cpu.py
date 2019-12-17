@@ -2,9 +2,9 @@ from functools import partial
 
 from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
-from devito.targets import (DataManager, Blocker, Ompizer, avoid_denormals,
-                            optimize_halospots, mpiize, loop_wrapping,
-                            minimize_remainders, hoist_prodders)
+from devito.passes import (DataManager, Blocker, Ompizer, avoid_denormals,
+                           optimize_halospots, mpiize, loop_wrapping,
+                           minimize_remainders, hoist_prodders)
 from devito.tools import as_tuple
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperator',

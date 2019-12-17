@@ -3,8 +3,8 @@ import cgen as c
 from devito.core.operator import OperatorCore
 from devito.data import FULL
 from devito.ir.support import COLLAPSED
-from devito.targets import (DataManager, Ompizer, ParallelTree, optimize_halospots,
-                            mpiize, hoist_prodders)
+from devito.passes import (DataManager, Ompizer, ParallelTree, optimize_halospots,
+                           mpiize, hoist_prodders)
 
 __all__ = ['DeviceOffloadingOperator']
 

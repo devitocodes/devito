@@ -9,8 +9,8 @@ from devito.logger import perf, warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration
+from devito.passes import BlockDimension
 from devito.symbolics import evaluate
-from devito.targets import BlockDimension
 from devito.tools import filter_ordered, flatten, prod
 
 __all__ = ['autotune']

@@ -16,8 +16,8 @@ from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
 from devito.mpi import MPI
 from devito.parameters import configuration
+from devito.passes import Graph
 from devito.symbolics import indexify
-from devito.targets import Graph
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
                           filter_sorted, split, timed_pass, timed_region)
 from devito.types import Dimension, Eq

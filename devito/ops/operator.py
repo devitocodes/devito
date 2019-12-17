@@ -8,8 +8,8 @@ from devito.ops import ops_configuration
 from devito.ops.types import OpsBlock
 from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.utils import namespace
+from devito.passes import DataManager, iet_pass
 from devito.symbolics import Literal
-from devito.targets import DataManager, target_pass
 from devito.tools import filter_sorted, flatten
 
 __all__ = ['OPSOperator']
@@ -53,7 +53,7 @@ class OPSOperator(Operator):
             self._compiler.jit_compile(self._soname, str(self.ccode), str(self.hcode))
 
 
-@target_pass
+@iet_pass
 def make_ops_kernels(iet):
     warning("The OPS backend is still work-in-progress")
 

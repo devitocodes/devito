@@ -11,8 +11,8 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, FindNodes,
                            IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
+from devito.passes.iet import DataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
-from devito.targets.common import DataManager
 from devito.tools import flatten, powerset
 from devito.types import Array, Scalar
 
