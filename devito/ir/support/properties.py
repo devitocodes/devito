@@ -1,4 +1,4 @@
-from devito.tools import Tag, filter_sorted
+from devito.tools import Tag
 
 
 class Property(Tag):
@@ -49,7 +49,7 @@ and "regular".
 """
 
 
-def filter_properties(properties):
+def normalize_properties(properties):
     properties = set(properties)
 
     if SEQUENTIAL in properties:
@@ -57,7 +57,7 @@ def filter_properties(properties):
     elif PARALLEL_IF_ATOMIC in properties:
         properties -= {PARALLEL}
 
-    return tuple(filter_sorted(properties))
+    return properties
 
 
 class HaloSpotProperty(Tag):
