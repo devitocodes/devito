@@ -1,6 +1,7 @@
 from itertools import groupby
 
 from devito.ir.clusters import Cluster, Queue
+from devito.ir.support import TILABLE
 from devito.symbolics import xreplace_indices
 from devito.tools import filter_ordered
 from devito.types import Scalar
@@ -52,11 +53,16 @@ class Lift(Queue):
                 processed.append(c)
                 continue
 
-            # Perform lifting, which requires contracting the iteration space
+            # Contract iteration and data spaces for the lifted Cluster
             key = lambda d: d not in hope_invariant
             ispace = c.ispace.project(key).reset()
             dspace = c.dspace.project(key).reset()
-            lifted.append(c.rebuild(ispace=ispace, dspace=dspace))
+
+            # Some properties need to be dropped
+            properties = {d: v for d, v in c.properties.items() if key(d)}
+            properties = {d: v - {TILABLE} for d, v in properties.items()}
+
+            lifted.append(c.rebuild(ispace=ispace, dspace=dspace, properties=properties))
 
         return lifted + processed
 
