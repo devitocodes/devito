@@ -1,24 +1,37 @@
 import sympy
 import numpy as np
 
+from abc import ABC, abstractmethod
+
 from devito.equation import Eq, Inc
+from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, indexify, INT
 from devito.tools import Evaluable, powerset, flatten, prod
-from devito.types.dimension import ConditionalDimension, Dimension, DefaultDimension
 from devito.types.basic import Scalar
 from devito.types.dense import SubFunction
-from devito.logger import warning
+from devito.types.dimension import ConditionalDimension, Dimension, DefaultDimension
 
 
 class UnevaluatedSparseOperation(Evaluable):
-    is_Injection = False
-    is_Interpolation = False
+
+    """
+    Represents an Injection or an Interpolation operation performed on a
+    SparseFunction. Evaluates to a list of Eq objects.
+    objects.
+
+    Parameters
+    ----------
+    interpolator : Interpolator
+        Interpolator object that will be used to evaluate the Operation
+    *args, **kwargs
+        The arguments passed to the corresponding method
+    """
     subdomain = None
 
-    def __init__(self, interpolator, args, kwargs):
+    def __init__(self, interpolator, *args, **kwargs):
         self.interpolator = interpolator
         self._args = args
-        self.kwargs = kwargs
+        self._kwargs = kwargs
 
     def __add__(self, other):
         return flatten([self, other])
@@ -26,27 +39,51 @@ class UnevaluatedSparseOperation(Evaluable):
     def __radd__(self, other):
         return flatten([other, self])
 
+
+class Injection(UnevaluatedSparseOperation):
+
+    """
+    Represents an Injection operation performed on a SparseFunction.
+    Evaluates to a list of Eq objects.
+    """
+
     @property
     def evaluate(self):
-        if self.is_Interpolation:
-            return_value = self.interpolator.interpolate(*self._args, **self.kwargs)
-        elif self.is_Injection:
-            return_value = self.interpolator.inject(*self._args, **self.kwargs)
-        else:
-            raise ValueError
+        return_value = self.interpolator.inject(*self._args, **self._kwargs)
         assert(all(isinstance(i, Eq) for i in return_value))
         return return_value
 
 
-class Injection(UnevaluatedSparseOperation):
-    is_Injection = True
-
-
 class Interpolation(UnevaluatedSparseOperation):
-    is_Interpolation = True
+
+    """
+    Represents an Injection operation performed on a SparseFunction.
+    Evaluates to a list of Eq objects.
+    """
+
+    @property
+    def evaluate(self):
+        return_value = self.interpolator.interpolate(*self._args, **self._kwargs)
+        assert(all(isinstance(i, Eq) for i in return_value))
+        return return_value
 
 
-class LinearInterpolator:
+class GenericInterpolator(ABC):
+
+    """
+    Abstract base class defining the interface for an interpolator
+    """
+
+    @abstractmethod
+    def inject(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def interpolate(self, *args, **kwargs):
+        pass
+
+
+class LinearInterpolator(GenericInterpolator):
     def __init__(self, grid, obj):
         self.grid = grid
         self.obj = obj
@@ -203,7 +240,7 @@ class LinearInterpolator:
         return temps + eqns
 
 
-class PrecomputedInterpolator:
+class PrecomputedInterpolator(GenericInterpolator):
     def __init__(self, obj, r, gridpoints_data, coefficients_data):
         if not isinstance(r, int):
             raise TypeError('Need `r` int argument')

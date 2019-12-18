@@ -579,10 +579,10 @@ class SparseFunction(AbstractSparseFunction):
         return ret
 
     def interpolate(self, *args, **kwargs):
-        return Interpolation(self.interpolator, args, kwargs)
+        return Interpolation(self.interpolator, *args, **kwargs)
 
     def inject(self, *args, **kwargs):
-        return Injection(self.interpolator, args, kwargs)
+        return Injection(self.interpolator, *args, **kwargs)
 
     def guard(self, expr=None, offset=0):
         """
@@ -942,12 +942,6 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
         self.interpolator = PrecomputedInterpolator(self, r, gridpoints,
                                                     interpolation_coeffs)
-
-    def interpolate(self, *args, **kwargs):
-        return Interpolation(self.interpolator, args, kwargs)
-
-    def inject(self, *args, **kwargs):
-        return Injection(self.interpolator, args, kwargs)
 
     @property
     def gridpoints(self):
