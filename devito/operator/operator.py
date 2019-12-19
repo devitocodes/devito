@@ -164,7 +164,7 @@ class Operator(Callable):
         expressions = cls._lower_exprs(expressions, **kwargs)
 
         # Group expressions based on iteration spaces and data dependences
-        clusters = cls._lower_clusters(expressions, **kwargs)
+        clusters = cls._lower_clusters(expressions, profiler, **kwargs)
 
         # Lower Clusters to a ScheduleTree
         stree = cls._lower_stree(clusters, **kwargs)
@@ -310,7 +310,7 @@ class Operator(Callable):
 
     @classmethod
     @timed_pass
-    def _lower_clusters(cls, expressions, **kwargs):
+    def _lower_clusters(cls, expressions, profiler, **kwargs):
         """
         Clusters lowering:
 
@@ -320,7 +320,7 @@ class Operator(Callable):
         # Build a sequence of Clusters from a sequence of Eqs
         clusters = clusterize(expressions)
 
-        clusters = cls._specialize_clusters(clusters, **kwargs)
+        clusters = cls._specialize_clusters(clusters, profiler=profiler, **kwargs)
 
         return clusters
 
@@ -682,6 +682,10 @@ class Operator(Callable):
             perc = fround(v/tot*100, n=10)
             if perc > 20.:
                 perf("- [Hotspot] %s: %.2f s (%.1f %%)" % (i.lstrip('_'), v, perc))
+
+        if self._profiler._ops:
+            ops = ['%d --> %d' % i for i in self._profiler._ops]
+            perf("Flops reduction after symbolic optimization: [%s]" % ' ; '.join(ops))
 
     def _emit_apply_profiling(self, args):
         """Produce a performance summary of the profiled sections."""

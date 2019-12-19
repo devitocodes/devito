@@ -1,6 +1,6 @@
 import abc
 from collections import OrderedDict
-from time import time
+from functools import wraps
 
 from sympy import cos, sin
 
@@ -14,41 +14,29 @@ from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
                               yreplace)
-from devito.tools import flatten
+from devito.tools import as_tuple, flatten, timed_pass
 from devito.types import Array, Eq, Scalar
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'CustomRewriter']
 
 
-class State(object):
-
-    def __init__(self, cluster, template):
-        self.clusters = [cluster]
-        self.template = template
-        # Track performance of each pass
-        self.ops = OrderedDict()
-        self.timings = OrderedDict()
-
-    def update(self, clusters):
-        self.clusters = clusters or self.clusters
-
-
 def dse_pass(func):
-
-    def wrapper(self, state, **kwargs):
-        # Invoke the DSE pass on each Cluster
-        tic = time()
-        state.update(flatten([func(self, c, state.template, **kwargs)
-                              for c in state.clusters]))
-        toc = time()
-
-        # Profiling
-        key = '%s%d' % (func.__name__, len(state.timings))
-        state.timings[key] = toc - tic
-        if self.profile:
-            candidates = [c.exprs for c in state.clusters if c.is_dense]
-            state.ops[key] = estimate_cost(flatten(candidates))
-
+    @wraps(func)
+    def wrapper(*args):
+        if timed_pass.is_enabled():
+            maybe_timed = lambda *_args: timed_pass(func, func.__name__)(*_args)
+        else:
+            maybe_timed = lambda *_args: func(*_args)
+        args = list(args)
+        maybe_self = args.pop(0)
+        if isinstance(maybe_self, AbstractRewriter):
+            # Instance method
+            clusters = args.pop(0)
+            processed = [maybe_timed(maybe_self, c, *args) for c in clusters]
+        else:
+            # Pure function
+            processed = [maybe_timed(c, *args) for c in maybe_self]
+        return flatten(processed)
     return wrapper
 
 
@@ -61,27 +49,25 @@ class AbstractRewriter(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, profile=True, template=None):
-        self.profile = profile
+    def __init__(self, template, platform):
+        self.platform = platform
 
         assert callable(template)
         self.template = template
 
     def run(self, cluster):
-        state = State(cluster, self.template)
+        clusters = self._pipeline(as_tuple(cluster), self.template, self.platform)
 
-        self._pipeline(state)
+        clusters = self._finalize(clusters)
 
-        self._finalize(state)
-
-        return state
+        return clusters
 
     @abc.abstractmethod
-    def _pipeline(self, state):
+    def _pipeline(self, clusters, *args):
         return
 
     @dse_pass
-    def _finalize(self, cluster, *args, **kwargs):
+    def _finalize(self, cluster):
         """
         Finalize the DSE output: ::
 
@@ -97,11 +83,13 @@ class AbstractRewriter(object):
 
 class BasicRewriter(AbstractRewriter):
 
-    def _pipeline(self, state):
-        self._extract_increments(state)
+    def _pipeline(self, clusters, *args):
+        clusters = self._extract_increments(clusters, *args)
+
+        return clusters
 
     @dse_pass
-    def _extract_increments(self, cluster, template, **kwargs):
+    def _extract_increments(self, cluster, template, *args):
         """
         Extract the RHS of non-local tensor expressions performing an associative
         and commutative increment, and assign them to temporaries.
@@ -122,7 +110,7 @@ class BasicRewriter(AbstractRewriter):
         return cluster.rebuild(processed)
 
     @dse_pass
-    def _eliminate_intra_stencil_redundancies(self, cluster, template, **kwargs):
+    def _eliminate_intra_stencil_redundancies(self, cluster, template, *args):
         """
         Perform common subexpression elimination, bypassing the tensor expressions
         extracted in previous passes.
@@ -133,7 +121,7 @@ class BasicRewriter(AbstractRewriter):
         return cluster.rebuild(processed)
 
     @dse_pass
-    def _optimize_trigonometry(self, cluster, **kwargs):
+    def _optimize_trigonometry(self, cluster, *args):
         """
         Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
         polynomials.
@@ -169,14 +157,16 @@ class AdvancedRewriter(BasicRewriter):
     is applied.
     """
 
-    def _pipeline(self, state):
-        self._extract_time_invariants(state)
-        self._eliminate_inter_stencil_redundancies(state)
-        self._eliminate_intra_stencil_redundancies(state)
-        self._factorize(state)
+    def _pipeline(self, clusters, *args):
+        clusters = self._extract_time_invariants(clusters, *args)
+        clusters = self._eliminate_inter_stencil_redundancies(clusters, *args)
+        clusters = self._eliminate_intra_stencil_redundancies(clusters, *args)
+        clusters = self._factorize(clusters)
+
+        return clusters
 
     @dse_pass
-    def _extract_time_invariants(self, cluster, template, **kwargs):
+    def _extract_time_invariants(self, cluster, template, *args):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
@@ -188,7 +178,7 @@ class AdvancedRewriter(BasicRewriter):
         return cluster.rebuild(processed)
 
     @dse_pass
-    def _factorize(self, cluster, *args, **kwargs):
+    def _factorize(self, cluster, *args):
         """
         Factorize trascendental functions, symbolic powers, numeric coefficients.
 
@@ -214,7 +204,7 @@ class AdvancedRewriter(BasicRewriter):
         return cluster.rebuild(processed)
 
     @dse_pass
-    def _eliminate_inter_stencil_redundancies(self, cluster, template, **kwargs):
+    def _eliminate_inter_stencil_redundancies(self, cluster, template, *args):
         """
         Search aliasing expressions and capture them into vector temporaries.
 
@@ -331,20 +321,22 @@ class AdvancedRewriter(BasicRewriter):
 
 class AggressiveRewriter(AdvancedRewriter):
 
-    def _pipeline(self, state):
-        self._extract_sum_of_products(state)
-        self._extract_time_invariants(state)
-        self._eliminate_inter_stencil_redundancies(state)
+    def _pipeline(self, clusters, *args):
+        clusters = self._extract_sum_of_products(clusters, *args)
+        clusters = self._extract_time_invariants(clusters, *args)
+        clusters = self._eliminate_inter_stencil_redundancies(clusters, *args)
 
-        self._extract_sum_of_products(state)
-        self._eliminate_inter_stencil_redundancies(state)
-        self._extract_sum_of_products(state)
+        clusters = self._extract_sum_of_products(clusters, *args)
+        clusters = self._eliminate_inter_stencil_redundancies(clusters, *args)
+        clusters = self._extract_sum_of_products(clusters, *args)
 
-        self._factorize(state)
-        self._eliminate_intra_stencil_redundancies(state)
+        clusters = self._factorize(clusters)
+        clusters = self._eliminate_intra_stencil_redundancies(clusters, *args)
+
+        return clusters
 
     @dse_pass
-    def _extract_sum_of_products(self, cluster, template, **kwargs):
+    def _extract_sum_of_products(self, cluster, template, *args):
         """
         Extract sub-expressions in sum-of-product form, and assign them to temporaries.
         """
@@ -368,7 +360,7 @@ class CustomRewriter(AggressiveRewriter):
         'opt_transcedentals': BasicRewriter._optimize_trigonometry
     }
 
-    def __init__(self, passes, template=None, profile=True):
+    def __init__(self, passes, template, platform):
         try:
             passes = passes.split(',')
         except AttributeError:
@@ -376,8 +368,10 @@ class CustomRewriter(AggressiveRewriter):
             if not all(i in CustomRewriter.passes_mapper for i in passes):
                 raise DSEException("Unknown passes `%s`" % str(passes))
         self.passes = passes
-        super(CustomRewriter, self).__init__(profile, template)
+        super(CustomRewriter, self).__init__(template, platform)
 
-    def _pipeline(self, state):
+    def _pipeline(self, clusters, *args):
         for i in self.passes:
-            CustomRewriter.passes_mapper[i](self, state)
+            clusters = CustomRewriter.passes_mapper[i](self, clusters, *args)
+
+        return clusters

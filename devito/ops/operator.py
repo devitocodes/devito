@@ -31,8 +31,6 @@ class OPSOperator(Operator):
         # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
         # but it will have to change
 
-        mode = kwargs['dse']
-
         # To create temporaries
         counter = generator()
         template = lambda: "r%d" % counter()
@@ -42,7 +40,7 @@ class OPSOperator(Operator):
         clusters = fuse(clusters)
 
         # Flop reduction via the DSE
-        clusters = rewrite(clusters, template, mode=mode)
+        clusters = rewrite(clusters, template, **kwargs)
 
         # Lifting
         clusters = Lift().process(clusters)

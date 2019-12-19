@@ -125,7 +125,10 @@ class timed_pass(object):
             key = self.name
         else:
             key = self.func.__name__
-        timings[key] = toc - tic
+        if key in timings:
+            timings[key] += toc - tic
+        else:
+            timings[key] = toc - tic
         return retval
 
     def __repr__(self):
