@@ -8,8 +8,8 @@ from conftest import skipif, EVAL  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
-from devito.passes.clusters import (common_subexprs_elimination, collect,
-                                    make_is_time_invariant)
+from devito.passes.clusters import common_subexprs_elimination, make_is_time_invariant
+from devito.passes.clusters.aliases import collect
 from devito.passes.iet import BlockDimension
 from devito.symbolics import yreplace, estimate_cost, pow_to_mul
 from devito.tools import generator
@@ -299,7 +299,7 @@ def test_time_dependent_split(dse, dle):
 
 class TestAliases(object):
 
-    @patch("devito.passes.clusters.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_full_shape_after_blocking(self):
         """
         Check the shape of the Array used to store a DSE-captured aliasing
@@ -342,7 +342,7 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_contracted_shape_after_blocking(self):
         """
         Like `test_full_alias_shape_after_blocking`, but a different
@@ -381,7 +381,7 @@ class TestAliases(object):
         op1(time_M=1)
         assert np.all(u.data == exp)
 
-    @patch("devito.passes.clusters.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_full_shape_with_subdims(self):
         """
         Like `test_full_alias_shape_after_blocking`, but SubDomains (and therefore
@@ -501,7 +501,7 @@ class TestAliases(object):
         assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
-    @patch("devito.passes.clusters.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_from_different_nests(self):
         """
         Check that aliases arising from two sets of equations A and B,
@@ -550,7 +550,7 @@ class TestAliases(object):
         assert np.all(u.data == exp)
 
     @switchconfig(autopadding=True, platform='knl7210')  # Platform is to fix pad value
-    @patch("devito.passes.clusters.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_minimize_remainders_due_to_autopadding(self):
         """
         Check that the bounds of the Iteration computing the DSE-captured aliasing

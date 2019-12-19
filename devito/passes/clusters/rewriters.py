@@ -1,21 +1,17 @@
 import abc
-from collections import OrderedDict
 from functools import wraps
 
+from cached_property import cached_property
 from sympy import cos, sin
 
-from devito.ir import (ROUNDABLE, DataSpace, IterationSpace, Interval, IntervalGroup,
-                       detect_accesses, build_intervals)
-from devito.passes.clusters.aliases import collect
+from devito.exceptions import InvalidOperator
 from devito.passes.clusters.manipulation import (collect_nested, make_is_time_invariant,
                                                  common_subexprs_elimination)
-from devito.exceptions import DSEException
-from devito.logger import warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
                               yreplace)
 from devito.tools import as_tuple, flatten, timed_pass
-from devito.types import Array, Eq, Scalar
+from devito.types import Scalar
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'CustomRewriter']
 
@@ -137,20 +133,6 @@ class BasicRewriter(AbstractRewriter):
 
 class AdvancedRewriter(BasicRewriter):
 
-    MIN_COST_ALIAS = 10
-    """
-    Minimum operation count of an alias (i.e., "redundant") expression
-    to be lifted into a vector temporary.
-    """
-
-    MIN_COST_ALIAS_INV = 50
-    """
-    Minimum operation count of a time-invariant alias (i.e., "redundant")
-    expression to be lifted into a vector temporary. Time-invariant aliases
-    are lifted outside of the time-marching loop, thus they will require
-    vector temporaries as big as the entire grid.
-    """
-
     MIN_COST_FACTORIZE = 100
     """
     Minimum operation count of an expression so that aggressive factorization
@@ -158,8 +140,10 @@ class AdvancedRewriter(BasicRewriter):
     """
 
     def _pipeline(self, clusters, *args):
+        from devito.passes.clusters.aliases import cire
+
         clusters = self._extract_time_invariants(clusters, *args)
-        clusters = self._eliminate_inter_stencil_redundancies(clusters, *args)
+        clusters = cire(clusters, *args)
         clusters = self._eliminate_intra_stencil_redundancies(clusters, *args)
         clusters = self._factorize(clusters)
 
@@ -172,7 +156,7 @@ class AdvancedRewriter(BasicRewriter):
         """
         make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
         rule = make_is_time_invariant(cluster.exprs)
-        costmodel = lambda e: estimate_cost(e, True) >= self.MIN_COST_ALIAS_INV
+        costmodel = lambda e: estimate_cost(e, True) >= 50  #TODO
         processed, found = yreplace(cluster.exprs, make, rule, costmodel, eager=True)
 
         return cluster.rebuild(processed)
@@ -203,131 +187,18 @@ class AdvancedRewriter(BasicRewriter):
 
         return cluster.rebuild(processed)
 
-    @dse_pass
-    def _eliminate_inter_stencil_redundancies(self, cluster, template, *args):
-        """
-        Search aliasing expressions and capture them into vector temporaries.
-
-        Examples
-        --------
-        1) temp = (a[x,y,z]+b[x,y,z])*c[t,x,y,z]
-           >>>
-           ti[x,y,z] = a[x,y,z] + b[x,y,z]
-           temp = ti[x,y,z]*c[t,x,y,z]
-
-        2) temp1 = 2.0*a[x,y,z]*b[x,y,z]
-           temp2 = 3.0*a[x,y,z+1]*b[x,y,z+1]
-           >>>
-           ti[x,y,z] = a[x,y,z]*b[x,y,z]
-           temp1 = 2.0*ti[x,y,z]
-           temp2 = 3.0*ti[x,y,z+1]
-        """
-        exprs = cluster.exprs
-
-        # For more information about "aliases", refer to collect.__doc__
-        aliases = collect(exprs)
-
-        # Redundancies will be stored in space-varying temporaries
-        is_time_invariant = make_is_time_invariant(exprs)
-        time_invariants = {e.rhs: is_time_invariant(e) for e in exprs}
-
-        # Find the candidate expressions
-        processed = []
-        candidates = OrderedDict()
-        for e in exprs:
-            # Cost check (to keep the memory footprint under control)
-            naliases = len(aliases.get(e.rhs))
-            cost = estimate_cost(e, True)*naliases
-            test0 = lambda: cost >= self.MIN_COST_ALIAS and naliases > 1
-            test1 = lambda: cost >= self.MIN_COST_ALIAS_INV and time_invariants[e.rhs]
-            if test0() or test1():
-                candidates[e.rhs] = e.lhs
-            else:
-                processed.append(e)
-
-        # Create alias Clusters and all necessary substitution rules
-        # for the new temporaries
-        alias_clusters = []
-        subs = {}
-        for origin, alias in aliases.items():
-            if all(i not in candidates for i in alias.aliased):
-                continue
-
-            # The write-to Intervals
-            writeto = [Interval(i.dim, *alias.relaxed_diameter.get(i.dim, (0, 0)))
-                       for i in cluster.ispace.intervals if not i.dim.is_Time]
-            writeto = IntervalGroup(writeto)
-
-            # Optimization: no need to retain a SpaceDimension if it does not
-            # induce a flow/anti dependence (below, `i.offsets` captures this, by
-            # telling how much halo will be needed to honour such dependences)
-            dep_inducing = [i for i in writeto if any(i.offsets)]
-            try:
-                index = writeto.index(dep_inducing[0])
-                writeto = IntervalGroup(writeto[index:])
-            except IndexError:
-                warning("Couldn't optimize some of the detected redundancies")
-
-            # Create a temporary to store `alias`
-            dimensions = [d.root for d in writeto.dimensions]
-            halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
-            array = Array(name=template(), dimensions=dimensions, halo=halo,
-                          dtype=cluster.dtype)
-
-            # Build up the expression evaluating `alias`
-            access = tuple(i.dim - i.lower for i in writeto)
-            expression = Eq(array[access], origin.xreplace(subs))
-
-            # Create the substitution rules so that we can use the newly created
-            # temporary in place of the aliasing expressions
-            for aliased, distance in alias.with_distance:
-                assert all(i.dim in distance.labels for i in writeto)
-                access = [i.dim - i.lower + distance[i.dim] for i in writeto]
-                if aliased in candidates:
-                    # It would *not* be in `candidates` if part of a composite alias
-                    subs[candidates[aliased]] = array[access]
-                subs[aliased] = array[access]
-
-            # Construct the `alias` IterationSpace
-            intervals, sub_iterators, directions = cluster.ispace.args
-            ispace = IterationSpace(intervals.add(writeto), sub_iterators, directions)
-
-            # Optimize the `alias` IterationSpace: if possible, the innermost
-            # IterationInterval is rounded up to a multiple of the vector length
-            try:
-                it = ispace.itintervals[-1]
-                if ROUNDABLE in cluster.properties[it.dim]:
-                    from devito.parameters import configuration
-                    vl = configuration['platform'].simd_items_per_reg(cluster.dtype)
-                    ispace = ispace.add(Interval(it.dim, 0, it.interval.size % vl))
-            except (TypeError, KeyError):
-                pass
-
-            # Construct the `alias` DataSpace
-            mapper = detect_accesses(expression)
-            parts = {k: IntervalGroup(build_intervals(v)).add(ispace.intervals)
-                     for k, v in mapper.items() if k}
-            dspace = DataSpace(cluster.dspace.intervals, parts)
-
-            # Create a new Cluster for `alias`
-            alias_clusters.append(cluster.rebuild(exprs=[expression],
-                                                  ispace=ispace, dspace=dspace))
-
-        # Switch temporaries in the expression trees
-        processed = [e.xreplace(subs) for e in processed]
-
-        return alias_clusters + [cluster.rebuild(processed)]
-
 
 class AggressiveRewriter(AdvancedRewriter):
 
     def _pipeline(self, clusters, *args):
-        clusters = self._extract_sum_of_products(clusters, *args)
-        clusters = self._extract_time_invariants(clusters, *args)
-        clusters = self._eliminate_inter_stencil_redundancies(clusters, *args)
+        from devito.passes.clusters.aliases import cire
 
         clusters = self._extract_sum_of_products(clusters, *args)
-        clusters = self._eliminate_inter_stencil_redundancies(clusters, *args)
+        clusters = self._extract_time_invariants(clusters, *args)
+        clusters = cire(clusters, *args)
+
+        clusters = self._extract_sum_of_products(clusters, *args)
+        clusters = cire(clusters, *args)
         clusters = self._extract_sum_of_products(clusters, *args)
 
         clusters = self._factorize(clusters)
@@ -350,28 +221,34 @@ class AggressiveRewriter(AdvancedRewriter):
 
 class CustomRewriter(AggressiveRewriter):
 
-    passes_mapper = {
-        'extract_sop': AggressiveRewriter._extract_sum_of_products,
-        'factorize': AggressiveRewriter._factorize,
-        'gcse': AggressiveRewriter._eliminate_inter_stencil_redundancies,
-        'cse': AggressiveRewriter._eliminate_intra_stencil_redundancies,
-        'extract_invariants': AdvancedRewriter._extract_time_invariants,
-        'extract_increments': BasicRewriter._extract_increments,
-        'opt_transcedentals': BasicRewriter._optimize_trigonometry
-    }
+    @cached_property
+    def passes_mapper(self):
+        from devito.passes.clusters.aliases import cire  #TODO
+
+        return {
+            'extract_sop': self._extract_sum_of_products,
+            'factorize': self._factorize,
+            'gcse': cire,
+            'cse': self._eliminate_intra_stencil_redundancies,
+            'extract_invariants': self._extract_time_invariants,
+            'extract_increments': self._extract_increments,
+            'opt_transcedentals': self._optimize_trigonometry
+        }
 
     def __init__(self, passes, template, platform):
         try:
             passes = passes.split(',')
         except AttributeError:
             # Already in tuple format
-            if not all(i in CustomRewriter.passes_mapper for i in passes):
-                raise DSEException("Unknown passes `%s`" % str(passes))
+            if not all(i in self.passes_mapper for i in passes):
+                raise InvalidOperator("Unknown passes `%s`" % str(passes))
         self.passes = passes
         super(CustomRewriter, self).__init__(template, platform)
 
     def _pipeline(self, clusters, *args):
+        passes_mapper = self.passes_mapper
+
         for i in self.passes:
-            clusters = CustomRewriter.passes_mapper[i](self, clusters, *args)
+            clusters = passes_mapper[i](clusters, *args)
 
         return clusters

@@ -1391,7 +1391,7 @@ class TestOperatorAdvanced(object):
         assert (np.isclose(norm(f), 17.24904, atol=1e-4, rtol=0))
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap2', True)])
-    @patch("devito.passes.clusters.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_aliases(self):
         """
         Check correctness when the DSE extracts aliases and places them
@@ -1431,7 +1431,7 @@ class TestOperatorAdvanced(object):
         assert u0_norm == u1_norm
 
     @pytest.mark.parallel(mode=[(4, 'overlap2', True)])
-    @patch("devito.passes.clusters.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     def test_aliases_with_shifted_diagonal_halo_touch(self):
         """
         Like ``test_aliases`` but now the diagonal halos required to compute

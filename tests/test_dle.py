@@ -481,7 +481,7 @@ class TestNestedParallelism(object):
                                                   'schedule(dynamic,1) '
                                                   'num_threads(nthreads_nested)')
 
-    @patch("devito.passes.clusters.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+    @patch("devito.passes.clusters.aliases.MIN_COST_ALIAS", 1)
     @patch("devito.passes.iet.openmp.Ompizer.NESTED", 0)
     @patch("devito.passes.iet.openmp.Ompizer.COLLAPSE_NCORES", 10000)
     def test_multiple_subnests(self):
