@@ -2,10 +2,9 @@ import abc
 from functools import wraps
 
 from cached_property import cached_property
-from sympy import cos, sin
 
 from devito.exceptions import InvalidOperator
-from devito.symbolics import bhaskara_cos, bhaskara_sin, freeze, pow_to_mul
+from devito.symbolics import freeze, pow_to_mul
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'CustomRewriter']
@@ -80,20 +79,6 @@ class BasicRewriter(AbstractRewriter):
 
         return clusters
 
-    @dse_pass
-    def _optimize_trigonometry(self, cluster, *args):
-        """
-        Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
-        polynomials.
-        """
-        processed = []
-        for expr in cluster.exprs:
-            handle = expr.replace(sin, bhaskara_sin)
-            handle = handle.replace(cos, bhaskara_cos)
-            processed.append(handle)
-
-        return cluster.rebuild(processed)
-
 
 class AdvancedRewriter(BasicRewriter):
 
@@ -141,8 +126,7 @@ class CustomRewriter(AggressiveRewriter):
             'cire': cire,
             'cse': cse,
             'extract_invariants': extract_time_invariants,
-            'extract_increments': extract_increments,
-            'opt_transcedentals': self._optimize_trigonometry
+            'extract_increments': extract_increments
         }
 
     def __init__(self, passes, template, platform):
