@@ -1,34 +1,15 @@
 import abc
-from functools import wraps
 
 from cached_property import cached_property
 
 from devito.exceptions import InvalidOperator
 from devito.parameters import configuration
+from devito.passes.clusters import (dse_pass, cire, cse, factorize, extract_increments,
+                                    extract_time_invariants, extract_sum_of_products)
 from devito.symbolics import estimate_cost, freeze, pow_to_mul
-from devito.tools import as_tuple, flatten, timed_pass
+from devito.tools import as_tuple, flatten
 
 __all__ = ['dse_registry', 'rewrite']
-
-
-def dse_pass(func):
-    @wraps(func)
-    def wrapper(*args):
-        if timed_pass.is_enabled():
-            maybe_timed = lambda *_args: timed_pass(func, func.__name__)(*_args)
-        else:
-            maybe_timed = lambda *_args: func(*_args)
-        args = list(args)
-        maybe_self = args.pop(0)
-        if isinstance(maybe_self, AbstractRewriter):
-            # Instance method
-            clusters = args.pop(0)
-            processed = [maybe_timed(maybe_self, c, *args) for c in clusters]
-        else:
-            # Pure function
-            processed = [maybe_timed(c, *args) for c in maybe_self]
-        return flatten(processed)
-    return wrapper
 
 
 class AbstractRewriter(object):
@@ -75,7 +56,6 @@ class AbstractRewriter(object):
 class BasicRewriter(AbstractRewriter):
 
     def _pipeline(self, clusters, *args):
-        from devito.passes.clusters import extract_increments  #TODO
         clusters = extract_increments(clusters, *args)
 
         return clusters
@@ -84,8 +64,6 @@ class BasicRewriter(AbstractRewriter):
 class AdvancedRewriter(BasicRewriter):
 
     def _pipeline(self, clusters, *args):
-        from devito.passes.clusters import cire, cse, factorize, extract_time_invariants
-
         clusters = extract_time_invariants(clusters, *args)
         clusters = cire(clusters, *args)
         clusters = cse(clusters, *args)
@@ -97,9 +75,6 @@ class AdvancedRewriter(BasicRewriter):
 class AggressiveRewriter(AdvancedRewriter):
 
     def _pipeline(self, clusters, *args):
-        from devito.passes.clusters import (cire, cse, factorize, extract_time_invariants,
-                                            extract_sum_of_products)
-
         clusters = extract_sum_of_products(clusters, *args)
         clusters = extract_time_invariants(clusters, *args)
         clusters = cire(clusters, *args)
@@ -118,9 +93,6 @@ class CustomRewriter(AggressiveRewriter):
 
     @cached_property
     def passes_mapper(self):
-        from devito.passes.clusters import (cire, cse, factorize, extract_time_invariants,
-                                            extract_sum_of_products, extract_increments)  #TODO
-
         return {
             'extract_sop': extract_sum_of_products,
             'factorize': factorize,

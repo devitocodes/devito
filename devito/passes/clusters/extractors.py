@@ -1,5 +1,5 @@
-from devito.passes.clusters.rewriters import dse_pass
-from devito.passes.clusters.utils import make_is_time_invariant
+from devito.passes.clusters.aliases import MIN_COST_ALIAS_INV
+from devito.passes.clusters.utils import dse_pass, make_is_time_invariant
 from devito.symbolics import (estimate_cost, q_leaf, q_sum_of_product, q_terminalop,
                               yreplace)
 from devito.types import Scalar
@@ -36,7 +36,7 @@ def extract_time_invariants(cluster, template, *args):
     """
     make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
     rule = make_is_time_invariant(cluster.exprs)
-    costmodel = lambda e: estimate_cost(e, True) >= 50  #TODO
+    costmodel = lambda e: estimate_cost(e, True) >= MIN_COST_ALIAS_INV
     processed, found = yreplace(cluster.exprs, make, rule, costmodel, eager=True)
 
     return cluster.rebuild(processed)
