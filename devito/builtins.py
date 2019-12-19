@@ -6,10 +6,95 @@ from sympy import Abs, Pow
 import numpy as np
 
 import devito as dv
-from devito.tools import as_tuple, as_list, memoized_op
+#from devito.tools import as_tuple, as_list, memoized_op
+from devito.tools import as_tuple, as_list
 
 __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function', 'norm',
            'sumall', 'inner', 'mmin', 'mmax']
+
+
+class memoized_op(object):
+    """
+    Experimental
+    """
+    #def __init__(self, func, *args, **kwargs):
+    def __init__(self, func):
+        self.func = func
+        self.op = None
+        #self.rhs = None
+
+    def __call__(self, f, rhs=0, *args, **kwargs):
+        # Process rhs here
+        if isinstance(rhs, int):
+            processed = dv.Constant(name='rhs')
+            processed.data = rhs
+        # Now do op chaching etc
+        if not self.op:
+            #self.rhs = rhs
+            f, self.op = self.func(f, processed)
+            return f
+        #elif type(self.op.parameters[1]) == type(rhs):
+        else:
+            self.op(f=f, rhs=processed)
+            return f
+        #else:
+            ##from IPython import embed; embed()
+            #raise NotImplementedError
+
+
+        #from IPython import embed; embed()
+    #def __call__(self, *args, **kwargs):
+        #if not self.op:
+            #self.rhs = rhs
+            #f, self.op = self.func(f, rhs)
+            #return f
+        #elif self.rhs == rhs:
+            #self.op(f=f)
+            #return f
+        #else:
+            #raise NotImplementedError
+
+        #if not isinstance(args, Hashable):
+            ## Uncacheable, a list, for instance.
+            ## Better to not cache than blow up.
+            #return self.func(f, rhs, *args, **kwargs)
+        #obj = self.func
+        #try:
+            #cache = obj.__cache_gen
+        #except AttributeError:
+            #cache = obj.__cache_gen = {}
+        #key = (self.func, args[1:], frozenset(kwargs.items()))
+        #it = cache[key] if key in cache else self.func(*args, **kwargs)
+        #cache[key], result = tee(it)
+        #from IPython import embed; embed()
+        #if not self.op:
+            #self.rhs = rhs
+            #f, self.op = self.func(f, rhs)
+            #return f
+        #elif self.rhs == rhs:
+            #self.op(f=f)
+            #return f
+        #else:
+            #raise NotImplementedError
+
+
+def compare_ops(e1, e2):
+    """
+    Return True if the two expressions ``e1`` and ``e2`` perform the same arithmetic
+    operations over the same input operands, False otherwise.
+    """
+    if type(e1) == type(e2) and len(e1.args) == len(e2.args):
+        if e1.is_Atom:
+            return True if e1 == e2 else False
+        elif isinstance(e1, Indexed) and isinstance(e2, Indexed):
+            return True if e1.base == e2.base else False
+        else:
+            for a1, a2 in zip(e1.args, e2.args):
+                if not compare_ops(a1, a2):
+                    return False
+            return True
+    else:
+        return False
 
 
 @memoized_op

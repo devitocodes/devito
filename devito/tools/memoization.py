@@ -2,6 +2,8 @@ from collections.abc import Hashable
 from functools import partial
 from itertools import tee
 
+#from devito.types import Constant
+
 __all__ = ['memoized_func', 'memoized_meth', 'memoized_generator',
            'memoized_op']
 
@@ -131,12 +133,43 @@ class memoized_op(object):
     """
     Experimental
     """
-    def __init__(self, func, *args, **kwargs):
+    #def __init__(self, func, *args, **kwargs):
+    def __init__(self, func):
         self.func = func
         self.op = None
         self.rhs = None
 
     def __call__(self, f, rhs=0, *args, **kwargs):
+        # Process rhs
+        #if isinstance(rhs, int):
+            #processed = Constant(name='rhs')
+            #processed.data = rhs
+        #from IPython import embed; embed()
+    #def __call__(self, *args, **kwargs):
+        #if not self.op:
+            #self.rhs = rhs
+            #f, self.op = self.func(f, rhs)
+            #return f
+        #elif self.rhs == rhs:
+            #self.op(f=f)
+            #return f
+        #else:
+            #raise NotImplementedError
+
+        #if not isinstance(args, Hashable):
+            ## Uncacheable, a list, for instance.
+            ## Better to not cache than blow up.
+            #return self.func(f, rhs, *args, **kwargs)
+        obj = self.func
+        try:
+            cache = obj.__cache_gen
+        except AttributeError:
+            cache = obj.__cache_gen = {}
+        #key = (self.func, args[1:], frozenset(kwargs.items()))
+        #it = cache[key] if key in cache else self.func(*args, **kwargs)
+        #cache[key], result = tee(it)
+        #from IPython import embed; embed()
+
         if not self.op:
             self.rhs = rhs
             f, self.op = self.func(f, rhs)
@@ -147,3 +180,21 @@ class memoized_op(object):
         else:
             raise NotImplementedError
 
+
+def compare_ops(e1, e2):
+    """
+    Return True if the two expressions ``e1`` and ``e2`` perform the same arithmetic
+    operations over the same input operands, False otherwise.
+    """
+    if type(e1) == type(e2) and len(e1.args) == len(e2.args):
+        if e1.is_Atom:
+            return True if e1 == e2 else False
+        elif isinstance(e1, Indexed) and isinstance(e2, Indexed):
+            return True if e1.base == e2.base else False
+        else:
+            for a1, a2 in zip(e1.args, e2.args):
+                if not compare_ops(a1, a2):
+                    return False
+            return True
+    else:
+        return False
