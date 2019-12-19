@@ -5,12 +5,8 @@ from cached_property import cached_property
 from sympy import cos, sin
 
 from devito.exceptions import InvalidOperator
-from devito.passes.clusters.utils import make_is_time_invariant
-from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
-                              pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
-                              yreplace)
+from devito.symbolics import bhaskara_cos, bhaskara_sin, freeze, pow_to_mul
 from devito.tools import as_tuple, flatten, timed_pass
-from devito.types import Scalar
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'CustomRewriter']
 
@@ -79,30 +75,10 @@ class AbstractRewriter(object):
 class BasicRewriter(AbstractRewriter):
 
     def _pipeline(self, clusters, *args):
-        clusters = self._extract_increments(clusters, *args)
+        from devito.passes.clusters import extract_increments  #TODO
+        clusters = extract_increments(clusters, *args)
 
         return clusters
-
-    @dse_pass
-    def _extract_increments(self, cluster, template, *args):
-        """
-        Extract the RHS of non-local tensor expressions performing an associative
-        and commutative increment, and assign them to temporaries.
-        """
-        processed = []
-        for e in cluster.exprs:
-            if e.is_Increment and e.lhs.function.is_Input:
-                handle = Scalar(name=template(), dtype=e.dtype).indexify()
-                if e.rhs.is_Number or e.rhs.is_Symbol:
-                    extracted = e.rhs
-                else:
-                    extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
-                processed.extend([e.func(handle, extracted, is_Increment=False),
-                                  e.func(e.lhs, handle)])
-            else:
-                processed.append(e)
-
-        return cluster.rebuild(processed)
 
     @dse_pass
     def _optimize_trigonometry(self, cluster, *args):
@@ -122,72 +98,50 @@ class BasicRewriter(AbstractRewriter):
 class AdvancedRewriter(BasicRewriter):
 
     def _pipeline(self, clusters, *args):
-        from devito.passes.clusters import cire, cse, factorize
+        from devito.passes.clusters import cire, cse, factorize, extract_time_invariants
 
-        clusters = self._extract_time_invariants(clusters, *args)
+        clusters = extract_time_invariants(clusters, *args)
         clusters = cire(clusters, *args)
         clusters = cse(clusters, *args)
         clusters = factorize(clusters)
 
         return clusters
-
-    @dse_pass
-    def _extract_time_invariants(self, cluster, template, *args):
-        """
-        Extract time-invariant subexpressions, and assign them to temporaries.
-        """
-        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        rule = make_is_time_invariant(cluster.exprs)
-        costmodel = lambda e: estimate_cost(e, True) >= 50  #TODO
-        processed, found = yreplace(cluster.exprs, make, rule, costmodel, eager=True)
-
-        return cluster.rebuild(processed)
 
 
 class AggressiveRewriter(AdvancedRewriter):
 
     def _pipeline(self, clusters, *args):
-        from devito.passes.clusters import cire, cse, factorize
+        from devito.passes.clusters import (cire, cse, factorize, extract_time_invariants,
+                                            extract_sum_of_products)
 
-        clusters = self._extract_sum_of_products(clusters, *args)
-        clusters = self._extract_time_invariants(clusters, *args)
+        clusters = extract_sum_of_products(clusters, *args)
+        clusters = extract_time_invariants(clusters, *args)
         clusters = cire(clusters, *args)
 
-        clusters = self._extract_sum_of_products(clusters, *args)
+        clusters = extract_sum_of_products(clusters, *args)
         clusters = cire(clusters, *args)
-        clusters = self._extract_sum_of_products(clusters, *args)
+        clusters = extract_sum_of_products(clusters, *args)
 
         clusters = factorize(clusters)
         clusters = cse(clusters, *args)
 
         return clusters
-
-    @dse_pass
-    def _extract_sum_of_products(self, cluster, template, *args):
-        """
-        Extract sub-expressions in sum-of-product form, and assign them to temporaries.
-        """
-        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        rule = q_sum_of_product
-        costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
-        processed, _ = yreplace(cluster.exprs, make, rule, costmodel)
-
-        return cluster.rebuild(processed)
 
 
 class CustomRewriter(AggressiveRewriter):
 
     @cached_property
     def passes_mapper(self):
-        from devito.passes.clusters import cire, cse, factorize  #TODO
+        from devito.passes.clusters import (cire, cse, factorize, extract_time_invariants,
+                                            extract_sum_of_products, extract_increments)  #TODO
 
         return {
-            'extract_sop': self._extract_sum_of_products,
+            'extract_sop': extract_sum_of_products,
             'factorize': factorize,
             'cire': cire,
             'cse': cse,
-            'extract_invariants': self._extract_time_invariants,
-            'extract_increments': self._extract_increments,
+            'extract_invariants': extract_time_invariants,
+            'extract_increments': extract_increments,
             'opt_transcedentals': self._optimize_trigonometry
         }
 
