@@ -5,8 +5,7 @@ from cached_property import cached_property
 from sympy import cos, sin
 
 from devito.exceptions import InvalidOperator
-from devito.passes.clusters.manipulation import (collect_nested, make_is_time_invariant,
-                                                 common_subexprs_elimination)
+from devito.passes.clusters.manipulation import collect_nested, make_is_time_invariant
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
                               yreplace)
@@ -106,17 +105,6 @@ class BasicRewriter(AbstractRewriter):
         return cluster.rebuild(processed)
 
     @dse_pass
-    def _eliminate_intra_stencil_redundancies(self, cluster, template, *args):
-        """
-        Perform common subexpression elimination, bypassing the tensor expressions
-        extracted in previous passes.
-        """
-        make = lambda: Scalar(name=template(), dtype=cluster.dtype).indexify()
-        processed = common_subexprs_elimination(cluster.exprs, make)
-
-        return cluster.rebuild(processed)
-
-    @dse_pass
     def _optimize_trigonometry(self, cluster, *args):
         """
         Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
@@ -140,11 +128,11 @@ class AdvancedRewriter(BasicRewriter):
     """
 
     def _pipeline(self, clusters, *args):
-        from devito.passes.clusters.aliases import cire
+        from devito.passes.clusters import cire, cse
 
         clusters = self._extract_time_invariants(clusters, *args)
         clusters = cire(clusters, *args)
-        clusters = self._eliminate_intra_stencil_redundancies(clusters, *args)
+        clusters = cse(clusters, *args)
         clusters = self._factorize(clusters)
 
         return clusters
@@ -191,7 +179,7 @@ class AdvancedRewriter(BasicRewriter):
 class AggressiveRewriter(AdvancedRewriter):
 
     def _pipeline(self, clusters, *args):
-        from devito.passes.clusters.aliases import cire
+        from devito.passes.clusters import cire, cse
 
         clusters = self._extract_sum_of_products(clusters, *args)
         clusters = self._extract_time_invariants(clusters, *args)
@@ -202,7 +190,7 @@ class AggressiveRewriter(AdvancedRewriter):
         clusters = self._extract_sum_of_products(clusters, *args)
 
         clusters = self._factorize(clusters)
-        clusters = self._eliminate_intra_stencil_redundancies(clusters, *args)
+        clusters = cse(clusters, *args)
 
         return clusters
 
@@ -223,13 +211,13 @@ class CustomRewriter(AggressiveRewriter):
 
     @cached_property
     def passes_mapper(self):
-        from devito.passes.clusters.aliases import cire  #TODO
+        from devito.passes.clusters import cire, cse  #TODO
 
         return {
             'extract_sop': self._extract_sum_of_products,
             'factorize': self._factorize,
-            'gcse': cire,
-            'cse': self._eliminate_intra_stencil_redundancies,
+            'cire': cire,
+            'cse': cse,
             'extract_invariants': self._extract_time_invariants,
             'extract_increments': self._extract_increments,
             'opt_transcedentals': self._optimize_trigonometry

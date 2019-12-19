@@ -8,8 +8,9 @@ from conftest import skipif, EVAL  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
-from devito.passes.clusters import common_subexprs_elimination, make_is_time_invariant
+from devito.passes.clusters import make_is_time_invariant
 from devito.passes.clusters.aliases import collect
+from devito.passes.clusters.cse import _cse
 from devito.passes.iet import BlockDimension
 from devito.symbolics import yreplace, estimate_cost, pow_to_mul
 from devito.tools import generator
@@ -97,7 +98,8 @@ def test_yreplace_time_invariants(exprs, expected):
     (['Eq(t0, tv)', 'Eq(t1, t0)', 'Eq(t2, t1)', 'Eq(tu, t2)'],
      ['tv[t, x, y, z]'])
 ])
-def test_common_subexprs_elimination(exprs, expected):
+def test_cse(exprs, expected):
+    """Test common subexpressions elimination."""
     grid = Grid((3, 3, 3))
     dims = grid.dimensions
     tu = TimeFunction(name="tu", grid=grid, space_order=4).indexify()
@@ -110,8 +112,7 @@ def test_common_subexprs_elimination(exprs, expected):
     t2 = Scalar(name='t2').indexify()
     counter = generator()
     make = lambda: Scalar(name='r%d' % counter()).indexify()
-    processed = common_subexprs_elimination(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1, t2),
-                                            make)
+    processed = _cse(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1, t2), make)
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
 
@@ -760,7 +761,7 @@ def test_acoustic_rewrite_basic():
 def test_custom_rewriter():
     ret1 = run_acoustic_forward(dse=None)
     ret2 = run_acoustic_forward(dse=('extract_sop', 'factorize',
-                                     'extract_invariants', 'gcse'))
+                                     'extract_invariants', 'cire'))
 
     assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
     assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
