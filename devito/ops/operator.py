@@ -1,5 +1,4 @@
 from devito import Eq
-from devito.dse import rewrite
 from devito.ir.clusters import Toposort
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import Call, Expression, find_affine_trees
@@ -10,7 +9,7 @@ from devito.ops import ops_configuration
 from devito.ops.types import OpsBlock
 from devito.ops.transformer import create_ops_dat, create_ops_fetch, opsit
 from devito.ops.utils import namespace
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays
+from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
 from devito.passes.iet import DataManager, iet_pass
 from devito.symbolics import Literal
 from devito.tools import filter_sorted, flatten, generator

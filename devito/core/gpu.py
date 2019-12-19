@@ -2,10 +2,9 @@ import cgen as c
 
 from devito.core.operator import OperatorCore
 from devito.data import FULL
-from devito.dse import rewrite
 from devito.ir.clusters import Toposort
 from devito.ir.support import COLLAPSED
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays
+from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
 from devito.passes import (DataManager, Ompizer, ParallelTree, optimize_halospots,
                            mpiize, hoist_prodders)
 from devito.tools import generator

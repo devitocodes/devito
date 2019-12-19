@@ -1,6 +1,6 @@
-from devito.dse.rewriters import (BasicRewriter, AdvancedRewriter, AggressiveRewriter,
-                                  CustomRewriter)
 from devito.parameters import configuration
+from devito.passes.clusters.rewriters import (BasicRewriter, AdvancedRewriter,
+                                              AggressiveRewriter, CustomRewriter)
 from devito.symbolics import estimate_cost
 from devito.tools import flatten
 

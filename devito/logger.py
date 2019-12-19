@@ -5,7 +5,7 @@ import sys
 from contextlib import contextmanager
 
 __all__ = ('set_log_level', 'set_log_noperf', 'is_log_enabled_for',
-           'log', 'warning', 'error', 'perf', 'perf_adv', 'dse', 'dse_warning',
+           'log', 'warning', 'error', 'perf', 'perf_adv',
            'RED', 'GREEN', 'BLUE')
 
 
@@ -142,14 +142,6 @@ def error(msg, *args, **kwargs):
 
 def debug(msg, *args, **kwargs):
     log(msg, DEBUG, *args, **kwargs)
-
-
-def dse(msg, *args, **kwargs):
-    log("DSE: %s" % msg, DSE, *args, **kwargs)
-
-
-def dse_warning(msg, *args, **kwargs):
-    log("DSE: %s" % msg, DSE_WARN, *args, **kwargs)
 
 
 def yask(msg, *args, **kwargs):

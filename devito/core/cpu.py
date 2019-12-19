@@ -1,10 +1,9 @@
 from functools import partial
 
 from devito.core.operator import OperatorCore
-from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays
+from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
 from devito.passes.iet import (DataManager, Blocker, Ompizer, avoid_denormals,
                                optimize_halospots, mpiize, loop_wrapping, hoist_prodders)
 from devito.tools import as_tuple, generator

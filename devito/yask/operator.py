@@ -5,7 +5,6 @@ from pathlib import Path
 
 import numpy as np
 
-from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.ir.clusters import Toposort
@@ -14,7 +13,7 @@ from devito.ir.iet import (Expression, FindNodes, FindSymbols, Transformer,
                            derive_parameters, find_affine_trees)
 from devito.ir.support import align_accesses
 from devito.operator import Operator
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays
+from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
 from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, loop_wrapping,
                                iet_pass)
 from devito.tools import Signer, as_tuple, filter_ordered, flatten, generator

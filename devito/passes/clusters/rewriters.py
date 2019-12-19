@@ -6,11 +6,11 @@ from sympy import cos, sin
 
 from devito.ir import (ROUNDABLE, DataSpace, IterationSpace, Interval, IntervalGroup,
                        detect_accesses, build_intervals)
-from devito.dse.aliases import collect
-from devito.dse.manipulation import (collect_nested, common_subexprs_elimination,
-                                     make_is_time_invariant)
+from devito.passes.clusters.aliases import collect
+from devito.passes.clusters.manipulation import (collect_nested, make_is_time_invariant,
+                                                 common_subexprs_elimination)
 from devito.exceptions import DSEException
-from devito.logger import dse_warning as warning
+from devito.logger import warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
                               yreplace)
