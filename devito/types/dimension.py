@@ -7,7 +7,7 @@ from cached_property import cached_property
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
-from devito.tools import Pickable, dtype_to_cstr, memoized_meth
+from devito.tools import Pickable, dtype_to_cstr, is_integer, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 
@@ -271,9 +271,15 @@ class Dimension(ArgProvider):
 
         if self.max_name not in args:
             raise InvalidArgument("No runtime value for %s" % self.max_name)
-        if interval.is_Defined and args[self.max_name] + interval.upper >= size:
-            raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
-                                                                 args[self.max_name]))
+        if interval.is_Defined:
+            if is_integer(interval.upper):
+                upper = interval.upper
+            else:
+                # Autopadding causes non-integer upper limit
+                upper = interval.upper.subs(args)
+            if args[self.max_name] + upper >= size:
+                raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
+                                                                     args[self.max_name]))
 
         # Allow the specific case of max=min-1, which disables the loop
         if args[self.max_name] < args[self.min_name]-1:
