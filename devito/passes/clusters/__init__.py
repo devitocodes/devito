@@ -3,5 +3,4 @@ from .cse import *  # noqa
 from .factorization import *  # noqa
 from .extractors import *  # noqa
 from .rewriters import *  # noqa
-from .transformer import *  # noqa
 from .misc import *  # noqa
