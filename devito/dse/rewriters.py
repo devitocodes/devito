@@ -4,7 +4,7 @@ from time import time
 
 from sympy import cos, sin
 
-from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup,
+from devito.ir import (ROUNDABLE, DataSpace, IterationSpace, Interval, IntervalGroup,
                        detect_accesses, build_intervals)
 from devito.dse.aliases import collect
 from devito.dse.manipulation import (collect_nested, common_subexprs_elimination,
@@ -301,6 +301,17 @@ class AdvancedRewriter(BasicRewriter):
             # Construct the `alias` IterationSpace
             intervals, sub_iterators, directions = cluster.ispace.args
             ispace = IterationSpace(intervals.add(writeto), sub_iterators, directions)
+
+            # Optimize the `alias` IterationSpace: if possible, the innermost
+            # IterationInterval is rounded up to a multiple of the vector length
+            try:
+                it = ispace.itintervals[-1]
+                if ROUNDABLE in cluster.properties[it.dim]:
+                    from devito.parameters import configuration
+                    vl = configuration['platform'].simd_items_per_reg(cluster.dtype)
+                    ispace = ispace.add(Interval(it.dim, 0, it.interval.size % vl))
+            except (TypeError, KeyError):
+                pass
 
             # Construct the `alias` DataSpace
             mapper = detect_accesses(expression)

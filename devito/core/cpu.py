@@ -6,8 +6,7 @@ from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays
 from devito.passes.iet import (DataManager, Blocker, Ompizer, avoid_denormals,
-                               optimize_halospots, mpiize, loop_wrapping,
-                               minimize_remainders, hoist_prodders)
+                               optimize_halospots, mpiize, loop_wrapping, hoist_prodders)
 from devito.tools import as_tuple, generator
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperator',
@@ -88,7 +87,6 @@ class CPU64Operator(CPU64NoopOperator):
             ompizer.make_parallel(graph)
 
         # Misc optimizations
-        minimize_remainders(graph, simd_items_per_reg=platform.simd_items_per_reg)
         hoist_prodders(graph)
 
         # Symbol definitions
@@ -124,8 +122,6 @@ class CustomOperator(CPU64Operator):
             'openmp': partial(ompizer.make_parallel),
             'mpi': partial(mpiize, mode=options['mpi']),
             'simd': partial(ompizer.make_simd, simd_reg_size=platform.simd_reg_size),
-            'minrem': partial(minimize_remainders,
-                              simd_items_per_reg=platform.simd_items_per_reg),
             'prodders': partial(hoist_prodders)
         }
 

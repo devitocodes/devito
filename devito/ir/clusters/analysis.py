@@ -196,12 +196,6 @@ class Rounding(Detector):
 
         scope = self._fetch_scope(clusters)
 
-        # All non-scalar writes must be over Arrays, that is temporaries, otherwise
-        # we would end up overwriting user data
-        writes = [w for w in scope.writes if w.is_Tensor]
-        if any(not w.is_Array for w in writes):
-            return
-
         # All accessed Functions must have enough room in the PADDING region
         # so that `i`'s trip count can safely be rounded up
         # Note: autopadding guarantees that the padding size along the
