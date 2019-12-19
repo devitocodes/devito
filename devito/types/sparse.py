@@ -474,7 +474,7 @@ class SparseFunction(AbstractSparseFunction):
 
     def __init_finalize__(self, *args, **kwargs):
         super(SparseFunction, self).__init_finalize__(*args, **kwargs)
-        self.interpolator = LinearInterpolator(self.grid, self)
+        self.interpolator = LinearInterpolator(self)
         # Set up sparse point coordinates
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
         if isinstance(coordinates, Function):

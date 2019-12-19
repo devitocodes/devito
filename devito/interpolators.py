@@ -84,9 +84,9 @@ class GenericInterpolator(ABC):
 
 
 class LinearInterpolator(GenericInterpolator):
-    def __init__(self, grid, obj):
-        self.grid = grid
-        self.obj = obj
+    def __init__(self, sfunction):
+        self.grid = sfunction.grid
+        self.sfunction = sfunction
 
     @property
     def _interpolation_coeffs(self):
@@ -106,13 +106,13 @@ class LinearInterpolator(GenericInterpolator):
         # 1, x1, y1, z1, x1*y1, ...
         indices = list(powerset(indices1))
         indices[0] = (1,)
-        point_sym = list(powerset(self.obj._point_symbols))
+        point_sym = list(powerset(self.sfunction._point_symbols))
         point_sym[0] = (1,)
         # 1, px. py, pz, px*py, ...
         A = []
         ref_A = [np.prod(ind) for ind in indices]
         # Create the matrix with the same increment order as the point increment
-        for i in self.obj._point_increments:
+        for i in self.sfunction._point_increments:
             # substitute x1 by x2 if increment in that dimension
             subs = dict((indices1[d], indices2[d] if i[d] == 1 else indices1[d])
                         for d in range(len(i)))
@@ -134,7 +134,7 @@ class LinearInterpolator(GenericInterpolator):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
-        index_matrix, points = self.obj._index_matrix(offset)
+        index_matrix, points = self.sfunction._index_matrix(offset)
 
         idx_subs = []
         for i, idx in enumerate(index_matrix):
@@ -142,21 +142,24 @@ class LinearInterpolator(GenericInterpolator):
             mapper = {}
             for j, d in zip(idx, self.grid.dimensions):
                 p = points[j]
-                lb = sympy.And(p >= d.symbolic_min - self.obj._radius, evaluate=False)
-                ub = sympy.And(p <= d.symbolic_max + self.obj._radius, evaluate=False)
+                lb = sympy.And(p >= d.symbolic_min - self.sfunction._radius,
+                               evaluate=False)
+                ub = sympy.And(p <= d.symbolic_max + self.sfunction._radius,
+                               evaluate=False)
                 condition = sympy.And(lb, ub, evaluate=False)
-                mapper[d] = ConditionalDimension(p.name, self.obj._sparse_dim,
+                mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
                                                  condition=condition, indirect=True)
 
             # Track Indexed substitutions
             idx_subs.append(mapper)
 
         # Temporaries for the indirection dimensions
-        temps = [Eq(v, k, implicit_dims=self.obj.dimensions) for k, v in points.items()]
+        temps = [Eq(v, k, implicit_dims=self.sfunction.dimensions)
+                 for k, v in points.items()]
         # Temporaries for the coefficients
-        temps.extend([Eq(p, c, implicit_dims=self.obj.dimensions)
-                      for p, c in zip(self.obj._point_symbols,
-                                      self.obj._coordinate_bases(field_offset))])
+        temps.extend([Eq(p, c, implicit_dims=self.sfunction.dimensions)
+                      for p, c in zip(self.sfunction._point_symbols,
+                                      self.sfunction._coordinate_bases(field_offset))])
 
         return idx_subs, temps
 
@@ -194,12 +197,13 @@ class LinearInterpolator(GenericInterpolator):
                 for b, v_sub in zip(self._interpolation_coeffs, idx_subs)]
 
         # Accumulate point-wise contributions into a temporary
-        rhs = Scalar(name='sum', dtype=self.obj.dtype)
-        summands = [Eq(rhs, 0., implicit_dims=self.obj.dimensions)]
-        summands.extend([Inc(rhs, i, implicit_dims=self.obj.dimensions) for i in args])
+        rhs = Scalar(name='sum', dtype=self.sfunction.dtype)
+        summands = [Eq(rhs, 0., implicit_dims=self.sfunction.dimensions)]
+        summands.extend([Inc(rhs, i, implicit_dims=self.sfunction.dimensions)
+                        for i in args])
 
         # Write/Incr `self`
-        lhs = self.obj.subs(self_subs)
+        lhs = self.sfunction.subs(self_subs)
         last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
 
         return temps + summands + last
@@ -234,7 +238,7 @@ class LinearInterpolator(GenericInterpolator):
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(field.xreplace(vsub), expr.xreplace(vsub) * b,
-                    implicit_dims=self.obj.dimensions)
+                    implicit_dims=self.sfunction.dimensions)
                 for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
 
         return temps + eqns
