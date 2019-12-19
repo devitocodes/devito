@@ -5,7 +5,6 @@ from cached_property import cached_property
 from sympy import cos, sin
 
 from devito.exceptions import InvalidOperator
-from devito.passes.clusters.manipulation import collect_nested
 from devito.passes.clusters.utils import make_is_time_invariant
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
@@ -122,19 +121,13 @@ class BasicRewriter(AbstractRewriter):
 
 class AdvancedRewriter(BasicRewriter):
 
-    MIN_COST_FACTORIZE = 100
-    """
-    Minimum operation count of an expression so that aggressive factorization
-    is applied.
-    """
-
     def _pipeline(self, clusters, *args):
-        from devito.passes.clusters import cire, cse
+        from devito.passes.clusters import cire, cse, factorize
 
         clusters = self._extract_time_invariants(clusters, *args)
         clusters = cire(clusters, *args)
         clusters = cse(clusters, *args)
-        clusters = self._factorize(clusters)
+        clusters = factorize(clusters)
 
         return clusters
 
@@ -150,37 +143,11 @@ class AdvancedRewriter(BasicRewriter):
 
         return cluster.rebuild(processed)
 
-    @dse_pass
-    def _factorize(self, cluster, *args):
-        """
-        Factorize trascendental functions, symbolic powers, numeric coefficients.
-
-        If the expression has an operation count greater than
-        ``self.MIN_COST_FACTORIZE``, then the algorithm is applied recursively
-        until no more factorization opportunities are detected.
-        """
-        processed = []
-        for expr in cluster.exprs:
-            handle = collect_nested(expr)
-            cost_handle = estimate_cost(handle)
-
-            if cost_handle >= self.MIN_COST_FACTORIZE:
-                handle_prev = handle
-                cost_prev = estimate_cost(expr)
-                while cost_handle < cost_prev:
-                    handle_prev, handle = handle, collect_nested(handle)
-                    cost_prev, cost_handle = cost_handle, estimate_cost(handle)
-                cost_handle, handle = cost_prev, handle_prev
-
-            processed.append(handle)
-
-        return cluster.rebuild(processed)
-
 
 class AggressiveRewriter(AdvancedRewriter):
 
     def _pipeline(self, clusters, *args):
-        from devito.passes.clusters import cire, cse
+        from devito.passes.clusters import cire, cse, factorize
 
         clusters = self._extract_sum_of_products(clusters, *args)
         clusters = self._extract_time_invariants(clusters, *args)
@@ -190,7 +157,7 @@ class AggressiveRewriter(AdvancedRewriter):
         clusters = cire(clusters, *args)
         clusters = self._extract_sum_of_products(clusters, *args)
 
-        clusters = self._factorize(clusters)
+        clusters = factorize(clusters)
         clusters = cse(clusters, *args)
 
         return clusters
@@ -212,11 +179,11 @@ class CustomRewriter(AggressiveRewriter):
 
     @cached_property
     def passes_mapper(self):
-        from devito.passes.clusters import cire, cse  #TODO
+        from devito.passes.clusters import cire, cse, factorize  #TODO
 
         return {
             'extract_sop': self._extract_sum_of_products,
-            'factorize': self._factorize,
+            'factorize': factorize,
             'cire': cire,
             'cse': cse,
             'extract_invariants': self._extract_time_invariants,

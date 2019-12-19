@@ -1,12 +1,47 @@
 from sympy import Add, Mul, collect, collect_const
 
-from devito.symbolics import retrieve_scalars
+from devito.passes.clusters.rewriters import dse_pass
+from devito.symbolics import estimate_cost, retrieve_scalars
 from devito.tools import ReducerMap
 
-__all__ = ['collect_nested']
+__all__ = ['factorize']
 
 
-def collect_nested(expr):
+MIN_COST_FACTORIZE = 100
+"""
+Minimum operation count of an expression so that aggressive factorization
+is applied.
+"""
+
+
+@dse_pass
+def factorize(cluster, *args):
+    """
+    Factorize trascendental functions, symbolic powers, numeric coefficients.
+
+    If the expression has an operation count greater than ``MIN_COST_FACTORIZE``,
+    then the algorithm is applied recursively until no more factorization
+    opportunities are detected.
+    """
+    processed = []
+    for expr in cluster.exprs:
+        handle = _collect_nested(expr)
+        cost_handle = estimate_cost(handle)
+
+        if cost_handle >= MIN_COST_FACTORIZE:
+            handle_prev = handle
+            cost_prev = estimate_cost(expr)
+            while cost_handle < cost_prev:
+                handle_prev, handle = handle, _collect_nested(handle)
+                cost_prev, cost_handle = cost_handle, estimate_cost(handle)
+            cost_handle, handle = cost_prev, handle_prev
+
+        processed.append(handle)
+
+    return cluster.rebuild(processed)
+
+
+def _collect_nested(expr):
     """
     Collect numeric coefficients, trascendental functions, and symbolic powers,
     across all levels of the expression tree.
