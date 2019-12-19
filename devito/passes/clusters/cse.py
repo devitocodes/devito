@@ -2,8 +2,9 @@ from collections import OrderedDict
 
 from devito.ir import DummyEq
 from devito.passes.clusters.rewriters import dse_pass
-from devito.symbolics import (count, estimate_cost, makeit_ssa, q_xop, q_leaf,
-                              retrieve_terminals, yreplace)
+from devito.passes.clusters.utils import makeit_ssa
+from devito.symbolics import (count, estimate_cost, q_xop, q_leaf, retrieve_terminals,
+                              yreplace)
 from devito.tools import DAG, split
 from devito.types import Scalar
 

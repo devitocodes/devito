@@ -1,12 +1,9 @@
-from collections import OrderedDict
-
 from sympy import Add, Mul, collect, collect_const
 
-from devito.symbolics import makeit_ssa, retrieve_scalars, retrieve_terminals
+from devito.symbolics import retrieve_scalars
 from devito.tools import ReducerMap
-from devito.types import Dimension
 
-__all__ = ['collect_nested', 'make_is_time_invariant']
+__all__ = ['collect_nested']
 
 
 def collect_nested(expr):
@@ -105,45 +102,3 @@ def collect_nested(expr):
             return expr.func(*args), ReducerMap.fromdicts(*candidates)
 
     return run(expr)[0]
-
-
-def make_is_time_invariant(context):
-    """
-    Given an ordered list of expressions, returns a callable that finds out whether
-    a given expression is time invariant or not.
-    """
-    mapper = OrderedDict([(i.lhs, i) for i in makeit_ssa(context)])
-
-    def is_time_invariant(mapper, expr):
-        if any(isinstance(i, Dimension) and i.is_Time for i in expr.free_symbols):
-            return False
-
-        queue = [expr.rhs if expr.is_Equality else expr]
-        seen = set()
-        while queue:
-            item = queue.pop()
-            nodes = set()
-            for i in retrieve_terminals(item):
-                if i in seen:
-                    # Already inspected, nothing more can be inferred
-                    continue
-                elif any(isinstance(j, Dimension) and j.is_Time for j in i.free_symbols):
-                    # Definitely not time-invariant
-                    return False
-                elif i in mapper:
-                    # Go on with the search
-                    nodes.add(i)
-                elif isinstance(i, Dimension):
-                    # Go on with the search, as `i` is not a time dimension
-                    pass
-                elif not i.function.is_DiscreteFunction:
-                    # It didn't come from the outside and it's not in `mapper`, so
-                    # cannot determine if time-invariant; assume time-varying then
-                    return False
-                seen.add(i)
-            queue.extend([mapper[i].rhs for i in nodes])
-        return True
-
-    callback = lambda i: is_time_invariant(mapper, i)
-
-    return callback

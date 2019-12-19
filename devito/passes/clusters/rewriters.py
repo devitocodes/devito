@@ -5,7 +5,8 @@ from cached_property import cached_property
 from sympy import cos, sin
 
 from devito.exceptions import InvalidOperator
-from devito.passes.clusters.manipulation import collect_nested, make_is_time_invariant
+from devito.passes.clusters.manipulation import collect_nested
+from devito.passes.clusters.utils import make_is_time_invariant
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
                               yreplace)

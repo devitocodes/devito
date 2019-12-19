@@ -2,14 +2,14 @@ from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 
 import sympy
-from sympy import Number, Indexed, LM, LC
+from sympy import Number, Indexed, Symbol, LM, LC
 
 from devito.symbolics.extended_sympy import Add, Mul, Pow, Eq, FrozenExpr
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_tuple, flatten, split
 
 __all__ = ['freeze', 'unfreeze', 'evaluate', 'yreplace', 'xreplace_indices',
-           'pow_to_mul', 'as_symbol', 'indexify', 'split_affine', 'makeit_ssa']
+           'pow_to_mul', 'as_symbol', 'indexify', 'split_affine']
 
 
 def freeze(expr):
@@ -258,9 +258,9 @@ def as_symbol(expr):
     except (TypeError, ValueError):
         pass
     if isinstance(expr, str):
-        return sympy.Symbol(expr)
+        return Symbol(expr)
     elif isinstance(expr, Dimension):
-        return sympy.Symbol(expr.name)
+        return Symbol(expr.name)
     elif expr.is_Symbol:
         return expr
     elif isinstance(expr, Indexed):
@@ -312,38 +312,3 @@ def indexify(expr):
         except AttributeError:
             pass
     return expr.xreplace(mapper)
-
-
-def makeit_ssa(exprs):
-    """
-    Convert an iterable of Eqs into Static Single Assignment (SSA) form.
-    """
-    from devito.types import Symbol
-
-    # Identify recurring LHSs
-    seen = {}
-    for i, e in enumerate(exprs):
-        seen.setdefault(e.lhs, []).append(i)
-    # Optimization: don't waste time reconstructing stuff if already in SSA form
-    if all(len(i) == 1 for i in seen.values()):
-        return exprs
-    # SSA conversion
-    c = 0
-    mapper = {}
-    processed = []
-    for i, e in enumerate(exprs):
-        where = seen[e.lhs]
-        rhs = e.rhs.xreplace(mapper)
-        if len(where) > 1:
-            needssa = e.is_Scalar or where[-1] != i
-            lhs = Symbol(name='ssa%d' % c, dtype=e.dtype) if needssa else e.lhs
-            if e.is_Increment:
-                # Turn AugmentedAssignment into Assignment
-                processed.append(e.func(lhs, mapper[e.lhs] + rhs, is_Increment=False))
-            else:
-                processed.append(e.func(lhs, rhs))
-            mapper[e.lhs] = lhs
-            c += 1
-        else:
-            processed.append(e.func(e.lhs, rhs))
-    return processed
