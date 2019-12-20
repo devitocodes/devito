@@ -6,7 +6,7 @@ import numpy as np
 from devito.ir import (ROUNDABLE, DataSpace, IterationInstance, IterationSpace,
                        Interval, IntervalGroup, LabeledVector, Stencil,
                        detect_accesses, build_intervals)
-from devito.logger import warning
+from devito.logger import perf_adv
 from devito.passes.clusters.utils import dse_pass, make_is_time_invariant
 from devito.symbolics import estimate_cost, retrieve_indexed
 from devito.types import Array, Eq
@@ -190,7 +190,7 @@ def process(candidates, aliases, cluster, template):
             index = writeto.index(dep_inducing[0])
             writeto = IntervalGroup(writeto[index:])
         except IndexError:
-            warning("Couldn't optimize some of the detected redundancies")
+            perf_adv("Couldn't optimize some of the detected redundancies")
 
         # Create a temporary to store `alias`
         dimensions = [d.root for d in writeto.dimensions]

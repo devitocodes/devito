@@ -17,8 +17,6 @@ logger.addHandler(stream_handler)
 DEBUG = logging.DEBUG
 YASK = 16
 YASK_WARN = 17
-DSE = 18
-DSE_WARN = 19
 PERF = 19
 INFO = logging.INFO
 WARNING = logging.WARNING
@@ -28,8 +26,6 @@ CRITICAL = logging.CRITICAL
 logging.addLevelName(PERF, "PERF")
 logging.addLevelName(YASK, "YASK")
 logging.addLevelName(YASK_WARN, "YASK_WARN")
-logging.addLevelName(DSE, "DSE")
-logging.addLevelName(DSE_WARN, "DSE_WARN")
 
 logger_registry = {
     'DEBUG': DEBUG,
@@ -37,8 +33,6 @@ logger_registry = {
     'YASK': YASK,
     'YASK_WARN': YASK_WARN,
     'INFO': INFO,
-    'DSE': DSE,
-    'DSE_WARN': DSE_WARN,
     'WARNING': WARNING,
     'ERROR': ERROR,
     'CRITICAL': CRITICAL
@@ -55,8 +49,6 @@ COLORS = {
     YASK: NOCOLOR,
     YASK_WARN: BLUE,
     INFO: NOCOLOR,
-    DSE: NOCOLOR,
-    DSE_WARN: BLUE,
     WARNING: BLUE,
     ERROR: RED,
     CRITICAL: RED
@@ -70,8 +62,8 @@ def set_log_level(level, comm=None):
     Parameters
     ----------
     level : int
-        The logging level. Accepted values are: ``DEBUG, PERF, INFO, DSE, DSE_WARN,
-        WARNING, ERROR, CRITICAL``.
+        The logging level. Accepted values are: ``DEBUG, PERF, INFO, WARNING,
+        ERROR, CRITICAL``.
     comm : MPI communicator, optional
         An MPI communicator the logger should be collective over. If provided, only
         rank-0 on that communicator will write to the registered handlers, other
@@ -113,8 +105,8 @@ def log(msg, level=INFO, *args, **kwargs):
     msg : str
         The message to be printed.
     level : int
-        The logging level. Accepted values are: ``DEBUG, PERF, INFO, DSE, DSE_WARN,
-        WARNING, ERROR, CRITICAL``.
+        The logging level. Accepted values are: ``DEBUG, PERF, INFO, WARNING,
+        ERROR, CRITICAL``.
     """
     color = COLORS[level] if sys.stdout.isatty() and sys.stderr.isatty() else '%s'
     logger.log(level, color % msg, *args, **kwargs)
