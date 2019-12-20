@@ -7,7 +7,7 @@ from devito.ir.support import COLLAPSED
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
 from devito.passes import (DataManager, Ompizer, ParallelTree, optimize_halospots,
                            mpiize, hoist_prodders)
-from devito.tools import generator
+from devito.tools import generator, timed_pass
 
 __all__ = ['DeviceOffloadingOperator']
 
@@ -137,6 +137,7 @@ class OffloadingDataManager(DataManager):
 class DeviceOffloadingOperator(OperatorCore):
 
     @classmethod
+    @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
         # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
         # but it will have to change
@@ -164,6 +165,7 @@ class DeviceOffloadingOperator(OperatorCore):
         return clusters
 
     @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
 

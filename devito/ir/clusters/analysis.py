@@ -4,11 +4,12 @@ from functools import cmp_to_key
 from devito.ir.clusters.queue import Queue
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC, AFFINE,
                                WRAPPABLE, ROUNDABLE, TILABLE, Forward, Scope)
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
 
 
+@timed_pass(name='lowering.Clusters.Analysis')
 def analyze(clusters):
     state = State()
 

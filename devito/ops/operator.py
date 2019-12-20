@@ -12,7 +12,7 @@ from devito.ops.utils import namespace
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
 from devito.passes.iet import DataManager, iet_pass
 from devito.symbolics import Literal
-from devito.tools import filter_sorted, flatten, generator
+from devito.tools import filter_sorted, flatten, generator, timed_pass
 
 __all__ = ['OPSOperator']
 
@@ -26,6 +26,7 @@ class OPSOperator(Operator):
     _default_headers = Operator._default_headers + ['#define restrict __restrict']
 
     @classmethod
+    @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
         # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
         # but it will have to change
@@ -53,6 +54,7 @@ class OPSOperator(Operator):
         return clusters
 
     @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         # Create OPS kernels
         make_ops_kernels(graph)

@@ -6,7 +6,7 @@ from devito.ir.clusters import Toposort
 from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
 from devito.passes.iet import (DataManager, Blocker, Ompizer, avoid_denormals,
                                optimize_halospots, mpiize, loop_wrapping, hoist_prodders)
-from devito.tools import as_tuple, generator
+from devito.tools import as_tuple, generator, timed_pass
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperator',
            'ArmOperator', 'CustomOperator']
@@ -15,6 +15,7 @@ __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperat
 class CPU64NoopOperator(OperatorCore):
 
     @classmethod
+    @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
         """
         Optimize Clusters for better runtime performance.
@@ -42,6 +43,7 @@ class CPU64NoopOperator(OperatorCore):
         return clusters
 
     @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         # Symbol definitions
         data_manager = DataManager()
@@ -60,6 +62,7 @@ class CPU64Operator(CPU64NoopOperator):
     """
 
     @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
@@ -123,6 +126,7 @@ class CustomOperator(CPU64Operator):
         }
 
     @classmethod
+    @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         passes = as_tuple(kwargs['mode'])

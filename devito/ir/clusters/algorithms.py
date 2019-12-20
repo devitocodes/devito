@@ -8,7 +8,7 @@ from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.queue import Queue
 from devito.symbolics import CondEq
-from devito.tools import DAG, as_tuple, flatten
+from devito.tools import DAG, as_tuple, flatten, timed_pass
 
 __all__ = ['clusterize', 'guard', 'Toposort']
 
@@ -201,6 +201,10 @@ class Schedule(Queue):
           and then scheduled to different loops; this way, `x` will be a parallel
           Dimension in both Clusters.
     """
+
+    @timed_pass(name='lowering.Clusters.Schedule')
+    def process(self, clusters):
+        return self._process_fdta(clusters, 1)
 
     def callback(self, clusters, prefix, backlog=None, known_break=None):
         if not prefix:

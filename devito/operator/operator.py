@@ -275,7 +275,7 @@ class Operator(Callable):
         return [LoweredEq(i) for i in expressions]
 
     @classmethod
-    @timed_pass
+    @timed_pass(name='lowering.Expressions')
     def _lower_exprs(cls, expressions, **kwargs):
         """
         Expression lowering:
@@ -309,7 +309,6 @@ class Operator(Callable):
         return clusters
 
     @classmethod
-    @timed_pass
     def _lower_clusters(cls, expressions, profiler, **kwargs):
         """
         Clusters lowering:
@@ -334,7 +333,7 @@ class Operator(Callable):
         return stree
 
     @classmethod
-    @timed_pass
+    @timed_pass(name='lowering.ScheduleTree')
     def _lower_stree(cls, clusters, **kwargs):
         """
         Schedule tree lowering:

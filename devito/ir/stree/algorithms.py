@@ -7,12 +7,11 @@ from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
 from devito.ir.support import IterationSpace
 from devito.mpi import HaloScheme, HaloSchemeException
 from devito.parameters import configuration
-from devito.tools import flatten, timed_pass
+from devito.tools import flatten
 
 __all__ = ['stree_build']
 
 
-@timed_pass
 def stree_build(clusters):
     """
     Create a ScheduleTree from a ClusterGroup.
