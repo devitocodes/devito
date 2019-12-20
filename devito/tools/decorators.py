@@ -106,6 +106,31 @@ class timed_pass(object):
     Python threads compiling multiple Operators in parallel.
     """
 
+    def __new__(cls, *args, name=None):
+        if args:
+            # The typical use case:
+            #
+            # @timed_pass
+            # def foo(...)
+            if len(args) == 1:
+                func, = args
+            elif len(args) == 2:
+                assert name is None
+                func, name = args
+            else:
+                assert False
+            obj = object.__new__(cls)
+            obj.__init__(func, name)
+            return obj
+        else:
+            # Handle the case:
+            #
+            # @timed_pass(name='X')
+            # def foo(...)
+            def wrapper(func):
+                return timed_pass(func, name)
+            return wrapper
+
     def __init__(self, func, name=None):
         self.func = func
         self.name = name
