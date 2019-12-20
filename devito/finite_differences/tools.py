@@ -105,7 +105,7 @@ def generate_fd_shortcuts(function):
 
     from devito.finite_differences.derivative import Derivative
 
-    def deriv_function(expr, deriv_order, dims, fd_order, side=centered, **kwargs):
+    def deriv_function(expr, deriv_order, dims, fd_order, side=None, **kwargs):
         return Derivative(expr, *as_tuple(dims), deriv_order=deriv_order,
                           fd_order=fd_order, side=side, **kwargs)
 
@@ -128,14 +128,14 @@ def generate_fd_shortcuts(function):
     # Add non-conventional, non-centered first-order FDs
     for d, o in zip(dimensions, orders):
         name = 't' if d.is_Time else d.root.name
-        if function.is_Staggered:
+        if function.is_Staggered or o == 2:
             # Add centered first derivatives if staggered
             deriv = partial(deriv_function, deriv_order=1, dims=d,
                             fd_order=o, side=centered)
             name_fd = 'd%sc' % name
             desciption = 'centered derivative staggered w.r.t dimension %s' % d.name
             derivatives[name_fd] = (deriv, desciption)
-        else:
+        if not function.is_Staggered:
             # Left
             deriv = partial(deriv_function, deriv_order=1,
                             dims=d, fd_order=o, side=left)
