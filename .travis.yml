@@ -52,7 +52,7 @@ matrix:
           packages:
             - gcc-7
             - g++-7
-      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=1
+      env: DEVITO_ARCH=gcc-8 DEVITO_LOGGING=DEBUG DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-8 INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=1
     - python: 3.7
       dist: xenial
       os: linux
@@ -113,7 +113,7 @@ before_script:
 script:
   - flake8 --builtins=ArgumentError .
   # Run test with py.tests
-  - py.test --durations=20 --maxfail=5 -r f -vv devito tests/
+  - py.test --durations=20 --maxfail=5 -r f -vv -s devito tests/
   # Run remaining specialized examples and tests
   # Additional seismic operator tests
   - if [[ $RUN_EXAMPLES == 'True' ]]; then python benchmarks/user/benchmark.py test -P tti -so 4 -d 20 20 20 -n 5; fi

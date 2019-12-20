@@ -407,7 +407,6 @@ class TestSubDimension(object):
         assert np.all(u.data[0, thickness:] == 0)
         assert np.all(u.data[0, :, thickness+12:] == 0)
 
-    @skipif('yask')
     def test_subdim_fd(self):
         """
         Test that the FD shortcuts are handled correctly with SubDimensions
