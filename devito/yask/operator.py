@@ -176,6 +176,9 @@ class YASKOperator(Operator):
         options = kwargs['options']
         yk_solns = kwargs['yk_solns']
 
+        # Flush denormal numbers
+        avoid_denormals(graph)
+
         # Create YASK kernels
         make_yask_kernels(graph, yk_solns=yk_solns)
 
@@ -184,7 +187,6 @@ class YASKOperator(Operator):
             YASKOmpizer().make_parallel(graph)
 
         # Misc optimizations
-        avoid_denormals(graph)
         loop_wrapping(graph)
 
         # Symbol definitions

@@ -36,6 +36,9 @@ class CPU64Operator(CPU64NoopOperator):
         options = kwargs['options']
         platform = kwargs['platform']
 
+        # Flush denormal numbers
+        avoid_denormals(graph)
+
         # Distributed-memory parallelism
         optimize_halospots(graph)
         if options['mpi']:
@@ -53,7 +56,6 @@ class CPU64Operator(CPU64NoopOperator):
             ompizer.make_parallel(graph)
 
         # Misc optimizations
-        avoid_denormals(graph)
         minimize_remainders(graph, simd_items_per_reg=platform.simd_items_per_reg)
         hoist_prodders(graph)
 
