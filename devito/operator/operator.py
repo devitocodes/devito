@@ -676,11 +676,19 @@ class Operator(Callable):
         perf("Operator `%s` generated in %.2f s" % (self.name, fround(tot)))
 
         max_hotspots = 3
-        for i in sorted(timings, key=timings.get, reverse=True)[:max_hotspots]:
-            v = fround(timings[i])
-            perc = fround(v/tot*100, n=10)
-            if perc > 20.:
-                perf("- [Hotspot] %s: %.2f s (%.1f %%)" % (i.lstrip('_'), v, perc))
+        threshold = 20.
+
+        def pprint(timings, indent=''):
+            timings.pop('total', None)
+            entries = sorted(timings, key=lambda i: timings[i]['total'], reverse=True)
+            for i in entries[:max_hotspots]:
+                v = fround(timings[i]['total'])
+                perc = fround(v/tot*100, n=10)
+                if perc > threshold:
+                    perf("%s%s: %.2f s (%.1f %%)" % (indent, i.lstrip('_'), v, perc))
+                    pprint(timings[i], ' '*len(indent) + ' * ')
+
+        pprint(timings, '  * ')
 
         if self._profiler._ops:
             ops = ['%d --> %d' % i for i in self._profiler._ops]
