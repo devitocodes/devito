@@ -125,11 +125,13 @@ def get_platform():
         p2 = Popen(['grep', 'march'], stdin=p1.stdout, stdout=PIPE)
         p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
         output, _ = p2.communicate()
+        print(output)
         platform = output.decode("utf-8").split()[1]
         # Full list of possible `platform` values at this point at:
         # https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
         platform = {'sandybridge': 'snb', 'ivybridge': 'ivb', 'haswell': 'hsw',
                     'broadwell': 'bdw', 'skylake': 'skx', 'knl': 'knl'}[platform]
+        print(platform)
         return platform_registry[platform]
     except:
         pass
@@ -137,6 +139,7 @@ def get_platform():
     # No luck so far; try instead from the brand name
     try:
         cpu_info = get_cpu_info()
+        print("CPU_INFO=", cpu_info)
         platform = cpu_info['brand'].split()[4]
         platform = {'v2': 'ivb', 'v3': 'hsw', 'v4': 'bdw', 'v5': 'skx'}[platform]
         return platform_registry[platform]
