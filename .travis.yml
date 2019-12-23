@@ -113,6 +113,9 @@ before_script:
 script:
   - flake8 --builtins=ArgumentError .
   # Run test with py.tests
+  - lscpu
+  - cat /proc/cpuinfo
+  - gcc -march=native -Q --help=target
   - py.test --durations=20 --maxfail=5 -r f -vv -s devito tests/
   # Run remaining specialized examples and tests
   # Additional seismic operator tests
