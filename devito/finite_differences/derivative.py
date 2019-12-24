@@ -7,7 +7,7 @@ from devito.finite_differences.finite_difference import (generic_derivative,
                                                          first_derivative,
                                                          cross_derivative)
 from devito.finite_differences.differentiable import Differentiable
-from devito.finite_differences.tools import centered, direct, transpose, left, right
+from devito.finite_differences.tools import direct, transpose
 from devito.tools import as_tuple, filter_ordered
 
 __all__ = ['Derivative']
@@ -135,7 +135,7 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._dims = tuple(OrderedDict.fromkeys(new_dims))
         obj._fd_order = fd_orders
         obj._deriv_order = orders
-        obj._side = kwargs.get("side", None)
+        obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
         obj._subs = as_tuple(kwargs.get("subs"))
         obj._x0 = kwargs.get('x0', None)
@@ -222,7 +222,7 @@ class Derivative(sympy.Derivative, Differentiable):
 
     def _eval_fd(self, expr):
         expr = getattr(expr, 'evaluate', expr)
-        if self.side in [left, right, centered] and self.deriv_order == 1:
+        if self.side is not None and self.deriv_order == 1:
             res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side, matvec=self.transpose,
                                    x0=self.x0)
