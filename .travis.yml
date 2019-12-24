@@ -50,9 +50,9 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
           packages:
-            - gcc-8
-            - g++-8
-      env: DEVITO_ARCH=gcc-8 DEVITO_PLATFORM=hsw DEVITO_LOGGING=DEBUG DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-8 INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=1
+            - gcc-9
+            - g++-9
+      env: DEVITO_ARCH=gcc-9 DEVITO_LOGGING=DEBUG DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-9 INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=1
     - python: 3.7
       dist: xenial
       os: linux
