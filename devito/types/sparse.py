@@ -94,6 +94,19 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         """
         raise NotImplementedError
 
+    
+    def interpolate(self, *args, **kwargs):
+        """
+        Implement an interpolation operation from the grid onto the given sparse points
+        """
+        return Interpolation(self.interpolator, *args, **kwargs)
+
+    def inject(self, *args, **kwargs):
+        """
+        Implement an injection operation from a sparse point onto the grid
+        """
+        return Injection(self.interpolator, *args, **kwargs)
+
     @property
     def _support(self):
         """
@@ -577,12 +590,6 @@ class SparseFunction(AbstractSparseFunction):
             ret.append(tuple(int(sympy.floor((c - o.data)/i.spacing.data)) for c, o, i in
                              zip(coords, self.grid.origin, self.grid.dimensions)))
         return ret
-
-    def interpolate(self, *args, **kwargs):
-        return Interpolation(self.interpolator, *args, **kwargs)
-
-    def inject(self, *args, **kwargs):
-        return Injection(self.interpolator, *args, **kwargs)
 
     def guard(self, expr=None, offset=0):
         """
