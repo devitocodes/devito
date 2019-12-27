@@ -10,7 +10,7 @@ from devito.ir.support import (IterationSpace, DataSpace, Scope, detect_io,
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten
 
-__all__ = ["Cluster", "ClusterGroup"]
+__all__ = ["Cluster", "ClusterCompound", "ClusterGroup"]
 
 
 class Cluster(object):
@@ -217,6 +217,22 @@ class Cluster(object):
             else:
                 ret[(i, mode)] = self.ispace.intervals
         return ret
+
+
+class ClusterCompound(object):
+
+    """
+    A Cluster whose IterationSpace is made up of multiple logical regions.
+    """
+
+    def __init__(self, cluster, regions):
+        self.cluster = cluster
+        self.regions = regions
+
+    def __repr__(self):
+        nargs = len(self.regions)
+        exprs = ['%s' % i for i in self.exprs]
+        return "ClusterCompound<%d>([%s])" % (nargs, ('\n' + ' '*9).join(exprs))
 
 
 class ClusterGroup(tuple):
