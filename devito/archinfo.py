@@ -17,6 +17,8 @@ __all__ = ['platform_registry',
 
 @memoized_func
 def get_cpu_info():
+    """Attempt CPU info autodetection."""
+
     # Obtain textual cpu info
     try:
         with open('/proc/cpuinfo', 'r') as f:
@@ -28,15 +30,39 @@ def get_cpu_info():
 
     # Extract CPU flags and branch
     if lines:
-        try:
-            get = lambda k: [i for i in lines if i.startswith(k)][0].split(':')[1].strip()
-            cpu_info['flags'] = get('flags').split()
-            cpu_info['brand'] = get('model name')
-        except IndexError:
-            # The /proc/cpuinfo format doesn't follow a standard, and on some
-            # more or less exotic combinations of OS and platform it might not
-            # be what we expect, hence ending up here
-            pass
+
+        # The /proc/cpuinfo format doesn't follow a standard, and on some
+        # more or less exotic combinations of OS and platform it might not
+        # contain the information we look for, hence the proliferation of
+        # try-except below
+
+        def get_cpu_flags():
+            try:
+                flags = [i for i in lines if i.startswith('flags')][0]
+                return flags.split(':')[1].strip().split()
+            except:
+                return None
+
+        def get_cpu_brand():
+            try:
+                # Xeons and i3/i5/... CPUs on Linux
+                model_name = [i for i in lines if i.startswith('model name')][0]
+                return model_name.split(':')[1].strip()
+            except:
+                pass
+
+            try:
+                # Power CPUs on Linux
+                cpu = [i for i in lines if i.split(':')[0].strip() == 'cpu'][0]
+                return cpu.split(':')[1].strip()
+            except:
+                pass
+
+            return None
+
+        cpu_info['flags'] = get_cpu_flags()
+        cpu_info['brand'] = get_cpu_brand()
+
     if not all(i in cpu_info for i in ('flags', 'brand')):
         # Fallback
         ci = cpuinfo.get_cpu_info()
@@ -115,35 +141,41 @@ def lscpu():
 def get_platform():
     """Attempt Platform autodetection."""
 
-    # TODO: cannot autodetect the following platforms yet:
-    # ['arm', 'power8', 'power9']
-
-    try:
-        # First, try leveraging `gcc`
-        p1 = Popen(['gcc', '-march=native', '-Q', '--help=target'],
-                   stdout=PIPE, stderr=PIPE)
-        p2 = Popen(['grep', 'march'], stdin=p1.stdout, stdout=PIPE)
-        p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
-        output, _ = p2.communicate()
-        platform = output.decode("utf-8").split()[1]
-        # Full list of possible `platform` values at this point at:
-        # https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
-        platform = {'sandybridge': 'snb', 'ivybridge': 'ivb', 'haswell': 'hsw',
-                    'broadwell': 'bdw', 'skylake': 'skx', 'knl': 'knl'}[platform]
-        return platform_registry[platform]
-    except:
-        pass
-
-    # No luck so far; try instead from the brand name
     try:
         cpu_info = get_cpu_info()
-        platform = cpu_info['brand'].split()[4]
-        platform = {'v2': 'ivb', 'v3': 'hsw', 'v4': 'bdw', 'v5': 'skx'}[platform]
-        return platform_registry[platform]
+        brand = cpu_info['brand'].lower()
+        if 'xeon' in brand:
+            try:
+                # Is it a Xeon?
+                mapper = {
+                    'v2': 'ivb',
+                    'v3': 'hsw',
+                    'v4': 'bdw',
+                    'v5': 'skx',
+                    'v6': 'klx',
+                    'v7': 'clx'
+                }
+                return platform_registry[mapper[brand.split()[4]]]
+            except:
+                pass
+            if 'phi' in brand:
+                # Intel Xeon Phi?
+                return platform_registry['knl']
+            # Unknown Xeon ? May happen on some virtualizes systems...
+            return platform_registry['intel64']
+        elif 'intel' in brand:
+            # Most likely a desktop i3/i5/i7
+            return platform_registry['intel64']
+        elif 'power8' in brand:
+            return platform_registry['power8']
+        elif 'power9' in brand:
+            return platform_registry['power8']
+        elif 'arm' in brand:
+            return platform_registry['arm']
     except:
         pass
 
-    # Stick to default
+    # Unable to detect platform. Stick to default...
     return CPU64
 
 
@@ -234,6 +266,8 @@ IVB = Intel64('ivb')
 HSW = Intel64('hsw')
 BDW = Intel64('bdw')
 SKX = Intel64('skx')
+KLX = Intel64('klx')
+CLX = Intel64('clx')
 KNL = Intel64('knl')
 KNL7210 = Intel64('knl', cores_logical=256, cores_physical=64, isa='avx512')
 ARM = Arm('arm')
@@ -247,11 +281,13 @@ NVIDIAX = Device('nvidiax')
 platform_registry = {
     'cpu64-dummy': CPU64_DUMMY,
     'intel64': INTEL64,
-    'snb': SNB,
-    'ivb': IVB,
-    'hsw': HSW,
-    'bdw': BDW,
-    'skx': SKX,
+    'snb': SNB,  # Sandy Bridge
+    'ivb': IVB,  # Ivy Bridge
+    'hsw': HSW,  # Haswell
+    'bdw': BDW,  # Broadwell
+    'skx': SKX,  # Skylake
+    'klx': KLX,  # Kaby Lake
+    'clx': CLX,  # Coffee Lake
     'knl': KNL,
     'knl7210': KNL7210,
     'arm': ARM,
