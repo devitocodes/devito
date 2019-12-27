@@ -3,9 +3,10 @@ from functools import partial
 from devito.core.operator import OperatorCore
 from devito.exceptions import InvalidOperator
 from devito.ir.clusters import Toposort
-from devito.passes.clusters import Lift, fuse, scalarize, eliminate_arrays, rewrite
-from devito.passes.iet import (DataManager, Blocker, Ompizer, avoid_denormals,
-                               optimize_halospots, mpiize, loop_wrapping, hoist_prodders)
+from devito.passes.clusters import (Blocking, Lift, fuse, scalarize, eliminate_arrays,
+                                    rewrite)
+from devito.passes.iet import (DataManager, Ompizer, avoid_denormals, optimize_halospots,
+                               mpiize, loop_wrapping, hoist_prodders)
 from devito.tools import as_tuple, generator, timed_pass
 
 __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperator',
@@ -14,12 +15,20 @@ __all__ = ['CPU64NoopOperator', 'CPU64Operator', 'Intel64Operator', 'PowerOperat
 
 class CPU64NoopOperator(OperatorCore):
 
+    BLOCK_LEVELS = 1
+    """
+    Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
+    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
+    """
+
     @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
         """
         Optimize Clusters for better runtime performance.
         """
+        options = kwargs['options']
+
         # To create temporaries
         counter = generator()
         template = lambda: "r%d" % counter()
@@ -27,6 +36,11 @@ class CPU64NoopOperator(OperatorCore):
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = Toposort().process(clusters)
         clusters = fuse(clusters)
+
+        # Blocking
+        inner = options['blockinner']
+        levels = options['blocklevels'] or cls.BLOCK_LEVELS
+        clusters = Blocking(inner, levels).process(clusters)
 
         # Flop reduction via the DSE
         clusters = rewrite(clusters, template, **kwargs)
@@ -55,12 +69,6 @@ class CPU64NoopOperator(OperatorCore):
 
 class CPU64Operator(CPU64NoopOperator):
 
-    BLOCK_LEVELS = 1
-    """
-    Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
-    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
-    """
-
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
@@ -74,11 +82,6 @@ class CPU64Operator(CPU64NoopOperator):
         optimize_halospots(graph)
         if options['mpi']:
             mpiize(graph, mode=options['mpi'])
-
-        # Tiling
-        blocker = Blocker(options['blockinner'],
-                          options['blocklevels'] or cls.BLOCK_LEVELS)
-        blocker.make_blocking(graph)
 
         # Shared-memory and SIMD-level parallelism
         ompizer = Ompizer()
@@ -109,16 +112,12 @@ class CustomOperator(CPU64Operator):
         options = kwargs['options']
         platform = kwargs['platform']
 
-        blocker = Blocker(options['blockinner'],
-                          options['blocklevels'] or cls.BLOCK_LEVELS)
-
         ompizer = Ompizer()
 
         return {
             'denormals': partial(avoid_denormals),
             'optcomms': partial(optimize_halospots),
             'wrapping': partial(loop_wrapping),
-            'blocking': partial(blocker.make_blocking),
             'openmp': partial(ompizer.make_parallel),
             'mpi': partial(mpiize, mode=options['mpi']),
             'simd': partial(ompizer.make_simd, simd_reg_size=platform.simd_reg_size),
