@@ -1,7 +1,7 @@
 # Devito: Fast Finite Difference Computation from Symbolic Specification
 
-![Build Status](https://travis-ci.org/opesci/devito.svg?branch=master)
-![Code Coverage](https://codecov.io/gh/opesci/devito/branch/master/graph/badge.svg)
+![Build Status](https://travis-ci.org/devitocodes/devito.svg?branch=master)
+![Code Coverage](https://codecov.io/gh/devitocodes/devito/branch/master/graph/badge.svg)
 
 [Devito](http://www.devitoproject.org) is a software to
 implement optimised finite difference (FD) computation from
@@ -14,7 +14,7 @@ compilation to execute FD kernels on multiple computer platforms.
 
 If you're using Devito, we would like to hear from you. Whether you
 are facing issues or just trying it out, join the
-[conversation](https://opesci-slackin.now.sh).
+[conversation](https://devito-slackin.now.sh).
 
 ## Quickstart
 
@@ -28,7 +28,7 @@ To install Devito, including examples, tests and tutorial notebooks,
 follow these simple passes:
 
 ```sh
-git clone https://github.com/opesci/devito.git
+git clone https://github.com/devitocodes/devito.git
 cd devito
 conda env create -f environment.yml
 source activate devito
@@ -40,7 +40,7 @@ Alternatively, you can also install and run Devito via
 
 ```sh
 # get the code
-git clone https://github.com/opesci/devito.git
+git clone https://github.com/devitocodes/devito.git
 cd devito
 
 # run the tests
