@@ -47,11 +47,22 @@ class Injection(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
+    def __init__(self, interpolator, field, expr, *args, **kwargs):
+        self.interpolator = interpolator
+        self.field = field
+        self.expr = expr
+        self._args = args
+        self._kwargs = kwargs
+
     @property
     def evaluate(self):
-        return_value = self.interpolator.inject(*self._args, **self._kwargs)
+        return_value = self.interpolator.inject(self.field, self.expr, *self._args,
+                                                **self._kwargs)
         assert(all(isinstance(i, Eq) for i in return_value))
         return return_value
+
+    def __repr__(self):
+        return "Injection(%s on %s)" % (repr(self.expr), repr(self.field))
 
 
 class Interpolation(UnevaluatedSparseOperation):
@@ -61,11 +72,21 @@ class Interpolation(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
+    def __init__(self, interpolator, expr, *args, **kwargs):
+        self.interpolator = interpolator
+        self.expr = expr
+        self._args = args
+        self._kwargs = kwargs
+
     @property
     def evaluate(self):
-        return_value = self.interpolator.interpolate(*self._args, **self._kwargs)
+        return_value = self.interpolator.interpolate(self.expr, *self._args,
+                                                     **self._kwargs)
         assert(all(isinstance(i, Eq) for i in return_value))
         return return_value
+
+    def __repr__(self):
+        return "Interpolation(%s)" % repr(self.expr)
 
 
 class GenericInterpolator(ABC):

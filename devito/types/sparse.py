@@ -94,7 +94,6 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         """
         raise NotImplementedError
 
-    
     def interpolate(self, *args, **kwargs):
         """
         Implement an interpolation operation from the grid onto the given sparse points
