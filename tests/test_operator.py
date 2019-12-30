@@ -597,7 +597,7 @@ class TestArguments(object):
         f = TimeFunction(name='f', grid=grid, time_order=0)
 
         # Suppress DLE to work around a know bug with GCC and OpenMP:
-        # https://github.com/opesci/devito/issues/320
+        # https://github.com/devitocodes/devito/issues/320
         op = Operator(Eq(f, 1.), dle=None)
         # TODO: Currently we require the `time` subrange to be set
         # explicitly. Ideally `t` would directly alias with `time`,
@@ -658,7 +658,7 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         a = TimeFunction(name='a', grid=grid, save=2)
         # Suppress DLE to work around a know bug with GCC and OpenMP:
-        # https://github.com/opesci/devito/issues/320
+        # https://github.com/devitocodes/devito/issues/320
         op = Operator(Eq(a, a + 3), dle=None)
 
         # Run with default value

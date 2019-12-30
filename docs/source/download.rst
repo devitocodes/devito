@@ -16,7 +16,7 @@ examples, tests and tutorial notebooks, simply run the following commands:
 
 .. code-block:: shell
 
-   git clone https://github.com/opesci/devito.git
+   git clone https://github.com/devitocodes/devito.git
    cd devito
    conda env create -f environment.yml
    source activate devito
@@ -29,7 +29,7 @@ Alternatively, you can also install and run Devito via Docker_:
 .. code-block:: shell
 
    # get the code
-   git clone https://github.com/opesci/devito.git
+   git clone https://github.com/devitocodes/devito.git
    cd devito
 
    # run the tests
@@ -46,9 +46,9 @@ also be installed directly from GitHub via pip:
 
 .. code-block:: shell
 
-   pip install --user git+https://github.com/opesci/devito.git
+   pip install --user git+https://github.com/devitocodes/devito.git
    
 A link to the installation page of devito, where you can find instructions or solutions to possible issues can be found here_.
 
-.. _here: https://github.com/opesci/devito/wiki/Installation-Issues  
+.. _here: https://github.com/devitocodes/devito/wiki/Installation-Issues  
 
