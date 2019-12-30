@@ -11,14 +11,14 @@ from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
 from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect, make_is_time_invariant
 from devito.symbolics import yreplace, estimate_cost, pow_to_mul
-from devito.tools import generator, memoized_meth
+from devito.tools import generator
 from devito.types import Scalar
 
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
-pytestmark = skipif(['yask', 'ops'])
+pytestmark = skipif(['yask', 'ops'], whole_module=True)
 
 
 def test_scheduling_after_rewrite():
@@ -679,11 +679,12 @@ def test_custom_rewriter():
 # TTI
 class TestTTI(object):
 
-    @memoized_meth
-    def model(self, space_order=4):
-        # Two layer model for true velocity
-        return demo_model('layers-tti', ratio=3, nbl=1, space_order=space_order,
-                          shape=(50, 50, 50), spacing=(20., 20., 20.))
+    _model = demo_model('layers-tti', ratio=3, nbl=10, space_order=4,
+                        shape=(50, 50, 50), spacing=(20., 20., 20.))
+
+    @cached_property
+    def model(self):
+        return self._model
 
     @cached_property
     def geometry(self):
@@ -691,23 +692,21 @@ class TestTTI(object):
         t0 = 0.0
         tn = 250.
 
-        model = self.model()
         # Source and receiver geometries
-        src_coordinates = np.empty((1, len(model.spacing)))
-        src_coordinates[0, :] = np.array(model.domain_size) * .5
-        src_coordinates[0, -1] = model.origin[-1] + 2 * model.spacing[-1]
+        src_coordinates = np.empty((1, len(self.model.spacing)))
+        src_coordinates[0, :] = np.array(self.model.domain_size) * .5
+        src_coordinates[0, -1] = self.model.origin[-1] + 2 * self.model.spacing[-1]
 
-        rec_coordinates = np.empty((nrec, len(model.spacing)))
-        rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+        rec_coordinates = np.empty((nrec, len(self.model.spacing)))
+        rec_coordinates[:, 0] = np.linspace(0., self.model.domain_size[0], num=nrec)
         rec_coordinates[:, 1:] = src_coordinates[0, 1:]
 
-        geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+        geometry = AcquisitionGeometry(self.model, rec_coordinates, src_coordinates,
                                        t0=t0, tn=tn, src_type='Gabor', f0=0.010)
         return geometry
 
-    def tti_operator(self, dse=False, dle='advanced', space_order=4):
-        model = self.model(space_order=space_order)
-        return AnisotropicWaveSolver(model, self.geometry,
+    def tti_operator(self, dse=False, space_order=4):
+        return AnisotropicWaveSolver(self.model, self.geometry,
                                      space_order=space_order, dse=dse)
 
     @cached_property
@@ -732,7 +731,7 @@ class TestTTI(object):
 
     def test_tti_rewrite_aggressive(self):
         operator = self.tti_operator(dse='aggressive')
-        rec, u, v, _ = operator.forward(kernel='centered', save=False)
+        rec, u, v, _ = operator.forward(kernel='centered')
 
         assert np.allclose(self.tti_nodse[0].data, v.data, atol=10e-1)
         assert np.allclose(self.tti_nodse[1].data, rec.data, atol=10e-1)
@@ -741,7 +740,7 @@ class TestTTI(object):
         # There should be exactly two BlockDimensions; bugs in the past were generating
         # either code with no blocking (zero BlockDimensions) or code with four
         # BlockDimensions (i.e., Iteration folding was somewhat broken)
-        op = operator.op_fwd(kernel='centered', save=False)
+        op = operator.op_fwd(kernel='centered')
         block_dims = [i for i in op.dimensions if isinstance(i, BlockDimension)]
         assert len(block_dims) == 2
 
@@ -762,9 +761,9 @@ class TestTTI(object):
     @pytest.mark.parallel(mode=[(1, 'full')])
     def test_tti_rewrite_aggressive_wmpi(self):
         tti_nodse = self.tti_operator(dse=None)
-        rec0, u0, v0, _ = tti_nodse.forward(kernel='centered', save=False)
+        rec0, u0, v0, _ = tti_nodse.forward(kernel='centered')
         tti_agg = self.tti_operator(dse='aggressive')
-        rec1, u1, v1, _ = tti_agg.forward(kernel='centered', save=False)
+        rec1, u1, v1, _ = tti_agg.forward(kernel='centered')
 
         assert np.allclose(v0.data, v1.data, atol=10e-1)
         assert np.allclose(rec0.data, rec1.data, atol=10e-1)
@@ -774,9 +773,9 @@ class TestTTI(object):
         (8, 174), (16, 306)
     ])
     def test_tti_rewrite_aggressive_opcounts(self, space_order, expected):
-        operator = self.tti_operator(self, dse='aggressive', space_order=space_order)
-        _, _, _, summary = operator.forward(kernel='centered', save=False, time_M=0)
-        assert summary[('section1', None)].ops == expected
+        op = self.tti_operator(dse='aggressive', space_order=space_order)
+        sections = list(op.op_fwd(kernel='centered')._profiler._sections.values())
+        assert sections[1].sops == expected
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
@@ -823,7 +822,3 @@ class TestTTI(object):
         assert len(sections) == 2
         assert sections[0].sops == 4
         assert sections[1].sops == expected
-
-
-if __name__ == "__main__":
-    TestTTI().test_tti_v2_rewrite_aggressive_opcounts(4, 194)
