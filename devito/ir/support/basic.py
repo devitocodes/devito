@@ -256,6 +256,21 @@ class TimedAccess(IterationInstance):
     def is_local(self):
         return self.function.is_Symbol
 
+    @cached_property
+    def is_regular(self):
+        if not super(TimedAccess, self).is_regular:
+            return False
+
+        # The order of the `aindices` must match the order of the iteration
+        # space Dimensions
+        positions = []
+        for d in self.aindices:
+            for n, i in enumerate(self.intervals):
+                if i.dim._defines & d._defines:
+                    positions.append(n)
+                    break
+        return positions == sorted(positions)
+
     def __lt__(self, other):
         if not isinstance(other, TimedAccess):
             raise TypeError("Cannot compare with object of type %s" % type(other))
@@ -302,7 +317,7 @@ class TimedAccess(IterationInstance):
         # Compute distance up to `limit`, ignoring `directions` for the moment
         if findex is None:
             findex = self.findices[-1]
-            limit = self.rank + 1
+            limit = self.rank
         else:
             try:
                 limit = self._cached_findices_index[findex] + 1
@@ -313,8 +328,9 @@ class TimedAccess(IterationInstance):
         # * If mismatching `directions`, set the distance to infinity
         # * If direction is Backward, flip the sign
         ret = []
-        for i, d0, d1 in zip(distance, self.directions, other.directions):
-            if d0 is d1:
+        for i, i0, d0, i1, d1 in zip(distance, self.intervals, self.directions,
+                                     other.intervals, other.directions):
+            if d0 is d1 and i0 == i1:
                 ret.append(-i if d0 is Backward else i)
             else:
                 ret.append(S.Infinity)
