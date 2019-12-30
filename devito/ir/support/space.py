@@ -359,26 +359,6 @@ class IntervalGroup(PartialOrderTuple):
     def reset(self):
         return IntervalGroup([i.reset() for i in self], relations=self.relations)
 
-    def decompose(self, d, dims):
-        intervals = []
-        for i in self:
-            if i.dim is d:
-                intervals.extend([i.switch(dd) for dd in dims])
-            else:
-                intervals.append(i)
-
-        relations = [dims]
-        for r in self.relations:
-            relation = []
-            for i in r:
-                if i is d:
-                    relation.extend(dims)
-                else:
-                    relation.append(i)
-            relations.append(relation)
-
-        return IntervalGroup(intervals, relations=relations)
-
     def __getitem__(self, key):
         if isinstance(key, slice) or is_integer(key):
             return super(IntervalGroup, self).__getitem__(key)
@@ -685,22 +665,6 @@ class IterationSpace(Space):
         directions = {k: v for k, v in self.directions.items() if func(k)}
 
         return IterationSpace(intervals, sub_iterators, directions)
-
-    def decompose(self, d, dims):
-        """
-        Create a new IterationSpace in which the Interval over ``dim`` is decomposed
-        into a number of Intervals over ``dims``.
-        """
-        if d not in self.intervals:
-            raise ValueError("`d` must be in `intervals`")
-
-        intervals = self.intervals.decompose(d, dims)
-
-        directions = dict(self.directions)
-        directions.pop(d)
-        directions.update({dd: self.directions[d] for dd in dims})
-
-        return IterationSpace(intervals, self.sub_iterators, directions)
 
     def is_compatible(self, other):
         """
