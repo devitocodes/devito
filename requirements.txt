@@ -1,5 +1,6 @@
 pip>=9.0.1
 numpy>=1.14
+coverage<5.0
 sympy>=1.4
 scipy
 pytest>=3.6
