@@ -14,7 +14,7 @@ compilation to execute FD kernels on multiple computer platforms.
 
 If you're using Devito, we would like to hear from you. Whether you
 are facing issues or just trying it out, join the
-[conversation](https://devito-slackin.now.sh).
+[conversation](https://opesci-slackin.now.sh).
 
 ## Quickstart
 
