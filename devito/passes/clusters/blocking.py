@@ -4,7 +4,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.ir.clusters import Cluster, ClusterCompound, Queue
-from devito.ir.support import TILABLE
+from devito.ir.support import TILABLE, IntervalGroup, IterationSpace
 from devito.types import IncrDimension, Scalar
 
 __all__ = ['Blocking', 'BlockDimension']
@@ -47,26 +47,58 @@ class Blocking(Queue):
 
         name = self.template % (d.name, self.nblocked[d], '%d')
 
-        # Create the BlockDimensions
+        # Create the BlockDimensions (in total `self.levels` Dimensions)
         bd = d
-        dims = []
+        block_dims = []
         for i in range(self.levels):
             bd = BlockDimension(bd, name=name % i)
-            dims.append(bd)
-        dims.append(BlockDimension(bd, name=d.name, step=1))
+            block_dims.append(bd)
+        block_dims.append(BlockDimension(bd, name=d.name, step=1))
 
-        # Create a new IterationSpace using the BlockDimensions
-        ispace = cluster.ispace.decompose(d, dims)
-
-        # Update the Cluster properties
+        # The new Cluster properties
         properties = dict(cluster.properties)
-        for i in dims:
-            properties[i] = properties[d] - {TILABLE}
         properties.pop(d)
+        properties.update({bd: cluster.properties[d] - {TILABLE} for bd in block_dims})
+
+        # Exploit the newly created BlockDimensions in the new IterationSpace
+        ispace = decompose(cluster.ispace, d, block_dims)
 
         #TODO: DataSpace ??
 
         return cluster.rebuild(ispace=ispace, properties=properties)
+
+
+def decompose(ispace, d, block_dims):
+    """
+    Create a new IterationSpace in which the `d` Interval is decomposed
+    into a hierarchy of Intervals over ``block_dims``.
+    """
+    # Create the new Intervals
+    intervals = []
+    for i in ispace.intervals:
+        if i.dim is d:
+            intervals.extend([i.switch(bd) for bd in block_dims])
+        else:
+            intervals.append(i)
+
+    # Create the new "decomposed" relations.
+    # Example: consider the relation `(t, x, y)` and assume we decompose `x` over
+    # `xbb, xb, xi`; then we decompose the relation as two relations, `(t, xbb, y)`
+    # and `(xbb, xb, xi)`
+    relations = [block_dims]
+    for r in ispace.intervals.relations:
+        relations.append([block_dims[0] if i is d else i for i in r])
+
+    # Finally, the IntervalGroup
+    intervals = IntervalGroup(intervals, relations=relations)
+
+    # Update directions
+    directions = dict(ispace.directions)
+    directions.pop(d)
+    directions.update({bd: ispace.directions[d] for bd in block_dims})
+
+    return IterationSpace(intervals, ispace.sub_iterators, directions)
+
 
 
 class BlockDimension(IncrDimension):
