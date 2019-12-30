@@ -69,7 +69,7 @@ class Cluster(object):
         properties = {}
         for c in clusters:
             for d, v in c.properties.items():
-                properties[d] = normalize_properties(properties.get(d, v) | v)
+                properties[d] = normalize_properties(properties.get(d, v), v)
 
         return Cluster(exprs, ispace, dspace, guards, properties)
 
