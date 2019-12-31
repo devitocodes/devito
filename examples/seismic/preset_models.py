@@ -203,13 +203,16 @@ def demo_model(preset, **kwargs):
         phi = None
         if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:
             phi = .25*(v - 1.5)
+
         model = Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                       dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
                       delta=delta, theta=theta, phi=phi, **kwargs)
-        if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:
-            model.smooth(('epsilon', 'delta', 'theta', 'phi'))
-        else:
-            model.smooth(('epsilon', 'delta', 'theta'))
+
+        if kwargs.get('smooth', True):
+            if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:
+                model.smooth(('epsilon', 'delta', 'theta', 'phi'))
+            else:
+                model.smooth(('epsilon', 'delta', 'theta'))
 
         return model
 

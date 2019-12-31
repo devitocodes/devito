@@ -679,8 +679,12 @@ def test_custom_rewriter():
 # TTI
 class TestTTI(object):
 
-    _model = demo_model('layers-tti', ratio=3, nbl=10, space_order=4,
-                        shape=(50, 50, 50), spacing=(20., 20., 20.))
+    # TTI layered model for the tti test, no need for a smooth interace bewtween
+    # the two layer as the dse/compiler is tested not the physical prettiness
+    # of the result, saves testing time
+    _model = demo_model('layers-tti', nlayers=3, nbl=10, space_order=4,
+                        shape=(50, 50, 50), spacing=(20., 20., 20.),
+                        smooth=False)
 
     @cached_property
     def model(self):
