@@ -7,7 +7,7 @@ import pytest
 
 from conftest import EVAL, skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
-                    Eq, Operator, solve, switchconfig)
+                    Eq, Operator, switchconfig)
 from devito.dle import BlockDimension, NThreads, NThreadsNonaffine, transform
 from devito.dle.parallelizer import ParallelRegion
 from devito.exceptions import InvalidArgument
@@ -78,26 +78,19 @@ def _new_operator3(shape, blockshape0=None, blockshape1=None, dle=None):
     blockshape0 = as_tuple(blockshape0)
     blockshape1 = as_tuple(blockshape1)
 
-    grid = Grid(shape=shape, dtype=np.float64)
-    spacing = 0.1
-    a = 0.5
-    c = 0.5
-    dx2, dy2 = spacing**2, spacing**2
-    dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
+    grid = Grid(shape=shape, extent=shape, dtype=np.float64)
 
     # Allocate the grid and set initial condition
     # Note: This should be made simpler through the use of defaults
     u = TimeFunction(name='u', grid=grid, time_order=1, space_order=(2, 2, 2))
-    u.data[0, :] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
+    u.data[0, :] = np.linspace(-1, 1, reduce(mul, shape)).reshape(shape)
 
     # Derive the stencil according to devito conventions
-    eqn = Eq(u.dt, a * (u.dx2 + u.dy2) - c * (u.dxl + u.dyl))
-    stencil = solve(eqn, u.forward)
-    op = Operator(Eq(u.forward, stencil), dle=dle)
+    op = Operator(Eq(u.forward, 0.5 * u.laplace + u), dle=dle)
 
     blocksizes0 = get_blocksizes(op, dle, grid, blockshape0, 0)
     blocksizes1 = get_blocksizes(op, dle, grid, blockshape1, 1)
-    op.apply(u=u, t=10, dt=dt, **blocksizes0, **blocksizes1)
+    op.apply(u=u, t=10, **blocksizes0, **blocksizes1)
 
     return u.data[1, :], op
 

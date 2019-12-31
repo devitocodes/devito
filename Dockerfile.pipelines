@@ -124,7 +124,7 @@ RUN if [ $installWithPip == "true" ] ; then \
       pip install pytest-xdist ; \
       if [ $DEVITO_BACKEND == "yask" ] ; then \
         conda install swig ; \ 
-        git clone https://github.com/opesci/yask.git /tmp/yask ; \
+        git clone https://github.com/devitocodes/yask.git /tmp/yask ; \
         pushd /tmp/yask ; \ 
           make compiler-api ; \
           pip install -e . ; \
