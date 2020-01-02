@@ -5,7 +5,7 @@ We always welcome third-party contributions. And we would love you to become an 
 ### Reporting issues
 
 There are several options:
-* Talk to us. You can join our Slack team via this [link](https://devito-slackin.now.sh/). Should you have installation issues, or should you bump into something that appears to be a Devito-related bug, do not hesitate to get in touch. We are always keen to help out.
+* Talk to us. You can join our Slack team via this [link](https://opesci-slackin.now.sh/). Should you have installation issues, or should you bump into something that appears to be a Devito-related bug, do not hesitate to get in touch. We are always keen to help out.
 * File an issue on [our GitHub page](https://github.com/devitocodes/devito/issues).
 
 ### Making changes
