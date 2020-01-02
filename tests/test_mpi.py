@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from unittest.mock import patch
+from cached_property import cached_property
 
 from conftest import skipif
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
@@ -12,7 +13,7 @@ from devito.ir.iet import Call, Conditional, Iteration, FindNodes, retrieve_iter
 from devito.mpi import MPI
 from examples.seismic.acoustic import acoustic_setup
 
-pytestmark = skipif(['yask', 'ops', 'nompi'])
+pytestmark = skipif(['yask', 'ops', 'nompi'], whole_module=True)
 
 
 class TestDistributor(object):
@@ -1520,20 +1521,13 @@ class TestOperatorAdvanced(object):
         assert abs(norm(u) - norm(u2)) < 1.e-3
 
 
-class TestIsotropicAcoustic(object):
-
+def gen_serial_norms(shape, so):
     """
-    Test the isotropic acoustic wave equation with MPI.
+    Computes the norms of the outputs in serial mode to compare with
     """
-    _shapes = {1: (60,), 2: (60, 70), 3: (60, 70, 80)}
-    _so = {1: 12, 2: 8, 3: 4}
-
-    def gen_serial_norms(self, nd):
-        """
-        Computes the norms of the outputs in serial mode to compare with
-        """
-        shape = self._shapes[nd]
-        so = self._so[nd]
+    try:
+        np.load("norms%s.npy" % len(shape))
+    except:
         tn = 500.  # Final time
         nrec = 130  # Number of receivers
 
@@ -1551,16 +1545,34 @@ class TestIsotropicAcoustic(object):
         Ev = norm(v)
         Esrca = norm(srca)
 
-        return Eu, Erec, Ev, Esrca
+        np.save("norms%s.npy" % len(shape), (Eu, Erec, Ev, Esrca))
 
-    @pytest.mark.parametrize('shape,kernel,space_order,nbl,save', [
-        ((60, ), 'OT2', 4, 10, False),
-        ((60, 70), 'OT2', 8, 10, False),
+
+class TestIsotropicAcoustic(object):
+
+    """
+    Test the isotropic acoustic wave equation with MPI.
+    """
+    _shapes = {1: (60,), 2: (60, 70), 3: (60, 70, 80)}
+    _so = {1: 12, 2: 8, 3: 4}
+    gen_serial_norms((60,), 12)
+    gen_serial_norms((60, 70), 8)
+    gen_serial_norms((60, 70, 80), 4)
+
+    @cached_property
+    def norms(self):
+        return {1: np.load("norms1.npy"),
+                2: np.load("norms2.npy"),
+                3: np.load("norms3.npy")}
+
+    @pytest.mark.parametrize('shape,kernel,space_order,save', [
+        ((60, ), 'OT2', 4, False),
+        ((60, 70), 'OT2', 8, False),
     ])
     @pytest.mark.parallel(mode=1)
-    def test_adjoint_codegen(self, shape, kernel, space_order, nbl, save):
+    def test_adjoint_codegen(self, shape, kernel, space_order, save):
         solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
-                                nbl=nbl, tn=500, space_order=space_order, nrec=130,
+                                tn=500, space_order=space_order, nrec=130,
                                 preset='layers-isotropic', dtype=np.float64)
         op_fwd = solver.op_fwd(save=save)
         fwd_calls = FindNodes(Call).visit(op_fwd)
@@ -1577,7 +1589,7 @@ class TestIsotropicAcoustic(object):
         of all Operator-evaluated Functions. The numbers we check against are derived
         "manually" from sequential runs of test_adjoint::test_adjoint_F
         """
-        Eu, Erec, Ev, Esrca = self.gen_serial_norms(nd)
+        Eu, Erec, Ev, Esrca = self.norms[nd]
         shape = self._shapes[nd]
         so = self._so[nd]
         tn = 500.  # Final time
@@ -1631,6 +1643,5 @@ if __name__ == "__main__":
     # TestSparseFunction().test_scatter_gather()
     # TestOperatorAdvanced().test_nontrivial_operator()
     # TestOperatorAdvanced().test_interpolation_dup()
-    TestOperatorAdvanced().test_injection_wodup()
-    # TestIsotropicAcoustic().test_adjoint_F((60, 70, 80), 'OT2', 12, 10, False,
-    #                                        153.122, 205.902, 27484.635, 11736.917)
+    # TestOperatorAdvanced().test_injection_wodup()
+    TestIsotropicAcoustic().test_adjoint_F_no_omp()
