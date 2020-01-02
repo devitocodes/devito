@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Function &mdash; Devito v3.4</title>
+  <title>Function &mdash; Devito v4.0</title>
   
 
   
@@ -54,7 +54,7 @@
           
 
           
-            <a href="index.html" class="icon icon-home"> Devito v3.4
+            <a href="index.html" class="icon icon-home"> Devito v4.0
           
 
           
@@ -124,7 +124,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">Devito v3.4</a>
+          <a href="index.html">Devito v4.0</a>
         
       </nav>
 
@@ -224,7 +224,7 @@ of ints, one int per Dimension should be provided.</p>
 </dl>
 <p class="rubric">Examples</p>
 <p>Creation</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">Function</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">Function</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">f</span>
@@ -235,7 +235,7 @@ of ints, one int per Dimension should be provided.</p>
 </pre></div>
 </div>
 <p>First-order derivatives through centered finite-difference approximations</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">dx</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">dx</span>
 <span class="go">Derivative(f(x, y), x)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">dy</span>
 <span class="go">Derivative(f(x, y), y)</span>
@@ -246,20 +246,20 @@ of ints, one int per Dimension should be provided.</p>
 </pre></div>
 </div>
 <p>First-order derivatives through left/right finite-difference approximations</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">dxl</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">dxl</span>
 <span class="go">Derivative(f(x, y), x)</span>
 </pre></div>
 </div>
 <p>Note that the fact that it’s a left-derivative isn’t captured in the representation.
 However, upon derivative expansion, this becomes clear</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">dxl</span><span class="o">.</span><span class="n">evaluate</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">dxl</span><span class="o">.</span><span class="n">evaluate</span>
 <span class="go">f(x, y)/h_x - f(x - h_x, y)/h_x</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">dxr</span>
 <span class="go">Derivative(f(x, y), x)</span>
 </pre></div>
 </div>
 <p>Second-order derivative through centered finite-difference approximation</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">g</span><span class="o">.</span><span class="n">dx2</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">g</span><span class="o">.</span><span class="n">dx2</span>
 <span class="go">Derivative(g(x, y), (x, 2))</span>
 </pre></div>
 </div>

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>SubDomain &mdash; Devito v3.4</title>
+  <title>SubDomain &mdash; Devito v4.0</title>
   
 
   
@@ -54,7 +54,7 @@
           
 
           
-            <a href="index.html" class="icon icon-home"> Devito v3.4
+            <a href="index.html" class="icon icon-home"> Devito v4.0
           
 
           
@@ -118,7 +118,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">Devito v3.4</a>
+          <a href="index.html">Devito v4.0</a>
         
       </nav>
 
@@ -199,7 +199,7 @@ at <code class="docutils literal notranslate"><span class="pre">d_sizeM</span> <
 <p class="rubric">Examples</p>
 <p>An “Inner” SubDomain, which spans the entire domain except for an exterior
 boundary region of <code class="docutils literal notranslate"><span class="pre">thickness=3</span></code>, can be implemented as follows</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">SubDomain</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">SubDomain</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Inner</span><span class="p">(</span><span class="n">SubDomain</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;inner&#39;</span>
 <span class="gp">... </span>    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
@@ -208,7 +208,7 @@ boundary region of <code class="docutils literal notranslate"><span class="pre">
 </div>
 <p>Like before, but now spanning the entire <code class="docutils literal notranslate"><span class="pre">y</span></code> Dimension of a three-dimensional
 grid</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">InnerY</span><span class="p">(</span><span class="n">SubDomain</span><span class="p">):</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">InnerY</span><span class="p">(</span><span class="n">SubDomain</span><span class="p">):</span>
 <span class="gp">... </span>    <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;inner_y&#39;</span>
 <span class="gp">... </span>    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
 <span class="gp">... </span>        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">dimensions</span>

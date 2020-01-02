@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.types.sparse &mdash; Devito v3.4</title>
+  <title>devito.types.sparse &mdash; Devito v4.0</title>
   
 
   
@@ -52,7 +52,7 @@
           
 
           
-            <a href="../../../index.html" class="icon icon-home"> Devito v3.4
+            <a href="../../../index.html" class="icon icon-home"> Devito v4.0
           
 
           
@@ -104,7 +104,7 @@
       <nav class="wy-nav-top" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../../index.html">Devito v3.4</a>
+          <a href="../../../index.html">Devito v4.0</a>
         
       </nav>
 
@@ -153,23 +153,23 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.types.sparse</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
-<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">product</span>
 
 <span class="kn">import</span> <span class="nn">sympy</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+<span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
 
-<span class="kn">from</span> <span class="nn">devito.equation</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span>
-<span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="k">import</span> <span class="n">Differentiable</span><span class="p">,</span> <span class="n">generate_fd_shortcuts</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
-<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="k">import</span> <span class="n">MPI</span><span class="p">,</span> <span class="n">SparseDistributor</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="k">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">cast_mapper</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_function_carriers</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="p">(</span><span class="n">ReducerMap</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">powerset</span><span class="p">,</span>
+<span class="kn">from</span> <span class="nn">devito.equation</span> <span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span>
+<span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">Differentiable</span><span class="p">,</span> <span class="n">generate_fd_shortcuts</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span><span class="p">,</span> <span class="n">SparseDistributor</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">cast_mapper</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_function_carriers</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">ReducerMap</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">powerset</span><span class="p">,</span>
                           <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">memoized_meth</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="k">import</span> <span class="n">DiscreteFunction</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">SubFunction</span>
-<span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">,</span> <span class="n">DefaultDimension</span>
-<span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="k">import</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Scalar</span>
+<span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="kn">import</span> <span class="n">DiscreteFunction</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">SubFunction</span>
+<span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="kn">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">,</span> <span class="n">DefaultDimension</span>
+<span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Scalar</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SparseFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;SparseTimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;PrecomputedSparseFunction&#39;</span><span class="p">,</span>
            <span class="s1">&#39;PrecomputedSparseTimeFunction&#39;</span><span class="p">]</span>
