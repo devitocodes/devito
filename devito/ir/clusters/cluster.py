@@ -32,9 +32,12 @@ class Cluster(object):
     properties : dict, optional
         Mapper from Dimensions to Property, describing the Cluster properties
         such as its parallel Dimensions.
+    halo_scheme : HaloScheme, optional
+        A description of the halo exchanges required by the Cluster.
     """
 
-    def __init__(self, exprs, ispace, dspace, guards=None, properties=None):
+    def __init__(self, exprs, ispace, dspace, guards=None, properties=None,
+                 halo_scheme=None):
         self._exprs = tuple(ClusterizedEq(i, ispace=ispace, dspace=dspace)
                             for i in as_tuple(exprs))
         self._ispace = ispace
@@ -44,6 +47,8 @@ class Cluster(object):
         properties = dict(properties or {})
         properties.update({i.dim: properties.get(i.dim, set()) for i in ispace.intervals})
         self._properties = frozendict(properties)
+
+        self._halo_scheme = halo_scheme
 
     def __repr__(self):
         return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
@@ -74,7 +79,10 @@ class Cluster(object):
             for d, v in c.properties.items():
                 properties[d] = normalize_properties(properties.get(d, v), v)
 
-        return Cluster(exprs, ispace, dspace, guards, properties)
+        from devito.mpi import HaloScheme  #TODO
+        halo_scheme = HaloScheme.union([c.halo_scheme for c in clusters])
+
+        return Cluster(exprs, ispace, dspace, guards, properties, halo_scheme)
 
     def rebuild(self, *args, **kwargs):
         """
@@ -93,7 +101,8 @@ class Cluster(object):
                        ispace=kwargs.get('ispace', self.ispace),
                        dspace=kwargs.get('dspace', self.dspace),
                        guards=kwargs.get('guards', self.guards),
-                       properties=kwargs.get('properties', self.properties))
+                       properties=kwargs.get('properties', self.properties),
+                       halo_scheme=kwargs.get('halo_scheme', self.halo_scheme))
 
     @property
     def exprs(self):
@@ -118,6 +127,10 @@ class Cluster(object):
     @property
     def properties(self):
         return self._properties
+
+    @property
+    def halo_scheme(self):
+        return self._halo_scheme
 
     @cached_property
     def free_symbols(self):
