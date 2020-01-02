@@ -337,8 +337,14 @@ class IntervalGroup(PartialOrderTuple):
         return IntervalGroup(intervals, relations=(self.relations | o.relations))
 
     def drop(self, d):
-        return IntervalGroup([i._rebuild() for i in self if i.dim not in as_tuple(d)],
-                             relations=self.relations)
+        # Dropping
+        dims = set().union(*[i._defines for i in as_tuple(d)])
+        intervals = [i._rebuild() for i in self if not i.dim._defines & dims]
+
+        # Clean up relations
+        relations = [tuple(i for i in r if i in intervals) for r in self.relations]
+
+        return IntervalGroup(intervals, relations=relations)
 
     def negate(self):
         return IntervalGroup([i.negate() for i in self], relations=self.relations)
