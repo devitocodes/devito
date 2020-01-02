@@ -4,6 +4,7 @@ from functools import cmp_to_key
 from devito.ir.clusters.queue import Queue
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
                                AFFINE, WRAPPABLE, ROUNDABLE, TILABLE, Forward, Scope)
+from devito.parameters import configuration
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
@@ -20,8 +21,22 @@ def analyze(clusters):
     clusters = Wrapping(state).process(clusters)
     clusters = Rounding(state).process(clusters)
 
-    # Rebuild Clusters to attach the discovered properties
-    processed = [c.rebuild(properties=state.properties.get(c)) for c in clusters]
+    #TODO
+    from devito.mpi import HaloScheme, HaloSchemeException
+
+    processed = []
+    for c in clusters:
+        # Derive properties
+        properties = state.properties.get(c)
+
+        # Derive HaloScheme
+        try:
+            halo_scheme = HaloScheme(c.exprs, c.ispace)
+        except HaloSchemeException as e:
+            if configuration['mpi']:
+                raise RuntimeError(str(e))
+
+        processed.append(c.rebuild(properties=properties, halo_scheme=halo_scheme))
 
     return processed
 
