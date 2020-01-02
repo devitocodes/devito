@@ -112,12 +112,6 @@ before_script:
     fi
 
 script:
-  # Docs deployment only once from a single build
-  - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then
-          set -e;
-          pip install doctr;
-          doctr deploy . --built-docs docs/_build/html --key-path .deploy_key.enc;
-    fi
   - flake8 --builtins=ArgumentError .
   # Run test with py.tests
   - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py test; fi
@@ -147,4 +141,10 @@ script:
       cd docs;
       make html;
       cd ..;
+    fi
+  # Docs deployment only once from a single build
+  - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then
+          set -e;
+          pip install doctr;
+          doctr deploy . --built-docs docs/_build/html --key-path .deploy_key.enc;
     fi
