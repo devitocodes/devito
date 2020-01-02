@@ -12,27 +12,27 @@ pytestmark = skipif(['yask', 'ops'])
 
 presets = {
     'constant': {'preset': 'constant-isotropic'},
-    'layers': {'preset': 'layers-isotropic', 'ratio': 3},
+    'layers': {'preset': 'layers-isotropic', 'nlayers': 2},
 }
 
 
 class TestAdjoint(object):
 
-    @pytest.mark.parametrize('mkey, shape, kernel, space_order, nbl', [
+    @pytest.mark.parametrize('mkey, shape, kernel, space_order', [
         # 1 tests with varying time and space orders
-        ('layers', (60, ), 'OT2', 4, 10), ('layers', (60, ), 'OT2', 8, 10),
-        ('layers', (60, ), 'OT4', 4, 10),
+        ('layers', (60, ), 'OT2', 12), ('layers', (60, ), 'OT2', 8),
+        ('layers', (60, ), 'OT4', 4),
         # 2D tests with varying time and space orders
-        ('layers', (60, 70), 'OT2', 4, 10), ('layers', (60, 70), 'OT2', 8, 10),
-        ('layers', (60, 70), 'OT2', 12, 10), ('layers', (60, 70), 'OT4', 8, 10),
+        ('layers', (60, 70), 'OT2', 12), ('layers', (60, 70), 'OT2', 8),
+        ('layers', (60, 70), 'OT2', 4), ('layers', (60, 70), 'OT4', 2),
         # 3D tests with varying time and space orders
-        ('layers', (60, 70, 80), 'OT2', 4, 10), ('layers', (60, 70, 80), 'OT2', 8, 10),
-        ('layers', (60, 70, 80), 'OT2', 12, 10), ('layers', (60, 70, 80), 'OT4', 4, 10),
+        ('layers', (60, 70, 80), 'OT2', 8), ('layers', (60, 70, 80), 'OT2', 6),
+        ('layers', (60, 70, 80), 'OT2', 4), ('layers', (60, 70, 80), 'OT4', 2),
         # Constant model in 2D and 3D
-        ('constant', (60, 70), 'OT2', 8, 14), ('constant', (60, 70, 80), 'OT2', 8, 14),
-        ('constant', (60, 70), 'OT4', 12, 14), ('constant', (60, 70, 80), 'OT4', 4, 14),
+        ('constant', (60, 70), 'OT2', 10), ('constant', (60, 70, 80), 'OT2', 8),
+        ('constant', (60, 70), 'OT2', 4), ('constant', (60, 70, 80), 'OT4', 2),
     ])
-    def test_adjoint_F(self, mkey, shape, kernel, space_order, nbl):
+    def test_adjoint_F(self, mkey, shape, kernel, space_order):
         """
         Adjoint test for the forward modeling operator.
         The forward modeling operator F generates a shot record (measurements)
@@ -44,7 +44,7 @@ class TestAdjoint(object):
 
         # Create solver from preset
         solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
-                                nbl=nbl, tn=tn, space_order=space_order,
+                                nbl=10, tn=tn, space_order=space_order,
                                 **(presets[mkey]), dtype=np.float64)
 
         # Create adjoint receiver symbol
