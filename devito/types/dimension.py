@@ -911,6 +911,9 @@ class IncrDimension(DerivedDimension):
     _min : int, optional
         The minimum point of the sequence. Defaults to the parent's
         symbolic minimum.
+    _max : int, optional
+        The maximum point of the sequence. Defaults to the parent's
+        symbolic maximum.
     step : int, optional
         The distance between two consecutive points. Defaults to the
         symbolic size.
@@ -924,14 +927,15 @@ class IncrDimension(DerivedDimension):
 
     is_Incr = True
 
-    def __new__(cls, parent, _min=None, step=None, name=None):
+    def __new__(cls, parent, _min=None, _max=None, step=None, name=None):
         if name is None:
-            name = cls._genname(parent.name, (_min, step))
-        return super().__new__(cls, parent, _min=_min, step=step, name=name)
+            name = cls._genname(parent.name, (_min, _max, step))
+        return super().__new__(cls, parent, _min=_min, _max=_max, step=step, name=name)
 
-    def __init_finalize__(self, parent, _min=None, step=None, name=None):
+    def __init_finalize__(self, parent, _min=None, _max=None, step=None, name=None):
         super().__init_finalize__(name, parent)
         self._min = _min
+        self._max = _max
         self._step = step
 
     @cached_property
@@ -953,6 +957,18 @@ class IncrDimension(DerivedDimension):
                 return self._min
         else:
             return self.parent.symbolic_min
+
+    @cached_property
+    def symbolic_max(self):
+        if self._max is not None:
+            # Make sure we return a symbolic object as the provided max might
+            # be for example a pure int
+            try:
+                return sympy.Number(self._max)
+            except (TypeError, ValueError):
+                return self._max
+        else:
+            return self.parent.symbolic_max
 
     @property
     def symbolic_incr(self):
