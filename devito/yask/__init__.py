@@ -6,15 +6,15 @@ JIT-compile, and run kernels.
 import os
 import sys
 
+from devito.yask.targets import YaskTarget, YaskCustomTarget
+from devito.yask.utils import namespace
+
 from devito.archinfo import Arm, Cpu64, CPU64, Power
-from devito.dle import PlatformRewriter, modes
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 from devito.parameters import Parameters, configuration, add_sub_configuration
+from devito.targets import CPU64NoopTarget, targets
 from devito.tools import make_tempdir
-
-from devito.yask.dle import YaskRewriter
-from devito.yask.utils import namespace
 
 
 def exit(emsg):
@@ -100,10 +100,10 @@ env_vars_mapper = {
 
 add_sub_configuration(yask_configuration, env_vars_mapper)
 
-# Add YASK-specific DLE modes
-modes.add(Cpu64, {'noop': PlatformRewriter,
-                  'advanced': YaskRewriter,
-                  'speculative': YaskRewriter})
+# Add YASK-specific Targets
+targets.add(CPU64NoopTarget, Cpu64, 'noop')
+targets.add(YaskTarget, Cpu64, 'advanced')
+targets.add(YaskCustomTarget, Cpu64, 'custom')
 
 # The following used by backends.backendSelector
 from devito.types import SparseFunction, SparseTimeFunction  # noqa

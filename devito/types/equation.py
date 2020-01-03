@@ -78,7 +78,8 @@ class Eq(sympy.Eq, Evaluable):
     def evaluate(self):
         """
         Evaluate the Equation or system of Equations.
-        The rhs of the Equation is evaluated at the indices of the lhs if required.
+
+        The RHS of the Equation is evaluated at the indices of the LHS if required.
         """
         try:
             lhs, rhs = self.lhs.evaluate, self.rhs._eval_at(self.lhs).evaluate

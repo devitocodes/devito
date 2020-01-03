@@ -12,7 +12,7 @@ import cgen as c
 from devito.data import FULL
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (IterationProperty, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                           VECTOR, WRAPPABLE, ROUNDABLE, AFFINE, OVERLAPPABLE)
+                           VECTOR, WRAPPABLE, ROUNDABLE, AFFINE, TILABLE, OVERLAPPABLE)
 from devito.ir.support import Forward, detect_io
 from devito.symbolics import ListInitializer, FunctionFromPointer, as_symbol, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
@@ -447,6 +447,10 @@ class Iteration(Node):
         return WRAPPABLE in self.properties
 
     @property
+    def is_Tilable(self):
+        return TILABLE in self.properties
+
+    @property
     def is_Roundable(self):
         return ROUNDABLE in self.properties
 
@@ -705,6 +709,9 @@ class ArrayCast(Node):
 
     def __init__(self, function):
         self.function = function
+
+    def __repr__(self):
+        return "<ArrayCast(%s)>" % self.function
 
     @property
     def castshape(self):

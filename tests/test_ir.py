@@ -814,7 +814,7 @@ class TestIETAnalysis(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='speculative')
+        op = Operator(exprs)
 
         iters = FindNodes(Iteration).visit(op)
 

@@ -4,7 +4,6 @@ from time import time
 
 from sympy import cos, sin
 
-from devito.equation import Eq
 from devito.ir import (DataSpace, IterationSpace, Interval, IntervalGroup, Cluster,
                        detect_accesses, build_intervals)
 from devito.dse.aliases import collect
@@ -16,7 +15,7 @@ from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
                               yreplace)
 from devito.tools import flatten
-from devito.types import Array, Scalar
+from devito.types import Array, Eq, Scalar
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'CustomRewriter']
 

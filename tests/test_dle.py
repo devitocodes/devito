@@ -4,18 +4,19 @@ from operator import mul
 from sympy import Add
 import numpy as np
 import pytest
+from unittest.mock import patch
 
 from conftest import EVAL, skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
                     Eq, Operator, switchconfig)
-from devito.dle import BlockDimension, NThreads, NThreadsNonaffine, transform
-from devito.dle.parallelizer import ParallelRegion
 from devito.exceptions import InvalidArgument
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Expression, Iteration, Conditional, FindNodes,
-                           FindSymbols, iet_analyze, retrieve_iteration_tree)
+from devito.ir.iet import (Call, Callable, Expression, Iteration, Conditional, FindNodes,
+                           FindSymbols, iet_analyze, derive_parameters,
+                           retrieve_iteration_tree)
+from devito.targets import BlockDimension, NThreads, NThreadsNonaffine, iet_lower
+from devito.targets.common.openmp import ParallelRegion
 from devito.tools import as_tuple
-from unittest.mock import patch
 
 pytestmark = skipif(['yask', 'ops'])
 
@@ -39,22 +40,6 @@ def get_blocksizes(op, dle, grid, blockshape, level=0):
     except AttributeError:
         assert len(blocksizes) == 0
         return {}
-
-
-def _new_operator1(shape, blockshape=None, dle=None):
-    blockshape = as_tuple(blockshape)
-    grid = Grid(shape=shape, dtype=np.int32)
-    infield = Function(name='infield', grid=grid)
-    infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
-    outfield = Function(name='outfield', grid=grid)
-
-    stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
-    op = Operator(stencil, dle=dle)
-
-    blocksizes = get_blocksizes(op, dle, grid, blockshape)
-    op(infield=infield, outfield=outfield, **blocksizes)
-
-    return outfield, op
 
 
 def _new_operator2(shape, time_order, blockshape=None, dle=None):
@@ -95,15 +80,23 @@ def _new_operator3(shape, blockshape0=None, blockshape1=None, dle=None):
     return u.data[1, :], op
 
 
+@pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
+def test_composite_transformation(shape):
+    wo_blocking, _ = _new_operator2(shape, time_order=2, dle='noop')
+    w_blocking, _ = _new_operator2(shape, time_order=2, dle='advanced')
+
+    assert np.equal(wo_blocking.data, w_blocking.data).all()
+
+
 @pytest.mark.parametrize("blockinner,exp_calls,exp_iters", [
     (False, 4, 5),
     (True, 8, 6)
 ])
-@patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
+@patch("devito.targets.common.openmp.Ompizer.COLLAPSE_NCORES", 1)
 def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     # Check code structure
-    _, op = _new_operator1((10, 31, 45), dle=('blocking', {'blockalways': True,
-                                                           'blockinner': blockinner}))
+    _, op = _new_operator2((10, 31, 45), time_order=2,
+                           dle=('blocking', {'blockinner': blockinner}))
     calls = FindNodes(Call).visit(op)
     assert len(calls) == exp_calls
     trees = retrieve_iteration_tree(op._func_table['bf0'].root)
@@ -120,10 +113,8 @@ def test_cache_blocking_structure(blockinner, exp_calls, exp_iters):
     assert not isinstance(tree[4].dim, BlockDimension)
 
     # Check presence of openmp pragmas at the right place
-    _, op = _new_operator1((10, 31, 45), dle=('blocking',
-                                              {'openmp': True,
-                                               'blockalways': True,
-                                               'blockinner': blockinner}))
+    _, op = _new_operator2((10, 31, 45), time_order=2,
+                           dle=('blocking', {'openmp': True, 'blockinner': blockinner}))
     trees = retrieve_iteration_tree(op._func_table['bf0'].root)
     assert len(trees) == 1
     tree = trees[0]
@@ -171,21 +162,9 @@ def test_cache_blocking_structure_subdims():
     assert not isinstance(tree[2].dim, BlockDimension)
 
 
-@pytest.mark.parametrize("shape", [(10,), (10, 45), (10, 31, 45)])
-@pytest.mark.parametrize("blockshape", [(2,), (7,), (3, 3), (2, 9, 1)])
-@pytest.mark.parametrize("blockinner", [False, True])
-def test_cache_blocking_no_time_loop(shape, blockshape, blockinner):
-    wo_blocking, _ = _new_operator1(shape, dle='noop')
-    w_blocking, _ = _new_operator1(shape, blockshape, dle=('blocking',
-                                                           {'blockalways': True,
-                                                            'blockinner': blockinner}))
-
-    assert np.equal(wo_blocking.data, w_blocking.data).all()
-
-
-@pytest.mark.parametrize("shape", [(20, 33), (45, 31, 45)])
+@pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45), (45, 31, 45)])
 @pytest.mark.parametrize("time_order", [2])
-@pytest.mark.parametrize("blockshape", [2, (13, 20), (11, 15, 23)])
+@pytest.mark.parametrize("blockshape", [2, (3, 3), (9, 20), (2, 9, 11), (7, 15, 23)])
 @pytest.mark.parametrize("blockinner", [False, True])
 def test_cache_blocking_time_loop(shape, time_order, blockshape, blockinner):
     wo_blocking, _ = _new_operator2(shape, time_order, dle='noop')
@@ -309,11 +288,14 @@ class TestNodeParallelism(object):
                                 exprs, expected, iters):
         scope = [fa, fb, fc, fd, t0, t1, t2, t3]
         node_exprs = [Expression(DummyEq(EVAL(i, *scope))) for i in exprs]
-        ast = iters[6](iters[7](node_exprs))
+        iet = iters[6](iters[7](node_exprs))
 
-        ast = iet_analyze(ast)
+        parameters = derive_parameters(iet, True)
+        iet = Callable('kernel', iet, 'int', parameters)
 
-        iet, _ = transform(ast, mode='openmp')
+        iet = iet_analyze(iet)
+
+        iet, _ = iet_lower(iet, mode='openmp')
         iterations = FindNodes(Iteration).visit(iet)
         assert len(iterations) == len(expected)
 
@@ -369,8 +351,8 @@ class TestNodeParallelism(object):
         ('Eq(u, 2*u)', [0, 2, 0, 0], False),
         ('Eq(u, 2*u)', [3, 0, 0, 0, 0, 0], True)
     ])
-    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
-    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_WORK", 0)
+    @patch("devito.targets.common.openmp.Ompizer.COLLAPSE_NCORES", 1)
+    @patch("devito.targets.common.openmp.Ompizer.COLLAPSE_WORK", 0)
     def test_collapsing(self, eq, expected, blocking):
         grid = Grid(shape=(3, 3, 3))
 
@@ -423,8 +405,8 @@ class TestNodeParallelism(object):
 
 class TestNestedParallelism(object):
 
-    @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
-    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 10000)
+    @patch("devito.targets.common.openmp.Ompizer.NESTED", 0)
+    @patch("devito.targets.common.openmp.Ompizer.COLLAPSE_NCORES", 10000)
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -453,9 +435,9 @@ class TestNestedParallelism(object):
                                                   'schedule(dynamic,1) '
                                                   'num_threads(nthreads_nested)')
 
-    @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
-    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 1)
-    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_WORK", 0)
+    @patch("devito.targets.common.openmp.Ompizer.NESTED", 0)
+    @patch("devito.targets.common.openmp.Ompizer.COLLAPSE_NCORES", 1)
+    @patch("devito.targets.common.openmp.Ompizer.COLLAPSE_WORK", 0)
     def test_collapsing(self):
         grid = Grid(shape=(3, 3, 3))
 
@@ -477,8 +459,8 @@ class TestNestedParallelism(object):
                                                   'num_threads(nthreads_nested)')
 
     @patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
-    @patch("devito.dle.parallelizer.Ompizer.NESTED", 0)
-    @patch("devito.dle.parallelizer.Ompizer.COLLAPSE_NCORES", 10000)
+    @patch("devito.targets.common.openmp.Ompizer.NESTED", 0)
+    @patch("devito.targets.common.openmp.Ompizer.COLLAPSE_NCORES", 10000)
     def test_multiple_subnests(self):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
@@ -520,10 +502,10 @@ class TestOffloading(object):
 
         assert trees[0][1].pragmas[0].value ==\
             'omp target teams distribute parallel for collapse(3)'
-        assert op.body[0].body[1][0].body[0].header[0].value ==\
+        assert op.body[1].header[1].value ==\
             ('omp target enter data map(to: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body[0].body[1][0].body[0].footer[0].value ==\
+        assert op.body[1].footer[0].value ==\
             ('omp target exit data map(from: u[0:u_vec->size[0]]'
              '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
 
@@ -543,11 +525,11 @@ class TestOffloading(object):
         assert trees[0][1].pragmas[0].value ==\
             'omp target teams distribute parallel for collapse(3)'
         for i, f in enumerate([u, v]):
-            assert op.body[0].body[2][0].body[0].header[i].value ==\
+            assert op.body[2].header[2 + i].value ==\
                 ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
-            assert op.body[0].body[2][0].body[0].footer[i].value ==\
+            assert op.body[2].footer[i].value ==\
                 ('omp target exit data map(from: %(n)s[0:%(n)s_vec->size[0]]'
                  '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
                  {'n': f.name})
@@ -576,9 +558,9 @@ def test_minimize_reminders_due_to_autopadding():
     op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': False}))
     op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': False}))
 
-    x0_blk_size = op1.parameters[5]
-    y0_blk_size = op1.parameters[9]
-    z_size = op1.parameters[-1]
+    x0_blk_size = op1.parameters[-2]
+    y0_blk_size = op1.parameters[-1]
+    z_size = op1.parameters[4]
 
     # Check Array shape
     arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]
@@ -604,11 +586,3 @@ def test_minimize_reminders_due_to_autopadding():
     u.data_with_halo[:] = 0.
     op1(time_M=1)
     assert np.all(u.data == exp)
-
-
-@pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
-def test_composite_transformation(shape):
-    wo_blocking, _ = _new_operator1(shape, dle='noop')
-    w_blocking, _ = _new_operator1(shape, dle='advanced')
-
-    assert np.equal(wo_blocking.data, w_blocking.data).all()
