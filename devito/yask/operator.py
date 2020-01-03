@@ -33,9 +33,9 @@ class OperatorYASK(Operator):
     _default_includes = Operator._default_includes + ['yask_kernel_api.hpp']
 
     @classmethod
-    def _compile(cls, expressions, **kwargs):
+    def _build(cls, expressions, **kwargs):
         yk_solns = OrderedDict()
-        op = super(OperatorYASK, cls)._compile(expressions, yk_solns=yk_solns, **kwargs)
+        op = super(OperatorYASK, cls)._build(expressions, yk_solns=yk_solns, **kwargs)
 
         # Produced by `_specialize_iet`
         op.yk_solns = yk_solns

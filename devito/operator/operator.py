@@ -133,15 +133,15 @@ class Operator(Callable):
             return super(Operator, cls).__new__(cls, **kwargs)
 
         with timed_region('op-compile') as r:
-            op = cls._compile(expressions, **kwargs)
+            op = cls._build(expressions, **kwargs)
         op._profiler.py_timers.update(r.timings)
 
-        op._emit_compile_profiling()
+        op._emit_build_profiling()
 
         return op
 
     @classmethod
-    def _compile(cls, expressions, **kwargs):
+    def _build(cls, expressions, **kwargs):
         expressions = as_tuple(expressions)
 
         # Input check
@@ -587,7 +587,7 @@ class Operator(Callable):
 
     # Performance profiling
 
-    def _emit_compile_profiling(self):
+    def _emit_build_profiling(self):
         if not is_log_enabled_for('PERF'):
             return
 

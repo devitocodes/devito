@@ -14,8 +14,8 @@ class OperatorOPS(Operator):
     _default_headers = Operator._default_headers + ['#define restrict __restrict']
 
     @classmethod
-    def _compile(cls, expressions, **kwargs):
-        op = super(OperatorOPS, cls)._compile(expressions, **kwargs)
+    def _build(cls, expressions, **kwargs):
+        op = super(OperatorOPS, cls)._build(expressions, **kwargs)
 
         op._compiler = ops_configuration['compiler'].copy()
 
