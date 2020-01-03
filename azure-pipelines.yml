@@ -2,7 +2,7 @@ trigger:
 - master
 
 pr:
-- master  
+- master
 
 jobs:
 
@@ -36,14 +36,14 @@ jobs:
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'true'
         PYTHON_VERSION: '3.7'
-      nompi-conda-gcc5:
+      nompi-conda-gcc5-py38:
         gccVersion: '5'
-        DEVITO_OPENMP: '0'
+        DEVITO_OPENMP: '1'
         MPI_INSTALL: '0'
         installWithPip: 'false'
         DEVITO_BACKEND: 'core'
         RUN_EXAMPLES: 'false'
-        PYTHON_VERSION: '3.7'
+        PYTHON_VERSION: '3.8'
       ops-conda-gcc7:
         gccVersion: '7'
         DEVITO_OPENMP: '0'
