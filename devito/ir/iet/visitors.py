@@ -307,7 +307,11 @@ class CGen(Visitor):
         if o.uindices:
             uinit = ['%s = %s' % (i.name, ccode(i.symbolic_min)) for i in o.uindices]
             loop_init = c.Line(', '.join([loop_init] + uinit))
-            ustep = ['%s = %s' % (i.name, ccode(i.symbolic_incr)) for i in o.uindices]
+
+            ustep = []
+            for i in o.uindices:
+                op = '=' if i.is_Modulo else '+='
+                ustep.append('%s %s %s' % (i.name, op, ccode(i.symbolic_incr)))
             loop_inc = c.Line(', '.join([loop_inc] + ustep))
 
         # Create For header+body
