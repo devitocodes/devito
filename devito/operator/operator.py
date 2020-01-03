@@ -284,11 +284,11 @@ class Operator(Callable):
         Expression lowering:
 
             * Form and gather any required implicit expressions;
-            * Evaluation of derivatives;
+            * Evaluate derivatives;
             * Flatten vectorial equations;
-            * Indexification;
+            * Indexify Functions;
             * Apply substitution rules;
-            * Specialization (e.g., index shifting from Halo to Domain)
+            * Specialize (e.g., index shifting)
         """
         subs = kwargs.get("subs", {})
 
