@@ -160,7 +160,6 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="kn">import</span> <span class="n">cached_property</span>
 
-<span class="kn">from</span> <span class="nn">devito.equation</span> <span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span>
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">Differentiable</span><span class="p">,</span> <span class="n">generate_fd_shortcuts</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span><span class="p">,</span> <span class="n">SparseDistributor</span>
@@ -170,6 +169,7 @@
 <span class="kn">from</span> <span class="nn">devito.types.dense</span> <span class="kn">import</span> <span class="n">DiscreteFunction</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">SubFunction</span>
 <span class="kn">from</span> <span class="nn">devito.types.dimension</span> <span class="kn">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">ConditionalDimension</span><span class="p">,</span> <span class="n">DefaultDimension</span>
 <span class="kn">from</span> <span class="nn">devito.types.basic</span> <span class="kn">import</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Scalar</span>
+<span class="kn">from</span> <span class="nn">devito.types.equation</span> <span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Inc</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SparseFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;SparseTimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;PrecomputedSparseFunction&#39;</span><span class="p">,</span>
            <span class="s1">&#39;PrecomputedSparseTimeFunction&#39;</span><span class="p">]</span>

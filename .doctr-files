@@ -1,8 +1,6 @@
 ./_modules/cached_property.html
 ./_modules/devito/builtins.html
-./_modules/devito/equation.html
 ./_modules/devito/finite_differences/finite_difference.html
-./_modules/devito/operator.html
 ./_modules/devito/types/constant.html
 ./_modules/devito/types/dense.html
 ./_modules/devito/types/dimension.html
