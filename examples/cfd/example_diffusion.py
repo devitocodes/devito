@@ -22,7 +22,7 @@ from devito import Grid, Eq, Operator, TimeFunction, solve
 from devito.logger import log
 
 try:
-    from opescibench import Benchmark, Executor, Plotter
+    from devitobench import Benchmark, Executor, Plotter
 except:
     Benchmark = None
     Executor = None
@@ -223,8 +223,8 @@ recommend using --spacing 0.001 -t 1000.
 
     elif args.execmode == 'bench':
         if Benchmark is None:
-            raise ImportError("Could not find opescibench utility package.\n"
-                              "Please install from https://github.com/opesci/opescibench")
+            raise ImportError("Could not find devitobench utility package. Please \n"
+                              "install from https://github.com/devitocodes/devitobench")
 
         class DiffusionExecutor(Executor):
             """Executor class that defines how to run the benchmark"""

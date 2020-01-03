@@ -12,35 +12,31 @@ from examples.seismic.tti import AnisotropicWaveSolver
 pytestmark = skipif(['yask', 'ops'])
 
 
-@pytest.mark.parametrize('shape', [(120, 140), (120, 140, 150)])
-@pytest.mark.parametrize('space_order', [4, 8])
-@pytest.mark.parametrize('kernel', ['centered'])
-def test_tti(shape, space_order, kernel):
+@pytest.mark.parametrize('shape, so, rot', [
+    ((60, 70), 4, True), ((60, 70), 8, False),
+    ((60, 70, 75), 4, True), ((60, 70, 75), 8, False)])
+def test_tti(shape, so, rot):
     """
     This first test compare the solution of the acoustic wave-equation and the
-    TTI wave-eqatuon with all anisotropy parametrs to 0. The two solutions should
-    be the same.
+    TTI wave-equation with Thomsen parameters to 0. The two solutions should
+    be the same with and without rotation angles (Laplacian is rotational invariant).
     """
-    if kernel == 'shifted':
-        space_order *= 2
     to = 2
-    so = space_order
-    nbl = 10
     origin = [0. for _ in shape]
-    spacing = [10. for _ in shape]
+    spacing = [20. for _ in shape]
     vp = 1.5 * np.ones(shape)
     nrec = shape[0]
+    rot_val = .01*np.ones(shape) if rot else np.zeros(shape)
 
     # Constant model for true velocity
     model = Model(origin=origin, shape=shape, vp=vp,
-                  spacing=spacing, nbl=nbl, space_order=space_order,
+                  spacing=spacing, nbl=0, space_order=so,
                   epsilon=np.zeros(shape), delta=np.zeros(shape),
-                  theta=np.zeros(shape), phi=np.zeros(shape))
+                  theta=rot_val, phi=rot_val)
 
     # Source and receiver geometries
     src_coordinates = np.empty((1, len(spacing)))
     src_coordinates[0, :] = np.array(model.domain_size) * .5
-    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
     rec_coordinates = np.empty((nrec, len(spacing)))
     rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
@@ -48,14 +44,13 @@ def test_tti(shape, space_order, kernel):
     rec_coordinates[:, -1] = model.origin[-1] + 2 * spacing[-1]
 
     geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=0.0, tn=350., src_type='Ricker', f0=0.010)
+                                   t0=0.0, tn=350., src_type='Ricker', f0=0.005)
 
-    acoustic = AcousticWaveSolver(model, geometry, time_order=2, space_order=so)
+    acoustic = AcousticWaveSolver(model, geometry, space_order=so)
     rec, u1, _ = acoustic.forward(save=False)
 
     # Solvers
-    solver_tti = AnisotropicWaveSolver(model, geometry, time_order=2,
-                                       space_order=space_order)
+    solver_tti = AnisotropicWaveSolver(model, geometry, space_order=so)
 
     # zero src
     src = geometry.src
@@ -76,7 +71,7 @@ def test_tti(shape, space_order, kernel):
     utti.data[0:to+1, :] = u1.data[indlast[:to+1], :]
     vtti.data[0:to+1, :] = u1.data[indlast[:to+1], :]
 
-    solver_tti.forward(u=utti, v=vtti, kernel=kernel, time_M=10, src=src)
+    solver_tti.forward(u=utti, v=vtti, time_M=10, src=src)
 
     normal_u = u.data[:]
     normal_utti = .5 * utti.data[:]
@@ -84,6 +79,5 @@ def test_tti(shape, space_order, kernel):
 
     res = linalg.norm((normal_u - normal_utti - normal_vtti).reshape(-1))**2
     res /= np.linalg.norm(normal_u.reshape(-1))**2
-
     log("Difference between acoustic and TTI with all coefficients to 0 %2.4e" % res)
     assert np.isclose(res, 0.0, atol=1e-4)

@@ -588,8 +588,7 @@ class TestIsotropicAcoustic(object):
         Full acoustic wave test, forward + adjoint operators
         """
         from test_adjoint import TestAdjoint
-        TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel,
-                                     self.space_order, self.nbl)
+        TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel, self.space_order)
 
     @switchconfig(openmp=True)
     def test_acoustic_adjoint_omp(self):
@@ -598,5 +597,4 @@ class TestIsotropicAcoustic(object):
         sparse loops.
         """
         from test_adjoint import TestAdjoint
-        TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel,
-                                     self.space_order, self.nbl)
+        TestAdjoint().test_adjoint_F('layers', self.shape, self.kernel, self.space_order)

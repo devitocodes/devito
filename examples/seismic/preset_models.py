@@ -31,13 +31,13 @@ def demo_model(preset, **kwargs):
     * 'circle-isotropic': Simple camembert model with velocities 1.5 km/s
                  and 2.5 km/s in a circle at the center. 2D only.
     * 'marmousi2d-isotropic': Loads the 2D Marmousi data set from the given
-                    filepath. Requires the ``opesci/data`` repository
+                    filepath. Requires the ``devitocodes/data`` repository
                     to be available on your machine.
     * 'marmousi2d-tti': Loads the 2D Marmousi data set from the given
-                    filepath. Requires the ``opesci/data`` repository
+                    filepath. Requires the ``devitocodes/data`` repository
                     to be available on your machine.
     * 'marmousi3d-tti': Loads the 2D Marmousi data set from the given
-                    filepath. Requires the ``opesci/data`` repository
+                    filepath. Requires the ``devitocodes/data`` repository
                     to be available on your machine.
     """
     space_order = kwargs.pop('space_order', 2)
@@ -203,13 +203,16 @@ def demo_model(preset, **kwargs):
         phi = None
         if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:
             phi = .25*(v - 1.5)
+
         model = Model(space_order=space_order, vp=v, origin=origin, shape=shape,
                       dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
                       delta=delta, theta=theta, phi=phi, **kwargs)
-        if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:
-            model.smooth(('epsilon', 'delta', 'theta', 'phi'))
-        else:
-            model.smooth(('epsilon', 'delta', 'theta'))
+
+        if kwargs.get('smooth', True):
+            if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:
+                model.smooth(('epsilon', 'delta', 'theta', 'phi'))
+            else:
+                model.smooth(('epsilon', 'delta', 'theta'))
 
         return model
 
@@ -240,11 +243,11 @@ def demo_model(preset, **kwargs):
         origin = (0., 0.)
         nbl = kwargs.pop('nbl', 20)
 
-        # Read 2D Marmousi model from opesci/data repo
+        # Read 2D Marmousi model from devitocodes/data repo
         data_path = kwargs.get('data_path', None)
         if data_path is None:
-            raise ValueError("Path to opesci/data not found! Please specify with "
-                             "'data_path=<path/to/opesci/data>'")
+            raise ValueError("Path to devitocodes/data not found! Please specify with "
+                             "'data_path=<path/to/devitocodes/data>'")
         path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
         v = np.fromfile(path, dtype='float32', sep="")
         v = v.reshape(shape)
@@ -264,11 +267,11 @@ def demo_model(preset, **kwargs):
         origin = (0., 0.)
         nbl = kwargs.pop('nbl', 20)
 
-        # Read 2D Marmousi model from opesci/data repo
+        # Read 2D Marmousi model from devitocodes/data repo
         data_path = kwargs.pop('data_path', None)
         if data_path is None:
-            raise ValueError("Path to opesci/data not found! Please specify with "
-                             "'data_path=<path/to/opesci/data>'")
+            raise ValueError("Path to devitocodes/data not found! Please specify with "
+                             "'data_path=<path/to/devitocodes/data>'")
         path = os.path.join(data_path, 'marmousi3D/vp_marmousi_bi')
 
         # velocity

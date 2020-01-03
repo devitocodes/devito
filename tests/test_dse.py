@@ -2,6 +2,7 @@ from sympy import Add, cos, sin, sqrt  # noqa
 import numpy as np
 import pytest
 from unittest.mock import patch
+from cached_property import cached_property
 
 from conftest import skipif, EVAL, x, y, z  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
@@ -17,7 +18,7 @@ from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
-pytestmark = skipif(['yask', 'ops'])
+pytestmark = skipif(['yask', 'ops'], whole_module=True)
 
 
 def test_scheduling_after_rewrite():
@@ -676,153 +677,152 @@ def test_custom_rewriter():
 
 
 # TTI
+class TestTTI(object):
 
-def tti_operator(dse=False, dle='advanced', space_order=4):
-    nrec = 101
-    t0 = 0.0
-    tn = 250.
-    nbl = 10
-    shape = (50, 50, 50)
-    spacing = (20., 20., 20.)
+    # TTI layered model for the tti test, no need for a smooth interace bewtween
+    # the two layer as the dse/compiler is tested not the physical prettiness
+    # of the result, saves testing time
+    _model = demo_model('layers-tti', nlayers=3, nbl=10, space_order=4,
+                        shape=(50, 50, 50), spacing=(20., 20., 20.),
+                        smooth=False)
 
-    # Two layer model for true velocity
-    model = demo_model('layers-tti', ratio=3, nbl=nbl, space_order=space_order,
-                       shape=shape, spacing=spacing)
+    @cached_property
+    def model(self):
+        return self._model
 
-    # Source and receiver geometries
-    src_coordinates = np.empty((1, len(spacing)))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
-    src_coordinates[0, -1] = model.origin[-1] + 2 * spacing[-1]
+    @cached_property
+    def geometry(self):
+        nrec = 101
+        t0 = 0.0
+        tn = 250.
 
-    rec_coordinates = np.empty((nrec, len(spacing)))
-    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
+        # Source and receiver geometries
+        src_coordinates = np.empty((1, len(self.model.spacing)))
+        src_coordinates[0, :] = np.array(self.model.domain_size) * .5
+        src_coordinates[0, -1] = self.model.origin[-1] + 2 * self.model.spacing[-1]
 
-    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=t0, tn=tn, src_type='Gabor', f0=0.010)
+        rec_coordinates = np.empty((nrec, len(self.model.spacing)))
+        rec_coordinates[:, 0] = np.linspace(0., self.model.domain_size[0], num=nrec)
+        rec_coordinates[:, 1:] = src_coordinates[0, 1:]
 
-    return AnisotropicWaveSolver(model, geometry, space_order=space_order, dse=dse)
+        geometry = AcquisitionGeometry(self.model, rec_coordinates, src_coordinates,
+                                       t0=t0, tn=tn, src_type='Gabor', f0=0.010)
+        return geometry
 
+    def tti_operator(self, dse=False, space_order=4):
+        return AnisotropicWaveSolver(self.model, self.geometry,
+                                     space_order=space_order, dse=dse)
 
-@pytest.fixture(scope="session")
-def tti_nodse():
-    operator = tti_operator(dse=None)
-    rec, u, v, _ = operator.forward()
-    return v, rec
+    @cached_property
+    def tti_nodse(self):
+        operator = self.tti_operator(dse=None)
+        rec, u, v, _ = operator.forward()
+        return v, rec
 
+    def test_tti_rewrite_basic(self):
+        operator = self.tti_operator(dse='basic')
+        rec, u, v, _ = operator.forward()
 
-def test_tti_rewrite_basic(tti_nodse):
-    operator = tti_operator(dse='basic')
-    rec, u, v, _ = operator.forward()
+        assert np.allclose(self.tti_nodse[0].data, v.data, atol=10e-3)
+        assert np.allclose(self.tti_nodse[1].data, rec.data, atol=10e-3)
 
-    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-3)
-    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
+    def test_tti_rewrite_advanced(self):
+        operator = self.tti_operator(dse='advanced')
+        rec, u, v, _ = operator.forward()
 
+        assert np.allclose(self.tti_nodse[0].data, v.data, atol=10e-1)
+        assert np.allclose(self.tti_nodse[1].data, rec.data, atol=10e-1)
 
-def test_tti_rewrite_advanced(tti_nodse):
-    operator = tti_operator(dse='advanced')
-    rec, u, v, _ = operator.forward()
+    def test_tti_rewrite_aggressive(self):
+        operator = self.tti_operator(dse='aggressive')
+        rec, u, v, _ = operator.forward(kernel='centered')
 
-    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
-    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
+        assert np.allclose(self.tti_nodse[0].data, v.data, atol=10e-1)
+        assert np.allclose(self.tti_nodse[1].data, rec.data, atol=10e-1)
 
+        # Also check that DLE's loop blocking with DSE=aggressive does the right thing
+        # There should be exactly two BlockDimensions; bugs in the past were generating
+        # either code with no blocking (zero BlockDimensions) or code with four
+        # BlockDimensions (i.e., Iteration folding was somewhat broken)
+        op = operator.op_fwd(kernel='centered')
+        block_dims = [i for i in op.dimensions if isinstance(i, BlockDimension)]
+        assert len(block_dims) == 2
 
-def test_tti_rewrite_aggressive(tti_nodse):
-    operator = tti_operator(dse='aggressive')
-    rec, u, v, _ = operator.forward(kernel='centered', save=False)
+        # Also, in this operator, we expect six temporary Arrays:
+        # * four Arrays are allocated on the heap
+        # * two Arrays are allocated on the stack and only appear within an efunc
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        assert len(arrays) == 5
+        assert all(i._mem_heap and not i._mem_external for i in arrays)
+        arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root)
+                  if i.is_Array]
+        assert len(arrays) == 7
+        assert all(not i._mem_external for i in arrays)
+        assert len([i for i in arrays if i._mem_heap]) == 5
+        assert len([i for i in arrays if i._mem_stack]) == 2
 
-    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
-    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
+    @skipif(['nompi'])
+    @pytest.mark.parallel(mode=[(1, 'full')])
+    def test_tti_rewrite_aggressive_wmpi(self):
+        tti_nodse = self.tti_operator(dse=None)
+        rec0, u0, v0, _ = tti_nodse.forward(kernel='centered')
+        tti_agg = self.tti_operator(dse='aggressive')
+        rec1, u1, v1, _ = tti_agg.forward(kernel='centered')
 
-    # Also check that DLE's loop blocking with DSE=aggressive does the right thing
-    # There should be exactly two BlockDimensions; bugs in the past were generating
-    # either code with no blocking (zero BlockDimensions) or code with four
-    # BlockDimensions (i.e., Iteration folding was somewhat broken)
-    op = operator.op_fwd(kernel='centered', save=False)
-    block_dims = [i for i in op.dimensions if isinstance(i, BlockDimension)]
-    assert len(block_dims) == 2
+        assert np.allclose(v0.data, v1.data, atol=10e-1)
+        assert np.allclose(rec0.data, rec1.data, atol=10e-1)
 
-    # Also, in this operator, we expect six temporary Arrays:
-    # * four Arrays are allocated on the heap
-    # * two Arrays are allocated on the stack and only appear within an efunc
-    arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-    assert len(arrays) == 5
-    assert all(i._mem_heap and not i._mem_external for i in arrays)
-    arrays = [i for i in FindSymbols().visit(op._func_table['bf0'].root) if i.is_Array]
-    assert len(arrays) == 7
-    assert all(not i._mem_external for i in arrays)
-    assert len([i for i in arrays if i._mem_heap]) == 5
-    assert len([i for i in arrays if i._mem_stack]) == 2
+    @switchconfig(profiling='advanced')
+    @pytest.mark.parametrize('space_order,expected', [
+        (8, 174), (16, 306)
+    ])
+    def test_tti_rewrite_aggressive_opcounts(self, space_order, expected):
+        op = self.tti_operator(dse='aggressive', space_order=space_order)
+        sections = list(op.op_fwd(kernel='centered')._profiler._sections.values())
+        assert sections[1].sops == expected
 
+    @switchconfig(profiling='advanced')
+    @pytest.mark.parametrize('space_order,expected', [
+        (4, 194), (12, 386)
+    ])
+    def test_tti_v2_rewrite_aggressive_opcounts(self, space_order, expected):
+        grid = Grid(shape=(3, 3, 3))
 
-@skipif(['nompi'])
-@pytest.mark.parallel(mode=[(1, 'full')])
-def test_tti_rewrite_aggressive_wmpi():
-    tti_nodse = tti_operator(dse=None)
-    rec0, u0, v0, _ = tti_nodse.forward(kernel='centered', save=False)
-    tti_agg = tti_operator(dse='aggressive')
-    rec1, u1, v1, _ = tti_agg.forward(kernel='centered', save=False)
+        s = 0.00067
+        u = TimeFunction(name='u', grid=grid, space_order=space_order)
+        v = TimeFunction(name='v', grid=grid, space_order=space_order)
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        m = Function(name='m', grid=grid)
+        e = Function(name='e', grid=grid)
+        d = Function(name='d', grid=grid)
 
-    assert np.allclose(v0.data, v1.data, atol=10e-1)
-    assert np.allclose(rec0.data, rec1.data, atol=10e-1)
+        ang0 = cos(f)
+        ang1 = sin(f)
+        ang2 = cos(g)
+        ang3 = sin(g)
 
+        H1u = (ang1*ang1*ang2*ang2*u.dx2 +
+               ang1*ang1*ang3*ang3*u.dy2 +
+               ang0*ang0*u.dz2 +
+               2*ang1*ang1*ang3*ang2*u.dxdy +
+               2*ang0*ang1*ang3*u.dydz +
+               2*ang0*ang1*ang2*u.dxdz)
+        H2u = -H1u + u.laplace
 
-@switchconfig(profiling='advanced')
-@pytest.mark.parametrize('space_order,expected', [
-    (8, 174), (16, 306)
-])
-def test_tti_rewrite_aggressive_opcounts(space_order, expected):
-    operator = tti_operator(dse='aggressive', space_order=space_order)
-    _, _, _, summary = operator.forward(kernel='centered', save=False)
-    assert summary[('section1', None)].ops == expected
+        H1v = (ang1*ang1*ang2*ang2*v.dx2 +
+               ang1*ang1*ang3*ang3*v.dy2 +
+               ang0*ang0*v.dz2 +
+               2*ang1*ang1*ang3*ang2*v.dxdy +
+               2*ang0*ang1*ang3*v.dydz +
+               2*ang0*ang1*ang2*v.dxdz)
+        H2v = -H1v + v.laplace
 
+        eqns = [Eq(u.forward, (2*u - u.backward) + s**2/m * (e * H2u + H1v)),
+                Eq(v.forward, (2*v - v.backward) + s**2/m * (d * H2v + H1v))]
+        op = Operator(eqns, dse='aggressive')
 
-@switchconfig(profiling='advanced')
-@pytest.mark.parametrize('space_order,expected', [
-    (4, 194), (12, 386)
-])
-def test_tti_v2_rewrite_aggressive_opcounts(space_order, expected):
-    grid = Grid(shape=(3, 3, 3))
-
-    s = 0.00067
-    u = TimeFunction(name='u', grid=grid, space_order=space_order)
-    v = TimeFunction(name='v', grid=grid, space_order=space_order)
-    f = Function(name='f', grid=grid)
-    g = Function(name='g', grid=grid)
-    m = Function(name='m', grid=grid)
-    e = Function(name='e', grid=grid)
-    d = Function(name='d', grid=grid)
-
-    ang0 = cos(f)
-    ang1 = sin(f)
-    ang2 = cos(g)
-    ang3 = sin(g)
-
-    H1u = (ang1*ang1*ang2*ang2*u.dx2 +
-           ang1*ang1*ang3*ang3*u.dy2 +
-           ang0*ang0*u.dz2 +
-           2*ang1*ang1*ang3*ang2*u.dxdy +
-           2*ang0*ang1*ang3*u.dydz +
-           2*ang0*ang1*ang2*u.dxdz)
-    H2u = -H1u + u.laplace
-
-    H1v = (ang1*ang1*ang2*ang2*v.dx2 +
-           ang1*ang1*ang3*ang3*v.dy2 +
-           ang0*ang0*v.dz2 +
-           2*ang1*ang1*ang3*ang2*v.dxdy +
-           2*ang0*ang1*ang3*v.dydz +
-           2*ang0*ang1*ang2*v.dxdz)
-    H2v = -H1v + v.laplace
-
-    eqns = [Eq(u.forward, (2*u - u.backward) + s**2/m * (e * H2u + H1v)),
-            Eq(v.forward, (2*v - v.backward) + s**2/m * (d * H2v + H1v))]
-    op = Operator(eqns, dse='aggressive')
-
-    sections = list(op._profiler._sections.values())
-    assert len(sections) == 2
-    assert sections[0].sops == 4
-    assert sections[1].sops == expected
-
-
-if __name__ == "__main__":
-    test_tti_v2_rewrite_aggressive_opcounts(4, 183)
+        sections = list(op._profiler._sections.values())
+        assert len(sections) == 2
+        assert sections[0].sops == 4
+        assert sections[1].sops == expected

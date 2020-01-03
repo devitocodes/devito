@@ -391,12 +391,12 @@ def plot(problem, **kwargs):
 
 
 def get_ob_bench(problem, resultsdir, parameters):
-    """Return a special ``opescibench.Benchmark`` to manage performance runs."""
+    """Return a special ``devitobench.Benchmark`` to manage performance runs."""
     try:
-        from opescibench import Benchmark
+        from devitobench import Benchmark
     except:
-        raise ImportError('Could not import opescibench utility package.\n'
-                          'Please install https://github.com/opesci/opescibench')
+        raise ImportError('Could not import devitobench utility package.\n'
+                          'Please install https://github.com/devitocodes/devitobench')
 
     class DevitoBenchmark(Benchmark):
 
@@ -433,12 +433,12 @@ def get_ob_bench(problem, resultsdir, parameters):
 
 
 def get_ob_exec(func):
-    """Return a special ``opescibench.Executor`` to execute performance runs."""
+    """Return a special ``devitobench.Executor`` to execute performance runs."""
     try:
-        from opescibench import Executor
+        from devitobench import Executor
     except:
-        raise ImportError('Could not import opescibench utility package.\n'
-                          'Please install https://github.com/opesci/opescibench')
+        raise ImportError('Could not import devitobench utility package.\n'
+                          'Please install https://github.com/devito/devitobench')
 
     class DevitoExecutor(Executor):
 
@@ -461,10 +461,10 @@ def get_ob_exec(func):
 
 def get_ob_plotter():
     try:
-        from opescibench import RooflinePlotter
+        from devitobench import RooflinePlotter
     except:
-        raise ImportError('Could not import opescibench utility package.\n'
-                          'Please install https://github.com/opesci/opescibench'
+        raise ImportError('Could not import devitobench utility package.\n'
+                          'Please install https://github.com/devitocodes/devitobench'
                           'To plot performance results, make sure to have the'
                           'Matplotlib package installed')
     return RooflinePlotter
