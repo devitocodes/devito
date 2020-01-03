@@ -11,7 +11,6 @@ from devito.ir import DummyEq, Stencil, FindSymbols, retrieve_iteration_tree  # 
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.cse import _cse
 from devito.passes.clusters.utils import make_is_time_invariant
-from devito.passes.iet import BlockDimension
 from devito.symbolics import yreplace, estimate_cost, pow_to_mul, indexify
 from devito.tools import generator
 from devito.types import Scalar, Array
@@ -869,11 +868,11 @@ class TestTTI(object):
         assert np.allclose(self.tti_nodse[1].data, rec.data, atol=10e-1)
 
         # Also check that DLE's loop blocking with DSE=aggressive does the right thing
-        # There should be exactly two BlockDimensions; bugs in the past were generating
-        # either code with no blocking (zero BlockDimensions) or code with four
-        # BlockDimensions (i.e., Iteration folding was somewhat broken)
+        # There should be exactly two IncrDimensions; bugs in the past were generating
+        # either code with no blocking (zero IncrDimensions) or code with four
+        # IncrDimensions (i.e., Iteration folding was somewhat broken)
         op = operator.op_fwd(kernel='centered')
-        block_dims = [i for i in op.dimensions if isinstance(i, BlockDimension)]
+        block_dims = [i for i in op.dimensions if i.is_Incr]
         assert len(block_dims) == 2
 
         # Also, in this operator, we expect six temporary Arrays:

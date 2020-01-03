@@ -923,7 +923,7 @@ class IncrDimension(DerivedDimension):
         The distance between two consecutive points. Defaults to the
         symbolic size.
     name : str, optional
-        To force a different Dimension name.
+        To force a Dimension name different than the default one.
 
     Notes
     -----
@@ -931,6 +931,7 @@ class IncrDimension(DerivedDimension):
     """
 
     is_Incr = True
+    is_PerfKnob = True
 
     def __new__(cls, parent, _min=None, _max=None, step=None, name=None):
         if name is None:
@@ -961,7 +962,9 @@ class IncrDimension(DerivedDimension):
             except (TypeError, ValueError):
                 return self._min
         else:
-            return self.parent.symbolic_min
+            #TODO: previously was:
+            #return self.parent.symbolic_min
+            return Scalar(name=self.min_name, dtype=np.int32, is_const=True)
 
     @cached_property
     def symbolic_max(self):
@@ -973,27 +976,79 @@ class IncrDimension(DerivedDimension):
             except (TypeError, ValueError):
                 return self._max
         else:
-            return self.parent.symbolic_max
+            #TODO: previously was:
+            #return self.parent.symbolic_max
+            return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
     @cached_property
     def symbolic_incr(self):
         return self.step
 
-    def _arg_defaults(self, **kwargs):
-        """
-        An IncrDimension provides no arguments, so this method returns an empty dict.
-        """
-        return {}
+    @cached_property
+    def _arg_names(self):
+        try:
+            return (self.step.name,)
+        except AttributeError:
+            # `step` not a Symbol
+            return ()
 
-    def _arg_values(self, *args, **kwargs):
-        """
-        An IncrDimension provides no arguments, so there are no argument values to
-        be derived.
-        """
-        return {}
+    def _arg_defaults(self, **kwargs):
+        # TODO: need a heuristic to pick a default incr size
+        #TODO: move default value to __new__
+        try:
+            return {self.step.name: 8}
+        except AttributeError:
+            # `step` not a Symbol
+            return {}
+
+    def _arg_values(self, args, interval, grid, **kwargs):
+        try:
+            name = self.step.name
+        except AttributeError:
+            # `step` not a Symbol
+            return {}
+        if name in kwargs:
+            return {name: kwargs.pop(name)}
+        elif isinstance(self.parent, IncrDimension):
+            # `self` is an IncrDimension within an outer IncrDimension, but
+            # no value supplied -> the sub-block will span the entire block
+            return {name: args[self.parent.step.name]}
+        else:
+            value = self._arg_defaults()[name]
+            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
+                return {name: value}
+            else:
+                # Avoid OOB (will end up here only in case of tiny iteration spaces)
+                return {name: 1}
+
+    def _arg_check(self, args, interval):
+        try:
+            name = self.step.name
+        except AttributeError:
+            # `step` not a Symbol
+            return
+
+        value = args[name]
+        if isinstance(self.parent, IncrDimension):
+            # sub-IncrDimensions must be perfect divisors of their parent
+            parent_value = args[self.parent.step.name]
+            if parent_value % value > 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
+                                      "must divide the parent block size evenly (`%s=%d`)"
+                                      % (name, value, self.parent.step.name,
+                                         parent_value))
+        else:
+            if value < 0:
+                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
+                                      % (name, value))
+            if value > args[self.root.max_name] - args[self.root.min_name] + 1:
+                # Avoid OOB
+                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
+                                      "iteration range and it will cause an OOB access"
+                                      % (name, value))
 
     # Pickling support
-    _pickle_args = ['parent', 'symbolic_min', 'step']
+    _pickle_args = ['parent', 'symbolic_min', 'symbolic_max', 'step']
     _pickle_kwargs = ['name']
 
 
