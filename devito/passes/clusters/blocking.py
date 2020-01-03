@@ -7,7 +7,7 @@ from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE, IntervalGroup, IterationSpace
 from devito.types import IncrDimension, Scalar
 
-__all__ = ['Blocking', 'BlockDimension']
+__all__ = ['Blocking', 'IncrDimension']
 
 
 class Blocking(Queue):
@@ -46,16 +46,16 @@ class Blocking(Queue):
 
         name = self.template % (d.name, self.nblocked[d], '%d')
 
-        # Create the BlockDimensions (in total `self.levels` Dimensions)
+        # Create the block Dimensions (in total `self.levels` Dimensions)
 
-        bd = BlockDimension(d, name=name % 0)
+        bd = IncrDimension(d, name=name % 0)
         block_dims = [bd]
 
         for i in range(1, self.levels):
-            bd = BlockDimension(bd, bd, bd + bd.step - 1, name=name % i)
+            bd = IncrDimension(bd, bd, bd + bd.step - 1, name=name % i)
             block_dims.append(bd)
 
-        bd = BlockDimension(bd, bd, bd + bd.step - 1, 1, d.name)
+        bd = IncrDimension(bd, bd, bd + bd.step - 1, 1, d.name)
         block_dims.append(bd)
 
         # The new Cluster properties
@@ -63,7 +63,7 @@ class Blocking(Queue):
         properties.pop(d)
         properties.update({bd: cluster.properties[d] - {TILABLE} for bd in block_dims})
 
-        # Exploit the newly created BlockDimensions in the new IterationSpace
+        # Exploit the newly created IncrDimensions in the new IterationSpace
         ispace = decompose(cluster.ispace, d, block_dims)
 
         return cluster.rebuild(ispace=ispace, properties=properties)
@@ -90,11 +90,11 @@ def decompose(ispace, d, block_dims):
     for r in ispace.intervals.relations:
         relations.append([block_dims[0] if i is d else i for i in r])
 
-    # Further, if there are other BlockDimensions, add relations such that
-    # BlockDimensions at the same level stick together, thus we obtain for
+    # Further, if there are other IncrDimensions, add relations such that
+    # IncrDimensions at the same level stick together, thus we obtain for
     # example `(t, xbb, ybb, xb, yb, x, y)` instead of `(t, xbb, xb, x, ybb, ...)`
     for i in intervals:
-        if not isinstance(i.dim, BlockDimension):
+        if not isinstance(i.dim, IncrDimension):
             continue
         for bd in block_dims:
             if bd._defines & i.dim._defines:
@@ -109,71 +109,3 @@ def decompose(ispace, d, block_dims):
     directions.update({bd: ispace.directions[d] for bd in block_dims})
 
     return IterationSpace(intervals, ispace.sub_iterators, directions)
-
-
-
-class BlockDimension(IncrDimension):
-
-    is_PerfKnob = True
-
-    @cached_property
-    def symbolic_min(self):
-        if self._min is not None:
-            return super(BlockDimension, self).symbolic_min
-        else:
-            return Scalar(name=self.min_name, dtype=np.int32, is_const=True)
-
-    @cached_property
-    def symbolic_max(self):
-        if self._max is not None:
-            return super(BlockDimension, self).symbolic_max
-        else:
-            return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
-
-    @property
-    def symbolic_incr(self):
-        return self.step
-
-    @property
-    def _arg_names(self):
-        return (self.step.name,)
-
-    def _arg_defaults(self, **kwargs):
-        # TODO: need a heuristic to pick a default block size
-        return {self.step.name: 8}
-
-    def _arg_values(self, args, interval, grid, **kwargs):
-        if self.step.name in kwargs:
-            return {self.step.name: kwargs.pop(self.step.name)}
-        elif isinstance(self.parent, BlockDimension):
-            # `self` is a BlockDimension within an outer BlockDimension, but
-            # no value supplied -> the sub-block will span the entire block
-            return {self.step.name: args[self.parent.step.name]}
-        else:
-            value = self._arg_defaults()[self.step.name]
-            if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
-                return {self.step.name: value}
-            else:
-                # Avoid OOB (will end up here only in case of tiny iteration spaces)
-                return {self.step.name: 1}
-
-    def _arg_check(self, args, interval):
-        """Check the block size won't cause OOB accesses."""
-        value = args[self.step.name]
-        if isinstance(self.parent, BlockDimension):
-            # sub-BlockDimensions must be perfect divisors of their parent
-            parent_value = args[self.parent.step.name]
-            if parent_value % value > 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
-                                      "must divide the parent block size evenly (`%s=%d`)"
-                                      % (self.step.name, value,
-                                         self.parent.step.name, parent_value))
-        else:
-            if value < 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
-                                      % (self.step.name, value))
-            if value > args[self.root.max_name] - args[self.root.min_name] + 1:
-                # Avoid OOB
-                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
-                                      "iteration range and it will cause an OOB access"
-                                      % (self.step.name, value))

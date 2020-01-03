@@ -9,7 +9,6 @@ from devito.logger import perf, warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration
-from devito.passes import BlockDimension
 from devito.symbolics import evaluate
 from devito.tools import filter_ordered, flatten, prod
 
@@ -88,7 +87,7 @@ def autotune(operator, args, level, mode):
     # Perform autotuning
     timings = {}
     for n, tree in enumerate(trees):
-        blockable = [i.dim for i in tree if isinstance(i.dim, BlockDimension)]
+        blockable = [i.dim for i in tree if i.dim.is_Incr]
 
         # Tunable arguments
         try:

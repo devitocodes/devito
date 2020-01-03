@@ -5,7 +5,6 @@ import cgen
 from devito.ir.iet import (Iteration, List, Prodder, FindNodes, Transformer,
                            filter_iterations, retrieve_iteration_tree)
 from devito.logger import perf_adv
-from devito.passes.iet.blocking import BlockDimension
 from devito.passes.iet.engine import iet_pass
 
 __all__ = ['avoid_denormals', 'loop_wrapping', 'hoist_prodders']
@@ -53,7 +52,7 @@ def hoist_prodders(iet):
         for prodder in FindNodes(Prodder).visit(tree.root):
             if prodder._periodic:
                 try:
-                    key = lambda i: isinstance(i.dim, BlockDimension)
+                    key = lambda i: i.dim.is_Incr
                     candidate = filter_iterations(tree, key)[-1]
                 except IndexError:
                     # Fallback: use the outermost Iteration
