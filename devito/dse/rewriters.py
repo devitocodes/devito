@@ -10,13 +10,12 @@ from devito.dse.aliases import collect
 from devito.dse.manipulation import (collect_nested, common_subexprs_elimination,
                                      make_is_time_invariant)
 from devito.exceptions import DSEException
-from devito.finite_differences import Eq
 from devito.logger import dse_warning as warning
 from devito.symbolics import (bhaskara_cos, bhaskara_sin, estimate_cost, freeze,
                               pow_to_mul, q_leaf, q_sum_of_product, q_terminalop,
                               yreplace)
 from devito.tools import flatten
-from devito.types import Array, Scalar
+from devito.types import Array, Eq, Scalar
 
 __all__ = ['BasicRewriter', 'AdvancedRewriter', 'AggressiveRewriter', 'CustomRewriter']
 

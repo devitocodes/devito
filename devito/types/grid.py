@@ -4,7 +4,6 @@ import numpy as np
 from sympy import prod
 from math import floor
 
-from devito.finite_differences import Eq
 from devito.mpi import Distributor
 from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
@@ -12,6 +11,7 @@ from devito.types.constant import Constant
 from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
+from devito.types.equation import Eq
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
