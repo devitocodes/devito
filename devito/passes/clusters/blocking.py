@@ -47,12 +47,16 @@ class Blocking(Queue):
         name = self.template % (d.name, self.nblocked[d], '%d')
 
         # Create the BlockDimensions (in total `self.levels` Dimensions)
-        bd = d
-        block_dims = []
-        for i in range(self.levels):
-            bd = BlockDimension(bd, name=name % i)
+
+        bd = BlockDimension(d, name=name % 0)
+        block_dims = [bd]
+
+        for i in range(1, self.levels):
+            bd = BlockDimension(bd, bd, bd + bd.step - 1, name=name % i)
             block_dims.append(bd)
-        block_dims.append(BlockDimension(bd, name=d.name, step=1))
+
+        bd = BlockDimension(bd, bd, bd + bd.step - 1, 1, d.name)
+        block_dims.append(bd)
 
         # The new Cluster properties
         properties = dict(cluster.properties)
@@ -114,7 +118,21 @@ class BlockDimension(IncrDimension):
 
     @cached_property
     def symbolic_min(self):
-        return Scalar(name=self.min_name, dtype=np.int32, is_const=True)
+        if self._min is not None:
+            return super(BlockDimension, self).symbolic_min
+        else:
+            return Scalar(name=self.min_name, dtype=np.int32, is_const=True)
+
+    @cached_property
+    def symbolic_max(self):
+        if self._max is not None:
+            return super(BlockDimension, self).symbolic_max
+        else:
+            return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
+
+    @property
+    def symbolic_incr(self):
+        return self.step
 
     @property
     def _arg_names(self):
