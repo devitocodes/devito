@@ -23,7 +23,6 @@ class Blocking(Queue):
         super(Blocking, self).__init__()
 
     def process(self, elements):
-        #TODO: necessary??
         return self._process_fatd(elements, 1)
 
     def callback(self, clusters, prefix):
@@ -63,8 +62,6 @@ class Blocking(Queue):
         # Exploit the newly created BlockDimensions in the new IterationSpace
         ispace = decompose(cluster.ispace, d, block_dims)
 
-        #TODO: DataSpace ??
-
         return cluster.rebuild(ispace=ispace, properties=properties)
 
 
@@ -89,10 +86,20 @@ def decompose(ispace, d, block_dims):
     for r in ispace.intervals.relations:
         relations.append([block_dims[0] if i is d else i for i in r])
 
-    # Finally, the IntervalGroup
+    # Further, if there are other BlockDimensions, add relations such that
+    # BlockDimensions at the same level stick together, thus we obtain for
+    # example `(t, xbb, ybb, xb, yb, x, y)` instead of `(t, xbb, xb, x, ybb, ...)`
+    for i in intervals:
+        if not isinstance(i.dim, BlockDimension):
+            continue
+        for bd in block_dims:
+            if bd._defines & i.dim._defines:
+                break
+            if len(i.dim._defines) > len(bd._defines):
+                relations.append([bd, i.dim])
+
     intervals = IntervalGroup(intervals, relations=relations)
 
-    # Update directions
     directions = dict(ispace.directions)
     directions.pop(d)
     directions.update({bd: ispace.directions[d] for bd in block_dims})
