@@ -20,8 +20,12 @@ class Graph(object):
     by `a' = T(a)`; new nodes (Callables), and therefore new edges, may be added.
     """
 
-    def __init__(self, iet):
+    def __init__(self, iet, *efuncs):
+        # Internal "known" functions
         self.efuncs = OrderedDict([('root', iet)])
+        self.efuncs.update(OrderedDict([(i.name, i) for i in efuncs]))
+
+        # Foreign functions
         self.ffuncs = []
 
         self.dimensions = []

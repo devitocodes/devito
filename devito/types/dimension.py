@@ -913,17 +913,15 @@ class IncrDimension(DerivedDimension):
     ----------
     parent : Dimension
         The Dimension from which the IncrDimension is derived.
-    _min : int, optional
-        The minimum point of the sequence. Defaults to the parent's
-        symbolic minimum.
-    _max : int, optional
-        The maximum point of the sequence. Defaults to the parent's
-        symbolic maximum.
+    _min : expr-like
+        The minimum point of the Dimension.
+    _max : expr-like
+        The maximum point of the Dimension.
     step : int, optional
         The distance between two consecutive points. Defaults to the
         symbolic size.
     name : str, optional
-        To force a Dimension name different than the default one.
+        To override the default Dimension name.
 
     Notes
     -----
@@ -933,12 +931,12 @@ class IncrDimension(DerivedDimension):
     is_Incr = True
     is_PerfKnob = True
 
-    def __new__(cls, parent, _min=None, _max=None, step=None, name=None):
+    def __new__(cls, parent, _min, _max, step=None, name=None):
         if name is None:
             name = cls._genname(parent.name, (_min, _max, step))
-        return super().__new__(cls, parent, _min=_min, _max=_max, step=step, name=name)
+        return super().__new__(cls, parent, _min, _max, step=step, name=name)
 
-    def __init_finalize__(self, parent, _min=None, _max=None, step=None, name=None):
+    def __init_finalize__(self, parent, _min, _max, step=None, name=None):
         super().__init_finalize__(name, parent)
         self._min = _min
         self._max = _max
@@ -950,35 +948,26 @@ class IncrDimension(DerivedDimension):
 
     @cached_property
     def max_step(self):
-        return self.parent.symbolic_max - self.parent.symbolic_min + 1
+        #TODO: check this: previously it was self.parent.symbolic_max - self.parent.symbolic_min + 1
+        return self.symbolic_max - self.symbolic_min + 1
 
     @cached_property
     def symbolic_min(self):
-        if self._min is not None:
-            # Make sure we return a symbolic object as the provided min might
-            # be for example a pure int
-            try:
-                return sympy.Number(self._min)
-            except (TypeError, ValueError):
-                return self._min
-        else:
-            #TODO: previously was:
-            #return self.parent.symbolic_min
-            return Scalar(name=self.min_name, dtype=np.int32, is_const=True)
+        # Make sure we return a symbolic object as the provided min might
+        # be for example a pure int
+        try:
+            return sympy.Number(self._min)
+        except (TypeError, ValueError):
+            return self._min
 
     @cached_property
     def symbolic_max(self):
-        if self._max is not None:
-            # Make sure we return a symbolic object as the provided max might
-            # be for example a pure int
-            try:
-                return sympy.Number(self._max)
-            except (TypeError, ValueError):
-                return self._max
-        else:
-            #TODO: previously was:
-            #return self.parent.symbolic_max
-            return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
+        # Make sure we return a symbolic object as the provided max might
+        # be for example a pure int
+        try:
+            return sympy.Number(self._max)
+        except (TypeError, ValueError):
+            return self._max
 
     @cached_property
     def symbolic_incr(self):
@@ -1048,8 +1037,8 @@ class IncrDimension(DerivedDimension):
                                       % (name, value))
 
     # Pickling support
-    _pickle_args = ['parent', 'symbolic_min', 'symbolic_max', 'step']
-    _pickle_kwargs = ['name']
+    _pickle_args = ['parent', 'symbolic_min', 'symbolic_max']
+    _pickle_kwargs = ['step', 'name']  #TODO: check: step was pickle_args before
 
 
 def dimensions(names):
