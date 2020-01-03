@@ -3,7 +3,7 @@ from collections import Counter
 import numpy as np
 from cached_property import cached_property
 
-from devito.ir.clusters import Cluster, ClusterCompound, Queue
+from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE, IntervalGroup, IterationSpace
 from devito.types import IncrDimension, Scalar
 
