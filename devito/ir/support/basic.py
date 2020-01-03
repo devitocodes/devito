@@ -502,6 +502,13 @@ class Dependence(object):
         """True if the sink preceeds the source, False otherwise."""
         return self.source.timestamp > self.sink.timestamp
 
+    @cached_property
+    def is_lex_non_stmt(self):
+        """
+        True if either the source or the sink are from non-statements, False otherwise.
+        """
+        return self.source.timestamp == -1 or self.sink.timestamp == -1
+
     @memoized_meth
     def is_carried(self, dim=None):
         """Return True if definitely a dimension-carried dependence, False otherwise."""

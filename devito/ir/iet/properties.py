@@ -30,6 +30,9 @@ COLLAPSED = lambda i: IterationProperty('collapsed', i)
 VECTOR = IterationProperty('vector-dim')
 """The Iteration can be SIMD-vectorized."""
 
+TILABLE = IterationProperty('tilable')
+"""The Iteration can be tiled (or "loop blocking")."""
+
 WRAPPABLE = IterationProperty('wrappable')
 """
 The Iteration implements modulo buffered iteration and its expressions are so that

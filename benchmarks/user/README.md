@@ -296,4 +296,4 @@ More details in this [paper](https://arxiv.org/pdf/1807.03032.pdf).
 ## Do not hesitate to contact us
 
 Should you encounter any issues, do not hesitate to
-[get in touch with the development team](https://devito-slackin.now.sh/)
+[get in touch with the development team](https://opesci-slackin.now.sh/)

@@ -2,7 +2,7 @@ import abc
 from hashlib import sha1
 
 
-__all__ = ['Tag', 'Signer', 'Pickable', 'Evaluable']
+__all__ = ['Tag', 'Signer', 'Pickable', 'Evaluable', 'Singleton']
 
 
 class Tag(abc.ABC):
@@ -181,3 +181,17 @@ class Evaluable(object):
     def evaluate(self):
         """Return a new object from the evaluation of ``self``."""
         return self.func(*self._evaluate_args())
+
+
+class Singleton(type):
+
+    """
+    Metaclass for singleton classes.
+    """
+
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]

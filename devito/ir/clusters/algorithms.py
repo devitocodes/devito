@@ -6,12 +6,13 @@ import sympy
 from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.symbolics import CondEq, xreplace_indices
-from devito.tools import DAG, as_tuple, flatten, filter_ordered, generator
+from devito.tools import DAG, as_tuple, flatten, filter_ordered, generator, timed_pass
 from devito.types import Scalar
 
 __all__ = ['clusterize']
 
 
+@timed_pass
 def clusterize(exprs, dse_mode=None):
     """
     Turn a sequence of LoweredEqs into a sequence of Clusters.

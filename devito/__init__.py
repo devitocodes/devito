@@ -8,21 +8,21 @@ from devito.parameters import *  # noqa
 from devito.base import *  # noqa
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
-from devito.equation import *  # noqa
 from devito.finite_differences import *  # noqa
 from devito.mpi import MPI  # noqa
 from devito.types import _SymbolCache, NODE, CELL, Buffer, SubDomain, SubDomainSet  # noqa
 from devito.types.dimension import *  # noqa
+from devito.types.equation import *  # noqa
 from devito.types.tensor import *  # noqa
 
 # Imports required to initialize Devito
 from devito.archinfo import platform_registry
 from devito.backends import backends_registry, init_backend
 from devito.compiler import compiler_registry
-from devito.dle import dle_registry
 from devito.dse import dse_registry
 from devito.logger import error, warning, info, logger_registry, set_log_level  # noqa
-from devito.profiling import profiler_registry
+from devito.operator import profiler_registry
+from devito.targets import targets_registry
 
 
 from ._version import get_versions  # noqa
@@ -97,7 +97,9 @@ configuration.add('develop-mode', True, [False, True])
 configuration.add('dse', 'advanced', list(dse_registry))
 
 # Setup DLE
-configuration.add('dle', 'advanced', list(dle_registry))
+# Note: for backwards compatibility, this config option is still called 'dle',
+# instead of 'target' for example
+configuration.add('dle', 'advanced', list(targets_registry))
 configuration.add('dle-options', {})
 
 # Setup Operator profiling

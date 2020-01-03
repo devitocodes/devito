@@ -22,7 +22,7 @@ The recommended way to install Devito uses the Conda package manager
 for installation of the necessary software dependencies. Please
 install either [Anaconda](https://www.continuum.io/downloads) or
 [Miniconda](https://conda.io/miniconda.html) using the instructions
-provided at the download links. You will need the Python 3.6 version.
+provided at the download links. You will need the Python 3 version.
 
 To install Devito, including examples, tests and tutorial notebooks,
 follow these simple passes:

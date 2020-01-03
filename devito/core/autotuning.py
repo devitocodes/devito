@@ -4,13 +4,13 @@ from functools import total_ordering
 import resource
 
 from devito.archinfo import KNL, KNL7210
-from devito.dle import BlockDimension
 from devito.ir import Backward, retrieve_iteration_tree
 from devito.logger import perf, warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration
 from devito.symbolics import evaluate
+from devito.targets import BlockDimension
 from devito.tools import filter_ordered, flatten, prod
 
 __all__ = ['autotune']
