@@ -148,6 +148,11 @@ class Dimension(ArgProvider):
         """Symbol defining the maximum point of the Dimension."""
         return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
+    @property
+    def symbolic_incr(self):
+        """The increment value while iterating over the Dimension."""
+        return sympy.S.One
+
     @cached_property
     def extreme_min(self):
         return self.symbolic_min
@@ -970,9 +975,9 @@ class IncrDimension(DerivedDimension):
         else:
             return self.parent.symbolic_max
 
-    @property
+    @cached_property
     def symbolic_incr(self):
-        return self + self.step
+        return self.step
 
     def _arg_defaults(self, **kwargs):
         """
