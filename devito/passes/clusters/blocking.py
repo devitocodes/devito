@@ -50,7 +50,7 @@ class Blocking(Queue):
 
         # Create the block Dimensions (in total `self.levels` Dimensions)
 
-        bd = IncrDimension(d, name=name % 0)
+        bd = IncrDimension(d, d.symbolic_min, d.symbolic_max, name=name % 0)
         block_dims = [bd]
 
         for i in range(1, self.levels):
