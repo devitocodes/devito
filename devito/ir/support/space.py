@@ -229,7 +229,10 @@ class IntervalGroup(PartialOrderTuple):
 
     @property
     def size(self):
-        return reduce(mul, [i.size for i in self]) if self else 0
+        if self:
+            return reduce(mul, [i.size / i.dim.symbolic_incr for i in self])
+        else:
+            return 0
 
     @property
     def dimension_map(self):
