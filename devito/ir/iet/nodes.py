@@ -456,14 +456,6 @@ class Iteration(Node):
         return WRAPPABLE in self.properties
 
     @property
-    def is_Tilable(self):
-        return TILABLE in self.properties
-
-    @property
-    def is_Roundable(self):
-        return ROUNDABLE in self.properties
-
-    @property
     def ncollapsed(self):
         for i in self.properties:
             if i.name == 'collapsed':
