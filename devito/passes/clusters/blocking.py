@@ -22,9 +22,6 @@ class Blocking(Queue):
 
         super(Blocking, self).__init__()
 
-    def process(self, elements):
-        return self._process_fatd(elements, 1)
-
     def callback(self, clusters, prefix):
         if not prefix:
             return clusters
@@ -33,11 +30,16 @@ class Blocking(Queue):
 
         processed = []
         for c in clusters:
-            if TILABLE in c.properties.get(d, []):
+            if TILABLE not in c.properties[d]:
+                processed.append(c)
+            elif self.inner is False and (d is c.itintervals[-1].dim):
+                # By default, the innermost Dimension isn't tiled. This behaviour
+                # may have been overwritten by the user, in which case `self.inner`
+                # will be False
+                processed.append(c)
+            else:
                 processed.append(self._callback(c, d))
                 self.nblocked[d] += 1
-            else:
-                processed.append(c)
 
         return processed
 
