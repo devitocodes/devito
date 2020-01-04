@@ -67,6 +67,8 @@ def normalize_properties(*args):
         drop = {PARALLEL, PARALLEL_INDEP}
     elif any(PARALLEL_INDEP not in p for p in args):
         drop = {PARALLEL_INDEP}
+    else:
+        drop = set()
 
     properties = set()
     for p in args:
