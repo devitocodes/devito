@@ -12,7 +12,8 @@ from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import Callable, MetaCall, iet_build, derive_parameters
+from devito.ir.iet import (Callable, MetaCall, derive_parameters, iet_build,
+                           iet_analyze, iet_lower_dims)
 from devito.ir.stree import stree_build
 from devito.operator.registry import operator_selector
 from devito.operator.profiling import create_profile
@@ -380,10 +381,16 @@ class Operator(Callable):
         name = kwargs.get("name", "Kernel")
 
         # Build an IET from a ScheduleTree
-        iet, efuncs = iet_build(stree)
+        iet = iet_build(stree)
+
+        # Data dependence analysis to derive further computational properties
+        iet = iet_analyze(iet)
 
         # Instrument the IET for C-level profiling
         iet = profiler.instrument(iet)
+
+        # Lower all DerivedDimensions
+        iet, efuncs = iet_lower_dims(iet)
 
         # Wrap the IET with a Callable
         parameters = derive_parameters(iet, True)

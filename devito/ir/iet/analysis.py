@@ -5,7 +5,7 @@ from devito.ir.iet import (Iteration, HaloSpot, MapNodes, Transformer,
 from devito.ir.support import OVERLAPPABLE, hoistable, useless, Scope
 from devito.tools import as_tuple
 
-__all__ = ['analyze']
+__all__ = ['iet_analyze']
 
 
 class Analysis(object):
@@ -31,7 +31,7 @@ def propertizer(func):
     return wrapper
 
 
-def analyze(iet):
+def iet_analyze(iet):
     analysis = mark_halospot_useless(iet)
     analysis = mark_halospot_hoistable(analysis)
     analysis = mark_halospot_overlappable(analysis)
