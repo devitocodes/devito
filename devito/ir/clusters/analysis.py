@@ -256,7 +256,7 @@ class Tiling(Detector):
     def _callback(self, clusters, d, prefix):
         # A Dimension TILABLE only if it's PARALLEL and AFFINE
         properties = self._fetch_properties(clusters, prefix)
-        if not {PARALLEL, AFFINE} <= set(properties[d]):
+        if not {PARALLEL, AFFINE} <= properties[d]:
             return
 
         # In addition, we use the heuristic that we do not consider
