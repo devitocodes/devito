@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from functools import reduce
-from operator import mul
+from operator import attrgetter, mul
 from math import ceil
 
 from cached_property import cached_property
@@ -202,8 +202,8 @@ class Operator(Callable):
         # Produced by the various compilation passes
         op._input = filter_sorted(flatten(e.reads + e.writes for e in expressions))
         op._output = filter_sorted(flatten(e.writes for e in expressions))
-        op._dimensions = filter_sorted(flatten(e.dimensions for e in expressions))
-        op._dimensions.extend(byproduct.dimensions)
+        op._dimensions = flatten(c.dimensions for c in clusters) + byproduct.dimensions
+        op._dimensions = sorted(set(op._dimensions), key=attrgetter('name'))
         op._dtype, op._dspace = clusters.meta
         op._profiler = profiler
 
