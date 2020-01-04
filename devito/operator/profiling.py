@@ -87,10 +87,14 @@ class Profiler(object):
             for i in bundles:
                 writes = {e.write for e in i.exprs
                           if e.is_tensor and e.write.is_TimeFunction}
-                points.append(reduce(mul, i.shape)*len(writes))
+                points.append(i.size*len(writes))
             points = sum(points)
 
             self._sections[section] = SectionData(ops, sops, points, traffic, itermaps)
+            #TODO: check correctness of ops/... in acoustic and tti
+            #Check in particular Interval.size and IterationSpace.size...
+            # Revisit the concept of Interval -- it's more of an IteratedInterval,
+            # then an Interval, since now its size depends on the Dimension...
 
         # Transform the Iteration/Expression tree introducing the C-level timers
         mapper = {i: TimedList(timer=self.timer, lname=i.name, body=i) for i in sections}

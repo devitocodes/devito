@@ -847,8 +847,8 @@ class ExpressionBundle(List):
         return self.body
 
     @property
-    def shape(self):
-        return tuple(self.ispace.dimension_map.values())
+    def size(self):
+        return self.ispace.size
 
 
 class Prodder(Call):
