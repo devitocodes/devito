@@ -2,40 +2,20 @@ from collections import OrderedDict
 from itertools import product
 
 from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional,
-                           Section, HaloSpot, ExpressionBundle, FindNodes,
-                           FindSymbols, Transformer, XSubs, analyze, make_efunc,
-                           retrieve_iteration_tree)
+                           Section, HaloSpot, ExpressionBundle, FindNodes, FindSymbols,
+                           Transformer, XSubs, make_efunc, retrieve_iteration_tree)
 from devito.symbolics import IntDiv, xreplace_indices
 from devito.tools import as_mapper, flatten, is_integer, split, timed_pass
 from devito.types import ConditionalDimension
 
-__all__ = ['iet_build']
+__all__ = ['iet_build', 'iet_lower_dims']
 
 
-@timed_pass(name='lowering.IET')
+@timed_pass(name='lowering.IET.build')
 def iet_build(stree):
     """
-    Create an Iteration/Expression tree (IET) from a ScheduleTree.
-
-    The nodes in the returned IET are decorated with properties deriving from
-    data dependence analysis.
+    Construct an Iteration/Expression tree(IET) from a ScheduleTree.
     """
-    # Schedule tree -> Iteration/Expression tree
-    iet = make(stree)
-
-    # Data dependency analysis. Properties are attached directly to nodes
-    iet = analyze(iet)
-
-    # Lower DerivedDimensions
-    iet = lower_stepping_dims(iet)
-    iet = lower_conditional_dims(iet)
-    iet, efuncs = lower_incr_dims(iet)
-
-    return iet, efuncs
-
-
-def make(stree):
-    """Create an IET from a ScheduleTree."""
     nsections = 0
     queues = OrderedDict()
     for i in stree.visit():
@@ -68,6 +48,18 @@ def make(stree):
         queues.setdefault(i.parent, []).append(body)
 
     assert False
+
+
+@timed_pass(name='lowering.IET.lower_dims')
+def iet_lower_dims(iet):
+    """
+    Lower the DerivedDimensions in ``iet``.
+    """
+    iet = lower_stepping_dims(iet)
+    iet = lower_conditional_dims(iet)
+    iet, efuncs = lower_incr_dims(iet)
+
+    return iet, efuncs
 
 
 def lower_stepping_dims(iet):
