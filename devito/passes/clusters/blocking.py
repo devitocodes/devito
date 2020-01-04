@@ -78,7 +78,8 @@ def decompose(ispace, d, block_dims):
     intervals = []
     for i in ispace.intervals:
         if i.dim is d:
-            intervals.extend([i.switch(bd) for bd in block_dims])
+            intervals.append(i.switch(block_dims[0]))
+            intervals.extend([i.switch(bd).zero() for bd in block_dims[1:]])
         else:
             intervals.append(i)
 
