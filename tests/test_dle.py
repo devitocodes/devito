@@ -10,8 +10,8 @@ from conftest import skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SubDimension,
                     Eq, Operator, switchconfig)
 from devito.exceptions import InvalidArgument
-from devito.ir.iet import (Call, Iteration, Conditional, FindNodes, FindSymbols,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (Call, Iteration, Conditional, FindNodes,
+                           FindSymbols, retrieve_iteration_tree)
 from devito.targets import BlockDimension, NThreads, NThreadsNonaffine
 from devito.targets.common.openmp import ParallelRegion
 from devito.tools import as_tuple
