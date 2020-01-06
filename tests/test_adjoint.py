@@ -1,9 +1,8 @@
 import numpy as np
 import pytest
-from numpy import linalg
 
 from conftest import unit_box, points, skipif
-from devito import Operator
+from devito import Operator, norm
 from devito.logger import info
 from examples.seismic import demo_model, Receiver
 from examples.seismic.acoustic import acoustic_setup
@@ -58,7 +57,7 @@ class TestAdjoint(object):
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(srca.data.reshape(-1), solver.geometry.src.data)
-        term2 = linalg.norm(rec.data.reshape(-1)) ** 2
+        term2 = norm(rec) ** 2
         info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
         assert np.isclose((term1 - term2)/term1, 0., atol=1.e-12)
@@ -78,12 +77,12 @@ class TestAdjoint(object):
         nbl = 10 + space_order / 2
         spacing = tuple([10.]*len(shape))
         # Create solver from preset
-        solver = acoustic_setup(shape=shape, spacing=spacing,
+        solver = acoustic_setup(shape=shape, spacing=spacing, nlayers=2, vp_bottom=2,
                                 nbl=nbl, tn=tn, space_order=space_order,
                                 preset='layers-isotropic', dtype=np.float64)
 
         # Create initial model (m0) with a constant velocity throughout
-        model0 = demo_model('layers-isotropic', ratio=3, vp_top=1.5, vp_bottom=1.5,
+        model0 = demo_model('layers-isotropic', vp_top=1.5, vp_bottom=1.5,
                             spacing=spacing, space_order=space_order, shape=shape,
                             nbl=nbl, dtype=np.float64, grid=solver.model.grid)
 
@@ -100,7 +99,7 @@ class TestAdjoint(object):
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
-        term2 = linalg.norm(du.data.reshape(-1))**2
+        term2 = norm(du)**2
         info('<Jx,y>: %f, <x, J^Ty>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
         assert np.isclose((term1 - term2)/term1, 0., atol=1.e-12)

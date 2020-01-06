@@ -20,7 +20,7 @@ matrix:
             - gcc-4.9
             - g++-4.9
       env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 INSTALL_TYPE=pip_setup RUN_EXAMPLES=False MPI_INSTALL=1 MPI_RESTRAIN=1
-    - python: 3.7
+    - python: 3.8
       dist: xenial
       os: linux
       addons:
@@ -89,7 +89,8 @@ before_install:
 install:
   # Install devito with conda
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
-      conda env create -q -f environment.yml python=$TRAVIS_PYTHON_VERSION;
+      sed -i -E 's/(python=)(.*)/\1'$TRAVIS_PYTHON_VERSION'/' environment.yml;
+      conda env create -q -f environment.yml;
       source activate devito;
       conda update -q conda;
       pip install -e .;
