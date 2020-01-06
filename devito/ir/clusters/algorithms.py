@@ -44,16 +44,18 @@ class Toposort(Queue):
     Clusters with compatible IterationSpace, is used.
     """
 
-    def callback(self, cgroups, prefix):
-        cgroups = self._toposort(cgroups, prefix)
-        cgroups = self._aggregate(cgroups, prefix)
-        return cgroups
-
+    #TODO: fix me, appearing twice in log of tti_example !!
+    @timed_pass(name='specializing.Clusters.toposort')
     def process(self, clusters):
         cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
         cgroups = self._process_fdta(cgroups, 1)
         clusters = ClusterGroup.concatenate(*cgroups)
         return clusters
+
+    def callback(self, cgroups, prefix):
+        cgroups = self._toposort(cgroups, prefix)
+        cgroups = self._aggregate(cgroups, prefix)
+        return cgroups
 
     def _toposort(self, cgroups, prefix):
         # Are there any ClusterGroups that could potentially be fused? If not,
@@ -202,7 +204,7 @@ class Schedule(Queue):
           Dimension in both Clusters.
     """
 
-    @timed_pass(name='lowering.Clusters.Schedule')
+    @timed_pass(name='lowering.Clusters.schedule')
     def process(self, clusters):
         return self._process_fdta(clusters, 1)
 

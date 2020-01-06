@@ -3,7 +3,7 @@ from itertools import groupby
 from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE
 from devito.symbolics import xreplace_indices
-from devito.tools import filter_ordered
+from devito.tools import filter_ordered, timed_pass
 from devito.types import Scalar
 
 __all__ = ['Lift', 'fuse', 'scalarize', 'eliminate_arrays']
@@ -19,6 +19,10 @@ class Lift(Queue):
     This is analogous to the compiler transformation known as
     "loop-invariant code motion".
     """
+
+    @timed_pass(name='specializing.Clusters.lift')
+    def process(self, elements):
+        return super(Lift, self).process(elements)
 
     def callback(self, clusters, prefix):
         if not prefix:
@@ -67,6 +71,7 @@ class Lift(Queue):
         return lifted + processed
 
 
+@timed_pass(name='specializing.Clusters.fusion')
 def fuse(clusters):
     """
     Fuse sub-sequences of Clusters with compatible IterationSpace.
@@ -92,6 +97,7 @@ def fuse(clusters):
     return processed
 
 
+@timed_pass(name='specializing.Clusters.scalarize')
 def scalarize(clusters, template):
     """
     Turn local "isolated" Arrays, that is Arrays appearing only in one Cluster,
@@ -132,6 +138,7 @@ def scalarize(clusters, template):
     return processed
 
 
+@timed_pass(name='specializing.Clusters.eliminate_arrays')
 def eliminate_arrays(clusters, template):
     """
     Eliminate redundant expressions stored in Arrays.
