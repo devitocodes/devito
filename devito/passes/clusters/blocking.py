@@ -5,6 +5,7 @@ from cached_property import cached_property
 
 from devito.ir.clusters import Cluster, Queue
 from devito.ir.support import TILABLE, IntervalGroup, IterationSpace
+from devito.tools import timed_pass
 from devito.types import IncrDimension, Scalar
 
 __all__ = ['Blocking', 'IncrDimension']
@@ -21,6 +22,10 @@ class Blocking(Queue):
         self.nblocked = Counter()
 
         super(Blocking, self).__init__()
+
+    @timed_pass(name='specializing.Clusters.blocking')
+    def process(self, elements):
+        return super(Blocking, self).process(elements)
 
     def callback(self, clusters, prefix):
         if not prefix:
