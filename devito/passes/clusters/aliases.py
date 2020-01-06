@@ -30,7 +30,7 @@ as the entire grid.
 
 
 @dse_pass
-def cire(cluster, template, *args):
+def cire(cluster, template, platform):
     """
     Cross-iteration redundancies elimination.
 
@@ -57,7 +57,7 @@ def cire(cluster, template, *args):
     candidates, processed = extract(exprs, aliases)
 
     # Create Aliases from aliasing expressions and assign them to Clusters
-    clusters, subs = process(candidates, aliases, cluster, template)
+    clusters, subs = process(candidates, aliases, cluster, template, platform)
 
     # Make sure to access the newly created tensor temporaries where necessary
     processed = [e.xreplace(subs) for e in processed]
@@ -67,25 +67,25 @@ def cire(cluster, template, *args):
 
 def collect(exprs):
     """
-    Determine groups of aliasing expressions in ``exprs``.
+    Determine groups of aliasing expressions.
 
     An expression A aliases an expression B if both A and B perform the same
     arithmetic operations over the same input operands, with the possibility for
     Indexeds to access locations at a fixed constant offset in each Dimension.
 
-    For example: ::
+    For example, consider the following expressions:
 
-        exprs = (a[i+1] + b[i+1],
-                 a[i+1] + b[j+1],
-                 a[i] + c[i],
-                 a[i+2] - b[i+2],
-                 a[i+2] + b[i],
-                 a[i-1] + b[i-1])
+        * a[i+1] + b[i+1]
+        * a[i+1] + b[j+1]
+        * a[i] + c[i]
+        * a[i+2] - b[i+2]
+        * a[i+2] + b[i]
+        * a[i-1] + b[i-1]
 
-    The following expressions in ``exprs`` alias to ``a[i] + b[i]``:
+    The following alias to `a[i] + b[i]`:
 
-        * a[i+1] + b[i+1] : same operands and operations, distance along i = 1
-        * a[i-1] + b[i-1] : same operands and operations, distance along i = -1
+        * a[i+1] + b[i+1] : same operands and operations, distance along i: 1
+        * a[i-1] + b[i-1] : same operands and operations, distance along i: -1
 
     Whereas the following do not:
 
@@ -167,7 +167,7 @@ def extract(exprs, aliases):
     return candidates, processed
 
 
-def process(candidates, aliases, cluster, template):
+def process(candidates, aliases, cluster, template, platform):
     """
     Create Clusters from aliasing expressions.
     """
@@ -221,8 +221,7 @@ def process(candidates, aliases, cluster, template):
         try:
             it = ispace.itintervals[-1]
             if ROUNDABLE in cluster.properties[it.dim]:
-                from devito.parameters import configuration
-                vl = configuration['platform'].simd_items_per_reg(cluster.dtype)
+                vl = platform.simd_items_per_reg(cluster.dtype)
                 ispace = ispace.add(Interval(it.dim, 0, it.interval.size % vl))
         except (TypeError, KeyError):
             pass
