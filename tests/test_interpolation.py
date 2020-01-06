@@ -3,8 +3,9 @@ from math import sin, floor
 import numpy as np
 import pytest
 
-from conftest import skipif, unit_box, points, unit_box_time, time_points
-from devito import (Grid, Operator, Function, SparseFunction, Dimension, TimeFunction,
+from conftest import skipif
+from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
+                    Function, TimeFunction,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction)
 from devito.symbolics import FLOAT
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
@@ -12,6 +13,45 @@ from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
 from examples.seismic.acoustic import AcousticWaveSolver
 
 pytestmark = skipif(['yask', 'ops'])
+
+
+def unit_box(name='a', shape=(11, 11), grid=None):
+    """Create a field with value 0. to 1. in each dimension"""
+    grid = grid or Grid(shape=shape)
+    a = Function(name=name, grid=grid)
+    dims = tuple([np.linspace(0., 1., d) for d in shape])
+    a.data[:] = np.meshgrid(*dims)[1]
+    return a
+
+
+def unit_box_time(name='a', shape=(11, 11)):
+    """Create a field with value 0. to 1. in each dimension"""
+    grid = Grid(shape=shape)
+    a = TimeFunction(name=name, grid=grid, time_order=1)
+    dims = tuple([np.linspace(0., 1., d) for d in shape])
+    a.data[0, :] = np.meshgrid(*dims)[1]
+    a.data[1, :] = np.meshgrid(*dims)[1]
+    return a
+
+
+def points(grid, ranges, npoints, name='points'):
+    """Create a set of sparse points from a set of coordinate
+    ranges for each spatial dimension.
+    """
+    points = SparseFunction(name=name, grid=grid, npoint=npoints)
+    for i, r in enumerate(ranges):
+        points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
+    return points
+
+
+def time_points(grid, ranges, npoints, name='points', nt=10):
+    """Create a set of sparse points from a set of coordinate
+    ranges for each spatial dimension.
+    """
+    points = SparseTimeFunction(name=name, grid=grid, npoint=npoints, nt=nt)
+    for i, r in enumerate(ranges):
+        points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
+    return points
 
 
 def a(shape=(11, 11)):
