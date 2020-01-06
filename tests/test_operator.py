@@ -1503,7 +1503,7 @@ class TestLoopScheduling(object):
         x, y, z = grid.dimensions  # noqa
 
         ti0 = Function(name='ti0', grid=grid, space_order=0)  # noqa
-        f0 = Scalar(name='t0')  # noqa
+        t0 = Scalar(name='t0')  # noqa
 
         eqs = [eval(exprs[0]), eval(exprs[1])]
 
