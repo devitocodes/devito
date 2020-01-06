@@ -478,7 +478,7 @@ class TestDependenceAnalysis(object):
                 assert len(deps) == 2
             else:
                 assert len(deps) == 1
-        dep = deps[0]
+        dep = list(deps)[0]
 
         # Check type
         types = ['flow', 'anti']

@@ -404,6 +404,11 @@ class Dependence(object):
                 ((self.source.timestamp == self.sink.timestamp) ==
                  (other.source.timestamp == other.sink.timestamp)))
 
+    def __hash__(self):
+        return hash(
+            (self.source, self.sink, self.source.timestamp == self.sink.timestamp)
+        )
+
     @property
     def function(self):
         return self.source.function
@@ -596,7 +601,7 @@ class Dependence(object):
         return "%s -> %s" % (self.source, self.sink)
 
 
-class DependenceGroup(list):
+class DependenceGroup(set):
 
     @cached_property
     def cause(self):
@@ -630,11 +635,11 @@ class DependenceGroup(list):
 
     def __add__(self, other):
         assert isinstance(other, DependenceGroup)
-        return DependenceGroup(super(DependenceGroup, self).__add__(other))
+        return DependenceGroup(super(DependenceGroup, self).__or__(other))
 
     def __sub__(self, other):
         assert isinstance(other, DependenceGroup)
-        return DependenceGroup([i for i in self if i not in other])
+        return DependenceGroup(super(DependenceGroup, self).__sub__(other))
 
     def project(self, function):
         """
