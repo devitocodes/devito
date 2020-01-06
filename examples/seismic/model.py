@@ -3,8 +3,8 @@ from sympy import sin, Abs
 
 
 from devito import (Grid, SubDomain, Function, Constant,
-                    SubDimension, Eq, Inc, Operator)
-from devito.builtins import initialize_function, gaussian_smooth
+                    SubDimension, Eq, Inc, Operator, configuration)
+from devito.builtins import initialize_function, gaussian_smooth, mmax
 from devito.tools import as_tuple
 
 __all__ = ['Model', 'ModelElastic', 'ModelViscoelastic']
@@ -204,7 +204,6 @@ class Model(GenericModel):
 
         # Create square slowness of the wave as symbol `m`
         self._vp = self._gen_phys_param(vp, 'vp', space_order)
-        self._max_vp = np.max(vp)
 
         # Additional parameter fields for TTI operators
         self.epsilon = self._gen_phys_param(epsilon, 'epsilon', space_order)
@@ -214,6 +213,13 @@ class Model(GenericModel):
         self.theta = self._gen_phys_param(theta, 'theta', space_order)
         if self.grid.dim > 2:
             self.phi = self._gen_phys_param(phi, 'phi', space_order)
+
+    @property
+    def _max_vp(self):
+        # mmax not supported with yask
+        if configuration['backend'] is 'yask':
+            return np.max(self.vp.data if self.vp.is_Constant else self.vp.data[:])
+        return mmax(self.vp)
 
     @property
     def critical_dt(self):
@@ -263,7 +269,6 @@ class Model(GenericModel):
                                                                      self.vp.shape))
         else:
             self._vp.data = vp
-        self._max_vp = np.max(vp)
 
     @property
     def m(self):
