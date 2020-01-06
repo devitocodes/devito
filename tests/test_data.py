@@ -6,6 +6,7 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension,
                     Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, configuration, switchconfig)
 from devito.data import LEFT, RIGHT, Decomposition, loc_data_idx, convert_index
 from devito.tools import as_tuple
+from devito.types import Scalar
 from devito.data.allocators import ExternalAllocator
 
 pytestmark = skipif('ops')
@@ -1246,12 +1247,14 @@ class TestDataDistributed(object):
             assert(np.all(c.data[-1] == [4., 4., 6., 9., 8.]))
 
 
-def test_scalar_arg_substitution(t0, t1):
+def test_scalar_arg_substitution():
     """
     Tests the relaxed (compared to other devito sympy subclasses)
     substitution semantics for scalars, which is used for argument
     substitution into symbolic expressions.
     """
+    t0 = Scalar(name='t0').indexify()
+    t1 = Scalar(name='t1').indexify()
     assert t0 != 0
     assert t0.subs('t0', 2) == 2
     assert t0.subs('t0', t1) == t1

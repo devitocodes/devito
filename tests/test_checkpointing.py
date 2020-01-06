@@ -5,7 +5,7 @@ from pyrevolve import Revolver
 import numpy as np
 
 from conftest import skipif
-from devito import Grid, TimeFunction, Operator, Function, Eq, switchconfig
+from devito import Grid, TimeFunction, Operator, Function, Eq, switchconfig, Constant
 from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
 from examples.seismic import Receiver
@@ -167,7 +167,7 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     assert(np.allclose(rec.data, rec_bk))
 
 
-def test_index_alignment(const):
+def test_index_alignment():
     """ A much simpler test meant to ensure that the forward and reverse indices are
     correctly aligned (i.e. u * v , where u is the forward field and v the reverse field
     corresponds to the correct timesteps in u and v). The forward operator does u = u + 1
@@ -184,6 +184,7 @@ def test_index_alignment(const):
     and hence grad = 0*0 + 1*1 + 2*2 + 3*3 = sum(n^2) where n -> [0, nt]
     If the test fails, the resulting number can tell you how the fields are misaligned
     """
+    const = Constant(name="constant")
     n = 4
     grid = Grid(shape=(2, 2))
     order_of_eqn = 1
