@@ -1536,7 +1536,7 @@ class TestLoopScheduling(object):
                     Eq(b, time*b*a + b)]
             eqns2 = [Eq(a.forward, a.laplace + 1.),
                      Eq(b2, time*b2*a + b2)]
-            subs = {d.spacing: v for d, v in zip(dims0, [2.5, 1.5, 2.0][::grid.dim])}
+            subs = {d.spacing: v for d, v in zip(dims0, [2.5, 1.5, 2.0][:grid.dim])}
 
             op = Operator(eqns, subs=subs, dle='noop')
             trees = retrieve_iteration_tree(op)

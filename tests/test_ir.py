@@ -59,7 +59,7 @@ class TestVectorHierarchy(object):
 
     @pytest.fixture
     def fa(self, grid, x):
-        return Array(name='fa', dimensions=(x,), shape=(3,)).indexed
+        return Array(name='fa', shape=(3,), dimensions=(x,)).indexed
 
     @pytest.fixture
     def fc(self, grid, x, y):
