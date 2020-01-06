@@ -205,9 +205,6 @@ class DeviceOpenMPNoopOperator(OperatorCore):
     @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
-        # TODO: this is currently identical to CPU64NoopOperator._specialize_clusters,
-        # but it will have to change
-
         # To create temporaries
         counter = generator()
         template = lambda: "r%d" % counter()
