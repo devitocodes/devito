@@ -279,7 +279,8 @@ def generate_block_shapes(blockable, args, level):
     # Generate level-0 block shapes
     level_0 = [d for d, v in mapper.items() if v == 0]
     # Max attemptable block shape
-    max_bs = tuple((d.step, d.max_step.subs(args)) for d in level_0)
+    #TODO: check this -- previously was max_step
+    max_bs = tuple((d.step, d.symbolic_size.subs(args)) for d in level_0)
     # Defaults (basic mode)
     ret = [tuple((d.step, v) for d in level_0) for v in options['blocksize-l0']]
     # Always try the entire iteration space (degenerate block)
