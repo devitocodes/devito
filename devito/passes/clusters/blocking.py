@@ -65,15 +65,18 @@ class Blocking(Queue):
         bd = IncrDimension(bd, bd, bd + bd.step - 1, 1, d.name)
         block_dims.append(bd)
 
+        # Exploit the newly created IncrDimensions in the new IterationSpace
+        ispace = decompose(cluster.ispace, d, block_dims)
+
+        # Use the innermost BlockDimension in place of `d` within the expressions
+        exprs = [e.xreplace({d: bd}) for e in cluster.exprs]
+
         # The new Cluster properties
         properties = dict(cluster.properties)
         properties.pop(d)
         properties.update({bd: cluster.properties[d] - {TILABLE} for bd in block_dims})
 
-        # Exploit the newly created IncrDimensions in the new IterationSpace
-        ispace = decompose(cluster.ispace, d, block_dims)
-
-        return cluster.rebuild(ispace=ispace, properties=properties)
+        return cluster.rebuild(exprs=exprs, ispace=ispace, properties=properties)
 
 
 def decompose(ispace, d, block_dims):
@@ -112,8 +115,12 @@ def decompose(ispace, d, block_dims):
 
     intervals = IntervalGroup(intervals, relations=relations)
 
+    sub_iterators = dict(ispace.sub_iterators)
+    sub_iterators.pop(d, None)
+    sub_iterators.update({bd: ispace.sub_iterators.get(d, []) for bd in block_dims})
+
     directions = dict(ispace.directions)
     directions.pop(d)
     directions.update({bd: ispace.directions[d] for bd in block_dims})
 
-    return IterationSpace(intervals, ispace.sub_iterators, directions)
+    return IterationSpace(intervals, sub_iterators, directions)

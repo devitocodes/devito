@@ -944,10 +944,14 @@ class IncrDimension(DerivedDimension):
 
     @cached_property
     def step(self):
-        return self._step if self._step is not None else self.symbolic_size
+        if self._step is not None:
+            return self._step
+        else:
+            return Scalar(name=self.size_name, dtype=np.int32, is_const=True)
 
     @cached_property
-    def max_step(self):
+    def symbolic_size(self):
+        #TODO: previously was called max_step
         #TODO: check this: previously it was self.parent.symbolic_max - self.parent.symbolic_min + 1
         return self.symbolic_max - self.symbolic_min + 1
 
@@ -971,7 +975,10 @@ class IncrDimension(DerivedDimension):
 
     @cached_property
     def symbolic_incr(self):
-        return self.step
+        try:
+            return sympy.Number(self.step)
+        except (TypeError, ValueError):
+            return self.step
 
     @cached_property
     def _arg_names(self):
