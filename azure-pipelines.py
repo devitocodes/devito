@@ -19,7 +19,7 @@ if os.environ.get('testWithPip') == 'true':
 
 if os.environ.get('testWithPip') != 'true':
     runStep("flake8 --exclude .conda,.git,.ipython --builtins=ArgumentError .")
-    runStep("py.test --durations=20 --maxfail=5 devito tests/")
+    runStep("py.test devito tests/")
     if os.environ.get('RUN_EXAMPLES') == 'true':
         runStep(("python benchmarks/user/benchmark.py test " +
                  "-P tti -so 4 -d 20 20 20 -n 5"))
@@ -43,7 +43,5 @@ if os.environ.get('testWithPip') != 'true':
         # TODO: Currently untested due to issue #859
         # runStep("py.test --nbval examples/mpi")
         runStep("ipcluster stop --profile=mpi")
-        runStep("codecov")
-    runStep("pushd docs; make html; popd")
 
 exit(sum(err))
