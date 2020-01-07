@@ -17,7 +17,7 @@ class YaskOmpizer(Ompizer):
         if key is None:
             def key(i):
                 # If it's not parallel, nothing to do
-                if not i.is_ParallelRelaxed or i.is_Vectorizable:
+                if not i.is_ParallelRelaxed or i.is_Vectorized:
                     return False
                 # If some of the inner computation has been offloaded to YASK,
                 # avoid introducing an outer level of parallelism

@@ -11,7 +11,8 @@ from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT, default_allocat
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
                            AugmentedExpression, Iteration, List, Prodder, Return,
-                           PARALLEL, make_efunc, FindNodes, Transformer)
+                           make_efunc, FindNodes, Transformer)
+from devito.ir.support import PARALLEL
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro)

@@ -6,8 +6,9 @@ import cgen as c
 from sympy import Function, Or, Max, Not
 
 from devito.ir import (DummyEq, Conditional, Block, Expression, List, Prodder,
-                       While, FindSymbols, FindNodes, Return, COLLAPSED, Transformer,
-                       IsPerfectIteration, retrieve_iteration_tree, filter_iterations)
+                       While, FindSymbols, FindNodes, Return, COLLAPSED, VECTORIZED,
+                       Transformer, IsPerfectIteration, retrieve_iteration_tree,
+                       filter_iterations)
 from devito.symbolics import CondEq, INT
 from devito.parameters import configuration
 from devito.targets.common.engine import target_pass
@@ -189,7 +190,12 @@ class Ompizer(object):
         if key is not None:
             self.key = key
         else:
-            self.key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorizable
+            def key(i):
+                if i.uindices:
+                    # Iteration must be in OpenMP canonical form
+                    return False
+                return i.is_ParallelRelaxed and not i.is_Vectorized
+            self.key = key
         self.nthreads = NThreads(aliases='nthreads0')
         self.nthreads_nested = NThreadsNested(aliases='nthreads1')
         self.nthreads_nonaffine = NThreadsNonaffine(aliases='nthreads2')
@@ -211,7 +217,7 @@ class Ompizer(object):
                     break
 
                 # Also, we do not want to collapse vectorizable Iterations
-                if i.is_Vectorizable:
+                if i.is_Vectorized:
                     break
 
                 # Would there be enough work per parallel iteration?
@@ -388,17 +394,29 @@ class Ompizer(object):
 
         mapper = {}
         for tree in retrieve_iteration_tree(iet):
-            vector_iterations = [i for i in tree if i.is_Vectorizable]
-            for i in vector_iterations:
-                aligned = [j for j in FindSymbols('symbolics').visit(i)
-                           if j.is_DiscreteFunction]
-                if aligned:
-                    simd = self.lang['simd-for-aligned']
-                    simd = as_tuple(simd(','.join([j.name for j in aligned]),
-                                    simd_reg_size))
-                else:
-                    simd = as_tuple(self.lang['simd-for'])
-                mapper[i] = i._rebuild(pragmas=i.pragmas + simd)
+            candidates = [i for i in tree if i.is_Parallel]
+
+            # As long as there's an outer level of parallelism, the innermost
+            # PARALLEL Iteration gets vectorized
+            if len(candidates) < 2:
+                return iet, {}
+            candidate = candidates[-1]
+
+            # Construct OpenMP SIMD pragma
+            aligned = [j for j in FindSymbols('symbolics').visit(candidate)
+                       if j.is_DiscreteFunction]
+            if aligned:
+                simd = self.lang['simd-for-aligned']
+                simd = as_tuple(simd(','.join([j.name for j in aligned]),
+                                simd_reg_size))
+            else:
+                simd = as_tuple(self.lang['simd-for'])
+            pragmas = candidate.pragmas + simd
+
+            # Add VECTORIZED property
+            properties = list(candidate.properties) + [VECTORIZED]
+
+            mapper[candidate] = candidate._rebuild(pragmas=pragmas, properties=properties)
 
         iet = Transformer(mapper).visit(iet)
 
