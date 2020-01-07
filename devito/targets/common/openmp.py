@@ -202,8 +202,12 @@ class Ompizer(object):
 
     def _find_collapsable(self, root, candidates):
         collapsable = []
-        if ncores() >= self.COLLAPSE_NCORES and IsPerfectIteration().visit(root):
+        if ncores() >= self.COLLAPSE_NCORES:
             for n, i in enumerate(candidates[1:], 1):
+                # The Iteration nest [root, ..., i] must be perfect
+                if not IsPerfectIteration(depth=i).visit(root):
+                    break
+
                 # The OpenMP specification forbids collapsed loops to use iteration
                 # variables in initializer expressions. E.g., the following is forbidden:
                 #
