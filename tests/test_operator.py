@@ -7,11 +7,11 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction)
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
-                           IsPerfectIteration, derive_parameters, iet_insert_decls,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (Callable, Conditional, Expression, Iteration, FindNodes,
+                           IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
+from devito.targets.common import DataManager
 from devito.tools import flatten
 from devito.types import Array, Scalar
 
@@ -498,7 +498,7 @@ class TestArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
         g = Function(name='g', grid=grid)
-        op = Operator(Eq(g, g + f), dle=('advanced', {'openmp': False}))
+        op = Operator(Eq(f.forward, g + f), dle=('advanced', {'openmp': False}))
 
         expected = {
             'x_m': 0, 'x_M': 4,
@@ -1147,19 +1147,15 @@ class TestDeclarator(object):
 
     def test_conditional_declarations(self):
         a = Array(name='a', dimensions=(x,), dtype=np.int32, scope='stack')
-        list_initialize = Expression(ClusterizedEq(Eq(a, ListInitializer([0, 0]))))
+        init_value = ListInitializer([0, 0])
+        list_initialize = Expression(ClusterizedEq(Eq(a, init_value)))
         iet = Conditional(x < 3, list_initialize, list_initialize)
-        parameters = derive_parameters(iet, True)
-        iet = iet_insert_decls(iet, parameters)
-        assert str(iet[0]) == """\
-if (x < 3)
-{
-  int a[x_size] = {0, 0};
-}
-else
-{
-  int a[x_size] = {0, 0};
-}"""
+        iet = Callable('test', iet, 'void')
+        iet = DataManager.place_definitions.__wrapped__(DataManager(), iet)[0]
+        for i in iet.body[0].children:
+            assert len(i) == 1
+            assert i[0].is_Expression
+            assert i[0].expr.rhs is init_value
 
 
 class TestLoopScheduling(object):
@@ -1190,7 +1186,7 @@ class TestLoopScheduling(object):
         assert all(len(i) == 1 for i in trees)
         trees = [i[0] for i in trees]
         for tree in trees:
-            assert IsPerfectIteration().visit(tree[0])
+            assert IsPerfectIteration().visit(tree[1])
             exprs = FindNodes(Expression).visit(tree[-1])
             assert len(exprs) == 3
 

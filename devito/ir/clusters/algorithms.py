@@ -4,14 +4,17 @@ from itertools import groupby
 import sympy
 
 from devito.ir.support import Any, Backward, Forward, IterationSpace, Scope
+from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
+from devito.ir.clusters.queue import Queue
 from devito.symbolics import CondEq, xreplace_indices
-from devito.tools import DAG, as_tuple, flatten, filter_ordered, generator
+from devito.tools import DAG, as_tuple, flatten, filter_ordered, generator, timed_pass
 from devito.types import Scalar
 
 __all__ = ['clusterize']
 
 
+@timed_pass
 def clusterize(exprs, dse_mode=None):
     """
     Turn a sequence of LoweredEqs into a sequence of Clusters.
@@ -34,43 +37,6 @@ def clusterize(exprs, dse_mode=None):
     return ClusterGroup(clusters)
 
 
-class Queue(object):
-
-    """
-    A special queue to process objects in nested IterationSpaces based on
-    a divide-and-conquer algorithm.
-
-    Notes
-    -----
-    Subclasses must override :meth:`callback`, which gets executed upon
-    the conquer phase of the algorithm.
-    """
-
-    def callback(self, *args):
-        raise NotImplementedError
-
-    def process(self, elements):
-        return self._process(elements, 1)
-
-    def _process(self, elements, level, prefix=None):
-        prefix = prefix or []
-
-        # Divide part
-        processed = []
-        for pfx, g in groupby(elements, key=lambda i: i.itintervals[:level]):
-            if level > len(pfx):
-                # Base case
-                processed.extend(list(g))
-            else:
-                # Recursion
-                processed.extend(self._process(list(g), level + 1, pfx))
-
-        # Conquer part (execute callback)
-        processed = self.callback(processed, prefix)
-
-        return processed
-
-
 class Toposort(Queue):
 
     """
@@ -87,7 +53,7 @@ class Toposort(Queue):
 
     def process(self, clusters):
         cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
-        cgroups = self._process(cgroups, 1)
+        cgroups = self._process_fdta(cgroups, 1)
         clusters = ClusterGroup.concatenate(*cgroups)
         return clusters
 
@@ -283,7 +249,7 @@ class Schedule(Queue):
         for c in clusters:
             ispace = IterationSpace(c.ispace.intervals, c.ispace.sub_iterators,
                                     {**c.ispace.directions, **idir})
-            processed.append(Cluster(c.exprs, ispace, c.dspace))
+            processed.append(c.rebuild(ispace=ispace))
 
         if not backlog:
             return processed
@@ -296,7 +262,7 @@ class Schedule(Queue):
                                     c.ispace.sub_iterators,
                                     {**c.ispace.directions, **idir})
             dspace = c.dspace.lift(known_break)
-            backlog[i] = Cluster(c.exprs, ispace, dspace)
+            backlog[i] = c.rebuild(ispace=ispace, dspace=dspace)
 
         return processed + self.callback(backlog, prefix)
 
@@ -305,7 +271,7 @@ class Schedule(Queue):
         # break parallelism
         test = False
         for d in scope.d_from_access_gen(scope.a_query(i)):
-            if d.is_storage_volatile(candidates):
+            if d.is_local or d.is_storage_related(candidates):
                 # Would break a dependence on storage
                 return False
             if any(d.is_carried(i) for i in candidates):
@@ -335,6 +301,7 @@ def optimize(clusters, dse_mode):
     clusters = Toposort().process(clusters)
     clusters = fuse(clusters)
 
+    # Flop reduction via the DSE
     from devito.dse import rewrite
     clusters = rewrite(clusters, template, mode=dse_mode)
 
@@ -350,6 +317,10 @@ def optimize(clusters, dse_mode):
 
     # Fusion may create scalarization opportunities
     clusters = scalarize(clusters, template)
+
+    # Determine computational properties (e.g., parallelism) that will be
+    # necessary for the later passes
+    clusters = analyze(clusters)
 
     return ClusterGroup(clusters)
 
@@ -402,7 +373,7 @@ class Lift(Queue):
             key = lambda d: d not in hope_invariant
             ispace = c.ispace.project(key).reset()
             dspace = c.dspace.project(key).reset()
-            lifted.append(Cluster(c.exprs, ispace, dspace, c.guards))
+            lifted.append(c.rebuild(ispace=ispace, dspace=dspace))
 
         return lifted + processed
 
@@ -525,7 +496,7 @@ def guard(clusters):
         # Group together consecutive expressions with same ConditionalDimensions
         for cds, g in groupby(c.exprs, key=lambda e: e.conditionals):
             if not cds:
-                processed.append(Cluster(list(g), c.ispace, c.dspace))
+                processed.append(c.rebuild(exprs=list(g)))
                 continue
 
             # Create a guarded Cluster
@@ -537,6 +508,6 @@ def guard(clusters):
                 else:
                     condition.append(cd.condition)
             guards = {k: sympy.And(*v, evaluate=False) for k, v in guards.items()}
-            processed.append(Cluster(list(g), c.ispace, c.dspace, guards))
+            processed.append(c.rebuild(exprs=list(g), guards=guards))
 
     return processed

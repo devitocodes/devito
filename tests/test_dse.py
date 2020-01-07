@@ -8,9 +8,9 @@ from conftest import skipif, EVAL, x, y, z  # noqa
 from devito import (Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, Grid, Operator, switchconfig, configuration)
 from devito.ir import Stencil, FindSymbols, retrieve_iteration_tree  # noqa
-from devito.dle import BlockDimension
 from devito.dse import common_subexprs_elimination, collect, make_is_time_invariant
 from devito.symbolics import yreplace, estimate_cost, pow_to_mul
+from devito.targets import BlockDimension
 from devito.tools import generator
 from devito.types import Scalar
 
@@ -239,7 +239,7 @@ def test_makeit_ssa(exprs, exp_u, exp_v):
 
 
 @pytest.mark.parametrize('dse', ['noop', 'basic', 'advanced', 'aggressive'])
-@pytest.mark.parametrize('dle', ['noop', 'advanced', 'speculative'])
+@pytest.mark.parametrize('dle', ['noop', 'advanced'])
 def test_time_dependent_split(dse, dle):
     grid = Grid(shape=(10, 10))
     u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2, save=3)
@@ -284,9 +284,9 @@ class TestAliases(object):
         op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
         op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
-        x0_blk_size = op1.parameters[6]
-        y0_blk_size = op1.parameters[10]
-        z_size = op1.parameters[-1]
+        x0_blk_size = op1.parameters[-3]
+        y0_blk_size = op1.parameters[-2]
+        z_size = op1.parameters[4]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
@@ -326,8 +326,8 @@ class TestAliases(object):
         op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
         op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
-        y0_blk_size = op1.parameters[9]
-        z_size = op1.parameters[-1]
+        y0_blk_size = op1.parameters[-2]
+        z_size = op1.parameters[3]
 
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)
                   if i.is_Array]
@@ -367,9 +367,9 @@ class TestAliases(object):
         op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': True}))
         op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': True}))
 
-        xi0_blk_size = op1.parameters[9]
-        yi0_blk_size = op1.parameters[15]
-        z_size = op1.parameters[20]
+        xi0_blk_size = op1.parameters[-3]
+        yi0_blk_size = op1.parameters[-2]
+        z_size = op1.parameters[4]
 
         # Check Array shape
         arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root)

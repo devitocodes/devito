@@ -8,8 +8,8 @@ from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, TimeDimension,
                     SteppingDimension, Operator)
 from devito.mpi.routines import MPIStatusObject, MPIRequestObject
+from devito.operator.profiling import Timer
 from devito.types import Symbol as dSymbol, Scalar
-from devito.profiling import Timer
 from devito.symbolics import IntDiv, ListInitializer, FunctionFromPointer
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)

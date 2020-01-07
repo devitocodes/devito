@@ -12,7 +12,8 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    preset='layers-isotropic', **kwargs):
     nrec = kwargs.pop('nrec', shape[0])
     model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
-                       dtype=kwargs.pop('dtype', np.float32), spacing=spacing)
+                       dtype=kwargs.pop('dtype', np.float32), spacing=spacing,
+                       **kwargs)
 
     # Source and receiver geometries
     src_coordinates = np.empty((1, len(spacing)))
@@ -94,8 +95,7 @@ if __name__ == "__main__":
     parser.add_argument("-dse", default="advanced",
                         choices=["noop", "basic", "advanced", "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
-    parser.add_argument("-dle", default="advanced",
-                        choices=["noop", "advanced", "speculative"],
+    parser.add_argument("-dle", default="advanced", choices=["noop", "advanced"],
                         help="Devito loop engine (DLE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")

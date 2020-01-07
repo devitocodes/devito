@@ -678,18 +678,19 @@ class IsPerfectIteration(Visitor):
     def visit_object(self, o, **kwargs):
         return False
 
-    def visit_tuple(self, o, **kwargs):
-        return all(self._visit(i, **kwargs) for i in o)
+    def visit_tuple(self, o, found=False, nomore=False):
+        nomore = nomore or (found and len(o) > 1)
+        return all(self._visit(i, found=found, nomore=nomore) for i in o)
 
-    def visit_Node(self, o, found=False, **kwargs):
+    def visit_Node(self, o, found=False, nomore=False):
         if not found:
             return False
-        return all(self._visit(i, found=found, **kwargs) for i in o.children)
+        nomore = nomore or len(o.children) > 1
+        return all(self._visit(i, found=found, nomore=nomore) for i in o.children)
 
-    def visit_Conditional(self, o, found=False, **kwargs):
-        if not found:
-            return False
-        return all(self._visit(i, found=found, nomore=True) for i in o.children)
+    def visit_List(self, o, found=False, nomore=False):
+        nomore = nomore or (found and (len(o.children) > 1) or o.header or o.footer)
+        return all(self._visit(i, found=found, nomore=nomore) for i in o.children)
 
     def visit_Iteration(self, o, found=False, nomore=False):
         if found and nomore:

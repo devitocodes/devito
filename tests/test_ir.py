@@ -478,7 +478,7 @@ class TestDependenceAnalysis(object):
                 assert len(deps) == 2
             else:
                 assert len(deps) == 1
-        dep = deps[0]
+        dep = list(deps)[0]
 
         # Check type
         types = ['flow', 'anti']
@@ -674,7 +674,7 @@ else
         assert [f.name for f in found] == eval(expected)
 
 
-class TestIETAnalysis(object):
+class TestAnalysis(object):
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
         (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry], cx*cy*src)'],
@@ -814,7 +814,7 @@ class TestIETAnalysis(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, dle='speculative')
+        op = Operator(exprs)
 
         iters = FindNodes(Iteration).visit(op)
 

@@ -3,3 +3,4 @@ from devito.ir.support.basic import *  # noqa
 from devito.ir.support.space import *  # noqa
 from devito.ir.support.stencil import *  # noqa
 from devito.ir.support.utils import *  # noqa
+from devito.ir.support.properties import *  # noqa
