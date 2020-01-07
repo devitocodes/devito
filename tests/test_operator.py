@@ -1461,7 +1461,7 @@ class TestLoopScheduling(object):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
         time = grid.time_dim
-        t0 = Scalar(name='t0').indexify()
+        t0 = Scalar(name='t0')
         a = Function(name='a', grid=grid)
         b = TimeFunction(name='b', grid=grid, save=6)
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
@@ -1476,8 +1476,8 @@ class TestLoopScheduling(object):
     def test_different_section_nests(self):
         grid = Grid((3, 3, 3))
         tu = TimeFunction(name='tu', grid=grid, space_order=4)
-        t0 = Scalar(name='t0').indexify()
-        t1 = Scalar(name='t1').indexify()
+        t0 = Scalar(name='t0')
+        t1 = Scalar(name='t1')
         ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=grid.dimensions,
                     scope='heap').indexify()
         eq1 = Eq(ti0, t0*3.)

@@ -3,7 +3,7 @@ from sympy import sin, Abs
 
 
 from devito import (Grid, SubDomain, Function, Constant,
-                    SubDimension, Eq, Inc, Operator, configuration)
+                    SubDimension, Eq, Inc, Operator)
 from devito.builtins import initialize_function, gaussian_smooth, mmax
 from devito.tools import as_tuple
 
@@ -216,9 +216,6 @@ class Model(GenericModel):
 
     @property
     def _max_vp(self):
-        # mmax not supported with yask
-        if configuration['backend'] is 'yask':
-            return np.max(self.vp.data if self.vp.is_Constant else self.vp.data[:])
         return mmax(self.vp)
 
     @property
