@@ -8,7 +8,8 @@ from frozendict import frozendict
 from sympy import Expr
 
 from devito.ir.support.vector import Vector, vmin, vmax
-from devito.tools import PartialOrderTuple, as_tuple, filter_ordered, toposort, is_integer
+from devito.tools import (PartialOrderTuple, as_list, as_tuple, filter_ordered,
+                          toposort, is_integer)
 
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace', 'DataSpace',
@@ -635,6 +636,14 @@ class IterationSpace(Space):
     def add(self, other):
         return IterationSpace(self.intervals.add(other), self.sub_iterators,
                               self.directions)
+
+    def augment(self, sub_iterators):
+        """
+        Create a new IterationSpace with additional sub iterators.
+        """
+        v = {k: as_list(v) for k, v in sub_iterators.items() if k in self.intervals}
+        sub_iterators = {**self.sub_iterators, **v}
+        return IterationSpace(self.intervals, sub_iterators, self.directions)
 
     def reset(self):
         return IterationSpace(self.intervals.reset(), self.sub_iterators, self.directions)
