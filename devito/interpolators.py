@@ -4,10 +4,10 @@ import numpy as np
 from abc import ABC, abstractmethod
 from cached_property import cached_property
 
-from devito.equation import Eq, Inc
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, indexify, INT
 from devito.tools import Evaluable, powerset, flatten, prod
+from devito.types import Eq, Inc
 from devito.types.basic import Scalar
 from devito.types.dense import SubFunction
 from devito.types.dimension import ConditionalDimension, Dimension, DefaultDimension

@@ -14,7 +14,7 @@ from devito.types.dimension import Dimension, ConditionalDimension
 from devito.types.basic import Symbol, Scalar
 from devito.interpolators import (Injection, Interpolation, LinearInterpolator,
                                   PrecomputedInterpolator)
-from devito.types.equation import Eq, Inc
+from devito.types.equation import Eq
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction']
