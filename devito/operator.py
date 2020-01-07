@@ -8,6 +8,8 @@ import ctypes
 
 from devito.dle import transform
 from devito.equation import Eq
+from devito.tools import Evaluable
+from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
@@ -128,6 +130,10 @@ class Operator(Callable):
 
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
+
+        # Input check
+        if any(not isinstance(i, Evaluable) for i in expressions):
+            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
 
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})

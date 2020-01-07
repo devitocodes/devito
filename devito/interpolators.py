@@ -2,6 +2,7 @@ import sympy
 import numpy as np
 
 from abc import ABC, abstractmethod
+from cached_property import cached_property
 
 from devito.equation import Eq, Inc
 from devito.logger import warning
@@ -17,14 +18,13 @@ class UnevaluatedSparseOperation(Evaluable):
     """
     Represents an Injection or an Interpolation operation performed on a
     SparseFunction. Evaluates to a list of Eq objects.
-    objects.
 
     Parameters
     ----------
     interpolator : Interpolator
-        Interpolator object that will be used to evaluate the Operation
+        Interpolator object that will be used to evaluate the Operation.
     *args, **kwargs
-        The arguments passed to the corresponding method
+        The arguments passed to the corresponding method.
     """
     subdomain = None
 
@@ -68,7 +68,7 @@ class Injection(UnevaluatedSparseOperation):
 class Interpolation(UnevaluatedSparseOperation):
 
     """
-    Represents an Injection operation performed on a SparseFunction.
+    Represents an Interpolation operation performed on a SparseFunction.
     Evaluates to a list of Eq objects.
     """
 
@@ -105,11 +105,12 @@ class GenericInterpolator(ABC):
 
 
 class LinearInterpolator(GenericInterpolator):
+
     def __init__(self, sfunction):
         self.grid = sfunction.grid
         self.sfunction = sfunction
 
-    @property
+    @cached_property
     def _interpolation_coeffs(self):
         """
         Symbolic expression for the coefficients for sparse point interpolation
@@ -266,6 +267,7 @@ class LinearInterpolator(GenericInterpolator):
 
 
 class PrecomputedInterpolator(GenericInterpolator):
+
     def __init__(self, obj, r, gridpoints_data, coefficients_data):
         if not isinstance(r, int):
             raise TypeError('Need `r` int argument')
