@@ -87,9 +87,10 @@ class IterationInstance(LabeledVector):
                 try:
                     # There's still hope it's regular if a DerivedDimension is used
                     candidate = dims.pop()
-                    if candidate.root is fi and q_monoaffine(i, candidate, self.findices):
-                        index_mode.append(AFFINE)
-                        continue
+                    if fi in candidate._defines:
+                        if q_monoaffine(i, candidate, self.findices):
+                            index_mode.append(AFFINE)
+                            continue
                 except (KeyError, AttributeError):
                     pass
                 index_mode.append(IRREGULAR)
