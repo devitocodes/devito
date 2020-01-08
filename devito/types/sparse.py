@@ -12,8 +12,7 @@ from devito.tools import ReducerMap, flatten, prod, filter_ordered, memoized_met
 from devito.types.dense import DiscreteFunction, Function, SubFunction
 from devito.types.dimension import Dimension, ConditionalDimension
 from devito.types.basic import Symbol, Scalar
-from devito.interpolators import (Injection, Interpolation, LinearInterpolator,
-                                  PrecomputedInterpolator)
+from devito.interpolators import LinearInterpolator, PrecomputedInterpolator
 from devito.types.equation import Eq
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -98,13 +97,13 @@ class AbstractSparseFunction(DiscreteFunction, Differentiable):
         """
         Implement an interpolation operation from the grid onto the given sparse points
         """
-        return Interpolation(self.interpolator, *args, **kwargs)
+        return self.interpolator.interpolate(*args, **kwargs)
 
     def inject(self, *args, **kwargs):
         """
         Implement an injection operation from a sparse point onto the grid
         """
-        return Injection(self.interpolator, *args, **kwargs)
+        return self.interpolator.inject(*args, **kwargs)
 
     @property
     def _support(self):

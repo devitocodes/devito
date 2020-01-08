@@ -29,6 +29,8 @@ class UnevaluatedSparseOperation(Evaluable):
     subdomain = None
 
     def __init__(self, interpolator, *args, **kwargs):
+        assert(isinstance(interpolator, GenericInterpolator))
+
         self.interpolator = interpolator
         self._args = args
         self._kwargs = kwargs
@@ -48,16 +50,14 @@ class Injection(UnevaluatedSparseOperation):
     """
 
     def __init__(self, interpolator, field, expr, *args, **kwargs):
-        self.interpolator = interpolator
         self.field = field
         self.expr = expr
-        self._args = args
-        self._kwargs = kwargs
+        args = tuple([field, expr] + list(args))
+        super().__init__(interpolator, *args, **kwargs)
 
     @property
     def evaluate(self):
-        return_value = self.interpolator.inject(self.field, self.expr, *self._args,
-                                                **self._kwargs)
+        return_value = self.interpolator._inject(*self._args, **self._kwargs)
         assert(all(isinstance(i, Eq) for i in return_value))
         return return_value
 
@@ -73,15 +73,13 @@ class Interpolation(UnevaluatedSparseOperation):
     """
 
     def __init__(self, interpolator, expr, *args, **kwargs):
-        self.interpolator = interpolator
         self.expr = expr
-        self._args = args
-        self._kwargs = kwargs
+        args = tuple([expr] + list(args))
+        super().__init__(interpolator, *args, **kwargs)
 
     @property
     def evaluate(self):
-        return_value = self.interpolator.interpolate(self.expr, *self._args,
-                                                     **self._kwargs)
+        return_value = self.interpolator._interpolate(*self._args, **self._kwargs)
         assert(all(isinstance(i, Eq) for i in return_value))
         return return_value
 
@@ -106,7 +104,16 @@ class GenericInterpolator(ABC):
 
 class LinearInterpolator(GenericInterpolator):
 
+    """
+    Concrete implementation of GenericInterpolator implementing a Linear interpolation
+    scheme, i.e. Bilinear for 2D and Trilinear for 3D problems.
+
+    Parameters
+    ----------
+    sfunction: The SparseFunction that this Interpolator belongs to.
+    """
     def __init__(self, sfunction):
+
         self.grid = sfunction.grid
         self.sfunction = sfunction
 
@@ -198,6 +205,22 @@ class LinearInterpolator(GenericInterpolator):
         increment: bool, optional
             If True, generate increments (Inc) rather than assignments (Eq).
         """
+
+        return Interpolation(self, expr, offset, increment, self_subs)
+
+    def _interpolate(self, expr, offset=0, increment=False, self_subs={}):
+        """
+        Generate equations interpolating an arbitrary expression into ``self``.
+
+        Parameters
+        ----------
+        expr : expr-like
+            Input expression to interpolate.
+        offset : int, optional
+            Additional offset from the boundary.
+        increment: bool, optional
+            If True, generate increments (Inc) rather than assignments (Eq).
+        """
         # Derivatives must be evaluated before the introduction of indirect accesses
         try:
             expr = expr.evaluate
@@ -231,6 +254,21 @@ class LinearInterpolator(GenericInterpolator):
         return temps + summands + last
 
     def inject(self, field, expr, offset=0):
+        """
+        Generate equations injecting an arbitrary expression into a field.
+
+        Parameters
+        ----------
+        field : Function
+            Input field into which the injection is performed.
+        expr : expr-like
+            Injected expression.
+        offset : int, optional
+            Additional offset from the boundary.
+        """
+        return Injection(self, field, expr, offset)
+
+    def _inject(self, field, expr, offset=0):
         """
         Generate equations injecting an arbitrary expression into a field.
 
