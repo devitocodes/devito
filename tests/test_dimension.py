@@ -52,7 +52,7 @@ class TestSubDimension(object):
         eqs = [Eq(u.forward, u + 1),
                Eq(u.forward, u.forward + 2, subdomain=interior)]
 
-        op = Operator(eqs, dse='noop', dle='noop')
+        op = Operator(eqs, dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
 

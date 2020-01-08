@@ -12,7 +12,7 @@ from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedLi
                            FindNodes, IsPerfectIteration, retrieve_iteration_tree)
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet import DataManager
-from devito.symbolics import ListInitializer, indexify, retrieve_indexed
+from devito.symbolics import ListInitializer, freeze, indexify, retrieve_indexed
 from devito.tools import flatten, powerset
 from devito.types import Array, Scalar
 
@@ -965,7 +965,7 @@ class TestArguments(object):
 
         u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to, padding=pad)
 
-        op = Operator(Eq(u, 1), dse='noop', dle='noop')
+        op = Operator(Eq(u, 1), dle='noop')
 
         u_arg = op.arguments(time=0)['u']
         u_arg_shape = tuple(u_arg._obj.size[i] for i in range(u.ndim))
@@ -1048,8 +1048,7 @@ class TestDeclarator(object):
         a = Array(name='a', dimensions=(i,))
         b = Array(name='b', dimensions=(i,))
         f = Function(name='f', shape=(3,), dimensions=(j,))
-        operator = Operator([Eq(a[i], a[i] + b[i] + 5.), Eq(f[j], a[j])],
-                            dse='noop', dle=None)
+        operator = Operator([Eq(a[i], a[i] + b[i] + 5.), Eq(f[j], a[j])], dle=None)
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
@@ -1074,7 +1073,7 @@ class TestDeclarator(object):
         operator = Operator([Eq(a[i], c[i, j]),
                              Eq(c[i, j], c[i, j]*a[i]),
                              Eq(f[j, k], a[j] + c[j, k])],
-                            dse='noop', dle=None)
+                            dle=None)
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
@@ -1108,7 +1107,7 @@ class TestDeclarator(object):
         operator = Operator([Eq(a[i], 0),
                              Eq(c[i, j], c[i, j]*a[i]),
                              Eq(f[j, k], a[j] + c[j, k])],
-                            dse='noop', dle=None)
+                            dle=None)
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
@@ -1141,7 +1140,7 @@ class TestDeclarator(object):
         t0 = Scalar(name='t0')
         t1 = Scalar(name='t1')
         operator = Operator([Eq(t0, 1.), Eq(t1, 2.), Eq(a[i], t0*t1*3.), Eq(f, a[j])],
-                            dse='noop', dle=None)
+                            dle=None)
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
@@ -1168,7 +1167,7 @@ class TestDeclarator(object):
         e = Array(name='e', dimensions=(k, s, q, i, j))
         f = Function(name='f', shape=(3, 3), dimensions=(s, q))
         operator = Operator([Eq(c[i, j], e[k, s, q, i, j]*1.), Eq(f, c[s, q])],
-                            dse='noop', dle=None)
+                            dle=None)
         assert """\
   float c[i_size][j_size] __attribute__((aligned(64)));
   struct timeval start_section0, end_section0;
@@ -1229,9 +1228,9 @@ class TestLoopScheduling(object):
         eq1 = Eq(tu, tv*ti0 + ti0)
         eq2 = Eq(ti0, tu + 3.)
         eq3 = Eq(tv, ti0*ti1)
-        op1 = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
-        op2 = Operator([eq2, eq1, eq3], dse='noop', dle='noop')
-        op3 = Operator([eq3, eq2, eq1], dse='noop', dle='noop')
+        op1 = Operator([eq1, eq2, eq3], dle='noop')
+        op2 = Operator([eq2, eq1, eq3], dle='noop')
+        op3 = Operator([eq3, eq2, eq1], dle='noop')
 
         trees = [retrieve_iteration_tree(i) for i in [op1, op2, op3]]
         assert all(len(i) == 1 for i in trees)
@@ -1283,7 +1282,9 @@ class TestLoopScheduling(object):
         for e in exprs:
             eqns.append(eval(e))
 
-        op = Operator(eqns)
+        # `dle='noop'` is only to avoid loop blocking, hence making the asserts
+        # below much simpler to write and understand
+        op = Operator(eqns, dle='noop')
 
         # Fission expected
         trees = retrieve_iteration_tree(op)
@@ -1420,7 +1421,7 @@ class TestLoopScheduling(object):
          '+++++++', ['txi0yi0zi0', 'txi0yi0zi0'], 'txi0yi0zi0xi0yi0zi0'),
         # 16) RAW 3->1; expected=2
         # Time goes backward, but the third equation should get fused with
-        # the first one, as there dependence is carried along time
+        # the first one, as the time dependence is loop-carried
         (('Eq(tv[t-1,x,y,z], tv[t,x-1,y,z] + tv[t,x+1,y,z])',
           'Eq(tv[t-1,z,z,z], tv[t-1,z,z,z] + 1)',
           'Eq(f[x,y,z], tu[t-1,x,y,z] + tu[t,x,y,z] + tu[t+1,x,y,z] + tv[t,x,y,z])'),
@@ -1463,7 +1464,9 @@ class TestLoopScheduling(object):
         for e in exprs:
             eqns.append(eval(e))
 
-        op = Operator(eqns, dse='noop', dle=('noop', {'openmp': False}))
+        # Note: `topofuse` is a subset of `advanced` mode. We use it merely to
+        # bypass 'blocking', which would complicate the asserts below
+        op = Operator(eqns, dle=('topofuse', {'openmp': False}))
 
         trees = retrieve_iteration_tree(op)
         iters = FindNodes(Iteration).visit(op)
@@ -1497,16 +1500,16 @@ class TestLoopScheduling(object):
         eq0 = Eq(t1, e*1.)
         eq1 = Eq(f, t0*3. + t1)
         eq2 = Eq(h, g + 4. + f*5.)
-        op = Operator([eq0, eq1, eq2], dse='noop', dle='noop')
+        op = Operator([eq0, eq1, eq2], dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
         outer, middle, inner = trees
         assert len(outer) == 1 and len(middle) == 2 and len(inner) == 3
         assert outer[0] == middle[0] == inner[0]
         assert middle[1] == inner[1]
-        assert outer[-1].nodes[0].exprs[0].expr.rhs == indexify(eq0.rhs)
-        assert middle[-1].nodes[0].exprs[0].expr.rhs == indexify(eq1.rhs)
-        assert inner[-1].nodes[0].exprs[0].expr.rhs == indexify(eq2.rhs)
+        assert outer[-1].nodes[0].exprs[0].expr.rhs == freeze(indexify(eq0.rhs))
+        assert middle[-1].nodes[0].exprs[0].expr.rhs == freeze(indexify(eq1.rhs))
+        assert inner[-1].nodes[0].exprs[0].expr.rhs == freeze(indexify(eq2.rhs))
 
     def test_equations_emulate_bc(self):
         """
@@ -1523,7 +1526,7 @@ class TestLoopScheduling(object):
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
                Eq(b[time, x, y, 0], 0.)]
-        op = Operator([main] + bcs, dse='noop', dle='noop')
+        op = Operator([main] + bcs, dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
         assert all(id(trees[0][0]) == id(i[0]) for i in trees)
@@ -1537,11 +1540,11 @@ class TestLoopScheduling(object):
                     scope='heap').indexify()
         eq1 = Eq(ti0, t0*3.)
         eq2 = Eq(tu, ti0 + t1*3.)
-        op = Operator([eq1, eq2], dse='noop', dle='noop')
+        op = Operator([eq1, eq2], dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
-        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eq2.rhs
+        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == freeze(eq1.rhs)
+        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == freeze(eq2.rhs)
 
     @pytest.mark.parametrize('exprs', [
         ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,0,z], 0.)'],
@@ -1562,15 +1565,15 @@ class TestLoopScheduling(object):
 
         eqs = [eval(exprs[0]), eval(exprs[1])]
 
-        op = Operator(eqs, dse='noop', dle='noop')
+        op = Operator(eqs, dle='noop')
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eqs[0].rhs
-        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eqs[1].rhs
+        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == freeze(eqs[0].rhs)
+        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == freeze(eqs[1].rhs)
 
     @pytest.mark.parametrize('shape', [(11, 11), (11, 11, 11)])
-    def test_equations_mixed_densedata_timedata(self, shape):
+    def test_equations_mixed_functions(self, shape):
         """
         Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
@@ -1625,7 +1628,7 @@ class TestLoopScheduling(object):
         u2 = TimeFunction(name='u2', grid=grid, save=2)
         eqn_1 = Eq(u1[t+1, x, y, z], u1[t, x, y, z] + 1.)
         eqn_2 = Eq(u2[time+1, x, y, z], u2[time, x, y, z] + 1.)
-        op = Operator([eqn_1, eqn_2], dse='noop', dle='noop')
+        op = Operator([eqn_1, eqn_2], dle='topofuse')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
         assert len(trees[0][-1].nodes[0].exprs) == 2
@@ -1722,7 +1725,7 @@ class TestLoopScheduling(object):
         # Note that `eq1` doesn't impose any constraint on the ordering of
         # the `time` Dimension w.r.t. the `grid` Dimensions, as `time` appears
         # as a free Dimension and not within an array access such as [time, x, y]
-        op = Operator([eq0, eq1])
+        op = Operator([eq0, eq1], dle='topofuse')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 1
         tree = trees[0]
