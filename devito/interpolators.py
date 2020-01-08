@@ -62,7 +62,7 @@ class Injection(UnevaluatedSparseOperation):
         return return_value
 
     def __repr__(self):
-        return "Injection(%s on %s)" % (repr(self.expr), repr(self.field))
+        return "Injection(%s into %s)" % (repr(self.expr), repr(self.field))
 
 
 class Interpolation(UnevaluatedSparseOperation):
@@ -84,7 +84,8 @@ class Interpolation(UnevaluatedSparseOperation):
         return return_value
 
     def __repr__(self):
-        return "Interpolation(%s)" % repr(self.expr)
+        return "Interpolation(%s into %s)" % repr(self.expr,
+                                                  repr(self.interpolator.sfunction))
 
 
 class GenericInterpolator(ABC):
@@ -339,6 +340,21 @@ class PrecomputedInterpolator(GenericInterpolator):
                 "computations.")
 
     def interpolate(self, expr, offset=0, increment=False, self_subs={}):
+        """
+        Generate equations interpolating an arbitrary expression into ``self``.
+
+        Parameters
+        ----------
+        expr : expr-like
+            Input expression to interpolate.
+        offset : int, optional
+            Additional offset from the boundary.
+        increment: bool, optional
+            If True, generate increments (Inc) rather than assignments (Eq).
+        """
+        return Interpolation(self, expr, offset, increment, self_subs)
+
+    def _interpolate(self, expr, offset=0, increment=False, self_subs={}):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
 
