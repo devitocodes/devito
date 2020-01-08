@@ -131,8 +131,24 @@ ArmOperator = CPU64Operator
 
 class CustomOperator(CPU64Operator):
 
+    _known_passes = ('blocking', 'denormals', 'optcomms', 'wrapping', 'openmp',
+                     'mpi', 'simd', 'prodders')
+
     @classmethod
-    def _make_passes_mapper(cls, **kwargs):
+    def _make_clusters_passes_mapper(cls, **kwargs):
+        options = kwargs['options']
+
+        inner = options['blockinner']
+        levels = options['blocklevels'] or cls.BLOCK_LEVELS
+        blocker = Blocking(inner, levels)
+
+        return {
+            'blocking': partial(blocker.process)
+        }
+
+
+    @classmethod
+    def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
 
@@ -149,20 +165,48 @@ class CustomOperator(CPU64Operator):
         }
 
     @classmethod
+    def _compile(cls, expressions, **kwargs):
+        #TODO: before merging, update this to _build
+
+        # Sanity check
+        passes = as_tuple(kwargs['mode'])
+        if set(passes) > set(cls._known_passes):
+            raise InvalidOperator("Unknown passes `%s`" % str(passes))
+
+        return super(CustomOperator, cls)._compile(expressions, **kwargs)
+
+    @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
+        passes = as_tuple(kwargs['mode'])
+
+        # Fetch passes to be called
+        passes_mapper = cls._make_clusters_passes_mapper(**kwargs)
+
+        # Call passes
+        for i in passes:
+            try:
+                clusters = passes_mapper[i](clusters)
+            except KeyError:
+                pass
+
+        return clusters
+
+    @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         passes = as_tuple(kwargs['mode'])
 
         # Fetch passes to be called
-        passes_mapper = cls._make_passes_mapper(**kwargs)
+        passes_mapper = cls._make_iet_passes_mapper(**kwargs)
 
         # Call passes
         for i in passes:
             try:
                 passes_mapper[i](graph)
             except KeyError:
-                raise InvalidOperator("Unknown passes `%s`" % str(passes))
+                pass
 
         # Force-call `mpi` if requested via global option
         if 'mpi' not in passes and options['mpi']:
