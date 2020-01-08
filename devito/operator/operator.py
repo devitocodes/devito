@@ -932,8 +932,6 @@ def parse_kwargs(**kwargs):
     # `dle`, mode
     if mode is None:
         mode = 'noop'
-    elif mode == 'noop':
-        mode = tuple(i for i in ['mpi', 'openmp'] if options[i]) or 'noop'
     kwargs['mode'] = mode
 
     # `platform`
