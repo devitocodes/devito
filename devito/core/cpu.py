@@ -24,6 +24,30 @@ class CPU64NoopOperator(OperatorCore):
     """
 
     @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        options = kwargs['options']
+
+        # Distributed-memory parallelism
+        if options['mpi']:
+            mpiize(graph, mode=options['mpi'])
+
+        # Shared-memory parallelism
+        if options['openmp']:
+            ompizer = Ompizer()
+            ompizer.make_parallel(graph)
+
+        # Symbol definitions
+        data_manager = DataManager()
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
+
+        return graph
+
+
+class CPU64Operator(CPU64NoopOperator):
+
+    @classmethod
     @timed_pass(name='specializing.Clusters')
     def _specialize_clusters(cls, clusters, **kwargs):
         """
@@ -68,19 +92,6 @@ class CPU64NoopOperator(OperatorCore):
         clusters = scalarize(clusters, template)
 
         return clusters
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        # Symbol definitions
-        data_manager = DataManager()
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
-
-        return graph
-
-
-class CPU64Operator(CPU64NoopOperator):
 
     @classmethod
     @timed_pass(name='specializing.IET')
