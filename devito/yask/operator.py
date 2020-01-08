@@ -113,18 +113,6 @@ class YASKOmpizer(Ompizer):
         super(YASKOmpizer, self).__init__(key=key)
 
 
-class YASKNoopOperator(Operator):
-
-    @classmethod
-    def _specialize_iet(cls, graph, **kwargs):
-        # Symbol definitions
-        data_manager = DataManager()
-        data_manager.place_definitions(graph)
-        data_manager.place_casts(graph)
-
-        return graph
-
-
 class YASKOperator(Operator):
 
     """
@@ -279,6 +267,23 @@ class YASKOperator(Operator):
             local_vars = [i for i in self.parameters if i.name in local_vars]
             yk_soln = context.make_yk_solution(name, None, local_vars)
             self.yk_solns[(dimensions, yk_soln_obj)] = yk_soln
+
+
+class YASKNoopOperator(YASKOperator):
+
+    @classmethod
+    def _specialize_iet(cls, graph, **kwargs):
+        yk_solns = kwargs['yk_solns']
+
+        # Create YASK kernels
+        make_yask_kernels(graph, yk_solns=yk_solns)
+
+        # Symbol definitions
+        data_manager = DataManager()
+        data_manager.place_definitions(graph)
+        data_manager.place_casts(graph)
+
+        return graph
 
 
 class YASKCustomOperator(YASKOperator):
