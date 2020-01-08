@@ -6,7 +6,6 @@ from math import ceil
 from cached_property import cached_property
 import ctypes
 
-
 from devito.exceptions import InvalidOperator
 from devito.logger import info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq
@@ -19,9 +18,8 @@ from devito.parameters import configuration
 from devito.symbolics import indexify
 from devito.targets import iet_lower
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_ordered,
-                          filter_sorted, split, timed_pass, timed_region)
+                          filter_sorted, split, timed_pass, timed_region, Evaluable)
 from devito.types import Dimension, Eq
-from devito.tools import Evaluable
 
 __all__ = ['Operator']
 
