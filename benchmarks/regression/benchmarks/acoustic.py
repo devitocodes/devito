@@ -1,36 +1,25 @@
-# Write the benchmarking functions here.
-# See "Writing benchmarks" in the asv docs for more information.
+from devito import Grid, TimeFunction, Eq, Operator
+from examples.seismic.acoustic import AcousticWaveSolver
 
 
-class TimeSuite:
-    """
-    An example benchmark that times the performance of various kinds
-    of iterating over dictionaries in Python.
-    """
-    def setup(self):
-        self.d = {}
-        for x in range(500):
-            self.d[x] = None
+class IsotropicAcoustic(object):
 
-    def time_keys(self):
-        for key in self.d.keys():
-            pass
+    params = ([(50, 50, 50)], [4])
+    param_names = ['shape', 'space_order']
 
-    def time_iterkeys(self):
-        for key in self.d.iterkeys():
-            pass
+    repeat = 3
 
-    def time_range(self):
-        d = self.d
-        for key in range(500):
-            x = d[key]
+    def time_run(self, shape, space_order):
 
-    def time_xrange(self):
-        d = self.d
-        for key in xrange(500):
-            x = d[key]
+        #from examples.seismic.acoustic.acoustic_example import run
+        #run(shape=shape, space_order=space_order)
 
+        grid = Grid(shape=(4, 4, 4))
 
-class MemSuite:
-    def mem_list(self):
-        return [0] * 256
+        f = TimeFunction(name='f', grid=grid)
+
+        eq = Eq(f.forward, f + 1)
+
+        op = Operator(eq)
+
+        op.apply(time_M=10)
