@@ -10,27 +10,6 @@ env:
 
 matrix:
   include:
-    - python: 3.6
-      os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
-          packages:
-            - gcc-4.9
-            - g++-4.9
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 INSTALL_TYPE=pip_setup RUN_EXAMPLES=False MPI_INSTALL=1 MPI_RESTRAIN=1
-    - python: 3.8
-      dist: xenial
-      os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
-          packages:
-            - gcc-5
-            - g++-5
-      env: DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0 RUN_EXAMPLES=False INSTALL_TYPE=conda MPI_INSTALL=0
     - python: 3.7
       dist: xenial
       os: linux
@@ -41,29 +20,7 @@ matrix:
           packages:
             - gcc-8
             - g++-8
-      env: DEVITO_ARCH=gcc-8 DEVITO_OPENMP=1 OMP_NUM_THREADS=2 RUN_EXAMPLES=True INSTALL_TYPE=conda MPI_INSTALL=1 MPI_RESTRAIN=1
-    - python: 3.7
-      dist: xenial
-      os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
-          packages:
-            - gcc-7
-            - g++-7
-      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=yask YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=1
-    - python: 3.7
-      dist: xenial
-      os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
-          packages:
-            - gcc-7
-            - g++-7
-      env: DEVITO_ARCH=gcc-7 DEVITO_OPENMP=0 DEVITO_BACKEND=ops YC_CXX=g++-7 INSTALL_TYPE=conda RUN_EXAMPLES=False MPI_INSTALL=0
+      env: DEVITO_ARCH=gcc-8 DEVITO_OPENMP=1 OMP_NUM_THREADS=2 RUN_EXAMPLES=True INSTALL_TYPE=conda 
 
 addons:
   apt:
@@ -71,10 +28,6 @@ addons:
       - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
 
 before_install:
-  - if [[ "$MPI_INSTALL" == '1' ]]; then
-      sudo apt-get install -y -q mpich libmpich-dev;
-      export MPICH_CC=$DEVITO_ARCH;
-    fi
   # Setup anaconda
   - if [[ $INSTALL_TYPE == 'conda' ]]; then
       wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
@@ -96,26 +49,13 @@ install:
       pip install -e .;
       conda list;
     fi
-  - if [[ "$MPI_INSTALL" == '1' ]]; then
-      pip install -r requirements-optional.txt;
-    fi
-
-  # Install devito with pip
-  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py install; fi
-  - if [[ $MPI_INSTALL == '1' ]]; then pip install -e .[extras]; fi
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
-  - if [[ $DEVITO_BACKEND == 'yask' ]]; then
-      conda install swig; cd ../;
-      git clone https://github.com/devitocodes/yask.git;
-      cd yask; make compiler-api; pip install -e .; cd ../devito;
-    fi
 
 script:
   - flake8 --builtins=ArgumentError .
   # Run test with py.tests
-  - if [[ $INSTALL_TYPE == 'pip_setup' ]]; then python setup.py test; fi
   - if [[ $INSTALL_TYPE == 'conda' ]]; then py.test --durations=20 --maxfail=5 $COV devito tests/; fi
   # Run remaining specialized examples and tests
   # Additional seismic operator tests

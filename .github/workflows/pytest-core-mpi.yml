@@ -1,4 +1,4 @@
-name: CI-yask
+name: CI-mpi
 
 on:
   # Trigger the workflow on push or pull request,
@@ -12,20 +12,17 @@ on:
 
 jobs:
   build:
-    name: pytest-yask
+    name: pytest-mpi
     runs-on: ubuntu-16.04
 
     env:
       DEVITO_ARCH: "gcc-7"
       DEVITO_OPENMP: 1
-      DEVITO_BACKEND: "yask"
-      OMP_NUM_THREADS: 2
+      DEVITO_BACKEND: "core"
       CC: "gcc-7"
       CXX: "g++-7"
-      YC_CC: "gcc-7"
-      YC_CXX: "g++-7"
       PYTHON_VERSION: "3.7"
-
+  
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
@@ -35,24 +32,14 @@ jobs:
       with:
         python-version: 3.7
 
-    - name: Checkout yask
-      uses: actions/checkout@v2
-      with:
-        repository: devitocodes/yask
-        path: yask
-
-    - name: Install yask
+    - name: Install MPI
       run : |
-        sudo apt-get update
-        sudo apt-get install -y swig
-        make compiler-api
-        pip install -e .
-      working-directory: yask
+        sudo apt-get install -y mpich libmpich-dev
 
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install -e .
+        pip install -e .[extras]
 
     - name: Test with pytest
       run: |

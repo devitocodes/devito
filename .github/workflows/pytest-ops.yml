@@ -33,10 +33,6 @@ jobs:
       with:
         python-version: 3.7
 
-    - name: Install GCC 7
-      run : |
-        sudo apt-get install -y g++-7
-
     - name: Install dependencies
       run: |
         pip install --upgrade pip
@@ -45,3 +41,8 @@ jobs:
     - name: Test with pytest
       run: |
         pytest tests/
+
+    - name: Upload coverage to Codecov  
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}

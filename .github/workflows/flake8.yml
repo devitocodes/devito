@@ -11,7 +11,7 @@ on:
        - master
 
 jobs:
-  build:
+  flake8:
 
     runs-on: ubuntu-latest
 
