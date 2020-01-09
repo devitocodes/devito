@@ -1,0 +1,30 @@
+name: Jupyter notebooks
+
+on: [push]
+
+jobs:
+  test:
+    name: Test Jupyter notebooks on ${{ matrix.python-version }} and ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: ['3.6', '3.7']
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        compiler: [gcc, clang]
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+    - name: Evaluate cells of example notebooks
+      env:
+        CC: ${{ matrix.compiler }}
+      run: |
+        DEVITO_ARCH=${{ matrix.compile }} pytest -vrs --nbval examples/
