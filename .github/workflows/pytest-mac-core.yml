@@ -1,0 +1,96 @@
+# Based on mloubout test install branch
+name: CI-mac-core
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: osx
+
+    env:
+      DEVITO_ARCH: "gcc-${{ matrix.gcc-version }}"
+      DEVITO_OPENMP: ${{ matrix.openmp }}
+      DEVITO_BACKEND: "core"
+      OMP_NUM_THREADS: 2
+      CC: "gcc-${{ matrix.gcc-version }}"
+      CXX: "g++-${{ matrix.gcc-version }}"
+      PYTHON_VERSION: "${{ matrix.python-version }}"
+
+    strategy:
+      # Prevent all build to stop if a single one fails
+      fail-fast: false
+
+      matrix:
+        name: [
+           py36-gcc49-openmp,
+           py37-gcc5-openmp,
+           py38-gcc6-openmp,
+           py36-gcc7-openmp,
+           py37-gcc7-noopenmp,
+           py37-gcc8-openmp,
+           py38-gcc9-openmp
+        ]
+        include:
+            - name: py36-gcc49-openmp
+              python-version: 3.6
+              gcc-version: 4.9
+              openmp: 1
+
+            - name: py37-gcc5-openmp
+              python-version: 3.7
+              gcc-version: 5
+              openmp: 1
+
+            - name: py38-gcc6-openmp
+              python-version: 3.8
+              gcc-version: 6
+              openmp: 1
+
+            - name: py36-gcc7-openmp
+              python-version: 3.6
+              gcc-version: 7
+              openmp: 1
+
+            - name: py37-gcc7-noopenmp
+              python-version: 3.7
+              gcc-version: 7
+              openmp: 0
+
+            - name: py37-gcc8-openmp
+              python-version: 3.7
+              gcc-version: 8
+              openmp: 1
+
+            - name: py38-gcc9-openmp
+              python-version: 3.8
+              gcc-version: 9
+              openmp: 1
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v1
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install GCC ${{ matrix.gcc-version }}
+      run : |
+        sudo apt-get install -y g++-${{ matrix.gcc-version }}
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -e .
+    - name: Test with pytest
+      run: |
+        pytest tests/
