@@ -1,4 +1,4 @@
-name: CI
+name: Documentation
 
 on: [release]
 
@@ -10,10 +10,6 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Run documentation script
-      run: echo Hello, world Documentation!
-    - name: Run a multi-line script
       run: |
-        echo Add other actions to build,
-        echo test, and deploy your project.
         pip install doctr;
         doctr deploy . --built-docs docs/_build/html --key-path .deploy_key.enc;
