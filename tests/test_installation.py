@@ -10,5 +10,6 @@ def test_python_version():
     e_ver = os.environ.get("PYTHON_VERSION") or os.environ.get("TRAVIS_PYTHON_VERSION")
     # Installed version
     i_ver = platform.python_version()
-
-    assert i_ver.startswith(e_ver)
+    
+    # Only for CI so ignore if non-CI
+    assert e_ver is None or i_ver.startswith(e_ver)

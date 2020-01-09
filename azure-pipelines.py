@@ -43,7 +43,5 @@ if os.environ.get('testWithPip') != 'true':
         # TODO: Currently untested due to issue #859
         # runStep("py.test --nbval examples/mpi")
         runStep("ipcluster stop --profile=mpi")
-        runStep("codecov")
-    runStep("pushd docs; make html; popd")
 
 exit(sum(err))
