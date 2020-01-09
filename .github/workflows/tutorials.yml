@@ -1,6 +1,14 @@
 name: Jupyter notebooks
 
-on: [push]
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
 
 jobs:
   test:
@@ -9,8 +17,8 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.6', '3.7']
-        os: [ubuntu-latest, windows-latest, macOS-latest]
-        compiler: [gcc, clang]
+        os: [ubuntu-latest]
+        gcc-version: [9]
 
     steps:
     - uses: actions/checkout@v1
@@ -19,12 +27,16 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    - name: Install GCC ${{ matrix.gcc-version }}
+      run : |
+        sudo apt-get install -y g++-${{ matrix.gcc-version }}
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e .
     - name: Evaluate cells of example notebooks
       env:
-        CC: ${{ matrix.compiler }}
+        CC: ${{ matrix.gcc-version }}
       run: |
-        DEVITO_ARCH=${{ matrix.compile }} pytest -vrs --nbval examples/
+        DEVITO_ARCH=gcc-${{ matrix.gcc-version }} pytest -vrs --nbval examples/
