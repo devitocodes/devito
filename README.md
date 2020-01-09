@@ -32,6 +32,7 @@ git clone https://github.com/devitocodes/devito.git
 cd devito
 conda env create -f environment.yml
 source activate devito
+pip install -r requirements.txt
 pip install -e .
 ```
 
