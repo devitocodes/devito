@@ -1,5 +1,6 @@
 import versioneer
 
+import os
 from setuptools import setup, find_packages
 
 with open('requirements.txt') as f:
@@ -31,6 +32,14 @@ for ir in optionals:
         opt_reqs += [ir]
 extras_require['extras'] = opt_reqs
 
+# If interested in benchmarking devito, we need the `examples` too
+exclude = ['docs', 'tests']
+try:
+    if not bool(int(os.environ.get('DEVITO_BENCHMARKS', 0))):
+        exclude += ['examples']
+except (TypeError, ValueError):
+    exclude += ['examples']
+
 setup(name='devito',
       version=versioneer.get_version(),
       cmdclass=versioneer.get_cmdclass(),
@@ -46,7 +55,7 @@ setup(name='devito',
       author="Imperial College London",
       author_email='g.gorman@imperial.ac.uk',
       license='MIT',
-      packages=find_packages(exclude=['docs', 'tests', 'examples']),
+      packages=find_packages(exclude=exclude),
       install_requires=reqs,
       extras_require=extras_require,
       test_suite='tests')
