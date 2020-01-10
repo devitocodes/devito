@@ -15,9 +15,7 @@ jobs:
     - name: Run documentation script
       run: |
         #html documentation generation
-        cd docs;
-        make html;
-        cd ..;
+        cd docs && make html && cd ..;
         # html documentation generation through doctr
         pip install doctr;
         doctr deploy . --built-docs docs/_build/html --key-path .deploy_key.enc;
