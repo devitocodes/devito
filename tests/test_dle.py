@@ -510,49 +510,55 @@ class TestNestedParallelism(object):
                                                 'num_threads(nthreads_nested)')
 
 
-class TestOffloading(object):
+@switchconfig(autopadding=True, platform='knl7210')  # Platform is to fix pad value
+@patch("devito.dse.rewriters.AdvancedRewriter.MIN_COST_ALIAS", 1)
+def test_minimize_reminders_due_to_autopadding():
+    """
+    Check that the bounds of the Iteration computing the DSE-captured aliasing
+    expressions are relaxed (i.e., slightly larger) so that backend-compiler-generated
+    remainder loops are avoided.
+    """
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions  # noqa
+    t = grid.stepping_dim
 
-    @switchconfig(platform='nvidiaX')
-    def test_basic(self):
-        grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+    f.data_with_halo[:] = 1.
+    u = TimeFunction(name='u', grid=grid, space_order=3)
+    u.data_with_halo[:] = 0.
 
-        u = TimeFunction(name='u', grid=grid)
+    # Leads to 3D aliases
+    eqn = Eq(u.forward, ((u[t, x, y, z] + u[t, x+1, y+1, z+1])*3*f +
+                         (u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3*f + 1))
+    op0 = Operator(eqn, dse='noop', dle=('advanced', {'openmp': False}))
+    op1 = Operator(eqn, dse='aggressive', dle=('advanced', {'openmp': False}))
 
-        op = Operator(Eq(u.forward, u + 1), dle=('advanced', {'openmp': True}))
+    x0_blk_size = op1.parameters[-2]
+    y0_blk_size = op1.parameters[-1]
+    z_size = op1.parameters[4]
 
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 1
+    # Check Array shape
+    arrays = [i for i in FindSymbols().visit(op1._func_table['bf0'].root) if i.is_Array]
+    assert len(arrays) == 1
+    a = arrays[0]
+    assert len(a.dimensions) == 3
+    assert a.halo == ((1, 1), (1, 1), (1, 1))
+    assert a.padding == ((0, 0), (0, 0), (0, 30))
+    assert Add(*a.symbolic_shape[0].args) == x0_blk_size + 2
+    assert Add(*a.symbolic_shape[1].args) == y0_blk_size + 2
+    assert Add(*a.symbolic_shape[2].args) == z_size + 32
 
-        assert trees[0][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(3)'
-        assert op.body[1].header[0].value ==\
-            ('omp target enter data map(to: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body[1].footer[0].value ==\
-            ('omp target exit data map(from: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+    # Check loop bounds
+    trees = retrieve_iteration_tree(op1._func_table['bf0'].root)
+    assert len(trees) == 2
+    expected_rounded = trees[0].inner
+    assert expected_rounded.symbolic_max ==\
+        z.symbolic_max + (z.symbolic_max - z.symbolic_min + 3) % 16 + 1
 
-    @switchconfig(platform='nvidiaX')
-    def test_multiple_eqns(self):
-        grid = Grid(shape=(3, 3, 3))
-
-        u = TimeFunction(name='u', grid=grid)
-        v = TimeFunction(name='v', grid=grid)
-
-        op = Operator([Eq(u.forward, u + v + 1), Eq(v.forward, u + v + 4)],
-                      dle=('advanced', {'openmp': True}))
-
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 1
-
-        assert trees[0][1].pragmas[0].value ==\
-            'omp target teams distribute parallel for collapse(3)'
-        for i, f in enumerate([u, v]):
-            assert op.body[2].header[i].value ==\
-                ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
-                 {'n': f.name})
-            assert op.body[2].footer[i].value ==\
-                ('omp target exit data map(from: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
-                 {'n': f.name})
+    # Check numerical output
+    op0(time_M=1)
+    exp = np.copy(u.data[:])
+    u.data_with_halo[:] = 0.
+    op1(time_M=1)
+    assert np.all(u.data == exp)
+>>>>>>> 160b086b... tests: Add test gpu.
