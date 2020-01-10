@@ -1,4 +1,4 @@
-name: Jupyter notebooks
+name: Jupyter Notebooks
 
 on:
   # Trigger the workflow on push or pull request,
@@ -20,8 +20,6 @@ jobs:
       matrix:
         name: [
           ubuntu-18.04-gcc-9,
-          ubuntu-18.04-clang-9,
-          macOS-10.14-gcc-9,
           macOS-10.14-xcode-11.0
           ]
 
@@ -32,24 +30,13 @@ jobs:
             compiler: gcc
             version: "9"
 
-          - name: ubuntu-18.04-clang-9
-            os: ubuntu-18.04
-            compiler: clang
-            version: "9"
-
-          - name: macOS-10.14-gcc-9
-            os: macOS-10.14
-            compiler: gcc
-            version: "9"
-
           - name: macOS-10.14-xcode-11.0
             os: macOS-10.14
             compiler: xcode
             version: "11"
 
         python-version: ['3.6', '3.7']
-        # os: [ubuntu-latest]
-        # gcc-version: [9]
+
     steps:
     - uses: actions/checkout@v1
     - name: Set up Python ${{ matrix.python-version }}
@@ -99,14 +86,6 @@ jobs:
           echo "::set-env name=CC::clang"
           echo "::set-env name=CXX::clang++"
         fi
-
-    # - name: Install GCC ${{ matrix.gcc-version }}
-    #   run : |
-    #     sudo apt-get install -y g++-${{ matrix.gcc-version }}
-
-    # - name: Install MPI
-    #   run : |
-    #     sudo apt-get install -y mpich libmpich-dev
 
     - name: Install dependencies
       run: |
