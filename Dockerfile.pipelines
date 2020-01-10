@@ -121,16 +121,12 @@ RUN if [ $installWithPip == "true" ] ; then \
       if [ $MPI_INSTALL == '1' ] ; then \
         pip install -r requirements-optional.txt ; \
       fi ; \
-      pip install pytest-xdist ; \
-      if [ $DEVITO_BACKEND == "yask" ] ; then \
-        conda install swig ; \
-        git clone https://github.com/devitocodes/yask.git /tmp/yask ; \
-        pushd /tmp/yask ; \
-          make compiler-api ; \
-          pip install -e . ; \
-        popd ; \
-      fi ; \
       if [ $RUN_EXAMPLES == "true" ] ; then \
+        pip install matplotlib ; \
+      fi ; \
+      pip install pytest-xdist ; \
+
+      if [ $MPI_INSTALL == '1' ] ; then \
         bash scripts/create_ipyparallel_mpi_profile.sh; \
       fi ; \
     fi
