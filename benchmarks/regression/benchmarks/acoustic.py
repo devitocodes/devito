@@ -1,25 +1,27 @@
-from devito import Grid, TimeFunction, Eq, Operator
-from examples.seismic.acoustic import AcousticWaveSolver
+from devito import configuration
+from examples.seismic.acoustic.acoustic_example import acoustic_setup
 
 
 class IsotropicAcoustic(object):
 
-    params = ([(50, 50, 50)], [4])
+    params = ([(492, 492, 492)], [12])
     param_names = ['shape', 'space_order']
 
     repeat = 3
 
-    def time_run(self, shape, space_order):
+    # Default shape for loop blocking
+    x0_blk0_size = 16
+    y0_blk0_size = 16
 
-        #from examples.seismic.acoustic.acoustic_example import run
-        #run(shape=shape, space_order=space_order)
+    # Default number of threads -- run across all sockets currently
+    nthreads = configuration['platform'].cores_physical
 
-        grid = Grid(shape=(4, 4, 4))
+    def time_forward(self, shape, space_order):
+        solver = acoustic_setup(shape=shape,
+                                space_order=space_order,
+                                dle=('advanced', {'openmp': True}))
 
-        f = TimeFunction(name='f', grid=grid)
-
-        eq = Eq(f.forward, f + 1)
-
-        op = Operator(eq)
-
-        op.apply(time_M=10)
+        solver.forward(x0_blk0_size=IsotropicAcoustic.x0_blk0_size,
+                       y0_blk0_size=IsotropicAcoustic.y0_blk0_size,
+                       nthreads=IsotropicAcoustic.nthreads,
+                       time_M=50)
