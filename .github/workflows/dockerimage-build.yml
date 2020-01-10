@@ -10,10 +10,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
+    - name: Get timestamp
+        id: ts
+        run: echo "::set-output name=date::$(date +'%s')"      
+
     - name: Build the Docker image
       run: | 
         echo "Image tag is ${TAG}"
         docker build . --file docker/Dockerfile --tag ${TAG}
         docker run --name testrun ${TAG}
       env:
-        TAG: devito_img-${{ date "+%s" }}
+        TAG: devito_img-${{steps.ts.outputs.date}}
