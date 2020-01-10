@@ -17,7 +17,11 @@ jobs:
       run: >-
         python setup.py sdist bdist_wheel
     - name: Publish distribution to fake Test PyPI repo
+      if: startsWith(github.event.ref, 'refs/tags')
       uses: pypa/gh-action-pypi-publish@master
       with:
-        password: ${{ secrets.test_pypi_password }}
-        repository_url: https://test.pypi.org/legacy/
+        password: ${{ secrets.pypi_password }}
+        # publish to the test PyPI repository instead like this:
+        # (you'll need to create an API token at test.pypi.org)
+        # password: ${{ secrets.test_pypi_password }}
+        # repository_url: https://test.pypi.org/legacy/
