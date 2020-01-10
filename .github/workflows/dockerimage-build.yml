@@ -12,9 +12,5 @@ jobs:
     - uses: actions/checkout@v1
     - name: Build the Docker image
       run: | 
-        #echo "Image tag is ${TAG}"
-        echo "::set-output name=date::$(date +'%s')"
-        docker build . --file docker/Dockerfile --tag ${TAG}
-        docker run --name testrun ${TAG}
-      env:
-        TAG: devito_img-${{steps.ts.outputs.date}}
+        docker build . --file docker/Dockerfile --tag devito_img
+        docker run --name testrun devito_img
