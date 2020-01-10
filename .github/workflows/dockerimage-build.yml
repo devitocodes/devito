@@ -10,13 +10,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-    - name: Get timestamp
-        id: ts
-        run: echo "::set-output name=date::$(date +'%s')"      
-
     - name: Build the Docker image
       run: | 
-        echo "Image tag is ${TAG}"
+        #echo "Image tag is ${TAG}"
+        echo "::set-output name=date::$(date +'%s')"
         docker build . --file docker/Dockerfile --tag ${TAG}
         docker run --name testrun ${TAG}
       env:
