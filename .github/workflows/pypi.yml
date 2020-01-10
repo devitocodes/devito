@@ -10,6 +10,9 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: 3.7
+    - name: Install wheel
+      run: >-
+        python -m pip install wheel --user
     - name: Build a binary wheel and source package in dist/
       run: >-
         python setup.py sdist bdist_wheel
