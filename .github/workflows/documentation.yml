@@ -16,12 +16,14 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: '3.x'
-    - name: Generate documentation
+    - name: Install Sphinx
       run: |
         python -m pip install --upgrade pip 
         pip install sphinx sphinx_rtd_theme
-        #html documentation generation
-        cd docs && make html && cd ..;
+        
+    - name: Generate documentation
+      working-directory: docs
+      run: make html
         
     - name: Deploy
       uses: peaceiris/actions-gh-pages@v2
