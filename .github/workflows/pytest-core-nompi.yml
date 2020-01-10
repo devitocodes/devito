@@ -13,7 +13,7 @@ on:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-16.04
+    runs-on: ${{ matrix.platform }}
 
     env:
       DEVITO_ARCH: "gcc-${{ matrix.gcc-version }}"
@@ -38,6 +38,10 @@ jobs:
            py37-gcc8-openmp,
            py38-gcc9-openmp
         ]
+        platform: [
+           ubuntu-16.04,
+           macOS-10.14
+        ]        
         include:
             - name: py36-gcc49-openmp
               python-version: 3.6
