@@ -46,4 +46,7 @@ jobs:
       env:
         CC: ${{ matrix.gcc-version }}
       run: |
-        DEVITO_ARCH=gcc-${{ matrix.gcc-version }} pytest -vrs --nbval examples/
+        for notebook in examples/cfd examples/seismic/tutorials examples/compiler examples/userapi
+        do
+            DEVITO_ARCH=gcc-${{ matrix.gcc-version }} pytest -vrs --nbval $notebook
+        done
