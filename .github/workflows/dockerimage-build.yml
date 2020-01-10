@@ -12,7 +12,7 @@ jobs:
     - uses: actions/checkout@v1
     - name: Build the Docker image
     env:
-          TAG: my-image-name:$(date +%s)
+          TAG: "devito_img:$(date +%s)"
       run: | 
         docker build . --file docker/Dockerfile --tag ${TAG}
         docker run --name testrun ${TAG}
