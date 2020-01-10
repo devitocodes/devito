@@ -1,0 +1,51 @@
+name: asv-benchmarks
+
+on:
+  # Trigger the workflow on pushes to the master branch only
+  push:
+    branches:
+      - master
+
+jobs:
+  benchmarks:
+    name: benchmarks
+    runs-on: ubuntu-16.04
+
+    env:
+      DEVITO_ARCH: "gcc-9"
+      DEVITO_OPENMP: 1
+      CC: "gcc-9"
+      CXX: "g++-9"
+      PYTHON_VERSION: "3.7"
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v1
+
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+
+    - name: Install GCC 9
+      run : sudo apt-get install -y g++-9
+
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -e .
+        pip install asv
+
+    - name: Setup asv
+      run: |
+        bash benchmarks/regression/merge_history.sh
+        asv machine --yes
+
+    - name: Run benchmarks
+      run: |
+        asv run HASHFILE:merge_history.txt
+
+    - name: Upload results
+      run: |
+        asv publish
+        asv gh-pages
