@@ -94,9 +94,9 @@ jobs:
 
     - name: Test with pytest
       run: |
-        pytest tests/
+        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/
 
-    - name: Upload coverage to Codecov  
+    - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}

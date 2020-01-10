@@ -19,8 +19,14 @@ if os.environ.get('testWithPip') == 'true':
 
 if os.environ.get('testWithPip') != 'true':
     runStep("flake8 --exclude .conda,.git,.ipython --builtins=ArgumentError .")
-    runStep("py.test --durations=20 --maxfail=5 devito tests/")
+    if os.environ.get('MPI_INSTALL') == '1':
+        runStep("py.test -m parallel tests/")
+        runStep("ipcluster start --profile=mpi -n 4 --daemon")  # Needed by MPI notebooks
+        # TODO: Currently untested due to issue #859
+        # runStep("py.test --nbval examples/mpi")
+        runStep("ipcluster stop --profile=mpi")
     if os.environ.get('RUN_EXAMPLES') == 'true':
+        runStep("py.test tests/")
         runStep(("python benchmarks/user/benchmark.py test " +
                  "-P tti -so 4 -d 20 20 20 -n 5"))
         runStep("python benchmarks/user/benchmark.py test -P acoustic")
@@ -35,13 +41,9 @@ if os.environ.get('testWithPip') != 'true':
         runStep("py.test examples/cfd/example_diffusion.py")
         runStep("py.test examples/seismic/elastic/elastic_example.py")
         runStep("py.test examples/seismic/viscoelastic/viscoelastic_example.py")
-        runStep("ipcluster start --profile=mpi -n 4 --daemon")  # Needed by MPI notebooks
         runStep("py.test --nbval examples/cfd")
         runStep("py.test --nbval examples/seismic/tutorials")
         runStep("py.test --nbval examples/compiler")
         runStep("py.test --nbval examples/userapi")
-        # TODO: Currently untested due to issue #859
-        # runStep("py.test --nbval examples/mpi")
-        runStep("ipcluster stop --profile=mpi")
 
 exit(sum(err))
